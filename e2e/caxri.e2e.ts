@@ -165,6 +165,53 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
     }
 });
 
+test('sidebar search finds and selects Projects instead of exporting diagnostics', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const firstRoot = join(testDirectory, 'alpha-project');
+    const secondRoot = join(testDirectory, 'beta-project');
+    await execFileAsync('mkdir', ['-p', firstRoot, secondRoot]);
+
+    const running = await launch(userData, firstRoot);
+    try {
+        await createShellSession(running.page);
+        await running.app.evaluate((_, root) => {
+            process.env.CAXRI_TEST_ROOT_PATH = root;
+        }, secondRoot);
+        await running.page.getByRole('button', { name: 'Add Project' }).first().click();
+        await running.page
+            .getByRole('dialog')
+            .getByRole('button', { name: 'Shell', exact: true })
+            .click();
+        await expect(running.page.locator('.project-group.active')).toContainText('beta-project');
+
+        await running.page.getByRole('button', { name: 'Search', exact: true }).click();
+        const search = running.page.getByPlaceholder('Search projects, sessions, and commands…');
+        await search.fill('alpha-project');
+        await running.page
+            .getByLabel('Projects')
+            .getByText('alpha-project', { exact: true })
+            .click();
+
+        await expect(running.page.locator('.project-group.active')).toContainText('alpha-project');
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
+
+        await running.page.getByRole('button', { name: 'Search', exact: true }).click();
+        await running.page
+            .getByPlaceholder('Search projects, sessions, and commands…')
+            .fill('beta-project');
+        await running.page
+            .getByLabel('Sessions')
+            .getByRole('option')
+            .filter({ hasText: 'beta-project' })
+            .click();
+        await expect(running.page.locator('.project-group.active')).toContainText('beta-project');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('canceling Session deletion preserves the dirty editor buffer', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-delete-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');

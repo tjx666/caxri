@@ -293,6 +293,12 @@ export default function App() {
         }
     };
 
+    const selectProject = (projectId: string): void => {
+        const session = bootstrap?.sessions.find((item) => item.projectId === projectId);
+        if (session) void selectSession(session.id);
+        else beginSessionCreation(projectId);
+    };
+
     const newTerminal = async (kind: TerminalKind = 'shell', split = false): Promise<void> => {
         if (!selectedSession) return;
         try {
@@ -543,11 +549,7 @@ export default function App() {
                 selectedSessionId={selectedSession?.id}
                 onAddProject={() => execute('project.create')}
                 onCreateSession={beginSessionCreation}
-                onSelectProject={(projectId) => {
-                    const session = bootstrap.sessions.find((item) => item.projectId === projectId);
-                    if (session) void selectSession(session.id);
-                    else beginSessionCreation(projectId);
-                }}
+                onSelectProject={selectProject}
                 onSelectSession={(sessionId) => void selectSession(sessionId)}
                 onOpenSettings={() => execute('theme.openSettings')}
                 onSearch={() => execute('commandPalette.open')}
@@ -748,7 +750,15 @@ export default function App() {
                 onApplied={() => void refresh()}
                 onError={showMessage}
             />
-            <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} execute={execute} />
+            <CommandPalette
+                open={paletteOpen}
+                onOpenChange={setPaletteOpen}
+                execute={execute}
+                projects={bootstrap.projects}
+                sessions={bootstrap.sessions}
+                selectProject={selectProject}
+                selectSession={(sessionId) => void selectSession(sessionId)}
+            />
             {message && (
                 <div className="toast" role="status">
                     {message}

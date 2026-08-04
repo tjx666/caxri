@@ -857,6 +857,14 @@ button {
     overflow: auto;
     padding: 5px;
 }
+[cmdk-group-heading] {
+    padding: 8px 9px 4px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
 [cmdk-item] {
     display: flex;
     justify-content: space-between;
