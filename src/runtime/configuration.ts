@@ -54,6 +54,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+n', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
+    { key: 'cmd+k', command: 'terminal.clear' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     { key: 'cmd+w', command: 'terminal.close' },
     { key: 'cmd+s', command: 'editor.save' },

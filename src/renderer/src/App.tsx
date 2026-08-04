@@ -18,7 +18,6 @@ import type {
     ProjectRecord,
     SessionState,
     TerminalKind,
-    ThemeTokens,
 } from '@shared/types';
 import {
     addTerminal,
@@ -44,6 +43,8 @@ import { TERMINAL_DRAG_TYPE, TerminalLayoutView } from './components/TerminalLay
 import { WorkTab } from './components/WorkTab';
 import { Button } from './components/ui/button';
 import { useExternalDocumentSync } from './hooks/useExternalDocumentSync';
+import { clearTerminalView } from './lib/terminal-view-commands';
+import { applyCssTheme } from './lib/theme-css';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor'));
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
@@ -52,12 +53,6 @@ const inspectorCommands: Record<InspectorMode, string> = {
     git: 'inspector.showGit',
     agent: 'inspector.showAgent',
 };
-
-function applyCssTheme(theme: ThemeTokens): void {
-    const root = document.documentElement;
-    for (const [key, value] of Object.entries(theme.colors))
-        root.style.setProperty(`--${key}`, value);
-}
 
 export default function App() {
     const [bootstrap, setBootstrap] = useState<BootstrapState>();
@@ -434,6 +429,9 @@ export default function App() {
             case 'terminal.new':
                 void newTerminal('shell');
                 break;
+            case 'terminal.clear':
+                if (activeTerminalId) clearTerminalView(activeTerminalId);
+                break;
             case 'terminal.restart':
                 if (activeTerminalId)
                     void window.caxri
@@ -482,7 +480,7 @@ export default function App() {
     };
     const onCommand = useEffectEvent((command: string): void => {
         /** App-wide shortcuts must not mutate workbench state behind a modal dialog. */
-        if (settingsOpen || paletteOpen || pendingRoot) return;
+        if (settingsOpen || paletteOpen || pendingRoot || pendingProjectId) return;
         execute(command);
     });
 

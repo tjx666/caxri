@@ -13,6 +13,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'session.selectNext', title: 'Select Next Session', category: 'Session' },
     { id: 'session.selectPrevious', title: 'Select Previous Session', category: 'Session' },
     { id: 'terminal.new', title: 'New Terminal', category: 'Terminal' },
+    { id: 'terminal.clear', title: 'Clear Terminal', category: 'Terminal' },
     { id: 'terminal.restart', title: 'Restart Terminal', category: 'Terminal' },
     { id: 'terminal.close', title: 'Close Terminal', category: 'Terminal' },
     { id: 'editor.save', title: 'Save File', category: 'Editor' },

@@ -19,6 +19,14 @@ bun run dev
 
 Development logs are written to `logs/main.jsonl` and `logs/runtime.jsonl` in the repository root.
 
+Default Terminal shortcuts are configurable in Settings → Keybindings:
+
+| Shortcut    | Action                              |
+| ----------- | ----------------------------------- |
+| `Command+K` | Clear the active Terminal view      |
+| `Command+T` | Create and focus a new Terminal tab |
+| `Command+W` | Close the active Terminal tab       |
+
 Git hooks use the repository-owned `.githooks` directory through Git's native `core.hooksPath`. Dependency installation configures it automatically, and the pre-commit hook runs `lint-staged`.
 
 Authoritative validation commands:

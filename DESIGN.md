@@ -50,6 +50,8 @@ Runtime launches only discovered allowlisted programs (`$SHELL`, `claude`, or `c
 
 Terminal groups form a persisted binary split tree with horizontal or vertical direction and a bounded ratio. Dragging a tab moves its durable Terminal ID between groups or creates a new split; shared reducers collapse empty groups and validate that one Terminal cannot appear twice. Moving a view may detach and reattach xterm, but the Runtime-owned PTY is neither restarted nor duplicated. Keyboard-adjustable separators and group labels preserve accessible focus semantics.
 
+Default `Command+K`, `Command+T`, and `Command+W` bindings clear the active xterm view, create a Terminal in the active group, and close the active Terminal through its normal lifecycle. Clear is Renderer-local and never sends input or a signal to the PTY. All bindings remain configurable, and app-wide commands are ignored while a modal dialog is open.
+
 Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` detaches every Renderer view and closes the window while Main, Runtime, and PTYs remain alive; reopening creates a new window and attaches it to the live Runtime. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
 ## Files and editor

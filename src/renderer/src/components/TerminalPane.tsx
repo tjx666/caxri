@@ -8,6 +8,7 @@ import type { TerminalRecord, TerminalSnapshot, ThemeTokens } from '@shared/type
 
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from '../lib/terminal-fonts';
 import { TerminalReplayBuffer } from '../lib/terminal-replay';
+import { onTerminalViewClear } from '../lib/terminal-view-commands';
 import { Button } from './ui/button';
 
 interface TerminalPaneProps {
@@ -193,6 +194,11 @@ export function TerminalPane({
         xtermRef.current.options.scrollback = scrollback;
         xtermRef.current.options.theme = theme.terminal;
     }, [fontSize, scrollback, theme]);
+
+    useEffect(
+        () => onTerminalViewClear(terminal.id, () => xtermRef.current?.clear()),
+        [terminal.id],
+    );
 
     const isDead =
         terminal.lastProcessState !== 'running' && terminal.lastProcessState !== 'starting';

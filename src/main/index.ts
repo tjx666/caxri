@@ -383,6 +383,7 @@ async function installMenu(): Promise<void> {
                 label: 'Terminal',
                 submenu: [
                     command('terminal.new'),
+                    command('terminal.clear'),
                     command('terminal.restart'),
                     command('terminal.close'),
                 ],
