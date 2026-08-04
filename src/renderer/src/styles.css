@@ -518,6 +518,12 @@ button {
     color: var(--muted);
     cursor: not-allowed;
 }
+.file-type-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    object-fit: contain;
+}
 .tree-row span {
     overflow: hidden;
     text-overflow: ellipsis;

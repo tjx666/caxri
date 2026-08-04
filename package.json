@@ -50,6 +50,7 @@
         "@base-ui/react": "1.6.0",
         "@electron-toolkit/tsconfig": "2.0.0",
         "@eslint/js": "^10.0.1",
+        "@lobehub/assets-fileicon": "^1.0.0",
         "@monaco-editor/react": "4.7.0",
         "@playwright/test": "1.62.1",
         "@tailwindcss/vite": "4.3.3",

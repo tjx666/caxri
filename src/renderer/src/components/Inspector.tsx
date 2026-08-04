@@ -3,9 +3,7 @@ import {
     ChevronDown,
     ChevronRight,
     CircleAlert,
-    File,
     Files,
-    Folder,
     GitBranch,
     RefreshCw,
 } from 'lucide-react';
@@ -20,6 +18,7 @@ import type {
     TerminalRecord,
 } from '@shared/types';
 
+import { FileTypeIcon } from '../file-icons/FileTypeIcon';
 import { Button } from './ui/button';
 
 interface InspectorProps {
@@ -105,7 +104,7 @@ function FileTreeItem({
                     onClick={() => setExpanded((value) => !value)}
                 >
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    <Folder size={14} />
+                    <FileTypeIcon entry={entry} expanded={expanded} />
                     <span>{entry.name}</span>
                 </button>
                 {expanded && (
@@ -131,7 +130,7 @@ function FileTreeItem({
             }
             onClick={() => onOpenFile(entry.path)}
         >
-            <File size={13} />
+            <FileTypeIcon entry={entry} />
             <span>{entry.name}</span>
         </button>
     );
