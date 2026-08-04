@@ -132,8 +132,11 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             .filter(Boolean)
             .map((line) => JSON.parse(line) as PerformanceLog);
         const watcherReady = records.findLast((record) => record.event === 'watcher.ready');
-        const watcherErrors = records.filter((record) =>
-            ['watcher.fallback', 'watcher.setup_failed'].includes(record.event ?? ''),
+        const watcherFallbacks = records.filter(
+            (record) => record.event === 'watcher.fallback',
+        ).length;
+        const watcherErrors = records.filter(
+            (record) => record.event === 'watcher.setup_failed',
         ).length;
         const runtimeBoot = records.findLast((record) => record.event === 'runtime.ready');
         const terminalSpawn = records.findLast((record) => record.event === 'pty.spawned');
@@ -191,6 +194,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                     ? undefined
                     : Math.round(watcherReady.durationMs * 100) / 100,
             runtimeOpenDescriptors,
+            watcherFallbacks,
             watcherErrors,
             ipcFailures,
             highFrequencyIpcLogs,
@@ -211,6 +215,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expectTimedEvent(fileList);
         expectTimedEvent(gitCommand);
         expectTimedEvent(windowReady);
+        expect(watcherReady?.fields?.backend).toMatch(/^(fs-events|poll)$/);
         expect(inputThroughput?.fields?.inputBytes).toBeGreaterThan(0);
         expect(runtimeOpenDescriptors).toBeLessThan(256);
         expect(watcherErrors).toBe(0);

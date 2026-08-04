@@ -1,5 +1,18 @@
 @import 'tailwindcss';
 
+@theme inline {
+    --color-accent: var(--selection);
+    --color-accent-foreground: var(--foreground);
+    --color-background: var(--background);
+    --color-border: var(--border);
+    --color-foreground: var(--foreground);
+    --color-input: var(--border);
+    --color-muted-foreground: var(--muted);
+    --color-popover: var(--elevated);
+    --color-popover-foreground: var(--foreground);
+    --color-ring: var(--accent);
+}
+
 :root {
     --background: #282a36;
     --surface: #21222c;
@@ -70,7 +83,7 @@ button {
 }
 .sidebar-title > span,
 .git-heading > span,
-.agent-title {
+.terminal-info-title {
     display: flex;
     align-items: center;
     gap: 7px;
@@ -298,7 +311,7 @@ button {
     width: 6px;
     height: 6px;
     flex: 0 0 6px;
-    margin-right: 9px;
+    margin: 0;
     border-radius: 50%;
     background: var(--muted);
 }
@@ -309,30 +322,43 @@ button {
 .process-indicator.process-dead {
     background: var(--danger);
 }
+.tab-tail {
+    position: relative;
+    width: 27px;
+    height: 27px;
+    flex: 0 0 27px;
+}
+.tab-tail > .process-indicator,
+.tab-tail > .tab-close {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+}
 .tab-close {
-    display: none;
+    display: grid;
     width: 24px;
     height: 24px;
-    flex: 0 0 24px;
     place-items: center;
-    margin-right: 3px;
     padding: 0;
     border: 0;
     border-radius: 4px;
     color: inherit;
     background: transparent;
     cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
 }
 .tab-close:hover {
     background: var(--selection);
 }
 .work-tab:hover .tab-close,
 .work-tab:focus-within .tab-close {
-    display: grid;
+    opacity: 1;
+    pointer-events: auto;
 }
 .work-tab:hover .process-indicator,
 .work-tab:focus-within .process-indicator {
-    display: none;
+    opacity: 0;
 }
 .tab-actions {
     display: flex;
@@ -672,51 +698,69 @@ button {
         monospace;
     white-space: pre;
 }
-.agent-panel {
+.terminal-info-panel {
     padding: 8px;
 }
-.agent-card {
+.terminal-info-card {
     padding: 10px;
     margin-bottom: 8px;
     border: 1px solid var(--border);
     border-radius: 5px;
     background: var(--background);
 }
-.agent-title {
+.terminal-info-title {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-weight: 650;
 }
-.agent-card dl {
+.terminal-info-title strong {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    font-weight: 650;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.terminal-info-title > span {
+    flex: 0 0 auto;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: var(--elevated);
+    color: var(--muted);
+    font-size: 9px;
+}
+.terminal-info-card dl {
     display: grid;
-    grid-template-columns: 80px minmax(0, 1fr);
+    grid-template-columns: 65px minmax(0, 1fr);
     gap: 5px;
     margin: 10px 0;
     font-size: 11px;
 }
-.agent-metadata-row {
-    display: contents;
-}
-.agent-card dt {
+.terminal-info-card dt {
     color: var(--muted);
 }
-.agent-card dd {
+.terminal-info-card dd {
     min-width: 0;
     margin: 0;
     overflow-wrap: anywhere;
 }
-.agent-card dd.unknown {
+.terminal-state {
     display: flex;
     align-items: center;
     gap: 4px;
+}
+.terminal-state-running {
+    color: var(--success);
+}
+.terminal-state-starting {
     color: var(--warning);
 }
-.agent-card p {
-    margin: 7px 0 0;
+.terminal-state-stopped {
     color: var(--muted);
-    font-size: 10px;
-    line-height: 1.45;
+}
+.terminal-state-dead,
+.terminal-state-failed {
+    color: var(--danger);
 }
 
 .statusbar {
@@ -849,6 +893,10 @@ button {
 }
 .settings-dialog {
     width: min(920px, calc(100vw - 40px));
+    height: min(760px, calc(100vh - 40px));
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    overflow: hidden;
 }
 .settings-tabs {
     display: flex;
@@ -868,14 +916,16 @@ button {
 .settings-body {
     display: grid;
     grid-template-columns: minmax(250px, 0.85fr) minmax(310px, 1.15fr);
-    min-height: 460px;
+    min-height: 0;
+    overflow: hidden;
 }
 .structured-editor {
+    min-height: 0;
     padding: 13px;
     overflow: auto;
     border-right: 1px solid var(--border);
 }
-.structured-editor > label,
+.settings-field,
 .theme-editor fieldset label {
     display: flex;
     align-items: center;
@@ -884,31 +934,41 @@ button {
     margin-bottom: 12px;
     color: var(--muted);
 }
+.settings-field {
+    min-height: 36px;
+}
+.settings-field > [data-slot='input'],
+.settings-field > [data-slot='select-trigger'] {
+    width: 155px;
+    flex: 0 0 155px;
+}
 .settings-field-title {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
-.structured-editor input,
-.structured-editor select {
-    min-width: 100px;
-    height: 28px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
+.configuration-editor,
+.configuration-editor-loading {
+    min-width: 0;
+    min-height: 0;
     background: var(--background);
-    color: var(--foreground);
 }
-.settings-body > textarea {
-    resize: none;
-    border: 0;
-    outline: none;
-    padding: 12px;
-    background: var(--background);
-    color: var(--foreground);
-    font:
-        11px/1.5 SFMono-Regular,
-        Menlo,
-        monospace;
+.configuration-editor-loading {
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            color-mix(in srgb, var(--elevated) 60%, transparent),
+            transparent
+        ),
+        var(--background);
+    background-size: 180% 100%;
+    animation: configuration-loading 1.2s ease infinite;
+}
+@keyframes configuration-loading {
+    to {
+        background-position: -180% 0;
+    }
 }
 .binding-row {
     display: grid;
@@ -916,14 +976,76 @@ button {
     gap: 5px;
     margin-bottom: 5px;
 }
-.binding-row input {
-    width: 100%;
-    padding: 0 6px;
-}
 .theme-name {
     display: flex;
     justify-content: space-between;
     margin-bottom: 14px;
+}
+.theme-preview {
+    overflow: hidden;
+    margin-bottom: 15px;
+    border: 1px solid var(--preview-border);
+    border-radius: 7px;
+    background: var(--preview-background);
+    color: var(--preview-foreground);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--preview-background) 68%, transparent);
+    font:
+        10px/1.5 'Caxri JetBrains Mono',
+        monospace;
+}
+.theme-preview header,
+.theme-preview footer {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 8px;
+    background: var(--preview-surface);
+}
+.theme-preview header {
+    border-bottom: 1px solid var(--preview-border);
+}
+.theme-preview header > span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--preview-accent);
+}
+.theme-preview header strong {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.theme-preview header i {
+    color: var(--preview-muted);
+    font-style: normal;
+}
+.theme-preview-terminal {
+    min-height: 108px;
+    padding: 10px;
+}
+.theme-preview-terminal p {
+    margin: 0 0 4px;
+}
+.theme-preview-terminal b {
+    color: var(--preview-cyan);
+}
+.theme-preview-terminal span {
+    color: var(--preview-yellow);
+}
+.theme-preview-terminal .preview-status em {
+    color: var(--preview-blue);
+    font-style: normal;
+}
+.theme-preview-terminal .preview-success {
+    color: var(--preview-green);
+}
+.theme-preview footer {
+    justify-content: space-between;
+    border-top: 1px solid var(--preview-border);
+    color: var(--preview-muted);
+    font-size: 9px;
 }
 .theme-name span {
     color: var(--muted);

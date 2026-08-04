@@ -35,7 +35,7 @@ describe('external editor changes', () => {
                 { path: '/project/other.ts', dirty: true },
             ],
             activeTab: '/project/other.ts',
-            inspectorMode: 'agent',
+            inspectorMode: 'info',
             layout: createTerminalLayout('terminal-1', () => 'group-1'),
         };
 

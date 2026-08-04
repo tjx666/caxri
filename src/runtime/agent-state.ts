@@ -7,6 +7,8 @@ import Database from 'better-sqlite3';
 import type { AgentActivityState, ProcessState } from '../shared/types';
 
 export interface AgentSnapshotContext {
+    /** Keeps repeated probes bound to the Agent session already correlated with this Terminal. */
+    agentSessionId?: string;
     processState?: ProcessState;
     rootPath: string;
 }
@@ -109,6 +111,8 @@ export async function readClaudeState(
                 const metadata = JSON.parse(source) as ClaudeSessionMetadata;
                 if (typeof metadata.cwd !== 'string') return undefined;
                 if ((await canonicalPath(metadata.cwd)) !== requestedRoot) return undefined;
+                if (context.agentSessionId && metadata.sessionId !== context.agentSessionId)
+                    return undefined;
                 return metadata;
             } catch {
                 return undefined;
@@ -168,12 +172,16 @@ export async function readCodexState(
                   : 'rowid';
             const tokens = columns.has('tokens_used') ? ', tokens_used' : '';
             const archived = columns.has('archived') ? 'archived = 0 AND ' : '';
+            const session = context.agentSessionId ? 'id = ? AND ' : '';
             const placeholders = requestedRoots.map(() => '?').join(', ');
             const row = database
                 .prepare(
-                    `SELECT id, title${tokens} FROM threads WHERE ${archived}cwd IN (${placeholders}) ORDER BY ${updatedColumn} DESC LIMIT 1`,
+                    `SELECT id, title${tokens} FROM threads WHERE ${archived}${session}cwd IN (${placeholders}) ORDER BY ${updatedColumn} DESC LIMIT 1`,
                 )
-                .get(...requestedRoots) as CodexThreadRow | undefined;
+                .get(
+                    ...(context.agentSessionId ? [context.agentSessionId] : []),
+                    ...requestedRoots,
+                ) as CodexThreadRow | undefined;
             if (!row) continue;
             return {
                 sessionId: row.id,

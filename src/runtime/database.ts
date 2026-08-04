@@ -7,7 +7,6 @@ import Database from 'better-sqlite3';
 import { createTerminalLayout, removeTerminal } from '../shared/terminal-layout';
 import type {
     AgentActivityState,
-    AgentProvider,
     AgentSnapshot,
     ProcessState,
     ProjectRecord,
@@ -32,7 +31,7 @@ interface SessionRow {
     root_path: string;
     created_at: number;
     last_opened_at: number;
-    default_agent_terminal_id: string | null;
+    primary_agent_terminal_id: string | null;
     last_activity_state: AgentActivityState;
     layout_version: number;
     display_title: string;
@@ -69,7 +68,7 @@ function processActivityState(state: ProcessState): AgentActivityState {
     return 'failed';
 }
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 const MAX_TERMINALS_PER_SESSION = 16;
 const MAX_TERMINALS_GLOBAL = 32;
 
@@ -88,7 +87,7 @@ function mapSession(row: SessionRow): SessionRecord {
         rootPath: row.root_path,
         createdAt: row.created_at,
         lastOpenedAt: row.last_opened_at,
-        defaultAgentTerminalId: row.default_agent_terminal_id ?? undefined,
+        primaryAgentTerminalId: row.primary_agent_terminal_id ?? undefined,
         lastActivityState: row.last_activity_state,
         layoutVersion: row.layout_version,
         displayTitle: row.display_title,
@@ -108,7 +107,7 @@ function mapProject(row: ProjectRow): ProjectRecord {
 const SESSION_SELECT = `
     SELECT sessions.id, sessions.project_id, projects.root_path,
            sessions.created_at, sessions.last_opened_at,
-           sessions.default_agent_terminal_id, sessions.last_activity_state,
+           sessions.primary_agent_terminal_id, sessions.last_activity_state,
            sessions.layout_version, sessions.display_title
     FROM sessions
     JOIN projects ON projects.id = sessions.project_id`;
@@ -154,7 +153,7 @@ export class CaxriDatabase {
                 .run(Date.now());
             this.database
                 .prepare(
-                    "UPDATE sessions SET last_activity_state = 'failed' WHERE default_agent_terminal_id IN (SELECT id FROM terminals WHERE provider IS NOT NULL AND last_process_state = 'dead')",
+                    "UPDATE sessions SET last_activity_state = 'failed' WHERE primary_agent_terminal_id IN (SELECT id FROM terminals WHERE provider IS NOT NULL AND last_process_state = 'dead')",
                 )
                 .run();
             if (path !== ':memory:') {
@@ -201,7 +200,7 @@ export class CaxriDatabase {
           project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
           created_at INTEGER NOT NULL,
           last_opened_at INTEGER NOT NULL,
-          default_agent_terminal_id TEXT,
+          primary_agent_terminal_id TEXT,
           last_activity_state TEXT NOT NULL DEFAULT 'idle',
           layout_version INTEGER NOT NULL DEFAULT 2,
           display_title TEXT NOT NULL
@@ -318,45 +317,28 @@ export class CaxriDatabase {
         return row ? mapSession(row) : undefined;
     }
 
-    updateAgentMetadata(
-        sessionId: string,
-        provider: AgentProvider,
-        snapshot: AgentSnapshot,
-    ): boolean {
+    updateAgentMetadata(terminalId: string, snapshot: AgentSnapshot): boolean {
         return this.database.transaction(() => {
-            const session = this.getSession(sessionId);
+            const terminal = this.getTerminal(terminalId);
+            if (!terminal?.provider || terminal.provider !== snapshot.provider) return false;
+            const session = this.getSession(terminal.sessionId);
             if (!session) return false;
-            const candidates = this.listTerminals(sessionId)
-                .filter((terminal) => terminal.provider === provider)
-                .sort((left, right) => {
-                    const leftActive = ['running', 'starting'].includes(left.lastProcessState);
-                    const rightActive = ['running', 'starting'].includes(right.lastProcessState);
-                    return (
-                        Number(rightActive) - Number(leftActive) || right.updatedAt - left.updatedAt
-                    );
-                });
-            const terminal =
-                candidates.find(
-                    (candidate) =>
-                        snapshot.sessionId && candidate.agentSessionId === snapshot.sessionId,
-                ) ?? candidates[0];
-            if (!terminal) return false;
-            const displayTitle = snapshot.title?.trim() || terminal.title;
+            const displayTitle = snapshot.title?.trim() || session.displayTitle;
             const agentSessionId = snapshot.sessionId?.trim() || undefined;
-            const isDefaultAgent = terminal.id === session.defaultAgentTerminalId;
+            const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
             if (
-                (!isDefaultAgent ||
+                (!isPrimaryAgent ||
                     (session.displayTitle === displayTitle &&
                         session.lastActivityState === snapshot.status)) &&
                 terminal.agentSessionId === agentSessionId
             )
                 return false;
-            if (isDefaultAgent)
+            if (isPrimaryAgent)
                 this.database
                     .prepare(
                         'UPDATE sessions SET display_title = ?, last_activity_state = ? WHERE id = ?',
                     )
-                    .run(displayTitle, snapshot.status, sessionId);
+                    .run(displayTitle, snapshot.status, session.id);
             this.database
                 .prepare('UPDATE terminals SET agent_session_id = ?, updated_at = ? WHERE id = ?')
                 .run(agentSessionId ?? null, Date.now(), terminal.id);
@@ -380,10 +362,17 @@ export class CaxriDatabase {
             this.database
                 .prepare(
                     `INSERT INTO sessions
-           (id, project_id, created_at, last_opened_at, default_agent_terminal_id, last_activity_state, layout_version, display_title)
+           (id, project_id, created_at, last_opened_at, primary_agent_terminal_id, last_activity_state, layout_version, display_title)
            VALUES (?, ?, ?, ?, ?, 'idle', 2, ?)`,
                 )
-                .run(sessionId, projectId, now, now, terminalId, displayTitle);
+                .run(
+                    sessionId,
+                    projectId,
+                    now,
+                    now,
+                    kind === 'shell' ? null : terminalId,
+                    displayTitle,
+                );
             this.database
                 .prepare(
                     `INSERT INTO terminals
@@ -492,6 +481,15 @@ export class CaxriDatabase {
                 now,
                 now,
             );
+        if (kind !== 'shell' && !session.primaryAgentTerminalId) {
+            this.database
+                .prepare(
+                    `UPDATE sessions
+                     SET primary_agent_terminal_id = ?, display_title = ?, last_activity_state = 'idle'
+                     WHERE id = ?`,
+                )
+                .run(id, kind === 'claude' ? 'Claude Code' : 'Codex', sessionId);
+        }
         return this.getTerminal(id)!;
     }
 
@@ -513,7 +511,7 @@ export class CaxriDatabase {
             if (terminal.provider)
                 this.database
                     .prepare(
-                        'UPDATE sessions SET last_activity_state = ? WHERE default_agent_terminal_id = ?',
+                        'UPDATE sessions SET last_activity_state = ? WHERE primary_agent_terminal_id = ?',
                     )
                     .run(processActivityState(state), id);
         })();
@@ -523,12 +521,25 @@ export class CaxriDatabase {
         this.database.transaction(() => {
             const terminal = this.getTerminal(id);
             if (!terminal) return;
-            this.database
-                .prepare(
-                    "UPDATE sessions SET default_agent_terminal_id = NULL, last_activity_state = 'idle' WHERE default_agent_terminal_id = ?",
-                )
-                .run(id);
             this.database.prepare('DELETE FROM terminals WHERE id = ?').run(id);
+            const session = this.getSession(terminal.sessionId);
+            if (session?.primaryAgentTerminalId === id) {
+                const remaining = this.listTerminals(terminal.sessionId);
+                const nextAgent = remaining.find((candidate) => candidate.provider);
+                const fallback = nextAgent ?? remaining[0];
+                this.database
+                    .prepare(
+                        `UPDATE sessions
+                         SET primary_agent_terminal_id = ?, display_title = ?, last_activity_state = ?
+                         WHERE id = ?`,
+                    )
+                    .run(
+                        nextAgent?.id ?? null,
+                        fallback?.title ?? 'Session',
+                        nextAgent ? processActivityState(nextAgent.lastProcessState) : 'idle',
+                        terminal.sessionId,
+                    );
+            }
             const state = this.getSessionState(terminal.sessionId);
             this.updateSessionState({ ...state, layout: removeTerminal(state.layout, id) });
         })();
@@ -651,7 +662,7 @@ export class CaxriDatabase {
                 .run(Date.now());
             this.database
                 .prepare(
-                    "UPDATE sessions SET last_activity_state = 'completed' WHERE default_agent_terminal_id IN (SELECT id FROM terminals WHERE provider IS NOT NULL AND last_process_state = 'stopped')",
+                    "UPDATE sessions SET last_activity_state = 'completed' WHERE primary_agent_terminal_id IN (SELECT id FROM terminals WHERE provider IS NOT NULL AND last_process_state = 'stopped')",
                 )
                 .run();
         })();

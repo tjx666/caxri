@@ -150,11 +150,17 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
 
         const firstTab = terminalTabs.first();
         const close = firstTab.getByRole('button', { name: 'Close Terminal' });
-        await expect(close).toBeHidden();
+        const widthBeforeHover = await firstTab.evaluate(
+            (element) => element.getBoundingClientRect().width,
+        );
+        await expect(close).toHaveCSS('opacity', '0');
         await firstTab.hover();
-        await expect(close).toBeVisible();
+        await expect(close).toHaveCSS('opacity', '1');
+        expect(await firstTab.evaluate((element) => element.getBoundingClientRect().width)).toBe(
+            widthBeforeHover,
+        );
         await firstTab.getByRole('tab').focus();
-        await expect(close).toBeVisible();
+        await expect(close).toHaveCSS('opacity', '1');
         await close.click();
 
         await expect(terminalTabs).toHaveCount(1);
@@ -212,7 +218,7 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
     }
 });
 
-test('Agent inspector discovers Claude Code and Codex independently', async () => {
+test('Info inspector lists only the current Session Terminals', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-multi-agent-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -227,10 +233,17 @@ test('Agent inspector discovers Claude Code and Codex independently', async () =
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(running.page.locator('.session-card')).toHaveCount(1);
 
-        await running.page.getByRole('button', { name: 'Agent', exact: true }).click();
-        await expect(running.page.locator('.agent-card')).toHaveCount(2);
-        await expect(running.page.locator('.agent-card', { hasText: 'Claude Code' })).toBeVisible();
-        await expect(running.page.locator('.agent-card', { hasText: 'Codex' })).toBeVisible();
+        await running.page.getByRole('button', { name: 'Info', exact: true }).click();
+        const terminalCards = running.page.locator('.terminal-info-card');
+        await expect(terminalCards).toHaveCount(1);
+        await expect(terminalCards.filter({ hasText: 'Codex' })).toBeVisible();
+        await expect(terminalCards.filter({ hasText: 'Claude Code' })).toHaveCount(0);
+
+        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await expect(terminalCards).toHaveCount(2);
+        await expect(terminalCards.filter({ hasText: 'Shell' })).toBeVisible();
+        await expect(terminalCards.locator('[data-agent-icon="codex"]')).toBeVisible();
+        await expect(terminalCards.locator('[data-agent-icon="shell"]')).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -566,17 +579,17 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(
             running.page.locator('.git-files .git-row', { hasText: 'note.txt' }),
         ).toBeVisible();
-        const agentTab = running.page.getByRole('button', { name: 'Agent', exact: true });
-        await agentTab.click();
-        await expect(agentTab).toHaveClass(/active/);
-        await expect(running.page.getByText('unknown', { exact: true }).first()).toBeVisible();
+        const infoTab = running.page.getByRole('button', { name: 'Info', exact: true });
+        await infoTab.click();
+        await expect(infoTab).toHaveClass(/active/);
+        await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 
         await running.page.getByRole('button', { name: 'Settings' }).click();
         await running.page.getByRole('button', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
-        await expect(running.page.locator('textarea[aria-label="theme.json source"]')).toHaveValue(
-            /#282a36/,
-        );
+        await expect(
+            running.page.getByLabel('theme.json source').locator('.view-lines'),
+        ).toContainText('#282a36');
         const terminalTabCount = await running.page.locator('.work-tab').count();
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.getByRole('dialog')).toBeVisible();

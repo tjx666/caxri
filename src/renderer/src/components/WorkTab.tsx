@@ -53,16 +53,18 @@ export function WorkTab({
                 <span>{label}</span>
                 {dirty && <b>●</b>}
             </button>
-            {status && <i className={`process-indicator process-${status}`} />}
-            <button
-                type="button"
-                className="tab-close"
-                aria-label={closeLabel}
-                title={closeLabel}
-                onClick={onClose}
-            >
-                <X size={12} />
-            </button>
+            <span className="tab-tail">
+                {status && <i className={`process-indicator process-${status}`} />}
+                <button
+                    type="button"
+                    className="tab-close"
+                    aria-label={closeLabel}
+                    title={closeLabel}
+                    onClick={onClose}
+                >
+                    <X size={12} />
+                </button>
+            </span>
         </div>
     );
 }

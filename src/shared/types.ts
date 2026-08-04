@@ -5,7 +5,7 @@ export type AgentActivityState =
     'running' | 'waiting' | 'completed' | 'failed' | 'idle' | 'unknown';
 export type TerminalKind = AgentProvider | 'shell';
 export type ProcessState = 'starting' | 'running' | 'stopped' | 'dead' | 'failed';
-export type InspectorMode = 'files' | 'git' | 'agent';
+export type InspectorMode = 'files' | 'git' | 'info';
 
 export interface AgentSnapshot {
     provider: AgentProvider;
@@ -34,7 +34,8 @@ export interface SessionRecord {
     rootPath: string;
     createdAt: number;
     lastOpenedAt: number;
-    defaultAgentTerminalId?: string;
+    /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
+    primaryAgentTerminalId?: string;
     lastActivityState: AgentActivityState;
     layoutVersion: number;
     displayTitle: string;
@@ -54,6 +55,8 @@ export interface TerminalRecord {
     lastProcessState: ProcessState;
     createdAt: number;
     updatedAt: number;
+    /** Live Runtime metadata; absent when the PTY is not running. */
+    processId?: number;
 }
 
 export interface TerminalSnapshot {

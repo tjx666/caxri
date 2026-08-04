@@ -60,7 +60,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+s', command: 'editor.save' },
     { key: 'cmd+1', command: 'inspector.showFiles' },
     { key: 'cmd+2', command: 'inspector.showGit' },
-    { key: 'cmd+3', command: 'inspector.showAgent' },
+    { key: 'cmd+3', command: 'inspector.showInfo' },
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 

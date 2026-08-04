@@ -70,18 +70,19 @@ test('Agent identities stay consistent across every shared surface', async () =>
                 .locator('[data-agent-icon="codex"]'),
         ).toBeVisible();
 
-        await running.page.getByRole('button', { name: 'Agent', exact: true }).click();
+        await running.page.getByRole('button', { name: 'Info', exact: true }).click();
         await expect(
-            running.page.locator('.agent-card').locator('[data-agent-icon="claude"]'),
+            running.page.locator('.terminal-info-card').locator('[data-agent-icon="claude"]'),
         ).toBeVisible();
         await expect(
-            running.page.locator('.agent-card').locator('[data-agent-icon="codex"]'),
+            running.page.locator('.terminal-info-card').locator('[data-agent-icon="codex"]'),
         ).toBeVisible();
 
         await running.page.getByRole('button', { name: 'Settings', exact: true }).click();
         const settingsDialog = running.page.getByRole('dialog');
         await expect(settingsDialog.locator('[data-agent-icon="unknown"]')).toBeVisible();
-        await settingsDialog.getByLabel('Default Agent').selectOption('codex');
+        await settingsDialog.getByLabel('Default Agent').click();
+        await running.page.getByRole('option', { name: 'Codex', exact: true }).click();
         await expect(settingsDialog.locator('[data-agent-icon="codex"]')).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);

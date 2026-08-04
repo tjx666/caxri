@@ -2,7 +2,7 @@
 
 ## Product model
 
-A `Project` is a user-selected local folder and the durable owner of its `rootPath`, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns a primary Agent or Shell Terminal plus permanent Terminal records, editor/layout state, and optional Agent metadata. Multiple Sessions can share one Project without duplicating its directory identity.
+A `Project` is a user-selected local folder and the durable owner of its `rootPath`, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. The first Agent Terminal in a Session is its title source; Shell-only Sessions keep their Shell title. Multiple Sessions can share one Project without duplicating its directory identity.
 
 ## Process model
 
@@ -33,10 +33,10 @@ The preload exposes one `request` method backed by a fixed method union plus `on
 
 ## Persistence
 
-SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Schema v3 contains:
+SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Schema v4 contains:
 
 - `projects`: identity, unique root, display title, and timestamps
-- `sessions`: Project ownership, identity, timestamps, primary terminal, last activity, layout version
+- `sessions`: Project ownership, identity, timestamps, primary Agent Terminal, last activity, layout version
 - `terminals`: durable identity/position/cwd/title/icon/provider and last process state
 - `terminal_snapshots`: versioned bounded VT/text payload with line and byte counts
 - `session_state`: open editor tabs, active tab, inspector mode, and a recursive Terminal split layout
@@ -60,7 +60,7 @@ Exited Terminals retain their final output and reserve a compact recovery row be
 
 The Files inspector resolves a curated, deterministic subset of local LobeHub file icons by exact filename, well-known directory, test suffix, and extension before falling back to generic file and folder assets. Expanded directories use matching open variants. Vite emits only the explicitly imported SVG subset as separate assets, so icons remain offline-capable without embedding the full upstream catalog in the initial Renderer JavaScript bundle.
 
-Agent identity is a Renderer-wide typed registry rather than a per-surface icon choice. Terminal tabs, Project Session rows, creation choices, Agent inspector cards, and Settings resolve the same Claude Code, Codex, Shell, reserved Grok/OpenCode, or unknown identity. Brand SVGs are emitted as local build assets; monochrome icons inherit the active theme, and unsupported future adapters use a deliberate generic fallback.
+Agent identity is a Renderer-wide typed registry rather than a per-surface icon choice. Terminal tabs, Project Session rows, creation choices, Terminal Info cards, and Settings resolve the same Claude Code, Codex, Shell, reserved Grok/OpenCode, or unknown identity. Brand SVGs are emitted as local build assets; monochrome icons inherit the active theme, and unsupported future adapters use a deliberate generic fallback. The Info inspector lists only Terminals owned by the selected Session, including their process state, PID when live, directory, and correlated Agent session ID; installed tools that were not started in that Session never appear there.
 
 Every file request resolves its candidate path, obtains the authoritative root from the Session's Project, checks the candidate remains beneath that resolved Project root, rejects symlink escapes, and enforces text/size limits. Saves open the validated inode with `O_NOFOLLOW` before truncation. Directory identity is revalidated around enumeration so a path swap cannot disclose another directory. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only. A bounded fallback polls only the active root and directories already expanded by the user, preserving external-change delivery when the native backend is unavailable or silent. Watcher refreshes reload entries without remounting the tree, while switching Session identity intentionally resets expanded absolute paths.
 
@@ -74,7 +74,7 @@ Themes normalize into one semantic token structure consumed by CSS variables, xt
 
 ## Git and Agent adapters
 
-Git operations run via `execFile('git', argv)` with fixed argv constructors, a filtered environment, and no repository mutation. Adapters discover Claude Code and Codex independently through the GUI environment plus a login-shell PATH fallback. Claude Code integration reads only compact live-session metadata. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata are correlated with the matching provider Terminal. Only metadata from the default Agent Terminal updates the Session sidebar record. Missing or changed storage produces `unknown`; it never interrupts PTY input/output.
+Git operations run via `execFile('git', argv)` with fixed argv constructors, a filtered environment, and no repository mutation. Adapters discover Claude Code and Codex independently through the GUI environment plus a login-shell PATH fallback. Claude Code integration reads only compact live-session metadata. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata are correlated with the matching provider Terminal. The first Agent Terminal becomes the Session's primary Agent Terminal and exclusively owns the sidebar title; later Agent Terminals retain independent metadata without replacing it. Closing the primary promotes the next Agent Terminal. Missing or changed storage produces `unknown`; it never interrupts PTY input/output or resets a known Session title.
 
 The Git inspector treats the selected Project repository, linked worktrees, nested repositories, and initialized submodules as independent status scopes. Repository discovery uses structured Git output, coalesces concurrent summaries, and passes an opaque repository ID back for diff requests. Nested roots inherit the containing Project grant. A linked worktree outside that root appears only after its directory has independently been added as a Project; Git discovery never expands durable path authority.
 
@@ -86,7 +86,7 @@ Directory-picker results create single-use Main-process grants. A grant is revok
 
 ## Performance and observability
 
-Main and Runtime record boundary timings for app readiness, Runtime attachment, first window visibility, Runtime boot, PTY spawn, file listing, Git commands, Agent probes, and watcher readiness. Concurrent identical file, Git, Agent, and Terminal-start requests share one in-flight operation so development StrictMode and repeated UI requests do not duplicate native work.
+Main and Runtime record boundary timings for app readiness, Runtime attachment, first window visibility, Runtime boot, PTY spawn, file listing, Git commands, Agent probes, and watcher readiness. Concurrent identical file, Git, Agent, and Terminal-start requests share one in-flight operation so development StrictMode and repeated UI requests do not duplicate native work. Agent Terminal output schedules a trailing metadata refresh with at most one timer per Terminal, allowing a CLI-generated title to reach the sidebar without opening the Info inspector. Shell and dev-server output never enters this probe path.
 
 Terminal input, resize, and output are high-frequency paths. Successful input and resize requests do not write individual records; PTY throughput is emitted as periodic aggregate input, output, and dropped-byte counters. Monaco and its workers load only when an editor is opened, keeping them out of the terminal-first Renderer bundle.
 

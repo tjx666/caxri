@@ -1,6 +1,6 @@
 # Caxri
 
-Caxri is a project-first, terminal-native local development workbench for macOS. It groups durable Agent and Shell Sessions beneath local Projects, with real PTYs, a focused editor, file and Git inspectors, and read-only Claude Code/Codex metadata in one Electron app.
+Caxri is a project-first, terminal-native local development workbench for macOS. It groups durable Agent and Shell Sessions beneath local Projects, with real PTYs, a focused editor, file and Git inspectors, current-Session Terminal information, and read-only Claude Code/Codex metadata in one Electron app.
 
 ## Requirements
 

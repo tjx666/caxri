@@ -159,14 +159,17 @@ export class AgentService {
         provider: AgentProvider,
         context: AgentSnapshotContext = { rootPath: process.cwd() },
     ): Promise<AgentSnapshot> {
-        return this.requests.run(`${provider}:${context.rootPath}`, async () => {
-            const startedAt = performance.now();
-            const snapshot = await this.adapters[provider].snapshot(context);
-            this.logger?.write('info', 'agent.probe', {
-                durationMs: performance.now() - startedAt,
-                fields: { provider, available: snapshot.available },
-            });
-            return snapshot;
-        });
+        return this.requests.run(
+            `${provider}:${context.rootPath}:${context.agentSessionId ?? ''}`,
+            async () => {
+                const startedAt = performance.now();
+                const snapshot = await this.adapters[provider].snapshot(context);
+                this.logger?.write('info', 'agent.probe', {
+                    durationMs: performance.now() - startedAt,
+                    fields: { provider, available: snapshot.available },
+                });
+                return snapshot;
+            },
+        );
     }
 }

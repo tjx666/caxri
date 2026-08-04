@@ -82,7 +82,7 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(database.createProject(root).id, 'codex');
 
         expect(
-            database.updateAgentMetadata(created.session.id, 'codex', {
+            database.updateAgentMetadata(created.terminal.id, {
                 provider: 'codex',
                 available: true,
                 observedAt: Date.now(),
@@ -103,7 +103,7 @@ describe('CaxriDatabase', () => {
         expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
 
         expect(
-            database.updateAgentMetadata(created.session.id, 'codex', {
+            database.updateAgentMetadata(created.terminal.id, {
                 provider: 'codex',
                 available: true,
                 observedAt: Date.now(),
@@ -111,7 +111,7 @@ describe('CaxriDatabase', () => {
             }),
         ).toBe(true);
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Codex',
+            displayTitle: 'Implement Agent metadata',
             lastActivityState: 'unknown',
         });
         database.close();
@@ -127,7 +127,7 @@ describe('CaxriDatabase', () => {
         const claude = database.createTerminal(created.session.id, 'claude');
 
         expect(
-            database.updateAgentMetadata(created.session.id, 'claude', {
+            database.updateAgentMetadata(claude.id, {
                 provider: 'claude',
                 available: true,
                 observedAt: Date.now(),
@@ -143,6 +143,46 @@ describe('CaxriDatabase', () => {
             displayTitle: 'Codex',
             lastActivityState: 'idle',
         });
+        database.close();
+    });
+
+    it('promotes the first Agent Terminal in a Shell Session as its title source', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-db-primary-agent-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(root).id, 'shell');
+        const codex = database.createTerminal(created.session.id, 'codex');
+        const claude = database.createTerminal(created.session.id, 'claude');
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Codex',
+            primaryAgentTerminalId: codex.id,
+        });
+        database.updateAgentMetadata(codex.id, {
+            provider: 'codex',
+            available: true,
+            observedAt: Date.now(),
+            sessionId: 'codex-session-1',
+            status: 'running',
+            title: 'Run the development server',
+        });
+        expect(database.getSession(created.session.id)?.displayTitle).toBe(
+            'Run the development server',
+        );
+
+        database.updateAgentMetadata(claude.id, {
+            provider: 'claude',
+            available: true,
+            observedAt: Date.now(),
+            sessionId: 'claude-session-1',
+            status: 'running',
+            title: 'Do not replace the first Agent title',
+        });
+        expect(database.getSession(created.session.id)?.displayTitle).toBe(
+            'Run the development server',
+        );
         database.close();
     });
 
@@ -184,7 +224,7 @@ describe('CaxriDatabase', () => {
 
         database.closeTerminal(created.terminal.id);
 
-        expect(database.getSession(created.session.id)?.defaultAgentTerminalId).toBeUndefined();
+        expect(database.getSession(created.session.id)?.primaryAgentTerminalId).toBeUndefined();
         database.close();
     });
 

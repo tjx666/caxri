@@ -1,16 +1,7 @@
-import {
-    Bot,
-    ChevronDown,
-    ChevronRight,
-    CircleAlert,
-    Files,
-    GitBranch,
-    RefreshCw,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Files, GitBranch, Info, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import type {
-    AgentSnapshot,
     FileEntry,
     GitSummary,
     InspectorMode,
@@ -18,9 +9,8 @@ import type {
     TerminalRecord,
 } from '@shared/types';
 
-import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
-import { resolveAgentIcon } from '../agent-icons/agent-icon-registry';
 import { FileTypeIcon } from '../file-icons/FileTypeIcon';
+import { TerminalInfoPanel } from './TerminalInfoPanel';
 import { Button } from './ui/button';
 
 interface InspectorProps {
@@ -293,77 +283,11 @@ function GitPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onErro
     );
 }
 
-function AgentPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onError'>) {
-    const sessionId = session?.id;
-    const [snapshots, setSnapshots] = useState<AgentSnapshot[]>([]);
-    useEffect(() => {
-        if (!sessionId) return;
-        void Promise.all(
-            (['claude', 'codex'] as const).map((provider) =>
-                window.caxri.request<AgentSnapshot>('agent.snapshot', { sessionId, provider }),
-            ),
-        )
-            .then(setSnapshots)
-            .catch((error: unknown) =>
-                onError(error instanceof Error ? error.message : 'Agent discovery failed'),
-            );
-    }, [onError, sessionId]);
-    if (!session) return <div className="empty-panel">Create a Session to inspect agents.</div>;
-    return (
-        <div className="inspector-content agent-panel">
-            {snapshots.map((snapshot) => (
-                <section key={snapshot.provider} className="agent-card">
-                    <div className="agent-title">
-                        <AgentIdentityIcon identity={snapshot.provider} size={15} />{' '}
-                        {resolveAgentIcon(snapshot.provider).label}
-                    </div>
-                    <dl>
-                        <dt>Availability</dt>
-                        <dd>{snapshot.available ? 'Installed' : 'Not found'}</dd>
-                        <dt>Activity</dt>
-                        <dd className="unknown">
-                            <CircleAlert size={12} /> {snapshot.status}
-                        </dd>
-                        {snapshot.version && (
-                            <>
-                                <dt>Version</dt>
-                                <dd>{snapshot.version}</dd>
-                            </>
-                        )}
-                        {snapshot.title && (
-                            <>
-                                <dt>Session title</dt>
-                                <dd>{snapshot.title}</dd>
-                            </>
-                        )}
-                        {snapshot.sessionId && (
-                            <>
-                                <dt>Session ID</dt>
-                                <dd>{snapshot.sessionId}</dd>
-                            </>
-                        )}
-                        {snapshot.usage?.map((item) => (
-                            <div key={item.label} className="agent-metadata-row">
-                                <dt>{item.label}</dt>
-                                <dd>{item.value}</dd>
-                            </div>
-                        ))}
-                    </dl>
-                    <p>
-                        Local metadata is read-only. Unknown means no reliable signal was found;
-                        Terminal I/O remains available.
-                    </p>
-                </section>
-            ))}
-        </div>
-    );
-}
-
 export function Inspector(props: InspectorProps) {
     const tabs: Array<{ id: InspectorMode; label: string; icon: typeof Files }> = [
         { id: 'files', label: 'Files', icon: Files },
         { id: 'git', label: 'Git', icon: GitBranch },
-        { id: 'agent', label: 'Agent', icon: Bot },
+        { id: 'info', label: 'Info', icon: Info },
     ];
     return (
         <aside className="inspector">
@@ -382,7 +306,7 @@ export function Inspector(props: InspectorProps) {
             </div>
             {props.mode === 'files' && <FilesPanel {...props} />}
             {props.mode === 'git' && <GitPanel key={props.session?.id} {...props} />}
-            {props.mode === 'agent' && <AgentPanel {...props} />}
+            {props.mode === 'info' && <TerminalInfoPanel {...props} />}
         </aside>
     );
 }

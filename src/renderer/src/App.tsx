@@ -51,7 +51,7 @@ const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1
 const inspectorCommands: Record<InspectorMode, string> = {
     files: 'inspector.showFiles',
     git: 'inspector.showGit',
-    agent: 'inspector.showAgent',
+    info: 'inspector.showInfo',
 };
 
 export default function App() {
@@ -455,8 +455,8 @@ export default function App() {
             case 'inspector.showGit':
                 setInspectorMode('git');
                 break;
-            case 'inspector.showAgent':
-                setInspectorMode('agent');
+            case 'inspector.showInfo':
+                setInspectorMode('info');
                 break;
             case 'theme.openSettings':
                 setSettingsOpen(true);

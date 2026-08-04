@@ -1,11 +1,17 @@
+import { parse } from 'jsonc-parser';
 import { FileJson, Import, Save } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
 import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
+import { ThemePreview } from './ThemePreview';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+
+const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
 
 type ConfigKind = 'settings' | 'keybindings' | 'theme';
 
@@ -14,6 +20,28 @@ interface SettingsDialogProps {
     onOpenChange: (open: boolean) => void;
     onApplied: () => void;
     onError: (message: string) => void;
+}
+
+function parseThemeSource(source: string): ThemeTokens | undefined {
+    const value = parse(source) as Partial<ThemeTokens> | undefined;
+    if (
+        !value ||
+        typeof value !== 'object' ||
+        !value.colors ||
+        !value.terminal ||
+        !value.editor ||
+        !Array.isArray(value.warnings)
+    ) {
+        return undefined;
+    }
+    return value as ThemeTokens;
+}
+
+function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
+    if (agent === 'claude') return 'Claude Code';
+    if (agent === 'codex') return 'Codex';
+    if (agent === 'shell') return 'Shell';
+    return 'Ask when creating a Session';
 }
 
 export function SettingsDialog({ open, onOpenChange, onApplied, onError }: SettingsDialogProps) {
@@ -59,9 +87,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
             if (tab === 'settings') {
                 const result = await window.caxri.request<{ value: AppSettings; source: string }>(
                     'settings.update',
-                    {
-                        source: settingsSource,
-                    },
+                    { source: settingsSource },
                 );
                 setSettings(result.value);
                 setSettingsSource(result.source);
@@ -77,9 +103,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
             } else {
                 const result = await window.caxri.request<{ value: ThemeTokens; source: string }>(
                     'theme.update',
-                    {
-                        source: themeSource,
-                    },
+                    { source: themeSource },
                 );
                 setTheme(result.value);
                 setThemeSource(result.source);
@@ -119,6 +143,16 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
         setThemeSource(`${JSON.stringify(next, null, 2)}\n`);
     };
 
+    const updateThemeSource = (source: string): void => {
+        setThemeSource(source);
+        try {
+            const next = parseThemeSource(source);
+            if (next) setTheme(next);
+        } catch {
+            // Keep the last valid preview while the user is editing incomplete JSON.
+        }
+    };
+
     const importTheme = async (): Promise<void> => {
         try {
             const imported = await window.caxri.request<ThemeTokens | null>('theme.import');
@@ -154,35 +188,45 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                     ))}
                 </div>
 
-                {tab === 'settings' && settings && (
+                {tab === 'settings' && settings && theme && (
                     <div className="settings-body">
                         <div className="structured-editor">
-                            <label>
-                                <span className="settings-field-title">
+                            <div className="settings-field">
+                                <label className="settings-field-title" htmlFor="default-agent">
                                     <AgentIdentityIcon
                                         identity={settings['session.defaultAgent']}
                                         size={14}
                                     />
                                     Default Agent
-                                </span>
-                                <select
-                                    value={settings['session.defaultAgent'] ?? ''}
-                                    onChange={(event) =>
+                                </label>
+                                <Select
+                                    value={settings['session.defaultAgent'] ?? 'ask'}
+                                    onValueChange={(value) =>
                                         updateSettings({
-                                            'session.defaultAgent': (event.target.value ||
-                                                null) as AppSettings['session.defaultAgent'],
+                                            'session.defaultAgent': (value === 'ask'
+                                                ? null
+                                                : value) as AppSettings['session.defaultAgent'],
                                         })
                                     }
                                 >
-                                    <option value="">Ask when creating a Session</option>
-                                    <option value="claude">Claude Code</option>
-                                    <option value="codex">Codex</option>
-                                    <option value="shell">Shell</option>
-                                </select>
-                            </label>
-                            <label>
-                                Terminal font size
-                                <input
+                                    <SelectTrigger id="default-agent" aria-label="Default Agent">
+                                        <SelectValue>
+                                            {defaultAgentLabel(settings['session.defaultAgent'])}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ask">
+                                            Ask when creating a Session
+                                        </SelectItem>
+                                        <SelectItem value="claude">Claude Code</SelectItem>
+                                        <SelectItem value="codex">Codex</SelectItem>
+                                        <SelectItem value="shell">Shell</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <label className="settings-field">
+                                <span>Terminal font size</span>
+                                <Input
                                     type="number"
                                     min={9}
                                     max={32}
@@ -194,9 +238,9 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                                     }
                                 />
                             </label>
-                            <label>
-                                Terminal scrollback
-                                <input
+                            <label className="settings-field">
+                                <span>Terminal scrollback</span>
+                                <Input
                                     type="number"
                                     min={100}
                                     max={10000}
@@ -208,9 +252,9 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                                     }
                                 />
                             </label>
-                            <label>
-                                Maximum file bytes
-                                <input
+                            <label className="settings-field">
+                                <span>Maximum file bytes</span>
+                                <Input
                                     type="number"
                                     min={1024}
                                     max={16777216}
@@ -223,28 +267,31 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                                 />
                             </label>
                         </div>
-                        <textarea
-                            aria-label="settings.jsonc source"
-                            spellCheck={false}
-                            value={settingsSource}
-                            onChange={(event) => setSettingsSource(event.target.value)}
-                        />
+                        <Suspense fallback={<div className="configuration-editor-loading" />}>
+                            <ConfigurationEditor
+                                ariaLabel="settings.jsonc source"
+                                path="/caxri/settings.jsonc"
+                                theme={theme}
+                                value={settingsSource}
+                                onChange={setSettingsSource}
+                            />
+                        </Suspense>
                     </div>
                 )}
 
-                {tab === 'keybindings' && (
+                {tab === 'keybindings' && theme && (
                     <div className="settings-body">
                         <div className="structured-editor bindings-editor">
                             {keybindings.map((binding, index) => (
                                 <div key={`${binding.command}-${index}`} className="binding-row">
-                                    <input
+                                    <Input
                                         aria-label={`Shortcut for ${binding.command}`}
                                         value={binding.key}
                                         onChange={(event) =>
                                             updateBinding(index, { key: event.target.value })
                                         }
                                     />
-                                    <input
+                                    <Input
                                         aria-label="Command"
                                         value={binding.command}
                                         onChange={(event) =>
@@ -264,18 +311,22 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                                 </div>
                             )}
                         </div>
-                        <textarea
-                            aria-label="keybindings.jsonc source"
-                            spellCheck={false}
-                            value={keybindingsSource}
-                            onChange={(event) => setKeybindingsSource(event.target.value)}
-                        />
+                        <Suspense fallback={<div className="configuration-editor-loading" />}>
+                            <ConfigurationEditor
+                                ariaLabel="keybindings.jsonc source"
+                                path="/caxri/keybindings.jsonc"
+                                theme={theme}
+                                value={keybindingsSource}
+                                onChange={setKeybindingsSource}
+                            />
+                        </Suspense>
                     </div>
                 )}
 
                 {tab === 'theme' && theme && (
                     <div className="settings-body">
                         <div className="structured-editor theme-editor">
+                            <ThemePreview theme={theme} />
                             <div className="theme-name">
                                 <strong>{theme.name}</strong>
                                 <span>{theme.source}</span>
@@ -317,16 +368,19 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                                 <Import size={13} /> Import Theme
                             </Button>
                         </div>
-                        <textarea
-                            aria-label="theme.json source"
-                            spellCheck={false}
-                            value={themeSource}
-                            onChange={(event) => setThemeSource(event.target.value)}
-                        />
+                        <Suspense fallback={<div className="configuration-editor-loading" />}>
+                            <ConfigurationEditor
+                                ariaLabel="theme.json source"
+                                path="/caxri/theme.json"
+                                theme={theme}
+                                value={themeSource}
+                                onChange={updateThemeSource}
+                            />
+                        </Suspense>
                     </div>
                 )}
 
-                <div className="dialog-actions">
+                <footer className="dialog-actions">
                     <Button
                         variant="ghost"
                         onClick={() =>
@@ -338,7 +392,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                     <Button onClick={() => void apply()}>
                         <Save size={14} /> Apply
                     </Button>
-                </div>
+                </footer>
             </DialogContent>
         </Dialog>
     );

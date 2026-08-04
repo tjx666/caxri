@@ -186,6 +186,9 @@ describe('Agent adapter fallback', () => {
         database
             .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
             .run('codex-session-1', root, 'Finish Phase 1', Date.now(), 12_345, 0);
+        database
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
+            .run('codex-session-older', root, 'Keep this Terminal', Date.now() - 1_000, 42, 0);
         database.close();
         vi.stubEnv('PATH', bin);
         vi.stubEnv('SHELL', '/usr/bin/false');
@@ -206,6 +209,17 @@ describe('Agent adapter fallback', () => {
             title: 'Finish Phase 1',
             usage: [{ label: 'Tokens', value: '12,345' }],
             version: 'codex 1.0',
+        });
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-older',
+                rootPath: root,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({
+            sessionId: 'codex-session-older',
+            title: 'Keep this Terminal',
+            usage: [{ label: 'Tokens', value: '42' }],
         });
     });
 });

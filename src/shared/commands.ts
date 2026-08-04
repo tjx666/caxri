@@ -19,7 +19,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'editor.save', title: 'Save File', category: 'Editor' },
     { id: 'inspector.showFiles', title: 'Show Files', category: 'Inspector' },
     { id: 'inspector.showGit', title: 'Show Git', category: 'Inspector' },
-    { id: 'inspector.showAgent', title: 'Show Agent Info', category: 'Inspector' },
+    { id: 'inspector.showInfo', title: 'Show Terminal Info', category: 'Inspector' },
     { id: 'theme.openSettings', title: 'Open Settings', category: 'Preferences' },
     { id: 'commandPalette.open', title: 'Open Command Palette', category: 'View' },
     { id: 'diagnostics.export', title: 'Export Diagnostics', category: 'Help' },

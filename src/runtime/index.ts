@@ -8,13 +8,13 @@ import {
     type RuntimeResponse,
 } from '../shared/contracts';
 import type {
-    AgentProvider,
     BootstrapState,
     PersistedWindowState,
     SessionState,
     TerminalKind,
 } from '../shared/types';
 import { AgentService } from './agent';
+import { CoalescedScheduler } from './coalesced-scheduler';
 import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './database';
 import { DiagnosticsService } from './diagnostics';
@@ -38,10 +38,20 @@ const logger = new StructuredLogger(
     process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
 );
 const database = new CaxriDatabase(join(userDataPath, 'caxri.db'));
-const emit = (event: RuntimeEvent): void => parentPort.postMessage(event);
+const agentTerminalIds = new Set(
+    database
+        .listTerminals()
+        .filter((terminal) => terminal.provider)
+        .map((terminal) => terminal.id),
+);
+function emit(event: RuntimeEvent): void {
+    parentPort.postMessage(event);
+    if (event.event === 'terminal.output' && agentTerminalIds.has(event.payload.terminalId))
+        agentMetadataRefreshes.schedule(event.payload.terminalId);
+}
 const configuration = new ConfigurationService(userDataPath, emit, logger);
 await configuration.initialize();
-database.setAppState('schemaVersion', 3);
+database.setAppState('schemaVersion', 4);
 database.setAppState('activeThemeId', configuration.getTheme().value.id);
 const files = new FileService(
     database,
@@ -52,6 +62,11 @@ const files = new FileService(
 const terminals = new TerminalManager(database, emit, logger);
 const git = new GitService(files, logger);
 const agents = new AgentService(logger);
+const agentMetadataRefreshes = new CoalescedScheduler(2_000, (terminalId: string) =>
+    probeTerminalAgent(terminalId).catch((error: unknown) =>
+        logAgentProbeFailure(terminalId, error),
+    ),
+);
 const diagnostics = new DiagnosticsService(
     database,
     logger,
@@ -66,7 +81,9 @@ function bootstrap(): BootstrapState {
     return {
         projects: database.listProjects(),
         sessions: database.listSessions(),
-        terminals: database.listTerminals(),
+        terminals: database
+            .listTerminals()
+            .map((terminal) => ({ ...terminal, processId: terminals.processId(terminal.id) })),
         selectedProjectId:
             database.getAppState<string | null>('lastSelectedProjectId') ?? undefined,
         selectedSessionId:
@@ -90,52 +107,37 @@ async function createAndStartTerminal(sessionId: string, kind: TerminalKind) {
     }
 }
 
-async function probeAgent(sessionId: string, provider: AgentProvider) {
-    const session = database.getSession(sessionId);
-    if (!session) throw new Error('Session not found');
-    const terminal = database
-        .listTerminals(sessionId)
-        .filter((candidate) => candidate.provider === provider)
-        .sort((left, right) => {
-            const leftActive = ['running', 'starting'].includes(left.lastProcessState);
-            const rightActive = ['running', 'starting'].includes(right.lastProcessState);
-            return Number(rightActive) - Number(leftActive) || right.updatedAt - left.updatedAt;
-        })[0];
-    const snapshot = await agents.snapshot(provider, {
+async function probeTerminalAgent(terminalId: string): Promise<void> {
+    const terminal = database.getTerminal(terminalId);
+    if (!terminal?.provider) return;
+    const session = database.getSession(terminal.sessionId);
+    if (!session) return;
+    const snapshot = await agents.snapshot(terminal.provider, {
+        agentSessionId: terminal.agentSessionId,
         rootPath: session.rootPath,
-        processState: terminal?.lastProcessState,
+        processState: terminal.lastProcessState,
     });
-    if (database.updateAgentMetadata(sessionId, provider, snapshot))
+    if (database.updateAgentMetadata(terminal.id, snapshot))
         emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
-    return snapshot;
 }
 
-async function probeDefaultAgent(sessionId: string): Promise<void> {
+function schedulePrimaryAgentProbe(sessionId: string): void {
     const session = database.getSession(sessionId);
-    const terminal = session?.defaultAgentTerminalId
-        ? database.getTerminal(session.defaultAgentTerminalId)
-        : undefined;
-    if (terminal?.provider) await probeAgent(sessionId, terminal.provider);
+    if (session?.primaryAgentTerminalId) scheduleAgentProbe(session.primaryAgentTerminalId);
 }
 
-function logAgentProbeFailure(sessionId: string, error: unknown): void {
+function logAgentProbeFailure(terminalId: string, error: unknown): void {
     logger.write('warn', 'agent.probe_failed', {
         fields: {
-            sessionId,
+            terminalId,
             error: error instanceof Error ? error.message : 'unknown',
         },
     });
 }
 
-function scheduleDefaultAgentProbe(sessionId: string): void {
-    void probeDefaultAgent(sessionId).catch((error: unknown) =>
-        logAgentProbeFailure(sessionId, error),
-    );
-}
-
-function scheduleAgentProbe(sessionId: string, provider: AgentProvider): void {
-    void probeAgent(sessionId, provider).catch((error: unknown) =>
-        logAgentProbeFailure(sessionId, error),
+function scheduleAgentProbe(terminalId: string): void {
+    void probeTerminalAgent(terminalId).catch((error: unknown) =>
+        logAgentProbeFailure(terminalId, error),
     );
 }
 
@@ -181,8 +183,13 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             throw new Error('Project creation cancellation is owned by the Main process');
         case 'project.delete': {
             const projectId = params.projectId as string;
-            for (const session of database.listSessions(projectId))
+            for (const session of database.listSessions(projectId)) {
+                for (const terminal of database.listTerminals(session.id)) {
+                    agentTerminalIds.delete(terminal.id);
+                    agentMetadataRefreshes.cancel(terminal.id);
+                }
                 terminals.terminateSession(session.id);
+            }
             database.deleteProject(projectId);
             void files.watchSession(
                 database.getAppState<string | null>('lastSelectedSessionId') ?? undefined,
@@ -200,9 +207,10 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             } catch {
                 // The failed durable terminal remains visible and restartable; Session creation still succeeds.
             }
+            if (created.terminal.provider) agentTerminalIds.add(created.terminal.id);
             database.selectSession(created.session.id);
             void files.watchSession(created.session.id);
-            scheduleDefaultAgentProbe(created.session.id);
+            if (created.terminal.provider) scheduleAgentProbe(created.terminal.id);
             emit({ event: 'state.changed', payload: { reason: 'session.create' } });
             return {
                 session: database.getSession(created.session.id),
@@ -214,14 +222,20 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             void files.watchSession(params.sessionId as string);
             emit({ event: 'state.changed', payload: { reason: 'session.select' } });
             return database.getSession(params.sessionId as string);
-        case 'session.delete':
-            terminals.terminateSession(params.sessionId as string);
-            database.deleteSession(params.sessionId as string);
+        case 'session.delete': {
+            const sessionId = params.sessionId as string;
+            for (const terminal of database.listTerminals(sessionId)) {
+                agentTerminalIds.delete(terminal.id);
+                agentMetadataRefreshes.cancel(terminal.id);
+            }
+            terminals.terminateSession(sessionId);
+            database.deleteSession(sessionId);
             void files.watchSession(
                 database.getAppState<string | null>('lastSelectedSessionId') ?? undefined,
             );
             emit({ event: 'state.changed', payload: { reason: 'session.delete' } });
             return bootstrap();
+        }
         case 'session.updateState':
             database.updateSessionState(params as unknown as SessionState);
             return database.getSessionState(params.sessionId as string);
@@ -230,6 +244,8 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
                 params.sessionId as string,
                 params.kind as TerminalKind,
             );
+            if (terminal.provider) agentTerminalIds.add(terminal.id);
+            if (terminal.provider) scheduleAgentProbe(terminal.id);
             emit({ event: 'state.changed', payload: { reason: 'terminal.create' } });
             return terminal;
         }
@@ -243,10 +259,16 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
                 params.rows as number,
             );
             return null;
-        case 'terminal.close':
-            terminals.close(params.terminalId as string);
+        case 'terminal.close': {
+            const terminalId = params.terminalId as string;
+            const sessionId = database.getTerminal(terminalId)?.sessionId;
+            agentTerminalIds.delete(terminalId);
+            agentMetadataRefreshes.cancel(terminalId);
+            terminals.close(terminalId);
+            if (sessionId) schedulePrimaryAgentProbe(sessionId);
             emit({ event: 'state.changed', payload: { reason: 'terminal.close' } });
             return null;
+        }
         case 'terminal.attach':
             return terminals.attach(params.terminalId as string);
         case 'terminal.detach':
@@ -257,7 +279,7 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             return null;
         case 'terminal.restart': {
             const terminal = await terminals.restart(params.terminalId as string);
-            if (terminal.provider) scheduleAgentProbe(terminal.sessionId, terminal.provider);
+            if (terminal.provider) scheduleAgentProbe(terminal.id);
             emit({ event: 'state.changed', payload: { reason: 'terminal.restart' } });
             return terminal;
         }
@@ -266,6 +288,7 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
         case 'terminal.runningCount':
             return terminals.runningCount(params.sessionId as string | undefined);
         case 'terminal.terminateAll':
+            agentMetadataRefreshes.close();
             terminals.shutdown();
             return null;
         case 'files.list':
@@ -286,11 +309,6 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
                 params.repositoryId as string,
                 params.path as string,
             );
-        case 'agent.snapshot': {
-            const sessionId = params.sessionId as string;
-            const provider = params.provider as AgentProvider;
-            return probeAgent(sessionId, provider);
-        }
         case 'settings.get':
             return configuration.getSettings();
         case 'settings.update':
@@ -321,6 +339,7 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
         case 'diagnostics.exportPath':
             return diagnostics.export(params.destination as string);
         case 'runtime.shutdown':
+            agentMetadataRefreshes.close();
             terminals.shutdown();
             await files.close();
             await configuration.close();
@@ -378,4 +397,4 @@ logger.write('info', 'runtime.ready', {
 emit({ event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } });
 /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
 void files.watchSession(database.getAppState<string | null>('lastSelectedSessionId') ?? undefined);
-for (const session of database.listSessions()) scheduleDefaultAgentProbe(session.id);
+for (const session of database.listSessions()) schedulePrimaryAgentProbe(session.id);

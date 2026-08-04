@@ -113,9 +113,14 @@ export function ProjectSidebar({
                             {expanded && (
                                 <div className="session-list">
                                     {projectSessions.map((session) => {
-                                        const terminal = terminals.find(
-                                            (item) => item.id === session.defaultAgentTerminalId,
+                                        const sessionTerminals = terminals.filter(
+                                            (item) => item.sessionId === session.id,
                                         );
+                                        const terminal =
+                                            sessionTerminals.find(
+                                                (item) =>
+                                                    item.id === session.primaryAgentTerminalId,
+                                            ) ?? sessionTerminals[0];
                                         return (
                                             <button
                                                 key={session.id}

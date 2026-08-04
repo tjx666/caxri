@@ -333,6 +333,10 @@ export class TerminalManager {
         ).length;
     }
 
+    processId(terminalId: string): number | undefined {
+        return this.terminals.get(terminalId)?.process.pid;
+    }
+
     shutdown(): void {
         for (const live of [...this.terminals.values()]) {
             this.detach(live, true);

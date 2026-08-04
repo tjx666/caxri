@@ -31,10 +31,20 @@
 - Keep the editor intentionally narrow: open/edit/save/in-file search/diff only.
 - Preserve the explicit external-change rule: disk changes replace dirty editor buffers without prompting.
 - Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state.
+- Let the first Agent Terminal own the Session title, and keep the Info inspector scoped to Terminals actually started in that Session.
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
 - Keep unit and integration tests with their source domain, using `__tests__/` when the source directory is already busy. Reserve `e2e/` for full Electron workflows.
 - Keep every JavaScript and TypeScript code file at or below 800 physical lines; split cohesive modules before they exceed the ESLint `max-lines` gate.
 - Update `DESIGN.md`, tests, and these commands when an architecture contract changes.
+
+## Testing workflow
+
+- During implementation, run only tests affected by the changed source files. Do not run `bun run test` or `bun run test:e2e` as a routine iteration step.
+- Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
+- Run focused Electron coverage with `bunx playwright test <e2e-file> --reporter=line`; use `-g '<test name>'` when only one workflow changed.
+- Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
+- Prefer observable output and integration boundaries over internal call assertions. Mock Electron IPC or native boundaries for unit tests; reserve a real Electron launch for the smallest relevant E2E workflow.
+- Run the full unit or E2E suite only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient.
 
 ## Performance and observability
 
