@@ -17,7 +17,7 @@
 - Main owns windows, native dialogs, application lifecycle, and Runtime supervision.
 - The utility-process Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.
 - Add operations to the structured request contract. Never accept an arbitrary shell command from the Renderer.
-- All paths must be validated against the authoritative Project root before filesystem or Git access.
+- Validate filesystem paths against the selected Session's Project root. Git may access another linked repository only when its root is already covered by an explicitly added Project.
 - Directory-picker authorization is a short-lived, single-use Main-process grant and must be revoked when Project creation is canceled.
 - A Project owns one local root; Sessions reference the Project by ID and cannot submit a root path.
 - Session identity still isolates editor and layout state. Key or reset Session-scoped Renderer state when the selected Session changes.
@@ -38,7 +38,7 @@
 
 ## Performance and observability
 
-- Keep Runtime, Terminal, file tree, and Git startup below the three-second large-Project gate.
+- Keep Runtime, Terminal, file tree, and single- or multi-repository Git startup below the three-second large-Project gate.
 - Coalesce concurrent expensive reads and probes; React StrictMode must not duplicate native work.
 - Send live PTY output only to attached Renderer views, and restore snapshots before replaying output buffered during attachment.
 - Log timings at operation boundaries. Aggregate high-frequency PTY metrics instead of writing one log record per input, resize, or output event.

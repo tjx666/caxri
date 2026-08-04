@@ -237,6 +237,51 @@ test('Agent inspector discovers Claude Code and Codex independently', async () =
     }
 });
 
+test('Git inspector switches between Project and nested repositories', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-repositories-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const nested = join(root, 'nested');
+    await execFileAsync('mkdir', ['-p', nested]);
+    for (const repository of [root, nested]) {
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
+        await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], {
+            cwd: repository,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: repository });
+    }
+    await writeFile(join(root, 'root.txt'), 'before\n', 'utf8');
+    await execFileAsync('git', ['add', 'root.txt'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    await writeFile(join(nested, 'nested.txt'), 'before\n', 'utf8');
+    await execFileAsync('git', ['add', 'nested.txt'], { cwd: nested });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: nested });
+    await Promise.all([
+        writeFile(join(root, 'root.txt'), 'after\n', 'utf8'),
+        writeFile(join(nested, 'nested.txt'), 'after\n', 'utf8'),
+    ]);
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('button', { name: 'Git', exact: true }).click();
+        const repositories = running.page.locator('.git-repository-row');
+        await expect(repositories).toHaveCount(2);
+
+        await repositories.filter({ hasText: 'nested' }).click();
+        await expect(running.page.locator('.git-files')).toContainText('nested.txt');
+        await running.page.getByRole('button', { name: 'nested.txt' }).click();
+        await expect(running.page.locator('.diff-view')).toContainText('-before');
+
+        await repositories.filter({ hasText: 'project' }).click();
+        await expect(running.page.locator('.git-files')).toContainText('root.txt');
+        await expect(running.page.locator('.git-files')).not.toContainText('nested.txt');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('canceling Session deletion preserves the dirty editor buffer', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-delete-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');

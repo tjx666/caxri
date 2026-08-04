@@ -484,6 +484,46 @@ button {
     color: var(--muted);
     font-size: 10px;
 }
+.git-repositories {
+    max-height: 40%;
+    overflow: auto;
+    border-bottom: 1px solid var(--border);
+}
+.git-repository-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 8px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--foreground);
+    text-align: left;
+    cursor: pointer;
+}
+.git-repository-row:hover,
+.git-repository-row.active {
+    background: var(--elevated);
+}
+.git-repository-row > span {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+}
+.git-repository-row strong,
+.git-repository-row > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.git-repository-row small,
+.git-repository-row > span:last-child {
+    color: var(--muted);
+    font-size: 9px;
+}
 .git-files {
     max-height: 35%;
     overflow: auto;

@@ -54,18 +54,29 @@ describe('GitService', () => {
         ]);
         expect(summary.isRepository).toBe(true);
         expect(concurrentSummary).toEqual(summary);
-        expect(summary.branch).toBe('main');
-        expect(summary.files.map((file) => file.path)).toEqual(
+        expect(summary.repositories[0].branch).toBe('main');
+        expect(summary.repositories[0].files.map((file) => file.path)).toEqual(
             expect.arrayContaining(['tracked.txt', 'new.txt']),
         );
         const records = (await readFile(logger.path, 'utf8'))
             .trim()
             .split('\n')
-            .map((line) => JSON.parse(line) as { event: string; durationMs?: number });
-        const statusRecords = records.filter((record) => record.event === 'git.command');
+            .map(
+                (line) =>
+                    JSON.parse(line) as {
+                        event: string;
+                        durationMs?: number;
+                        fields?: { operation?: string };
+                    },
+            );
+        const statusRecords = records.filter(
+            (record) => record.event === 'git.command' && record.fields?.operation === 'status',
+        );
         expect(statusRecords).toHaveLength(1);
         expect(statusRecords[0].durationMs).toBeTypeOf('number');
-        expect(await git.diff(session.id, join(directory, 'tracked.txt'))).toContain('-before');
+        expect(
+            await git.diff(session.id, summary.repositories[0].id, join(directory, 'tracked.txt')),
+        ).toContain('-before');
         database.close();
     });
 
@@ -87,8 +98,89 @@ describe('GitService', () => {
         );
         const summary = await new GitService(files, logger).summary(session.id);
 
-        expect(summary).toMatchObject({ isRepository: true, branch: 'main' });
-        expect(summary.head).toBeUndefined();
+        expect(summary).toMatchObject({
+            isRepository: true,
+            repositories: [expect.objectContaining({ branch: 'main' })],
+        });
+        expect(summary.repositories[0].head).toBeUndefined();
+        database.close();
+    });
+
+    it('discovers approved worktrees, nested repositories, and submodules independently', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-hierarchy-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'primary');
+        const linked = join(directory, 'linked');
+        const submoduleSource = join(directory, 'submodule-source');
+        await execFileAsync('mkdir', ['-p', root, submoduleSource]);
+
+        for (const repository of [root, submoduleSource]) {
+            await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
+            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                cwd: repository,
+            });
+            await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
+                cwd: repository,
+            });
+        }
+        await writeFile(join(root, 'root.txt'), 'before\n', 'utf8');
+        await execFileAsync('git', ['add', 'root.txt'], { cwd: root });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+        await writeFile(join(submoduleSource, 'submodule.txt'), 'before\n', 'utf8');
+        await execFileAsync('git', ['add', 'submodule.txt'], { cwd: submoduleSource });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: submoduleSource });
+        await execFileAsync('git', ['worktree', 'add', '-b', 'feature', linked], { cwd: root });
+        await execFileAsync(
+            'git',
+            ['-c', 'protocol.file.allow=always', 'submodule', 'add', submoduleSource, 'vendor/sub'],
+            { cwd: root },
+        );
+        await execFileAsync('git', ['commit', '-am', 'add submodule'], { cwd: root });
+
+        const nested = join(root, 'nested');
+        await execFileAsync('mkdir', ['-p', nested]);
+        await execFileAsync('git', ['init', '-b', 'nested-main'], { cwd: nested });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: nested });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: nested });
+        await writeFile(join(nested, 'nested.txt'), 'before\n', 'utf8');
+        await execFileAsync('git', ['add', 'nested.txt'], { cwd: nested });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: nested });
+        await Promise.all([
+            writeFile(join(root, 'root.txt'), 'after\n', 'utf8'),
+            writeFile(join(linked, 'root.txt'), 'linked\n', 'utf8'),
+            writeFile(join(nested, 'nested.txt'), 'after\n', 'utf8'),
+            writeFile(join(root, 'vendor/sub/submodule.txt'), 'after\n', 'utf8'),
+        ]);
+
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const primaryProject = database.createProject(root);
+        database.createProject(linked);
+        const session = database.createSession(primaryProject.id, 'shell').session;
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const files = new FileService(
+            database,
+            () => undefined,
+            logger,
+            () => 1024 * 1024,
+        );
+        const git = new GitService(files, logger);
+        const startedAt = performance.now();
+        const summary = await git.summary(session.id);
+        const repositories = summary.repositories;
+
+        expect(performance.now() - startedAt).toBeLessThan(3_000);
+        expect(repositories.map((repository) => repository.kind).sort()).toEqual([
+            'nested',
+            'primary',
+            'submodule',
+            'worktree',
+        ]);
+        for (const repository of repositories) {
+            expect(repository.files).toHaveLength(1);
+            await expect(
+                git.diff(session.id, repository.id, repository.files[0].path),
+            ).resolves.toContain('-before');
+        }
         database.close();
     });
 });

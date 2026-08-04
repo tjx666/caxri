@@ -186,11 +186,21 @@ export interface GitFileStatus {
     kind: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
 }
 
+export interface GitRepositorySummary {
+    id: string;
+    kind: 'primary' | 'worktree' | 'nested' | 'submodule';
+    name: string;
+    rootPath: string;
+    branch: string;
+    head?: string;
+    ahead: number;
+    behind: number;
+    files: GitFileStatus[];
+}
+
 export interface GitSummary {
     isRepository: boolean;
-    branch?: string;
-    head?: string;
-    files: GitFileStatus[];
+    repositories: GitRepositorySummary[];
     error?: string;
 }
 

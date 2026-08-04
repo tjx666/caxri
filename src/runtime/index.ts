@@ -281,7 +281,11 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
         case 'git.summary':
             return git.summary(params.sessionId as string);
         case 'git.diff':
-            return git.diff(params.sessionId as string, params.path as string);
+            return git.diff(
+                params.sessionId as string,
+                params.repositoryId as string,
+                params.path as string,
+            );
         case 'agent.snapshot': {
             const sessionId = params.sessionId as string;
             const provider = params.provider as AgentProvider;

@@ -136,6 +136,11 @@ export class FileService {
         return { root, path: resolved };
     }
 
+    /** Returns durable Project roots that the user explicitly granted to Caxri. */
+    listApprovedProjectRoots(): string[] {
+        return this.database.listProjects().map((project) => project.rootPath);
+    }
+
     list(sessionId: string, directory?: string): Promise<FileEntry[]> {
         return this.listRequests.run(JSON.stringify([sessionId, directory ?? null]), () =>
             this.loadList(sessionId, directory),

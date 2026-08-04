@@ -46,7 +46,7 @@ export const requestSchemas = {
         content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
     }),
     'git.summary': z.object({ sessionId: id }),
-    'git.diff': z.object({ sessionId: id, path }),
+    'git.diff': z.object({ sessionId: id, repositoryId: id, path }),
     'agent.snapshot': z.object({ sessionId: id, provider: z.enum(['claude', 'codex']) }),
     'settings.get': z.object({}),
     'settings.update': z.object({ source: z.string().max(128 * 1024) }),

@@ -66,6 +66,8 @@ Themes normalize into one semantic token structure consumed by CSS variables, xt
 
 Git operations run via `execFile('git', argv)` with fixed argv constructors, a filtered environment, and no repository mutation. Adapters discover Claude Code and Codex independently through the GUI environment plus a login-shell PATH fallback. Claude Code integration reads only compact live-session metadata. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata are correlated with the matching provider Terminal. Only metadata from the default Agent Terminal updates the Session sidebar record. Missing or changed storage produces `unknown`; it never interrupts PTY input/output.
 
+The Git inspector treats the selected Project repository, linked worktrees, nested repositories, and initialized submodules as independent status scopes. Repository discovery uses structured Git output, coalesces concurrent summaries, and passes an opaque repository ID back for diff requests. Nested roots inherit the containing Project grant. A linked worktree outside that root appears only after its directory has independently been added as a Project; Git discovery never expands durable path authority.
+
 ## Security
 
 BrowserWindows use `contextIsolation: true`, `nodeIntegration: false`, sandboxed renderers, a restrictive CSP, blocked navigation, and denied new windows. External HTTP(S) URLs require explicit user intent before Main uses the system browser. No telemetry or remote upload exists.
