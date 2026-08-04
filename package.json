@@ -51,6 +51,7 @@
         "@electron-toolkit/tsconfig": "2.0.0",
         "@eslint/js": "^10.0.1",
         "@lobehub/assets-fileicon": "^1.0.0",
+        "@lobehub/icons-static-svg": "^1.94.0",
         "@monaco-editor/react": "4.7.0",
         "@playwright/test": "1.62.1",
         "@tailwindcss/vite": "4.3.3",

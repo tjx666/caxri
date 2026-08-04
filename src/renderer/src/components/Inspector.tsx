@@ -18,6 +18,8 @@ import type {
     TerminalRecord,
 } from '@shared/types';
 
+import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
+import { resolveAgentIcon } from '../agent-icons/agent-icon-registry';
 import { FileTypeIcon } from '../file-icons/FileTypeIcon';
 import { Button } from './ui/button';
 
@@ -312,7 +314,8 @@ function AgentPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onEr
             {snapshots.map((snapshot) => (
                 <section key={snapshot.provider} className="agent-card">
                     <div className="agent-title">
-                        <Bot size={15} /> {snapshot.provider === 'claude' ? 'Claude Code' : 'Codex'}
+                        <AgentIdentityIcon identity={snapshot.provider} size={15} />{' '}
+                        {resolveAgentIcon(snapshot.provider).label}
                     </div>
                     <dl>
                         <dt>Availability</dt>

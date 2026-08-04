@@ -1,13 +1,16 @@
-import { FileCode2, TerminalSquare, X } from 'lucide-react';
+import { FileCode2, X } from 'lucide-react';
 import type { DragEvent } from 'react';
 
 import type { ProcessState } from '@shared/types';
+
+import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
+import type { AgentIconIdentity } from '../agent-icons/agent-icon-registry';
 
 interface WorkTabProps {
     active: boolean;
     closeLabel: string;
     dirty?: boolean;
-    icon: 'file' | 'terminal';
+    icon: 'file' | AgentIconIdentity;
     label: string;
     status?: ProcessState;
     terminalId?: string;
@@ -28,7 +31,6 @@ export function WorkTab({
     onDragStart,
     onSelect,
 }: WorkTabProps) {
-    const Icon = icon === 'terminal' ? TerminalSquare : FileCode2;
     return (
         <div
             className={active ? 'work-tab active' : 'work-tab'}
@@ -43,7 +45,11 @@ export function WorkTab({
                 className="tab-select"
                 onClick={onSelect}
             >
-                <Icon size={13} />
+                {icon === 'file' ? (
+                    <FileCode2 size={13} />
+                ) : (
+                    <AgentIdentityIcon identity={icon} size={13} />
+                )}
                 <span>{label}</span>
                 {dirty && <b>●</b>}
             </button>

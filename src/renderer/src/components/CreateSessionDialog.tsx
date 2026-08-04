@@ -1,7 +1,6 @@
-import { Bot, TerminalSquare } from 'lucide-react';
-
 import type { TerminalKind } from '@shared/types';
 
+import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
@@ -30,13 +29,13 @@ export function CreateSessionDialog({
                 </DialogHeader>
                 <div className="agent-choice">
                     <Button variant="secondary" onClick={() => onCreate('claude')}>
-                        <Bot size={15} /> Claude Code
+                        <AgentIdentityIcon identity="claude" size={15} /> Claude Code
                     </Button>
                     <Button variant="secondary" onClick={() => onCreate('codex')}>
-                        <Bot size={15} /> Codex
+                        <AgentIdentityIcon identity="codex" size={15} /> Codex
                     </Button>
                     <Button variant="secondary" onClick={() => onCreate('shell')}>
-                        <TerminalSquare size={15} /> Shell
+                        <AgentIdentityIcon identity="shell" size={15} /> Shell
                     </Button>
                 </div>
             </DialogContent>

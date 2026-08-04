@@ -12,6 +12,7 @@ import { useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
 
+import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
 import { Button } from './ui/button';
 
 interface ProjectSidebarProps {
@@ -131,6 +132,10 @@ export function ProjectSidebar({
                                                 >
                                                     <Circle size={7} fill="currentColor" />
                                                 </span>
+                                                <AgentIdentityIcon
+                                                    identity={terminal?.kind ?? 'shell'}
+                                                    size={14}
+                                                />
                                                 <span className="session-copy">
                                                     <strong>{session.displayTitle}</strong>
                                                     <em>{terminal?.title ?? 'Shell'}</em>

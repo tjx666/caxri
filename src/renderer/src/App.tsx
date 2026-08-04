@@ -577,7 +577,7 @@ export default function App() {
                                     key={terminal.id}
                                     active={resolvedActiveWork === `terminal:${terminal.id}`}
                                     closeLabel="Close Terminal"
-                                    icon="terminal"
+                                    icon={terminal.kind}
                                     label={terminal.title}
                                     status={terminal.lastProcessState}
                                     terminalId={terminal.id}

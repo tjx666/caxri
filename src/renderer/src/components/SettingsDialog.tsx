@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
+import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
@@ -157,7 +158,13 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                     <div className="settings-body">
                         <div className="structured-editor">
                             <label>
-                                Default Agent
+                                <span className="settings-field-title">
+                                    <AgentIdentityIcon
+                                        identity={settings['session.defaultAgent']}
+                                        size={14}
+                                    />
+                                    Default Agent
+                                </span>
                                 <select
                                     value={settings['session.defaultAgent'] ?? ''}
                                     onChange={(event) =>

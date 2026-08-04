@@ -23,3 +23,9 @@ Copyright (c) 2014 Ryan L McIntyre. Licensed under the MIT License. The vendored
 Caxri bundles a curated subset of `@lobehub/assets-fileicon` for the Files inspector. Only explicitly imported SVGs are emitted into the Renderer build; icons are loaded from local packaged assets.
 
 Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license text is in `licenses/LOBEHUB_FILE_ICONS_LICENSE.txt`; the upstream source is https://github.com/lobehub/lobe-assets/tree/master/packages/assets-fileicon.
+
+## Lobe Icons
+
+Caxri bundles Claude Code, Codex, Grok, and OpenCode SVG assets from `@lobehub/icons-static-svg`. Color assets preserve their authored palette; monochrome assets are rendered as theme-colored masks.
+
+Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license text is in `licenses/LOBEHUB_ICONS_LICENSE.txt`; the upstream source is https://github.com/lobehub/lobe-icons.

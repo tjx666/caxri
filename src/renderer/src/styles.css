@@ -267,6 +267,15 @@ button {
     color: inherit;
     cursor: pointer;
 }
+.agent-identity-icon {
+    display: inline-block;
+    flex: none;
+    object-fit: contain;
+}
+.agent-identity-icon-mask {
+    background: currentColor;
+    mask: var(--agent-icon-mask) center / contain no-repeat;
+}
 .work-tab:hover {
     background: var(--elevated);
     color: var(--foreground);
@@ -648,6 +657,9 @@ button {
     background: var(--background);
 }
 .agent-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-weight: 650;
 }
 .agent-card dl {
@@ -845,6 +857,11 @@ button {
     gap: 8px;
     margin-bottom: 12px;
     color: var(--muted);
+}
+.settings-field-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 .structured-editor input,
 .structured-editor select {
