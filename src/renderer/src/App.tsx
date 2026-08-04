@@ -76,6 +76,7 @@ export default function App() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [message, setMessage] = useState<string>();
+    const [runtimeAttachEpoch, setRuntimeAttachEpoch] = useState(0);
     const messageTimerRef = useRef<number | undefined>(undefined);
 
     const showMessage = useCallback((value: string): void => {
@@ -476,7 +477,10 @@ export default function App() {
                 setBootstrap((current) =>
                     current ? { ...current, runtime: event.payload } : current,
                 );
-                if (event.payload.status === 'ready') void refresh();
+                if (event.payload.status === 'ready') {
+                    setRuntimeAttachEpoch((current) => current + 1);
+                    void refresh();
+                }
             }
             if (
                 event.event === 'settings.changed' ||
@@ -709,13 +713,19 @@ export default function App() {
                                     {splitTerminals.slice(0, 2).map((terminal) => (
                                         <TerminalPane
                                             key={terminal.id}
+                                            attachEpoch={runtimeAttachEpoch}
                                             terminal={terminal}
                                             theme={bootstrap.theme}
                                             fontSize={bootstrap.settings['terminal.fontSize']}
                                             scrollback={bootstrap.settings['terminal.scrollback']}
                                             onRestart={(id) =>
                                                 void window.caxri
-                                                    .request('terminal.restart', { terminalId: id })
+                                                    .request('terminal.attach', { terminalId: id })
+                                                    .then(() =>
+                                                        window.caxri.request('terminal.restart', {
+                                                            terminalId: id,
+                                                        }),
+                                                    )
                                                     .then(() => refresh())
                                                     .catch((error: unknown) =>
                                                         showMessage(

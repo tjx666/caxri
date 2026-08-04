@@ -40,14 +40,6 @@ export class TerminalOutputQueue {
 
     constructor(private readonly maxBytes: number) {}
 
-    append(data: string): boolean {
-        const bytes = Buffer.byteLength(data, 'utf8');
-        if (this.byteCount + bytes > this.maxBytes) return false;
-        this.chunks.push(data);
-        this.byteCount += bytes;
-        return true;
-    }
-
     appendBounded(data: string): number {
         const buffer = Buffer.from(data, 'utf8');
         const available = this.maxBytes - this.byteCount;

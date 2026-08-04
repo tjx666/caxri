@@ -74,7 +74,8 @@ function parseJsonc(source: string): unknown {
 }
 
 async function atomicWrite(path: string, source: string): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
+    const directory = dirname(path);
+    await mkdir(directory, { recursive: true });
     const temporary = `${path}.${randomUUID()}.tmp`;
     try {
         const file = await open(temporary, 'wx', 0o600);
@@ -85,6 +86,12 @@ async function atomicWrite(path: string, source: string): Promise<void> {
             await file.close();
         }
         await rename(temporary, path);
+        const directoryHandle = await open(directory, 'r');
+        try {
+            await directoryHandle.sync();
+        } finally {
+            await directoryHandle.close();
+        }
     } finally {
         await rm(temporary, { force: true });
     }

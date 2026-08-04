@@ -9,7 +9,8 @@ export type SessionDocuments = Record<string, Record<string, EditorDocument>>;
 /** Monaco models are URI-keyed, so Session identity must be part of the URI even for a shared root. */
 export function editorModelPath(sessionId: string, path: string): string {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    return `caxri://session/${encodeURIComponent(sessionId)}${normalizedPath}`;
+    const encodedPath = normalizedPath.split('/').map(encodeURIComponent).join('/');
+    return `caxri://session/${encodeURIComponent(sessionId)}${encodedPath}`;
 }
 
 export function setSessionDocument(

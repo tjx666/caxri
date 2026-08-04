@@ -83,4 +83,11 @@ describe('Session editor state', () => {
             editorModelPath('session-2', '/project/file.ts'),
         );
     });
+
+    it('escapes URI delimiters in Monaco model paths without collapsing filesystem segments', () => {
+        const modelPath = editorModelPath('session/1', '/project/a#b?c%2F.ts');
+
+        expect(modelPath).toBe('caxri://session/session%2F1/project/a%23b%3Fc%252F.ts');
+        expect(modelPath).not.toBe(editorModelPath('session/1', '/project/a/b.ts'));
+    });
 });

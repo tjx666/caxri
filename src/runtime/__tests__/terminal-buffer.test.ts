@@ -15,9 +15,9 @@ describe('Terminal buffers', () => {
 
     it('bounds queued Renderer output using a byte counter', () => {
         const queue = new TerminalOutputQueue(5);
-        expect(queue.append('é')).toBe(true);
-        expect(queue.append('abc')).toBe(true);
-        expect(queue.append('x')).toBe(false);
+        expect(queue.appendBounded('é')).toBe(0);
+        expect(queue.appendBounded('abc')).toBe(0);
+        expect(queue.appendBounded('x')).toBe(1);
         expect(queue.drain()).toBe('éabc');
         expect(queue.byteCount).toBe(0);
     });

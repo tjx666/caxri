@@ -132,7 +132,9 @@ test('large workspace opens Runtime, Terminal, files, and Git within three secon
             .filter(Boolean)
             .map((line) => JSON.parse(line) as PerformanceLog);
         const watcherReady = records.findLast((record) => record.event === 'watcher.ready');
-        const watcherErrors = records.filter((record) => record.event === 'watcher.error').length;
+        const watcherErrors = records.filter((record) =>
+            ['watcher.fallback', 'watcher.setup_failed'].includes(record.event ?? ''),
+        ).length;
         const runtimeBoot = records.findLast((record) => record.event === 'runtime.ready');
         const terminalSpawn = records.findLast((record) => record.event === 'pty.spawned');
         const fileList = records.findLast((record) => record.event === 'file.list');

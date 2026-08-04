@@ -99,6 +99,7 @@ export class CaxriDatabase {
     constructor(path: string) {
         if (path !== ':memory:') {
             mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+            /** Electron owns this userData directory, so restricting it also protects adjacent Caxri configuration and logs. */
             restrictPath(dirname(path), 0o700);
         }
         this.database = new Database(path);

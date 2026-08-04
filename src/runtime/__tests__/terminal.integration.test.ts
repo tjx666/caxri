@@ -18,6 +18,41 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
+    it('buffers detached output in the snapshot and emits only after attachment', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(directory, 'shell');
+        let output = '';
+        const manager = new TerminalManager(
+            database,
+            (event) => {
+                if (event.event === 'terminal.output') output += event.payload.data;
+            },
+            new StructuredLogger(join(directory, 'logs')),
+        );
+
+        await manager.start(created.terminal);
+        manager.write(created.terminal.id, "printf 'DETACHED_ONLY\\n'\r");
+        await expect
+            .poll(() => database.getSnapshot(created.terminal.id)?.payload)
+            .toContain('DETACHED_ONLY');
+        expect(output).not.toContain('DETACHED_ONLY');
+        expect(manager.attach(created.terminal.id)?.payload).toContain('DETACHED_ONLY');
+
+        manager.write(created.terminal.id, "printf 'ATTACHED_OUTPUT\\n'\r");
+        await expect.poll(() => output).toContain('ATTACHED_OUTPUT');
+        manager.detachView(created.terminal.id);
+        manager.write(created.terminal.id, "printf 'DETACHED_AGAIN\\n'\r");
+        await expect
+            .poll(() => database.getSnapshot(created.terminal.id)?.payload)
+            .toContain('DETACHED_AGAIN');
+        expect(output).not.toContain('DETACHED_AGAIN');
+
+        manager.shutdown();
+        database.close();
+    });
+
     it('spawns a real PTY, accepts input, emits output, persists a snapshot, and exits', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-'));
         temporaryDirectories.push(directory);

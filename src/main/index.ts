@@ -20,7 +20,9 @@ import {
 } from '../shared/contracts';
 import type { Keybinding, PersistedWindowState } from '../shared/types';
 import { StructuredLogger } from '../runtime/logger';
+import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
+import { SessionRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
 import { resolveTestRootPath } from './test-root';
 import { createWindowCloseHandler } from './window-close';
@@ -33,7 +35,7 @@ let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
 let forceWindowClose = false;
 let quitStarted = false;
-const grantedRoots = new Set<string>();
+const grantedRoots = new SessionRootGrants();
 
 function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'runtime.status') {
@@ -201,7 +203,7 @@ async function handleMainMethod(
         case 'dialog.selectDirectory': {
             const testRoot = resolveTestRootPath({ isPackaged: app.isPackaged });
             if (testRoot) {
-                grantedRoots.add(testRoot);
+                grantedRoots.grant(testRoot);
                 return testRoot;
             }
             const result = await dialog.showOpenDialog(mainWindow!, {
@@ -209,17 +211,13 @@ async function handleMainMethod(
                 properties: ['openDirectory', 'createDirectory'],
             });
             const path = result.filePaths[0];
-            if (!result.canceled && path) grantedRoots.add(path);
+            if (!result.canceled && path) grantedRoots.grant(path);
             return result.canceled ? null : path;
         }
         case 'session.create':
-            if (!grantedRoots.has(params.rootPath as string))
-                throw new Error('Session root was not selected by the user');
-            try {
-                return await supervisor.request(method, params);
-            } finally {
-                grantedRoots.delete(params.rootPath as string);
-            }
+            return grantedRoots.use(params.rootPath as string, () =>
+                supervisor.request(method, params),
+            );
         case 'session.delete': {
             const count = await supervisor.request<number>('terminal.runningCount', {
                 sessionId: params.sessionId,
@@ -386,7 +384,7 @@ void app.whenReady().then(async () => {
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         userDataPath,
     });
-    const logLevel = app.isPackaged ? 'info' : 'debug';
+    const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
     mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
     supervisor = new RuntimeSupervisor(currentDirectory, userDataPath, logDirectory, logLevel);

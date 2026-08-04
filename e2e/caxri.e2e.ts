@@ -262,7 +262,11 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .getByRole('button', { name: /Restart Terminal/ })
             .first()
             .click();
-        await expect(running.page.locator('.xterm-helper-textarea')).toBeVisible();
+        await expect(running.page.locator('.process-running').first()).toBeVisible();
+        await typeTerminal(running.page, "printf 'AFTER_RUNTIME_RESTART\\n'");
+        await expect(running.page.locator('.xterm-rows').first()).toContainText(
+            'AFTER_RUNTIME_RESTART',
+        );
 
         await running.app.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0]?.setBounds({ width: 1180, height: 760 }),
@@ -285,7 +289,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .getByRole('button', { name: /Restart Terminal/ })
             .first()
             .click();
-        await expect(running.page.locator('.xterm-helper-textarea')).toBeVisible();
+        await expect(running.page.locator('.process-running').first()).toBeVisible();
 
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 2, checkboxChecked: false });

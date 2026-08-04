@@ -10,6 +10,7 @@ import { TerminalReplayBuffer } from '../lib/terminal-replay';
 import { Button } from './ui/button';
 
 interface TerminalPaneProps {
+    attachEpoch: number;
     terminal: TerminalRecord;
     theme: ThemeTokens;
     fontSize: number;
@@ -19,6 +20,7 @@ interface TerminalPaneProps {
 }
 
 export function TerminalPane({
+    attachEpoch,
     terminal,
     theme,
     fontSize,
@@ -28,6 +30,7 @@ export function TerminalPane({
 }: TerminalPaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
+    const attachedEpochRef = useRef(attachEpoch);
     const latestRef = useRef({
         fontSize,
         onError,
@@ -131,6 +134,19 @@ export function TerminalPane({
             });
         };
     }, [terminal.id]);
+
+    useEffect(() => {
+        if (attachedEpochRef.current === attachEpoch) return;
+        attachedEpochRef.current = attachEpoch;
+        /** Runtime-owned attachment state is lost with the utility process even though this pane remains mounted. */
+        void window.caxri
+            .request('terminal.attach', { terminalId: terminal.id })
+            .catch((error: unknown) =>
+                latestRef.current.onError(
+                    error instanceof Error ? error.message : 'Terminal reattachment failed',
+                ),
+            );
+    }, [attachEpoch, terminal.id]);
 
     useEffect(() => {
         const xterm = xtermRef.current;

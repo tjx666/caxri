@@ -1,11 +1,21 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+    mkdir,
+    mkdtemp,
+    open,
+    readFile,
+    realpath,
+    rename,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CaxriDatabase } from '../database';
-import { FileService } from '../files';
+import { FileService, rememberChangeFingerprint, rememberPolledDirectory } from '../files';
 import { StructuredLogger } from '../logger';
 
 const temporaryDirectories: string[] = [];
@@ -17,6 +27,26 @@ afterEach(async () => {
 });
 
 describe('FileService', () => {
+    it('keeps fallback polling bounded without evicting the active root', () => {
+        const directories = new Map<string, string>();
+        rememberPolledDirectory(directories, '/root', 'root', '/root', 3);
+        rememberPolledDirectory(directories, '/root/a', 'a', '/root', 3);
+        rememberPolledDirectory(directories, '/root/b', 'b', '/root', 3);
+        rememberPolledDirectory(directories, '/root/c', 'c', '/root', 3);
+
+        expect([...directories.keys()]).toEqual(['/root', '/root/b', '/root/c']);
+    });
+
+    it('deduplicates the same file version across native and polling backends', () => {
+        const fingerprints = new Map<string, string>();
+
+        expect(rememberChangeFingerprint(fingerprints, '/root/file.ts', 'version-1', 3)).toBe(true);
+        expect(rememberChangeFingerprint(fingerprints, '/root/file.ts', 'version-1', 3)).toBe(
+            false,
+        );
+        expect(rememberChangeFingerprint(fingerprints, '/root/file.ts', 'version-2', 3)).toBe(true);
+    });
+
     it('reads and writes text under the Session root and rejects traversal/symlink escapes', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-'));
         temporaryDirectories.push(directory);
@@ -65,6 +95,42 @@ describe('FileService', () => {
         database.close();
     });
 
+    it('rejects a symlink replacement between validation and opening a file', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-read-race-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const target = join(root, 'target.txt');
+        const original = join(root, 'original.txt');
+        const outside = join(directory, 'outside.txt');
+        await mkdir(root);
+        await writeFile(target, 'inside', 'utf8');
+        await writeFile(outside, 'secret', 'utf8');
+        const canonicalTarget = await realpath(target);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(root, 'shell').session;
+        let replaced = false;
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            {
+                openFile: async (path, flags, mode) => {
+                    if (path === canonicalTarget && !replaced) {
+                        replaced = true;
+                        await rename(target, original);
+                        await symlink(outside, target);
+                    }
+                    return open(path, flags, mode);
+                },
+            },
+        );
+
+        await expect(service.read(session.id, target)).rejects.toThrow();
+        expect(await readFile(outside, 'utf8')).toBe('secret');
+        database.close();
+    });
+
     it('shares concurrent directory reads and records one timed file-list operation', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-'));
         temporaryDirectories.push(directory);
@@ -96,6 +162,9 @@ describe('FileService', () => {
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
         await mkdir(root);
+        const watchedPath = join(root, 'watched.txt');
+        await writeFile(watchedPath, 'before', 'utf8');
+        const canonicalWatchedPath = await realpath(watchedPath);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(root, 'shell').session;
         const events: string[] = [];
@@ -109,13 +178,11 @@ describe('FileService', () => {
             () => 1024,
         );
         await service.watchSession(session.id);
-        const watchedPath = join(root, 'watched.txt');
-        await writeFile(watchedPath, 'first', 'utf8');
-        await writeFile(watchedPath, 'second', 'utf8');
-        const canonicalWatchedPath = await realpath(watchedPath);
+        await writeFile(watchedPath, 'after', 'utf8');
 
         await expect.poll(() => events.length, { timeout: 5_000 }).toBeGreaterThan(0);
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        /** Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change. */
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
         expect(events).toEqual([canonicalWatchedPath]);
         await service.close();
         database.close();

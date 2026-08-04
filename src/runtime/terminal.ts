@@ -24,6 +24,17 @@ const TERMINAL_ENVIRONMENT_KEYS = [
     'XDG_CONFIG_HOME',
     'XDG_CACHE_HOME',
     'XDG_DATA_HOME',
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'ALL_PROXY',
+    'NO_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'all_proxy',
+    'no_proxy',
+    'NODE_EXTRA_CA_CERTS',
+    'SSL_CERT_FILE',
+    'SSL_CERT_DIR',
 ] as const;
 
 export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -131,8 +142,6 @@ export class TerminalManager {
             const droppedBytes = live.outputQueue.appendBounded(data);
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
-        }
-        if (this.attached.has(live.record.id)) {
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
         }
         live.snapshotTimer ??= setTimeout(() => this.persistSnapshot(live), 750);

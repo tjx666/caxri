@@ -25,6 +25,7 @@ export class RuntimeSupervisor extends EventEmitter {
     private pending = new Map<string, PendingRequest>();
     private restartCount = 0;
     private intentionalStop = false;
+    private terminalFailure?: Error;
     private readiness?: RuntimeReadiness;
 
     constructor(
@@ -38,7 +39,8 @@ export class RuntimeSupervisor extends EventEmitter {
 
     start(): Promise<void> {
         if (this.child) return this.readiness?.promise ?? Promise.resolve();
-        this.intentionalStop = false;
+        if (this.terminalFailure) return Promise.reject(this.terminalFailure);
+        if (this.intentionalStop) return Promise.reject(new Error('Runtime has been stopped'));
         this.readiness ??= this.createReadiness();
         const runtimePath = join(this.runtimeDirectory, 'runtime.js');
         let child: UtilityProcess;
@@ -95,7 +97,7 @@ export class RuntimeSupervisor extends EventEmitter {
             reject(failure);
             this.readiness = undefined;
             this.restartCount = 3;
-            this.intentionalStop = true;
+            this.terminalFailure = failure;
             const child = this.child;
             this.child = undefined;
             child?.kill();
@@ -113,6 +115,7 @@ export class RuntimeSupervisor extends EventEmitter {
                 this.readiness?.resolve();
                 this.readiness = undefined;
                 this.restartCount = 0;
+                this.terminalFailure = undefined;
             }
             this.emit('event', message);
             return;
@@ -133,9 +136,11 @@ export class RuntimeSupervisor extends EventEmitter {
             pending.reject(new Error(`Runtime exited with code ${code}`));
         }
         this.pending.clear();
-        if (this.intentionalStop) return;
+        if (this.intentionalStop || this.terminalFailure) return;
         if (this.restartCount >= 3) {
-            this.readiness?.reject(new Error('Runtime failed after 3 restart attempts'));
+            const failure = new Error('Runtime failed after 3 restart attempts');
+            this.terminalFailure = failure;
+            this.readiness?.reject(failure);
             this.readiness = undefined;
             this.emit('event', {
                 event: 'runtime.status',
