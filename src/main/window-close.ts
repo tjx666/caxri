@@ -2,6 +2,7 @@ interface WindowCloseOptions {
     close: () => void;
     confirm: (runningCount: number) => Promise<'cancel' | 'close' | 'terminate'>;
     countRunning: () => Promise<number>;
+    detachAll: () => Promise<void>;
     logFailure: (message: string) => void;
     terminateAll: () => Promise<void>;
 }
@@ -14,6 +15,9 @@ export async function resolveWindowClose(options: WindowCloseOptions): Promise<v
             const decision = await options.confirm(runningCount);
             if (decision === 'cancel') return;
             if (decision === 'terminate') await options.terminateAll();
+            else await options.detachAll();
+        } else {
+            await options.detachAll();
         }
     } catch (error) {
         options.logFailure(error instanceof Error ? error.message : 'Unknown close failure');

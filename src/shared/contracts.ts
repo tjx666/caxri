@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { FileChange } from './types';
+import { MAX_CONFIGURABLE_FILE_BYTES, type FileChange } from './types';
 
 const id = z.string().min(1).max(200);
 const path = z.string().min(1).max(16_384);
@@ -13,6 +13,7 @@ export const requestSchemas = {
     'dialog.selectDirectory': z.object({}),
     'diagnostics.export': z.object({}),
     'session.create': z.object({ rootPath: path, defaultAgent: terminalKind }),
+    'session.cancelCreate': z.object({ rootPath: path }),
     'session.delete': z.object({ sessionId: id }),
     'session.select': z.object({ sessionId: id }),
     'session.updateState': z.object({
@@ -37,7 +38,11 @@ export const requestSchemas = {
     'terminal.runningCount': z.object({ sessionId: id.optional() }),
     'files.list': z.object({ sessionId: id, directory: path.optional() }),
     'files.read': z.object({ sessionId: id, path }),
-    'files.write': z.object({ sessionId: id, path, content: z.string().max(4 * 1024 * 1024) }),
+    'files.write': z.object({
+        sessionId: id,
+        path,
+        content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
+    }),
     'git.summary': z.object({ sessionId: id }),
     'git.diff': z.object({ sessionId: id, path }),
     'agent.snapshot': z.object({ sessionId: id, provider: z.enum(['claude', 'codex']) }),
@@ -67,6 +72,7 @@ export const internalRequestSchemas = {
     'config.paths': z.object({}),
     'diagnostics.exportPath': z.object({ destination: path }),
     'runtime.shutdown': z.object({}),
+    'terminal.detachAll': z.object({}),
     'terminal.terminateAll': z.object({}),
     'theme.importPath': z.object({ path }),
 } as const;

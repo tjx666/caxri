@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../database';
 import { FileService, rememberChangeFingerprint, rememberPolledDirectory } from '../files';
@@ -73,6 +73,26 @@ describe('FileService', () => {
         database.close();
     });
 
+    it('accepts root children whose names begin with two dots', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-dotdot-name-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, '..odd.txt');
+        await writeFile(path, 'valid child', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(directory, 'shell').session;
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        );
+
+        await expect(service.read(session.id, path)).resolves.toMatchObject({
+            content: 'valid child',
+        });
+        database.close();
+    });
+
     it('refuses binary and oversized files', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-limits-'));
         temporaryDirectories.push(directory);
@@ -92,6 +112,27 @@ describe('FileService', () => {
         await expect(service.read(session.id, join(directory, 'large.txt'))).rejects.toThrow(
             'safety limit',
         );
+        database.close();
+    });
+
+    it('rejects an oversized save before changing the file on disk', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-write-limit-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'note.txt');
+        await writeFile(path, 'unchanged', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(directory, 'shell').session;
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        );
+
+        await expect(service.write(session.id, path, 'x'.repeat(1_100))).rejects.toThrow(
+            'write safety limit',
+        );
+        await expect(readFile(path, 'utf8')).resolves.toBe('unchanged');
         database.close();
     });
 
@@ -128,6 +169,35 @@ describe('FileService', () => {
 
         await expect(service.read(session.id, target)).rejects.toThrow();
         expect(await readFile(outside, 'utf8')).toBe('secret');
+        database.close();
+    });
+
+    it('does not enumerate an outside directory swapped in after path validation', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-directory-list-race-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const original = join(directory, 'original-project');
+        const outside = join(directory, 'outside');
+        await Promise.all([mkdir(root), mkdir(outside)]);
+        await writeFile(join(root, 'inside.txt'), 'inside', 'utf8');
+        await writeFile(join(outside, 'secret.txt'), 'secret', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(root, 'shell').session;
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        );
+        const resolvePath = service.resolveSessionPath.bind(service);
+        vi.spyOn(service, 'resolveSessionPath').mockImplementationOnce(async (...args) => {
+            const resolved = await resolvePath(...args);
+            await rename(root, original);
+            await symlink(outside, root);
+            return resolved;
+        });
+
+        await expect(service.list(session.id)).rejects.toThrow();
         database.close();
     });
 
@@ -184,6 +254,55 @@ describe('FileService', () => {
         /** Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change. */
         await new Promise((resolve) => setTimeout(resolve, 1_500));
         expect(events).toEqual([canonicalWatchedPath]);
+        await service.close();
+        database.close();
+    });
+
+    it('rebinds fallback polling when Session watcher setup completes out of order', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-switch-'));
+        temporaryDirectories.push(directory);
+        const firstRoot = join(directory, 'first');
+        const secondRoot = join(directory, 'second');
+        await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const first = database.createSession(firstRoot, 'shell').session;
+        const second = database.createSession(secondRoot, 'shell').session;
+        const events: string[] = [];
+        const service = new FileService(
+            database,
+            (event) => {
+                if (event.event === 'files.changed' && event.payload.sessionId === second.id)
+                    events.push(...event.payload.changes.map((change) => change.path));
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        );
+        const originalResolve = service.resolveSessionPath.bind(service);
+        const firstGate = Promise.withResolvers<void>();
+        const secondGate = Promise.withResolvers<void>();
+        vi.spyOn(service, 'resolveSessionPath').mockImplementation(async (sessionId, input) => {
+            if (input === undefined)
+                await (sessionId === first.id ? firstGate.promise : secondGate.promise);
+            return originalResolve(sessionId, input);
+        });
+
+        const firstSetup = service.watchSession(first.id);
+        const secondSetup = service.watchSession(second.id);
+        firstGate.resolve();
+        await firstSetup;
+        secondGate.resolve();
+        await secondSetup;
+        const internals = service as unknown as {
+            watcher?: { unsubscribe(): Promise<void> };
+        };
+        await internals.watcher?.unsubscribe();
+        internals.watcher = undefined;
+        const changedPath = join(secondRoot, 'polled.txt');
+        await writeFile(changedPath, 'poll me', 'utf8');
+        const canonicalChangedPath = await realpath(changedPath);
+
+        await expect.poll(() => events.length, { timeout: 3_000 }).toBeGreaterThan(0);
+        expect(events).toEqual([canonicalChangedPath]);
         await service.close();
         database.close();
     });

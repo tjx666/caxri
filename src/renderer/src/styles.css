@@ -446,6 +446,9 @@ button {
     margin: 10px 0;
     font-size: 11px;
 }
+.agent-metadata-row {
+    display: contents;
+}
 .agent-card dt {
     color: var(--muted);
 }

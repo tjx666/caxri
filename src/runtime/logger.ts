@@ -15,6 +15,8 @@ export interface LogRecord {
 const SECRET_KEY = /(token|password|secret|credential|api[_-]?key|authorization|cookie)/i;
 const SECRET_ASSIGNMENT =
     /\b(token|password|secret|credential|api[_-]?key|authorization|cookie)\s*[=:]\s*([^\s,;]+)/gi;
+const SECRET_VALUE =
+    /(sk-[a-zA-Z0-9_-]{12,}|Bearer\s+[a-zA-Z0-9._-]+|gh[pousr]_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{10,}|xox[baprs]-[a-zA-Z0-9-]{10,})/g;
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const LOG_LEVELS: Record<LogRecord['level'], number> = {
     debug: 10,
@@ -26,7 +28,7 @@ const LOG_LEVELS: Record<LogRecord['level'], number> = {
 export function redactLogValue(value: string): string {
     return value
         .replaceAll(homedir(), '$HOME')
-        .replace(/(sk-[a-zA-Z0-9_-]{12,}|Bearer\s+[a-zA-Z0-9._-]+)/g, '[REDACTED]')
+        .replace(SECRET_VALUE, '[REDACTED]')
         .replace(SECRET_ASSIGNMENT, '$1=[REDACTED]');
 }
 

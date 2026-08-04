@@ -5,46 +5,18 @@ import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/t
 import { discoverExecutable } from './agent';
 import type { CaxriDatabase } from './database';
 import type { StructuredLogger } from './logger';
+import { safeProcessEnvironment } from './process-environment';
 import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 
-const TERMINAL_ENVIRONMENT_KEYS = [
-    'HOME',
-    'USER',
-    'LOGNAME',
-    'PATH',
-    'SHELL',
-    'LANG',
-    'LC_ALL',
-    'LC_CTYPE',
-    'TMPDIR',
-    'SSH_AUTH_SOCK',
-    'XDG_CONFIG_HOME',
-    'XDG_CACHE_HOME',
-    'XDG_DATA_HOME',
-    'HTTP_PROXY',
-    'HTTPS_PROXY',
-    'ALL_PROXY',
-    'NO_PROXY',
-    'http_proxy',
-    'https_proxy',
-    'all_proxy',
-    'no_proxy',
-    'NODE_EXTRA_CA_CERTS',
-    'SSL_CERT_FILE',
-    'SSL_CERT_DIR',
-] as const;
-
 export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = {
+        ...safeProcessEnvironment(source),
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
     };
-    for (const key of TERMINAL_ENVIRONMENT_KEYS) {
-        if (source[key] !== undefined) environment[key] = source[key];
-    }
     return environment;
 }
 
@@ -62,16 +34,27 @@ interface LiveTerminal {
     metricTimer?: NodeJS.Timeout;
 }
 
+interface TerminalManagerOptions {
+    resolveExecutable?: (kind: TerminalKind) => Promise<string>;
+    spawn?: typeof pty.spawn;
+}
+
 export class TerminalManager {
     private readonly terminals = new Map<string, LiveTerminal>();
     private readonly attached = new Set<string>();
     private readonly starts = new SingleFlight<string, TerminalRecord>();
+    private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
+    private readonly spawnProcess: typeof pty.spawn;
 
     constructor(
         private readonly database: CaxriDatabase,
         private readonly emit: (event: RuntimeEvent) => void,
         private readonly logger: StructuredLogger,
-    ) {}
+        options: TerminalManagerOptions = {},
+    ) {
+        this.resolveExecutableOverride = options.resolveExecutable;
+        this.spawnProcess = options.spawn ?? pty.spawn;
+    }
 
     start(record: TerminalRecord): Promise<TerminalRecord> {
         if (this.terminals.has(record.id))
@@ -85,13 +68,18 @@ export class TerminalManager {
             const executable = await this.resolveExecutable(record.kind);
             const args = record.kind === 'shell' ? ['-l'] : [];
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
-            const child = pty.spawn(executable, args, {
+            const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
                 cols: 100,
                 rows: 30,
                 cwd: record.cwd,
                 env: terminalEnvironment(),
             });
+            /** A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell. */
+            if (!this.database.getTerminal(record.id)) {
+                child.kill();
+                throw new Error('Terminal was closed before launch completed');
+            }
             const live: LiveTerminal = {
                 process: child,
                 record,
@@ -112,7 +100,8 @@ export class TerminalManager {
             });
             return this.database.getTerminal(record.id)!;
         } catch (error) {
-            this.database.updateTerminalState(record.id, 'failed');
+            if (this.database.getTerminal(record.id))
+                this.database.updateTerminalState(record.id, 'failed');
             this.logger.write('error', 'pty.spawn_failed', {
                 durationMs: performance.now() - startedAt,
                 fields: {
@@ -126,6 +115,7 @@ export class TerminalManager {
     }
 
     private async resolveExecutable(kind: TerminalKind): Promise<string> {
+        if (this.resolveExecutableOverride) return this.resolveExecutableOverride(kind);
         if (kind === 'shell') return process.env.SHELL || '/bin/zsh';
         const executable = await discoverExecutable(kind);
         if (!executable)
@@ -164,6 +154,7 @@ export class TerminalManager {
 
     private persistSnapshot(live: LiveTerminal): void {
         live.snapshotTimer = undefined;
+        if (!this.database.getTerminal(live.record.id)) return;
         const bounded = live.snapshot.read();
         const snapshot: TerminalSnapshot = {
             terminalId: live.record.id,
@@ -171,7 +162,17 @@ export class TerminalManager {
             ...bounded,
             updatedAt: Date.now(),
         };
-        this.database.saveSnapshot(snapshot);
+        try {
+            this.database.saveSnapshot(snapshot);
+        } catch (error) {
+            /** Snapshot persistence is recoverable and must never terminate the shared Runtime. */
+            this.logger.write('warn', 'pty.snapshot_failed', {
+                fields: {
+                    terminalId: live.record.id,
+                    error: error instanceof Error ? error.message : 'unknown',
+                },
+            });
+        }
     }
 
     private flushMetrics(live: LiveTerminal): void {
@@ -242,6 +243,11 @@ export class TerminalManager {
         if (!live && !this.database.getTerminal(terminalId)) return null;
         this.attached.add(terminalId);
         if (!live) return this.database.getSnapshot(terminalId) ?? null;
+        /** The snapshot already contains queued bytes, so discard that live batch before replay. */
+        if (live.outputTimer) clearTimeout(live.outputTimer);
+        live.outputTimer = undefined;
+        live.outputQueue.clear();
+        live.droppedBytes = 0;
         return {
             terminalId,
             encodingVersion: 1,
@@ -260,6 +266,10 @@ export class TerminalManager {
         live.droppedBytes = 0;
     }
 
+    detachAllViews(): void {
+        for (const terminalId of [...this.attached]) this.detachView(terminalId);
+    }
+
     async restart(terminalId: string): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new Error('Terminal not found');
@@ -272,7 +282,9 @@ export class TerminalManager {
         }
         if (preserveAttachment) this.attached.add(terminalId);
         this.database.updateTerminalState(terminalId, 'starting');
-        return this.start(this.database.getTerminal(terminalId)!);
+        const restarting = this.database.getTerminal(terminalId);
+        if (!restarting) throw new Error('Terminal was closed while restarting');
+        return this.start(restarting);
     }
 
     private detach(live: LiveTerminal, persist: boolean): void {

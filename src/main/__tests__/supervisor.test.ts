@@ -126,4 +126,34 @@ describe('RuntimeSupervisor', () => {
         await expect(supervisor.request('app.bootstrap')).rejects.toThrow('stopped');
         expect(electronMock.fork).toHaveBeenCalledTimes(1);
     });
+
+    it('fails closed when a Runtime repeatedly becomes ready and then crashes immediately', async () => {
+        vi.useFakeTimers();
+        const supervisor = new RuntimeSupervisor('/runtime', '/user-data', '/logs');
+        const statuses: string[] = [];
+        supervisor.on('event', (event: { event: string; payload?: { status?: string } }) => {
+            if (event.event === 'runtime.status' && event.payload?.status)
+                statuses.push(event.payload.status);
+        });
+        const started = supervisor.start();
+        electronMock.children[0].emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await started;
+
+        for (let index = 0; index < 3; index += 1) {
+            electronMock.children[index].emit('exit', 1);
+            await vi.advanceTimersByTimeAsync(250 * 2 ** index);
+            electronMock.children[index + 1].emit('message', {
+                event: 'runtime.status',
+                payload: { status: 'ready', restartCount: index + 1 },
+            });
+        }
+        electronMock.children[3].emit('exit', 1);
+        await vi.advanceTimersByTimeAsync(2_000);
+
+        expect(electronMock.fork).toHaveBeenCalledTimes(4);
+        expect(statuses.at(-1)).toBe('failed');
+    });
 });

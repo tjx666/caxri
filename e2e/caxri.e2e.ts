@@ -44,6 +44,134 @@ async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.press('Enter');
 }
 
+test('file changes refresh entries without collapsing expanded directories', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-tree-refresh-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', join(root, 'nested')]);
+    await writeFile(join(root, 'nested', 'inside.txt'), 'inside\n', 'utf8');
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('button', { name: 'nested', exact: true }).click();
+        await expect(
+            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+        ).toBeVisible();
+        await writeFile(join(root, 'new.txt'), 'new\n', 'utf8');
+
+        await expect(
+            running.page.getByRole('button', { name: 'new.txt', exact: true }),
+        ).toBeVisible();
+        await expect(
+            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+        ).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('canceling Session deletion preserves the dirty editor buffer', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-delete-cancel-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await writeFile(join(root, 'note.txt'), 'disk state\n', 'utf8');
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('button', { name: 'note.txt', exact: true }).click();
+        const editor = running.page.locator('.monaco-editor').first();
+        await editor.click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+A');
+        await running.page.keyboard.insertText('unsaved deletion cancel');
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
+        });
+        await running.page.keyboard.press('Meta+Shift+P');
+        await running.page.getByText('Delete Session', { exact: true }).click();
+        await running.page.waitForTimeout(300);
+
+        await expect(running.page.locator('.session-card')).toHaveCount(1);
+        await expect(running.page.locator('.view-lines')).toContainText('unsaved deletion cancel');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('canceling the Agent choice revokes the selected Session root grant', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-grant-cancel-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launch(userData, root);
+    try {
+        await running.page
+            .getByRole('button', { name: 'Create Session', exact: true })
+            .last()
+            .click();
+        await expect(
+            running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
+        ).toBeVisible();
+        await running.page.keyboard.press('Escape');
+
+        await expect(
+            running.page.evaluate(async (rootPath) => {
+                const bridge = (
+                    window as unknown as {
+                        caxri: { request(method: string, params: unknown): Promise<unknown> };
+                    }
+                ).caxri;
+                try {
+                    await bridge.request('session.create', { rootPath, defaultAgent: 'shell' });
+                    return 'created';
+                } catch (error) {
+                    return error instanceof Error ? error.message : 'rejected';
+                }
+            }, root),
+        ).resolves.toContain('was not selected');
+        await expect(running.page.locator('.session-card')).toHaveCount(0);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Keep Running detaches the closed window and reattaches the live Terminal', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-keep-running-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+        });
+        const closed = running.page.waitForEvent('close');
+        await running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0]?.close(),
+        );
+        await closed;
+
+        const reopenedPromise = running.app.waitForEvent('window');
+        await running.app.evaluate(({ app }) => app.emit('activate'));
+        const reopened = await reopenedPromise;
+        await expect(reopened.getByText('Runtime ready')).toBeVisible();
+        await expect(reopened.locator('.process-running').first()).toBeVisible();
+        await typeTerminal(reopened, "printf 'KEEP_RUNNING_OK\\n'");
+        await expect(reopened.locator('.xterm-rows')).toContainText('KEEP_RUNNING_OK');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('switching Sessions discards expanded file-tree state from the previous root', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-tree-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -121,6 +249,23 @@ test('editor buffers stay isolated between Sessions that share one root', async 
 
         await running.page.locator('.session-card').first().click();
         await expect(running.page.locator('.view-lines')).toContainText(
+            'first Session dirty buffer',
+        );
+
+        await running.page.locator('.session-card').nth(1).click();
+        await writeFile(
+            join(root, 'shared.txt'),
+            'external while first Session inactive\n',
+            'utf8',
+        );
+        await expect(running.page.locator('.view-lines')).toContainText(
+            'external while first Session inactive',
+        );
+        await running.page.locator('.session-card').first().click();
+        await expect(running.page.locator('.view-lines')).toContainText(
+            'external while first Session inactive',
+        );
+        await expect(running.page.locator('.view-lines')).not.toContainText(
             'first Session dirty buffer',
         );
     } finally {
@@ -203,6 +348,10 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('textarea[aria-label="theme.json source"]')).toHaveValue(
             /#282a36/,
         );
+        const terminalTabCount = await running.page.locator('.work-tabs > button').count();
+        await running.page.keyboard.press('Meta+W');
+        await expect(running.page.getByRole('dialog')).toBeVisible();
+        await expect(running.page.locator('.work-tabs > button')).toHaveCount(terminalTabCount);
         await running.page.getByRole('button', { name: 'Close' }).click();
 
         await running.app.evaluate(({ dialog }, path) => {

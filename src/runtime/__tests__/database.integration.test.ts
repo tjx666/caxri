@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,6 +17,50 @@ afterEach(async () => {
 });
 
 describe('CaxriDatabase', () => {
+    it('synchronizes default Agent metadata into the Session and Terminal records', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-db-agent-metadata-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(root, 'codex');
+
+        expect(
+            database.updateAgentMetadata(created.session.id, 'codex', {
+                provider: 'codex',
+                available: true,
+                observedAt: Date.now(),
+                sessionId: 'agent-session-1',
+                status: 'running',
+                title: 'Implement Agent metadata',
+            }),
+        ).toBe(true);
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Implement Agent metadata',
+            lastActivityState: 'running',
+        });
+        expect(database.getTerminal(created.terminal.id)).toMatchObject({
+            agentSessionId: 'agent-session-1',
+        });
+
+        database.updateTerminalState(created.terminal.id, 'stopped');
+        expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
+
+        expect(
+            database.updateAgentMetadata(created.session.id, 'codex', {
+                provider: 'codex',
+                available: true,
+                observedAt: Date.now(),
+                status: 'unknown',
+            }),
+        ).toBe(true);
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'project',
+            lastActivityState: 'unknown',
+        });
+        database.close();
+    });
+
     it('allows duplicate roots and deletes metadata without touching user files', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-db-'));
         temporaryDirectories.push(directory);

@@ -31,8 +31,6 @@ import type {
 } from '@shared/types';
 import {
     editorModelPath,
-    markTabsClean,
-    replaceWithExternalDocument,
     setSessionDocument,
     type SessionDocuments,
     updateEditorTabState,
@@ -46,6 +44,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { StatusBar } from './components/StatusBar';
 import { TerminalPane } from './components/TerminalPane';
 import { Button } from './components/ui/button';
+import { useExternalDocumentSync } from './hooks/useExternalDocumentSync';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor'));
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
@@ -100,10 +99,6 @@ export default function App() {
         () => (selectedSession ? (documentsBySession[selectedSession.id] ?? {}) : {}),
         [documentsBySession, selectedSession],
     );
-    const documentsRef = useRef(documents);
-    useEffect(() => {
-        documentsRef.current = documents;
-    }, [documents]);
     const sessionTerminals = useMemo(
         () =>
             bootstrap?.terminals.filter((terminal) => terminal.sessionId === selectedSession?.id) ??
@@ -154,8 +149,7 @@ export default function App() {
         : undefined;
 
     useEffect(() => {
-        if (!selectedSession || !restoredEditorPath || documentsRef.current[restoredEditorPath])
-            return;
+        if (!selectedSession || !restoredEditorPath || documents[restoredEditorPath]) return;
         let canceled = false;
         void window.caxri
             .request<FileDocument>('files.read', {
@@ -177,62 +171,17 @@ export default function App() {
         return () => {
             canceled = true;
         };
-    }, [restoredEditorPath, selectedSession, showMessage]);
+    }, [documents, restoredEditorPath, selectedSession, showMessage]);
 
-    useEffect(() => {
-        const unsubscribe = window.caxri.onEvent((event) => {
-            if (event.event !== 'files.changed' || event.payload.sessionId !== selectedSession?.id)
-                return;
-            const changedPaths = event.payload.overflow
-                ? (sessionStateRef.current?.openTabs.map((tab) => tab.path) ?? [])
-                : event.payload.changes
-                      .filter(
-                          (change) => change.kind !== 'delete' && documentsRef.current[change.path],
-                      )
-                      .map((change) => change.path);
-            const uniquePaths = [...new Set(changedPaths)];
-            if (uniquePaths.length === 0) return;
-            void Promise.allSettled(
-                uniquePaths.map((path) =>
-                    window.caxri.request<FileDocument>('files.read', {
-                        sessionId: selectedSession.id,
-                        path,
-                    }),
-                ),
-            ).then((results) => {
-                const reloaded = results.flatMap((result) =>
-                    result.status === 'fulfilled' ? [result.value] : [],
-                );
-                if (reloaded.length === 0) return;
-                /** External disk changes intentionally replace dirty buffers for agent-driven workflows. */
-                setDocumentsBySession((current) =>
-                    reloaded.reduce(
-                        (next, document) =>
-                            setSessionDocument(
-                                next,
-                                selectedSession.id,
-                                replaceWithExternalDocument(document),
-                            ),
-                        current,
-                    ),
-                );
-                const latestSessionState = sessionStateRef.current;
-                if (latestSessionState?.sessionId === selectedSession.id) {
-                    const nextState = markTabsClean(
-                        latestSessionState,
-                        reloaded.map((document) => document.path),
-                    );
-                    persistSessionState(nextState, 'External editor state could not be saved');
-                }
-                showMessage(
-                    reloaded.length === 1
-                        ? `${fileName(reloaded[0].path)} reloaded from disk; external changes take precedence.`
-                        : `${reloaded.length} open files reloaded from disk; external changes take precedence.`,
-                );
-            });
-        });
-        return unsubscribe;
-    }, [persistSessionState, selectedSession?.id, showMessage]);
+    useExternalDocumentSync({
+        documents,
+        documentsBySession,
+        persistSessionState,
+        selectedSessionId: selectedSession?.id,
+        sessionState,
+        setDocumentsBySession,
+        showMessage,
+    });
 
     const updateOpenTab = (path: string, dirty: boolean): void => {
         const current = sessionStateRef.current;
@@ -365,7 +314,8 @@ export default function App() {
                 if (selectedSession)
                     void window.caxri
                         .request('session.delete', { sessionId: selectedSession.id })
-                        .then(() => {
+                        .then((result: unknown) => {
+                            if ((result as { canceled?: boolean }).canceled) return;
                             setDocumentsBySession((current) =>
                                 Object.fromEntries(
                                     Object.entries(current).filter(
@@ -450,7 +400,11 @@ export default function App() {
                 break;
         }
     };
-    const onCommand = useEffectEvent(execute);
+    const onCommand = useEffectEvent((command: string): void => {
+        /** App-wide shortcuts must not mutate workbench state behind a modal dialog. */
+        if (settingsOpen || paletteOpen || pendingRoot) return;
+        execute(command);
+    });
 
     useEffect(() => {
         void window.caxri
@@ -777,7 +731,13 @@ export default function App() {
             />
             <CreateSessionDialog
                 rootPath={pendingRoot}
-                onOpenChange={(open) => !open && setPendingRoot(undefined)}
+                onCancel={() => {
+                    if (pendingRoot)
+                        void window.caxri.request('session.cancelCreate', {
+                            rootPath: pendingRoot,
+                        });
+                    setPendingRoot(undefined);
+                }}
                 onCreate={(kind) => pendingRoot && void createSession(pendingRoot, kind)}
             />
             <SettingsDialog

@@ -23,13 +23,13 @@ Runtime utilityProcess
   -> better-sqlite3
 ```
 
-The Renderer never owns runtime truth. A renderer reload attaches to the existing Runtime and receives current metadata plus bounded snapshots. A Runtime crash invalidates every in-memory PTY; the supervisor restarts with capped exponential backoff and persisted terminals are exposed as `dead`, never as silently restored processes.
+The Renderer never owns runtime truth. A renderer reload attaches to the existing Runtime and receives current metadata plus bounded snapshots. A Runtime crash invalidates every in-memory PTY; the supervisor restarts with capped exponential backoff and persisted terminals are exposed as `dead`, never as silently restored processes. A Runtime must remain ready for 30 seconds before its restart budget resets, so ready/crash flapping still fails closed after three restarts.
 
 ## IPC contract
 
 Renderer requests use `{ id, method, params }`; Runtime replies use `{ id, ok, result | error }`; runtime events use `{ event, payload }`. Zod validates all renderer request parameters before forwarding. Main keeps a pending request table with timeouts and request correlation IDs. Runtime output events are batched and bounded before crossing process boundaries.
 
-The preload exposes one `request` method backed by a fixed method union plus `onEvent`. It does not expose `ipcRenderer`, Electron objects, environment data, or generic filesystem/process access.
+The preload exposes one `request` method backed by a fixed method union plus `onEvent`. It does not expose `ipcRenderer`, Electron objects, environment data, or generic filesystem/process access. Main starts the Runtime with an allowlisted environment containing only process-launch context, tool state locations, and Caxri-owned paths; ambient credential variables are not copied into the utility process.
 
 ## Persistence
 
@@ -41,19 +41,19 @@ SQLite runs only in the Runtime and uses WAL, foreign keys, migrations, transact
 - `session_state`: open editor tabs, active tab, inspector mode, and layout JSON
 - `app_state`: last selected session, window state, active theme, and schema version
 
-Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. A Renderer subscribes before attaching, then replays the bounded snapshot ahead of output received during attachment. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
+Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. A Renderer subscribes before attaching, then replays the bounded snapshot ahead of output received during attachment. Bytes already represented by that snapshot are removed from the live-output queue before replay to prevent duplication. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
 
 ## PTY lifecycle and backpressure
 
 Runtime launches only discovered allowlisted programs (`$SHELL`, `claude`, or `codex`) with argv, cwd, and a filtered environment. Shell context plus standard proxy and custom-CA variables are retained, while credential-bearing and Caxri-internal variables are excluded. Switching Sessions detaches views but does not stop PTYs. Renderer output delivery is coalesced; per-terminal queues have a byte ceiling and emit a dropped-output marker when the renderer cannot keep up. Durable Terminal creation is capped at 16 per Session and 32 globally.
 
-Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` hides all windows while Main and Runtime remain alive. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted.
+Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` detaches every Renderer view and closes the window while Main, Runtime, and PTYs remain alive; reopening creates a new window and attaches it to the live Runtime. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
 ## Files and editor
 
-Every file request resolves its candidate path, checks it remains beneath the resolved Session root, rejects symlink escapes, and enforces text/size limits. Saves open the validated inode with `O_NOFOLLOW` before truncation. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only. A bounded fallback polls only the active root and directories already expanded by the user, preserving external-change delivery when the native backend is unavailable or silent.
+Every file request resolves its candidate path, checks it remains beneath the resolved Session root, rejects symlink escapes, and enforces text/size limits. Saves open the validated inode with `O_NOFOLLOW` before truncation. Directory identity is revalidated around enumeration so a path swap cannot disclose another directory. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only. A bounded fallback polls only the active root and directories already expanded by the user, preserving external-change delivery when the native backend is unavailable or silent. Watcher refreshes reload entries without remounting the tree, while switching Session identity intentionally resets expanded absolute paths.
 
-External disk changes always replace an open buffer, including a dirty buffer. This is a deliberate product choice for agent-driven workflows; the Renderer clears dirty state and shows a non-blocking notice rather than opening a conflict dialog. Editor buffers and Monaco model URIs are keyed by Session identity as well as path so Sessions sharing one root cannot reuse each other's dirty state.
+External disk changes always replace an open buffer, including a dirty buffer. This is a deliberate product choice for agent-driven workflows; the Renderer clears dirty state and shows a non-blocking notice rather than opening a conflict dialog. Editor buffers and Monaco model URIs are keyed by Session identity as well as path so Sessions sharing one root cannot reuse each other's dirty state. When a Session becomes active again, cached documents are compared with current disk version metadata; only actual disk changes replace its inactive dirty buffers.
 
 ## Settings, keybindings, and themes
 
@@ -63,11 +63,13 @@ Themes normalize into one semantic token structure consumed by CSS variables, xt
 
 ## Git and Agent adapters
 
-Git operations run via `execFile('git', argv)` with fixed argv constructors and never mutate a repository. Adapters discover Claude Code and Codex through the GUI environment plus a login-shell PATH fallback. Local agent state is read-only and capability-detected. Missing or changed storage produces `unknown`; it never interrupts PTY input/output.
+Git operations run via `execFile('git', argv)` with fixed argv constructors, a filtered environment, and no repository mutation. Adapters discover Claude Code and Codex through the GUI environment plus a login-shell PATH fallback. Claude Code integration reads only compact live-session metadata. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata update the default Agent Terminal and its Session sidebar record. Missing or changed storage produces `unknown`; it never interrupts PTY input/output.
 
 ## Security
 
 BrowserWindows use `contextIsolation: true`, `nodeIntegration: false`, sandboxed renderers, a restrictive CSP, blocked navigation, and denied new windows. External HTTP(S) URLs require explicit user intent before Main uses the system browser. No telemetry or remote upload exists.
+
+Directory-picker results create single-use Main-process grants. A grant is revoked when the Agent choice is canceled, expires after 60 seconds if unused, and is consumed before Session creation reaches the Runtime.
 
 ## Performance and observability
 
@@ -79,7 +81,7 @@ Terminal input, resize, and output are high-frequency paths. Successful input an
 
 ## Diagnostics and privacy
 
-Structured logs carry timestamp, process, level, event, correlation ID, and duration. Diagnostics contain application/runtime versions, redacted metadata/state, counts, and timing summaries. Home paths normalize to `$HOME`; keys matching token/password/secret/credential/API-key patterns are redacted. Bundles never include file contents, terminal output/snapshots, environment values, prompts/responses, or agent transcripts.
+Structured logs carry timestamp, process, level, event, correlation ID, and duration. Diagnostics contain application/runtime versions, redacted metadata/state, counts, and timing summaries. Home paths normalize to `$HOME`; secret-like keys, bearer/API tokens, GitHub tokens, and Slack tokens are redacted. Bundles never include file contents, terminal output/snapshots, environment values, prompts/responses, or agent transcripts.
 
 Development launches write Main and Runtime JSONL files to the repository `logs/` directory for direct inspection. Packaged and test launches keep logs beneath the active Electron user-data directory so application data remains self-contained.
 

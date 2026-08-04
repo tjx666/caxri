@@ -6,18 +6,14 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 interface CreateSessionDialogProps {
+    onCancel: () => void;
     onCreate: (kind: TerminalKind) => void;
-    onOpenChange: (open: boolean) => void;
     rootPath?: string;
 }
 
-export function CreateSessionDialog({
-    onCreate,
-    onOpenChange,
-    rootPath,
-}: CreateSessionDialogProps) {
+export function CreateSessionDialog({ onCancel, onCreate, rootPath }: CreateSessionDialogProps) {
     return (
-        <Dialog open={Boolean(rootPath)} onOpenChange={onOpenChange}>
+        <Dialog open={Boolean(rootPath)} onOpenChange={(open) => !open && onCancel()}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Choose the default Terminal</DialogTitle>

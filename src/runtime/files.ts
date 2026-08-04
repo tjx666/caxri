@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { lstat, open, readdir, realpath, stat } from 'node:fs/promises';
+import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
@@ -9,6 +9,7 @@ import type { FileChange, FileDocument, FileEntry } from '../shared/types';
 import type { CaxriDatabase } from './database';
 import type { StructuredLogger } from './logger';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
+import { isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
 
 const IGNORED_SEGMENTS = new Set([
@@ -130,7 +131,7 @@ export class FileService {
         const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
         const resolved = await realpath(candidate);
         const resolvedRelative = relative(root, resolved);
-        if (resolvedRelative.startsWith('..') || isAbsolute(resolvedRelative))
+        if (isOutsideRoot(resolvedRelative))
             throw new Error('Symlink target is outside the Session root');
         return { root, path: resolved };
     }
@@ -149,18 +150,31 @@ export class FileService {
             if (existing) this.rememberPolledDirectory(path, existing);
             else void this.initializePolledDirectory(path, this.watchGeneration);
         }
+        const before = await lstat(path);
+        if (!before.isDirectory() || before.isSymbolicLink())
+            throw new Error('Path is not a directory');
         const entries = await readdir(path, { withFileTypes: true });
+        const after = await lstat(path);
+        /** Revalidate around readdir so a Session-root swap cannot disclose another directory. */
+        if (
+            !after.isDirectory() ||
+            after.isSymbolicLink() ||
+            before.dev !== after.dev ||
+            before.ino !== after.ino ||
+            (await realpath(path)) !== path
+        )
+            throw new Error('Directory changed during listing');
         const visible = entries.filter(
             (entry) => !IGNORED_SEGMENTS.has(entry.name) && !entry.name.endsWith('.db-wal'),
         );
         const result = await Promise.all(
             visible.map(async (entry): Promise<FileEntry> => {
                 const entryPath = resolve(path, entry.name);
-                if (entry.isSymbolicLink())
+                const stats = await lstat(entryPath);
+                if (stats.isSymbolicLink())
                     return { name: entry.name, path: entryPath, kind: 'symlink' };
-                if (entry.isDirectory())
+                if (stats.isDirectory())
                     return { name: entry.name, path: entryPath, kind: 'directory' };
-                const stats = await stat(entryPath);
                 return { name: entry.name, path: entryPath, kind: 'file', size: stats.size };
             }),
         );
@@ -212,7 +226,7 @@ export class FileService {
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
             throw new Error('Only existing regular files can be saved');
-        if (Buffer.byteLength(content, 'utf8') > this.maxFileBytes() * 2)
+        if (Buffer.byteLength(content, 'utf8') > this.maxFileBytes())
             throw new Error('Edited file exceeds the write safety limit');
         const file = await this.openFile(resolved.path, constants.O_WRONLY | constants.O_NOFOLLOW);
         try {
@@ -281,17 +295,18 @@ export class FileService {
         if (generation !== this.watchGeneration) return;
         if (!sessionId) return;
         const { root } = await this.resolveSessionPath(sessionId);
+        if (generation !== this.watchGeneration) return;
         this.watchedRoot = root;
         if (!this.polledDirectories.has(root)) {
             await this.initializePolledDirectory(root, generation);
         }
-        if (!this.pollTimer) {
-            this.pollTimer = setInterval(
-                () => void this.pollDirectories(sessionId, generation),
-                WATCH_POLL_INTERVAL_MS,
-            );
-            this.pollTimer.unref();
-        }
+        if (generation !== this.watchGeneration) return;
+        if (this.pollTimer) clearInterval(this.pollTimer);
+        this.pollTimer = setInterval(
+            () => void this.pollDirectories(sessionId, generation),
+            WATCH_POLL_INTERVAL_MS,
+        );
+        this.pollTimer.unref();
         try {
             const watcher = await parcelWatcher.subscribe(
                 root,
@@ -303,12 +318,7 @@ export class FileService {
                     }
                     for (const event of events) {
                         const relativePath = relative(root, event.path);
-                        if (
-                            relativePath.startsWith('..') ||
-                            isAbsolute(relativePath) ||
-                            isIgnored(relativePath)
-                        )
-                            continue;
+                        if (isOutsideRoot(relativePath) || isIgnored(relativePath)) continue;
                         void this.queueNativeEvent(sessionId, event.type, event.path, generation);
                     }
                 },

@@ -35,24 +35,33 @@ function DirectoryEntries({
     sessionId,
     directory,
     depth = 0,
+    revision,
     onOpenFile,
     onError,
 }: {
     sessionId: string;
     directory?: string;
     depth?: number;
+    revision: number;
     onOpenFile: (path: string) => void;
     onError: (message: string) => void;
 }) {
     const [entries, setEntries] = useState<FileEntry[]>([]);
     useEffect(() => {
+        let canceled = false;
         void window.caxri
             .request<FileEntry[]>('files.list', { sessionId, directory })
-            .then(setEntries)
-            .catch((error: unknown) =>
-                onError(error instanceof Error ? error.message : 'Unable to read directory'),
-            );
-    }, [sessionId, directory, onError]);
+            .then((nextEntries) => {
+                if (!canceled) setEntries(nextEntries);
+            })
+            .catch((error: unknown) => {
+                if (!canceled)
+                    onError(error instanceof Error ? error.message : 'Unable to read directory');
+            });
+        return () => {
+            canceled = true;
+        };
+    }, [sessionId, directory, onError, revision]);
 
     return (
         <div className="file-list">
@@ -62,6 +71,7 @@ function DirectoryEntries({
                     entry={entry}
                     sessionId={sessionId}
                     depth={depth}
+                    revision={revision}
                     onOpenFile={onOpenFile}
                     onError={onError}
                 />
@@ -74,12 +84,14 @@ function FileTreeItem({
     entry,
     sessionId,
     depth,
+    revision,
     onOpenFile,
     onError,
 }: {
     entry: FileEntry;
     sessionId: string;
     depth: number;
+    revision: number;
     onOpenFile: (path: string) => void;
     onError: (message: string) => void;
 }) {
@@ -101,6 +113,7 @@ function FileTreeItem({
                         sessionId={sessionId}
                         directory={entry.path}
                         depth={depth + 1}
+                        revision={revision}
                         onOpenFile={onOpenFile}
                         onError={onError}
                     />
@@ -140,14 +153,17 @@ function FilesPanel({
         [sessionId],
     );
     if (!session) return <div className="empty-panel">Create a Session to browse files.</div>;
-    /** Session identity is a path-security boundary; expanded absolute paths must never survive a root switch. */
-    const treeKey = `${session.id}:${revision}`;
     return (
-        <div key={treeKey} className="inspector-content">
+        <div key={session.id} className="inspector-content">
             <div className="panel-caption" title={session.rootPath}>
                 {session.rootPath}
             </div>
-            <DirectoryEntries sessionId={session.id} onOpenFile={onOpenFile} onError={onError} />
+            <DirectoryEntries
+                sessionId={session.id}
+                revision={revision}
+                onOpenFile={onOpenFile}
+                onError={onError}
+            />
         </div>
     );
 }
@@ -237,12 +253,12 @@ function AgentPanel({
     onError,
 }: Pick<InspectorProps, 'session' | 'terminals' | 'onError'>) {
     const sessionId = session?.id;
+    const primaryProvider = terminals.find(
+        (terminal) => terminal.id === session?.defaultAgentTerminalId,
+    )?.provider;
     const providers = useMemo<Array<'claude' | 'codex'>>(() => {
-        const primary = terminals.find(
-            (terminal) => terminal.id === session?.defaultAgentTerminalId,
-        )?.provider;
-        return primary ? [primary] : ['claude', 'codex'];
-    }, [session?.defaultAgentTerminalId, terminals]);
+        return primaryProvider ? [primaryProvider] : ['claude', 'codex'];
+    }, [primaryProvider]);
     const [snapshots, setSnapshots] = useState<AgentSnapshot[]>([]);
     useEffect(() => {
         if (!sessionId) return;
@@ -283,9 +299,21 @@ function AgentPanel({
                                 <dd>{snapshot.title}</dd>
                             </>
                         )}
+                        {snapshot.sessionId && (
+                            <>
+                                <dt>Session ID</dt>
+                                <dd>{snapshot.sessionId}</dd>
+                            </>
+                        )}
+                        {snapshot.usage?.map((item) => (
+                            <div key={item.label} className="agent-metadata-row">
+                                <dt>{item.label}</dt>
+                                <dd>{item.value}</dd>
+                            </div>
+                        ))}
                     </dl>
                     <p>
-                        Unknown means the local CLI does not expose a reliable activity signal.
+                        Local metadata is read-only. Unknown means no reliable signal was found;
                         Terminal I/O remains available.
                     </p>
                 </section>

@@ -18,6 +18,7 @@
 - The utility-process Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.
 - Add operations to the structured request contract. Never accept an arbitrary shell command from the Renderer.
 - All paths must be validated against a Session root before filesystem or Git access.
+- Directory-picker authorization is a short-lived, single-use Main-process grant and must be revoked when Session creation is canceled.
 - Session identity is part of the path-security boundary. Key or reset root-scoped Renderer state when the selected Session changes.
 - Session deletion removes metadata only. It must never remove the selected root directory or user files.
 - Diagnostics must exclude source contents, terminal output/snapshots, agent transcripts, credentials, and secret-like setting values.
@@ -28,6 +29,7 @@
 - Prefer JSDoc for non-obvious lifecycle/security behavior and document why a workaround exists.
 - Keep the editor intentionally narrow: open/edit/save/in-file search/diff only.
 - Preserve the explicit external-change rule: disk changes replace dirty editor buffers without prompting.
+- Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state.
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
 - Keep unit and integration tests with their source domain, using `__tests__/` when the source directory is already busy. Reserve `e2e/` for full Electron workflows.
 - Keep every JavaScript and TypeScript code file at or below 800 physical lines; split cohesive modules before they exceed the ESLint `max-lines` gate.

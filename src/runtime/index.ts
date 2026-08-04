@@ -8,6 +8,7 @@ import {
     type RuntimeResponse,
 } from '../shared/contracts';
 import type {
+    AgentProvider,
     BootstrapState,
     PersistedWindowState,
     SessionState,
@@ -86,6 +87,50 @@ async function createAndStartTerminal(sessionId: string, kind: TerminalKind) {
     }
 }
 
+async function probeAgent(sessionId: string, provider: AgentProvider) {
+    const session = database.getSession(sessionId);
+    if (!session) throw new Error('Session not found');
+    const terminal = session.defaultAgentTerminalId
+        ? database.getTerminal(session.defaultAgentTerminalId)
+        : undefined;
+    const snapshot = await agents.snapshot(provider, {
+        rootPath: session.rootPath,
+        processState: terminal?.provider === provider ? terminal.lastProcessState : undefined,
+    });
+    if (database.updateAgentMetadata(sessionId, provider, snapshot))
+        emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
+    return snapshot;
+}
+
+async function probeDefaultAgent(sessionId: string): Promise<void> {
+    const session = database.getSession(sessionId);
+    const terminal = session?.defaultAgentTerminalId
+        ? database.getTerminal(session.defaultAgentTerminalId)
+        : undefined;
+    if (terminal?.provider) await probeAgent(sessionId, terminal.provider);
+}
+
+function logAgentProbeFailure(sessionId: string, error: unknown): void {
+    logger.write('warn', 'agent.probe_failed', {
+        fields: {
+            sessionId,
+            error: error instanceof Error ? error.message : 'unknown',
+        },
+    });
+}
+
+function scheduleDefaultAgentProbe(sessionId: string): void {
+    void probeDefaultAgent(sessionId).catch((error: unknown) =>
+        logAgentProbeFailure(sessionId, error),
+    );
+}
+
+function scheduleAgentProbe(sessionId: string, provider: AgentProvider): void {
+    void probeAgent(sessionId, provider).catch((error: unknown) =>
+        logAgentProbeFailure(sessionId, error),
+    );
+}
+
 async function handle(method: RuntimeMethod, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
         case 'app.bootstrap':
@@ -131,12 +176,15 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             }
             database.selectSession(created.session.id);
             void files.watchSession(created.session.id);
+            scheduleDefaultAgentProbe(created.session.id);
             emit({ event: 'state.changed', payload: { reason: 'session.create' } });
             return {
                 session: database.getSession(created.session.id),
                 terminal: database.getTerminal(created.terminal.id),
             };
         }
+        case 'session.cancelCreate':
+            throw new Error('Session creation cancellation is owned by the Main process');
         case 'session.select':
             database.selectSession(params.sessionId as string);
             void files.watchSession(params.sessionId as string);
@@ -180,8 +228,12 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
         case 'terminal.detach':
             terminals.detachView(params.terminalId as string);
             return null;
+        case 'terminal.detachAll':
+            terminals.detachAllViews();
+            return null;
         case 'terminal.restart': {
             const terminal = await terminals.restart(params.terminalId as string);
+            if (terminal.provider) scheduleAgentProbe(terminal.sessionId, terminal.provider);
             emit({ event: 'state.changed', payload: { reason: 'terminal.restart' } });
             return terminal;
         }
@@ -206,8 +258,11 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             return git.summary(params.sessionId as string);
         case 'git.diff':
             return git.diff(params.sessionId as string, params.path as string);
-        case 'agent.snapshot':
-            return agents.snapshot(params.provider as 'claude' | 'codex');
+        case 'agent.snapshot': {
+            const sessionId = params.sessionId as string;
+            const provider = params.provider as AgentProvider;
+            return probeAgent(sessionId, provider);
+        }
         case 'settings.get':
             return configuration.getSettings();
         case 'settings.update':
@@ -295,3 +350,4 @@ logger.write('info', 'runtime.ready', {
 emit({ event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } });
 /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
 void files.watchSession(database.getAppState<string | null>('lastSelectedSessionId') ?? undefined);
+for (const session of database.listSessions()) scheduleDefaultAgentProbe(session.id);

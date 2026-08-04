@@ -7,7 +7,13 @@ import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
 import { z } from 'zod';
 
 import type { RuntimeEvent } from '../shared/contracts';
-import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
+import {
+    MAX_CONFIGURABLE_FILE_BYTES,
+    type AppSettings,
+    type Keybinding,
+    type KeybindingConflict,
+    type ThemeTokens,
+} from '../shared/types';
 import type { StructuredLogger } from './logger';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
@@ -29,7 +35,7 @@ const settingsSchema = z.object({
         .number()
         .int()
         .min(1_024)
-        .max(16 * 1024 * 1024)
+        .max(MAX_CONFIGURABLE_FILE_BYTES)
         .default(2 * 1024 * 1024),
 });
 

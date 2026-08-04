@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { utilityProcess, type UtilityProcess } from 'electron';
 
+import { safeProcessEnvironment } from '../runtime/process-environment';
 import type { RuntimeEvent, RuntimeMessage, RuntimeMethod } from '../shared/contracts';
 
 interface PendingRequest {
@@ -19,6 +20,7 @@ interface RuntimeReadiness {
 }
 
 const RUNTIME_READY_TIMEOUT_MS = 15_000;
+const RUNTIME_STABILITY_WINDOW_MS = 30_000;
 
 export class RuntimeSupervisor extends EventEmitter {
     private child?: UtilityProcess;
@@ -27,6 +29,7 @@ export class RuntimeSupervisor extends EventEmitter {
     private intentionalStop = false;
     private terminalFailure?: Error;
     private readiness?: RuntimeReadiness;
+    private stabilityTimer?: NodeJS.Timeout;
 
     constructor(
         private readonly runtimeDirectory: string,
@@ -48,7 +51,7 @@ export class RuntimeSupervisor extends EventEmitter {
             child = utilityProcess.fork(runtimePath, [], {
                 serviceName: 'Caxri Runtime',
                 env: {
-                    ...process.env,
+                    ...safeProcessEnvironment(),
                     CAXRI_LOG_DIRECTORY: this.logDirectory,
                     CAXRI_LOG_LEVEL: this.logLevel,
                     CAXRI_USER_DATA_PATH: this.userDataPath,
@@ -114,8 +117,13 @@ export class RuntimeSupervisor extends EventEmitter {
             if (message.event === 'runtime.status' && message.payload.status === 'ready') {
                 this.readiness?.resolve();
                 this.readiness = undefined;
-                this.restartCount = 0;
                 this.terminalFailure = undefined;
+                if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
+                this.stabilityTimer = setTimeout(() => {
+                    this.restartCount = 0;
+                    this.stabilityTimer = undefined;
+                }, RUNTIME_STABILITY_WINDOW_MS);
+                this.stabilityTimer.unref();
             }
             this.emit('event', message);
             return;
@@ -130,6 +138,8 @@ export class RuntimeSupervisor extends EventEmitter {
     }
 
     private onExit(code: number): void {
+        if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
+        this.stabilityTimer = undefined;
         this.child = undefined;
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
@@ -184,6 +194,8 @@ export class RuntimeSupervisor extends EventEmitter {
 
     async shutdown(): Promise<void> {
         this.intentionalStop = true;
+        if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
+        this.stabilityTimer = undefined;
         this.readiness?.reject(new Error('Runtime stopped before becoming ready'));
         this.readiness = undefined;
         const child = this.child;

@@ -4,24 +4,27 @@ import { createWindowCloseHandler, resolveWindowClose } from '../window-close';
 
 describe('resolveWindowClose', () => {
     it.each([
-        ['close', false, true],
-        ['terminate', true, true],
-        ['cancel', false, false],
+        ['close', false, true, true],
+        ['terminate', true, false, true],
+        ['cancel', false, false, false],
     ] as const)(
-        'maps the %s decision to terminate=%s and close=%s',
-        async (decision, shouldTerminate, shouldClose) => {
+        'maps the %s decision to terminate=%s, detach=%s, and close=%s',
+        async (decision, shouldTerminate, shouldDetach, shouldClose) => {
             const close = vi.fn();
+            const detachAll = vi.fn();
             const terminateAll = vi.fn();
 
             await resolveWindowClose({
                 close,
                 confirm: vi.fn().mockResolvedValue(decision),
                 countRunning: vi.fn().mockResolvedValue(1),
+                detachAll,
                 logFailure: vi.fn(),
                 terminateAll,
             });
 
             expect(terminateAll).toHaveBeenCalledTimes(shouldTerminate ? 1 : 0);
+            expect(detachAll).toHaveBeenCalledTimes(shouldDetach ? 1 : 0);
             expect(close).toHaveBeenCalledTimes(shouldClose ? 1 : 0);
         },
     );
@@ -34,6 +37,7 @@ describe('resolveWindowClose', () => {
             close,
             confirm: vi.fn(),
             countRunning: vi.fn().mockRejectedValue(new Error('Runtime unavailable')),
+            detachAll: vi.fn(),
             logFailure,
             terminateAll: vi.fn(),
         });
@@ -50,6 +54,7 @@ describe('resolveWindowClose', () => {
             close,
             confirm: vi.fn(),
             countRunning,
+            detachAll: vi.fn(),
             logFailure: vi.fn(),
             terminateAll: vi.fn(),
         });

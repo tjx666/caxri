@@ -1,3 +1,5 @@
+export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
+
 export type AgentProvider = 'claude' | 'codex';
 export type AgentActivityState =
     'running' | 'waiting' | 'completed' | 'failed' | 'idle' | 'unknown';

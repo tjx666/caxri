@@ -145,6 +145,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             return result.response === 2 ? 'cancel' : result.response === 1 ? 'terminate' : 'close';
         },
         countRunning: () => supervisor.request<number>('terminal.runningCount', {}),
+        detachAll: () => supervisor.request('terminal.detachAll', {}),
         logFailure: (message) =>
             mainLogger?.write('error', 'window.close_failed', {
                 fields: { error: message },
@@ -218,6 +219,9 @@ async function handleMainMethod(
             return grantedRoots.use(params.rootPath as string, () =>
                 supervisor.request(method, params),
             );
+        case 'session.cancelCreate':
+            grantedRoots.revoke(params.rootPath as string);
+            return null;
         case 'session.delete': {
             const count = await supervisor.request<number>('terminal.runningCount', {
                 sessionId: params.sessionId,

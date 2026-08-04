@@ -1,12 +1,14 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import Database from 'better-sqlite3';
 
 import {
     AgentService,
     clearExecutableCache,
+    createLocalAgentAdapters,
     discoverExecutable,
     type AgentAdapter,
 } from '../agent';
@@ -27,7 +29,9 @@ describe('Agent adapter fallback', () => {
         vi.stubEnv('PATH', '');
         vi.stubEnv('SHELL', '/usr/bin/false');
 
-        await expect(new AgentService().snapshot('claude')).resolves.toMatchObject({
+        await expect(
+            new AgentService().snapshot('claude', { rootPath: '/definitely/missing' }),
+        ).resolves.toMatchObject({
             provider: 'claude',
             status: 'unknown',
             available: false,
@@ -80,5 +84,91 @@ describe('Agent adapter fallback', () => {
         expect(records.find((record) => record.event === 'agent.probe')?.durationMs).toBeTypeOf(
             'number',
         );
+    });
+
+    it('reads Claude Code live-session metadata without opening transcripts', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-state-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const config = join(directory, 'claude');
+        const bin = join(directory, 'bin');
+        await Promise.all([
+            mkdir(root),
+            mkdir(join(config, 'sessions'), { recursive: true }),
+            mkdir(bin),
+        ]);
+        const executable = join(bin, 'claude');
+        await writeFile(executable, '#!/bin/sh\nprintf "claude 1.0\\n"\n', 'utf8');
+        await chmod(executable, 0o700);
+        await writeFile(
+            join(config, 'sessions', 'session.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'Repair terminal lifecycle',
+                sessionId: 'claude-session-1',
+                status: 'busy',
+                updatedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+        vi.stubEnv('PATH', bin);
+        vi.stubEnv('SHELL', '/usr/bin/false');
+        const service = new AgentService(
+            undefined,
+            createLocalAgentAdapters({
+                claudeConfigDirectory: config,
+                codexStateDirectories: [],
+            }),
+        );
+
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({
+            available: true,
+            sessionId: 'claude-session-1',
+            status: 'running',
+            title: 'Repair terminal lifecycle',
+            version: 'claude 1.0',
+        });
+    });
+
+    it('capability-detects the Codex thread index and exposes bounded metadata', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-codex-state-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const state = join(directory, 'codex-state');
+        const bin = join(directory, 'bin');
+        await Promise.all([mkdir(root), mkdir(state), mkdir(bin)]);
+        const executable = join(bin, 'codex');
+        await writeFile(executable, '#!/bin/sh\nprintf "codex 1.0\\n"\n', 'utf8');
+        await chmod(executable, 0o700);
+        const database = new Database(join(state, 'state_9.sqlite'));
+        database.exec(
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
+        );
+        database
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
+            .run('codex-session-1', root, 'Finish Phase 1', Date.now(), 12_345, 0);
+        database.close();
+        vi.stubEnv('PATH', bin);
+        vi.stubEnv('SHELL', '/usr/bin/false');
+        const service = new AgentService(
+            undefined,
+            createLocalAgentAdapters({
+                claudeConfigDirectory: join(directory, 'missing'),
+                codexStateDirectories: [state],
+            }),
+        );
+
+        await expect(
+            service.snapshot('codex', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({
+            available: true,
+            sessionId: 'codex-session-1',
+            status: 'running',
+            title: 'Finish Phase 1',
+            usage: [{ label: 'Tokens', value: '12,345' }],
+            version: 'codex 1.0',
+        });
     });
 });

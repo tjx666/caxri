@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import type { IPty } from 'node-pty';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/contracts';
 import { CaxriDatabase } from '../database';
@@ -11,6 +12,22 @@ import { TerminalManager } from '../terminal';
 
 const temporaryDirectories: string[] = [];
 
+function createFakePty() {
+    let onData: ((data: string) => void) | undefined;
+    const kill = vi.fn();
+    const process = {
+        kill,
+        onData: vi.fn((listener: (data: string) => void) => {
+            onData = listener;
+            return { dispose: vi.fn() };
+        }),
+        onExit: vi.fn(() => ({ dispose: vi.fn() })),
+        resize: vi.fn(),
+        write: vi.fn(),
+    } as unknown as IPty;
+    return { emitData: (data: string) => onData?.(data), kill, process };
+}
+
 afterEach(async () => {
     await Promise.all(
         temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
@@ -18,6 +35,96 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
+    it('does not register a PTY whose durable record was closed while spawn was pending', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-pending-close-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(directory, 'shell');
+        const executable = Promise.withResolvers<string>();
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                resolveExecutable: () => executable.promise,
+                spawn: () => fake.process,
+            },
+        );
+
+        const starting = manager.start(created.terminal);
+        manager.close(created.terminal.id);
+        executable.resolve('/bin/zsh');
+        const result = await starting.catch((error: unknown) => error);
+
+        try {
+            expect(result).toBeInstanceOf(Error);
+            expect(manager.runningCount()).toBe(0);
+            expect(fake.kill).toHaveBeenCalledOnce();
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('does not replay queued live output after returning it in an attachment snapshot', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-attach-replay-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(directory, 'shell');
+        const fake = createFakePty();
+        let output = '';
+        const manager = new TerminalManager(
+            database,
+            (event) => {
+                if (event.event === 'terminal.output') output += event.payload.data;
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        await manager.start(created.terminal);
+        manager.attach(created.terminal.id);
+        fake.emitData('queued exactly once');
+        expect(manager.attach(created.terminal.id)?.payload).toContain('queued exactly once');
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        try {
+            expect(output).toBe('');
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('detaches every Renderer view without stopping its PTY', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detach-all-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(directory, 'shell');
+        const fake = createFakePty();
+        let output = '';
+        const manager = new TerminalManager(
+            database,
+            (event) => {
+                if (event.event === 'terminal.output') output += event.payload.data;
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        await manager.start(created.terminal);
+        manager.attach(created.terminal.id);
+        fake.emitData('discard with closing view');
+        manager.detachAllViews();
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        expect(output).toBe('');
+        expect(manager.runningCount()).toBe(1);
+        manager.close(created.terminal.id);
+        database.close();
+    });
+
     it('buffers detached output in the snapshot and emits only after attachment', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-'));
         temporaryDirectories.push(directory);

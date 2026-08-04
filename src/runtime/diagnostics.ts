@@ -10,6 +10,8 @@ import type { CaxriDatabase } from './database';
 import { redactLogValue, type StructuredLogger } from './logger';
 
 const SECRET_KEY = /(token|password|secret|credential|api[_-]?key|authorization|cookie)/i;
+const SECRET_VALUE =
+    /(sk-[a-zA-Z0-9_-]{12,}|Bearer\s+[a-zA-Z0-9._-]+|gh[pousr]_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{10,}|xox[baprs]-[a-zA-Z0-9-]{10,})/g;
 export function normalizeHome(path: string): string {
     const home = homedir();
     return path === home
@@ -31,15 +33,66 @@ export function redactSecrets(value: unknown, key = ''): unknown {
         );
     }
     if (typeof value === 'string') {
-        return value
-            .replaceAll(homedir(), '$HOME')
-            .replace(/(sk-[a-zA-Z0-9_-]{12,}|Bearer\s+[a-zA-Z0-9._-]+)/g, '[REDACTED]');
+        return value.replaceAll(homedir(), '$HOME').replace(SECRET_VALUE, '[REDACTED]');
     }
     return value;
 }
 
 function json(value: unknown): string {
     return `${JSON.stringify(redactSecrets(value), null, 2)}\n`;
+}
+
+interface PerformanceAggregate {
+    count: number;
+    maximumMs: number;
+    minimumMs: number;
+    totalMs: number;
+}
+
+export interface PerformanceSummary {
+    event: string;
+    count: number;
+    averageMs: number;
+    minimumMs: number;
+    maximumMs: number;
+}
+
+/** Builds a content-free timing summary from already structured operation logs. */
+export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
+    const aggregates = new Map<string, PerformanceAggregate>();
+    for (const log of logs) {
+        for (const line of log.split('\n')) {
+            if (!line) continue;
+            try {
+                const entry = JSON.parse(line) as { durationMs?: unknown; event?: unknown };
+                if (typeof entry.event !== 'string' || typeof entry.durationMs !== 'number')
+                    continue;
+                if (!Number.isFinite(entry.durationMs) || entry.durationMs < 0) continue;
+                const aggregate = aggregates.get(entry.event) ?? {
+                    count: 0,
+                    maximumMs: entry.durationMs,
+                    minimumMs: entry.durationMs,
+                    totalMs: 0,
+                };
+                aggregate.count += 1;
+                aggregate.maximumMs = Math.max(aggregate.maximumMs, entry.durationMs);
+                aggregate.minimumMs = Math.min(aggregate.minimumMs, entry.durationMs);
+                aggregate.totalMs += entry.durationMs;
+                aggregates.set(entry.event, aggregate);
+            } catch {
+                // Ignore truncated lines left by an interrupted log write.
+            }
+        }
+    }
+    return [...aggregates.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([event, aggregate]) => ({
+            event,
+            count: aggregate.count,
+            averageMs: Math.round((aggregate.totalMs / aggregate.count) * 100) / 100,
+            minimumMs: aggregate.minimumMs,
+            maximumMs: aggregate.maximumMs,
+        }));
 }
 
 export class DiagnosticsService {
@@ -78,6 +131,7 @@ export class DiagnosticsService {
                 content: redactLogValue(await readFile(join(logDirectory, name), 'utf8')),
             })),
         );
+        const performance = summarizePerformanceLogs(redactedLogs.map((log) => log.content));
 
         await new Promise<void>((resolve, reject) => {
             const output = createWriteStream(destination, { mode: 0o600 });
@@ -107,9 +161,7 @@ export class DiagnosticsService {
             archive.append(json(sessions), { name: 'diagnostics/sessions.json' });
             archive.append(json(terminals), { name: 'diagnostics/terminals.json' });
             archive.append(json(this.getSettings()), { name: 'diagnostics/settings.json' });
-            archive.append(json({ note: 'Performance events are available in structured logs.' }), {
-                name: 'diagnostics/performance.json',
-            });
+            archive.append(json(performance), { name: 'diagnostics/performance.json' });
             for (const log of redactedLogs)
                 archive.append(log.content, { name: `diagnostics/logs/${log.name}` });
             void archive.finalize();

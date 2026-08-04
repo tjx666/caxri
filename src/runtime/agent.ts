@@ -5,7 +5,16 @@ import { delimiter, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { AgentProvider, AgentSnapshot } from '../shared/types';
+import {
+    defaultAgentStateLocations,
+    processStateToAgentActivity,
+    readClaudeState,
+    readCodexState,
+    type AgentSnapshotContext,
+    type AgentStateLocations,
+} from './agent-state';
 import type { StructuredLogger } from './logger';
+import { safeProcessEnvironment } from './process-environment';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);
@@ -17,6 +26,7 @@ const executableNames: Record<AgentProvider, string> = {
 
 const executableCache = new Map<AgentProvider, string>();
 const executableRequests = new Map<AgentProvider, Promise<string | undefined>>();
+const versionCache = new Map<AgentProvider, { executable: string; version: string }>();
 
 async function isExecutable(path: string): Promise<boolean> {
     try {
@@ -30,6 +40,7 @@ async function isExecutable(path: string): Promise<boolean> {
 export function clearExecutableCache(): void {
     executableCache.clear();
     executableRequests.clear();
+    versionCache.clear();
 }
 
 export async function discoverExecutable(name: AgentProvider): Promise<string | undefined> {
@@ -57,6 +68,7 @@ async function findExecutable(name: AgentProvider): Promise<string | undefined> 
             shell,
             ['-lic', `command -v ${executableNames[name]}`],
             {
+                env: safeProcessEnvironment(),
                 timeout: 5_000,
                 maxBuffer: 8 * 1024,
             },
@@ -76,54 +88,80 @@ async function findExecutable(name: AgentProvider): Promise<string | undefined> 
 
 export interface AgentAdapter {
     provider: AgentProvider;
-    snapshot(): Promise<AgentSnapshot>;
+    snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
 }
 
-function createCliAdapter(provider: AgentProvider): AgentAdapter {
+async function readVersion(
+    provider: AgentProvider,
+    executable: string,
+): Promise<string | undefined> {
+    const cached = versionCache.get(provider);
+    if (cached?.executable === executable) return cached.version;
+    try {
+        const { stdout, stderr } = await execFileAsync(executable, ['--version'], {
+            env: safeProcessEnvironment(),
+            timeout: 5_000,
+            maxBuffer: 64 * 1024,
+        });
+        const version = (stdout || stderr).trim();
+        if (version) versionCache.set(provider, { executable, version });
+        return version || undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function createCliAdapter(provider: AgentProvider, locations: AgentStateLocations): AgentAdapter {
     return {
         provider,
-        async snapshot(): Promise<AgentSnapshot> {
+        async snapshot(context): Promise<AgentSnapshot> {
             const observedAt = Date.now();
-            const executable = await discoverExecutable(provider);
-            if (!executable) return { provider, status: 'unknown', observedAt, available: false };
-
-            try {
-                const { stdout, stderr } = await execFileAsync(executable, ['--version'], {
-                    timeout: 5_000,
-                    maxBuffer: 64 * 1024,
-                });
-                return {
-                    provider,
-                    status: 'unknown',
-                    observedAt,
-                    available: true,
-                    executable,
-                    version: (stdout || stderr).trim(),
-                };
-            } catch {
-                return { provider, status: 'unknown', observedAt, available: true, executable };
-            }
+            const [executable, localState] = await Promise.all([
+                discoverExecutable(provider),
+                provider === 'claude'
+                    ? readClaudeState(context, locations.claudeConfigDirectory)
+                    : readCodexState(context, locations.codexStateDirectories),
+            ]);
+            const version = executable ? await readVersion(provider, executable) : undefined;
+            return {
+                provider,
+                status: localState?.status ?? processStateToAgentActivity(context.processState),
+                observedAt,
+                available: Boolean(executable),
+                executable,
+                version,
+                sessionId: localState?.sessionId,
+                title: localState?.title,
+                usage: localState?.usage,
+            };
         },
     };
 }
 
-const agentAdapters: Record<AgentProvider, AgentAdapter> = {
-    claude: createCliAdapter('claude'),
-    codex: createCliAdapter('codex'),
-};
+export function createLocalAgentAdapters(
+    locations: AgentStateLocations = defaultAgentStateLocations(),
+): Record<AgentProvider, AgentAdapter> {
+    return {
+        claude: createCliAdapter('claude', locations),
+        codex: createCliAdapter('codex', locations),
+    };
+}
 
 export class AgentService {
-    private readonly requests = new SingleFlight<AgentProvider, AgentSnapshot>();
+    private readonly requests = new SingleFlight<string, AgentSnapshot>();
 
     constructor(
         private readonly logger?: StructuredLogger,
-        private readonly adapters: Record<AgentProvider, AgentAdapter> = agentAdapters,
+        private readonly adapters: Record<AgentProvider, AgentAdapter> = createLocalAgentAdapters(),
     ) {}
 
-    snapshot(provider: AgentProvider): Promise<AgentSnapshot> {
-        return this.requests.run(provider, async () => {
+    snapshot(
+        provider: AgentProvider,
+        context: AgentSnapshotContext = { rootPath: process.cwd() },
+    ): Promise<AgentSnapshot> {
+        return this.requests.run(`${provider}:${context.rootPath}`, async () => {
             const startedAt = performance.now();
-            const snapshot = await this.adapters[provider].snapshot();
+            const snapshot = await this.adapters[provider].snapshot(context);
             this.logger?.write('info', 'agent.probe', {
                 durationMs: performance.now() - startedAt,
                 fields: { provider, available: snapshot.available },

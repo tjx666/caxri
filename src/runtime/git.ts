@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 import type { GitFileStatus, GitSummary } from '../shared/types';
 import type { FileService } from './files';
 import type { StructuredLogger } from './logger';
+import { isOutsideRoot } from './path-security';
+import { safeProcessEnvironment } from './process-environment';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);
@@ -62,7 +64,7 @@ export class GitService {
                 cwd,
                 timeout: 10_000,
                 maxBuffer: 8 * 1024 * 1024,
-                env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
+                env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
             });
             this.logger.write('info', 'git.command', {
                 durationMs: performance.now() - startedAt,
@@ -140,7 +142,7 @@ export class GitService {
             // Deleted Git paths no longer resolve; their normalized lexical path remains safe for argv after containment checks.
         }
         const relativePath = relative(root, candidate);
-        if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+        if (!relativePath || isOutsideRoot(relativePath)) {
             throw new Error('Git path is outside the Session root');
         }
         const summary = await this.summary(sessionId);
