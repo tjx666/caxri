@@ -54,6 +54,8 @@ Default `Command+K`, `Command+T`, and `Command+W` bindings clear the active xter
 
 Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` detaches every Renderer view and closes the window while Main, Runtime, and PTYs remain alive; reopening creates a new window and attaches it to the live Runtime. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
+Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity.
+
 ## Files and editor
 
 The Files inspector resolves a curated, deterministic subset of local LobeHub file icons by exact filename, well-known directory, test suffix, and extension before falling back to generic file and folder assets. Expanded directories use matching open variants. Vite emits only the explicitly imported SVG subset as separate assets, so icons remain offline-capable without embedding the full upstream catalog in the initial Renderer JavaScript bundle.

@@ -106,7 +106,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const terminalRestartedAt = performance.now();
         await restoredPage.getByRole('button', { name: /Restart Terminal/ }).click();
         await Promise.all([
-            restoredPage.locator('.terminal-dead').waitFor({ state: 'hidden' }),
+            restoredPage.locator('.terminal-recovery').waitFor({ state: 'hidden' }),
             restoredPage.locator('.process-running').waitFor(),
         ]);
         const restoredTerminalRestartMs = performance.now() - terminalRestartedAt;

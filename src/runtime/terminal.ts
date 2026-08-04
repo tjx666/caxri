@@ -209,7 +209,9 @@ export class TerminalManager {
         this.flushMetrics(live);
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
-        this.database.updateTerminalState(live.record.id, exitCode === 0 ? 'stopped' : 'dead');
+        /** node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected death. */
+        const exitedNormally = exitCode === 0 && !signal;
+        this.database.updateTerminalState(live.record.id, exitedNormally ? 'stopped' : 'dead');
         this.emit({
             event: 'terminal.exit',
             payload: { terminalId: live.record.id, exitCode, signal },

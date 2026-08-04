@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
-import { RotateCcw, Skull } from 'lucide-react';
+import { CircleCheck, CircleX, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { TerminalRecord, TerminalSnapshot, ThemeTokens } from '@shared/types';
@@ -9,6 +9,7 @@ import type { TerminalRecord, TerminalSnapshot, ThemeTokens } from '@shared/type
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from '../lib/terminal-fonts';
 import { TerminalReplayBuffer } from '../lib/terminal-replay';
 import { onTerminalViewClear } from '../lib/terminal-view-commands';
+import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { Button } from './ui/button';
 
 interface TerminalPaneProps {
@@ -200,8 +201,13 @@ export function TerminalPane({
         [terminal.id],
     );
 
-    const isDead =
-        terminal.lastProcessState !== 'running' && terminal.lastProcessState !== 'starting';
+    const exitPresentation = getTerminalExitPresentation(terminal.lastProcessState);
+    const ExitIcon =
+        exitPresentation?.icon === 'completed'
+            ? CircleCheck
+            : exitPresentation?.icon === 'failed'
+              ? TriangleAlert
+              : CircleX;
 
     return (
         <div
@@ -212,12 +218,26 @@ export function TerminalPane({
             onFocus={onFocus}
         >
             <div ref={containerRef} className="terminal-surface" />
-            {isDead && (
-                <div className="terminal-dead">
-                    <Skull size={17} />
-                    <span>Terminal {terminal.lastProcessState}</span>
-                    <Button size="sm" variant="secondary" onClick={() => onRestart(terminal.id)}>
-                        <RotateCcw size={13} /> Restart Terminal
+            {exitPresentation && (
+                <div
+                    aria-live="polite"
+                    className={`terminal-recovery terminal-recovery-${exitPresentation.tone}`}
+                    data-terminal-exit-state={terminal.lastProcessState}
+                    role="status"
+                >
+                    <span className="terminal-recovery-message">
+                        <ExitIcon size={14} />
+                        {exitPresentation.label}
+                    </span>
+                    <Button
+                        aria-label="Restart Terminal"
+                        className="terminal-recovery-action"
+                        size="sm"
+                        title="Restart Terminal (Command+Shift+R)"
+                        variant="ghost"
+                        onClick={() => onRestart(terminal.id)}
+                    >
+                        <RotateCcw size={12} /> Restart
                     </Button>
                 </div>
             )}

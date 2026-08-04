@@ -14,6 +14,7 @@ const temporaryDirectories: string[] = [];
 
 function createFakePty() {
     let onData: ((data: string) => void) | undefined;
+    let onExit: ((event: { exitCode: number; signal?: number }) => void) | undefined;
     const kill = vi.fn();
     const process = {
         kill,
@@ -21,11 +22,19 @@ function createFakePty() {
             onData = listener;
             return { dispose: vi.fn() };
         }),
-        onExit: vi.fn(() => ({ dispose: vi.fn() })),
+        onExit: vi.fn((listener: (event: { exitCode: number; signal?: number }) => void) => {
+            onExit = listener;
+            return { dispose: vi.fn() };
+        }),
         resize: vi.fn(),
         write: vi.fn(),
     } as unknown as IPty;
-    return { emitData: (data: string) => onData?.(data), kill, process };
+    return {
+        emitData: (data: string) => onData?.(data),
+        emitExit: (event: { exitCode: number; signal?: number }) => onExit?.(event),
+        kill,
+        process,
+    };
 }
 
 afterEach(async () => {
@@ -122,6 +131,26 @@ describe('TerminalManager', () => {
         expect(output).toBe('');
         expect(manager.runningCount()).toBe(1);
         manager.close(created.terminal.id);
+        database.close();
+    });
+
+    it('classifies a signal-terminated PTY as an unexpected death even with exit code zero', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-signal-exit-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        await manager.start(created.terminal);
+        fake.emitExit({ exitCode: 0, signal: 9 });
+
+        expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('dead');
         database.close();
     });
 
