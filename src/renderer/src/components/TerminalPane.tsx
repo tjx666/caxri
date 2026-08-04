@@ -2,10 +2,11 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
 import { RotateCcw, Skull } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { TerminalRecord, TerminalSnapshot, ThemeTokens } from '@shared/types';
 
+import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from '../lib/terminal-fonts';
 import { TerminalReplayBuffer } from '../lib/terminal-replay';
 import { Button } from './ui/button';
 
@@ -30,6 +31,7 @@ export function TerminalPane({
 }: TerminalPaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
+    const [fontsReady, setFontsReady] = useState(false);
     const attachedEpochRef = useRef(attachEpoch);
     const latestRef = useRef({
         fontSize,
@@ -50,14 +52,33 @@ export function TerminalPane({
     }, [fontSize, onError, scrollback, terminal.lastProcessState, theme.terminal]);
 
     useEffect(() => {
-        if (!containerRef.current) return;
+        let canceled = false;
+        void loadTerminalFonts()
+            .catch((error: unknown) => {
+                latestRef.current.onError(
+                    error instanceof Error
+                        ? error.message
+                        : 'Bundled terminal fonts failed to load',
+                );
+            })
+            .finally(() => {
+                /** A corrupt font must degrade to the system monospace stack instead of blocking the PTY. */
+                if (!canceled) setFontsReady(true);
+            });
+        return () => {
+            canceled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!fontsReady || !containerRef.current) return;
         const latest = latestRef.current;
         const xterm = new Terminal({
             allowProposedApi: false,
             convertEol: false,
             cursorBlink: true,
             disableStdin: latest.processState !== 'running',
-            fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            fontFamily: TERMINAL_FONT_FAMILY,
             fontSize: latest.fontSize,
             scrollback: latest.scrollback,
             theme: latest.terminalTheme,
@@ -133,7 +154,7 @@ export function TerminalPane({
                 // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
             });
         };
-    }, [terminal.id]);
+    }, [fontsReady, terminal.id]);
 
     useEffect(() => {
         if (attachedEpochRef.current === attachEpoch) return;

@@ -44,6 +44,44 @@ async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.press('Enter');
 }
 
+test('bundles the default terminal typeface and Nerd Font symbols', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-font-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launch(userData, root);
+    try {
+        const loadedFaces = await running.page.evaluate(async () => {
+            const [regular, bold, italic, boldItalic, symbols] = await Promise.all([
+                document.fonts.load('13px "Caxri JetBrains Mono"', 'Caxri'),
+                document.fonts.load('700 13px "Caxri JetBrains Mono"', 'Caxri'),
+                document.fonts.load('italic 13px "Caxri JetBrains Mono"', 'Caxri'),
+                document.fonts.load('italic 700 13px "Caxri JetBrains Mono"', 'Caxri'),
+                document.fonts.load('13px "Caxri Nerd Symbols"', '\ue0b0\uf17c'),
+            ]);
+            return {
+                bold: bold.length,
+                boldItalic: boldItalic.length,
+                italic: italic.length,
+                regular: regular.length,
+                symbols: symbols.length,
+            };
+        });
+
+        expect(loadedFaces).toEqual({
+            bold: 1,
+            boldItalic: 1,
+            italic: 1,
+            regular: 1,
+            symbols: 1,
+        });
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('file changes refresh entries without collapsing expanded directories', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-tree-refresh-e2e-'));
     const userData = join(testDirectory, 'user-data');
