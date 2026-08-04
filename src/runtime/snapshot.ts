@@ -13,10 +13,9 @@ export function boundSnapshot(payload: string): {
         lines.length > MAX_SNAPSHOT_LINES ? lines.slice(-MAX_SNAPSHOT_LINES).join('\n') : payload;
     if (Buffer.byteLength(bounded, 'utf8') > MAX_SNAPSHOT_BYTES) {
         const buffer = Buffer.from(bounded, 'utf8');
-        bounded = buffer
-            .subarray(buffer.length - MAX_SNAPSHOT_BYTES)
-            .toString('utf8')
-            .replace(/^\uFFFD/, '');
+        let start = buffer.length - MAX_SNAPSHOT_BYTES;
+        while (start < buffer.length && (buffer[start] & 0xc0) === 0x80) start += 1;
+        bounded = buffer.subarray(start).toString('utf8');
     }
     return {
         payload: bounded,

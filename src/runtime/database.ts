@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { chmodSync } from 'node:fs';
-import { basename } from 'node:path';
+import { chmodSync, mkdirSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 
 import Database from 'better-sqlite3';
 
@@ -50,6 +50,18 @@ interface SnapshotRow {
     updated_at: number;
 }
 
+const CURRENT_SCHEMA_VERSION = 1;
+const MAX_TERMINALS_PER_SESSION = 16;
+const MAX_TERMINALS_GLOBAL = 32;
+
+function restrictPath(path: string, mode: number): void {
+    try {
+        chmodSync(path, mode);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+}
+
 function mapSession(row: SessionRow): SessionRecord {
     return {
         id: row.id,
@@ -85,22 +97,40 @@ export class CaxriDatabase {
     readonly database: Database.Database;
 
     constructor(path: string) {
+        if (path !== ':memory:') {
+            mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+            restrictPath(dirname(path), 0o700);
+        }
         this.database = new Database(path);
-        if (path !== ':memory:') chmodSync(path, 0o600);
-        this.database.pragma('journal_mode = WAL');
-        this.database.pragma('foreign_keys = ON');
-        this.database.pragma('busy_timeout = 5000');
-        this.migrate();
-        this.database
-            .prepare(
-                "UPDATE terminals SET last_process_state = 'dead', updated_at = ? WHERE last_process_state IN ('running', 'starting')",
-            )
-            .run(Date.now());
+        try {
+            if (path !== ':memory:') restrictPath(path, 0o600);
+            this.database.pragma('journal_mode = WAL');
+            this.database.pragma('foreign_keys = ON');
+            this.database.pragma('busy_timeout = 5000');
+            this.migrate();
+            this.database
+                .prepare(
+                    "UPDATE terminals SET last_process_state = 'dead', updated_at = ? WHERE last_process_state IN ('running', 'starting')",
+                )
+                .run(Date.now());
+            if (path !== ':memory:') {
+                restrictPath(`${path}-wal`, 0o600);
+                restrictPath(`${path}-shm`, 0o600);
+            }
+        } catch (error) {
+            this.database.close();
+            throw error;
+        }
     }
 
     private migrate(): void {
         const version = this.database.pragma('user_version', { simple: true }) as number;
-        if (version >= 1) return;
+        if (version > CURRENT_SCHEMA_VERSION) {
+            throw new Error(
+                `Database uses newer schema version ${version}; Caxri supports ${CURRENT_SCHEMA_VERSION}`,
+            );
+        }
+        if (version === CURRENT_SCHEMA_VERSION) return;
 
         this.database.transaction(() => {
             this.database.exec(`
@@ -155,7 +185,7 @@ export class CaxriDatabase {
           value_json TEXT NOT NULL
         );
       `);
-            this.database.pragma('user_version = 1');
+            this.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
         })();
     }
 
@@ -178,6 +208,7 @@ export class CaxriDatabase {
         kind: TerminalKind,
     ): { session: SessionRecord; terminal: TerminalRecord } {
         return this.database.transaction(() => {
+            this.assertTerminalCapacity();
             const now = Date.now();
             const sessionId = randomUUID();
             const terminalId = randomUUID();
@@ -258,6 +289,7 @@ export class CaxriDatabase {
     createTerminal(sessionId: string, kind: TerminalKind): TerminalRecord {
         const session = this.getSession(sessionId);
         if (!session) throw new Error('Session not found');
+        this.assertTerminalCapacity(sessionId);
         const id = randomUUID();
         const now = Date.now();
         const order = this.listTerminals(sessionId).length;
@@ -283,6 +315,14 @@ export class CaxriDatabase {
         return this.getTerminal(id)!;
     }
 
+    private assertTerminalCapacity(sessionId?: string): void {
+        if (this.listTerminals().length >= MAX_TERMINALS_GLOBAL)
+            throw new Error(`Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`);
+        if (sessionId && this.listTerminals(sessionId).length >= MAX_TERMINALS_PER_SESSION) {
+            throw new Error(`A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`);
+        }
+    }
+
     updateTerminalState(id: string, state: ProcessState): void {
         this.database
             .prepare('UPDATE terminals SET last_process_state = ?, updated_at = ? WHERE id = ?')
@@ -293,6 +333,11 @@ export class CaxriDatabase {
         this.database.transaction(() => {
             const terminal = this.getTerminal(id);
             if (!terminal) return;
+            this.database
+                .prepare(
+                    'UPDATE sessions SET default_agent_terminal_id = NULL WHERE default_agent_terminal_id = ?',
+                )
+                .run(id);
             this.database.prepare('DELETE FROM terminals WHERE id = ?').run(id);
             const state = this.getSessionState(terminal.sessionId);
             this.updateSessionState({

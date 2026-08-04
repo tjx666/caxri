@@ -42,6 +42,7 @@ describe('TerminalManager', () => {
             new StructuredLogger(join(directory, 'logs')),
         );
         await Promise.all([manager.start(created.terminal), manager.start(created.terminal)]);
+        manager.attach(created.terminal.id);
         manager.write(created.terminal.id, "printf 'CAXRI_INTEGRATION_OK\\n'\r");
         await marker;
         manager.resize(created.terminal.id, 120, 40);
@@ -87,6 +88,7 @@ describe('TerminalManager', () => {
         );
 
         await manager.start(created.terminal);
+        manager.attach(created.terminal.id);
         await manager.restart(created.terminal.id);
         manager.write(created.terminal.id, "printf 'CAXRI_RESTART_OK\\n'\r");
         await expect.poll(() => output).toContain('CAXRI_RESTART_OK');

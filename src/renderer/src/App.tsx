@@ -32,9 +32,12 @@ import type {
     ThemeTokens,
 } from '@shared/types';
 import {
+    editorModelPath,
     markTabsClean,
     replaceWithExternalDocument,
-    type EditorDocument as OpenDocument,
+    setSessionDocument,
+    type SessionDocuments,
+    updateEditorTabState,
 } from '@shared/editor-state';
 
 import { keyboardEventShortcut, normalizeShortcut } from './commands';
@@ -67,18 +70,13 @@ function applyCssTheme(theme: ThemeTokens): void {
 
 export default function App() {
     const [bootstrap, setBootstrap] = useState<BootstrapState>();
-    const [documents, setDocuments] = useState<Record<string, OpenDocument>>({});
-    const documentsRef = useRef(documents);
+    const [documentsBySession, setDocumentsBySession] = useState<SessionDocuments>({});
     const [activeWork, setActiveWork] = useState<string>();
     const [pendingRoot, setPendingRoot] = useState<string>();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [message, setMessage] = useState<string>();
     const messageTimerRef = useRef<number | undefined>(undefined);
-
-    useEffect(() => {
-        documentsRef.current = documents;
-    }, [documents]);
 
     const showMessage = useCallback((value: string): void => {
         if (messageTimerRef.current) window.clearTimeout(messageTimerRef.current);
@@ -104,6 +102,14 @@ export default function App() {
     const selectedSession = bootstrap?.sessions.find(
         (session) => session.id === bootstrap.selectedSessionId,
     );
+    const documents = useMemo(
+        () => (selectedSession ? (documentsBySession[selectedSession.id] ?? {}) : {}),
+        [documentsBySession, selectedSession],
+    );
+    const documentsRef = useRef(documents);
+    useEffect(() => {
+        documentsRef.current = documents;
+    }, [documents]);
     const sessionTerminals = useMemo(
         () =>
             bootstrap?.terminals.filter((terminal) => terminal.sessionId === selectedSession?.id) ??
@@ -164,10 +170,12 @@ export default function App() {
             })
             .then((document) => {
                 if (!canceled)
-                    setDocuments((current) => ({
-                        ...current,
-                        [document.path]: { ...document, dirty: false },
-                    }));
+                    setDocumentsBySession((current) =>
+                        setSessionDocument(current, selectedSession.id, {
+                            ...document,
+                            dirty: false,
+                        }),
+                    );
             })
             .catch((error: unknown) =>
                 showMessage(error instanceof Error ? error.message : 'Unable to restore file'),
@@ -182,7 +190,7 @@ export default function App() {
             if (event.event !== 'files.changed' || event.payload.sessionId !== selectedSession?.id)
                 return;
             const changedPaths = event.payload.overflow
-                ? (sessionState?.openTabs.map((tab) => tab.path) ?? [])
+                ? (sessionStateRef.current?.openTabs.map((tab) => tab.path) ?? [])
                 : event.payload.changes
                       .filter(
                           (change) => change.kind !== 'delete' && documentsRef.current[change.path],
@@ -203,14 +211,16 @@ export default function App() {
                 );
                 if (reloaded.length === 0) return;
                 /** External disk changes intentionally replace dirty buffers for agent-driven workflows. */
-                setDocuments((current) =>
-                    Object.fromEntries([
-                        ...Object.entries(current),
-                        ...reloaded.map(
-                            (document) =>
-                                [document.path, replaceWithExternalDocument(document)] as const,
-                        ),
-                    ]),
+                setDocumentsBySession((current) =>
+                    reloaded.reduce(
+                        (next, document) =>
+                            setSessionDocument(
+                                next,
+                                selectedSession.id,
+                                replaceWithExternalDocument(document),
+                            ),
+                        current,
+                    ),
                 );
                 const latestSessionState = sessionStateRef.current;
                 if (latestSessionState?.sessionId === selectedSession.id) {
@@ -228,15 +238,13 @@ export default function App() {
             });
         });
         return unsubscribe;
-    }, [persistSessionState, selectedSession, sessionState, showMessage]);
+    }, [persistSessionState, selectedSession?.id, showMessage]);
 
     const updateOpenTab = (path: string, dirty: boolean): void => {
-        if (!sessionState) return;
-        const exists = sessionState.openTabs.some((tab) => tab.path === path);
-        const openTabs = exists
-            ? sessionState.openTabs.map((tab) => (tab.path === path ? { ...tab, dirty } : tab))
-            : [...sessionState.openTabs, { path, dirty }];
-        persistSessionState({ ...sessionState, openTabs, activeTab: path });
+        const current = sessionStateRef.current;
+        if (!current) return;
+        const next = updateEditorTabState(current, path, dirty);
+        if (next !== current) persistSessionState(next);
     };
 
     async function openFile(path: string): Promise<void> {
@@ -246,7 +254,9 @@ export default function App() {
                 sessionId: selectedSession.id,
                 path,
             });
-            setDocuments((current) => ({ ...current, [path]: { ...document, dirty: false } }));
+            setDocumentsBySession((current) =>
+                setSessionDocument(current, selectedSession.id, { ...document, dirty: false }),
+            );
             setActiveWork(`editor:${path}`);
             updateOpenTab(path, false);
         } catch (error) {
@@ -255,11 +265,11 @@ export default function App() {
     }
 
     const closeEditor = (path: string): void => {
-        if (!sessionState) return;
-        const openTabs = sessionState.openTabs.filter((tab) => tab.path !== path);
-        const nextActive =
-            sessionState.activeTab === path ? openTabs.at(-1)?.path : sessionState.activeTab;
-        persistSessionState({ ...sessionState, openTabs, activeTab: nextActive });
+        const current = sessionStateRef.current;
+        if (!current) return;
+        const openTabs = current.openTabs.filter((tab) => tab.path !== path);
+        const nextActive = current.activeTab === path ? openTabs.at(-1)?.path : current.activeTab;
+        persistSessionState({ ...current, openTabs, activeTab: nextActive });
         setActiveWork(
             nextActive
                 ? `editor:${nextActive}`
@@ -280,7 +290,9 @@ export default function App() {
                 path,
                 content: document.content,
             });
-            setDocuments((current) => ({ ...current, [path]: { ...saved, dirty: false } }));
+            setDocumentsBySession((current) =>
+                setSessionDocument(current, selectedSession.id, { ...saved, dirty: false }),
+            );
             updateOpenTab(path, false);
         } catch (error) {
             showMessage(error instanceof Error ? error.message : 'Save failed');
@@ -325,9 +337,7 @@ export default function App() {
                 sessionId: selectedSession.id,
                 kind,
             });
-            const currentState = bootstrap?.sessionStates.find(
-                (state) => state.sessionId === selectedSession.id,
-            );
+            const currentState = sessionStateRef.current;
             if (currentState) {
                 const splitTerminalIds = split
                     ? [...currentState.layout.splitTerminalIds.slice(-1), terminal.id]
@@ -346,7 +356,8 @@ export default function App() {
         : undefined;
 
     const setInspectorMode = (mode: InspectorMode): void => {
-        if (sessionState) persistSessionState({ ...sessionState, inspectorMode: mode });
+        const current = sessionStateRef.current;
+        if (current) persistSessionState({ ...current, inspectorMode: mode });
     };
 
     const execute = (command: string): void => {
@@ -360,7 +371,16 @@ export default function App() {
                 if (selectedSession)
                     void window.caxri
                         .request('session.delete', { sessionId: selectedSession.id })
-                        .then(() => refresh())
+                        .then(() => {
+                            setDocumentsBySession((current) =>
+                                Object.fromEntries(
+                                    Object.entries(current).filter(
+                                        ([sessionId]) => sessionId !== selectedSession.id,
+                                    ),
+                                ),
+                            );
+                            return refresh();
+                        })
                         .catch((error: unknown) =>
                             showMessage(
                                 error instanceof Error ? error.message : 'Session deletion failed',
@@ -441,19 +461,23 @@ export default function App() {
     useEffect(() => {
         void window.caxri
             .request<BootstrapState>('app.bootstrap')
-            .then(setBootstrap)
+            .then((state) => {
+                setBootstrap(state);
+                if (state.configurationErrors?.[0]) showMessage(state.configurationErrors[0]);
+            })
             .catch((error: unknown) =>
                 showMessage(
                     error instanceof Error ? error.message : 'Unable to attach to the Runtime',
                 ),
             );
         const unsubscribe = window.caxri.onEvent((event) => {
-            if (
-                event.event === 'state.changed' ||
-                event.event === 'terminal.exit' ||
-                event.event === 'runtime.status'
-            )
-                void refresh();
+            if (event.event === 'state.changed' || event.event === 'terminal.exit') void refresh();
+            if (event.event === 'runtime.status') {
+                setBootstrap((current) =>
+                    current ? { ...current, runtime: event.payload } : current,
+                );
+                if (event.payload.status === 'ready') void refresh();
+            }
             if (
                 event.event === 'settings.changed' ||
                 event.event === 'keybindings.changed' ||
@@ -489,7 +513,7 @@ export default function App() {
         return (
             <main className="loading-screen">
                 <Code2 size={25} />
-                <span>Attaching to Caxri Runtime…</span>
+                <span>{message ?? 'Attaching to Caxri Runtime…'}</span>
             </main>
         );
     }
@@ -651,18 +675,26 @@ export default function App() {
                                         fallback={<div className="empty-work">Loading editor…</div>}
                                     >
                                         <CodeEditor
-                                            path={activeEditorPath}
+                                            path={editorModelPath(
+                                                selectedSession.id,
+                                                activeEditorPath,
+                                            )}
                                             value={activeDocument.content}
                                             theme={bootstrap.theme}
                                             onChange={(content) => {
-                                                setDocuments((current) => ({
-                                                    ...current,
-                                                    [activeEditorPath]: {
-                                                        ...current[activeEditorPath],
-                                                        content: content ?? '',
-                                                        dirty: true,
-                                                    },
-                                                }));
+                                                setDocumentsBySession((current) =>
+                                                    setSessionDocument(
+                                                        current,
+                                                        selectedSession.id,
+                                                        {
+                                                            ...current[selectedSession.id][
+                                                                activeEditorPath
+                                                            ],
+                                                            content: content ?? '',
+                                                            dirty: true,
+                                                        },
+                                                    ),
+                                                );
                                                 updateOpenTab(activeEditorPath, true);
                                             }}
                                         />

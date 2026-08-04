@@ -2,8 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
-    internalRequestSchemas,
-    requestSchemas,
+    getRuntimeRequestSchema,
     type RuntimeEvent,
     type RuntimeMethod,
     type RuntimeResponse,
@@ -32,7 +31,11 @@ const parentPort = process.parentPort;
 if (!parentPort) throw new Error('Caxri Runtime must run as an Electron utilityProcess');
 
 await mkdir(userDataPath, { recursive: true });
-const logger = new StructuredLogger(logDirectory);
+const logger = new StructuredLogger(
+    logDirectory,
+    'runtime',
+    process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
+);
 const database = new CaxriDatabase(join(userDataPath, 'caxri.db'));
 const emit = (event: RuntimeEvent): void => parentPort.postMessage(event);
 const configuration = new ConfigurationService(userDataPath, emit, logger);
@@ -68,6 +71,7 @@ function bootstrap(): BootstrapState {
         settings: settings.value,
         keybindings: keybindings.value,
         keybindingConflicts: keybindings.conflicts,
+        configurationErrors: configuration.getErrors(),
         theme: theme.value,
         runtime: { status: 'ready', restartCount: 0 },
     };
@@ -171,6 +175,11 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             terminals.close(params.terminalId as string);
             emit({ event: 'state.changed', payload: { reason: 'terminal.close' } });
             return null;
+        case 'terminal.attach':
+            return terminals.attach(params.terminalId as string);
+        case 'terminal.detach':
+            terminals.detachView(params.terminalId as string);
+            return null;
         case 'terminal.restart': {
             const terminal = await terminals.restart(params.terminalId as string);
             emit({ event: 'state.changed', payload: { reason: 'terminal.restart' } });
@@ -247,10 +256,7 @@ process.parentPort.on('message', (event) => {
         const request = event.data as { id: string; method: RuntimeMethod; params: unknown };
         const started = performance.now();
         try {
-            const schema =
-                request.method in requestSchemas
-                    ? requestSchemas[request.method as keyof typeof requestSchemas]
-                    : internalRequestSchemas[request.method as keyof typeof internalRequestSchemas];
+            const schema = getRuntimeRequestSchema(request.method);
             if (!schema) throw new Error('Unknown Runtime method');
             const params = schema.parse(request.params) as Record<string, unknown>;
             const result = await handle(request.method, params);

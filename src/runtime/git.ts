@@ -10,6 +10,22 @@ import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);
 
+export function describeGitFailure(error: unknown): string {
+    const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
+    if (failure.code === 'ENOENT') return 'Git is not installed or is unavailable on PATH.';
+    if (failure.killed || failure.message?.toLowerCase().includes('timed out'))
+        return 'The Git operation timed out.';
+    if (
+        failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ||
+        failure.message?.includes('maxBuffer')
+    ) {
+        return 'Git output exceeded the safety limit.';
+    }
+    if (failure.stderr?.toLowerCase().includes('not a git repository'))
+        return 'The Session root is not a Git repository.';
+    return 'The Git operation failed. See Runtime logs for details.';
+}
+
 function statusKind(code: string): GitFileStatus['kind'] {
     if (code.includes('U') || code === 'AA' || code === 'DD') return 'conflicted';
     if (code.includes('R')) return 'renamed';
@@ -48,7 +64,7 @@ export class GitService {
                 maxBuffer: 8 * 1024 * 1024,
                 env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
             });
-            this.logger.write('debug', 'git.command', {
+            this.logger.write('info', 'git.command', {
                 durationMs: performance.now() - startedAt,
                 fields: { operation: args[0] ?? 'unknown' },
             });
@@ -106,11 +122,11 @@ export class GitService {
                 if (record.startsWith('2 ')) index += 1;
             }
             return { isRepository: true, branch, head, files };
-        } catch {
+        } catch (error) {
             return {
                 isRepository: false,
                 files: [],
-                error: 'The Session root is not a Git repository.',
+                error: describeGitFailure(error),
             };
         }
     }

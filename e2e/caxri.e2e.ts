@@ -19,6 +19,7 @@ async function launch(
         cwd: projectRoot,
         env: {
             ...process.env,
+            CAXRI_E2E: '1',
             CAXRI_USER_DATA_DIR: userData,
             CAXRI_TEST_ROOT_PATH: sessionRoot,
         },
@@ -87,6 +88,41 @@ test('switching Sessions discards expanded file-tree state from the previous roo
             'Symlink target is outside the Session root',
         );
         await expect(running.page.locator('.toast')).toHaveCount(0);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('editor buffers stay isolated between Sessions that share one root', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-editor-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await writeFile(join(root, 'shared.txt'), 'disk state\n', 'utf8');
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('button', { name: 'shared.txt' }).click();
+        const editor = running.page.locator('.monaco-editor').first();
+        await editor.click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+A');
+        await running.page.keyboard.insertText('first Session dirty buffer');
+
+        await running.page.getByRole('button', { name: 'Create Session' }).first().click();
+        await running.page
+            .getByRole('dialog')
+            .getByRole('button', { name: 'Shell', exact: true })
+            .click();
+        await running.page.getByRole('button', { name: 'shared.txt' }).click();
+        await expect(running.page.locator('.view-lines')).toContainText('disk state');
+        await expect(running.page.locator('.view-lines')).not.toContainText('first Session');
+
+        await running.page.locator('.session-card').first().click();
+        await expect(running.page.locator('.view-lines')).toContainText(
+            'first Session dirty buffer',
+        );
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -200,7 +236,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             if (!runtime) throw new Error('Runtime utility process not found');
             process.kill(runtime.pid, 'SIGKILL');
         });
-        await expect(running.page.getByText(/Runtime restarting|Runtime ready/)).toBeVisible();
+        await expect(running.page.getByText('Runtime restarting')).toBeVisible();
+        await expect(running.page.getByText('Runtime ready')).toBeVisible();
         await expect(
             running.page.getByRole('button', { name: /Restart Terminal/ }).first(),
         ).toBeVisible();

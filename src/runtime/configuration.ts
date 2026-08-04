@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
@@ -14,7 +14,12 @@ import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './th
 
 type ConfigurationKind = 'settings' | 'keybindings' | 'theme';
 
+interface WatcherSubscription {
+    unsubscribe(): Promise<void>;
+}
+
 const WATCH_SETTLE_DELAY_MS = 100;
+const FALLBACK_POLL_INTERVAL_MS = 250;
 
 const settingsSchema = z.object({
     'session.defaultAgent': z.enum(['claude', 'codex', 'shell']).nullable().default(null),
@@ -71,8 +76,18 @@ function parseJsonc(source: string): unknown {
 async function atomicWrite(path: string, source: string): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
     const temporary = `${path}.${randomUUID()}.tmp`;
-    await writeFile(temporary, source, { encoding: 'utf8', mode: 0o600 });
-    await rename(temporary, path);
+    try {
+        const file = await open(temporary, 'wx', 0o600);
+        try {
+            await file.writeFile(source, 'utf8');
+            await file.sync();
+        } finally {
+            await file.close();
+        }
+        await rename(temporary, path);
+    } finally {
+        await rm(temporary, { force: true });
+    }
 }
 
 export function findKeybindingConflicts(keybindings: Keybinding[]): KeybindingConflict[] {
@@ -99,8 +114,10 @@ export class ConfigurationService {
     private keybindingsSource = `${JSON.stringify(defaultKeybindings, null, 2)}\n`;
     private theme: ThemeTokens = draculaTheme;
     private themeSource = serializeTheme(draculaTheme);
-    private watcher?: parcelWatcher.AsyncSubscription;
+    private watcher?: WatcherSubscription;
     private readonly watchTimers = new Map<string, NodeJS.Timeout>();
+    private readonly observedSources = new Map<string, string>();
+    private readonly errors = new Map<ConfigurationKind, string>();
     private closed = false;
 
     constructor(
@@ -133,43 +150,88 @@ export class ConfigurationService {
         };
         const startedAt = performance.now();
         const backend = NATIVE_WATCHER_BACKEND;
-        this.watcher = await parcelWatcher.subscribe(watchedDirectory, onEvents, { backend });
+        let selectedBackend: string = backend;
+        try {
+            this.watcher = await parcelWatcher.subscribe(watchedDirectory, onEvents, { backend });
+        } catch (error) {
+            /** Polling three known files avoids consuming another OS watcher when global FSEvents capacity is exhausted. */
+            const timer = setInterval(() => {
+                for (const path of [this.settingsPath, this.keybindingsPath, this.themePath]) {
+                    void this.onExternalChange(path);
+                }
+            }, FALLBACK_POLL_INTERVAL_MS);
+            timer.unref();
+            this.watcher = {
+                unsubscribe: () => {
+                    clearInterval(timer);
+                    return Promise.resolve();
+                },
+            };
+            selectedBackend = 'poll';
+            this.logger?.write('warn', 'configuration.watcher.fallback', {
+                fields: {
+                    backend,
+                    error: error instanceof Error ? error.message : 'unknown watcher error',
+                },
+            });
+        }
         this.logger?.write('info', 'configuration.watcher.ready', {
             durationMs: performance.now() - startedAt,
-            fields: { backend },
+            fields: { backend: selectedBackend },
         });
     }
 
     private async loadOrCreate(kind: ConfigurationKind): Promise<void> {
         const path = this.pathFor(kind);
+        let source: string;
         try {
-            const source = await readFile(path, 'utf8');
-            this.apply(kind, source);
+            source = await readFile(path, 'utf8');
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-            const source =
+            source =
                 kind === 'settings'
                     ? this.settingsSource
                     : kind === 'keybindings'
                       ? this.keybindingsSource
                       : this.themeSource;
             await atomicWrite(path, source);
+            return;
+        }
+        try {
+            this.apply(kind, source);
+            this.errors.delete(kind);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Configuration parse failed';
+            this.errors.set(kind, message);
+            this.logger?.write('warn', 'configuration.load_failed', {
+                fields: { kind, error: message },
+            });
+            this.emitChange(kind, this.sourceFor(kind), message);
         }
     }
 
-    private apply(kind: ConfigurationKind, source: string): void {
+    private prepare(kind: ConfigurationKind, source: string): () => void {
         const path = this.pathFor(kind);
         try {
             if (kind === 'settings') {
-                this.settings = settingsSchema.parse(parseJsonc(source));
-                this.settingsSource = source;
-            } else if (kind === 'keybindings') {
-                this.keybindings = keybindingSchema.parse(parseJsonc(source));
-                this.keybindingsSource = source;
-            } else {
-                this.theme = parseCaxriTheme(source);
-                this.themeSource = source;
+                const settings = settingsSchema.parse(parseJsonc(source));
+                return () => {
+                    this.settings = settings;
+                    this.settingsSource = source;
+                };
             }
+            if (kind === 'keybindings') {
+                const keybindings = keybindingSchema.parse(parseJsonc(source));
+                return () => {
+                    this.keybindings = keybindings;
+                    this.keybindingsSource = source;
+                };
+            }
+            const theme = parseCaxriTheme(source);
+            return () => {
+                this.theme = theme;
+                this.themeSource = source;
+            };
         } catch (error) {
             throw new Error(
                 `${basename(path)}: ${error instanceof Error ? error.message : 'configuration parse failed'}`,
@@ -178,6 +240,10 @@ export class ConfigurationService {
                 },
             );
         }
+    }
+
+    private apply(kind: ConfigurationKind, source: string): void {
+        this.prepare(kind, source)();
     }
 
     private pathFor(kind: ConfigurationKind): string {
@@ -235,11 +301,15 @@ export class ConfigurationService {
         if (!kind) return;
         try {
             const source = await readFile(path, 'utf8');
+            if (source === this.observedSources.get(path)) return;
+            this.observedSources.set(path, source);
             if (source === this.sourceFor(kind)) return;
             this.apply(kind, source);
+            this.errors.delete(kind);
             this.emitChange(kind, source);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Configuration parse failed';
+            this.errors.set(kind, message);
             this.emitChange(kind, this.sourceFor(kind), message);
         }
     }
@@ -255,9 +325,15 @@ export class ConfigurationService {
     }
 
     private async update(kind: ConfigurationKind, source: string): Promise<void> {
-        this.apply(kind, source);
+        const commit = this.prepare(kind, source);
         await atomicWrite(this.pathFor(kind), source);
+        commit();
+        this.errors.delete(kind);
         this.emitChange(kind, source);
+    }
+
+    getErrors(): string[] {
+        return [...this.errors.values()];
     }
 
     getSettings(): { value: AppSettings; source: string } {

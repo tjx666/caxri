@@ -16,6 +16,12 @@ const SECRET_KEY = /(token|password|secret|credential|api[_-]?key|authorization|
 const SECRET_ASSIGNMENT =
     /\b(token|password|secret|credential|api[_-]?key|authorization|cookie)\s*[=:]\s*([^\s,;]+)/gi;
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
+const LOG_LEVELS: Record<LogRecord['level'], number> = {
+    debug: 10,
+    info: 20,
+    warn: 30,
+    error: 40,
+};
 
 export function redactLogValue(value: string): string {
     return value
@@ -45,6 +51,7 @@ export class StructuredLogger {
     constructor(
         logDirectory: string,
         private readonly processName: LogRecord['process'] = 'runtime',
+        private readonly minimumLevel: LogRecord['level'] = 'debug',
     ) {
         mkdirSync(logDirectory, { recursive: true });
         this.path = join(logDirectory, `${processName}.jsonl`);
@@ -60,6 +67,7 @@ export class StructuredLogger {
         event: string,
         options: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'> = {},
     ): void {
+        if (LOG_LEVELS[level] < LOG_LEVELS[this.minimumLevel]) return;
         const record: LogRecord = {
             timestamp: new Date().toISOString(),
             process: this.processName,

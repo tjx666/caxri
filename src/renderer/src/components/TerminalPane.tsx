@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 
 import type { TerminalRecord, TerminalSnapshot, ThemeTokens } from '@shared/types';
 
+import { TerminalReplayBuffer } from '../lib/terminal-replay';
 import { Button } from './ui/button';
 
 interface TerminalPaneProps {
@@ -64,17 +65,8 @@ export function TerminalPane({
         xterm.loadAddon(search);
         xterm.open(containerRef.current);
         xtermRef.current = xterm;
-
-        void window.caxri
-            .request<TerminalSnapshot | null>('terminal.snapshot', { terminalId: terminal.id })
-            .then((snapshot) => {
-                if (snapshot?.payload) xterm.write(snapshot.payload);
-            })
-            .catch((error: unknown) =>
-                latestRef.current.onError(
-                    error instanceof Error ? error.message : 'Snapshot restore failed',
-                ),
-            );
+        const replay = new TerminalReplayBuffer((value) => xterm.write(value));
+        let disposed = false;
 
         const dataDisposable = xterm.onData((data) => {
             if (latestRef.current.processState !== 'running') return;
@@ -89,12 +81,24 @@ export function TerminalPane({
         const unsubscribe = window.caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminal.id)
                 return;
-            xterm.write(event.payload.data);
+            replay.push(event.payload.data);
             if (event.payload.droppedBytes)
-                xterm.writeln(
+                replay.push(
                     `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
                 );
         });
+        void window.caxri
+            .request<TerminalSnapshot | null>('terminal.attach', { terminalId: terminal.id })
+            .then((snapshot) => {
+                if (!disposed) replay.restore(snapshot?.payload ?? '');
+            })
+            .catch((error: unknown) => {
+                if (disposed) return;
+                replay.restore('');
+                latestRef.current.onError(
+                    error instanceof Error ? error.message : 'Terminal attachment failed',
+                );
+            });
         const observer = new ResizeObserver(() => {
             try {
                 fit.fit();
@@ -116,11 +120,15 @@ export function TerminalPane({
         });
 
         return () => {
+            disposed = true;
             observer.disconnect();
             unsubscribe();
             dataDisposable.dispose();
             xterm.dispose();
             xtermRef.current = undefined;
+            void window.caxri.request('terminal.detach', { terminalId: terminal.id }).catch(() => {
+                // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
+            });
         };
     }, [terminal.id]);
 

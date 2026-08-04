@@ -26,6 +26,7 @@ function launch(userData: string): Promise<ElectronApplication> {
         cwd: projectRoot,
         env: {
             ...process.env,
+            CAXRI_E2E: '1',
             CAXRI_TEST_ROOT_PATH: sessionRoot,
             CAXRI_USER_DATA_DIR: userData,
         },
@@ -44,6 +45,12 @@ test('large workspace opens Runtime, Terminal, files, and Git within three secon
 
     try {
         const page = await app.firstWindow();
+        if (executablePath) {
+            await app.evaluate(({ dialog }, root) => {
+                dialog.showOpenDialog = () =>
+                    Promise.resolve({ canceled: false, filePaths: [root] });
+            }, sessionRoot);
+        }
         await page.getByText('Runtime ready', { exact: true }).waitFor();
         const runtimeReadyMs = performance.now() - launchedAt;
 

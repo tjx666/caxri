@@ -6,29 +6,42 @@ import { discoverExecutable } from './agent';
 import type { CaxriDatabase } from './database';
 import type { StructuredLogger } from './logger';
 import { SingleFlight } from './single-flight';
-import { boundSnapshot } from './snapshot';
+import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 
-function terminalEnvironment(): NodeJS.ProcessEnv {
+const TERMINAL_ENVIRONMENT_KEYS = [
+    'HOME',
+    'USER',
+    'LOGNAME',
+    'PATH',
+    'SHELL',
+    'LANG',
+    'LC_ALL',
+    'LC_CTYPE',
+    'TMPDIR',
+    'SSH_AUTH_SOCK',
+    'XDG_CONFIG_HOME',
+    'XDG_CACHE_HOME',
+    'XDG_DATA_HOME',
+] as const;
+
+export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = {
-        ...process.env,
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
     };
-    delete environment.CAXRI_LOG_DIRECTORY;
-    delete environment.CAXRI_USER_DATA_PATH;
-    delete environment.CAXRI_USER_DATA_DIR;
-    delete environment.CAXRI_TEST_ROOT_PATH;
-    delete environment.ELECTRON_RENDERER_URL;
+    for (const key of TERMINAL_ENVIRONMENT_KEYS) {
+        if (source[key] !== undefined) environment[key] = source[key];
+    }
     return environment;
 }
 
 interface LiveTerminal {
     process: pty.IPty;
     record: TerminalRecord;
-    snapshot: string;
-    outputQueue: string;
+    snapshot: TerminalSnapshotBuffer;
+    outputQueue: TerminalOutputQueue;
     droppedBytes: number;
     metricOutputBytes: number;
     metricInputBytes: number;
@@ -40,6 +53,7 @@ interface LiveTerminal {
 
 export class TerminalManager {
     private readonly terminals = new Map<string, LiveTerminal>();
+    private readonly attached = new Set<string>();
     private readonly starts = new SingleFlight<string, TerminalRecord>();
 
     constructor(
@@ -70,8 +84,8 @@ export class TerminalManager {
             const live: LiveTerminal = {
                 process: child,
                 record,
-                snapshot: initialSnapshot,
-                outputQueue: '',
+                snapshot: new TerminalSnapshotBuffer(initialSnapshot),
+                outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,
                 metricOutputBytes: 0,
                 metricInputBytes: 0,
@@ -112,36 +126,36 @@ export class TerminalManager {
         if (this.terminals.get(live.record.id) !== live) return;
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
-        live.snapshot = boundSnapshot(live.snapshot + data).payload;
-        if (Buffer.byteLength(live.outputQueue + data, 'utf8') > MAX_OUTPUT_BATCH_BYTES) {
-            live.droppedBytes += dataBytes;
-            live.metricDroppedBytes += dataBytes;
-        } else {
-            live.outputQueue += data;
+        live.snapshot.append(data);
+        if (this.attached.has(live.record.id)) {
+            const droppedBytes = live.outputQueue.appendBounded(data);
+            live.droppedBytes += droppedBytes;
+            live.metricDroppedBytes += droppedBytes;
         }
-        live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
+        if (this.attached.has(live.record.id)) {
+            live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
+        }
         live.snapshotTimer ??= setTimeout(() => this.persistSnapshot(live), 750);
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
     }
 
     private flushOutput(live: LiveTerminal): void {
         live.outputTimer = undefined;
-        if (!live.outputQueue && live.droppedBytes === 0) return;
+        if (live.outputQueue.byteCount === 0 && live.droppedBytes === 0) return;
         this.emit({
             event: 'terminal.output',
             payload: {
                 terminalId: live.record.id,
-                data: live.outputQueue,
+                data: live.outputQueue.drain(),
                 droppedBytes: live.droppedBytes || undefined,
             },
         });
-        live.outputQueue = '';
         live.droppedBytes = 0;
     }
 
     private persistSnapshot(live: LiveTerminal): void {
         live.snapshotTimer = undefined;
-        const bounded = boundSnapshot(live.snapshot);
+        const bounded = live.snapshot.read();
         const snapshot: TerminalSnapshot = {
             terminalId: live.record.id,
             encodingVersion: 1,
@@ -159,7 +173,7 @@ export class TerminalManager {
             live.metricDroppedBytes === 0
         )
             return;
-        this.logger.write(live.metricDroppedBytes > 0 ? 'warn' : 'debug', 'pty.throughput', {
+        this.logger.write(live.metricDroppedBytes > 0 ? 'warn' : 'info', 'pty.throughput', {
             fields: {
                 terminalId: live.record.id,
                 inputBytes: live.metricInputBytes,
@@ -184,6 +198,7 @@ export class TerminalManager {
         this.persistSnapshot(live);
         this.flushMetrics(live);
         this.terminals.delete(live.record.id);
+        this.attached.delete(live.record.id);
         this.database.updateTerminalState(live.record.id, exitCode === 0 ? 'stopped' : 'dead');
         this.emit({
             event: 'terminal.exit',
@@ -213,15 +228,40 @@ export class TerminalManager {
         return true;
     }
 
+    attach(terminalId: string): TerminalSnapshot | null {
+        const live = this.terminals.get(terminalId);
+        if (!live && !this.database.getTerminal(terminalId)) return null;
+        this.attached.add(terminalId);
+        if (!live) return this.database.getSnapshot(terminalId) ?? null;
+        return {
+            terminalId,
+            encodingVersion: 1,
+            ...live.snapshot.read(),
+            updatedAt: Date.now(),
+        };
+    }
+
+    detachView(terminalId: string): void {
+        this.attached.delete(terminalId);
+        const live = this.terminals.get(terminalId);
+        if (!live) return;
+        if (live.outputTimer) clearTimeout(live.outputTimer);
+        live.outputTimer = undefined;
+        live.outputQueue.clear();
+        live.droppedBytes = 0;
+    }
+
     async restart(terminalId: string): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new Error('Terminal not found');
         const live = this.terminals.get(terminalId);
+        const preserveAttachment = this.attached.has(terminalId);
         if (live) {
             /** Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID. */
             this.detach(live, true);
             live.process.kill();
         }
+        if (preserveAttachment) this.attached.add(terminalId);
         this.database.updateTerminalState(terminalId, 'starting');
         return this.start(this.database.getTerminal(terminalId)!);
     }
@@ -238,6 +278,7 @@ export class TerminalManager {
         this.flushMetrics(live);
         if (persist) this.persistSnapshot(live);
         this.terminals.delete(live.record.id);
+        this.attached.delete(live.record.id);
     }
 
     close(terminalId: string): void {
@@ -247,10 +288,14 @@ export class TerminalManager {
             this.detach(live, false);
             live.process.kill();
         }
+        this.attached.delete(terminalId);
         this.database.closeTerminal(terminalId);
     }
 
     terminateSession(sessionId: string): void {
+        for (const terminal of this.database.listTerminals(sessionId)) {
+            this.attached.delete(terminal.id);
+        }
         for (const live of [...this.terminals.values()]) {
             if (live.record.sessionId !== sessionId) continue;
             this.detach(live, false);

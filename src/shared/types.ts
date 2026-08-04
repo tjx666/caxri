@@ -190,6 +190,7 @@ export interface BootstrapState {
     settings: AppSettings;
     keybindings: Keybinding[];
     keybindingConflicts: KeybindingConflict[];
+    configurationErrors?: string[];
     theme: ThemeTokens;
     runtime: {
         status: 'starting' | 'ready' | 'restarting' | 'failed';

@@ -41,23 +41,23 @@ SQLite runs only in the Runtime and uses WAL, foreign keys, migrations, transact
 - `session_state`: open editor tabs, active tab, inspector mode, and layout JSON
 - `app_state`: last selected session, window state, active theme, and schema version
 
-Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is buffered and persisted on a debounce so SQLite never runs in the PTY data callback. Snapshots are UI restoration data, not proof that a process survived.
+Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. A Renderer subscribes before attaching, then replays the bounded snapshot ahead of output received during attachment. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
 
 ## PTY lifecycle and backpressure
 
-Runtime launches only discovered allowlisted programs (`$SHELL`, `claude`, or `codex`) with argv, cwd, and a filtered environment. Switching Sessions detaches views but does not stop PTYs. Renderer output delivery is coalesced; per-terminal queues have a byte ceiling and emit a dropped-output marker when the renderer cannot keep up.
+Runtime launches only discovered allowlisted programs (`$SHELL`, `claude`, or `codex`) with argv, cwd, and a filtered environment. Switching Sessions detaches views but does not stop PTYs. Renderer output delivery is coalesced; per-terminal queues have a byte ceiling and emit a dropped-output marker when the renderer cannot keep up. Durable Terminal creation is capped at 16 per Session and 32 globally.
 
 Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` hides all windows while Main and Runtime remain alive. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted.
 
 ## Files and editor
 
-Every file request resolves its candidate path, checks it remains beneath the resolved Session root, rejects symlink escapes, and enforces text/size limits. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only.
+Every file request resolves its candidate path, checks it remains beneath the resolved Session root, rejects symlink escapes, and enforces text/size limits. Saves open the validated inode with `O_NOFOLLOW` before truncation. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only. A bounded fallback polls only the active root and directories already expanded by the user, preserving external-change delivery when the native backend is unavailable or silent.
 
-External disk changes always replace an open buffer, including a dirty buffer. This is a deliberate product choice for agent-driven workflows; the Renderer clears dirty state and shows a non-blocking notice rather than opening a conflict dialog.
+External disk changes always replace an open buffer, including a dirty buffer. This is a deliberate product choice for agent-driven workflows; the Renderer clears dirty state and shows a non-blocking notice rather than opening a conflict dialog. Editor buffers and Monaco model URIs are keyed by Session identity as well as path so Sessions sharing one root cannot reuse each other's dirty state.
 
 ## Settings, keybindings, and themes
 
-Global `settings.jsonc`, `keybindings.jsonc`, and theme files live in the application data directory. Services use atomic temporary-file replacement, JSONC/schema validation, last-known-good values, and Parcel Watcher hot reload for these three bounded files. Parse errors retain the prior valid state and report location without including source text in diagnostics.
+Global `settings.jsonc`, `keybindings.jsonc`, and theme files live in the application data directory. Writes sync a mode-`0600` temporary file before atomic replacement, and in-memory state changes only after replacement succeeds. The Runtime prefers Parcel Watcher hot reload and falls back to polling only these three bounded files. Startup and hot-reload changes are schema-validated before replacing in-memory state; parse errors retain defaults or the prior valid state and report location without including source text in diagnostics.
 
 Themes normalize into one semantic token structure consumed by CSS variables, xterm, and Monaco. Dracula is vendored as the first-run default. Importers support Caxri JSON, one VS Code JSON theme, iTerm2 `.itermcolors` plist, and Warp YAML; unsupported tokens become warnings and missing non-terminal tokens inherit from the active theme.
 
@@ -85,4 +85,4 @@ Development launches write Main and Runtime JSONL files to the repository `logs/
 
 ## Recovery limits
 
-Renderer reload recovers UI state and attaches to live PTYs. Runtime restart recovers database metadata and snapshots only; operating-system PTYs owned by the dead Runtime are not recoverable. Restart attempts are capped and use exponential backoff. App exit is the only supported durable process boundary; PTYs do not outlive an explicit quit.
+Renderer reload recovers UI state and attaches to live PTYs. Runtime restart recovers database metadata and snapshots only; operating-system PTYs owned by the dead Runtime are not recoverable. Restart attempts are capped and use exponential backoff; startup fails visibly instead of hanging if no Runtime becomes ready within 15 seconds. App exit is the only supported durable process boundary; PTYs do not outlive an explicit quit.

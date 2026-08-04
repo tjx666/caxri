@@ -1,15 +1,21 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AgentService, type AgentAdapter } from '../agent';
+import {
+    AgentService,
+    clearExecutableCache,
+    discoverExecutable,
+    type AgentAdapter,
+} from '../agent';
 import { StructuredLogger } from '../logger';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    clearExecutableCache();
     vi.unstubAllEnvs();
     await Promise.all(
         temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
@@ -26,6 +32,23 @@ describe('Agent adapter fallback', () => {
             status: 'unknown',
             available: false,
         });
+    });
+
+    it('validates the final executable path from login-shell output and invalidates stale cache', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-discovery-'));
+        temporaryDirectories.push(directory);
+        const executable = join(directory, 'codex');
+        const shell = join(directory, 'login-shell');
+        await writeFile(executable, '#!/bin/sh\n', 'utf8');
+        await chmod(executable, 0o700);
+        await writeFile(shell, `#!/bin/sh\nprintf 'shell banner\\n${executable}\\n'\n`, 'utf8');
+        await chmod(shell, 0o700);
+        vi.stubEnv('PATH', '');
+        vi.stubEnv('SHELL', shell);
+
+        await expect(discoverExecutable('codex')).resolves.toBe(executable);
+        await chmod(executable, 0o600);
+        await expect(discoverExecutable('codex')).resolves.toBeUndefined();
     });
 
     it('shares a concurrent provider probe', async () => {

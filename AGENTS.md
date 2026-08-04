@@ -36,6 +36,7 @@
 
 - Keep Runtime, Terminal, file tree, and Git startup below the three-second large-workspace gate.
 - Coalesce concurrent expensive reads and probes; React StrictMode must not duplicate native work.
+- Send live PTY output only to attached Renderer views, and restore snapshots before replaying output buffered during attachment.
 - Log timings at operation boundaries. Aggregate high-frequency PTY metrics instead of writing one log record per input, resize, or output event.
 - Performance changes must include a focused regression test or a benchmark assertion.
 - Development logs are written to `logs/main.jsonl` and `logs/runtime.jsonl`; packaged builds use the Electron user-data directory.

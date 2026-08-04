@@ -30,6 +30,8 @@ export const requestSchemas = {
         rows: z.number().int().min(1).max(1_000),
     }),
     'terminal.close': z.object({ terminalId: id }),
+    'terminal.attach': z.object({ terminalId: id }),
+    'terminal.detach': z.object({ terminalId: id }),
     'terminal.restart': z.object({ terminalId: id }),
     'terminal.snapshot': z.object({ terminalId: id }),
     'terminal.runningCount': z.object({ sessionId: id.optional() }),
@@ -72,9 +74,23 @@ export const internalRequestSchemas = {
 export type InternalMethod = keyof typeof internalRequestSchemas;
 export type RuntimeMethod = CaxriMethod | InternalMethod;
 
+export function isCaxriMethod(value: string): value is CaxriMethod {
+    return Object.hasOwn(requestSchemas, value);
+}
+
+export function getRuntimeRequestSchema(method: string) {
+    if (Object.hasOwn(requestSchemas, method)) {
+        return requestSchemas[method as keyof typeof requestSchemas];
+    }
+    if (Object.hasOwn(internalRequestSchemas, method)) {
+        return internalRequestSchemas[method as keyof typeof internalRequestSchemas];
+    }
+    return undefined;
+}
+
 export const requestEnvelopeSchema = z.object({
     id,
-    method: z.string().refine((value): value is CaxriMethod => value in requestSchemas),
+    method: z.string().refine(isCaxriMethod),
     params: z.unknown(),
 });
 

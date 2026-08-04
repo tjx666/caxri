@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
     main: {
         build: {
             externalizeDeps: true,
@@ -35,6 +35,17 @@ export default defineConfig({
                 '@shared': resolve('src/shared'),
             },
         },
-        plugins: [react(), tailwindcss()],
+        plugins: [
+            react(),
+            tailwindcss(),
+            {
+                name: 'caxri-renderer-csp',
+                transformIndexHtml(html) {
+                    const connectSource =
+                        command === 'serve' ? "'self' ws://localhost:*" : "'self'";
+                    return html.replace('__CAXRI_CONNECT_SRC__', connectSource);
+                },
+            },
+        ],
     },
-});
+}));

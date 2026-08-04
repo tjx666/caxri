@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { CaxriDatabase } from '../database';
 import { FileService } from '../files';
-import { GitService } from '../git';
+import { describeGitFailure, GitService } from '../git';
 import { StructuredLogger } from '../logger';
 
 const execFileAsync = promisify(execFile);
@@ -84,5 +84,21 @@ describe('GitService', () => {
         expect(summary).toMatchObject({ isRepository: true, branch: 'main' });
         expect(summary.head).toBeUndefined();
         database.close();
+    });
+});
+
+describe('describeGitFailure', () => {
+    it('distinguishes missing Git and timeout failures from non-repositories', () => {
+        expect(
+            describeGitFailure(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })),
+        ).toBe('Git is not installed or is unavailable on PATH.');
+        expect(describeGitFailure(Object.assign(new Error('timed out'), { killed: true }))).toBe(
+            'The Git operation timed out.',
+        );
+        expect(
+            describeGitFailure(
+                Object.assign(new Error('exit 128'), { stderr: 'fatal: not a git repository' }),
+            ),
+        ).toBe('The Session root is not a Git repository.');
     });
 });

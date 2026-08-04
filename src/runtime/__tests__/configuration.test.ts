@@ -1,4 +1,4 @@
-import { mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -35,6 +35,42 @@ describe('ConfigurationService', () => {
         await expect(service.updateSettings('{ broken')).rejects.toThrow(
             /settings\.jsonc:.*line 1, column/,
         );
+        expect(service.getSettings()).toEqual(before);
+        await service.close();
+    });
+
+    it('starts with last-known-good defaults when an existing settings file is invalid', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-startup-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(join(configDirectory, 'settings.jsonc'), '{ broken', 'utf8');
+        const events: RuntimeEvent[] = [];
+        const service = new ConfigurationService(directory, (event) => events.push(event));
+
+        await expect(service.initialize()).resolves.toBeUndefined();
+        expect(service.getSettings().value['terminal.fontSize']).toBe(13);
+        expect(
+            events.some(
+                (event) =>
+                    event.event === 'settings.changed' &&
+                    event.payload.error?.includes('settings.jsonc'),
+            ),
+        ).toBe(true);
+        await service.close();
+    });
+
+    it('does not change in-memory settings when the atomic disk write fails', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-write-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigurationService(directory, () => undefined);
+        await service.initialize();
+        const before = service.getSettings();
+        const source = `${JSON.stringify({ ...before.value, 'terminal.fontSize': 17 }, null, 2)}\n`;
+
+        await rm(service.settingsPath);
+        await mkdir(service.settingsPath);
+        await expect(service.updateSettings(source)).rejects.toThrow();
         expect(service.getSettings()).toEqual(before);
         await service.close();
     });

@@ -22,6 +22,8 @@ import type { Keybinding, PersistedWindowState } from '../shared/types';
 import { StructuredLogger } from '../runtime/logger';
 import { resolveLogDirectory } from './log-path';
 import { RuntimeSupervisor } from './supervisor';
+import { resolveTestRootPath } from './test-root';
+import { createWindowCloseHandler } from './window-close';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -116,20 +118,13 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         if (details.reason !== 'clean-exit' && !window.isDestroyed())
             setTimeout(() => window.reload(), 250);
     });
-    window.on('close', (event) => {
-        if (forceWindowClose || quitStarted) return;
-        if (persistTimer) clearTimeout(persistTimer);
-        persistTimer = undefined;
-        persistWindowState();
-        event.preventDefault();
-        void (async () => {
-            const count = await supervisor.request<number>('terminal.runningCount', {});
-            if (count === 0) {
-                forceWindowClose = true;
-                window.close();
-                forceWindowClose = false;
-                return;
-            }
+    const requestWindowClose = createWindowCloseHandler({
+        close: () => {
+            forceWindowClose = true;
+            window.close();
+            forceWindowClose = false;
+        },
+        confirm: async (count) => {
             mainLogger?.write('info', 'window.close_confirmation', {
                 fields: { runningTerminals: count },
             });
@@ -145,12 +140,22 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             mainLogger?.write('info', 'window.close_decision', {
                 fields: { response: result.response },
             });
-            if (result.response === 2) return;
-            if (result.response === 1) await supervisor.request('terminal.terminateAll', {});
-            forceWindowClose = true;
-            window.close();
-            forceWindowClose = false;
-        })();
+            return result.response === 2 ? 'cancel' : result.response === 1 ? 'terminate' : 'close';
+        },
+        countRunning: () => supervisor.request<number>('terminal.runningCount', {}),
+        logFailure: (message) =>
+            mainLogger?.write('error', 'window.close_failed', {
+                fields: { error: message },
+            }),
+        terminateAll: () => supervisor.request('terminal.terminateAll', {}),
+    });
+    window.on('close', (event) => {
+        if (forceWindowClose || quitStarted) return;
+        if (persistTimer) clearTimeout(persistTimer);
+        persistTimer = undefined;
+        persistWindowState();
+        event.preventDefault();
+        void requestWindowClose();
     });
     window.on('closed', () => {
         if (persistTimer) clearTimeout(persistTimer);
@@ -194,10 +199,10 @@ async function handleMainMethod(
 ): Promise<unknown> {
     switch (method) {
         case 'dialog.selectDirectory': {
-            if (process.env.CAXRI_TEST_ROOT_PATH) {
-                /** Deterministic native-dialog seam for real Electron E2E; never active in production launches. */
-                grantedRoots.add(process.env.CAXRI_TEST_ROOT_PATH);
-                return process.env.CAXRI_TEST_ROOT_PATH;
+            const testRoot = resolveTestRootPath({ isPackaged: app.isPackaged });
+            if (testRoot) {
+                grantedRoots.add(testRoot);
+                return testRoot;
             }
             const result = await dialog.showOpenDialog(mainWindow!, {
                 title: 'Choose a Session directory',
@@ -210,7 +215,11 @@ async function handleMainMethod(
         case 'session.create':
             if (!grantedRoots.has(params.rootPath as string))
                 throw new Error('Session root was not selected by the user');
-            return supervisor.request(method, params);
+            try {
+                return await supervisor.request(method, params);
+            } finally {
+                grantedRoots.delete(params.rootPath as string);
+            }
         case 'session.delete': {
             const count = await supervisor.request<number>('terminal.runningCount', {
                 sessionId: params.sessionId,
@@ -377,15 +386,25 @@ void app.whenReady().then(async () => {
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         userDataPath,
     });
-    mainLogger = new StructuredLogger(logDirectory, 'main');
+    const logLevel = app.isPackaged ? 'info' : 'debug';
+    mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
-    supervisor = new RuntimeSupervisor(currentDirectory, userDataPath, logDirectory);
+    supervisor = new RuntimeSupervisor(currentDirectory, userDataPath, logDirectory, logLevel);
     supervisor.on('event', sendEvent);
     const runtimeStartedAt = performance.now();
-    await supervisor.start();
-    mainLogger.write('info', 'runtime.attached', {
-        durationMs: performance.now() - runtimeStartedAt,
-    });
+    await supervisor
+        .start()
+        .then(() =>
+            mainLogger?.write('info', 'runtime.attached', {
+                durationMs: performance.now() - runtimeStartedAt,
+            }),
+        )
+        .catch((error: unknown) =>
+            mainLogger?.write('error', 'runtime.attach_failed', {
+                durationMs: performance.now() - runtimeStartedAt,
+                fields: { error: error instanceof Error ? error.message : 'unknown' },
+            }),
+        );
     installIpc();
     await installMenu();
     await openMainWindow();

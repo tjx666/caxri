@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { delimiter, join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { AgentProvider, AgentSnapshot } from '../shared/types';
@@ -15,15 +15,40 @@ const executableNames: Record<AgentProvider, string> = {
     codex: 'codex',
 };
 
+const executableCache = new Map<AgentProvider, string>();
+const executableRequests = new Map<AgentProvider, Promise<string | undefined>>();
+
+async function isExecutable(path: string): Promise<boolean> {
+    try {
+        await access(path, constants.X_OK);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function clearExecutableCache(): void {
+    executableCache.clear();
+    executableRequests.clear();
+}
+
 export async function discoverExecutable(name: AgentProvider): Promise<string | undefined> {
+    const cached = executableCache.get(name);
+    if (cached && (await isExecutable(cached))) return cached;
+    executableCache.delete(name);
+    const pending = executableRequests.get(name);
+    if (pending) return pending;
+    const request = findExecutable(name).finally(() => executableRequests.delete(name));
+    executableRequests.set(name, request);
+    const executable = await request;
+    if (executable) executableCache.set(name, executable);
+    return executable;
+}
+
+async function findExecutable(name: AgentProvider): Promise<string | undefined> {
     for (const directory of (process.env.PATH ?? '').split(delimiter).filter(Boolean)) {
         const candidate = join(directory, executableNames[name]);
-        try {
-            await access(candidate, constants.X_OK);
-            return candidate;
-        } catch {
-            // A GUI-launched macOS app commonly has a minimal PATH; try the login shell next.
-        }
+        if (await isExecutable(candidate)) return candidate;
     }
 
     const shell = process.env.SHELL || '/bin/zsh';
@@ -36,7 +61,14 @@ export async function discoverExecutable(name: AgentProvider): Promise<string | 
                 maxBuffer: 8 * 1024,
             },
         );
-        return stdout.trim() || undefined;
+        const candidate = stdout
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .at(-1);
+        if (!candidate || !isAbsolute(candidate) || !(await isExecutable(candidate)))
+            return undefined;
+        return candidate;
     } catch {
         return undefined;
     }
@@ -92,7 +124,7 @@ export class AgentService {
         return this.requests.run(provider, async () => {
             const startedAt = performance.now();
             const snapshot = await this.adapters[provider].snapshot();
-            this.logger?.write('debug', 'agent.probe', {
+            this.logger?.write('info', 'agent.probe', {
                 durationMs: performance.now() - startedAt,
                 fields: { provider, available: snapshot.available },
             });

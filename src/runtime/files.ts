@@ -1,4 +1,5 @@
-import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { lstat, open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
@@ -27,6 +28,7 @@ const IGNORED_SEGMENTS = new Set([
 ]);
 const MAX_PENDING_WATCH_EVENTS = 5_000;
 const WATCH_BATCH_DELAY_MS = 75;
+const WATCH_POLL_INTERVAL_MS = 750;
 const WATCHER_IGNORE_PATTERNS = [...IGNORED_SEGMENTS].flatMap((segment) => [
     `**/${segment}`,
     `**/${segment}/**`,
@@ -42,11 +44,12 @@ export class FileService {
     private watchedSessionId?: string;
     private watchGeneration = 0;
     private watchSetup?: Promise<void>;
-    private watcherRestartCount = 0;
-    private restartTimer?: NodeJS.Timeout;
     private pendingEvents = new Map<string, FileChange['kind']>();
     private droppedEvents = 0;
     private eventTimer?: NodeJS.Timeout;
+    private pollTimer?: NodeJS.Timeout;
+    private pollInFlight = false;
+    private readonly polledDirectories = new Map<string, Map<string, string>>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -79,6 +82,9 @@ export class FileService {
     private async loadList(sessionId: string, directory?: string): Promise<FileEntry[]> {
         const startedAt = performance.now();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
+        if (sessionId === this.watchedSessionId && !this.polledDirectories.has(path)) {
+            void this.initializePolledDirectory(path, this.watchGeneration);
+        }
         const entries = await readdir(path, { withFileTypes: true });
         const visible = entries.filter(
             (entry) => !IGNORED_SEGMENTS.has(entry.name) && !entry.name.endsWith('.db-wal'),
@@ -97,7 +103,7 @@ export class FileService {
         const sorted = result.sort((a, b) =>
             a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
         );
-        this.logger.write('debug', 'file.list', {
+        this.logger.write('info', 'file.list', {
             durationMs: performance.now() - startedAt,
             fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
         });
@@ -128,7 +134,22 @@ export class FileService {
             throw new Error('Only existing regular files can be saved');
         if (Buffer.byteLength(content, 'utf8') > this.maxFileBytes() * 2)
             throw new Error('Edited file exceeds the write safety limit');
-        await writeFile(resolved.path, content, 'utf8');
+        const file = await open(resolved.path, constants.O_WRONLY | constants.O_NOFOLLOW);
+        try {
+            const openedStats = await file.stat();
+            if (
+                !openedStats.isFile() ||
+                openedStats.dev !== stats.dev ||
+                openedStats.ino !== stats.ino ||
+                openedStats.nlink > 1
+            ) {
+                throw new Error('File changed during save or has multiple filesystem links');
+            }
+            await file.truncate(0);
+            await file.writeFile(content, 'utf8');
+        } finally {
+            await file.close();
+        }
         this.logger.write('info', 'file.saved', {
             fields: { sessionId, path: relative(resolved.root, resolved.path) },
         });
@@ -139,14 +160,27 @@ export class FileService {
         if (sessionId === this.watchedSessionId) return this.watchSetup ?? Promise.resolve();
         const generation = ++this.watchGeneration;
         this.watchedSessionId = sessionId;
-        this.watcherRestartCount = 0;
+        if (this.eventTimer) clearTimeout(this.eventTimer);
+        this.eventTimer = undefined;
+        this.pendingEvents.clear();
+        this.droppedEvents = 0;
+        if (this.pollTimer) clearInterval(this.pollTimer);
+        this.pollTimer = undefined;
+        this.polledDirectories.clear();
         this.watchSetup = this.installWatcher(sessionId, generation);
         return this.watchSetup;
     }
 
     private installWatcher(sessionId: string | undefined, generation: number): Promise<void> {
         const setup = this.replaceWatcher(sessionId, generation)
-            .catch((error: unknown) => this.handleWatcherError(sessionId, generation, error))
+            .catch((error: unknown) => {
+                this.logger.write('warn', 'watcher.setup_failed', {
+                    fields: {
+                        sessionId: sessionId ?? 'none',
+                        error: error instanceof Error ? error.message : 'unknown watcher error',
+                    },
+                });
+            })
             .finally(() => {
                 if (generation === this.watchGeneration && this.watchSetup === setup)
                     this.watchSetup = undefined;
@@ -157,25 +191,29 @@ export class FileService {
 
     private async replaceWatcher(sessionId: string | undefined, generation: number): Promise<void> {
         const startedAt = performance.now();
-        if (this.eventTimer) clearTimeout(this.eventTimer);
-        if (this.restartTimer) clearTimeout(this.restartTimer);
-        this.eventTimer = undefined;
-        this.restartTimer = undefined;
-        this.pendingEvents.clear();
-        this.droppedEvents = 0;
         const previousWatcher = this.watcher;
         this.watcher = undefined;
         await previousWatcher?.unsubscribe();
         if (generation !== this.watchGeneration) return;
         if (!sessionId) return;
         const { root } = await this.resolveSessionPath(sessionId);
+        if (!this.polledDirectories.has(root)) {
+            await this.initializePolledDirectory(root, generation);
+        }
+        if (!this.pollTimer) {
+            this.pollTimer = setInterval(
+                () => void this.pollDirectories(sessionId, generation),
+                WATCH_POLL_INTERVAL_MS,
+            );
+            this.pollTimer.unref();
+        }
         try {
             const watcher = await parcelWatcher.subscribe(
                 root,
                 (error, events) => {
                     if (generation !== this.watchGeneration) return;
                     if (error) {
-                        this.handleWatcherError(sessionId, generation, error);
+                        this.activatePollingFallback(sessionId, generation, error);
                         return;
                     }
                     for (const event of events) {
@@ -202,29 +240,25 @@ export class FileService {
             });
         } catch (error) {
             if (generation !== this.watchGeneration) return;
-            this.handleWatcherError(sessionId, generation, error);
+            this.activatePollingFallback(sessionId, generation, error);
+            this.logger.write('info', 'watcher.ready', {
+                durationMs: performance.now() - startedAt,
+                fields: { sessionId, backend: 'poll' },
+            });
         }
     }
 
-    private handleWatcherError(
-        sessionId: string | undefined,
-        generation: number,
-        error: unknown,
-    ): void {
-        if (generation !== this.watchGeneration || this.restartTimer) return;
-        this.logger.write('warn', 'watcher.error', {
+    private activatePollingFallback(sessionId: string, generation: number, error: unknown): void {
+        if (generation !== this.watchGeneration) return;
+        const watcher = this.watcher;
+        this.watcher = undefined;
+        void watcher?.unsubscribe();
+        this.logger.write('warn', 'watcher.fallback', {
             fields: {
-                sessionId: sessionId ?? 'none',
+                sessionId,
                 error: error instanceof Error ? error.message : 'unknown watcher error',
             },
         });
-        if (!sessionId || this.watcherRestartCount >= 2) return;
-        this.watcherRestartCount += 1;
-        this.restartTimer = setTimeout(() => {
-            this.restartTimer = undefined;
-            if (generation !== this.watchGeneration || this.watchedSessionId !== sessionId) return;
-            void this.installWatcher(sessionId, generation);
-        }, 800);
     }
 
     private queueEvent(sessionId: string, kind: FileChange['kind'], path: string): void {
@@ -255,13 +289,71 @@ export class FileService {
         }, WATCH_BATCH_DELAY_MS);
     }
 
+    private async readDirectorySignatures(directory: string): Promise<Map<string, string>> {
+        const entries = await readdir(directory, { withFileTypes: true });
+        const signatures = new Map<string, string>();
+        await Promise.all(
+            entries
+                .filter((entry) => !IGNORED_SEGMENTS.has(entry.name))
+                .map(async (entry) => {
+                    const path = resolve(directory, entry.name);
+                    const stats = await lstat(path);
+                    signatures.set(
+                        path,
+                        `${stats.mtimeMs}:${stats.size}:${stats.mode}:${stats.ino}`,
+                    );
+                }),
+        );
+        return signatures;
+    }
+
+    private async initializePolledDirectory(directory: string, generation: number): Promise<void> {
+        try {
+            const signatures = await this.readDirectorySignatures(directory);
+            if (generation === this.watchGeneration) {
+                this.polledDirectories.set(directory, signatures);
+            }
+        } catch {
+            if (generation === this.watchGeneration) this.polledDirectories.delete(directory);
+        }
+    }
+
+    /** Poll only the root and directories the user expanded, bounding fallback work in large repositories. */
+    private async pollDirectories(sessionId: string, generation: number): Promise<void> {
+        if (this.pollInFlight || generation !== this.watchGeneration) return;
+        this.pollInFlight = true;
+        try {
+            for (const [directory, previous] of this.polledDirectories) {
+                let current: Map<string, string>;
+                try {
+                    current = await this.readDirectorySignatures(directory);
+                } catch {
+                    continue;
+                }
+                if (generation !== this.watchGeneration) return;
+                for (const [path, signature] of current) {
+                    if (previous.get(path) !== signature) {
+                        this.queueEvent(sessionId, previous.has(path) ? 'update' : 'create', path);
+                    }
+                }
+                for (const path of previous.keys()) {
+                    if (!current.has(path)) this.queueEvent(sessionId, 'delete', path);
+                }
+                this.polledDirectories.set(directory, current);
+            }
+        } finally {
+            this.pollInFlight = false;
+        }
+    }
+
     async close(): Promise<void> {
         this.watchGeneration += 1;
         if (this.eventTimer) clearTimeout(this.eventTimer);
-        if (this.restartTimer) clearTimeout(this.restartTimer);
+        if (this.pollTimer) clearInterval(this.pollTimer);
         const watcher = this.watcher;
         const setup = this.watchSetup;
         this.watcher = undefined;
+        this.polledDirectories.clear();
         await Promise.allSettled([watcher?.unsubscribe(), setup]);
     }
 }

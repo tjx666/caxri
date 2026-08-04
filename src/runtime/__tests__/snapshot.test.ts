@@ -16,4 +16,11 @@ describe('boundSnapshot', () => {
         const result = boundSnapshot('x'.repeat(MAX_SNAPSHOT_BYTES + 2_048));
         expect(result.byteCount).toBeLessThanOrEqual(MAX_SNAPSHOT_BYTES);
     });
+
+    it('does not split a multibyte UTF-8 character at the byte boundary', () => {
+        const result = boundSnapshot(`x${'界'.repeat(MAX_SNAPSHOT_BYTES)}`);
+
+        expect(result.byteCount).toBeLessThanOrEqual(MAX_SNAPSHOT_BYTES);
+        expect(result.payload).not.toContain('\uFFFD');
+    });
 });

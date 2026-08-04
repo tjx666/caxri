@@ -12,52 +12,107 @@ interface PendingRequest {
     timer: NodeJS.Timeout;
 }
 
+interface RuntimeReadiness {
+    promise: Promise<void>;
+    reject: (error: Error) => void;
+    resolve: () => void;
+}
+
+const RUNTIME_READY_TIMEOUT_MS = 15_000;
+
 export class RuntimeSupervisor extends EventEmitter {
     private child?: UtilityProcess;
     private pending = new Map<string, PendingRequest>();
     private restartCount = 0;
     private intentionalStop = false;
-    private readyPromise?: Promise<void>;
-    private resolveReady?: () => void;
+    private readiness?: RuntimeReadiness;
 
     constructor(
         private readonly runtimeDirectory: string,
         private readonly userDataPath: string,
         private readonly logDirectory: string,
+        private readonly logLevel: 'debug' | 'info' = 'debug',
     ) {
         super();
     }
 
     start(): Promise<void> {
-        if (this.child) return this.readyPromise ?? Promise.resolve();
+        if (this.child) return this.readiness?.promise ?? Promise.resolve();
         this.intentionalStop = false;
-        this.readyPromise = new Promise<void>((resolve) => {
-            this.resolveReady = resolve;
-        });
+        this.readiness ??= this.createReadiness();
         const runtimePath = join(this.runtimeDirectory, 'runtime.js');
-        const child = utilityProcess.fork(runtimePath, [], {
-            serviceName: 'Caxri Runtime',
-            env: {
-                ...process.env,
-                CAXRI_LOG_DIRECTORY: this.logDirectory,
-                CAXRI_USER_DATA_PATH: this.userDataPath,
-            },
-            stdio: 'pipe',
-        });
+        let child: UtilityProcess;
+        try {
+            child = utilityProcess.fork(runtimePath, [], {
+                serviceName: 'Caxri Runtime',
+                env: {
+                    ...process.env,
+                    CAXRI_LOG_DIRECTORY: this.logDirectory,
+                    CAXRI_LOG_LEVEL: this.logLevel,
+                    CAXRI_USER_DATA_PATH: this.userDataPath,
+                },
+                stdio: 'pipe',
+            });
+        } catch (error) {
+            const failure = error instanceof Error ? error : new Error('Runtime failed to start');
+            this.emit('runtime-error', failure);
+            this.onExit(-1);
+            return this.readiness?.promise ?? Promise.reject(failure);
+        }
         this.child = child;
-        child.on('message', (message: RuntimeMessage) => this.onMessage(message));
-        child.on('exit', (code) => this.onExit(code));
+        child.on('message', (message: RuntimeMessage) => {
+            if (this.child === child) this.onMessage(message);
+        });
+        child.on('exit', (code) => {
+            if (this.child === child) this.onExit(code);
+        });
         child.on('error', (error) => this.emit('runtime-error', error));
         child.stdout?.on('data', (chunk) => this.emit('runtime-log', String(chunk)));
         child.stderr?.on('data', (chunk) => this.emit('runtime-log', String(chunk)));
-        return this.readyPromise;
+        return this.readiness.promise;
+    }
+
+    private createReadiness(): RuntimeReadiness {
+        let resolve!: () => void;
+        let reject!: (error: Error) => void;
+        let settled = false;
+        const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+            resolve = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolvePromise();
+            };
+            reject = (error) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                rejectPromise(error);
+            };
+        });
+        const timer = setTimeout(() => {
+            const failure = new Error('Runtime did not become ready within 15 seconds');
+            reject(failure);
+            this.readiness = undefined;
+            this.restartCount = 3;
+            this.intentionalStop = true;
+            const child = this.child;
+            this.child = undefined;
+            child?.kill();
+            this.emit('event', {
+                event: 'runtime.status',
+                payload: { status: 'failed', restartCount: this.restartCount },
+            } satisfies RuntimeEvent);
+        }, RUNTIME_READY_TIMEOUT_MS);
+        return { promise, reject, resolve };
     }
 
     private onMessage(message: RuntimeMessage): void {
         if ('event' in message) {
             if (message.event === 'runtime.status' && message.payload.status === 'ready') {
-                this.resolveReady?.();
-                this.resolveReady = undefined;
+                this.readiness?.resolve();
+                this.readiness = undefined;
+                this.restartCount = 0;
             }
             this.emit('event', message);
             return;
@@ -80,6 +135,8 @@ export class RuntimeSupervisor extends EventEmitter {
         this.pending.clear();
         if (this.intentionalStop) return;
         if (this.restartCount >= 3) {
+            this.readiness?.reject(new Error('Runtime failed after 3 restart attempts'));
+            this.readiness = undefined;
             this.emit('event', {
                 event: 'runtime.status',
                 payload: { status: 'failed', restartCount: this.restartCount },
@@ -91,7 +148,10 @@ export class RuntimeSupervisor extends EventEmitter {
             event: 'runtime.status',
             payload: { status: 'restarting', restartCount: this.restartCount },
         } satisfies RuntimeEvent);
-        setTimeout(() => void this.start(), Math.min(250 * 2 ** (this.restartCount - 1), 2_000));
+        setTimeout(
+            () => void this.start().catch((error: unknown) => this.emit('runtime-error', error)),
+            Math.min(250 * 2 ** (this.restartCount - 1), 2_000),
+        );
     }
 
     async request<T = unknown>(
@@ -99,7 +159,7 @@ export class RuntimeSupervisor extends EventEmitter {
         params: unknown = {},
         timeoutMs = 20_000,
     ): Promise<T> {
-        if (!this.child) await this.start();
+        await this.start();
         const child = this.child;
         if (!child) throw new Error('Runtime is unavailable');
         const id = randomUUID();
@@ -119,6 +179,8 @@ export class RuntimeSupervisor extends EventEmitter {
 
     async shutdown(): Promise<void> {
         this.intentionalStop = true;
+        this.readiness?.reject(new Error('Runtime stopped before becoming ready'));
+        this.readiness = undefined;
         const child = this.child;
         if (!child) return;
         try {
