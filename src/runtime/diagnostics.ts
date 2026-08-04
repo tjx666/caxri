@@ -105,9 +105,15 @@ export class DiagnosticsService {
     ) {}
 
     async export(destination: string): Promise<{ path: string }> {
+        const projects = this.database.listProjects().map((project) => ({
+            id: project.id,
+            rootPath: normalizeHome(project.rootPath),
+            createdAt: project.createdAt,
+            lastOpenedAt: project.lastOpenedAt,
+        }));
         const sessions = this.database.listSessions().map((session) => ({
             id: session.id,
-            rootPath: normalizeHome(session.rootPath),
+            projectId: session.projectId,
             createdAt: session.createdAt,
             lastOpenedAt: session.lastOpenedAt,
             lastActivityState: session.lastActivityState,
@@ -158,6 +164,7 @@ export class DiagnosticsService {
                     name: 'diagnostics/runtime.json',
                 },
             );
+            archive.append(json(projects), { name: 'diagnostics/projects.json' });
             archive.append(json(sessions), { name: 'diagnostics/sessions.json' });
             archive.append(json(terminals), { name: 'diagnostics/terminals.json' });
             archive.append(json(this.getSettings()), { name: 'diagnostics/settings.json' });

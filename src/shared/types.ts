@@ -19,8 +19,18 @@ export interface AgentSnapshot {
     version?: string;
 }
 
+export interface ProjectRecord {
+    id: string;
+    rootPath: string;
+    displayTitle: string;
+    createdAt: number;
+    lastOpenedAt: number;
+}
+
 export interface SessionRecord {
     id: string;
+    projectId: string;
+    /** Project-owned root projected onto the Session read model for path-scoped services. */
     rootPath: string;
     createdAt: number;
     lastOpenedAt: number;
@@ -185,8 +195,10 @@ export interface GitSummary {
 }
 
 export interface BootstrapState {
+    projects: ProjectRecord[];
     sessions: SessionRecord[];
     terminals: TerminalRecord[];
+    selectedProjectId?: string;
     selectedSessionId?: string;
     sessionStates: SessionState[];
     settings: AppSettings;

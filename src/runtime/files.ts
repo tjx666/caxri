@@ -132,7 +132,7 @@ export class FileService {
         const resolved = await realpath(candidate);
         const resolvedRelative = relative(root, resolved);
         if (isOutsideRoot(resolvedRelative))
-            throw new Error('Symlink target is outside the Session root');
+            throw new Error('Symlink target is outside the Project root');
         return { root, path: resolved };
     }
 

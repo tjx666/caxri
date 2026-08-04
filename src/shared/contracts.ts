@@ -12,8 +12,10 @@ export const requestSchemas = {
     'app.openConfigFile': z.object({ kind: z.enum(['settings', 'keybindings', 'theme']) }),
     'dialog.selectDirectory': z.object({}),
     'diagnostics.export': z.object({}),
-    'session.create': z.object({ rootPath: path, defaultAgent: terminalKind }),
-    'session.cancelCreate': z.object({ rootPath: path }),
+    'project.create': z.object({ rootPath: path }),
+    'project.cancelCreate': z.object({ rootPath: path }),
+    'project.delete': z.object({ projectId: id }),
+    'session.create': z.object({ projectId: id, defaultAgent: terminalKind }),
     'session.delete': z.object({ sessionId: id }),
     'session.select': z.object({ sessionId: id }),
     'session.updateState': z.object({

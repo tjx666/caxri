@@ -47,7 +47,7 @@ describe('FileService', () => {
         expect(rememberChangeFingerprint(fingerprints, '/root/file.ts', 'version-2', 3)).toBe(true);
     });
 
-    it('reads and writes text under the Session root and rejects traversal/symlink escapes', async () => {
+    it('reads and writes text under the Project root and rejects traversal/symlink escapes', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -57,7 +57,7 @@ describe('FileService', () => {
         await writeFile(outside, 'secret', 'utf8');
         await symlink(outside, join(root, 'escape.txt'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(root, 'shell').session;
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
         const service = new FileService(
             database,
             () => undefined,
@@ -79,7 +79,10 @@ describe('FileService', () => {
         const path = join(directory, '..odd.txt');
         await writeFile(path, 'valid child', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(directory, 'shell').session;
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
         const service = new FileService(
             database,
             () => undefined,
@@ -99,7 +102,10 @@ describe('FileService', () => {
         await writeFile(join(directory, 'binary.bin'), Buffer.from([1, 0, 2]));
         await writeFile(join(directory, 'large.txt'), 'x'.repeat(2048));
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(directory, 'shell').session;
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
         const service = new FileService(
             database,
             () => undefined,
@@ -121,7 +127,10 @@ describe('FileService', () => {
         const path = join(directory, 'note.txt');
         await writeFile(path, 'unchanged', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(directory, 'shell').session;
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
         const service = new FileService(
             database,
             () => undefined,
@@ -148,7 +157,7 @@ describe('FileService', () => {
         await writeFile(outside, 'secret', 'utf8');
         const canonicalTarget = await realpath(target);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(root, 'shell').session;
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
         let replaced = false;
         const service = new FileService(
             database,
@@ -182,7 +191,7 @@ describe('FileService', () => {
         await writeFile(join(root, 'inside.txt'), 'inside', 'utf8');
         await writeFile(join(outside, 'secret.txt'), 'secret', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(root, 'shell').session;
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
         const service = new FileService(
             database,
             () => undefined,
@@ -206,7 +215,10 @@ describe('FileService', () => {
         temporaryDirectories.push(directory);
         await writeFile(join(directory, 'one.txt'), 'one', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(directory, 'shell').session;
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
         const logger = new StructuredLogger(join(directory, 'logs'));
         const service = new FileService(
             database,
@@ -236,7 +248,7 @@ describe('FileService', () => {
         await writeFile(watchedPath, 'before', 'utf8');
         const canonicalWatchedPath = await realpath(watchedPath);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(root, 'shell').session;
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
         const events: string[] = [];
         const service = new FileService(
             database,
@@ -265,8 +277,11 @@ describe('FileService', () => {
         const secondRoot = join(directory, 'second');
         await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const first = database.createSession(firstRoot, 'shell').session;
-        const second = database.createSession(secondRoot, 'shell').session;
+        const first = database.createSession(database.createProject(firstRoot).id, 'shell').session;
+        const second = database.createSession(
+            database.createProject(secondRoot).id,
+            'shell',
+        ).session;
         const events: string[] = [];
         const service = new FileService(
             database,

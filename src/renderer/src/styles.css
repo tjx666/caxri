@@ -75,18 +75,77 @@ button {
     align-items: center;
     gap: 7px;
 }
-.session-list {
+.project-list {
     min-height: 0;
     flex: 1;
     overflow: auto;
     padding: 6px;
 }
+.project-group {
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+}
+.project-group.active {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--elevated) 55%, transparent);
+}
+.project-heading {
+    display: flex;
+    align-items: center;
+    min-height: 43px;
+    padding: 3px;
+}
+.project-disclosure,
+.project-select {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+.project-disclosure {
+    display: grid;
+    width: 22px;
+    height: 28px;
+    flex: 0 0 22px;
+    place-items: center;
+    padding: 0;
+    color: var(--muted);
+}
+.project-select {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 2px;
+    text-align: left;
+}
+.project-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+}
+.project-copy strong,
+.project-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.project-copy small {
+    color: var(--muted);
+    font-size: 10.5px;
+}
+.session-list {
+    padding: 0 4px 4px 22px;
+}
 .session-card {
     display: flex;
     gap: 8px;
     width: 100%;
-    padding: 9px 8px;
-    margin-bottom: 3px;
+    padding: 7px 8px;
+    margin-bottom: 2px;
     border: 1px solid transparent;
     border-radius: 5px;
     background: var(--surface);
@@ -125,6 +184,22 @@ button {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.empty-project {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 4px;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+}
+.empty-project:hover {
+    color: var(--foreground);
+    background: var(--elevated);
 }
 .session-copy small {
     color: var(--muted);

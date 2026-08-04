@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
@@ -64,8 +64,11 @@ function bootstrap(): BootstrapState {
     const keybindings = configuration.getKeybindings();
     const theme = configuration.getTheme();
     return {
+        projects: database.listProjects(),
         sessions: database.listSessions(),
         terminals: database.listTerminals(),
+        selectedProjectId:
+            database.getAppState<string | null>('lastSelectedProjectId') ?? undefined,
         selectedSessionId:
             database.getAppState<string | null>('lastSelectedSessionId') ?? undefined,
         sessionStates: database.listSessionStates(),
@@ -164,9 +167,27 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             });
             return state;
         }
+        case 'project.create': {
+            const project = database.createProject(await realpath(params.rootPath as string));
+            emit({ event: 'state.changed', payload: { reason: 'project.create' } });
+            return project;
+        }
+        case 'project.cancelCreate':
+            throw new Error('Project creation cancellation is owned by the Main process');
+        case 'project.delete': {
+            const projectId = params.projectId as string;
+            for (const session of database.listSessions(projectId))
+                terminals.terminateSession(session.id);
+            database.deleteProject(projectId);
+            void files.watchSession(
+                database.getAppState<string | null>('lastSelectedSessionId') ?? undefined,
+            );
+            emit({ event: 'state.changed', payload: { reason: 'project.delete' } });
+            return bootstrap();
+        }
         case 'session.create': {
             const created = database.createSession(
-                params.rootPath as string,
+                params.projectId as string,
                 params.defaultAgent as TerminalKind,
             );
             try {
@@ -183,8 +204,6 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
                 terminal: database.getTerminal(created.terminal.id),
             };
         }
-        case 'session.cancelCreate':
-            throw new Error('Session creation cancellation is owned by the Main process');
         case 'session.select':
             database.selectSession(params.sessionId as string);
             void files.watchSession(params.sessionId as string);

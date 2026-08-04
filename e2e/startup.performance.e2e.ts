@@ -9,7 +9,7 @@ import { _electron as electron } from 'playwright';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(import.meta.dirname, '..');
-const sessionRoot = resolve(process.env.CAXRI_BENCHMARK_ROOT ?? projectRoot);
+const sessionRoot = resolve(process.env.CAXRI_BENCHMARK_PROJECT_ROOT ?? projectRoot);
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
 const thresholdMs = 3_000;
 
@@ -38,7 +38,7 @@ function expectTimedEvent(record: PerformanceLog | undefined): void {
     expect(record?.durationMs ?? Number.POSITIVE_INFINITY).toBeLessThan(thresholdMs);
 }
 
-test('large workspace opens Runtime, Terminal, files, and Git within three seconds', async () => {
+test('large Project opens Runtime, Terminal, files, and Git within three seconds', async () => {
     const userData = await mkdtemp(join(tmpdir(), 'caxri-startup-benchmark-'));
     const launchedAt = performance.now();
     let app = await launch(userData);
@@ -54,7 +54,7 @@ test('large workspace opens Runtime, Terminal, files, and Git within three secon
         await page.getByText('Runtime ready', { exact: true }).waitFor();
         const runtimeReadyMs = performance.now() - launchedAt;
 
-        await page.getByRole('button', { name: 'Create Session', exact: true }).last().click();
+        await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         const shellButton = page
             .getByRole('dialog')
             .getByRole('button', { name: 'Shell', exact: true });

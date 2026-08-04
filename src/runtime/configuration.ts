@@ -52,7 +52,7 @@ const defaultSettings: AppSettings = {
 
 export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
-    { key: 'cmd+n', command: 'session.create' },
+    { key: 'cmd+n', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     { key: 'cmd+w', command: 'terminal.close' },

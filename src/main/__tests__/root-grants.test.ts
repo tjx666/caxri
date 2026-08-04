@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { SessionRootGrants } from '../root-grants';
+import { ProjectRootGrants } from '../root-grants';
 
-describe('SessionRootGrants', () => {
-    it('consumes a directory grant only after successful Session creation', async () => {
-        const grants = new SessionRootGrants();
+describe('ProjectRootGrants', () => {
+    it('consumes a directory grant only after successful Project creation', async () => {
+        const grants = new ProjectRootGrants();
         grants.grant('/project');
 
         await expect(grants.use('/project', () => Promise.resolve('created'))).resolves.toBe(
@@ -15,8 +15,8 @@ describe('SessionRootGrants', () => {
         );
     });
 
-    it('restores a directory grant when Session creation fails', async () => {
-        const grants = new SessionRootGrants();
+    it('restores a directory grant when Project creation fails', async () => {
+        const grants = new ProjectRootGrants();
         grants.grant('/project');
         const failure = vi.fn().mockRejectedValueOnce(new Error('Runtime unavailable'));
 
@@ -27,7 +27,7 @@ describe('SessionRootGrants', () => {
     });
 
     it('reserves a grant while creation is in flight', async () => {
-        const grants = new SessionRootGrants();
+        const grants = new ProjectRootGrants();
         grants.grant('/project');
         const pending = Promise.withResolvers<string>();
         const first = grants.use('/project', () => pending.promise);
@@ -39,8 +39,8 @@ describe('SessionRootGrants', () => {
         await expect(first).resolves.toBe('created');
     });
 
-    it('revokes a directory grant when Session creation is canceled', async () => {
-        const grants = new SessionRootGrants();
+    it('revokes a directory grant when Project creation is canceled', async () => {
+        const grants = new ProjectRootGrants();
         grants.grant('/project');
         grants.revoke('/project');
 
@@ -51,7 +51,7 @@ describe('SessionRootGrants', () => {
 
     it('expires an unused directory grant', async () => {
         vi.useFakeTimers();
-        const grants = new SessionRootGrants(1_000);
+        const grants = new ProjectRootGrants(1_000);
         grants.grant('/project');
         await vi.advanceTimersByTimeAsync(1_001);
 

@@ -1,14 +1,4 @@
-import {
-    Circle,
-    Code2,
-    FileCode2,
-    Plus,
-    Search,
-    Settings,
-    SplitSquareVertical,
-    TerminalSquare,
-    X,
-} from 'lucide-react';
+import { Code2, FileCode2, Plus, SplitSquareVertical, TerminalSquare, X } from 'lucide-react';
 import {
     lazy,
     Suspense,
@@ -25,6 +15,7 @@ import type {
     EditorTabState,
     FileDocument,
     InspectorMode,
+    ProjectRecord,
     SessionState,
     TerminalKind,
     ThemeTokens,
@@ -40,6 +31,7 @@ import { keyboardEventShortcut, normalizeShortcut } from './commands';
 import { CommandPalette } from './components/CommandPalette';
 import { CreateSessionDialog } from './components/CreateSessionDialog';
 import { Inspector } from './components/Inspector';
+import { ProjectSidebar } from './components/ProjectSidebar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { StatusBar } from './components/StatusBar';
 import { TerminalPane } from './components/TerminalPane';
@@ -65,6 +57,7 @@ export default function App() {
     const [documentsBySession, setDocumentsBySession] = useState<SessionDocuments>({});
     const [activeWork, setActiveWork] = useState<string>();
     const [pendingRoot, setPendingRoot] = useState<string>();
+    const [pendingProjectId, setPendingProjectId] = useState<string>();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [message, setMessage] = useState<string>();
@@ -94,6 +87,9 @@ export default function App() {
 
     const selectedSession = bootstrap?.sessions.find(
         (session) => session.id === bootstrap.selectedSessionId,
+    );
+    const selectedProject = bootstrap?.projects.find(
+        (project) => project.id === (selectedSession?.projectId ?? bootstrap.selectedProjectId),
     );
     const documents = useMemo(
         () => (selectedSession ? (documentsBySession[selectedSession.id] ?? {}) : {}),
@@ -242,26 +238,49 @@ export default function App() {
         }
     };
 
-    const chooseSessionDirectory = async (): Promise<void> => {
+    const chooseProjectDirectory = async (): Promise<void> => {
         try {
             const root = await window.caxri.request<string | null>('dialog.selectDirectory');
             if (!root) return;
             const defaultAgent = bootstrap?.settings['session.defaultAgent'];
-            if (defaultAgent) await createSession(root, defaultAgent);
+            if (defaultAgent) await createProjectSession(root, defaultAgent);
             else setPendingRoot(root);
         } catch (error) {
             showMessage(error instanceof Error ? error.message : 'Directory selection failed');
         }
     };
 
-    const createSession = async (root: string, defaultAgent: TerminalKind): Promise<void> => {
+    const createSession = async (projectId: string, defaultAgent: TerminalKind): Promise<void> => {
         try {
-            await window.caxri.request('session.create', { rootPath: root, defaultAgent });
+            await window.caxri.request('session.create', { projectId, defaultAgent });
             setPendingRoot(undefined);
+            setPendingProjectId(undefined);
             await refresh();
         } catch (error) {
             showMessage(error instanceof Error ? error.message : 'Session creation failed');
         }
+    };
+
+    const createProjectSession = async (
+        rootPath: string,
+        defaultAgent: TerminalKind,
+    ): Promise<void> => {
+        try {
+            const project = await window.caxri.request<ProjectRecord>('project.create', {
+                rootPath,
+            });
+            setPendingRoot(undefined);
+            setPendingProjectId(project.id);
+            await createSession(project.id, defaultAgent);
+        } catch (error) {
+            showMessage(error instanceof Error ? error.message : 'Project creation failed');
+        }
+    };
+
+    const beginSessionCreation = (projectId: string): void => {
+        const defaultAgent = bootstrap?.settings['session.defaultAgent'];
+        if (defaultAgent) void createSession(projectId, defaultAgent);
+        else setPendingProjectId(projectId);
     };
 
     const selectSession = async (sessionId: string): Promise<void> => {
@@ -307,8 +326,38 @@ export default function App() {
         const selectedIndex =
             bootstrap?.sessions.findIndex((session) => session.id === selectedSession?.id) ?? -1;
         switch (command) {
+            case 'project.create':
+                void chooseProjectDirectory();
+                break;
+            case 'project.delete':
+                if (selectedProject)
+                    void window.caxri
+                        .request('project.delete', { projectId: selectedProject.id })
+                        .then((result: unknown) => {
+                            if ((result as { canceled?: boolean }).canceled) return;
+                            const removedSessionIds = new Set(
+                                bootstrap?.sessions
+                                    .filter((session) => session.projectId === selectedProject.id)
+                                    .map((session) => session.id) ?? [],
+                            );
+                            setDocumentsBySession((current) =>
+                                Object.fromEntries(
+                                    Object.entries(current).filter(
+                                        ([sessionId]) => !removedSessionIds.has(sessionId),
+                                    ),
+                                ),
+                            );
+                            return refresh();
+                        })
+                        .catch((error: unknown) =>
+                            showMessage(
+                                error instanceof Error ? error.message : 'Project removal failed',
+                            ),
+                        );
+                break;
             case 'session.create':
-                void chooseSessionDirectory();
+                if (selectedProject) beginSessionCreation(selectedProject.id);
+                else void chooseProjectDirectory();
                 break;
             case 'session.delete':
                 if (selectedSession)
@@ -484,71 +533,23 @@ export default function App() {
 
     return (
         <main className="app-shell">
-            <aside className="session-sidebar">
-                <div className="sidebar-title">
-                    <span>
-                        <TerminalSquare size={16} /> Caxri
-                    </span>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Create Session"
-                        onClick={() => execute('session.create')}
-                    >
-                        <Plus size={15} />
-                    </Button>
-                </div>
-                <div className="session-list">
-                    {bootstrap.sessions.map((session) => (
-                        <button
-                            key={session.id}
-                            className={
-                                session.id === selectedSession?.id
-                                    ? 'session-card active'
-                                    : 'session-card'
-                            }
-                            onClick={() => void selectSession(session.id)}
-                        >
-                            <span className={`activity activity-${session.lastActivityState}`}>
-                                <Circle size={8} fill="currentColor" />
-                            </span>
-                            <span className="session-copy">
-                                <strong>{session.displayTitle}</strong>
-                                <small title={session.rootPath}>{session.rootPath}</small>
-                                <em>
-                                    {bootstrap.terminals.find(
-                                        (terminal) =>
-                                            terminal.id === session.defaultAgentTerminalId,
-                                    )?.title ?? 'Shell'}
-                                </em>
-                            </span>
-                        </button>
-                    ))}
-                    {bootstrap.sessions.length === 0 && (
-                        <button className="first-session" onClick={() => execute('session.create')}>
-                            <Plus size={16} /> Create your first Session
-                        </button>
-                    )}
-                </div>
-                <div className="sidebar-footer">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Settings"
-                        onClick={() => execute('theme.openSettings')}
-                    >
-                        <Settings size={15} />
-                    </Button>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Export Diagnostics"
-                        onClick={() => execute('diagnostics.export')}
-                    >
-                        <Search size={15} />
-                    </Button>
-                </div>
-            </aside>
+            <ProjectSidebar
+                projects={bootstrap.projects}
+                sessions={bootstrap.sessions}
+                terminals={bootstrap.terminals}
+                selectedProjectId={selectedProject?.id}
+                selectedSessionId={selectedSession?.id}
+                onAddProject={() => execute('project.create')}
+                onCreateSession={beginSessionCreation}
+                onSelectProject={(projectId) => {
+                    const session = bootstrap.sessions.find((item) => item.projectId === projectId);
+                    if (session) void selectSession(session.id);
+                    else beginSessionCreation(projectId);
+                }}
+                onSelectSession={(sessionId) => void selectSession(sessionId)}
+                onOpenSettings={() => execute('theme.openSettings')}
+                onSearch={() => execute('commandPalette.open')}
+            />
 
             <section className="workbench">
                 {selectedSession ? (
@@ -700,13 +701,13 @@ export default function App() {
                 ) : (
                     <div className="welcome">
                         <Code2 size={38} />
-                        <h1>Session-first development.</h1>
+                        <h1>Project-first development.</h1>
                         <p>
-                            Choose a directory, then keep its terminals, files, editor tabs, Git
-                            context, and agent metadata together.
+                            Add a local folder as a Project, then keep every Agent and Shell Session
+                            together beneath it.
                         </p>
-                        <Button onClick={() => execute('session.create')}>
-                            <Plus size={15} /> Create Session
+                        <Button onClick={() => execute('project.create')}>
+                            <Plus size={15} /> Add Project
                         </Button>
                     </div>
                 )}
@@ -730,15 +731,24 @@ export default function App() {
                 runtimeStatus={bootstrap.runtime.status}
             />
             <CreateSessionDialog
-                rootPath={pendingRoot}
+                open={Boolean(pendingRoot || pendingProjectId)}
+                contextLabel={
+                    pendingRoot ??
+                    bootstrap.projects.find((project) => project.id === pendingProjectId)
+                        ?.displayTitle
+                }
                 onCancel={() => {
                     if (pendingRoot)
-                        void window.caxri.request('session.cancelCreate', {
+                        void window.caxri.request('project.cancelCreate', {
                             rootPath: pendingRoot,
                         });
                     setPendingRoot(undefined);
+                    setPendingProjectId(undefined);
                 }}
-                onCreate={(kind) => pendingRoot && void createSession(pendingRoot, kind)}
+                onCreate={(kind) => {
+                    if (pendingRoot) void createProjectSession(pendingRoot, kind);
+                    else if (pendingProjectId) void createSession(pendingProjectId, kind);
+                }}
             />
             <SettingsDialog
                 open={settingsOpen}

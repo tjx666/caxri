@@ -24,7 +24,7 @@ export function describeGitFailure(error: unknown): string {
         return 'Git output exceeded the safety limit.';
     }
     if (failure.stderr?.toLowerCase().includes('not a git repository'))
-        return 'The Session root is not a Git repository.';
+        return 'The Project root is not a Git repository.';
     return 'The Git operation failed. See Runtime logs for details.';
 }
 
@@ -143,7 +143,7 @@ export class GitService {
         }
         const relativePath = relative(root, candidate);
         if (!relativePath || isOutsideRoot(relativePath)) {
-            throw new Error('Git path is outside the Session root');
+            throw new Error('Git path is outside the Project root');
         }
         const summary = await this.summary(sessionId);
         const file = summary.files.find((item) => item.path === relativePath);

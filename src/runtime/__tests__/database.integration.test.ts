@@ -17,13 +17,68 @@ afterEach(async () => {
 });
 
 describe('CaxriDatabase', () => {
+    it('groups Sessions with the same root under one Project', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-project-grouping-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+
+        const project = database.createProject(root);
+        const first = database.createSession(project.id, 'shell');
+        const second = database.createSession(project.id, 'codex');
+
+        expect(database.createProject(root)).toMatchObject({ id: project.id, rootPath: root });
+        expect(database.listProjects()).toEqual([
+            expect.objectContaining({ id: project.id, rootPath: root }),
+        ]);
+        expect(database.listSessions()).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    id: first.session.id,
+                    projectId: project.id,
+                    rootPath: root,
+                }),
+                expect.objectContaining({
+                    id: second.session.id,
+                    projectId: project.id,
+                    rootPath: root,
+                }),
+            ]),
+        );
+        expect(database.listSessions()).toHaveLength(2);
+        expect(
+            (database.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                (column) => column.name,
+            ),
+        ).not.toContain('root_path');
+        database.close();
+    });
+
+    it('deletes Project metadata without touching its local directory', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-project-delete-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await writeFile(root, 'user-owned', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(root);
+        database.createSession(project.id, 'shell');
+
+        database.deleteProject(project.id);
+
+        expect(await readFile(root, 'utf8')).toBe('user-owned');
+        expect(database.listProjects()).toEqual([]);
+        expect(database.listSessions()).toEqual([]);
+        database.close();
+    });
+
     it('synchronizes default Agent metadata into the Session and Terminal records', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-db-agent-metadata-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(root, 'codex');
+        const created = database.createSession(database.createProject(root).id, 'codex');
 
         expect(
             database.updateAgentMetadata(created.session.id, 'codex', {
@@ -55,7 +110,7 @@ describe('CaxriDatabase', () => {
             }),
         ).toBe(true);
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'project',
+            displayTitle: 'Codex',
             lastActivityState: 'unknown',
         });
         database.close();
@@ -67,8 +122,9 @@ describe('CaxriDatabase', () => {
         const root = join(directory, 'project');
         await writeFile(root, 'user-owned', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const first = database.createSession(root, 'shell');
-        const second = database.createSession(root, 'codex');
+        const project = database.createProject(root);
+        const first = database.createSession(project.id, 'shell');
+        const second = database.createSession(project.id, 'codex');
         expect(database.listSessions()).toHaveLength(2);
         expect(first.session.id).not.toBe(second.session.id);
         database.deleteSession(first.session.id);
@@ -82,7 +138,7 @@ describe('CaxriDatabase', () => {
         temporaryDirectories.push(directory);
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         database.updateTerminalState(created.terminal.id, 'running');
         database.close();
         const recovered = new CaxriDatabase(databasePath);
@@ -94,7 +150,7 @@ describe('CaxriDatabase', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-close-terminal-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
 
         database.closeTerminal(created.terminal.id);
 
@@ -107,7 +163,7 @@ describe('CaxriDatabase', () => {
         temporaryDirectories.push(directory);
         const databasePath = join(directory, 'state.db');
         const futureDatabase = new Database(databasePath);
-        futureDatabase.pragma('user_version = 2');
+        futureDatabase.pragma('user_version = 99');
         futureDatabase.close();
 
         expect(() => new CaxriDatabase(databasePath)).toThrow(/newer schema version/i);
@@ -118,7 +174,7 @@ describe('CaxriDatabase', () => {
         temporaryDirectories.push(directory);
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
-        database.createSession(directory, 'shell');
+        database.createSession(database.createProject(directory).id, 'shell');
 
         for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
             expect((await stat(path)).mode & 0o777).toBe(0o600);
@@ -130,7 +186,7 @@ describe('CaxriDatabase', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-terminal-capacity-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         for (let index = 1; index < 16; index += 1) {
             database.createTerminal(created.session.id, 'shell');
         }

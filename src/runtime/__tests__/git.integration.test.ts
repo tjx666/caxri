@@ -36,7 +36,10 @@ describe('GitService', () => {
         await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
         await writeFile(join(directory, 'new.txt'), 'new\n', 'utf8');
         const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
-        const session = database.createSession(directory, 'shell').session;
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
         const files = new FileService(
             database,
@@ -71,7 +74,10 @@ describe('GitService', () => {
         temporaryDirectories.push(directory);
         await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
         const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
-        const session = database.createSession(directory, 'shell').session;
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
         const files = new FileService(
             database,
@@ -99,6 +105,6 @@ describe('describeGitFailure', () => {
             describeGitFailure(
                 Object.assign(new Error('exit 128'), { stderr: 'fatal: not a git repository' }),
             ),
-        ).toBe('The Session root is not a Git repository.');
+        ).toBe('The Project root is not a Git repository.');
     });
 });

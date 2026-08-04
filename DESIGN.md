@@ -2,7 +2,7 @@
 
 ## Product model
 
-A `Session` is Caxri's primary durable object. It owns a user-selected `rootPath`, permanent Terminal records, editor/layout state, Git and file context, and optional Agent metadata. Paths are not identities: stable UUIDs allow multiple Sessions to share one root.
+A `Project` is a user-selected local folder and the durable owner of its `rootPath`, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns a primary Agent or Shell Terminal plus permanent Terminal records, editor/layout state, and optional Agent metadata. Multiple Sessions can share one Project without duplicating its directory identity.
 
 ## Process model
 
@@ -19,7 +19,7 @@ Renderer
   -> React, xterm.js, Monaco, shadcn/ui on Base UI
 
 Runtime utilityProcess
-  -> Session/PTY/File/Git/Agent/Settings/Theme/Diagnostics services
+  -> Project/Session/PTY/File/Git/Agent/Settings/Theme/Diagnostics services
   -> better-sqlite3
 ```
 
@@ -33,13 +33,14 @@ The preload exposes one `request` method backed by a fixed method union plus `on
 
 ## Persistence
 
-SQLite runs only in the Runtime and uses WAL, foreign keys, migrations, transactions, and busy timeout. Schema v1 contains:
+SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Schema v2 contains:
 
-- `sessions`: identity, root, timestamps, primary terminal, last activity, layout version
+- `projects`: identity, unique root, display title, and timestamps
+- `sessions`: Project ownership, identity, timestamps, primary terminal, last activity, layout version
 - `terminals`: durable identity/position/cwd/title/icon/provider and last process state
 - `terminal_snapshots`: versioned bounded VT/text payload with line and byte counts
 - `session_state`: open editor tabs, active tab, inspector mode, and layout JSON
-- `app_state`: last selected session, window state, active theme, and schema version
+- `app_state`: last selected Project and Session, window state, active theme, and schema version
 
 Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. A Renderer subscribes before attaching, then replays the bounded snapshot ahead of output received during attachment. Bytes already represented by that snapshot are removed from the live-output queue before replay to prevent duplication. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
 
@@ -51,7 +52,7 @@ Closing the last macOS window with live PTYs asks whether to keep running, termi
 
 ## Files and editor
 
-Every file request resolves its candidate path, checks it remains beneath the resolved Session root, rejects symlink escapes, and enforces text/size limits. Saves open the validated inode with `O_NOFOLLOW` before truncation. Directory identity is revalidated around enumeration so a path swap cannot disclose another directory. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only. A bounded fallback polls only the active root and directories already expanded by the user, preserving external-change delivery when the native backend is unavailable or silent. Watcher refreshes reload entries without remounting the tree, while switching Session identity intentionally resets expanded absolute paths.
+Every file request resolves its candidate path, obtains the authoritative root from the Session's Project, checks the candidate remains beneath that resolved Project root, rejects symlink escapes, and enforces text/size limits. Saves open the validated inode with `O_NOFOLLOW` before truncation. Directory identity is revalidated around enumeration so a path swap cannot disclose another directory. Directories are lazy-loaded. `@parcel/watcher` uses the native recursive macOS backend, ignores VCS internals and dependency/build caches, coalesces bursts, and watches the active root only. A bounded fallback polls only the active root and directories already expanded by the user, preserving external-change delivery when the native backend is unavailable or silent. Watcher refreshes reload entries without remounting the tree, while switching Session identity intentionally resets expanded absolute paths.
 
 External disk changes always replace an open buffer, including a dirty buffer. This is a deliberate product choice for agent-driven workflows; the Renderer clears dirty state and shows a non-blocking notice rather than opening a conflict dialog. Editor buffers and Monaco model URIs are keyed by Session identity as well as path so Sessions sharing one root cannot reuse each other's dirty state. When a Session becomes active again, cached documents are compared with current disk version metadata; only actual disk changes replace its inactive dirty buffers.
 
@@ -69,7 +70,7 @@ Git operations run via `execFile('git', argv)` with fixed argv constructors, a f
 
 BrowserWindows use `contextIsolation: true`, `nodeIntegration: false`, sandboxed renderers, a restrictive CSP, blocked navigation, and denied new windows. External HTTP(S) URLs require explicit user intent before Main uses the system browser. No telemetry or remote upload exists.
 
-Directory-picker results create single-use Main-process grants. A grant is revoked when the Agent choice is canceled, expires after 60 seconds if unused, and is consumed before Session creation reaches the Runtime.
+Directory-picker results create single-use Main-process grants. A grant is revoked when the Agent choice is canceled, expires after 60 seconds if unused, and is consumed before Project creation reaches the Runtime. Once a Project exists, new Sessions reference its stable ID and cannot submit or broaden a root path.
 
 ## Performance and observability
 

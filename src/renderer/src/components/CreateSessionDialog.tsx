@@ -8,18 +8,24 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 interface CreateSessionDialogProps {
     onCancel: () => void;
     onCreate: (kind: TerminalKind) => void;
-    rootPath?: string;
+    open: boolean;
+    contextLabel?: string;
 }
 
-export function CreateSessionDialog({ onCancel, onCreate, rootPath }: CreateSessionDialogProps) {
+export function CreateSessionDialog({
+    contextLabel,
+    onCancel,
+    onCreate,
+    open,
+}: CreateSessionDialogProps) {
     return (
-        <Dialog open={Boolean(rootPath)} onOpenChange={(open) => !open && onCancel()}>
+        <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Choose the default Terminal</DialogTitle>
                     <DialogDescription>
-                        This primary Agent Terminal provides the Session title when metadata is
-                        available.
+                        Create a Session{contextLabel ? ` in ${contextLabel}` : ''}. Its primary
+                        Agent Terminal provides the Session title when metadata is available.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="agent-choice">

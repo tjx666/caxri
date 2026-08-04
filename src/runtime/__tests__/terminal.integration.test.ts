@@ -39,7 +39,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-pending-close-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         const executable = Promise.withResolvers<string>();
         const fake = createFakePty();
         const manager = new TerminalManager(
@@ -71,7 +71,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-attach-replay-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let output = '';
         const manager = new TerminalManager(
@@ -101,7 +101,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detach-all-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let output = '';
         const manager = new TerminalManager(
@@ -129,7 +129,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
         const manager = new TerminalManager(
             database,
@@ -164,7 +164,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         const events: RuntimeEvent[] = [];
         let resolveMarker: (() => void) | undefined;
         let resolveExit: (() => void) | undefined;
@@ -219,7 +219,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-restart-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
         const manager = new TerminalManager(
             database,
@@ -246,7 +246,7 @@ describe('TerminalManager', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-stale-input-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(directory, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'shell');
         const manager = new TerminalManager(
             database,
             () => undefined,

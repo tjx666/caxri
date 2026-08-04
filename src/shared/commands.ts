@@ -6,7 +6,9 @@ export interface CommandDefinition {
 
 /** One command catalog supplies the palette, shortcuts, native menus, and command-backed buttons. */
 export const commandDefinitions: CommandDefinition[] = [
-    { id: 'session.create', title: 'Create Session', category: 'Session' },
+    { id: 'project.create', title: 'Add Project', category: 'Project' },
+    { id: 'project.delete', title: 'Remove Project', category: 'Project' },
+    { id: 'session.create', title: 'New Session', category: 'Session' },
     { id: 'session.delete', title: 'Delete Session', category: 'Session' },
     { id: 'session.selectNext', title: 'Select Next Session', category: 'Session' },
     { id: 'session.selectPrevious', title: 'Select Previous Session', category: 'Session' },

@@ -25,3 +25,23 @@ describe('files.write contract', () => {
         ).toBe(false);
     });
 });
+
+describe('Project and Session contracts', () => {
+    it('keeps the selected root on Project creation and requires Sessions to reference it by id', () => {
+        expect(requestSchemas['project.create'].safeParse({ rootPath: '/project' }).success).toBe(
+            true,
+        );
+        expect(
+            requestSchemas['session.create'].safeParse({
+                projectId: 'project-1',
+                defaultAgent: 'codex',
+            }).success,
+        ).toBe(true);
+        expect(
+            requestSchemas['session.create'].safeParse({
+                rootPath: '/project',
+                defaultAgent: 'codex',
+            }).success,
+        ).toBe(false);
+    });
+});

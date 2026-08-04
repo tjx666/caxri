@@ -4,7 +4,7 @@
     "private": true,
     "author": "Caxri contributors",
     "packageManager": "npm@12.0.2",
-    "description": "A session-first, terminal-native local development workbench for macOS.",
+    "description": "A project-first, terminal-native local development workbench for macOS.",
     "main": "./out/main/index.js",
     "type": "module",
     "scripts": {

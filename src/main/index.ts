@@ -18,11 +18,11 @@ import {
     type CaxriMethod,
     type RuntimeEvent,
 } from '../shared/contracts';
-import type { Keybinding, PersistedWindowState } from '../shared/types';
+import type { BootstrapState, Keybinding, PersistedWindowState } from '../shared/types';
 import { StructuredLogger } from '../runtime/logger';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
-import { SessionRootGrants } from './root-grants';
+import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
 import { resolveTestRootPath } from './test-root';
 import { createWindowCloseHandler } from './window-close';
@@ -35,7 +35,7 @@ let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
 let forceWindowClose = false;
 let quitStarted = false;
-const grantedRoots = new SessionRootGrants();
+const grantedRoots = new ProjectRootGrants();
 
 function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'runtime.status') {
@@ -208,20 +208,48 @@ async function handleMainMethod(
                 return testRoot;
             }
             const result = await dialog.showOpenDialog(mainWindow!, {
-                title: 'Choose a Session directory',
+                title: 'Choose a Project directory',
                 properties: ['openDirectory', 'createDirectory'],
             });
             const path = result.filePaths[0];
             if (!result.canceled && path) grantedRoots.grant(path);
             return result.canceled ? null : path;
         }
-        case 'session.create':
+        case 'project.create':
             return grantedRoots.use(params.rootPath as string, () =>
                 supervisor.request(method, params),
             );
-        case 'session.cancelCreate':
+        case 'project.cancelCreate':
             grantedRoots.revoke(params.rootPath as string);
             return null;
+        case 'project.delete': {
+            const state = await supervisor.request<BootstrapState>('app.bootstrap', {});
+            const sessions = state.sessions.filter(
+                (session) => session.projectId === params.projectId,
+            );
+            const counts = await Promise.all(
+                sessions.map((session) =>
+                    supervisor.request<number>('terminal.runningCount', {
+                        sessionId: session.id,
+                    }),
+                ),
+            );
+            const count = counts.reduce((sum, value) => sum + value, 0);
+            const result = await dialog.showMessageBox(mainWindow!, {
+                type: 'warning',
+                title: 'Remove Project',
+                message:
+                    count > 0
+                        ? `Remove this Project and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
+                        : 'Remove this Project?',
+                detail: 'Only Caxri metadata and snapshots are removed. The Project directory and its files are never deleted.',
+                buttons: ['Remove Project', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+            });
+            if (result.response !== 0) return { canceled: true };
+            return supervisor.request(method, params);
+        }
         case 'session.delete': {
             const count = await supervisor.request<number>('terminal.runningCount', {
                 sessionId: params.sessionId,
@@ -335,9 +363,16 @@ async function installMenu(): Promise<void> {
                 ],
             },
             {
+                label: 'Project',
+                submenu: [
+                    command('project.create', 'Add Project…'),
+                    command('project.delete', 'Remove Project…'),
+                ],
+            },
+            {
                 label: 'Session',
                 submenu: [
-                    command('session.create', 'New Session…'),
+                    command('session.create', 'New Session'),
                     command('session.delete', 'Delete Session…'),
                     { type: 'separator' },
                     command('session.selectPrevious', 'Previous Session'),

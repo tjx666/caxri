@@ -30,11 +30,17 @@ async function launch(
 }
 
 async function createShellSession(page: Page): Promise<void> {
-    await page.getByRole('button', { name: 'Create Session', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
     await expect(page.locator('.session-card')).toHaveCount(1);
     await expect(page.locator('.xterm-helper-textarea')).toBeVisible();
+}
+
+async function createAdditionalShellSession(page: Page): Promise<void> {
+    await page.getByRole('button', { name: /^New Session in / }).click();
+    await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
 }
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
@@ -42,6 +48,25 @@ async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.focus();
     await input.pressSequentially(command);
     await input.press('Enter');
+}
+
+async function selectedSessionId(page: Page): Promise<string> {
+    return page.evaluate(async () => {
+        const bridge = (
+            window as unknown as {
+                caxri: {
+                    request<T>(method: string, params?: unknown): Promise<T>;
+                };
+            }
+        ).caxri;
+        const state = await bridge.request<{ selectedSessionId?: string }>('app.bootstrap');
+        if (!state.selectedSessionId) throw new Error('No Session selected');
+        return state.selectedSessionId;
+    });
+}
+
+function sessionCard(page: Page, sessionId: string) {
+    return page.locator(`.session-card[data-session-id="${sessionId}"]`);
 }
 
 test('bundles the default terminal typeface and Nerd Font symbols', async () => {
@@ -140,7 +165,33 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
     }
 });
 
-test('canceling the Agent choice revokes the selected Session root grant', async () => {
+test('removing a Project deletes only Caxri metadata', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-remove-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const userFile = join(root, 'keep.txt');
+    await execFileAsync('mkdir', ['-p', root]);
+    await writeFile(userFile, 'user-owned\n', 'utf8');
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+        });
+        await running.page.keyboard.press('Meta+Shift+P');
+        await running.page.getByText('Remove Project', { exact: true }).click();
+
+        await expect(running.page.locator('.project-group')).toHaveCount(0);
+        await expect(running.page.locator('.session-card')).toHaveCount(0);
+        await expect.poll(() => readFile(userFile, 'utf8')).toBe('user-owned\n');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('canceling the Agent choice revokes the selected Project root grant', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-grant-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -148,10 +199,7 @@ test('canceling the Agent choice revokes the selected Session root grant', async
 
     const running = await launch(userData, root);
     try {
-        await running.page
-            .getByRole('button', { name: 'Create Session', exact: true })
-            .last()
-            .click();
+        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         await expect(
             running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
         ).toBeVisible();
@@ -165,7 +213,7 @@ test('canceling the Agent choice revokes the selected Session root grant', async
                     }
                 ).caxri;
                 try {
-                    await bridge.request('session.create', { rootPath, defaultAgent: 'shell' });
+                    await bridge.request('project.create', { rootPath });
                     return 'created';
                 } catch (error) {
                     return error instanceof Error ? error.message : 'rejected';
@@ -241,7 +289,7 @@ test('switching Sessions discards expanded file-tree state from the previous roo
         await running.app.evaluate((_, root) => {
             process.env.CAXRI_TEST_ROOT_PATH = root;
         }, secondRoot);
-        await running.page.getByRole('button', { name: 'Create Session' }).first().click();
+        await running.page.getByRole('button', { name: 'Add Project' }).first().click();
         await running.page
             .getByRole('dialog')
             .getByRole('button', { name: 'Shell', exact: true })
@@ -251,7 +299,7 @@ test('switching Sessions discards expanded file-tree state from the previous roo
         ).toBeVisible();
 
         expect(await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8')).not.toContain(
-            'Symlink target is outside the Session root',
+            'Symlink target is outside the Project root',
         );
         await expect(running.page.locator('.toast')).toHaveCount(0);
     } finally {
@@ -275,22 +323,20 @@ test('editor buffers stay isolated between Sessions that share one root', async 
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('first Session dirty buffer');
+        const firstSessionId = await selectedSessionId(running.page);
 
-        await running.page.getByRole('button', { name: 'Create Session' }).first().click();
-        await running.page
-            .getByRole('dialog')
-            .getByRole('button', { name: 'Shell', exact: true })
-            .click();
+        await createAdditionalShellSession(running.page);
+        const secondSessionId = await selectedSessionId(running.page);
         await running.page.getByRole('button', { name: 'shared.txt' }).click();
         await expect(running.page.locator('.view-lines')).toContainText('disk state');
         await expect(running.page.locator('.view-lines')).not.toContainText('first Session');
 
-        await running.page.locator('.session-card').first().click();
+        await sessionCard(running.page, firstSessionId).click();
         await expect(running.page.locator('.view-lines')).toContainText(
             'first Session dirty buffer',
         );
 
-        await running.page.locator('.session-card').nth(1).click();
+        await sessionCard(running.page, secondSessionId).click();
         await writeFile(
             join(root, 'shared.txt'),
             'external while first Session inactive\n',
@@ -299,7 +345,7 @@ test('editor buffers stay isolated between Sessions that share one root', async 
         await expect(running.page.locator('.view-lines')).toContainText(
             'external while first Session inactive',
         );
-        await running.page.locator('.session-card').first().click();
+        await sessionCard(running.page, firstSessionId).click();
         await expect(running.page.locator('.view-lines')).toContainText(
             'external while first Session inactive',
         );
@@ -328,18 +374,16 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
     let running = await launch(userData, sessionRoot);
     try {
         await createShellSession(running.page);
+        const firstSessionId = await selectedSessionId(running.page);
         await typeTerminal(running.page, "printf 'CAXRI_E2E_OK\\n'");
         await expect(running.page.locator('.xterm-rows')).toContainText('CAXRI_E2E_OK');
 
-        await running.page.getByRole('button', { name: 'Create Session' }).first().click();
-        await running.page
-            .getByRole('dialog')
-            .getByRole('button', { name: 'Shell', exact: true })
-            .click();
+        await createAdditionalShellSession(running.page);
+        const secondSessionId = await selectedSessionId(running.page);
         await expect(running.page.locator('.session-card')).toHaveCount(2);
 
-        const firstSession = running.page.locator('.session-card').first();
-        const secondSession = running.page.locator('.session-card').nth(1);
+        const firstSession = sessionCard(running.page, firstSessionId);
+        const secondSession = sessionCard(running.page, secondSessionId);
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
         await typeTerminal(running.page, "sleep 1; printf 'BACKGROUND_CONTINUED\\n'");
@@ -461,6 +505,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.page.waitForTimeout(400);
         await running.app.close();
         running = await launch(userData, sessionRoot);
+        await expect(running.page.locator('.project-group')).toHaveCount(1);
+        await expect(running.page.locator('.project-group.active .session-card')).toHaveCount(2);
         await expect(running.page.locator('.session-card')).toHaveCount(2);
         await expect
             .poll(() =>

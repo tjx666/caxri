@@ -1,6 +1,6 @@
 # Caxri
 
-Caxri is a session-first, terminal-native local development workbench for macOS. It keeps durable project sessions, real PTYs, a focused editor, file and Git inspectors, and read-only Claude Code/Codex metadata in one Electron app.
+Caxri is a project-first, terminal-native local development workbench for macOS. It groups durable Agent and Shell Sessions beneath local Projects, with real PTYs, a focused editor, file and Git inspectors, and read-only Claude Code/Codex metadata in one Electron app.
 
 ## Requirements
 
@@ -33,10 +33,10 @@ bun run build
 bun run package
 ```
 
-Large-workspace startup performance gate:
+Large-Project startup performance gate:
 
 ```bash
-CAXRI_BENCHMARK_ROOT=/path/to/large/repository bun run benchmark:startup
+CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup
 ```
 
 The gate requires Runtime, Terminal, file tree, and Git to become usable within three seconds, checks their structured timings and aggregated PTY input metrics, keeps the Runtime below 256 open descriptors, and fails on IPC or watcher errors.
@@ -53,6 +53,6 @@ Unsigned development packages are written beneath `release/`. Caxri does not upl
 
 ## Product boundaries
 
-Caxri manages durable Sessions rooted at user-selected directories. It is not an agent wrapper, a VS Code fork, a workspace manager, or an orchestration platform. Agent CLIs always run in a real PTY. Git integration is read-only and the editor intentionally stays narrow.
+Caxri treats a user-selected directory as a Project and groups durable Sessions beneath it. It is not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs always run in a real PTY. Git integration is read-only and the editor intentionally stays narrow.
 
 See [DESIGN.md](DESIGN.md) for architecture and recovery contracts and [docs/stack-baseline.md](docs/stack-baseline.md) for the dependency baseline.

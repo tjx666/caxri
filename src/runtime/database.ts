@@ -9,6 +9,7 @@ import type {
     AgentProvider,
     AgentSnapshot,
     ProcessState,
+    ProjectRecord,
     SessionRecord,
     SessionState,
     TerminalKind,
@@ -16,8 +17,17 @@ import type {
     TerminalSnapshot,
 } from '../shared/types';
 
+interface ProjectRow {
+    id: string;
+    root_path: string;
+    display_title: string;
+    created_at: number;
+    last_opened_at: number;
+}
+
 interface SessionRow {
     id: string;
+    project_id: string;
     root_path: string;
     created_at: number;
     last_opened_at: number;
@@ -58,7 +68,7 @@ function processActivityState(state: ProcessState): AgentActivityState {
     return 'failed';
 }
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 const MAX_TERMINALS_PER_SESSION = 16;
 const MAX_TERMINALS_GLOBAL = 32;
 
@@ -73,6 +83,7 @@ function restrictPath(path: string, mode: number): void {
 function mapSession(row: SessionRow): SessionRecord {
     return {
         id: row.id,
+        projectId: row.project_id,
         rootPath: row.root_path,
         createdAt: row.created_at,
         lastOpenedAt: row.last_opened_at,
@@ -82,6 +93,24 @@ function mapSession(row: SessionRow): SessionRecord {
         displayTitle: row.display_title,
     };
 }
+
+function mapProject(row: ProjectRow): ProjectRecord {
+    return {
+        id: row.id,
+        rootPath: row.root_path,
+        displayTitle: row.display_title,
+        createdAt: row.created_at,
+        lastOpenedAt: row.last_opened_at,
+    };
+}
+
+const SESSION_SELECT = `
+    SELECT sessions.id, sessions.project_id, projects.root_path,
+           sessions.created_at, sessions.last_opened_at,
+           sessions.default_agent_terminal_id, sessions.last_activity_state,
+           sessions.layout_version, sessions.display_title
+    FROM sessions
+    JOIN projects ON projects.id = sessions.project_id`;
 
 function mapTerminal(row: TerminalRow): TerminalRecord {
     return {
@@ -116,7 +145,7 @@ export class CaxriDatabase {
             this.database.pragma('journal_mode = WAL');
             this.database.pragma('foreign_keys = ON');
             this.database.pragma('busy_timeout = 5000');
-            this.migrate();
+            this.initializeSchema();
             this.database
                 .prepare(
                     "UPDATE terminals SET last_process_state = 'dead', updated_at = ? WHERE last_process_state IN ('running', 'starting')",
@@ -137,20 +166,37 @@ export class CaxriDatabase {
         }
     }
 
-    private migrate(): void {
+    private initializeSchema(): void {
         const version = this.database.pragma('user_version', { simple: true }) as number;
         if (version > CURRENT_SCHEMA_VERSION) {
             throw new Error(
                 `Database uses newer schema version ${version}; Caxri supports ${CURRENT_SCHEMA_VERSION}`,
             );
         }
-        if (version === CURRENT_SCHEMA_VERSION) return;
-
         this.database.transaction(() => {
-            this.database.exec(`
+            if (version === 1) {
+                /** Pre-release metadata can be rebuilt; Project directories and user files are never touched. */
+                this.database.exec(`
+                    DROP TABLE terminal_snapshots;
+                    DROP TABLE session_state;
+                    DROP TABLE terminals;
+                    DROP TABLE sessions;
+                    DROP TABLE app_state;
+                `);
+            }
+            if (version < CURRENT_SCHEMA_VERSION) {
+                this.database.exec(`
+        CREATE TABLE projects (
+          id TEXT PRIMARY KEY,
+          root_path TEXT NOT NULL UNIQUE,
+          display_title TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          last_opened_at INTEGER NOT NULL
+        );
+
         CREATE TABLE sessions (
           id TEXT PRIMARY KEY,
-          root_path TEXT NOT NULL,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
           created_at INTEGER NOT NULL,
           last_opened_at INTEGER NOT NULL,
           default_agent_terminal_id TEXT,
@@ -176,6 +222,7 @@ export class CaxriDatabase {
         );
 
         CREATE INDEX terminals_session_order ON terminals(session_id, order_index);
+        CREATE INDEX sessions_project_activity ON sessions(project_id, last_opened_at DESC);
 
         CREATE TABLE terminal_snapshots (
           terminal_id TEXT PRIMARY KEY REFERENCES terminals(id) ON DELETE CASCADE,
@@ -199,20 +246,72 @@ export class CaxriDatabase {
           value_json TEXT NOT NULL
         );
       `);
+            }
             this.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
         })();
     }
 
-    listSessions(): SessionRecord[] {
+    listProjects(): ProjectRecord[] {
         return (
             this.database
-                .prepare('SELECT * FROM sessions ORDER BY created_at ASC')
-                .all() as SessionRow[]
+                .prepare('SELECT * FROM projects ORDER BY last_opened_at DESC, created_at ASC')
+                .all() as ProjectRow[]
+        ).map(mapProject);
+    }
+
+    getProject(id: string): ProjectRecord | undefined {
+        const row = this.database.prepare('SELECT * FROM projects WHERE id = ?').get(id) as
+            ProjectRow | undefined;
+        return row ? mapProject(row) : undefined;
+    }
+
+    createProject(rootPath: string): ProjectRecord {
+        const existing = this.database
+            .prepare('SELECT * FROM projects WHERE root_path = ?')
+            .get(rootPath) as ProjectRow | undefined;
+        if (existing) return mapProject(existing);
+        const id = randomUUID();
+        const now = Date.now();
+        this.database
+            .prepare(
+                `INSERT INTO projects (id, root_path, display_title, created_at, last_opened_at)
+                 VALUES (?, ?, ?, ?, ?)`,
+            )
+            .run(id, rootPath, basename(rootPath) || rootPath, now, now);
+        return this.getProject(id)!;
+    }
+
+    deleteProject(projectId: string): void {
+        const result = this.database.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+        if (result.changes !== 1) throw new Error('Project not found');
+        if (this.getAppState<string>('lastSelectedProjectId') === projectId) {
+            const fallbackProject = this.listProjects().at(0);
+            const fallbackSession = fallbackProject
+                ? this.listSessions(fallbackProject.id).at(0)
+                : undefined;
+            this.setAppState('lastSelectedProjectId', fallbackProject?.id ?? null);
+            this.setAppState('lastSelectedSessionId', fallbackSession?.id ?? null);
+        }
+    }
+
+    listSessions(projectId?: string): SessionRecord[] {
+        return (
+            projectId
+                ? (this.database
+                      .prepare(
+                          `${SESSION_SELECT} WHERE sessions.project_id = ? ORDER BY sessions.last_opened_at DESC, sessions.created_at ASC`,
+                      )
+                      .all(projectId) as SessionRow[])
+                : (this.database
+                      .prepare(
+                          `${SESSION_SELECT} ORDER BY sessions.last_opened_at DESC, sessions.created_at ASC`,
+                      )
+                      .all() as SessionRow[])
         ).map(mapSession);
     }
 
     getSession(id: string): SessionRecord | undefined {
-        const row = this.database.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
+        const row = this.database.prepare(`${SESSION_SELECT} WHERE sessions.id = ?`).get(id) as
             SessionRow | undefined;
         return row ? mapSession(row) : undefined;
     }
@@ -227,8 +326,7 @@ export class CaxriDatabase {
             if (!session?.defaultAgentTerminalId) return false;
             const terminal = this.getTerminal(session.defaultAgentTerminalId);
             if (terminal?.provider !== provider) return false;
-            const displayTitle =
-                snapshot.title?.trim() || basename(session.rootPath) || session.rootPath;
+            const displayTitle = snapshot.title?.trim() || terminal.title;
             const agentSessionId = snapshot.sessionId?.trim() || undefined;
             if (
                 session.displayTitle === displayTitle &&
@@ -249,22 +347,25 @@ export class CaxriDatabase {
     }
 
     createSession(
-        rootPath: string,
+        projectId: string,
         kind: TerminalKind,
     ): { session: SessionRecord; terminal: TerminalRecord } {
         return this.database.transaction(() => {
             this.assertTerminalCapacity();
+            const project = this.getProject(projectId);
+            if (!project) throw new Error('Project not found');
             const now = Date.now();
             const sessionId = randomUUID();
             const terminalId = randomUUID();
-            const displayTitle = basename(rootPath) || rootPath;
+            const displayTitle =
+                kind === 'shell' ? 'Shell' : kind === 'claude' ? 'Claude Code' : 'Codex';
             this.database
                 .prepare(
                     `INSERT INTO sessions
-           (id, root_path, created_at, last_opened_at, default_agent_terminal_id, last_activity_state, layout_version, display_title)
+           (id, project_id, created_at, last_opened_at, default_agent_terminal_id, last_activity_state, layout_version, display_title)
            VALUES (?, ?, ?, ?, ?, 'idle', 1, ?)`,
                 )
-                .run(sessionId, rootPath, now, now, terminalId, displayTitle);
+                .run(sessionId, projectId, now, now, terminalId, displayTitle);
             this.database
                 .prepare(
                     `INSERT INTO terminals
@@ -276,8 +377,8 @@ export class CaxriDatabase {
                     sessionId,
                     kind,
                     kind === 'shell' ? null : kind,
-                    rootPath,
-                    kind === 'shell' ? 'Shell' : kind === 'claude' ? 'Claude Code' : 'Codex',
+                    project.rootPath,
+                    displayTitle,
                     kind,
                     randomUUID(),
                     now,
@@ -290,6 +391,10 @@ export class CaxriDatabase {
                 )
                 .run(sessionId, JSON.stringify({ splitTerminalIds: [terminalId] }));
             this.setAppState('lastSelectedSessionId', sessionId);
+            this.setAppState('lastSelectedProjectId', projectId);
+            this.database
+                .prepare('UPDATE projects SET last_opened_at = ? WHERE id = ?')
+                .run(now, projectId);
             return {
                 session: this.getSession(sessionId)!,
                 terminal: this.getTerminal(terminalId)!,
@@ -302,15 +407,27 @@ export class CaxriDatabase {
             .prepare('UPDATE sessions SET last_opened_at = ? WHERE id = ?')
             .run(Date.now(), sessionId);
         if (result.changes !== 1) throw new Error('Session not found');
+        const session = this.getSession(sessionId)!;
+        this.database
+            .prepare('UPDATE projects SET last_opened_at = ? WHERE id = ?')
+            .run(Date.now(), session.projectId);
         this.setAppState('lastSelectedSessionId', sessionId);
+        this.setAppState('lastSelectedProjectId', session.projectId);
     }
 
     deleteSession(sessionId: string): void {
         const result = this.database.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
         if (result.changes !== 1) throw new Error('Session not found');
         if (this.getAppState<string>('lastSelectedSessionId') === sessionId) {
-            const fallback = this.listSessions().at(0)?.id;
-            this.setAppState('lastSelectedSessionId', fallback ?? null);
+            const selectedProjectId = this.getAppState<string>('lastSelectedProjectId');
+            const fallback = selectedProjectId
+                ? this.listSessions(selectedProjectId).at(0)
+                : this.listSessions().at(0);
+            this.setAppState('lastSelectedSessionId', fallback?.id ?? null);
+            this.setAppState(
+                'lastSelectedProjectId',
+                fallback?.projectId ?? selectedProjectId ?? null,
+            );
         }
     }
 
@@ -388,12 +505,11 @@ export class CaxriDatabase {
         this.database.transaction(() => {
             const terminal = this.getTerminal(id);
             if (!terminal) return;
-            const session = this.getSession(terminal.sessionId);
             this.database
                 .prepare(
-                    "UPDATE sessions SET default_agent_terminal_id = NULL, last_activity_state = 'idle', display_title = ? WHERE default_agent_terminal_id = ?",
+                    "UPDATE sessions SET default_agent_terminal_id = NULL, last_activity_state = 'idle' WHERE default_agent_terminal_id = ?",
                 )
-                .run(session ? basename(session.rootPath) || session.rootPath : terminal.cwd, id);
+                .run(id);
             this.database.prepare('DELETE FROM terminals WHERE id = ?').run(id);
             const state = this.getSessionState(terminal.sessionId);
             this.updateSessionState({
