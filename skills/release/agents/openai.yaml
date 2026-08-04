@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Release Caxri'
+  short_description: 'Prepare a local unsigned Caxri release artifact'
+  default_prompt: 'Use $release to prepare a local Caxri release artifact.'

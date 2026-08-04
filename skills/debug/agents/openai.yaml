@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Debug Caxri'
+  short_description: 'Diagnose Caxri across Electron process boundaries'
+  default_prompt: 'Use $debug to diagnose this Caxri failure with evidence.'

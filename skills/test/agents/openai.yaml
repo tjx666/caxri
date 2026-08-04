@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Test Caxri'
+  short_description: 'Run focused and full Caxri validation workflows'
+  default_prompt: 'Use $test to validate the current Caxri changes.'

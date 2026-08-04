@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Benchmark Caxri'
+  short_description: 'Measure and guard critical Caxri performance paths'
+  default_prompt: 'Use $performance to measure and guard Caxri startup and Runtime performance.'

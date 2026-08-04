@@ -1,0 +1,125 @@
+{
+    "name": "caxri",
+    "version": "0.1.0",
+    "private": true,
+    "author": "Caxri contributors",
+    "packageManager": "npm@12.0.2",
+    "description": "A session-first, terminal-native local development workbench for macOS.",
+    "main": "./out/main/index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "electron-vite dev",
+        "format:md": "prettier --write \"**/*.md\"",
+        "format:md:check": "prettier --check \"**/*.md\"",
+        "lint": "eslint . --max-warnings=0",
+        "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:e2e": "bun run build && playwright test",
+        "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
+        "build": "electron-vite build",
+        "package": "bun run build && electron-builder --mac dir",
+        "package:dmg": "bun run build && electron-builder --mac dmg",
+        "postinstall": "electron-builder install-app-deps",
+        "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
+        "rebuild": "electron-builder install-app-deps",
+        "spike:native": "bun run scripts/native-spike.ts",
+        "spike:pty": "bun run scripts/pty-spike.ts",
+        "spike:agents": "bun run scripts/agent-discovery-spike.ts"
+    },
+    "lint-staged": {
+        "*.{js,jsx,ts,tsx,mjs,cjs}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{css,html,json,jsonc,md,yaml,yml}": [
+            "prettier --write --no-error-on-unmatched-pattern"
+        ]
+    },
+    "dependencies": {
+        "@base-ui/react": "1.6.0",
+        "@monaco-editor/react": "4.7.0",
+        "@parcel/watcher": "2.5.6",
+        "@xterm/addon-fit": "0.11.0",
+        "@xterm/addon-search": "0.16.0",
+        "@xterm/addon-serialize": "0.14.0",
+        "@xterm/xterm": "6.0.0",
+        "archiver": "8.0.0",
+        "better-sqlite3": "13.0.2",
+        "class-variance-authority": "0.7.1",
+        "clsx": "2.1.1",
+        "cmdk": "1.1.1",
+        "jsonc-parser": "3.3.1",
+        "lucide-react": "1.28.0",
+        "monaco-editor": "0.56.0",
+        "node-pty": "1.1.0",
+        "plist": "5.0.0",
+        "react": "19.2.8",
+        "react-dom": "19.2.8",
+        "tailwind-merge": "3.6.0",
+        "yaml": "2.9.0",
+        "zod": "4.4.3"
+    },
+    "devDependencies": {
+        "@electron-toolkit/tsconfig": "2.0.0",
+        "@eslint/js": "^10.0.1",
+        "@playwright/test": "1.62.1",
+        "@tailwindcss/vite": "4.3.3",
+        "@types/archiver": "8.0.0",
+        "@types/better-sqlite3": "9.6.0",
+        "@types/node": "26.1.2",
+        "@types/plist": "3.0.5",
+        "@types/react": "19.2.18",
+        "@types/react-dom": "19.2.4",
+        "@typescript/native": "npm:typescript@7.0.2",
+        "@vitejs/plugin-react": "6.0.5",
+        "electron": "43.2.0",
+        "electron-builder": "26.15.3",
+        "electron-vite": "6.0.0-beta.1",
+        "eslint": "10.8.0",
+        "eslint-plugin-react-hooks": "7.1.1",
+        "eslint-plugin-react-refresh": "0.5.3",
+        "lint-staged": "16.4.0",
+        "playwright": "1.62.1",
+        "prettier": "3.9.6",
+        "tailwindcss": "4.3.3",
+        "typescript": "npm:@typescript/typescript6@6.0.2",
+        "typescript-eslint": "8.66.0",
+        "vite": "8.2.0",
+        "vitest": "4.1.10"
+    },
+    "build": {
+        "appId": "com.caxri.app",
+        "productName": "Caxri",
+        "directories": {
+            "output": "release"
+        },
+        "asar": true,
+        "asarUnpack": [
+            "node_modules/@parcel/watcher/**",
+            "node_modules/@parcel/watcher-*/**",
+            "node_modules/better-sqlite3/**",
+            "node_modules/node-pty/**"
+        ],
+        "files": [
+            "out/**",
+            "package.json",
+            "THIRD_PARTY_NOTICES.md",
+            "licenses/**",
+            "node_modules/**"
+        ],
+        "mac": {
+            "category": "public.app-category.developer-tools",
+            "target": [
+                "dir"
+            ]
+        }
+    },
+    "engines": {
+        "node": ">=22.12.0",
+        "bun": ">=1.3.0"
+    },
+    "overrides": {
+        "dompurify": "3.4.13"
+    }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Build Caxri'
+  short_description: 'Build and verify Caxri native dependencies'
+  default_prompt: 'Use $build to produce and verify a Caxri build.'

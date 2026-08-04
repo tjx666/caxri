@@ -1,0 +1,26 @@
+{
+    "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+    "include": [
+        "electron.vite.config.*",
+        "vitest.config.*",
+        "playwright.config.*",
+        "eslint.config.*",
+        "src/main/**/*.ts",
+        "src/preload/**/*.ts",
+        "src/runtime/**/*.ts",
+        "src/shared/**/*.ts",
+        "scripts/**/*.ts",
+        "e2e/**/*.ts"
+    ],
+    "compilerOptions": {
+        "composite": true,
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "allowImportingTsExtensions": true,
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true,
+        "noEmit": true,
+        "strict": true,
+        "types": ["node", "electron"]
+    }
+}

@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+/logs/
+/release/
+test-results/
+playwright-report/
+coverage/
+*.tsbuildinfo
+*.log
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
