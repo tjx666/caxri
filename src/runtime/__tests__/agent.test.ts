@@ -86,6 +86,43 @@ describe('Agent adapter fallback', () => {
         );
     });
 
+    it('discovers Claude Code and Codex independently for one Project', async () => {
+        const claudeSnapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'waiting',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'claude-session-1',
+            }),
+        );
+        const codexSnapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'codex-session-1',
+            }),
+        );
+        const service = new AgentService(undefined, {
+            claude: { provider: 'claude', snapshot: claudeSnapshot },
+            codex: { provider: 'codex', snapshot: codexSnapshot },
+        });
+
+        await expect(
+            Promise.all([
+                service.snapshot('claude', { rootPath: '/project' }),
+                service.snapshot('codex', { rootPath: '/project' }),
+            ]),
+        ).resolves.toEqual([
+            expect.objectContaining({ provider: 'claude', sessionId: 'claude-session-1' }),
+            expect.objectContaining({ provider: 'codex', sessionId: 'codex-session-1' }),
+        ]);
+        expect(claudeSnapshot).toHaveBeenCalledTimes(1);
+        expect(codexSnapshot).toHaveBeenCalledTimes(1);
+    });
+
     it('reads Claude Code live-session metadata without opening transcripts', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-state-'));
         temporaryDirectories.push(directory);

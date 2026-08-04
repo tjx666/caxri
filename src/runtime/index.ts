@@ -93,12 +93,17 @@ async function createAndStartTerminal(sessionId: string, kind: TerminalKind) {
 async function probeAgent(sessionId: string, provider: AgentProvider) {
     const session = database.getSession(sessionId);
     if (!session) throw new Error('Session not found');
-    const terminal = session.defaultAgentTerminalId
-        ? database.getTerminal(session.defaultAgentTerminalId)
-        : undefined;
+    const terminal = database
+        .listTerminals(sessionId)
+        .filter((candidate) => candidate.provider === provider)
+        .sort((left, right) => {
+            const leftActive = ['running', 'starting'].includes(left.lastProcessState);
+            const rightActive = ['running', 'starting'].includes(right.lastProcessState);
+            return Number(rightActive) - Number(leftActive) || right.updatedAt - left.updatedAt;
+        })[0];
     const snapshot = await agents.snapshot(provider, {
         rootPath: session.rootPath,
-        processState: terminal?.provider === provider ? terminal.lastProcessState : undefined,
+        processState: terminal?.lastProcessState,
     });
     if (database.updateAgentMetadata(sessionId, provider, snapshot))
         emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });

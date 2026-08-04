@@ -323,22 +323,38 @@ export class CaxriDatabase {
     ): boolean {
         return this.database.transaction(() => {
             const session = this.getSession(sessionId);
-            if (!session?.defaultAgentTerminalId) return false;
-            const terminal = this.getTerminal(session.defaultAgentTerminalId);
-            if (terminal?.provider !== provider) return false;
+            if (!session) return false;
+            const candidates = this.listTerminals(sessionId)
+                .filter((terminal) => terminal.provider === provider)
+                .sort((left, right) => {
+                    const leftActive = ['running', 'starting'].includes(left.lastProcessState);
+                    const rightActive = ['running', 'starting'].includes(right.lastProcessState);
+                    return (
+                        Number(rightActive) - Number(leftActive) || right.updatedAt - left.updatedAt
+                    );
+                });
+            const terminal =
+                candidates.find(
+                    (candidate) =>
+                        snapshot.sessionId && candidate.agentSessionId === snapshot.sessionId,
+                ) ?? candidates[0];
+            if (!terminal) return false;
             const displayTitle = snapshot.title?.trim() || terminal.title;
             const agentSessionId = snapshot.sessionId?.trim() || undefined;
+            const isDefaultAgent = terminal.id === session.defaultAgentTerminalId;
             if (
-                session.displayTitle === displayTitle &&
-                session.lastActivityState === snapshot.status &&
+                (!isDefaultAgent ||
+                    (session.displayTitle === displayTitle &&
+                        session.lastActivityState === snapshot.status)) &&
                 terminal.agentSessionId === agentSessionId
             )
                 return false;
-            this.database
-                .prepare(
-                    'UPDATE sessions SET display_title = ?, last_activity_state = ? WHERE id = ?',
-                )
-                .run(displayTitle, snapshot.status, sessionId);
+            if (isDefaultAgent)
+                this.database
+                    .prepare(
+                        'UPDATE sessions SET display_title = ?, last_activity_state = ? WHERE id = ?',
+                    )
+                    .run(displayTitle, snapshot.status, sessionId);
             this.database
                 .prepare('UPDATE terminals SET agent_session_id = ?, updated_at = ? WHERE id = ?')
                 .run(agentSessionId ?? null, Date.now(), terminal.id);

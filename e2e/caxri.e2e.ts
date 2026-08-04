@@ -212,6 +212,31 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
     }
 });
 
+test('Agent inspector discovers Claude Code and Codex independently', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-multi-agent-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launch(userData, root);
+    try {
+        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await expect(
+            running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
+        ).toBeVisible();
+        await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
+        await expect(running.page.locator('.session-card')).toHaveCount(1);
+
+        await running.page.getByRole('button', { name: 'Agent', exact: true }).click();
+        await expect(running.page.locator('.agent-card')).toHaveCount(2);
+        await expect(running.page.locator('.agent-card', { hasText: 'Claude Code' })).toBeVisible();
+        await expect(running.page.locator('.agent-card', { hasText: 'Codex' })).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('canceling Session deletion preserves the dirty editor buffer', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-delete-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');

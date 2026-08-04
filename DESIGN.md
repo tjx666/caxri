@@ -64,7 +64,7 @@ Themes normalize into one semantic token structure consumed by CSS variables, xt
 
 ## Git and Agent adapters
 
-Git operations run via `execFile('git', argv)` with fixed argv constructors, a filtered environment, and no repository mutation. Adapters discover Claude Code and Codex through the GUI environment plus a login-shell PATH fallback. Claude Code integration reads only compact live-session metadata. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata update the default Agent Terminal and its Session sidebar record. Missing or changed storage produces `unknown`; it never interrupts PTY input/output.
+Git operations run via `execFile('git', argv)` with fixed argv constructors, a filtered environment, and no repository mutation. Adapters discover Claude Code and Codex independently through the GUI environment plus a login-shell PATH fallback. Claude Code integration reads only compact live-session metadata. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata are correlated with the matching provider Terminal. Only metadata from the default Agent Terminal updates the Session sidebar record. Missing or changed storage produces `unknown`; it never interrupts PTY input/output.
 
 ## Security
 

@@ -9,7 +9,7 @@ import {
     GitBranch,
     RefreshCw,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type {
     AgentSnapshot,
@@ -247,23 +247,13 @@ function GitPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onErro
     );
 }
 
-function AgentPanel({
-    session,
-    terminals,
-    onError,
-}: Pick<InspectorProps, 'session' | 'terminals' | 'onError'>) {
+function AgentPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onError'>) {
     const sessionId = session?.id;
-    const primaryProvider = terminals.find(
-        (terminal) => terminal.id === session?.defaultAgentTerminalId,
-    )?.provider;
-    const providers = useMemo<Array<'claude' | 'codex'>>(() => {
-        return primaryProvider ? [primaryProvider] : ['claude', 'codex'];
-    }, [primaryProvider]);
     const [snapshots, setSnapshots] = useState<AgentSnapshot[]>([]);
     useEffect(() => {
         if (!sessionId) return;
         void Promise.all(
-            providers.map((provider) =>
+            (['claude', 'codex'] as const).map((provider) =>
                 window.caxri.request<AgentSnapshot>('agent.snapshot', { sessionId, provider }),
             ),
         )
@@ -271,7 +261,7 @@ function AgentPanel({
             .catch((error: unknown) =>
                 onError(error instanceof Error ? error.message : 'Agent discovery failed'),
             );
-    }, [onError, providers, sessionId]);
+    }, [onError, sessionId]);
     if (!session) return <div className="empty-panel">Create a Session to inspect agents.</div>;
     return (
         <div className="inspector-content agent-panel">

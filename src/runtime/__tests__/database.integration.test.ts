@@ -116,6 +116,35 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('keeps metadata for multiple Agent providers in the same Session', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-db-multi-agent-metadata-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(root).id, 'codex');
+        const claude = database.createTerminal(created.session.id, 'claude');
+
+        expect(
+            database.updateAgentMetadata(created.session.id, 'claude', {
+                provider: 'claude',
+                available: true,
+                observedAt: Date.now(),
+                sessionId: 'claude-session-1',
+                status: 'waiting',
+                title: 'Review the implementation',
+            }),
+        ).toBe(true);
+        expect(database.getTerminal(claude.id)).toMatchObject({
+            agentSessionId: 'claude-session-1',
+        });
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Codex',
+            lastActivityState: 'idle',
+        });
+        database.close();
+    });
+
     it('allows duplicate roots and deletes metadata without touching user files', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-db-'));
         temporaryDirectories.push(directory);
