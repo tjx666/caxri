@@ -20,6 +20,7 @@ export default defineConfig(
             'react-refresh': reactRefresh,
         },
         rules: {
+            'max-lines': ['error', { max: 800, skipBlankLines: false, skipComments: false }],
             'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
             '@typescript-eslint/consistent-type-imports': 'error',
             '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],

@@ -1,9 +1,7 @@
 import {
-    Bot,
     Circle,
     Code2,
     FileCode2,
-    PanelRight,
     Plus,
     Search,
     Settings,
@@ -42,17 +40,12 @@ import {
 
 import { keyboardEventShortcut, normalizeShortcut } from './commands';
 import { CommandPalette } from './components/CommandPalette';
+import { CreateSessionDialog } from './components/CreateSessionDialog';
 import { Inspector } from './components/Inspector';
 import { SettingsDialog } from './components/SettingsDialog';
+import { StatusBar } from './components/StatusBar';
 import { TerminalPane } from './components/TerminalPane';
 import { Button } from './components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from './components/ui/dialog';
 
 const CodeEditor = lazy(() => import('./components/CodeEditor'));
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
@@ -774,58 +767,19 @@ export default function App() {
                 onError={showMessage}
             />
 
-            <footer className="statusbar">
-                <span>
-                    {bootstrap.runtime.status === 'ready'
-                        ? 'Runtime ready'
-                        : `Runtime ${bootstrap.runtime.status}`}
-                </span>
-                <span>{selectedSession?.rootPath ?? 'No Session selected'}</span>
-                <span>
-                    {
-                        sessionTerminals.filter(
-                            (terminal) => terminal.lastProcessState === 'running',
-                        ).length
-                    }{' '}
-                    running
-                </span>
-                <PanelRight size={12} />
-            </footer>
-
-            <Dialog
-                open={Boolean(pendingRoot)}
+            <StatusBar
+                rootPath={selectedSession?.rootPath}
+                runningCount={
+                    sessionTerminals.filter((terminal) => terminal.lastProcessState === 'running')
+                        .length
+                }
+                runtimeStatus={bootstrap.runtime.status}
+            />
+            <CreateSessionDialog
+                rootPath={pendingRoot}
                 onOpenChange={(open) => !open && setPendingRoot(undefined)}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Choose the default Terminal</DialogTitle>
-                        <DialogDescription>
-                            This primary Agent Terminal provides the Session title when metadata is
-                            available.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="agent-choice">
-                        <Button
-                            variant="secondary"
-                            onClick={() => pendingRoot && void createSession(pendingRoot, 'claude')}
-                        >
-                            <Bot size={15} /> Claude Code
-                        </Button>
-                        <Button
-                            variant="secondary"
-                            onClick={() => pendingRoot && void createSession(pendingRoot, 'codex')}
-                        >
-                            <Bot size={15} /> Codex
-                        </Button>
-                        <Button
-                            variant="secondary"
-                            onClick={() => pendingRoot && void createSession(pendingRoot, 'shell')}
-                        >
-                            <TerminalSquare size={15} /> Shell
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                onCreate={(kind) => pendingRoot && void createSession(pendingRoot, kind)}
+            />
             <SettingsDialog
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}

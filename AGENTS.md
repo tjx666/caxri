@@ -30,6 +30,7 @@
 - Preserve the explicit external-change rule: disk changes replace dirty editor buffers without prompting.
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
 - Keep unit and integration tests with their source domain, using `__tests__/` when the source directory is already busy. Reserve `e2e/` for full Electron workflows.
+- Keep every JavaScript and TypeScript code file at or below 800 physical lines; split cohesive modules before they exceed the ESLint `max-lines` gate.
 - Update `DESIGN.md`, tests, and these commands when an architecture contract changes.
 
 ## Performance and observability
