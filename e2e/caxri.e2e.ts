@@ -135,6 +135,36 @@ test('file changes refresh entries without collapsing expanded directories', asy
     }
 });
 
+test('Terminal tabs reveal an accessible close action on hover and focus', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-tab-close-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launch(userData, root);
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        const terminalTabs = running.page.locator('.work-tab[data-terminal-id]');
+        await expect(terminalTabs).toHaveCount(2);
+
+        const firstTab = terminalTabs.first();
+        const close = firstTab.getByRole('button', { name: 'Close Terminal' });
+        await expect(close).toBeHidden();
+        await firstTab.hover();
+        await expect(close).toBeVisible();
+        await firstTab.getByRole('tab').focus();
+        await expect(close).toBeVisible();
+        await close.click();
+
+        await expect(terminalTabs).toHaveCount(1);
+        await expect(running.page.locator('.process-running')).toHaveCount(1);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('canceling Session deletion preserves the dirty editor buffer', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-delete-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -430,10 +460,10 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('textarea[aria-label="theme.json source"]')).toHaveValue(
             /#282a36/,
         );
-        const terminalTabCount = await running.page.locator('.work-tabs > button').count();
+        const terminalTabCount = await running.page.locator('.work-tab').count();
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.getByRole('dialog')).toBeVisible();
-        await expect(running.page.locator('.work-tabs > button')).toHaveCount(terminalTabCount);
+        await expect(running.page.locator('.work-tab')).toHaveCount(terminalTabCount);
         await running.page.getByRole('button', { name: 'Close' }).click();
 
         await running.app.evaluate(({ dialog }, path) => {
@@ -453,7 +483,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         expect(archiveText).not.toContain('CAXRI_E2E_OK');
 
         await running.page
-            .locator('.work-tabs > button')
+            .locator('.work-tab [role="tab"]')
             .filter({ hasText: 'Shell' })
             .first()
             .click();

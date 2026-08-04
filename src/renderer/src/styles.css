@@ -246,49 +246,84 @@ button {
     border-bottom: 1px solid var(--border);
     background: var(--surface);
 }
-.work-tabs > button {
+.work-tab {
     display: flex;
     align-items: center;
-    gap: 6px;
     max-width: 180px;
-    padding: 0 9px;
-    border: 0;
     border-right: 1px solid var(--border);
     background: var(--surface);
     color: var(--muted);
+}
+.tab-select {
+    display: flex;
+    min-width: 0;
+    height: 100%;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 0;
+    background: transparent;
+    color: inherit;
     cursor: pointer;
 }
-.work-tabs > button:hover {
+.work-tab:hover {
     background: var(--elevated);
     color: var(--foreground);
 }
-.work-tabs > button.active {
+.work-tab.active {
     background: var(--background);
     color: var(--foreground);
     box-shadow: inset 0 2px var(--accent);
 }
-.work-tabs > button span {
+.tab-select span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.work-tabs > button b {
+.tab-select b {
     color: var(--warning);
     font-size: 8px;
 }
-.work-tabs > button i {
+.process-indicator {
     width: 6px;
     height: 6px;
-    margin-left: auto;
+    flex: 0 0 6px;
+    margin-right: 9px;
     border-radius: 50%;
     background: var(--muted);
 }
-.work-tabs > button i.process-running {
+.process-indicator.process-running {
     background: var(--success);
 }
-.work-tabs > button i.process-failed,
-.work-tabs > button i.process-dead {
+.process-indicator.process-failed,
+.process-indicator.process-dead {
     background: var(--danger);
+}
+.tab-close {
+    display: none;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    place-items: center;
+    margin-right: 3px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+}
+.tab-close:hover {
+    background: var(--selection);
+}
+.work-tab:hover .tab-close,
+.work-tab:focus-within .tab-close {
+    display: grid;
+}
+.work-tab:hover .process-indicator,
+.work-tab:focus-within .process-indicator {
+    display: none;
 }
 .tab-actions {
     display: flex;

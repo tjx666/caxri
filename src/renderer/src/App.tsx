@@ -1,4 +1,4 @@
-import { Code2, FileCode2, Plus, SplitSquareVertical, TerminalSquare, X } from 'lucide-react';
+import { Code2, Plus, SplitSquareVertical, TerminalSquare } from 'lucide-react';
 import {
     lazy,
     Suspense,
@@ -35,6 +35,7 @@ import { ProjectSidebar } from './components/ProjectSidebar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { StatusBar } from './components/StatusBar';
 import { TerminalPane } from './components/TerminalPane';
+import { WorkTab } from './components/WorkTab';
 import { Button } from './components/ui/button';
 import { useExternalDocumentSync } from './hooks/useExternalDocumentSync';
 
@@ -317,6 +318,15 @@ export default function App() {
         ? resolvedActiveWork.slice('terminal:'.length)
         : undefined;
 
+    const closeTerminal = (terminalId: string): void => {
+        void window.caxri
+            .request('terminal.close', { terminalId })
+            .then(() => refresh())
+            .catch((error: unknown) =>
+                showMessage(error instanceof Error ? error.message : 'Terminal close failed'),
+            );
+    };
+
     const setInspectorMode = (mode: InspectorMode): void => {
         const current = sessionStateRef.current;
         if (current) persistSessionState({ ...current, inspectorMode: mode });
@@ -407,15 +417,7 @@ export default function App() {
                         );
                 break;
             case 'terminal.close':
-                if (activeTerminalId)
-                    void window.caxri
-                        .request('terminal.close', { terminalId: activeTerminalId })
-                        .then(() => refresh())
-                        .catch((error: unknown) =>
-                            showMessage(
-                                error instanceof Error ? error.message : 'Terminal close failed',
-                            ),
-                        );
+                if (activeTerminalId) closeTerminal(activeTerminalId);
                 break;
             case 'editor.save':
                 void saveActiveEditor();
@@ -554,16 +556,18 @@ export default function App() {
             <section className="workbench">
                 {selectedSession ? (
                     <>
-                        <div className="work-tabs">
+                        <div className="work-tabs" role="tablist" aria-label="Open work">
                             {sessionTerminals.map((terminal) => (
-                                <button
+                                <WorkTab
                                     key={terminal.id}
-                                    className={
-                                        resolvedActiveWork === `terminal:${terminal.id}`
-                                            ? 'active'
-                                            : ''
-                                    }
-                                    onClick={() => {
+                                    active={resolvedActiveWork === `terminal:${terminal.id}`}
+                                    closeLabel="Close Terminal"
+                                    icon="terminal"
+                                    label={terminal.title}
+                                    status={terminal.lastProcessState}
+                                    terminalId={terminal.id}
+                                    onClose={() => closeTerminal(terminal.id)}
+                                    onSelect={() => {
                                         setActiveWork(`terminal:${terminal.id}`);
                                         if (sessionState)
                                             persistSessionState({
@@ -572,34 +576,22 @@ export default function App() {
                                                 layout: { splitTerminalIds: [terminal.id] },
                                             });
                                     }}
-                                >
-                                    <TerminalSquare size={13} />
-                                    <span>{terminal.title}</span>
-                                    <i className={`process-${terminal.lastProcessState}`} />
-                                </button>
+                                />
                             ))}
                             {sessionState?.openTabs.map((tab: EditorTabState) => (
-                                <button
+                                <WorkTab
                                     key={tab.path}
-                                    className={
-                                        resolvedActiveWork === `editor:${tab.path}` ? 'active' : ''
-                                    }
-                                    onClick={() => {
+                                    active={resolvedActiveWork === `editor:${tab.path}`}
+                                    closeLabel="Close Editor"
+                                    dirty={documents[tab.path]?.dirty}
+                                    icon="file"
+                                    label={fileName(tab.path)}
+                                    onClose={() => closeEditor(tab.path)}
+                                    onSelect={() => {
                                         setActiveWork(`editor:${tab.path}`);
                                         if (!documents[tab.path]) void openFile(tab.path);
                                     }}
-                                >
-                                    <FileCode2 size={13} />
-                                    <span>{fileName(tab.path)}</span>
-                                    {documents[tab.path]?.dirty && <b>●</b>}
-                                    <X
-                                        size={12}
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            closeEditor(tab.path);
-                                        }}
-                                    />
-                                </button>
+                                />
                             ))}
                             <div className="tab-actions">
                                 <Button
