@@ -45,3 +45,56 @@ describe('Project and Session contracts', () => {
         ).toBe(false);
     });
 });
+
+describe('Terminal layout contract', () => {
+    const state = {
+        sessionId: 'session-1',
+        openTabs: [],
+        inspectorMode: 'files',
+    };
+
+    it('accepts bounded split trees and rejects duplicate Terminal attachments', () => {
+        const group = {
+            type: 'group' as const,
+            id: 'group-1',
+            terminalIds: ['terminal-1'],
+            activeTerminalId: 'terminal-1',
+        };
+        expect(
+            requestSchemas['session.updateState'].safeParse({
+                ...state,
+                layout: {
+                    activeGroupId: 'group-1',
+                    root: {
+                        type: 'split',
+                        id: 'split-1',
+                        direction: 'horizontal',
+                        ratio: 0.5,
+                        first: group,
+                        second: {
+                            ...group,
+                            id: 'group-2',
+                            terminalIds: ['terminal-2'],
+                            activeTerminalId: 'terminal-2',
+                        },
+                    },
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            requestSchemas['session.updateState'].safeParse({
+                ...state,
+                layout: {
+                    root: {
+                        type: 'split',
+                        id: 'split-1',
+                        direction: 'horizontal',
+                        ratio: 0.5,
+                        first: group,
+                        second: { ...group, id: 'group-2' },
+                    },
+                },
+            }).success,
+        ).toBe(false);
+    });
+});

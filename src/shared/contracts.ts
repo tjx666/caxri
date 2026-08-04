@@ -1,10 +1,66 @@
 import { z } from 'zod';
 
-import { MAX_CONFIGURABLE_FILE_BYTES, type FileChange } from './types';
+import {
+    MAX_CONFIGURABLE_FILE_BYTES,
+    type FileChange,
+    type TerminalLayout,
+    type TerminalLayoutNode,
+} from './types';
 
 const id = z.string().min(1).max(200);
 const path = z.string().min(1).max(16_384);
 const terminalKind = z.enum(['claude', 'codex', 'shell']);
+
+function isTerminalLayout(value: unknown): value is TerminalLayout {
+    if (!value || typeof value !== 'object') return false;
+    const layout = value as { activeGroupId?: unknown; root?: unknown };
+    if (layout.activeGroupId !== undefined && !id.safeParse(layout.activeGroupId).success)
+        return false;
+    if (layout.root === undefined) return true;
+    const nodes: unknown[] = [layout.root];
+    const nodeIds = new Set<string>();
+    const terminalIds = new Set<string>();
+    let terminalCount = 0;
+    while (nodes.length > 0) {
+        if (nodeIds.size >= 31) return false;
+        const value = nodes.pop();
+        if (!value || typeof value !== 'object') return false;
+        const node = value as Partial<TerminalLayoutNode>;
+        if (!id.safeParse(node.id).success || nodeIds.has(node.id as string)) return false;
+        nodeIds.add(node.id as string);
+        if (node.type === 'group') {
+            if (
+                !Array.isArray(node.terminalIds) ||
+                node.terminalIds.length === 0 ||
+                node.terminalIds.some((terminalId) => !id.safeParse(terminalId).success)
+            )
+                return false;
+            if (node.terminalIds.some((terminalId) => terminalIds.has(terminalId))) return false;
+            node.terminalIds.forEach((terminalId) => terminalIds.add(terminalId));
+            terminalCount += node.terminalIds.length;
+            if (terminalCount > 16) return false;
+            if (
+                node.activeTerminalId !== undefined &&
+                (!id.safeParse(node.activeTerminalId).success ||
+                    !node.terminalIds.includes(node.activeTerminalId))
+            )
+                return false;
+            continue;
+        }
+        if (
+            node.type !== 'split' ||
+            !['horizontal', 'vertical'].includes(node.direction as string) ||
+            typeof node.ratio !== 'number' ||
+            node.ratio < 0.15 ||
+            node.ratio > 0.85
+        )
+            return false;
+        nodes.push(node.first, node.second);
+    }
+    return layout.activeGroupId === undefined || nodeIds.has(layout.activeGroupId as string);
+}
+
+const terminalLayout = z.custom<TerminalLayout>(isTerminalLayout, 'Invalid Terminal layout');
 
 export const requestSchemas = {
     'app.bootstrap': z.object({}),
@@ -23,7 +79,7 @@ export const requestSchemas = {
         openTabs: z.array(z.object({ path, dirty: z.boolean() })).max(100),
         activeTab: path.optional(),
         inspectorMode: z.enum(['files', 'git', 'agent']),
-        layout: z.object({ splitTerminalIds: z.array(id).max(4) }),
+        layout: terminalLayout,
     }),
     'terminal.create': z.object({ sessionId: id, kind: terminalKind }),
     'terminal.input': z.object({ terminalId: id, data: z.string().max(65_536) }),

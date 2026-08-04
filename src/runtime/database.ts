@@ -4,6 +4,7 @@ import { basename, dirname } from 'node:path';
 
 import Database from 'better-sqlite3';
 
+import { createTerminalLayout, removeTerminal } from '../shared/terminal-layout';
 import type {
     AgentActivityState,
     AgentProvider,
@@ -68,7 +69,7 @@ function processActivityState(state: ProcessState): AgentActivityState {
     return 'failed';
 }
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 const MAX_TERMINALS_PER_SESSION = 16;
 const MAX_TERMINALS_GLOBAL = 32;
 
@@ -174,14 +175,15 @@ export class CaxriDatabase {
             );
         }
         this.database.transaction(() => {
-            if (version === 1) {
+            if (version > 0 && version < CURRENT_SCHEMA_VERSION) {
                 /** Pre-release metadata can be rebuilt; Project directories and user files are never touched. */
                 this.database.exec(`
-                    DROP TABLE terminal_snapshots;
-                    DROP TABLE session_state;
-                    DROP TABLE terminals;
-                    DROP TABLE sessions;
-                    DROP TABLE app_state;
+                    DROP TABLE IF EXISTS terminal_snapshots;
+                    DROP TABLE IF EXISTS session_state;
+                    DROP TABLE IF EXISTS terminals;
+                    DROP TABLE IF EXISTS sessions;
+                    DROP TABLE IF EXISTS projects;
+                    DROP TABLE IF EXISTS app_state;
                 `);
             }
             if (version < CURRENT_SCHEMA_VERSION) {
@@ -201,7 +203,7 @@ export class CaxriDatabase {
           last_opened_at INTEGER NOT NULL,
           default_agent_terminal_id TEXT,
           last_activity_state TEXT NOT NULL DEFAULT 'idle',
-          layout_version INTEGER NOT NULL DEFAULT 1,
+          layout_version INTEGER NOT NULL DEFAULT 2,
           display_title TEXT NOT NULL
         );
 
@@ -379,7 +381,7 @@ export class CaxriDatabase {
                 .prepare(
                     `INSERT INTO sessions
            (id, project_id, created_at, last_opened_at, default_agent_terminal_id, last_activity_state, layout_version, display_title)
-           VALUES (?, ?, ?, ?, ?, 'idle', 1, ?)`,
+           VALUES (?, ?, ?, ?, ?, 'idle', 2, ?)`,
                 )
                 .run(sessionId, projectId, now, now, terminalId, displayTitle);
             this.database
@@ -405,7 +407,7 @@ export class CaxriDatabase {
                     `INSERT INTO session_state (session_id, open_tabs_json, active_tab, inspector_mode, layout_json)
            VALUES (?, '[]', NULL, 'files', ?)`,
                 )
-                .run(sessionId, JSON.stringify({ splitTerminalIds: [terminalId] }));
+                .run(sessionId, JSON.stringify(createTerminalLayout(terminalId)));
             this.setAppState('lastSelectedSessionId', sessionId);
             this.setAppState('lastSelectedProjectId', projectId);
             this.database
@@ -528,12 +530,7 @@ export class CaxriDatabase {
                 .run(id);
             this.database.prepare('DELETE FROM terminals WHERE id = ?').run(id);
             const state = this.getSessionState(terminal.sessionId);
-            this.updateSessionState({
-                ...state,
-                layout: {
-                    splitTerminalIds: state.layout.splitTerminalIds.filter((value) => value !== id),
-                },
-            });
+            this.updateSessionState({ ...state, layout: removeTerminal(state.layout, id) });
         })();
     }
 
@@ -597,7 +594,7 @@ export class CaxriDatabase {
                 sessionId,
                 openTabs: [],
                 inspectorMode: 'files',
-                layout: { splitTerminalIds: [] },
+                layout: {},
             };
         }
         return {

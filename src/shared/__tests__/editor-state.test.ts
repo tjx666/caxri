@@ -7,6 +7,7 @@ import {
     setSessionDocument,
     updateEditorTabState,
 } from '../editor-state';
+import { createTerminalLayout } from '../terminal-layout';
 import type { SessionState } from '../types';
 
 describe('external editor changes', () => {
@@ -35,7 +36,7 @@ describe('external editor changes', () => {
             ],
             activeTab: '/project/other.ts',
             inspectorMode: 'agent',
-            layout: { splitTerminalIds: ['terminal-1'] },
+            layout: createTerminalLayout('terminal-1', () => 'group-1'),
         };
 
         expect(markTabsClean(state, ['/project/reloaded.ts'])).toEqual({
@@ -55,7 +56,7 @@ describe('Session editor state', () => {
             openTabs: [{ path: '/project/file.ts', dirty: true }],
             activeTab: '/project/file.ts',
             inspectorMode: 'files',
-            layout: { splitTerminalIds: [] },
+            layout: {},
         };
 
         expect(updateEditorTabState(state, '/project/file.ts', true)).toBe(state);

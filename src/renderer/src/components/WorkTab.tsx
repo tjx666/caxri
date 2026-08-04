@@ -1,4 +1,5 @@
 import { FileCode2, TerminalSquare, X } from 'lucide-react';
+import type { DragEvent } from 'react';
 
 import type { ProcessState } from '@shared/types';
 
@@ -11,6 +12,7 @@ interface WorkTabProps {
     status?: ProcessState;
     terminalId?: string;
     onClose: () => void;
+    onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
     onSelect: () => void;
 }
 
@@ -23,11 +25,17 @@ export function WorkTab({
     status,
     terminalId,
     onClose,
+    onDragStart,
     onSelect,
 }: WorkTabProps) {
     const Icon = icon === 'terminal' ? TerminalSquare : FileCode2;
     return (
-        <div className={active ? 'work-tab active' : 'work-tab'} data-terminal-id={terminalId}>
+        <div
+            className={active ? 'work-tab active' : 'work-tab'}
+            data-terminal-id={terminalId}
+            draggable={Boolean(onDragStart)}
+            onDragStart={onDragStart}
+        >
             <button
                 type="button"
                 role="tab"

@@ -21,6 +21,12 @@ import type {
     ThemeTokens,
 } from '@shared/types';
 import {
+    addTerminal,
+    firstLayoutTerminalId,
+    selectTerminal,
+    splitTerminal,
+} from '@shared/terminal-layout';
+import {
     editorModelPath,
     setSessionDocument,
     type SessionDocuments,
@@ -34,7 +40,7 @@ import { Inspector } from './components/Inspector';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { StatusBar } from './components/StatusBar';
-import { TerminalPane } from './components/TerminalPane';
+import { TERMINAL_DRAG_TYPE, TerminalLayoutView } from './components/TerminalLayoutView';
 import { WorkTab } from './components/WorkTab';
 import { Button } from './components/ui/button';
 import { useExternalDocumentSync } from './hooks/useExternalDocumentSync';
@@ -133,7 +139,8 @@ export default function App() {
         : activeWork?.startsWith('editor:')
           ? sessionState?.openTabs.some((tab) => `editor:${tab.path}` === activeWork)
           : false;
-    const fallbackTerminalId = sessionState?.layout.splitTerminalIds[0] ?? sessionTerminals[0]?.id;
+    const fallbackTerminalId =
+        (sessionState && firstLayoutTerminalId(sessionState.layout)) ?? sessionTerminals[0]?.id;
     const resolvedActiveWork = activeWorkExists
         ? activeWork
         : sessionState?.activeTab
@@ -308,10 +315,16 @@ export default function App() {
             });
             const currentState = sessionStateRef.current;
             if (currentState) {
-                const splitTerminalIds = split
-                    ? [...currentState.layout.splitTerminalIds.slice(-1), terminal.id]
-                    : [terminal.id];
-                persistSessionState({ ...currentState, layout: { splitTerminalIds } });
+                const layout =
+                    split && currentState.layout.activeGroupId
+                        ? splitTerminal(
+                              currentState.layout,
+                              terminal.id,
+                              currentState.layout.activeGroupId,
+                              'horizontal',
+                          )
+                        : addTerminal(currentState.layout, terminal.id);
+                persistSessionState({ ...currentState, layout });
             }
             setActiveWork(`terminal:${terminal.id}`);
             await refresh();
@@ -330,6 +343,16 @@ export default function App() {
             .then(() => refresh())
             .catch((error: unknown) =>
                 showMessage(error instanceof Error ? error.message : 'Terminal close failed'),
+            );
+    };
+
+    const restartTerminal = (terminalId: string): void => {
+        void window.caxri
+            .request('terminal.attach', { terminalId })
+            .then(() => window.caxri.request('terminal.restart', { terminalId }))
+            .then(() => refresh())
+            .catch((error: unknown) =>
+                showMessage(error instanceof Error ? error.message : 'Terminal restart failed'),
             );
     };
 
@@ -526,14 +549,6 @@ export default function App() {
         );
     }
 
-    const splitTerminalIds = sessionState?.layout.splitTerminalIds.length
-        ? sessionState.layout.splitTerminalIds
-        : activeTerminalId
-          ? [activeTerminalId]
-          : [];
-    const splitTerminals = splitTerminalIds
-        .map((id) => sessionTerminals.find((terminal) => terminal.id === id))
-        .filter(Boolean) as typeof sessionTerminals;
     const activeEditorPath = resolvedActiveWork?.startsWith('editor:')
         ? resolvedActiveWork.slice('editor:'.length)
         : undefined;
@@ -569,13 +584,21 @@ export default function App() {
                                     status={terminal.lastProcessState}
                                     terminalId={terminal.id}
                                     onClose={() => closeTerminal(terminal.id)}
+                                    onDragStart={(event) => {
+                                        event.dataTransfer.effectAllowed = 'move';
+                                        event.dataTransfer.setData(TERMINAL_DRAG_TYPE, terminal.id);
+                                        event.dataTransfer.setData('text/plain', terminal.id);
+                                    }}
                                     onSelect={() => {
                                         setActiveWork(`terminal:${terminal.id}`);
                                         if (sessionState)
                                             persistSessionState({
                                                 ...sessionState,
                                                 activeTab: undefined,
-                                                layout: { splitTerminalIds: [terminal.id] },
+                                                layout: selectTerminal(
+                                                    sessionState.layout,
+                                                    terminal.id,
+                                                ),
                                             });
                                     }}
                                 />
@@ -648,39 +671,43 @@ export default function App() {
                                 ) : (
                                     <div className="empty-work">Loading file…</div>
                                 )
-                            ) : splitTerminals.length > 0 ? (
-                                <div
-                                    className={`terminal-grid terminal-grid-${Math.min(splitTerminals.length, 2)}`}
-                                >
-                                    {splitTerminals.slice(0, 2).map((terminal) => (
-                                        <TerminalPane
-                                            key={terminal.id}
-                                            attachEpoch={runtimeAttachEpoch}
-                                            terminal={terminal}
-                                            theme={bootstrap.theme}
-                                            fontSize={bootstrap.settings['terminal.fontSize']}
-                                            scrollback={bootstrap.settings['terminal.scrollback']}
-                                            onRestart={(id) =>
-                                                void window.caxri
-                                                    .request('terminal.attach', { terminalId: id })
-                                                    .then(() =>
-                                                        window.caxri.request('terminal.restart', {
-                                                            terminalId: id,
-                                                        }),
-                                                    )
-                                                    .then(() => refresh())
-                                                    .catch((error: unknown) =>
-                                                        showMessage(
-                                                            error instanceof Error
-                                                                ? error.message
-                                                                : 'Terminal restart failed',
-                                                        ),
-                                                    )
-                                            }
-                                            onError={showMessage}
-                                        />
-                                    ))}
-                                </div>
+                            ) : sessionState?.layout.root ? (
+                                <TerminalLayoutView
+                                    attachEpoch={runtimeAttachEpoch}
+                                    terminals={sessionTerminals}
+                                    layout={sessionState.layout}
+                                    theme={bootstrap.theme}
+                                    fontSize={bootstrap.settings['terminal.fontSize']}
+                                    scrollback={bootstrap.settings['terminal.scrollback']}
+                                    onActivate={(terminalId, groupId) => {
+                                        setActiveWork(`terminal:${terminalId}`);
+                                        const current = sessionStateRef.current;
+                                        if (
+                                            current &&
+                                            (current.layout.activeGroupId !== groupId ||
+                                                current.activeTab)
+                                        )
+                                            persistSessionState({
+                                                ...current,
+                                                activeTab: undefined,
+                                                layout: {
+                                                    ...current.layout,
+                                                    activeGroupId: groupId,
+                                                },
+                                            });
+                                    }}
+                                    onLayoutChange={(layout) => {
+                                        const current = sessionStateRef.current;
+                                        if (current)
+                                            persistSessionState({
+                                                ...current,
+                                                activeTab: undefined,
+                                                layout,
+                                            });
+                                    }}
+                                    onRestart={restartTerminal}
+                                    onError={showMessage}
+                                />
                             ) : (
                                 <div className="empty-work">
                                     <TerminalSquare size={30} />

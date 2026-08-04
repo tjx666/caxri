@@ -11,6 +11,8 @@ import { TerminalReplayBuffer } from '../lib/terminal-replay';
 import { Button } from './ui/button';
 
 interface TerminalPaneProps {
+    active: boolean;
+    ariaLabel: string;
     attachEpoch: number;
     terminal: TerminalRecord;
     theme: ThemeTokens;
@@ -18,9 +20,12 @@ interface TerminalPaneProps {
     scrollback: number;
     onRestart: (terminalId: string) => void;
     onError: (message: string) => void;
+    onFocus: () => void;
 }
 
 export function TerminalPane({
+    active,
+    ariaLabel,
     attachEpoch,
     terminal,
     theme,
@@ -28,12 +33,14 @@ export function TerminalPane({
     scrollback,
     onRestart,
     onError,
+    onFocus,
 }: TerminalPaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const attachedEpochRef = useRef(attachEpoch);
     const latestRef = useRef({
+        active,
         fontSize,
         onError,
         processState: terminal.lastProcessState,
@@ -43,13 +50,14 @@ export function TerminalPane({
 
     useEffect(() => {
         latestRef.current = {
+            active,
             fontSize,
             onError,
             processState: terminal.lastProcessState,
             scrollback,
             terminalTheme: theme.terminal,
         };
-    }, [fontSize, onError, scrollback, terminal.lastProcessState, theme.terminal]);
+    }, [active, fontSize, onError, scrollback, terminal.lastProcessState, theme.terminal]);
 
     useEffect(() => {
         let canceled = false;
@@ -140,7 +148,8 @@ export function TerminalPane({
         observer.observe(containerRef.current);
         requestAnimationFrame(() => {
             fit.fit();
-            if (latestRef.current.processState === 'running') xterm.focus();
+            if (latestRef.current.active && latestRef.current.processState === 'running')
+                xterm.focus();
         });
 
         return () => {
@@ -174,9 +183,9 @@ export function TerminalPane({
         if (!xterm) return;
         const isRunning = terminal.lastProcessState === 'running';
         xterm.options.disableStdin = !isRunning;
-        if (isRunning) requestAnimationFrame(() => xterm.focus());
+        if (active && isRunning) requestAnimationFrame(() => xterm.focus());
         else xterm.blur();
-    }, [terminal.lastProcessState]);
+    }, [active, terminal.lastProcessState]);
 
     useEffect(() => {
         if (!xtermRef.current) return;
@@ -189,7 +198,13 @@ export function TerminalPane({
         terminal.lastProcessState !== 'running' && terminal.lastProcessState !== 'starting';
 
     return (
-        <div className="terminal-pane" data-terminal-id={terminal.id}>
+        <div
+            role="region"
+            aria-label={ariaLabel}
+            className="terminal-pane"
+            data-terminal-id={terminal.id}
+            onFocus={onFocus}
+        >
             <div ref={containerRef} className="terminal-surface" />
             {isDead && (
                 <div className="terminal-dead">

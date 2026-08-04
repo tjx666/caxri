@@ -70,14 +70,35 @@ export interface EditorTabState {
     dirty: boolean;
 }
 
+export interface TerminalGroupNode {
+    type: 'group';
+    id: string;
+    terminalIds: string[];
+    activeTerminalId?: string;
+}
+
+export interface TerminalSplitNode {
+    type: 'split';
+    id: string;
+    direction: 'horizontal' | 'vertical';
+    ratio: number;
+    first: TerminalLayoutNode;
+    second: TerminalLayoutNode;
+}
+
+export type TerminalLayoutNode = TerminalGroupNode | TerminalSplitNode;
+
+export interface TerminalLayout {
+    root?: TerminalLayoutNode;
+    activeGroupId?: string;
+}
+
 export interface SessionState {
     sessionId: string;
     openTabs: EditorTabState[];
     activeTab?: string;
     inspectorMode: InspectorMode;
-    layout: {
-        splitTerminalIds: string[];
-    };
+    layout: TerminalLayout;
 }
 
 export interface AppSettings {

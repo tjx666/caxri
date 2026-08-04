@@ -33,13 +33,13 @@ The preload exposes one `request` method backed by a fixed method union plus `on
 
 ## Persistence
 
-SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Schema v2 contains:
+SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Schema v3 contains:
 
 - `projects`: identity, unique root, display title, and timestamps
 - `sessions`: Project ownership, identity, timestamps, primary terminal, last activity, layout version
 - `terminals`: durable identity/position/cwd/title/icon/provider and last process state
 - `terminal_snapshots`: versioned bounded VT/text payload with line and byte counts
-- `session_state`: open editor tabs, active tab, inspector mode, and layout JSON
+- `session_state`: open editor tabs, active tab, inspector mode, and a recursive Terminal split layout
 - `app_state`: last selected Project and Session, window state, active theme, and schema version
 
 Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. A Renderer subscribes before attaching, then replays the bounded snapshot ahead of output received during attachment. Bytes already represented by that snapshot are removed from the live-output queue before replay to prevent duplication. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
@@ -47,6 +47,8 @@ Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended 
 ## PTY lifecycle and backpressure
 
 Runtime launches only discovered allowlisted programs (`$SHELL`, `claude`, or `codex`) with argv, cwd, and a filtered environment. Shell context plus standard proxy and custom-CA variables are retained, while credential-bearing and Caxri-internal variables are excluded. Switching Sessions detaches views but does not stop PTYs. Renderer output delivery is coalesced; per-terminal queues have a byte ceiling and emit a dropped-output marker when the renderer cannot keep up. Durable Terminal creation is capped at 16 per Session and 32 globally. The Renderer bundles JetBrains Mono's four terminal faces plus Symbols Nerd Font Mono as a fallback and loads them before xterm measures its cells, so packaged builds do not depend on system-installed terminal fonts.
+
+Terminal groups form a persisted binary split tree with horizontal or vertical direction and a bounded ratio. Dragging a tab moves its durable Terminal ID between groups or creates a new split; shared reducers collapse empty groups and validate that one Terminal cannot appear twice. Moving a view may detach and reattach xterm, but the Runtime-owned PTY is neither restarted nor duplicated. Keyboard-adjustable separators and group labels preserve accessible focus semantics.
 
 Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` detaches every Renderer view and closes the window while Main, Runtime, and PTYs remain alive; reopening creates a new window and attaches it to the live Runtime. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 

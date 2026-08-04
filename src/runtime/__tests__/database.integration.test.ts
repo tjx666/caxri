@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import Database from 'better-sqlite3';
 
+import { listLayoutTerminalIds, splitTerminal } from '../../shared/terminal-layout';
 import { CaxriDatabase } from '../database';
 
 const temporaryDirectories: string[] = [];
@@ -187,6 +188,26 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('collapses only the empty Terminal group when its final Terminal closes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-close-terminal-group-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const second = database.createTerminal(created.session.id, 'shell');
+        const state = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...state,
+            layout: splitTerminal(state.layout, second.id, state.layout.activeGroupId!, 'vertical'),
+        });
+
+        database.closeTerminal(second.id);
+
+        expect(listLayoutTerminalIds(database.getSessionState(created.session.id).layout)).toEqual([
+            created.terminal.id,
+        ]);
+        database.close();
+    });
+
     it('rejects databases created by a newer schema version', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-future-schema-'));
         temporaryDirectories.push(directory);
@@ -196,6 +217,25 @@ describe('CaxriDatabase', () => {
         futureDatabase.close();
 
         expect(() => new CaxriDatabase(databasePath)).toThrow(/newer schema version/i);
+    });
+
+    it('rebuilds pre-release layout metadata without touching Project files', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-layout-schema-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await writeFile(projectRoot, 'user-owned', 'utf8');
+        const databasePath = join(directory, 'state.db');
+        const previous = new CaxriDatabase(databasePath);
+        previous.createSession(previous.createProject(projectRoot).id, 'shell');
+        previous.database.pragma('user_version = 2');
+        previous.close();
+
+        const rebuilt = new CaxriDatabase(databasePath);
+
+        expect(rebuilt.listProjects()).toEqual([]);
+        expect(rebuilt.listSessions()).toEqual([]);
+        expect(await readFile(projectRoot, 'utf8')).toBe('user-owned');
+        rebuilt.close();
     });
 
     it('restricts the database and WAL sidecar files to the current user', async () => {

@@ -41,7 +41,7 @@ const database = new CaxriDatabase(join(userDataPath, 'caxri.db'));
 const emit = (event: RuntimeEvent): void => parentPort.postMessage(event);
 const configuration = new ConfigurationService(userDataPath, emit, logger);
 await configuration.initialize();
-database.setAppState('schemaVersion', 1);
+database.setAppState('schemaVersion', 3);
 database.setAppState('activeThemeId', configuration.getTheme().value.id);
 const files = new FileService(
     database,
