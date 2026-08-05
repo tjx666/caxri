@@ -65,7 +65,7 @@ function isZodError(value: unknown): value is ZodError {
 const MAX_REPORTED_ISSUES = 5;
 
 /** Renders a Zod failure as one readable sentence without echoing the rejected values. */
-export function describeValidationError(error: ZodError): string {
+function describeValidationError(error: ZodError): string {
     const issues = error.issues.slice(0, MAX_REPORTED_ISSUES).map((issue) => {
         const path = issue.path.join('.');
         return path ? `${path}: ${issue.message}` : issue.message;

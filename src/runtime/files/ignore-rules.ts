@@ -7,7 +7,7 @@ import { sep } from 'node:path';
  * frequently-churning trees that add noise to the file tree, Git diffs, and watcher traffic
  * without adding value.
  */
-export const IGNORED_SEGMENTS = new Set([
+const IGNORED_SEGMENTS = new Set([
     '.git',
     '.hg',
     '.svn',
@@ -30,7 +30,7 @@ export const IGNORED_SEGMENTS = new Set([
  * `database.ts`), and a WAL file is rewritten on nearly every transaction; surfacing or watching
  * one would create constant listing/watcher churn for no benefit to the user.
  */
-export const IGNORED_SUFFIXES = ['.db-wal'];
+const IGNORED_SUFFIXES = ['.db-wal'];
 
 /** True when a bare file or directory name should be excluded from a listing or signature scan. */
 export function isIgnoredName(name: string): boolean {

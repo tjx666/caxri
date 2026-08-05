@@ -9,7 +9,6 @@ export {
     type AgentSnapshot,
     type AppSettings,
     type BootstrapState,
-    type EditorTabState,
     type FileChange,
     type FileDocument,
     type FileEntry,

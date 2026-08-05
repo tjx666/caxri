@@ -8,8 +8,8 @@ export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
 
-export const agentProviderSchema = z.enum(['claude', 'codex']);
-export const agentActivityStateSchema = z.enum([
+const agentProviderSchema = z.enum(['claude', 'codex']);
+const agentActivityStateSchema = z.enum([
     'running',
     'waiting',
     'completed',
@@ -18,28 +18,14 @@ export const agentActivityStateSchema = z.enum([
     'unknown',
 ]);
 export const terminalKindSchema = z.enum(['claude', 'codex', 'shell']);
-export const processStateSchema = z.enum(['starting', 'running', 'stopped', 'dead', 'failed']);
-export const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
+const processStateSchema = z.enum(['starting', 'running', 'stopped', 'dead', 'failed']);
+const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
 
 export type AgentProvider = z.infer<typeof agentProviderSchema>;
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
 export type InspectorMode = z.infer<typeof inspectorModeSchema>;
-
-export const agentUsageEntrySchema = z.object({ label: z.string(), value: z.string() });
-
-export const agentSnapshotSchema = z.object({
-    provider: agentProviderSchema,
-    sessionId: z.string().optional(),
-    title: z.string().optional(),
-    status: agentActivityStateSchema,
-    usage: z.array(agentUsageEntrySchema).optional(),
-    observedAt: z.number(),
-    available: z.boolean(),
-    executable: z.string().optional(),
-    version: z.string().optional(),
-});
 
 export const projectRecordSchema = z.object({
     id: z.string(),
@@ -90,7 +76,7 @@ export const terminalSnapshotSchema = z.object({
     updatedAt: z.number(),
 });
 
-export const editorTabStateSchema = z.object({ path: pathSchema, dirty: z.boolean() });
+const editorTabStateSchema = z.object({ path: pathSchema, dirty: z.boolean() });
 
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
@@ -202,7 +188,7 @@ export const fileDocumentSchema = z.object({
     size: z.number(),
 });
 
-export const gitFileStatusSchema = z.object({
+const gitFileStatusSchema = z.object({
     path: z.string(),
     originalPath: z.string().optional(),
     index: z.string(),
@@ -210,7 +196,7 @@ export const gitFileStatusSchema = z.object({
     kind: z.enum(['modified', 'added', 'deleted', 'renamed', 'untracked', 'conflicted']),
 });
 
-export const gitRepositorySummarySchema = z.object({
+const gitRepositorySummarySchema = z.object({
     id: z.string(),
     kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
     name: z.string(),
@@ -228,22 +214,16 @@ export const gitSummarySchema = z.object({
     error: z.string().optional(),
 });
 
-export const projectStatusStateSchema = z.enum([
-    'success',
-    'failure',
-    'pending',
-    'neutral',
-    'unknown',
-]);
+const projectStatusStateSchema = z.enum(['success', 'failure', 'pending', 'neutral', 'unknown']);
 
-export const projectStatusCheckSchema = z.object({
+const projectStatusCheckSchema = z.object({
     name: z.string(),
     state: projectStatusStateSchema,
     url: z.string().url().optional(),
     durationMs: z.number().nonnegative().optional(),
 });
 
-export const projectStatusLinearIssueSchema = z.object({
+const projectStatusLinearIssueSchema = z.object({
     identifier: z.string(),
     title: z.string().optional(),
     url: z.string().url().optional(),
@@ -253,7 +233,7 @@ export const projectStatusLinearIssueSchema = z.object({
         .optional(),
 });
 
-export const projectStatusDeploymentSchema = z.object({
+const projectStatusDeploymentSchema = z.object({
     environment: z.enum(['production', 'preview']),
     hostname: z.string(),
     state: projectStatusStateSchema,
@@ -261,13 +241,13 @@ export const projectStatusDeploymentSchema = z.object({
     createdAt: z.number().optional(),
 });
 
-export const projectStatusErrorSchema = z.object({
+const projectStatusErrorSchema = z.object({
     source: z.enum(['github', 'linear', 'vercel']),
     message: z.string(),
     hint: z.string(),
 });
 
-export const projectStatusRepositorySchema = z.object({
+const projectStatusRepositorySchema = z.object({
     id: z.string(),
     kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
     name: z.string(),
@@ -351,12 +331,21 @@ export const bootstrapStateSchema = z.object({
     }),
 });
 
-export type AgentSnapshot = z.infer<typeof agentSnapshotSchema>;
+export interface AgentSnapshot {
+    provider: AgentProvider;
+    sessionId?: string;
+    title?: string;
+    status: AgentActivityState;
+    usage?: Array<{ label: string; value: string }>;
+    observedAt: number;
+    available: boolean;
+    executable?: string;
+    version?: string;
+}
 export type ProjectRecord = z.infer<typeof projectRecordSchema>;
 export type SessionRecord = z.infer<typeof sessionRecordSchema>;
 export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
-export type EditorTabState = z.infer<typeof editorTabStateSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type AppSettings = z.infer<typeof appSettingsSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;

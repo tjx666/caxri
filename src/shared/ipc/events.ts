@@ -35,11 +35,9 @@ export const runtimeEventPayloads = {
     'command.execute': z.object({ command: z.string() }),
 } as const;
 
-export type CaxriEventName = keyof typeof runtimeEventPayloads;
+type CaxriEventName = keyof typeof runtimeEventPayloads;
 
-export type RuntimeEventPayload<E extends CaxriEventName> = z.infer<
-    (typeof runtimeEventPayloads)[E]
->;
+type RuntimeEventPayload<E extends CaxriEventName> = z.infer<(typeof runtimeEventPayloads)[E]>;
 
 /** Discriminated union so `onEvent` listeners narrow `payload` from `event` alone. */
 export type RuntimeEvent = {
@@ -72,7 +70,3 @@ export const runtimeEventSchema = z.discriminatedUnion('event', [
         payload: runtimeEventPayloads['command.execute'],
     }),
 ]);
-
-export function isCaxriEventName(value: string): value is CaxriEventName {
-    return Object.hasOwn(runtimeEventPayloads, value);
-}

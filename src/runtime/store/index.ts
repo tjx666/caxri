@@ -7,7 +7,6 @@ import { SnapshotsStore } from './snapshots';
 import { markAllStopped as markAllTerminalsStopped, openDatabase } from './sqlite';
 import { TerminalsStore } from './terminals';
 
-export { CURRENT_SCHEMA_VERSION } from './sqlite';
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './terminals';
 
 /**
@@ -45,8 +44,4 @@ export class CaxriStore {
     close(): void {
         this.database.close();
     }
-}
-
-export function createStore(path: string): CaxriStore {
-    return new CaxriStore(path);
 }

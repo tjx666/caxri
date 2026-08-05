@@ -15,7 +15,7 @@ export async function selectSession(sessionId: string): Promise<void> {
     );
 }
 
-export async function createSession(projectId: string, defaultAgent: TerminalKind): Promise<void> {
+async function createSession(projectId: string, defaultAgent: TerminalKind): Promise<void> {
     await tryCommand(
         'Session creation failed',
         async () => {
@@ -26,10 +26,7 @@ export async function createSession(projectId: string, defaultAgent: TerminalKin
     );
 }
 
-export async function createProjectSession(
-    rootPath: string,
-    defaultAgent: TerminalKind,
-): Promise<void> {
+async function createProjectSession(rootPath: string, defaultAgent: TerminalKind): Promise<void> {
     await tryCommand('Project creation failed', async () => {
         const project = await caxri.request('project.create', { rootPath });
         /** Keeps the Agent-choice dialog open, now anchored to the created Project. */

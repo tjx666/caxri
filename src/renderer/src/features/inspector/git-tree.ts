@@ -1,13 +1,13 @@
 import type { GitFileStatus } from '@shared/types';
 
-export interface GitFileTreeDirectory {
+interface GitFileTreeDirectory {
     children: GitFileTreeNode[];
     kind: 'directory';
     name: string;
     path: string;
 }
 
-export interface GitFileTreeFile {
+interface GitFileTreeFile {
     file: GitFileStatus;
     kind: 'file';
     name: string;

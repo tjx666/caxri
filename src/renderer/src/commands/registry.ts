@@ -46,8 +46,3 @@ export function registerCommand(definition: CommandDefinition): void {
 export function getRegisteredCommand(id: string): CommandDefinition | undefined {
     return registry.get(id);
 }
-
-/** Snapshot of every registered command id, used to keep the registry in sync with the shared catalog. */
-export function registeredCommandIds(): string[] {
-    return [...registry.keys()];
-}

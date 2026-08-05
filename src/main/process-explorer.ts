@@ -8,7 +8,7 @@ const PROCESS_QUERY_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const MAX_PROCESS_NAME_LENGTH = 4_096;
 
-export interface ElectronProcessSample {
+interface ElectronProcessSample {
     cpuPercent: number;
     memoryMb: number;
     name?: string;
@@ -26,7 +26,7 @@ export interface ElectronProcessSample {
         | 'Zygote';
 }
 
-export type ProcessListRunner = () => Promise<string>;
+type ProcessListRunner = () => Promise<string>;
 
 interface ProcessExplorerSamplerOptions {
     electronProcesses: () => ElectronProcessSample[];
@@ -105,7 +105,7 @@ function electronProcessName(sample: ElectronProcessSample): string {
     return `${sample.type.toLowerCase().replaceAll(' ', '-')}${sample.name ? ` (${sample.name})` : ''}`;
 }
 
-export async function runProcessList(): Promise<string> {
+async function runProcessList(): Promise<string> {
     const result = await execFileAsync('/bin/ps', ['-axo', 'pid=,ppid=,pcpu=,rss=,command='], {
         encoding: 'utf8',
         maxBuffer: PROCESS_QUERY_MAX_BUFFER_BYTES,

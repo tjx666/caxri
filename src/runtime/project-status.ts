@@ -235,7 +235,7 @@ export function extractLinearReferences(body: string): LinearReference[] {
     return references;
 }
 
-export function checkState(check: GitHubCheck): ProjectStatusState {
+function checkState(check: GitHubCheck): ProjectStatusState {
     const status = (check.status ?? '').toUpperCase();
     const result = (check.conclusion ?? check.state ?? '').toUpperCase();
     if (PENDING_RESULTS.has(status) || PENDING_RESULTS.has(result)) return 'pending';
@@ -649,7 +649,7 @@ function vcListArgs(
     return args;
 }
 
-export async function runProjectStatusCommand(
+async function runProjectStatusCommand(
     command: ProjectStatusCommand,
     args: readonly string[],
     cwd: string,

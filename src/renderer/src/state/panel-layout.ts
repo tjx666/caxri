@@ -31,7 +31,7 @@ export interface PanelLayout {
     inspectorVisible: boolean;
 }
 
-export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
+const DEFAULT_PANEL_LAYOUT: PanelLayout = {
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     inspectorWidth: INSPECTOR_DEFAULT_WIDTH,
     inspectorVisible: true,

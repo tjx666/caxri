@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import type {
     AppSettings,
     BootstrapState,
-    Keybinding,
     ProjectRecord,
     SessionRecord,
     SessionState,
@@ -28,12 +27,12 @@ export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord
     );
 }
 
-export function selectSessionState(bootstrap?: BootstrapState): SessionState | undefined {
+function selectSessionState(bootstrap?: BootstrapState): SessionState | undefined {
     const sessionId = selectSelectedSession(bootstrap)?.id;
     return bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
 }
 
-export function selectSessionTerminals(bootstrap?: BootstrapState): TerminalRecord[] {
+function selectSessionTerminals(bootstrap?: BootstrapState): TerminalRecord[] {
     const sessionId = selectSelectedSession(bootstrap)?.id;
     if (!sessionId) return NO_TERMINALS;
     return (
@@ -86,10 +85,6 @@ export function useTheme(): ThemeTokens | undefined {
 
 export function useSettings(): AppSettings | undefined {
     return useWorkbenchStore((state) => state.bootstrap?.settings);
-}
-
-export function useKeybindings(): Keybinding[] | undefined {
-    return useWorkbenchStore((state) => state.bootstrap?.keybindings);
 }
 
 export function useProjects(): ProjectRecord[] | undefined {

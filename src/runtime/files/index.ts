@@ -1,2 +1,2 @@
-export { FileService, type FileServiceOptions } from './service';
+export { FileService } from './service';
 export { rememberChangeFingerprint, rememberPolledDirectory } from './watcher';

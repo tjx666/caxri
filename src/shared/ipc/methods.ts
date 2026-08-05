@@ -276,26 +276,25 @@ export const internalMethods = {
 } as const satisfies Record<string, MethodSpec>;
 
 export type CaxriMethod = keyof typeof methods;
-export type InternalMethod = keyof typeof internalMethods;
+type InternalMethod = keyof typeof internalMethods;
 export type RuntimeMethod = CaxriMethod | InternalMethod;
 
 type MethodOwnedBy<Owner extends MethodSpec['owner']> = {
     [M in CaxriMethod]: (typeof methods)[M]['owner'] extends Owner ? M : never;
 }[CaxriMethod];
 
-export type MainMethod = MethodOwnedBy<'main'>;
-export type RuntimeOwnedMethod = MethodOwnedBy<'runtime'>;
+type MainMethod = MethodOwnedBy<'main'>;
 
 type AllMethods = typeof methods & typeof internalMethods;
 
 /** Parameters as a handler receives them, after Zod applied defaults and coercion. */
-export type MethodParams<M extends CaxriMethod> = z.infer<(typeof methods)[M]['params']>;
+type MethodParams<M extends CaxriMethod> = z.infer<(typeof methods)[M]['params']>;
 /** Parameters as a caller supplies them; `undefined` is allowed when the schema has a default. */
-export type MethodInput<M extends CaxriMethod> = z.input<(typeof methods)[M]['params']>;
+type MethodInput<M extends CaxriMethod> = z.input<(typeof methods)[M]['params']>;
 export type MethodResult<M extends CaxriMethod> = z.infer<(typeof methods)[M]['result']>;
 
 export type RuntimeMethodParams<M extends RuntimeMethod> = z.infer<AllMethods[M]['params']>;
-export type RuntimeMethodInput<M extends RuntimeMethod> = z.input<AllMethods[M]['params']>;
+type RuntimeMethodInput<M extends RuntimeMethod> = z.input<AllMethods[M]['params']>;
 export type RuntimeMethodResult<M extends RuntimeMethod> = z.infer<AllMethods[M]['result']>;
 
 /** Makes the params argument optional exactly when the method's schema accepts `undefined`. */
@@ -313,7 +312,6 @@ export type CaxriRequest = {
 }[CaxriMethod];
 
 export type MainRequest = Extract<CaxriRequest, { method: MainMethod }>;
-export type RuntimeOwnedRequest = Extract<CaxriRequest, { method: RuntimeOwnedMethod }>;
 
 export type RuntimeRequest = {
     [M in RuntimeMethod]: { method: M; params: RuntimeMethodParams<M> };
@@ -328,12 +326,8 @@ export function isMainRequest(request: CaxriRequest): request is MainRequest {
     return methods[request.method].owner === 'main';
 }
 
-export function isInternalMethod(value: string): value is InternalMethod {
+function isInternalMethod(value: string): value is InternalMethod {
     return Object.hasOwn(internalMethods, value);
-}
-
-export function isRuntimeMethod(value: string): value is RuntimeMethod {
-    return isCaxriMethod(value) || isInternalMethod(value);
 }
 
 export function getMethodSpec(method: string): MethodSpec | undefined {

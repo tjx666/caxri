@@ -9,7 +9,7 @@ const CRASH_WINDOW_MS = 60_000;
 /** Exponential reload backoff: 250ms, then 1s, then 4s, matching the WP4 review requirement. */
 const RELOAD_BACKOFF_MS = [250, 1_000, 4_000] as const;
 
-export interface CrashRecoveryDecision {
+interface CrashRecoveryDecision {
     /** `reload` retries automatically after `delayMs`; `stop` gives up and asks the user. */
     action: 'reload' | 'stop';
     /** Present only when `action` is `'reload'`. */

@@ -19,8 +19,8 @@ export interface TerminalSplitNode {
 
 export type TerminalLayoutNode = TerminalGroupNode | TerminalSplitNode;
 
-export const MAX_LAYOUT_NODES = 31;
-export const MAX_LAYOUT_TERMINALS = 16;
+const MAX_LAYOUT_NODES = 31;
+const MAX_LAYOUT_TERMINALS = 16;
 export const MIN_SPLIT_RATIO = 0.15;
 export const MAX_SPLIT_RATIO = 0.85;
 
@@ -42,7 +42,7 @@ const terminalSplitNodeSchema: z.ZodType<TerminalSplitNode, TerminalSplitNode> =
     second: z.lazy(() => terminalLayoutNodeSchema),
 });
 
-export const terminalLayoutNodeSchema: z.ZodType<TerminalLayoutNode, TerminalLayoutNode> = z.union([
+const terminalLayoutNodeSchema: z.ZodType<TerminalLayoutNode, TerminalLayoutNode> = z.union([
     terminalGroupNodeSchema,
     terminalSplitNodeSchema,
 ]);

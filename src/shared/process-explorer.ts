@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import type { ThemeTokens } from './types';
 
-export const processExplorerEntrySchema = z.object({
+const processExplorerEntrySchema = z.object({
     pid: z.number().int().positive(),
     parentPid: z.number().int().nonnegative(),
     name: z.string().min(1).max(4_096),

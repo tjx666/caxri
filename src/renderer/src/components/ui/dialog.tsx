@@ -8,19 +8,11 @@ export function Dialog(props: DialogPrimitive.Root.Props) {
     return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
-export function DialogTrigger(props: DialogPrimitive.Trigger.Props) {
-    return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
-}
-
-export function DialogPortal(props: DialogPrimitive.Portal.Props) {
+function DialogPortal(props: DialogPrimitive.Portal.Props) {
     return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
-export function DialogClose(props: DialogPrimitive.Close.Props) {
-    return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
-}
-
-export function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
     return (
         <DialogPrimitive.Backdrop
             data-slot="dialog-overlay"

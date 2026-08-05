@@ -57,7 +57,7 @@ export function describeGitFailure(error: unknown): string {
 }
 
 /** Wraps a raw `execFile` fault as a `GIT` error while keeping the already user-facing wording. */
-export function toGitError(error: unknown): CaxriError {
+function toGitError(error: unknown): CaxriError {
     return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error));
 }
 

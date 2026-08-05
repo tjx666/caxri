@@ -22,8 +22,6 @@ export const requestEnvelopeSchema = z.object({
     params: z.unknown(),
 });
 
-export type RequestEnvelope = z.infer<typeof requestEnvelopeSchema>;
-
 /**
  * Validates params once and pairs them with their method so downstream `switch` statements narrow
  * both together. The assertion is the single correlation point: `methods[method]` is resolved from a
@@ -83,7 +81,7 @@ const wireErrorSchema = z
         ...(details ? { details } : {}),
     }));
 
-export const runtimeResponseSchema = z.discriminatedUnion('ok', [
+const runtimeResponseSchema = z.discriminatedUnion('ok', [
     z.object({ id: identifierSchema, ok: z.literal(true), result: z.unknown() }),
     z.object({ id: identifierSchema, ok: z.literal(false), error: wireErrorSchema }),
 ]);

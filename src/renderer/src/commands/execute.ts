@@ -28,7 +28,7 @@ function activeTerminalId(): string | undefined {
     return active?.kind === 'terminal' ? active.terminalId : undefined;
 }
 
-export const commandContext: CommandContext = {
+const commandContext: CommandContext = {
     project: {
         create: () => void chooseProjectDirectory(),
         removeSelected: deleteSelectedProject,

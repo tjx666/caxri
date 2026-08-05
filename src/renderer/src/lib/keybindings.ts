@@ -5,7 +5,7 @@ import type { Keybinding } from '@shared/types';
 import { useWorkbenchStore } from '../state/workbench';
 
 /** Shortcut normalization shared by the keybinding table and the global keydown dispatcher. */
-export function normalizeShortcut(value: string): string {
+function normalizeShortcut(value: string): string {
     return value
         .toLowerCase()
         .replaceAll('command', 'cmd')
@@ -70,7 +70,7 @@ const MODIFIER_SYMBOLS: Record<string, string> = {
 const MODIFIER_DISPLAY_ORDER = ['ctrl', 'alt', 'shift', 'cmd'];
 
 /** Formats a keybinding chord for display, e.g. `cmd+shift+p` -> `⌘⇧P`. */
-export function formatShortcut(key: string): string {
+function formatShortcut(key: string): string {
     const parts = normalizeShortcut(key).split('+');
     const symbols = MODIFIER_DISPLAY_ORDER.filter((modifier) => parts.includes(modifier)).map(
         (modifier) => MODIFIER_SYMBOLS[modifier],

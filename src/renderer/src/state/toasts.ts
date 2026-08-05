@@ -6,7 +6,7 @@ import { refreshWorkbench } from './workbench';
 
 export type ToastKind = 'info' | 'success' | 'error';
 
-export interface Toast {
+interface Toast {
     id: number;
     kind: ToastKind;
     message: string;

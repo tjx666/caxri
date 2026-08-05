@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
  * Bumped whenever the DDL below changes shape. Pre-release databases are dropped and rebuilt
  * fresh (see {@link initializeSchema}); there is no migration path yet.
  */
-export const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 5;
 
 /** Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart. */
 export const DEFAULT_LAYOUT_VERSION = 2;
@@ -112,7 +112,7 @@ function initializeSchema(database: Database.Database): void {
 }
 
 /** Bulk-marks Terminals that claimed to be alive as `dead` after an unclean Runtime shutdown. */
-export function markUncleanShutdownDead(database: Database.Database, now: number): void {
+function markUncleanShutdownDead(database: Database.Database, now: number): void {
     database
         .prepare(
             "UPDATE terminals SET last_process_state = 'dead', updated_at = ? WHERE last_process_state IN ('running', 'starting')",
