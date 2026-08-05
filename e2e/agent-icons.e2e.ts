@@ -46,7 +46,7 @@ test('Agent identities stay consistent across every shared surface', async () =>
             running.page.locator('.terminal-info-card').locator('[data-agent-icon="codex"]'),
         ).toBeVisible();
 
-        await running.page.getByRole('button', { name: 'Settings', exact: true }).click();
+        await running.page.keyboard.press('Meta+,');
         const settingsDialog = running.page.getByRole('dialog');
         await expect(settingsDialog.locator('[data-agent-icon="unknown"]')).toBeVisible();
         await settingsDialog.getByLabel('Default Agent').click();

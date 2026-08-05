@@ -686,7 +686,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(infoTab).toHaveClass(/active/);
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 
-        await running.page.getByRole('button', { name: 'Settings' }).click();
+        await running.page.keyboard.press('Meta+,');
         await running.page.getByRole('button', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
         await expect(
