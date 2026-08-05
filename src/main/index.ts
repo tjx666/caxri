@@ -29,6 +29,8 @@ import type { PersistedWindowState } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
+import { ProcessExplorerSampler } from './process-explorer';
+import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
 import { resolveTestRootPath } from './test-root';
@@ -48,6 +50,7 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
 let mainWindow: BrowserWindow | undefined;
 let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
+let processExplorer: ProcessExplorerWindowController;
 let forceWindowClose = false;
 let quitStarted = false;
 const grantedRoots = new ProjectRootGrants();
@@ -375,6 +378,9 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
             if (error) throw new CaxriError('IO', error);
             return null;
         }
+        case 'processExplorer.open':
+            processExplorer.open();
+            return null;
         case 'diagnostics.export': {
             const result = await dialog.showSaveDialog(mainWindow!, {
                 title: 'Export Diagnostics',
@@ -515,6 +521,18 @@ async function installMenu(): Promise<void> {
                 label: 'Window',
                 submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }],
             },
+            {
+                label: 'Help',
+                submenu: [
+                    {
+                        id: 'command.processExplorer.open',
+                        label: getCommandDefinition('processExplorer.open').title,
+                        click: () => processExplorer.open(),
+                    },
+                    { type: 'separator' },
+                    command('diagnostics.export'),
+                ],
+            },
         ]),
     );
 }
@@ -536,6 +554,25 @@ void app.whenReady().then(async () => {
         mainLogger,
         logLevel,
     );
+    processExplorer = new ProcessExplorerWindowController({
+        currentDirectory,
+        logger: mainLogger,
+        rendererUrl: process.env.ELECTRON_RENDERER_URL,
+        sampler: new ProcessExplorerSampler({
+            rootPid: process.pid,
+            runtimePid: () => supervisor.processId(),
+            electronProcesses: () =>
+                app.getAppMetrics().map((metric) => ({
+                    pid: metric.pid,
+                    type: metric.type,
+                    name: metric.name,
+                    serviceName: metric.serviceName,
+                    cpuPercent: metric.cpu.percentCPUUsage,
+                    memoryMb: Math.round((metric.memory.workingSetSize / 1024) * 10) / 10,
+                })),
+        }),
+        theme: () => supervisor.request('theme.get').then((result) => result.value),
+    });
     supervisor.on('event', sendEvent);
     const runtimeStartedAt = performance.now();
     await supervisor
@@ -552,6 +589,7 @@ void app.whenReady().then(async () => {
             }),
         );
     installIpc();
+    processExplorer.installIpc();
     await installMenu();
     await openMainWindow();
 });

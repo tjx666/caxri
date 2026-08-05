@@ -68,6 +68,10 @@ export class RuntimeSupervisor extends EventEmitter {
         this.logger = logger;
     }
 
+    processId(): number | undefined {
+        return this.child?.pid;
+    }
+
     start(): Promise<void> {
         /**
          * A request arriving while a crash-restart is scheduled must wait for that restart instead

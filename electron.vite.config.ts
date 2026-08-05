@@ -46,7 +46,10 @@ export default defineConfig(({ command }) => ({
         build: {
             externalizeDeps: true,
             rollupOptions: {
-                input: resolve('src/preload/index.ts'),
+                input: {
+                    'index': resolve('src/preload/index.ts'),
+                    'process-explorer': resolve('src/preload/process-explorer.ts'),
+                },
                 output: {
                     format: 'cjs',
                     entryFileNames: '[name].cjs',
@@ -55,6 +58,14 @@ export default defineConfig(({ command }) => ({
         },
     },
     renderer: {
+        build: {
+            rollupOptions: {
+                input: {
+                    'index': resolve('src/renderer/index.html'),
+                    'process-explorer': resolve('src/renderer/process-explorer.html'),
+                },
+            },
+        },
         resolve: {
             alias: {
                 '@': resolve('src/renderer/src'),

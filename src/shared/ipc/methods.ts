@@ -71,6 +71,7 @@ export const methods = {
         params: z.object({ kind: z.enum(['settings', 'keybindings', 'theme']) }),
         result: z.null(),
     },
+    'processExplorer.open': { owner: 'main', params: noParams, result: z.null() },
     'dialog.selectDirectory': {
         owner: 'main',
         params: noParams,

@@ -1,0 +1,201 @@
+:root {
+    --background: #282a36;
+    --surface: #21222c;
+    --elevated: #343746;
+    --foreground: #f8f8f2;
+    --muted: #6272a4;
+    --border: #44475a;
+    --selection: #44475a;
+    --accent: #bd93f9;
+    --danger: #ff5555;
+
+    color: var(--foreground);
+    background: var(--background);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+button {
+    color: inherit;
+    font: inherit;
+}
+
+.process-explorer {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    grid-template-rows: 42px minmax(0, 1fr);
+    background: var(--background);
+}
+
+.process-titlebar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 48px 0 84px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    -webkit-app-region: drag;
+}
+
+.process-titlebar strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.process-titlebar button {
+    position: absolute;
+    right: 12px;
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+.process-titlebar button:hover {
+    background: var(--elevated);
+    color: var(--foreground);
+}
+
+.process-titlebar button:focus-visible {
+    outline: 1px solid var(--foreground);
+}
+
+.process-titlebar button:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.process-grid {
+    display: grid;
+    min-height: 0;
+    grid-template-rows: 30px minmax(0, 1fr);
+}
+
+.process-header,
+.process-row {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) 110px 140px 90px;
+}
+
+.process-header {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.process-header > strong,
+.process-row > span {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-left: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+}
+
+.process-header > strong:first-child {
+    border-left: 0;
+}
+
+.process-header > strong {
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.process-rows {
+    min-height: 0;
+    overflow: auto;
+}
+
+.process-row {
+    min-height: 28px;
+}
+
+.process-row:hover {
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.process-name-cell {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+}
+
+.process-name {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+}
+
+.process-name:disabled {
+    color: inherit;
+    cursor: default;
+}
+
+.process-name > svg,
+.process-indent {
+    flex: 0 0 auto;
+    width: 14px;
+}
+
+.process-name > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.process-name:focus-visible {
+    outline: 1px solid var(--foreground);
+    outline-offset: -1px;
+}
+
+.process-message {
+    display: grid;
+    min-height: 120px;
+    place-items: center;
+    color: var(--muted);
+}
+
+.process-error {
+    color: var(--danger);
+}
+
+.spinning {
+    animation: process-spin 900ms linear infinite;
+}
+
+@keyframes process-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

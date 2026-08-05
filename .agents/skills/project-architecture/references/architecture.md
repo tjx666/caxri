@@ -9,6 +9,7 @@ A `Project` is a user-selected local folder and the durable owner of its `rootPa
 ```text
 Electron Main
   -> secure BrowserWindow + native dialogs
+  -> dedicated Process Explorer window + fixed process sampler
   -> correlated IPC allowlist
   -> utilityProcess Runtime supervisor
 
@@ -17,6 +18,7 @@ Preload
 
 Renderer
   -> React, xterm.js, Monaco, shadcn/ui on Base UI
+  -> separate Process Explorer entry with a snapshot-only preload
 
 Runtime utilityProcess
   -> Project/Session/PTY/File/Git/Agent/Settings/Theme/Diagnostics services
@@ -24,6 +26,8 @@ Runtime utilityProcess
 ```
 
 The Renderer never owns runtime truth. A renderer reload attaches to the existing Runtime and receives current metadata plus bounded snapshots. A Runtime crash invalidates every in-memory PTY; the supervisor restarts with capped exponential backoff and persisted terminals are exposed as `dead`, never as silently restored processes. A Runtime must remain ready for 30 seconds before its restart budget resets, so ready/crash flapping still fails closed after three restarts.
+
+The Process Explorer is a singleton Main-owned window with its own renderer entry and narrow preload. While open, it samples a fixed `/bin/ps` argv every two seconds, filters the result to descendants of the Caxri Main process, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Runtime or PTY lifecycle.
 
 ## IPC contract
 

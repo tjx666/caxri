@@ -26,6 +26,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'inspector.toggle', title: 'Toggle Inspector', category: 'Inspector' },
     { id: 'settings.open', title: 'Open Settings', category: 'Preferences' },
     { id: 'commandPalette.open', title: 'Open Command Palette', category: 'View' },
+    { id: 'processExplorer.open', title: 'Open Process Explorer', category: 'Help' },
     { id: 'diagnostics.export', title: 'Export Diagnostics', category: 'Help' },
 ];
 

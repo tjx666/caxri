@@ -66,6 +66,13 @@ export const commandContext: CommandContext = {
         openSettings: () => useDialogStore.getState().setSettingsOpen(true),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
     },
+    windows: {
+        openProcessExplorer: () => {
+            void tryCommand('Unable to open Process Explorer', () =>
+                caxri.request('processExplorer.open'),
+            );
+        },
+    },
     diagnostics: {
         export: () => {
             void tryCommand('Diagnostics export failed', async () => {

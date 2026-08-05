@@ -19,7 +19,9 @@ const buildOutputPaths = [
     join(projectRoot, 'out', 'main', 'index.js'),
     join(projectRoot, 'out', 'main', 'runtime.js'),
     join(projectRoot, 'out', 'preload', 'index.cjs'),
+    join(projectRoot, 'out', 'preload', 'process-explorer.cjs'),
     join(projectRoot, 'out', 'renderer', 'index.html'),
+    join(projectRoot, 'out', 'renderer', 'process-explorer.html'),
 ];
 const watchedBuildInputExtensions = new Set([
     '.css',

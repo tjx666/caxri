@@ -11,6 +11,7 @@ export interface CommandContext {
     editor: { saveActive(): void };
     inspector: { setMode(mode: InspectorMode): void; toggle(): void };
     dialogs: { openSettings(): void; openPalette(): void };
+    windows: { openProcessExplorer(): void };
     diagnostics: { export(): void };
 }
 

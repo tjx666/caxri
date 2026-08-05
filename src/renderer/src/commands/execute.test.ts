@@ -33,6 +33,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
             },
+            windows: { openProcessExplorer: record('windows.openProcessExplorer') },
             diagnostics: { export: record('diagnostics.export') },
         },
     };

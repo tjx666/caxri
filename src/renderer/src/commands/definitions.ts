@@ -56,6 +56,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('commandPalette.open', (ctx) => ctx.dialogs.openPalette(), {
         allowInEditable: true,
     }),
+    fromCatalog('processExplorer.open', (ctx) => ctx.windows.openProcessExplorer()),
     fromCatalog('diagnostics.export', (ctx) => ctx.diagnostics.export()),
 ];
 
