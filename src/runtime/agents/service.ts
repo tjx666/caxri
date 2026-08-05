@@ -65,7 +65,7 @@ export class AgentService {
         context: AgentSnapshotContext = { rootPath: process.cwd() },
     ): Promise<AgentSnapshot> {
         return this.requests.run(
-            `${provider}:${context.rootPath}:${context.agentSessionId ?? ''}`,
+            `${provider}:${context.rootPath}:${context.agentSessionId ?? context.correlationId ?? ''}`,
             async () => {
                 const startedAt = performance.now();
                 const snapshot = await this.adapters[provider].snapshot(context);

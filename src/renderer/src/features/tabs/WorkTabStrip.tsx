@@ -1,6 +1,7 @@
 import { Plus, SplitSquareVertical } from 'lucide-react';
 
 import type { TerminalRecord } from '@shared/types';
+import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import { workItemsEqual, type WorkItem } from '@shared/work-item';
 
 import { Button } from '../../components/ui/button';
@@ -40,6 +41,7 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
 /** Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped. */
 function EditorWorkTab({ active, path }: { active: boolean; path: string }) {
     const sessionId = useSelectedSession()?.id;
+    const gitDiffTab = parseGitDiffTab(path);
     const dirty = useSessionViewStore((state) =>
         sessionId ? Boolean(state.documents[sessionId]?.[path]?.dirty) : false,
     );
@@ -49,7 +51,7 @@ function EditorWorkTab({ active, path }: { active: boolean; path: string }) {
             closeLabel="Close Editor"
             dirty={dirty}
             icon="file"
-            label={fileName(path)}
+            label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
             onClose={() => closeEditor(path)}
             onSelect={() => selectEditorTab(path)}
         />

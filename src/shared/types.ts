@@ -13,6 +13,7 @@ export {
     type FileChange,
     type FileDocument,
     type FileEntry,
+    type GitDiffDocument,
     type GitFileStatus,
     type GitRepositorySummary,
     type GitSummary,

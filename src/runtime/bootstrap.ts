@@ -140,6 +140,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         kind: TerminalKind,
     ): Promise<TerminalRecord> {
         const terminal = database.createTerminal(sessionId, kind);
+        coordinator.prepareTerminalStart(terminal.id);
         try {
             return await terminals.start(terminal);
         } catch {
@@ -209,6 +210,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         },
         'session.create': async ({ projectId, defaultAgent }) => {
             const created = database.createSession(projectId, defaultAgent);
+            coordinator.prepareTerminalStart(created.terminal.id);
             try {
                 await terminals.start(created.terminal);
             } catch {
@@ -274,6 +276,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'terminal.restart': async ({ terminalId }) => {
+            coordinator.prepareTerminalStart(terminalId);
             const terminal = await terminals.restart(terminalId);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             send({ event: 'state.changed', payload: { reason: 'terminal.restart' } });
@@ -291,6 +294,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'git.summary': ({ sessionId }) => git.summary(sessionId),
         'git.diff': ({ sessionId, repositoryId, path }) => git.diff(sessionId, repositoryId, path),
+        'git.diffDocument': ({ sessionId, repositoryId, path }) =>
+            git.diffDocument(sessionId, repositoryId, path),
         'settings.get': () => configuration.getSettings(),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);

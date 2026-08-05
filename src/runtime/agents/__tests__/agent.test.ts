@@ -132,14 +132,28 @@ describe('Agent adapter fallback', () => {
         const executable = join(bin, 'claude');
         await writeFile(executable, '#!/bin/sh\nprintf "claude 1.0\\n"\n', 'utf8');
         await chmod(executable, 0o700);
+        const metadataStartedAt = Date.now() - 1_000;
         await writeFile(
             join(config, 'sessions', 'session.json'),
             JSON.stringify({
                 cwd: root,
                 name: 'Repair terminal lifecycle',
                 sessionId: 'claude-session-1',
+                startedAt: new Date(metadataStartedAt + 1).toISOString(),
                 status: 'busy',
-                updatedAt: new Date().toISOString(),
+                updatedAt: new Date(metadataStartedAt + 20).toISOString(),
+            }),
+            'utf8',
+        );
+        await writeFile(
+            join(config, 'sessions', 'other-session.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'Keep this Terminal',
+                sessionId: 'claude-session-2',
+                startedAt: new Date(metadataStartedAt + 2).toISOString(),
+                status: 'idle',
+                updatedAt: new Date(metadataStartedAt + 10).toISOString(),
             }),
             'utf8',
         );
@@ -162,6 +176,16 @@ describe('Agent adapter fallback', () => {
             title: 'Repair terminal lifecycle',
             version: 'claude 1.0',
         });
+        await expect(
+            service.snapshot('claude', {
+                excludedAgentSessionIds: ['claude-session-1'],
+                rootPath: root,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({
+            sessionId: 'claude-session-2',
+            title: 'Keep this Terminal',
+        });
     });
 
     it('capability-detects the Codex thread index and exposes bounded metadata', async () => {
@@ -174,16 +198,23 @@ describe('Agent adapter fallback', () => {
         const executable = join(bin, 'codex');
         await writeFile(executable, '#!/bin/sh\nprintf "codex 1.0\\n"\n', 'utf8');
         await chmod(executable, 0o700);
+        const startedAt = Date.now();
         const database = new Database(join(state, 'state_9.sqlite'));
         database.exec(
-            'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
         );
         database
-            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
-            .run('codex-session-1', root, 'Finish Phase 1', Date.now(), 12_345, 0);
-        database
-            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
-            .run('codex-session-older', root, 'Keep this Terminal', Date.now() - 1_000, 42, 0);
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-older',
+                root,
+                '$debug https://github.com/example/project/issues/1',
+                null,
+                startedAt - 60_000,
+                startedAt - 60_000,
+                42,
+                0,
+            );
         database.close();
         vi.stubEnv('PATH', bin);
         vi.stubEnv('SHELL', '/usr/bin/false');
@@ -196,7 +227,43 @@ describe('Agent adapter fallback', () => {
         );
 
         await expect(
-            service.snapshot('codex', { rootPath: root, processState: 'running' }),
+            service.snapshot('codex', { rootPath: root, processState: 'running', startedAt }),
+        ).resolves.toMatchObject({
+            available: true,
+            status: 'running',
+            sessionId: undefined,
+            title: undefined,
+        });
+
+        const writableDatabase = new Database(join(state, 'state_9.sqlite'));
+        writableDatabase
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-1',
+                root,
+                'Raw first prompt',
+                'Finish Phase 1',
+                startedAt + 1,
+                startedAt + 1,
+                12_345,
+                0,
+            );
+        writableDatabase
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-2',
+                root,
+                'Second prompt',
+                'Keep this Terminal',
+                startedAt + 2,
+                startedAt + 2,
+                24,
+                0,
+            );
+        writableDatabase.close();
+
+        await expect(
+            service.snapshot('codex', { rootPath: root, processState: 'running', startedAt }),
         ).resolves.toMatchObject({
             available: true,
             sessionId: 'codex-session-1',
@@ -207,13 +274,24 @@ describe('Agent adapter fallback', () => {
         });
         await expect(
             service.snapshot('codex', {
+                excludedAgentSessionIds: ['codex-session-1'],
+                rootPath: root,
+                processState: 'running',
+                startedAt,
+            }),
+        ).resolves.toMatchObject({
+            sessionId: 'codex-session-2',
+            title: 'Keep this Terminal',
+        });
+        await expect(
+            service.snapshot('codex', {
                 agentSessionId: 'codex-session-older',
                 rootPath: root,
                 processState: 'running',
             }),
         ).resolves.toMatchObject({
             sessionId: 'codex-session-older',
-            title: 'Keep this Terminal',
+            title: '$debug https://github.com/example/project/issues/1',
             usage: [{ label: 'Tokens', value: '42' }],
         });
     });

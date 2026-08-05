@@ -6,6 +6,7 @@ import {
     fileDocumentSchema,
     fileEntrySchema,
     gitSummarySchema,
+    gitDiffDocumentSchema,
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
@@ -194,6 +195,15 @@ export const methods = {
             path: pathSchema,
         }),
         result: z.string(),
+    },
+    'git.diffDocument': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            path: pathSchema,
+        }),
+        result: gitDiffDocumentSchema,
     },
     'settings.get': { owner: 'runtime', params: noParams, result: settingsResult },
     'settings.update': {

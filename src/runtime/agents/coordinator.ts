@@ -17,7 +17,9 @@ export interface AgentCoordinatorOptions {
  * lifecycle changes require, so no other module needs to track Agent Terminal identity.
  */
 export class AgentCoordinator {
+    private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
     private readonly refreshes: CoalescedScheduler<string>;
+    private readonly startedAtByTerminal = new Map<string, number>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -43,6 +45,18 @@ export class AgentCoordinator {
         this.refreshes.schedule(terminalId);
     }
 
+    /** Starts a fresh correlation window before a new Agent process can see historical metadata. */
+    prepareTerminalStart(terminalId: string): void {
+        const terminal = this.database.getTerminal(terminalId);
+        if (!terminal?.provider) return;
+        const startedAt = Date.now();
+        const excluded = new Set(this.excludedAgentSessionIdsByTerminal.get(terminalId));
+        if (terminal.agentSessionId) excluded.add(terminal.agentSessionId);
+        this.excludedAgentSessionIdsByTerminal.set(terminalId, excluded);
+        this.startedAtByTerminal.set(terminalId, startedAt);
+        this.database.resetAgentMetadataForStart(terminalId, startedAt);
+    }
+
     /** Probes now instead of waiting for output, for a Terminal that just started or restarted. */
     probeTerminal(terminalId: string): void {
         void this.probe(terminalId);
@@ -57,28 +71,47 @@ export class AgentCoordinator {
     /** Drops a pending refresh for a Terminal whose durable record is about to disappear. */
     forgetTerminal(terminalId: string): void {
         this.refreshes.cancel(terminalId);
+        this.excludedAgentSessionIdsByTerminal.delete(terminalId);
+        this.startedAtByTerminal.delete(terminalId);
     }
 
     forgetSession(sessionId: string): void {
-        for (const terminal of this.database.listTerminals(sessionId))
+        for (const terminal of this.database.listTerminals(sessionId)) {
             this.refreshes.cancel(terminal.id);
+            this.excludedAgentSessionIdsByTerminal.delete(terminal.id);
+            this.startedAtByTerminal.delete(terminal.id);
+        }
     }
 
     close(): void {
         this.refreshes.close();
     }
 
-    private async probe(terminalId: string): Promise<void> {
+    private async probe(terminalId: string, retryClaim = true): Promise<void> {
         try {
             const terminal = this.database.getTerminal(terminalId);
             if (!terminal?.provider) return;
             const session = this.database.getSession(terminal.sessionId);
             if (!session) return;
+            const excludedAgentSessionIds = [
+                ...(this.excludedAgentSessionIdsByTerminal.get(terminal.id) ?? []),
+                ...this.database.claimedAgentSessionIds(terminal.id),
+            ];
             const snapshot = await this.agents.snapshot(terminal.provider, {
                 agentSessionId: terminal.agentSessionId,
+                correlationId: terminal.id,
+                excludedAgentSessionIds,
                 rootPath: session.rootPath,
                 processState: terminal.lastProcessState,
+                startedAt: this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
             });
+            if (
+                snapshot.sessionId &&
+                this.database.isAgentSessionClaimedByOtherTerminal(terminal.id, snapshot.sessionId)
+            ) {
+                if (retryClaim) await this.probe(terminalId, false);
+                return;
+            }
             if (this.database.updateAgentMetadata(terminal.id, snapshot))
                 this.emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
         } catch (error) {

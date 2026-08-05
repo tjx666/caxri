@@ -82,6 +82,19 @@ export class CaxriDatabase {
         return this.store.transaction(() => {
             const terminal = this.store.terminals.get(terminalId);
             if (!terminal) return false;
+            if (
+                snapshot.sessionId &&
+                this.store.terminals
+                    .list()
+                    .some(
+                        (candidate) =>
+                            candidate.id !== terminalId &&
+                            candidate.provider === snapshot.provider &&
+                            candidate.agentSessionId === snapshot.sessionId,
+                    )
+            ) {
+                return false;
+            }
             const session = this.store.sessions.get(terminal.sessionId);
             if (!session) return false;
             const decision = decideAgentMetadataUpdate(terminal, session, snapshot);
@@ -94,6 +107,42 @@ export class CaxriDatabase {
                 );
             this.store.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
             return true;
+        });
+    }
+
+    /** Agent session IDs are provider-owned identities and may belong to only one Terminal. */
+    claimedAgentSessionIds(terminalId: string): string[] {
+        const terminal = this.store.terminals.get(terminalId);
+        if (!terminal?.provider) return [];
+        return this.store.terminals
+            .list()
+            .filter(
+                (candidate) =>
+                    candidate.id !== terminalId &&
+                    candidate.provider === terminal.provider &&
+                    candidate.agentSessionId,
+            )
+            .map((candidate) => candidate.agentSessionId!);
+    }
+
+    isAgentSessionClaimedByOtherTerminal(terminalId: string, agentSessionId: string): boolean {
+        return this.claimedAgentSessionIds(terminalId).includes(agentSessionId);
+    }
+
+    /** Clears the previous process binding so a restarted Agent cannot inherit its old session. */
+    resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {
+        this.store.transaction(() => {
+            const terminal = this.store.terminals.get(terminalId);
+            if (!terminal?.provider) return;
+            this.store.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
+            const session = this.store.sessions.get(terminal.sessionId);
+            if (session?.primaryAgentTerminalId === terminalId) {
+                this.store.sessions.setDisplayTitleAndActivity(
+                    session.id,
+                    defaultTerminalTitle(terminal.kind),
+                    'running',
+                );
+            }
         });
     }
 

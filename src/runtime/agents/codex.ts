@@ -54,16 +54,45 @@ export async function readCodexState(
                 : columns.has('updated_at')
                   ? 'updated_at'
                   : 'rowid';
+            const timestampExpression = columns.has('created_at_ms')
+                ? columns.has('created_at')
+                    ? 'COALESCE(created_at_ms, created_at * 1000)'
+                    : 'created_at_ms'
+                : columns.has('created_at')
+                  ? 'created_at * 1000'
+                  : columns.has('updated_at_ms')
+                    ? 'updated_at_ms'
+                    : columns.has('updated_at')
+                      ? 'updated_at * 1000'
+                      : undefined;
+            const titleExpression = columns.has('name')
+                ? "COALESCE(NULLIF(TRIM(name), ''), title)"
+                : 'title';
             const tokens = columns.has('tokens_used') ? ', tokens_used' : '';
             const archived = columns.has('archived') ? 'archived = 0 AND ' : '';
             const session = context.agentSessionId ? 'id = ? AND ' : '';
+            const excludedSessionIds = context.agentSessionId
+                ? []
+                : [...new Set(context.excludedAgentSessionIds ?? [])].filter(Boolean);
+            const excluded =
+                excludedSessionIds.length > 0
+                    ? `id NOT IN (${excludedSessionIds.map(() => '?').join(', ')}) AND `
+                    : '';
+            if (!context.agentSessionId && context.startedAt && !timestampExpression) continue;
+            const started =
+                !context.agentSessionId && context.startedAt && timestampExpression
+                    ? `${timestampExpression} >= ? AND `
+                    : '';
+            const order = started ? `${timestampExpression} ASC` : `${updatedColumn} DESC`;
             const placeholders = requestedRoots.map(() => '?').join(', ');
             const row = database
                 .prepare(
-                    `SELECT id, title${tokens} FROM threads WHERE ${archived}${session}cwd IN (${placeholders}) ORDER BY ${updatedColumn} DESC LIMIT 1`,
+                    `SELECT id, ${titleExpression} AS title${tokens} FROM threads WHERE ${archived}${session}${excluded}${started}cwd IN (${placeholders}) ORDER BY ${order} LIMIT 1`,
                 )
                 .get(
                     ...(context.agentSessionId ? [context.agentSessionId] : []),
+                    ...excludedSessionIds,
+                    ...(started ? [context.startedAt] : []),
                     ...requestedRoots,
                 ) as CodexThreadRow | undefined;
             if (!row) continue;

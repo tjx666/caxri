@@ -136,6 +136,17 @@ describe('CaxriDatabase', () => {
 
         database.updateTerminalState(created.terminal.id, 'stopped');
         expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
+
+        const restartedAt = Date.now() + 1;
+        database.resetAgentMetadataForStart(created.terminal.id, restartedAt);
+        expect(database.getTerminal(created.terminal.id)).toMatchObject({
+            agentSessionId: undefined,
+            updatedAt: restartedAt,
+        });
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Codex',
+            lastActivityState: 'running',
+        });
         database.close();
     });
 

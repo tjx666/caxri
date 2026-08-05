@@ -72,6 +72,16 @@ describe('GitService', () => {
         expect(
             await git.diff(session.id, summary.repositories[0].id, join(directory, 'tracked.txt')),
         ).toContain('-before');
+        await expect(
+            git.diffDocument(
+                session.id,
+                summary.repositories[0].id,
+                join(directory, 'tracked.txt'),
+            ),
+        ).resolves.toEqual({ path: 'tracked.txt', original: 'before\n', modified: 'after\n' });
+        await expect(
+            git.diffDocument(session.id, summary.repositories[0].id, 'new.txt'),
+        ).resolves.toEqual({ path: 'new.txt', original: '', modified: 'new\n' });
         database.close();
     });
 
@@ -93,6 +103,81 @@ describe('GitService', () => {
             repositories: [expect.objectContaining({ branch: 'main' })],
         });
         expect(summary.repositories[0].head).toBeUndefined();
+        database.close();
+    });
+
+    it('returns diff documents for staged gitlinks, renames, and untracked directories', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-special-diffs-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'primary');
+        const submoduleSource = join(directory, 'submodule-source');
+        await execFileAsync('mkdir', ['-p', root, submoduleSource]);
+        for (const repository of [root, submoduleSource]) {
+            await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
+            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                cwd: repository,
+            });
+            await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
+                cwd: repository,
+            });
+        }
+        await writeFile(join(root, 'old.txt'), 'before\n', 'utf8');
+        await execFileAsync('git', ['add', 'old.txt'], { cwd: root });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'submodule initial'], {
+            cwd: submoduleSource,
+        });
+        await execFileAsync(
+            'git',
+            ['-c', 'protocol.file.allow=always', 'submodule', 'add', submoduleSource, 'vendor/sub'],
+            { cwd: root },
+        );
+        await execFileAsync('git', ['commit', '-am', 'add submodule'], { cwd: root });
+        await execFileAsync('git', ['mv', 'old.txt', 'renamed.txt'], { cwd: root });
+        await execFileAsync('mkdir', ['-p', join(root, 'generated')]);
+        await writeFile(join(root, 'generated/new.txt'), 'new\n', 'utf8');
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: join(root, 'vendor/sub'),
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
+            cwd: join(root, 'vendor/sub'),
+        });
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'advance submodule'], {
+            cwd: join(root, 'vendor/sub'),
+        });
+        await execFileAsync('git', ['add', 'vendor/sub'], { cwd: root });
+
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const git = new GitService(
+            new WorkspacePaths(database),
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const repository = (await git.summary(session.id)).repositories[0];
+
+        expect(repository.files).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    kind: 'renamed',
+                    originalPath: 'old.txt',
+                    path: 'renamed.txt',
+                }),
+                expect.objectContaining({ kind: 'untracked', path: 'generated/new.txt' }),
+                expect.objectContaining({ index: 'M', path: 'vendor/sub' }),
+            ]),
+        );
+        await expect(
+            git.diffDocument(session.id, repository.id, 'renamed.txt'),
+        ).resolves.toMatchObject({
+            original: 'before\n',
+            originalPath: 'old.txt',
+            modified: 'before\n',
+        });
+        await expect(
+            git.diffDocument(session.id, repository.id, 'generated/new.txt'),
+        ).resolves.toMatchObject({ original: '', modified: 'new\n' });
+        const submoduleDocument = await git.diffDocument(session.id, repository.id, 'vendor/sub');
+        expect(submoduleDocument.modified).toContain('Subproject commit');
         database.close();
     });
 
@@ -160,12 +245,20 @@ describe('GitService', () => {
             'submodule',
             'worktree',
         ]);
-        for (const repository of repositories) {
+        const primary = repositories.find((repository) => repository.kind === 'primary')!;
+        expect(primary.files.map((file) => file.path).sort()).toEqual(['root.txt', 'vendor/sub']);
+        expect(primary.files.find((file) => file.path === 'vendor/sub')).toMatchObject({
+            kind: 'modified',
+            workingTree: 'M',
+        });
+        expect(primary.files.some((file) => file.path.startsWith('nested'))).toBe(false);
+        for (const repository of repositories.filter((item) => item.kind !== 'primary')) {
             expect(repository.files).toHaveLength(1);
             await expect(
                 git.diff(session.id, repository.id, repository.files[0].path),
             ).resolves.toContain('-before');
         }
+        await expect(git.diff(session.id, primary.id, 'root.txt')).resolves.toContain('-before');
         database.close();
     });
 });

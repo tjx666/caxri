@@ -8,6 +8,7 @@ interface ClaudeSessionMetadata {
     cwd?: unknown;
     name?: unknown;
     sessionId?: unknown;
+    startedAt?: unknown;
     status?: unknown;
     updatedAt?: unknown;
 }
@@ -16,6 +17,10 @@ function timestamp(value: unknown): number {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') return Date.parse(value) || 0;
     return 0;
+}
+
+function sessionStartedAt(metadata: ClaudeSessionMetadata): number {
+    return timestamp(metadata.startedAt) || timestamp(metadata.updatedAt);
 }
 
 function claudeStatus(value: unknown): AgentActivityState | undefined {
@@ -41,6 +46,7 @@ export async function readClaudeState(
         return undefined;
     }
     const requestedRoot = await canonicalPath(context.rootPath);
+    const excludedSessionIds = new Set(context.excludedAgentSessionIds ?? []);
     const matches = await Promise.all(
         names.map(async (name) => {
             try {
@@ -51,6 +57,20 @@ export async function readClaudeState(
                 if ((await canonicalPath(metadata.cwd)) !== requestedRoot) return undefined;
                 if (context.agentSessionId && metadata.sessionId !== context.agentSessionId)
                     return undefined;
+                if (
+                    !context.agentSessionId &&
+                    typeof metadata.sessionId === 'string' &&
+                    excludedSessionIds.has(metadata.sessionId)
+                ) {
+                    return undefined;
+                }
+                if (
+                    !context.agentSessionId &&
+                    context.startedAt &&
+                    sessionStartedAt(metadata) < context.startedAt
+                ) {
+                    return undefined;
+                }
                 return metadata;
             } catch {
                 return undefined;
@@ -59,7 +79,11 @@ export async function readClaudeState(
     );
     const latest = matches
         .filter((value): value is ClaudeSessionMetadata => Boolean(value))
-        .sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt))[0];
+        .sort((left, right) =>
+            !context.agentSessionId && context.startedAt
+                ? sessionStartedAt(left) - sessionStartedAt(right)
+                : timestamp(right.updatedAt) - timestamp(left.updatedAt),
+        )[0];
     if (!latest) return undefined;
     return {
         sessionId: typeof latest.sessionId === 'string' ? latest.sessionId : undefined,

@@ -416,6 +416,48 @@ button {
     min-height: 0;
     flex: 1;
 }
+.git-file-diff,
+.git-multi-diff {
+    position: absolute;
+    inset: 0;
+}
+.git-file-diff {
+    overflow: hidden;
+}
+.git-multi-diff {
+    overflow: auto;
+    background: var(--background);
+}
+.git-multi-diff-item {
+    border-bottom: 1px solid var(--border);
+}
+.git-multi-diff-heading {
+    height: 36px;
+    padding: 0 12px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--foreground);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 36px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.git-multi-diff-editor {
+    height: 360px;
+}
+.git-multi-diff-error,
+.git-multi-diff-placeholder {
+    display: grid;
+    height: 100%;
+    place-items: center;
+    color: var(--muted);
+    font-size: 11px;
+}
+.git-multi-diff-error {
+    color: var(--danger);
+}
 .terminal-split,
 .terminal-group,
 .terminal-layout-child {
@@ -654,13 +696,23 @@ button {
     overflow: auto;
 }
 .panel-caption {
-    padding: 8px;
-    overflow: hidden;
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 3px 4px 3px 8px;
     border-bottom: 1px solid var(--border);
     color: var(--muted);
     font-size: 11px;
+}
+.panel-caption > span {
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.panel-caption .button {
+    flex: 0 0 auto;
 }
 .tree-row {
     display: flex;
@@ -704,13 +756,22 @@ button {
     padding: 8px;
     border-bottom: 1px solid var(--border);
 }
+.git-panel {
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+}
 .git-heading code {
     color: var(--muted);
     font-size: 11px;
 }
 .git-repositories {
-    max-height: 40%;
+    min-height: 0;
+    flex: 1;
     overflow: auto;
+    border-bottom: 1px solid var(--border);
+}
+.git-repository-section {
     border-bottom: 1px solid var(--border);
 }
 .git-repository-row {
@@ -721,14 +782,12 @@ button {
     gap: 8px;
     padding: 8px;
     border: 0;
-    border-bottom: 1px solid var(--border);
     background: var(--surface);
     color: var(--foreground);
     text-align: left;
     cursor: pointer;
 }
-.git-repository-row:hover,
-.git-repository-row.active {
+.git-repository-row:hover {
     background: var(--elevated);
 }
 .git-repository-row > span {
@@ -749,9 +808,48 @@ button {
     font-size: 11px;
 }
 .git-files {
-    max-height: 35%;
-    overflow: auto;
-    border-bottom: 1px solid var(--border);
+    overflow: visible;
+}
+.git-changes-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.git-changes-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.git-open-changes.button-icon {
+    width: 24px;
+    height: 24px;
+}
+.git-tree-directory {
+    display: flex;
+    width: 100%;
+    height: 28px;
+    align-items: center;
+    gap: 6px;
+    padding-right: 8px;
+    border: 0;
+    background: var(--surface);
+    color: var(--foreground);
+    text-align: left;
+    cursor: pointer;
+}
+.git-tree-directory:hover {
+    background: var(--elevated);
+}
+.git-tree-directory span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .git-row {
     display: flex;
@@ -787,18 +885,6 @@ button {
 .status-deleted,
 .status-conflicted {
     color: var(--danger);
-}
-.diff-view {
-    min-height: 200px;
-    margin: 0;
-    padding: 8px;
-    overflow: auto;
-    color: var(--foreground);
-    font:
-        11px/1.5 SFMono-Regular,
-        Menlo,
-        monospace;
-    white-space: pre;
 }
 .terminal-info-panel {
     padding: 8px;

@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ListCollapse } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
+import { Button } from '../../components/ui/button';
 import { FileTypeIcon } from '../../file-icons/FileTypeIcon';
 import { caxri } from '../../lib/caxri';
 import { useSelectedSession } from '../../state/selectors';
@@ -102,6 +103,7 @@ function FileTreeItem({
 
 export function FileTreePanel() {
     const session = useSelectedSession();
+    const [collapseRevision, setCollapseRevision] = useState(0);
     const [revision, setRevision] = useState(0);
     const sessionId = session?.id;
     useEffect(
@@ -116,10 +118,23 @@ export function FileTreePanel() {
     /** Keyed by Session so expansion state from another Project root is never reused. */
     return (
         <div key={session.id} className="inspector-content">
-            <div className="panel-caption" title={session.rootPath}>
-                {session.rootPath}
+            <div className="panel-caption">
+                <span title={session.rootPath}>{session.rootPath}</span>
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Collapse Folders"
+                    title="Collapse Folders"
+                    onClick={() => setCollapseRevision((value) => value + 1)}
+                >
+                    <ListCollapse size={13} />
+                </Button>
             </div>
-            <DirectoryEntries sessionId={session.id} revision={revision} />
+            <DirectoryEntries
+                key={`${session.id}:${collapseRevision}`}
+                sessionId={session.id}
+                revision={revision}
+            />
         </div>
     );
 }

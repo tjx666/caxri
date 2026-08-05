@@ -26,6 +26,96 @@ afterEach(async () => {
 });
 
 describe('AgentCoordinator', () => {
+    it('does not bind concurrent same-root Agent Terminals to one Agent session', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-correlation-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const second = database.createTerminal(created.session.id, 'codex');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>((context) => {
+            const excluded = context.excludedAgentSessionIds ?? [];
+            return Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: excluded.includes('agent-session-1')
+                    ? 'agent-session-2'
+                    : 'agent-session-1',
+            });
+        });
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.prepareTerminalStart(created.terminal.id);
+            coordinator.prepareTerminalStart(second.id);
+            coordinator.probeTerminal(created.terminal.id);
+            coordinator.probeTerminal(second.id);
+
+            await expect
+                .poll(() =>
+                    [created.terminal.id, second.id]
+                        .map((id) => database.getTerminal(id)?.agentSessionId)
+                        .filter(Boolean)
+                        .sort(),
+                )
+                .toEqual(['agent-session-1', 'agent-session-2']);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('excludes the previous Agent session when a Terminal restarts', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-restart-correlation-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'codex',
+            status: 'running',
+            observedAt: Date.now(),
+            available: true,
+            sessionId: 'old-agent-session',
+            title: 'Old title',
+        });
+        const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: context.excludedAgentSessionIds?.includes('old-agent-session')
+                    ? 'new-agent-session'
+                    : 'old-agent-session',
+                title: 'New title',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.prepareTerminalStart(created.terminal.id);
+            coordinator.probeTerminal(created.terminal.id);
+            await expect
+                .poll(() => database.getTerminal(created.terminal.id)?.agentSessionId)
+                .toBe('new-agent-session');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('probes Agent Terminal output, ignores Shell output, and stops after a Terminal is closed', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-coordinator-'));
         temporaryDirectories.push(directory);

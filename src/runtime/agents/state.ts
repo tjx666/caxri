@@ -7,8 +7,14 @@ import type { AgentActivityState, ProcessState } from '../../shared/types';
 export interface AgentSnapshotContext {
     /** Keeps repeated probes bound to the Agent session already correlated with this Terminal. */
     agentSessionId?: string;
+    /** Keeps concurrent unbound Terminals in one Project from sharing a metadata probe. */
+    correlationId?: string;
+    /** Prevents an unbound Terminal from claiming an Agent session already owned or restarted. */
+    excludedAgentSessionIds?: readonly string[];
     processState?: ProcessState;
     rootPath: string;
+    /** Rejects same-directory Agent sessions that existed before this Terminal process started. */
+    startedAt?: number;
 }
 
 export interface LocalAgentState {

@@ -204,6 +204,7 @@ export const fileDocumentSchema = z.object({
 
 export const gitFileStatusSchema = z.object({
     path: z.string(),
+    originalPath: z.string().optional(),
     index: z.string(),
     workingTree: z.string(),
     kind: z.enum(['modified', 'added', 'deleted', 'renamed', 'untracked', 'conflicted']),
@@ -225,6 +226,13 @@ export const gitSummarySchema = z.object({
     isRepository: z.boolean(),
     repositories: z.array(gitRepositorySummarySchema),
     error: z.string().optional(),
+});
+
+export const gitDiffDocumentSchema = z.object({
+    path: pathSchema,
+    originalPath: pathSchema.optional(),
+    original: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
+    modified: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
 });
 
 export const runtimeStatusSchema = z.enum(['starting', 'ready', 'restarting', 'failed']);
@@ -265,4 +273,5 @@ export type FileDocument = z.infer<typeof fileDocumentSchema>;
 export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
 export type GitRepositorySummary = z.infer<typeof gitRepositorySummarySchema>;
 export type GitSummary = z.infer<typeof gitSummarySchema>;
+export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
 export type BootstrapState = z.infer<typeof bootstrapStateSchema>;

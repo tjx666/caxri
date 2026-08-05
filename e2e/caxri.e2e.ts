@@ -81,6 +81,15 @@ test('file changes refresh entries without collapsing expanded directories', asy
         await expect(
             running.page.getByRole('button', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
+
+        await running.page.getByRole('button', { name: 'Collapse Folders' }).click();
+        await expect(
+            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+        ).toHaveCount(0);
+        await running.page.getByRole('button', { name: 'nested', exact: true }).click();
+        await expect(
+            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+        ).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -257,45 +266,105 @@ test('Info inspector lists only the current Session Terminals', async () => {
     }
 });
 
-test('Git inspector switches between Project and nested repositories', async () => {
+test('Git inspector shows child repositories, submodule state, and changed-file trees', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-repositories-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const nested = join(root, 'nested');
-    await execFileAsync('mkdir', ['-p', nested]);
-    for (const repository of [root, nested]) {
+    const submoduleSource = join(testDirectory, 'submodule-source');
+    const bulkPaths = Array.from({ length: 12 }, (_, index) =>
+        join(nested, 'packages', `bulk-${index}.ts`),
+    );
+    await execFileAsync('mkdir', [
+        '-p',
+        join(root, 'src'),
+        join(nested, 'packages'),
+        join(nested, 'assets'),
+        join(submoduleSource, 'lib'),
+    ]);
+    for (const repository of [root, nested, submoduleSource]) {
         await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
         await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], {
             cwd: repository,
         });
         await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: repository });
     }
-    await writeFile(join(root, 'root.txt'), 'before\n', 'utf8');
-    await execFileAsync('git', ['add', 'root.txt'], { cwd: root });
+    await writeFile(join(root, 'src/root.txt'), 'before\n', 'utf8');
+    await execFileAsync('git', ['add', 'src/root.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
-    await writeFile(join(nested, 'nested.txt'), 'before\n', 'utf8');
-    await execFileAsync('git', ['add', 'nested.txt'], { cwd: nested });
+    await writeFile(join(nested, 'packages/nested.txt'), 'before\n', 'utf8');
+    await writeFile(join(nested, 'assets/binary.bin'), Buffer.from([0, 1]));
+    await Promise.all(bulkPaths.map((path) => writeFile(path, 'before\n', 'utf8')));
+    await execFileAsync('git', ['add', '.'], { cwd: nested });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: nested });
+    await writeFile(join(submoduleSource, 'lib/submodule.txt'), 'before\n', 'utf8');
+    await execFileAsync('git', ['add', 'lib/submodule.txt'], { cwd: submoduleSource });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: submoduleSource });
+    await execFileAsync(
+        'git',
+        ['-c', 'protocol.file.allow=always', 'submodule', 'add', submoduleSource, 'vendor/sub'],
+        { cwd: root },
+    );
+    await execFileAsync('git', ['commit', '-am', 'add submodule'], { cwd: root });
     await Promise.all([
-        writeFile(join(root, 'root.txt'), 'after\n', 'utf8'),
-        writeFile(join(nested, 'nested.txt'), 'after\n', 'utf8'),
+        writeFile(join(root, 'src/root.txt'), 'after\n', 'utf8'),
+        writeFile(join(nested, 'packages/nested.txt'), 'after\n', 'utf8'),
+        writeFile(join(nested, 'assets/binary.bin'), Buffer.from([0, 2])),
+        ...bulkPaths.map((path) => writeFile(path, 'after\n', 'utf8')),
+        writeFile(join(root, 'vendor/sub/lib/submodule.txt'), 'after\n', 'utf8'),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.page.getByRole('button', { name: 'Git', exact: true }).click();
-        const repositories = running.page.locator('.git-repository-row');
-        await expect(repositories).toHaveCount(2);
+        const repositorySections = running.page.locator('.git-repository-section');
+        await expect(repositorySections).toHaveCount(3);
+        const primary = repositorySections.filter({
+            has: running.page.locator('.git-repository-row', { hasText: 'project' }),
+        });
+        const nestedRepository = repositorySections.filter({
+            has: running.page.locator('.git-repository-row', { hasText: 'nested' }),
+        });
+        const submodule = repositorySections.filter({
+            has: running.page.locator('.git-repository-row', { hasText: 'submodule' }),
+        });
 
-        await repositories.filter({ hasText: 'nested' }).click();
-        await expect(running.page.locator('.git-files')).toContainText('nested.txt');
-        await running.page.getByRole('button', { name: 'nested.txt' }).click();
-        await expect(running.page.locator('.diff-view')).toContainText('-before');
+        await expect(primary.locator('.git-files')).toContainText('root.txt');
+        await expect(primary.locator('.git-files')).toContainText('sub');
+        await expect(primary.locator('.git-files')).not.toContainText('nested.txt');
+        await expect(nestedRepository.locator('.git-files')).toContainText('nested.txt');
+        await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
 
-        await repositories.filter({ hasText: 'project' }).click();
-        await expect(running.page.locator('.git-files')).toContainText('root.txt');
-        await expect(running.page.locator('.git-files')).not.toContainText('nested.txt');
+        await nestedRepository.locator('.git-repository-row').click();
+        await expect(nestedRepository.locator('.git-files')).toHaveCount(0);
+        await expect(primary.locator('.git-files')).toContainText('root.txt');
+        await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
+        await nestedRepository.locator('.git-repository-row').click();
+        await nestedRepository.getByRole('button', { name: 'packages', exact: true }).click();
+        await expect(nestedRepository.getByRole('button', { name: 'nested.txt' })).toHaveCount(0);
+        await nestedRepository.getByRole('button', { name: 'packages', exact: true }).click();
+        await nestedRepository.getByRole('button', { name: 'nested.txt' }).click();
+        await expect(running.page.locator('.work-tab', { hasText: 'nested.txt' })).toBeVisible();
+        await expect(running.page.locator('.monaco-diff-editor')).toBeVisible();
+        await expect(running.page.locator('.monaco-diff-editor')).toContainText('before');
+        await expect(running.page.locator('.monaco-diff-editor')).toContainText('after');
+
+        await nestedRepository.getByRole('button', { name: 'Open Changes' }).click();
+        await expect(
+            running.page.locator('.work-tab', { hasText: 'Changes: nested' }),
+        ).toBeVisible();
+        await expect(running.page.locator('.git-multi-diff')).toBeVisible();
+        await expect(running.page.locator('.git-multi-diff-item')).toHaveCount(
+            bulkPaths.length + 2,
+        );
+        await expect(running.page.locator('.git-multi-diff-error')).toHaveCount(1);
+        await expect(
+            running.page.locator('.git-multi-diff .monaco-diff-editor').first(),
+        ).toBeVisible();
+        expect(
+            await running.page.locator('.git-multi-diff .monaco-diff-editor').count(),
+        ).toBeLessThan(bulkPaths.length + 2);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

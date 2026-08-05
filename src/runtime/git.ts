@@ -1,13 +1,19 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { lstat, realpath } from 'node:fs/promises';
+import { lstat, readFile, realpath } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../shared/ipc/domain';
 import { CaxriError, isCaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
-import type { GitFileStatus, GitRepositorySummary, GitSummary } from '../shared/types';
+import type {
+    GitDiffDocument,
+    GitFileStatus,
+    GitRepositorySummary,
+    GitSummary,
+} from '../shared/types';
 import { assertInsideRoot, isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
 import type { WorkspacePaths } from './workspace-paths';
@@ -25,6 +31,13 @@ interface RepositoryStatus {
 interface RepositoryRoot {
     kind: GitRepositorySummary['kind'];
     rootPath: string;
+}
+
+interface DiffTarget {
+    candidate: string;
+    file: GitFileStatus;
+    relativePath: string;
+    repository: GitRepositorySummary;
 }
 
 export function describeGitFailure(error: unknown): string {
@@ -58,12 +71,20 @@ function statusKind(code: string): GitFileStatus['kind'] {
 
 function parseStatusRecord(
     record: string,
-): { code: string; path: string; kind?: GitFileStatus['kind'] } | undefined {
+    originalPath?: string,
+):
+    | {
+          code: string;
+          path: string;
+          originalPath?: string;
+          kind?: GitFileStatus['kind'];
+      }
+    | undefined {
     if (record.startsWith('? ')) return { code: '??', path: record.slice(2), kind: 'untracked' };
     const ordinary = /^1 (\S{2})(?: \S+){6} (.+)$/.exec(record);
     if (ordinary) return { code: ordinary[1], path: ordinary[2] };
     const renamed = /^2 (\S{2})(?: \S+){7} (.+)$/.exec(record);
-    if (renamed) return { code: renamed[1], path: renamed[2], kind: 'renamed' };
+    if (renamed) return { code: renamed[1], path: renamed[2], originalPath, kind: 'renamed' };
     const conflicted = /^u (\S{2})(?: \S+){8} (.+)$/.exec(record);
     if (conflicted) return { code: conflicted[1], path: conflicted[2], kind: 'conflicted' };
     return undefined;
@@ -93,11 +114,15 @@ function parseStatus(output: string): RepositoryStatus {
             behind = Number(match?.[2] ?? 0);
             continue;
         }
-        const parsed = parseStatusRecord(record);
+        const parsed = parseStatusRecord(
+            record,
+            record.startsWith('2 ') ? records[index + 1] : undefined,
+        );
         if (!parsed) continue;
         const code = parsed.code.replaceAll('.', ' ');
         files.push({
             path: parsed.path,
+            originalPath: parsed.originalPath,
             index: code[0],
             workingTree: code[1],
             kind: parsed.kind ?? (code === '??' ? 'untracked' : statusKind(code)),
@@ -134,9 +159,15 @@ function isApproved(rootPath: string, approvedRoots: string[]): boolean {
     return approvedRoots.some((approvedRoot) => containsPath(approvedRoot, rootPath));
 }
 
-function hidesChildRepository(filePath: string, childPath: string): boolean {
+function hidesChildRepository(
+    filePath: string,
+    child: Pick<RepositoryRoot, 'kind' | 'rootPath'>,
+    parentRootPath: string,
+): boolean {
+    const childPath = relative(parentRootPath, child.rootPath);
     const normalizedChild = childPath.endsWith(sep) ? childPath.slice(0, -1) : childPath;
     const normalizedFile = filePath.endsWith(sep) ? filePath.slice(0, -1) : filePath;
+    if (child.kind === 'submodule' && normalizedFile === normalizedChild) return false;
     return (
         normalizedFile === normalizedChild || normalizedFile.startsWith(`${normalizedChild}${sep}`)
     );
@@ -150,13 +181,17 @@ export class GitService {
         private readonly logger: StructuredLogger,
     ) {}
 
-    private async git(cwd: string, args: string[]): Promise<string> {
+    private async git(
+        cwd: string,
+        args: string[],
+        options: { allowFailure?: boolean } = {},
+    ): Promise<string> {
         const startedAt = performance.now();
         try {
             const { stdout } = await execFileAsync('git', args, {
                 cwd,
                 timeout: 10_000,
-                maxBuffer: 8 * 1024 * 1024,
+                maxBuffer: MAX_CONFIGURABLE_FILE_BYTES,
                 env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
             });
             this.logger.write('info', 'git.command', {
@@ -165,6 +200,7 @@ export class GitService {
             });
             return stdout;
         } catch (error) {
+            if (options.allowFailure) return '';
             this.logger.write('warn', 'git.command_failed', {
                 durationMs: performance.now() - startedAt,
                 fields: {
@@ -182,7 +218,7 @@ export class GitService {
             '--porcelain=v2',
             '--branch',
             '-z',
-            '--untracked-files=normal',
+            '--untracked-files=all',
         ]).then(parseStatus);
     }
 
@@ -200,26 +236,33 @@ export class GitService {
 
     private async discoverChildRepositories(
         parent: RepositoryRoot,
-        status: RepositoryStatus,
         approvedRoots: string[],
     ): Promise<RepositoryRoot[]> {
-        const [gitLinkOutput, nestedCandidates] = await Promise.all([
+        const [gitLinkOutput, untrackedDirectoryOutput] = await Promise.all([
             this.git(parent.rootPath, ['ls-files', '--stage', '-z']),
-            Promise.all(
-                status.files
-                    .filter((file) => file.kind === 'untracked' && file.path.endsWith('/'))
-                    .map(async (file) => {
-                        const candidate = resolve(parent.rootPath, file.path);
-                        try {
-                            const marker = await lstat(resolve(candidate, '.git'));
-                            if (marker.isSymbolicLink()) return undefined;
-                            return candidate;
-                        } catch {
-                            return undefined;
-                        }
-                    }),
-            ),
+            this.git(parent.rootPath, [
+                'ls-files',
+                '--others',
+                '--directory',
+                '--exclude-standard',
+                '-z',
+            ]),
         ]);
+        const nestedCandidates = await Promise.all(
+            untrackedDirectoryOutput
+                .split('\0')
+                .filter((path) => path.endsWith('/'))
+                .map(async (path) => {
+                    const candidate = resolve(parent.rootPath, path);
+                    try {
+                        const marker = await lstat(resolve(candidate, '.git'));
+                        if (marker.isSymbolicLink()) return undefined;
+                        return candidate;
+                    } catch {
+                        return undefined;
+                    }
+                }),
+        );
         const candidates = [
             ...parseGitLinkPaths(gitLinkOutput).map((path) => ({
                 kind: 'submodule' as const,
@@ -241,6 +284,50 @@ export class GitService {
 
     async summary(sessionId: string): Promise<GitSummary> {
         return this.summaries.run(sessionId, () => this.loadSummary(sessionId));
+    }
+
+    private async resolveDiffTarget(
+        sessionId: string,
+        repositoryIdValue: string,
+        path: string,
+    ): Promise<DiffTarget> {
+        const summary = await this.summary(sessionId);
+        const repository = summary.repositories.find(
+            (candidate) => candidate.id === repositoryIdValue,
+        );
+        if (!repository)
+            throw new CaxriError(
+                'PATH_DENIED',
+                'Git repository is outside the approved Project roots',
+            );
+        let candidate = isAbsolute(path) ? path : resolve(repository.rootPath, path);
+        try {
+            candidate = await realpath(candidate);
+        } catch {
+            /** Deleted Git paths no longer resolve; the lexical path is revalidated below. */
+        }
+        const relativePath = relative(repository.rootPath, candidate);
+        const outsideRepository = 'Git path is outside the selected repository';
+        assertInsideRoot(relativePath, outsideRepository);
+        if (!relativePath) throw new CaxriError('PATH_DENIED', outsideRepository);
+        const file = repository.files.find((item) => item.path === relativePath);
+        if (!file) throw new CaxriError('NOT_FOUND', 'Git change no longer exists');
+        return { candidate, file, relativePath, repository };
+    }
+
+    private async readWorkingTreeFile(path: string): Promise<string | undefined> {
+        try {
+            const content = await readFile(path);
+            if (content.byteLength > MAX_CONFIGURABLE_FILE_BYTES)
+                throw new CaxriError('CAPACITY', 'Git diff file exceeds the configured size limit');
+            if (content.includes(0))
+                throw new CaxriError('GIT', 'Binary files cannot be opened in the diff editor');
+            return content.toString('utf8');
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === 'ENOENT' || code === 'EISDIR') return undefined;
+            throw error;
+        }
     }
 
     private async loadSummary(sessionId: string): Promise<GitSummary> {
@@ -289,12 +376,8 @@ export class GitService {
             );
             const children = (
                 await Promise.all(
-                    baseRepositories.map((repository, index) =>
-                        this.discoverChildRepositories(
-                            repository,
-                            baseStatuses[index],
-                            approvedRoots,
-                        ),
+                    baseRepositories.map((repository) =>
+                        this.discoverChildRepositories(repository, approvedRoots),
                     ),
                 )
             ).flat();
@@ -311,13 +394,11 @@ export class GitService {
             );
             const statuses = [...baseStatuses, ...childStatuses];
             const repositories = roots.map((repository, index): GitRepositorySummary => {
-                const childPaths = roots
-                    .filter(
-                        (candidate) =>
-                            candidate.rootPath !== repository.rootPath &&
-                            containsPath(repository.rootPath, candidate.rootPath),
-                    )
-                    .map((candidate) => relative(repository.rootPath, candidate.rootPath));
+                const children = roots.filter(
+                    (candidate) =>
+                        candidate.rootPath !== repository.rootPath &&
+                        containsPath(repository.rootPath, candidate.rootPath),
+                );
                 const status = statuses[index];
                 return {
                     id: repositoryId(repository.rootPath),
@@ -330,7 +411,9 @@ export class GitService {
                     behind: status.behind,
                     files: status.files.filter(
                         (file) =>
-                            !childPaths.some((child) => hidesChildRepository(file.path, child)),
+                            !children.some((child) =>
+                                hidesChildRepository(file.path, child, repository.rootPath),
+                            ),
                     ),
                 };
             });
@@ -346,37 +429,31 @@ export class GitService {
     }
 
     async diff(sessionId: string, repositoryIdValue: string, path: string): Promise<string> {
-        const summary = await this.summary(sessionId);
-        const repository = summary.repositories.find(
-            (candidate) => candidate.id === repositoryIdValue,
+        const { file, relativePath, repository } = await this.resolveDiffTarget(
+            sessionId,
+            repositoryIdValue,
+            path,
         );
-        if (!repository)
-            throw new CaxriError(
-                'PATH_DENIED',
-                'Git repository is outside the approved Project roots',
-            );
-        let candidate = isAbsolute(path) ? path : resolve(repository.rootPath, path);
-        try {
-            candidate = await realpath(candidate);
-        } catch {
-            /** Deleted Git paths no longer resolve; the lexical path is revalidated below. */
-        }
-        const relativePath = relative(repository.rootPath, candidate);
-        const outsideRepository = 'Git path is outside the selected repository';
-        assertInsideRoot(relativePath, outsideRepository);
-        if (!relativePath) throw new CaxriError('PATH_DENIED', outsideRepository);
-        const file = repository.files.find((item) => item.path === relativePath);
         if (file?.kind === 'untracked')
             return 'Untracked file. Caxri does not include file contents in a synthetic diff.';
-        if (!file) return '';
+        return this.loadPatch(repository.rootPath, file, relativePath);
+    }
+
+    private async loadPatch(
+        repositoryRoot: string,
+        file: GitFileStatus,
+        relativePath: string,
+        extraArguments: readonly string[] = [],
+    ): Promise<string> {
         const chunks: string[] = [];
         if (![' ', '?'].includes(file.index)) {
             chunks.push(
-                await this.git(repository.rootPath, [
+                await this.git(repositoryRoot, [
                     'diff',
                     '--cached',
                     '--no-ext-diff',
                     '--no-color',
+                    ...extraArguments,
                     '--',
                     relativePath,
                 ]),
@@ -384,15 +461,54 @@ export class GitService {
         }
         if (![' ', '?'].includes(file.workingTree)) {
             chunks.push(
-                await this.git(repository.rootPath, [
+                await this.git(repositoryRoot, [
                     'diff',
                     '--no-ext-diff',
                     '--no-color',
+                    ...extraArguments,
                     '--',
                     relativePath,
                 ]),
             );
         }
         return chunks.filter(Boolean).join('\n');
+    }
+
+    async diffDocument(
+        sessionId: string,
+        repositoryIdValue: string,
+        path: string,
+    ): Promise<GitDiffDocument> {
+        const { candidate, file, relativePath, repository } = await this.resolveDiffTarget(
+            sessionId,
+            repositoryIdValue,
+            path,
+        );
+        const workingTreeContent = await this.readWorkingTreeFile(candidate);
+        if (workingTreeContent === undefined && file.kind !== 'deleted') {
+            const patch = await this.loadPatch(repository.rootPath, file, relativePath, [
+                '--submodule=short',
+            ]);
+            if (patch)
+                return {
+                    path: relativePath,
+                    originalPath: file.originalPath,
+                    original: '',
+                    modified: patch,
+                };
+        }
+        const originalPath = file.originalPath ?? relativePath;
+        const original =
+            file.kind === 'untracked'
+                ? ''
+                : await this.git(repository.rootPath, ['show', `HEAD:${originalPath}`], {
+                      allowFailure: true,
+                  });
+        return {
+            path: relativePath,
+            originalPath: file.originalPath,
+            original,
+            modified: workingTreeContent ?? '',
+        };
     }
 }

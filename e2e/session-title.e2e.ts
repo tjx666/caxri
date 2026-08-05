@@ -30,15 +30,17 @@ test('Agent output refreshes the Session title without opening Info', async () =
             id TEXT PRIMARY KEY,
             cwd TEXT,
             title TEXT,
+            created_at_ms INTEGER,
             updated_at_ms INTEGER,
             tokens_used INTEGER,
             archived INTEGER
         );
         INSERT INTO threads VALUES (
-            'agent-session-1',
+            'stale-agent-session',
             '${canonicalRoot}',
-            'Codex',
-            ${Date.now()},
+            '$debug https://github.com/lobehub/lobehub/issues/123',
+            ${Date.now() - 60_000},
+            ${Date.now() - 60_000},
             0,
             0
         );`,
@@ -52,7 +54,8 @@ if [ "$1" = "--version" ]; then
 fi
 printf 'Fake Codex ready\\n'
 while IFS= read -r line; do
-  /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "UPDATE threads SET title = 'hello', updated_at_ms = updated_at_ms + 1 WHERE id = 'agent-session-1';"
+  now_ms="$(date +%s)999"
+  /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', 'hello', $now_ms, $now_ms, 0, 0);"
   printf 'received %s\\n' "$line"
 done
 `,
@@ -84,12 +87,12 @@ done
                     await execFileAsync('sqlite3', [database, 'SELECT title FROM threads;'])
                 ).stdout.trim(),
             )
-            .toBe('hello');
+            .toContain('hello');
         await expect(page.locator('.session-card strong')).toHaveText('hello');
         await page.getByRole('button', { name: 'Info', exact: true }).click();
         const info = page.locator('.terminal-info-card');
         await expect(info).toHaveCount(1);
-        await expect(info).toContainText('agent-session-1');
+        await expect(info).toContainText('current-agent-session');
         await expect(info).toContainText('Title source');
         await expect(info.getByText('PID', { exact: true })).toBeVisible();
     } finally {

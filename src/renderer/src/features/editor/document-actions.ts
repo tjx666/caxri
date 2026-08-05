@@ -1,4 +1,5 @@
 import { updateEditorTabState } from '@shared/editor-state';
+import { isGitDiffTabPath } from '@shared/git-diff';
 import { activateWorkState, type WorkItem } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
@@ -15,6 +16,12 @@ function updateOpenTab(path: string, dirty: boolean): void {
     if (next !== current) patchSessionState(next);
 }
 
+/** Opens a Renderer-owned editor surface whose content has already been loaded or is virtual. */
+export function openEditorTab(path: string): void {
+    updateOpenTab(path, false);
+    useSessionViewStore.getState().activateWork({ kind: 'editor', path });
+}
+
 /** Reads a file into the Session document cache without changing the focused WorkItem. */
 export async function cacheDocument(sessionId: string, path: string): Promise<void> {
     await tryCommand('Unable to restore file', async () => {
@@ -29,8 +36,7 @@ export async function openFile(path: string): Promise<void> {
     await tryCommand('Unable to open file', async () => {
         const document = await caxri.request('files.read', { sessionId: session.id, path });
         useSessionViewStore.getState().cacheDocument(session.id, { ...document, dirty: false });
-        updateOpenTab(path, false);
-        useSessionViewStore.getState().activateWork({ kind: 'editor', path });
+        openEditorTab(path);
     });
 }
 
@@ -38,7 +44,7 @@ export async function openFile(path: string): Promise<void> {
 export function selectEditorTab(path: string): void {
     const session = getSelectedSession();
     if (!session) return;
-    if (useSessionViewStore.getState().documents[session.id]?.[path])
+    if (isGitDiffTabPath(path) || useSessionViewStore.getState().documents[session.id]?.[path])
         useSessionViewStore.getState().activateWork({ kind: 'editor', path });
     else void openFile(path);
 }
@@ -55,6 +61,7 @@ export async function saveActiveEditor(): Promise<void> {
     const active = getResolvedActiveWork();
     if (!session || active?.kind !== 'editor') return;
     const path = active.path;
+    if (isGitDiffTabPath(path)) return;
     const document = useSessionViewStore.getState().documents[session.id]?.[path];
     if (!document) return;
     await tryCommand('Save failed', async () => {

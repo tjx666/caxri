@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import { markTabsClean, replaceWithExternalDocument } from '@shared/editor-state';
+import { isGitDiffTabPath } from '@shared/git-diff';
 import type { FileDocument } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
@@ -66,6 +67,7 @@ function reconcileSelectedSession(sessionId: string): void {
     const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
     const paths = (getSessionState()?.openTabs ?? [])
         .map((tab) => tab.path)
+        .filter((path) => !isGitDiffTabPath(path))
         .filter((path) => cached[path]);
     if (paths.length === 0) return;
     void readDocuments(sessionId, paths).then((documents) =>
@@ -94,7 +96,9 @@ export function useExternalDocumentSync(): void {
             onFilesChanged(
                 sessionId,
                 event.payload.overflow
-                    ? (getSessionState()?.openTabs.map((tab) => tab.path) ?? [])
+                    ? (getSessionState()
+                          ?.openTabs.map((tab) => tab.path)
+                          .filter((path) => !isGitDiffTabPath(path)) ?? [])
                     : event.payload.changes
                           .filter((change) => change.kind !== 'delete' && cached[change.path])
                           .map((change) => change.path),

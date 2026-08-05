@@ -77,6 +77,13 @@ color + gain `title`/`aria-label` text.
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
 the pattern — keep). Tab height 36px.
 
+**Git inspector** — every discovered repository is an independent disclosure node, with
+its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in
+the center pane; the Inspector never embeds a patch preview. Each `Changes` heading exposes
+`Open Changes`, which opens one scrollable multi-file diff tab for that repository.
+The multi-file surface mounts Monaco only near the visible viewport and keeps an unreadable
+or binary change isolated to its own row.
+
 **Terminal panes** — focused pane keeps the accent inset ring (this IS the one accent).
 Exit banner: keep current design; `--danger` text only for failures, `--muted` for clean
 exits.
