@@ -129,6 +129,16 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         event.preventDefault();
         void confirmExternalUrl(url);
     });
+    /** Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults. */
+    window.webContents.on('console-message', (details) => {
+        if (details.level !== 'error') return;
+        mainLogger?.write('error', 'renderer.console', {
+            fields: {
+                message: details.message.slice(0, 4096),
+                source: `${details.sourceId ?? 'unknown'}:${details.lineNumber ?? 0}`,
+            },
+        });
+    });
     window.webContents.on('render-process-gone', (_event, details) => {
         if (details.reason === 'clean-exit' || window.isDestroyed()) return;
         const { decision, crashTimestampsMs } = decideCrashRecovery(
