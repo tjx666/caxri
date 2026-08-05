@@ -91,15 +91,15 @@ button {
 }
 /**
  * The window ships without a title bar (`titleBarStyle: 'hiddenInset'`), so this header doubles
- * as the drag region and reclaims that row. The left padding keeps the brand clear of the macOS
- * traffic lights; interactive children must opt back out with `no-drag` or they stop responding.
+ * as the drag region and reclaims that row. Interactive children must opt back out with `no-drag`
+ * or they stop responding.
  */
 .sidebar-title {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     min-height: 44px;
-    /* 84px: the inset traffic lights end near 70px; the extra gap keeps the brand from reading as a fourth light. */
+    /* Keep the drag surface clear of the inset traffic lights even though no brand is rendered. */
     padding: 0 8px 0 84px;
     border-bottom: 1px solid var(--border);
     font-weight: 650;

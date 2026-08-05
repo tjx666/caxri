@@ -1,12 +1,4 @@
-import {
-    ChevronDown,
-    ChevronRight,
-    Circle,
-    Plus,
-    Search,
-    Settings,
-    TerminalSquare,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Circle, Plus, Search, Settings } from 'lucide-react';
 import { useState } from 'react';
 
 import type { AgentActivityState } from '@shared/types';
@@ -61,9 +53,6 @@ export function ProjectSidebar() {
     return (
         <aside className="session-sidebar">
             <div className="sidebar-title">
-                <span>
-                    <TerminalSquare size={16} /> Caxri
-                </span>
                 <Button size="icon" variant="ghost" aria-label="Add Project" onClick={onAddProject}>
                     <Plus size={15} />
                 </Button>
