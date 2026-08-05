@@ -27,7 +27,9 @@ The Renderer never owns runtime truth. A renderer reload attaches to the existin
 
 ## IPC contract
 
-Renderer requests use `{ id, method, params }`; Runtime replies use `{ id, ok, result | error }`; runtime events use `{ event, payload }`. Zod validates all renderer request parameters before forwarding. Main keeps a pending request table with timeouts and request correlation IDs. Runtime output events are batched and bounded before crossing process boundaries.
+Renderer requests use `{ id, method, params }`; Runtime replies use `{ id, ok, result | error }`; runtime events use `{ event, payload }`. `src/shared/ipc` holds one method table that pairs every method name with its owner (`main` or `runtime`), a Zod params schema, and a Zod result schema; domain types, the runtime event union, and the terminal split layout are Zod schemas in the same module, so both processes and the Renderer infer their types from a single declaration. Internal methods live in a separate table that the Renderer envelope rejects. Zod validates all renderer request parameters before forwarding. Main keeps a pending request table with timeouts and request correlation IDs. Runtime output events are batched and bounded before crossing process boundaries.
+
+Failures carry a closed error code (`VALIDATION`, `NOT_FOUND`, `PATH_DENIED`, `CAPACITY`, `UNAVAILABLE`, `TIMEOUT`, `CONFLICT`, `IO`, `GIT`, `INTERNAL`). Runtime and Main encode a `CaxriError` into the wire reply, and the supervisor and preload rebuild it on the other side, so a code survives every process hop instead of degrading into an opaque message. Unrecognized codes decay to `INTERNAL`, and only `INTERNAL` failures log a stack.
 
 The preload exposes one `request` method backed by a fixed method union plus `onEvent`. It does not expose `ipcRenderer`, Electron objects, environment data, or generic filesystem/process access. Main starts the Runtime with an allowlisted environment containing only process-launch context, tool state locations, and Caxri-owned paths; ambient credential variables are not copied into the utility process.
 

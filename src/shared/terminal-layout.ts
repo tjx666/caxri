@@ -1,3 +1,4 @@
+import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from './ipc/layout';
 import type {
     TerminalGroupNode,
     TerminalLayout,
@@ -194,7 +195,7 @@ export function resizeSplit(
     ratio: number,
 ): TerminalLayout {
     if (!layout.root) return layout;
-    const boundedRatio = Math.min(0.85, Math.max(0.15, ratio));
+    const boundedRatio = Math.min(MAX_SPLIT_RATIO, Math.max(MIN_SPLIT_RATIO, ratio));
     return {
         ...layout,
         root: replaceNode(layout.root, splitId, (node) =>

@@ -3,63 +3,11 @@ import { extname } from 'node:path';
 
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
-import { z } from 'zod';
 
+/** The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it. */
+import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { ThemeTokens } from '../shared/types';
-
-const hex = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
-const themeSchema: z.ZodType<ThemeTokens> = z.object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    source: z.enum(['builtin', 'custom', 'vscode', 'iterm2', 'warp']),
-    colors: z.object({
-        background: hex,
-        surface: hex,
-        elevated: hex,
-        foreground: hex,
-        muted: hex,
-        border: hex,
-        selection: hex,
-        accent: hex,
-        success: hex,
-        warning: hex,
-        danger: hex,
-    }),
-    terminal: z.object({
-        background: hex,
-        foreground: hex,
-        cursor: hex,
-        selectionBackground: hex,
-        black: hex,
-        red: hex,
-        green: hex,
-        yellow: hex,
-        blue: hex,
-        magenta: hex,
-        cyan: hex,
-        white: hex,
-        brightBlack: hex,
-        brightRed: hex,
-        brightGreen: hex,
-        brightYellow: hex,
-        brightBlue: hex,
-        brightMagenta: hex,
-        brightCyan: hex,
-        brightWhite: hex,
-    }),
-    editor: z.object({
-        background: hex,
-        foreground: hex,
-        lineHighlight: hex,
-        selection: hex,
-        comment: hex,
-        keyword: hex,
-        string: hex,
-        number: hex,
-    }),
-    warnings: z.array(z.string()),
-});
 
 /** Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers. */
 export const draculaTheme: ThemeTokens = {

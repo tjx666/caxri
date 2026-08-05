@@ -13,13 +13,16 @@ import {
 
 import { getCommandDefinition } from '../shared/commands';
 import {
+    CaxriError,
+    parseCaxriRequest,
     requestEnvelopeSchema,
-    requestSchemas,
-    type CaxriMethod,
+    toWireError,
+    type CaxriReply,
+    type CaxriRequest,
     type RuntimeEvent,
-} from '../shared/contracts';
+} from '../shared/ipc';
 import { StructuredLogger } from '../shared/node/logger';
-import type { BootstrapState, Keybinding, PersistedWindowState } from '../shared/types';
+import type { PersistedWindowState } from '../shared/types';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { ProjectRootGrants } from './root-grants';
@@ -144,13 +147,13 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             });
             return result.response === 2 ? 'cancel' : result.response === 1 ? 'terminate' : 'close';
         },
-        countRunning: () => supervisor.request<number>('terminal.runningCount', {}),
-        detachAll: () => supervisor.request('terminal.detachAll', {}),
+        countRunning: () => supervisor.request('terminal.runningCount'),
+        detachAll: () => supervisor.request('terminal.detachAll'),
         logFailure: (message) =>
             mainLogger?.write('error', 'window.close_failed', {
                 fields: { error: message },
             }),
-        terminateAll: () => supervisor.request('terminal.terminateAll', {}),
+        terminateAll: () => supervisor.request('terminal.terminateAll'),
     });
     window.on('close', (event) => {
         if (forceWindowClose || quitStarted) return;
@@ -182,8 +185,8 @@ function readWindowState(window: BrowserWindow): PersistedWindowState {
 async function openMainWindow(): Promise<void> {
     if (mainWindow) return;
     const initialState = await supervisor
-        .request<PersistedWindowState>('app.windowState.get', {})
-        .catch(() => ({
+        .request('app.windowState.get')
+        .catch((): PersistedWindowState => ({
             bounds: { width: 1440, height: 900 },
             isMaximized: false,
             isFullScreen: false,
@@ -193,14 +196,11 @@ async function openMainWindow(): Promise<void> {
 
 function assertSender(event: IpcMainInvokeEvent): void {
     if (!mainWindow || event.sender !== mainWindow.webContents)
-        throw new Error('Untrusted IPC sender');
+        throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
 }
 
-async function handleMainMethod(
-    method: CaxriMethod,
-    params: Record<string, unknown>,
-): Promise<unknown> {
-    switch (method) {
+async function handleMainMethod(request: CaxriRequest): Promise<unknown> {
+    switch (request.method) {
         case 'dialog.selectDirectory': {
             const testRoot = resolveTestRootPath({ isPackaged: app.isPackaged });
             if (testRoot) {
@@ -213,25 +213,25 @@ async function handleMainMethod(
             });
             const path = result.filePaths[0];
             if (!result.canceled && path) grantedRoots.grant(path);
-            return result.canceled ? null : path;
+            /** A dismissed or empty selection must resolve to null, never to an absent value. */
+            return result.canceled ? null : (path ?? null);
         }
-        case 'project.create':
-            return grantedRoots.use(params.rootPath as string, () =>
-                supervisor.request(method, params),
+        case 'project.create': {
+            const { rootPath } = request.params;
+            return grantedRoots.use(rootPath, () =>
+                supervisor.request('project.create', { rootPath }),
             );
+        }
         case 'project.cancelCreate':
-            grantedRoots.revoke(params.rootPath as string);
+            grantedRoots.revoke(request.params.rootPath);
             return null;
         case 'project.delete': {
-            const state = await supervisor.request<BootstrapState>('app.bootstrap', {});
-            const sessions = state.sessions.filter(
-                (session) => session.projectId === params.projectId,
-            );
+            const { projectId } = request.params;
+            const state = await supervisor.request('app.bootstrap');
+            const sessions = state.sessions.filter((session) => session.projectId === projectId);
             const counts = await Promise.all(
                 sessions.map((session) =>
-                    supervisor.request<number>('terminal.runningCount', {
-                        sessionId: session.id,
-                    }),
+                    supervisor.request('terminal.runningCount', { sessionId: session.id }),
                 ),
             );
             const count = counts.reduce((sum, value) => sum + value, 0);
@@ -248,12 +248,11 @@ async function handleMainMethod(
                 cancelId: 1,
             });
             if (result.response !== 0) return { canceled: true };
-            return supervisor.request(method, params);
+            return supervisor.request('project.delete', { projectId });
         }
         case 'session.delete': {
-            const count = await supervisor.request<number>('terminal.runningCount', {
-                sessionId: params.sessionId,
-            });
+            const { sessionId } = request.params;
+            const count = await supervisor.request('terminal.runningCount', { sessionId });
             const result = await dialog.showMessageBox(mainWindow!, {
                 type: 'warning',
                 title: 'Delete Session',
@@ -267,7 +266,7 @@ async function handleMainMethod(
                 cancelId: 1,
             });
             if (result.response !== 0) return { canceled: true };
-            return supervisor.request(method, params);
+            return supervisor.request('session.delete', { sessionId });
         }
         case 'theme.import': {
             const result = await dialog.showOpenDialog(mainWindow!, {
@@ -286,11 +285,11 @@ async function handleMainMethod(
                 : supervisor.request('theme.importPath', { path });
         }
         case 'app.openConfigFile': {
-            const paths = await supervisor.request<Record<string, string>>('config.paths', {});
-            const path = paths[params.kind as string];
-            if (!path) throw new Error('Unknown configuration file');
+            const paths = await supervisor.request('config.paths');
+            const path = paths[request.params.kind];
+            if (!path) throw new CaxriError('NOT_FOUND', 'Unknown configuration file');
             const error = await shell.openPath(path);
-            if (error) throw new Error(error);
+            if (error) throw new CaxriError('IO', error);
             return null;
         }
         case 'diagnostics.export': {
@@ -307,17 +306,27 @@ async function handleMainMethod(
             );
         }
         default:
-            return supervisor.request(method, params);
+            return supervisor.forward(request.method, request.params);
     }
 }
 
 function installIpc(): void {
-    ipcMain.handle('caxri:request', async (event, raw: unknown) => {
-        assertSender(event);
-        const request = requestEnvelopeSchema.parse(raw);
-        const schema = requestSchemas[request.method];
-        const params = schema.parse(request.params) as Record<string, unknown>;
-        return handleMainMethod(request.method, params);
+    ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
+        try {
+            assertSender(event);
+            const envelope = requestEnvelopeSchema.parse(raw);
+            const result = await handleMainMethod(
+                parseCaxriRequest(envelope.method, envelope.params),
+            );
+            return { ok: true, result };
+        } catch (error) {
+            /** Replying with a classified envelope keeps the error code intact across the preload. */
+            const wire = toWireError(error);
+            mainLogger?.write('error', 'ipc.request_failed', {
+                fields: { code: wire.code, error: wire.message },
+            });
+            return { ok: false, error: wire };
+        }
     });
 }
 
@@ -340,7 +349,7 @@ function electronAccelerator(key: string | undefined): string | undefined {
 
 async function installMenu(): Promise<void> {
     const keybindings = await supervisor
-        .request<{ value: Keybinding[] }>('keybindings.get', {})
+        .request('keybindings.get')
         .then((result) => result.value)
         .catch(() => []);
     const accelerator = (id: string): string | undefined =>

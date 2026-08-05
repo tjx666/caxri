@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { createProjectSession, launchCaxri } from './helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
     const input = page.locator('.xterm-helper-textarea').last();
@@ -47,18 +47,7 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         await expect(running.page.locator('.process-running')).toBeVisible();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(tabCount);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
-        await expect
-            .poll(() =>
-                running.page.evaluate(async () => {
-                    const bridge = (
-                        window as unknown as {
-                            caxri: { request<T>(method: string, params?: unknown): Promise<T> };
-                        }
-                    ).caxri;
-                    return bridge.request<number>('terminal.runningCount');
-                }),
-            )
-            .toBe(1);
+        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
 
         await typeTerminal(running.page, 'kill -9 $$');
         const dead = running.page.locator('[data-terminal-exit-state="dead"]');

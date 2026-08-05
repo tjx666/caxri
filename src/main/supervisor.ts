@@ -4,18 +4,25 @@ import { join } from 'node:path';
 
 import { utilityProcess, type UtilityProcess } from 'electron';
 
-import type { RuntimeEvent, RuntimeMessage, RuntimeMethod } from '../shared/contracts';
+import { CaxriError, fromWireError } from '../shared/ipc/errors';
+import type {
+    RuntimeEvent,
+    RuntimeMessage,
+    RuntimeMethod,
+    RuntimeMethodResult,
+    RuntimeParamsArg,
+} from '../shared/ipc';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
     resolve: (value: unknown) => void;
-    reject: (error: Error) => void;
+    reject: (error: CaxriError) => void;
     timer: NodeJS.Timeout;
 }
 
 interface RuntimeReadiness {
     promise: Promise<void>;
-    reject: (error: Error) => void;
+    reject: (error: CaxriError) => void;
     resolve: () => void;
 }
 
@@ -27,7 +34,7 @@ export class RuntimeSupervisor extends EventEmitter {
     private pending = new Map<string, PendingRequest>();
     private restartCount = 0;
     private intentionalStop = false;
-    private terminalFailure?: Error;
+    private terminalFailure?: CaxriError;
     private readiness?: RuntimeReadiness;
     private stabilityTimer?: NodeJS.Timeout;
 
@@ -43,7 +50,8 @@ export class RuntimeSupervisor extends EventEmitter {
     start(): Promise<void> {
         if (this.child) return this.readiness?.promise ?? Promise.resolve();
         if (this.terminalFailure) return Promise.reject(this.terminalFailure);
-        if (this.intentionalStop) return Promise.reject(new Error('Runtime has been stopped'));
+        if (this.intentionalStop)
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Runtime has been stopped'));
         this.readiness ??= this.createReadiness();
         const runtimePath = join(this.runtimeDirectory, 'runtime.js');
         let child: UtilityProcess;
@@ -59,7 +67,10 @@ export class RuntimeSupervisor extends EventEmitter {
                 stdio: 'pipe',
             });
         } catch (error) {
-            const failure = error instanceof Error ? error : new Error('Runtime failed to start');
+            const failure = new CaxriError(
+                'UNAVAILABLE',
+                error instanceof Error ? error.message : 'Runtime failed to start',
+            );
             this.emit('runtime-error', failure);
             this.onExit(-1);
             return this.readiness?.promise ?? Promise.reject(failure);
@@ -79,7 +90,7 @@ export class RuntimeSupervisor extends EventEmitter {
 
     private createReadiness(): RuntimeReadiness {
         let resolve!: () => void;
-        let reject!: (error: Error) => void;
+        let reject!: (error: CaxriError) => void;
         let settled = false;
         const promise = new Promise<void>((resolvePromise, rejectPromise) => {
             resolve = () => {
@@ -96,7 +107,10 @@ export class RuntimeSupervisor extends EventEmitter {
             };
         });
         const timer = setTimeout(() => {
-            const failure = new Error('Runtime did not become ready within 15 seconds');
+            const failure = new CaxriError(
+                'TIMEOUT',
+                'Runtime did not become ready within 15 seconds',
+            );
             reject(failure);
             this.readiness = undefined;
             this.restartCount = 3;
@@ -133,8 +147,9 @@ export class RuntimeSupervisor extends EventEmitter {
         if (!pending) return;
         clearTimeout(pending.timer);
         this.pending.delete(response.id);
+        /** Rebuilding the error preserves the Runtime's classification through Main to the Renderer. */
         if (response.ok) pending.resolve(response.result);
-        else pending.reject(new Error(response.error?.message ?? 'Runtime request failed'));
+        else pending.reject(fromWireError(response.error));
     }
 
     private onExit(code: number): void {
@@ -143,12 +158,15 @@ export class RuntimeSupervisor extends EventEmitter {
         this.child = undefined;
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
-            pending.reject(new Error(`Runtime exited with code ${code}`));
+            pending.reject(new CaxriError('UNAVAILABLE', `Runtime exited with code ${code}`));
         }
         this.pending.clear();
         if (this.intentionalStop || this.terminalFailure) return;
         if (this.restartCount >= 3) {
-            const failure = new Error('Runtime failed after 3 restart attempts');
+            const failure = new CaxriError(
+                'UNAVAILABLE',
+                'Runtime failed after 3 restart attempts',
+            );
             this.terminalFailure = failure;
             this.readiness?.reject(failure);
             this.readiness = undefined;
@@ -169,25 +187,38 @@ export class RuntimeSupervisor extends EventEmitter {
         );
     }
 
-    async request<T = unknown>(
+    /** Typed entry point for Main's own Runtime calls; the method table supplies params and result. */
+    request<M extends RuntimeMethod>(
+        method: M,
+        ...args: RuntimeParamsArg<M>
+    ): Promise<RuntimeMethodResult<M>> {
+        const [params, timeoutMs] = args;
+        return this.send(method, params, timeoutMs) as Promise<RuntimeMethodResult<M>>;
+    }
+
+    /**
+     * Forwards an already validated Renderer request whose method is only known as a union, where
+     * TypeScript cannot correlate the method literal with its params type.
+     */
+    forward(method: RuntimeMethod, params: unknown, timeoutMs?: number): Promise<unknown> {
+        return this.send(method, params, timeoutMs);
+    }
+
+    private async send(
         method: RuntimeMethod,
         params: unknown = {},
         timeoutMs = 20_000,
-    ): Promise<T> {
+    ): Promise<unknown> {
         await this.start();
         const child = this.child;
-        if (!child) throw new Error('Runtime is unavailable');
+        if (!child) throw new CaxriError('UNAVAILABLE', 'Runtime is unavailable');
         const id = randomUUID();
-        return new Promise<T>((resolve, reject) => {
+        return new Promise<unknown>((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
-                reject(new Error(`Runtime request timed out: ${method}`));
+                reject(new CaxriError('TIMEOUT', `Runtime request timed out: ${method}`));
             }, timeoutMs);
-            this.pending.set(id, {
-                resolve: (value) => resolve(value as T),
-                reject,
-                timer,
-            });
+            this.pending.set(id, { resolve, reject, timer });
             child.postMessage({ id, method, params });
         });
     }
@@ -196,7 +227,9 @@ export class RuntimeSupervisor extends EventEmitter {
         this.intentionalStop = true;
         if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
         this.stabilityTimer = undefined;
-        this.readiness?.reject(new Error('Runtime stopped before becoming ready'));
+        this.readiness?.reject(
+            new CaxriError('UNAVAILABLE', 'Runtime stopped before becoming ready'),
+        );
         this.readiness = undefined;
         const child = this.child;
         if (!child) return;

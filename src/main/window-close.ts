@@ -2,9 +2,10 @@ interface WindowCloseOptions {
     close: () => void;
     confirm: (runningCount: number) => Promise<'cancel' | 'close' | 'terminate'>;
     countRunning: () => Promise<number>;
-    detachAll: () => Promise<void>;
+    /** Runtime replies carry a result the close flow ignores; only rejection matters here. */
+    detachAll: () => Promise<unknown>;
     logFailure: (message: string) => void;
-    terminateAll: () => Promise<void>;
+    terminateAll: () => Promise<unknown>;
 }
 
 /** Completes window closure even when the Runtime is unavailable during shutdown. */

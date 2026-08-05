@@ -9,6 +9,7 @@ import type {
     TerminalRecord,
 } from '@shared/types';
 
+import { caxri } from '../lib/caxri';
 import { FileTypeIcon } from '../file-icons/FileTypeIcon';
 import { TerminalInfoPanel } from './TerminalInfoPanel';
 import { Button } from './ui/button';
@@ -40,8 +41,8 @@ function DirectoryEntries({
     const [entries, setEntries] = useState<FileEntry[]>([]);
     useEffect(() => {
         let canceled = false;
-        void window.caxri
-            .request<FileEntry[]>('files.list', { sessionId, directory })
+        void caxri
+            .request('files.list', { sessionId, directory })
             .then((nextEntries) => {
                 if (!canceled) setEntries(nextEntries);
             })
@@ -137,7 +138,7 @@ function FilesPanel({
     const sessionId = session?.id;
     useEffect(
         () =>
-            window.caxri.onEvent((event) => {
+            caxri.onEvent((event) => {
                 if (event.event === 'files.changed' && event.payload.sessionId === sessionId)
                     setRevision((value) => value + 1);
             }),
@@ -168,8 +169,8 @@ function GitPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onErro
     const sessionId = session?.id;
     const refresh = useCallback((): void => {
         if (!sessionId) return;
-        void window.caxri
-            .request<GitSummary>('git.summary', { sessionId })
+        void caxri
+            .request('git.summary', { sessionId })
             .then((nextSummary) => {
                 setSummary(nextSummary);
                 setSelectedRepositoryId((current) =>
@@ -188,7 +189,7 @@ function GitPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onErro
     }, [refresh]);
     useEffect(() => {
         let refreshTimer: number | undefined;
-        const unsubscribe = window.caxri.onEvent((event) => {
+        const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId) return;
             if (refreshTimer) window.clearTimeout(refreshTimer);
             refreshTimer = window.setTimeout(refresh, 150);
@@ -200,8 +201,8 @@ function GitPanel({ session, onError }: Pick<InspectorProps, 'session' | 'onErro
     }, [refresh, sessionId]);
     useEffect(() => {
         if (!sessionId || !selectedRepositoryId || !selected) return;
-        void window.caxri
-            .request<string>('git.diff', {
+        void caxri
+            .request('git.diff', {
                 sessionId,
                 repositoryId: selectedRepositoryId,
                 path: selected,

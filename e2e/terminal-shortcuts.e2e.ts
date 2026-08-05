@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,15 +20,8 @@ async function typeInTerminal(page: Page, terminalId: string, command: string): 
 }
 
 async function terminalIds(page: Page): Promise<string[]> {
-    return page.evaluate(async () => {
-        const bridge = (
-            window as unknown as {
-                caxri: { request<T>(method: string, params?: unknown): Promise<T> };
-            }
-        ).caxri;
-        const state = await bridge.request<{ terminals: Array<{ id: string }> }>('app.bootstrap');
-        return state.terminals.map((terminal) => terminal.id);
-    });
+    const state = await pageRequest<{ terminals: Array<{ id: string }> }>(page, 'app.bootstrap');
+    return state.terminals.map((terminal) => terminal.id);
 }
 
 test('Command+K/T/W affect only the active Terminal and pause behind modals', async () => {

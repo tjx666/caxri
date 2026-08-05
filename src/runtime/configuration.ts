@@ -6,7 +6,7 @@ import parcelWatcher from '@parcel/watcher';
 import { z } from 'zod';
 
 import { defaultKeybindings } from '../shared/commands';
-import type { RuntimeEvent } from '../shared/contracts';
+import type { RuntimeEvent } from '../shared/ipc';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import {

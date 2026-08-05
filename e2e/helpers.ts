@@ -148,19 +148,37 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.press('Enter');
 }
 
+export type PageReply<T> =
+    { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
+
+/**
+ * Calls the preload bridge from inside the page and returns the raw reply envelope. `window.caxri`
+ * resolves instead of rejecting because `contextBridge` copies only `message` and `stack` off a
+ * thrown error, so the Caxri error code has to travel as data. Use this when a spec asserts a
+ * failure; use {@link pageRequest} when it only needs the result.
+ */
+export function pageReply<T>(page: Page, method: string, params?: unknown): Promise<PageReply<T>> {
+    return page.evaluate(
+        ([requestMethod, requestParams]) =>
+            (
+                window as unknown as {
+                    caxri: { request(method: string, params?: unknown): Promise<unknown> };
+                }
+            ).caxri.request(requestMethod, requestParams),
+        [method, params] as const,
+    ) as Promise<PageReply<T>>;
+}
+
+export async function pageRequest<T>(page: Page, method: string, params?: unknown): Promise<T> {
+    const reply = await pageReply<T>(page, method, params);
+    if (!reply.ok) throw new Error(`${reply.error.code}: ${reply.error.message}`);
+    return reply.result;
+}
+
 export async function selectedSessionId(page: Page): Promise<string> {
-    return page.evaluate(async () => {
-        const bridge = (
-            window as unknown as {
-                caxri: {
-                    request<T>(method: string, params?: unknown): Promise<T>;
-                };
-            }
-        ).caxri;
-        const state = await bridge.request<{ selectedSessionId?: string }>('app.bootstrap');
-        if (!state.selectedSessionId) throw new Error('No Session selected');
-        return state.selectedSessionId;
-    });
+    const state = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
+    if (!state.selectedSessionId) throw new Error('No Session selected');
+    return state.selectedSessionId;
 }
 
 export function sessionCard(page: Page, sessionId: string) {

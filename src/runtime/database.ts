@@ -4,6 +4,7 @@ import { basename, dirname } from 'node:path';
 
 import Database from 'better-sqlite3';
 
+import { CaxriError } from '../shared/ipc/errors';
 import { createTerminalLayout, removeTerminal } from '../shared/terminal-layout';
 import type {
     AgentActivityState,
@@ -284,7 +285,7 @@ export class CaxriDatabase {
 
     deleteProject(projectId: string): void {
         const result = this.database.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
-        if (result.changes !== 1) throw new Error('Project not found');
+        if (result.changes !== 1) throw new CaxriError('NOT_FOUND', 'Project not found');
         if (this.getAppState<string>('lastSelectedProjectId') === projectId) {
             const fallbackProject = this.listProjects().at(0);
             const fallbackSession = fallbackProject
@@ -353,7 +354,7 @@ export class CaxriDatabase {
         return this.database.transaction(() => {
             this.assertTerminalCapacity();
             const project = this.getProject(projectId);
-            if (!project) throw new Error('Project not found');
+            if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
             const now = Date.now();
             const sessionId = randomUUID();
             const terminalId = randomUUID();
@@ -413,7 +414,7 @@ export class CaxriDatabase {
         const result = this.database
             .prepare('UPDATE sessions SET last_opened_at = ? WHERE id = ?')
             .run(Date.now(), sessionId);
-        if (result.changes !== 1) throw new Error('Session not found');
+        if (result.changes !== 1) throw new CaxriError('NOT_FOUND', 'Session not found');
         const session = this.getSession(sessionId)!;
         this.database
             .prepare('UPDATE projects SET last_opened_at = ? WHERE id = ?')
@@ -424,7 +425,7 @@ export class CaxriDatabase {
 
     deleteSession(sessionId: string): void {
         const result = this.database.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
-        if (result.changes !== 1) throw new Error('Session not found');
+        if (result.changes !== 1) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (this.getAppState<string>('lastSelectedSessionId') === sessionId) {
             const selectedProjectId = this.getAppState<string>('lastSelectedProjectId');
             const fallback = selectedProjectId
@@ -457,7 +458,7 @@ export class CaxriDatabase {
 
     createTerminal(sessionId: string, kind: TerminalKind): TerminalRecord {
         const session = this.getSession(sessionId);
-        if (!session) throw new Error('Session not found');
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         this.assertTerminalCapacity(sessionId);
         const id = randomUUID();
         const now = Date.now();
@@ -495,9 +496,15 @@ export class CaxriDatabase {
 
     private assertTerminalCapacity(sessionId?: string): void {
         if (this.listTerminals().length >= MAX_TERMINALS_GLOBAL)
-            throw new Error(`Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`);
+            throw new CaxriError(
+                'CAPACITY',
+                `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
+            );
         if (sessionId && this.listTerminals(sessionId).length >= MAX_TERMINALS_PER_SESSION) {
-            throw new Error(`A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`);
+            throw new CaxriError(
+                'CAPACITY',
+                `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
+            );
         }
     }
 

@@ -4,11 +4,12 @@ import { lstat, realpath } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
+import { CaxriError, isCaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { GitFileStatus, GitRepositorySummary, GitSummary } from '../shared/types';
 import type { FileService } from './files';
-import { isOutsideRoot } from './path-security';
+import { assertInsideRoot, isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);
@@ -40,6 +41,11 @@ export function describeGitFailure(error: unknown): string {
     if (failure.stderr?.toLowerCase().includes('not a git repository'))
         return 'The Project root is not a Git repository.';
     return 'The Git operation failed. See Runtime logs for details.';
+}
+
+/** Wraps a raw `execFile` fault as a `GIT` error while keeping the already user-facing wording. */
+export function toGitError(error: unknown): CaxriError {
+    return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error));
 }
 
 function statusKind(code: string): GitFileStatus['kind'] {
@@ -166,7 +172,7 @@ export class GitService {
                     error: error instanceof Error ? error.message : 'unknown',
                 },
             });
-            throw error;
+            throw toGitError(error);
         }
     }
 
@@ -330,10 +336,11 @@ export class GitService {
             });
             return { isRepository: true, repositories };
         } catch (error) {
+            /** A missing or unapproved repository is reported in the summary, never as a rejection. */
             return {
                 isRepository: false,
                 repositories: [],
-                error: describeGitFailure(error),
+                error: toGitError(error).message,
             };
         }
     }
@@ -343,7 +350,11 @@ export class GitService {
         const repository = summary.repositories.find(
             (candidate) => candidate.id === repositoryIdValue,
         );
-        if (!repository) throw new Error('Git repository is outside the approved Project roots');
+        if (!repository)
+            throw new CaxriError(
+                'PATH_DENIED',
+                'Git repository is outside the approved Project roots',
+            );
         let candidate = isAbsolute(path) ? path : resolve(repository.rootPath, path);
         try {
             candidate = await realpath(candidate);
@@ -351,8 +362,9 @@ export class GitService {
             /** Deleted Git paths no longer resolve; the lexical path is revalidated below. */
         }
         const relativePath = relative(repository.rootPath, candidate);
-        if (!relativePath || isOutsideRoot(relativePath))
-            throw new Error('Git path is outside the selected repository');
+        const outsideRepository = 'Git path is outside the selected repository';
+        assertInsideRoot(relativePath, outsideRepository);
+        if (!relativePath) throw new CaxriError('PATH_DENIED', outsideRepository);
         const file = repository.files.find((item) => item.path === relativePath);
         if (file?.kind === 'untracked')
             return 'Untracked file. Caxri does not include file contents in a synthetic diff.';

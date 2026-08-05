@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,17 +19,9 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
     let running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        const firstTerminalId = await running.page.evaluate(async () => {
-            const bridge = (
-                window as unknown as {
-                    caxri: { request<T>(method: string, params?: unknown): Promise<T> };
-                }
-            ).caxri;
-            const state = await bridge.request<{
-                terminals: Array<{ id: string }>;
-            }>('app.bootstrap');
-            return state.terminals[0].id;
-        });
+        const firstTerminalId = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals[0].id;
         const initialInput = running.page.locator(
             `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
         );
@@ -46,14 +38,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await running.page.getByTitle('Split Terminal').click();
         await expect(running.page.locator('.terminal-group')).toHaveCount(2);
         await expect(running.page.getByRole('separator')).toHaveCount(1);
-        const runningBeforeMove = await running.page.evaluate(() => {
-            const bridge = (
-                window as unknown as {
-                    caxri: { request<T>(method: string, params?: unknown): Promise<T> };
-                }
-            ).caxri;
-            return bridge.request<number>('terminal.runningCount');
-        });
+        const runningBeforeMove = await pageRequest<number>(running.page, 'terminal.runningCount');
 
         const dragFirstTab = (targetIndex: number, xRatio: number, yRatio: number) =>
             running.page.evaluate(
@@ -97,32 +82,18 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
             ),
         ).toContainText('alive');
         await expect
-            .poll(() =>
-                running.page.evaluate(() => {
-                    const bridge = (
-                        window as unknown as {
-                            caxri: { request<T>(method: string, params?: unknown): Promise<T> };
-                        }
-                    ).caxri;
-                    return bridge.request<number>('terminal.runningCount');
-                }),
-            )
+            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeMove);
 
         const splitter = running.page.getByRole('separator');
         await splitter.focus();
         await running.page.keyboard.press('ArrowRight');
-        const savedRatio = await running.page.evaluate(async () => {
-            const bridge = (
-                window as unknown as {
-                    caxri: { request<T>(method: string, params?: unknown): Promise<T> };
-                }
-            ).caxri;
-            const state = await bridge.request<{
-                sessionStates: Array<{ layout: { root?: { ratio?: number } } }>;
-            }>('app.bootstrap');
-            return state.sessionStates[0].layout.root?.ratio;
-        });
+        const savedRatio = (
+            await pageRequest<{ sessionStates: Array<{ layout: { root?: { ratio?: number } } }> }>(
+                running.page,
+                'app.bootstrap',
+            )
+        ).sessionStates[0].layout.root?.ratio;
         expect(savedRatio).toBeCloseTo(0.55, 2);
 
         await running.app.close();

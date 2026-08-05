@@ -10,6 +10,8 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    pageReply,
+    pageRequest,
     selectedSessionId,
     sessionCard,
     typeTerminal,
@@ -313,21 +315,12 @@ test('canceling the Agent choice revokes the selected Project root grant', async
         ).toBeVisible();
         await running.page.keyboard.press('Escape');
 
-        await expect(
-            running.page.evaluate(async (rootPath) => {
-                const bridge = (
-                    window as unknown as {
-                        caxri: { request(method: string, params: unknown): Promise<unknown> };
-                    }
-                ).caxri;
-                try {
-                    await bridge.request('project.create', { rootPath });
-                    return 'created';
-                } catch (error) {
-                    return error instanceof Error ? error.message : 'rejected';
-                }
-            }, root),
-        ).resolves.toContain('was not selected');
+        const denied = await pageReply(running.page, 'project.create', { rootPath: root });
+        expect(denied.ok).toBe(false);
+        if (!denied.ok) {
+            expect(denied.error.code).toBe('PATH_DENIED');
+            expect(denied.error.message).toContain('was not selected');
+        }
         await expect(running.page.locator('.session-card')).toHaveCount(0);
     } finally {
         await running.app.close().catch(() => undefined);
@@ -547,12 +540,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.app.evaluate(({ dialog }, path) => {
             dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath: path });
         }, diagnosticsPath);
-        await running.page.evaluate(async () => {
-            const bridge = (
-                window as unknown as { caxri: { request(method: string): Promise<unknown> } }
-            ).caxri;
-            await bridge.request('diagnostics.export');
-        });
+        await pageRequest(running.page, 'diagnostics.export');
         const { stdout: archiveList } = await execFileAsync('unzip', ['-l', diagnosticsPath]);
         expect(archiveList).not.toContain('snapshot');
         expect(archiveList).not.toContain('scrollback');
@@ -585,15 +573,15 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .first()
             .getAttribute('data-terminal-id');
         if (!deadTerminalId) throw new Error('Dead Terminal ID was not rendered');
-        await running.page.evaluate(async (terminalId) => {
-            const bridge = (
-                window as unknown as {
-                    caxri: { request(method: string, params: unknown): Promise<unknown> };
-                }
-            ).caxri;
-            await bridge.request('terminal.input', { terminalId, data: 'ignored stale input' });
-            await bridge.request('terminal.resize', { terminalId, cols: 120, rows: 40 });
-        }, deadTerminalId);
+        await pageRequest(running.page, 'terminal.input', {
+            terminalId: deadTerminalId,
+            data: 'ignored stale input',
+        });
+        await pageRequest(running.page, 'terminal.resize', {
+            terminalId: deadTerminalId,
+            cols: 120,
+            rows: 40,
+        });
         await running.page.locator('.terminal-surface').first().click();
         await running.page.keyboard.insertText('ignored dead Terminal input');
         await expect(running.page.locator('.toast')).toHaveCount(0);

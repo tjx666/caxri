@@ -4,8 +4,9 @@ import { Terminal } from '@xterm/xterm';
 import { CircleCheck, CircleX, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { TerminalRecord, TerminalSnapshot, ThemeTokens } from '@shared/types';
+import type { TerminalRecord, ThemeTokens } from '@shared/types';
 
+import { caxri } from '../lib/caxri';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from '../lib/terminal-fonts';
 import { TerminalReplayBuffer } from '../lib/terminal-replay';
 import { onTerminalViewClear } from '../lib/terminal-view-commands';
@@ -104,7 +105,7 @@ export function TerminalPane({
 
         const dataDisposable = xterm.onData((data) => {
             if (latestRef.current.processState !== 'running') return;
-            void window.caxri
+            void caxri
                 .request('terminal.input', { terminalId: terminal.id, data })
                 .catch((error: unknown) => {
                     latestRef.current.onError(
@@ -112,7 +113,7 @@ export function TerminalPane({
                     );
                 });
         });
-        const unsubscribe = window.caxri.onEvent((event) => {
+        const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminal.id)
                 return;
             replay.push(event.payload.data);
@@ -121,8 +122,8 @@ export function TerminalPane({
                     `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
                 );
         });
-        void window.caxri
-            .request<TerminalSnapshot | null>('terminal.attach', { terminalId: terminal.id })
+        void caxri
+            .request('terminal.attach', { terminalId: terminal.id })
             .then((snapshot) => {
                 if (!disposed) replay.restore(snapshot?.payload ?? '');
             })
@@ -137,7 +138,7 @@ export function TerminalPane({
             try {
                 fit.fit();
                 if (latestRef.current.processState === 'running') {
-                    void window.caxri.request('terminal.resize', {
+                    void caxri.request('terminal.resize', {
                         terminalId: terminal.id,
                         cols: xterm.cols,
                         rows: xterm.rows,
@@ -161,7 +162,7 @@ export function TerminalPane({
             dataDisposable.dispose();
             xterm.dispose();
             xtermRef.current = undefined;
-            void window.caxri.request('terminal.detach', { terminalId: terminal.id }).catch(() => {
+            void caxri.request('terminal.detach', { terminalId: terminal.id }).catch(() => {
                 // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
             });
         };
@@ -171,7 +172,7 @@ export function TerminalPane({
         if (attachedEpochRef.current === attachEpoch) return;
         attachedEpochRef.current = attachEpoch;
         /** Runtime-owned attachment state is lost with the utility process even though this pane remains mounted. */
-        void window.caxri
+        void caxri
             .request('terminal.attach', { terminalId: terminal.id })
             .catch((error: unknown) =>
                 latestRef.current.onError(

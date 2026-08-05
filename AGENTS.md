@@ -19,7 +19,7 @@ Detailed playbooks live under `skills/` (`build`, `debug`, `performance`, `relea
 ## Architecture boundaries
 
 - Renderer code never imports Node.js, Electron, PTY, Git, or filesystem APIs.
-- The preload exposes only the typed `window.caxri` allowlist from `src/shared/contracts.ts`.
+- The preload exposes only the typed `window.caxri` allowlist from `src/shared/ipc`, whose method table, domain schemas, event union, and error taxonomy are the single source of truth for both processes.
 - Main owns windows, native dialogs, application lifecycle, and Runtime supervision.
 - The utility-process Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.
 - Add operations to the structured request contract. Never accept an arbitrary shell command from the Renderer.

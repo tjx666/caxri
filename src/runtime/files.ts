@@ -4,12 +4,12 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
 
-import type { RuntimeEvent } from '../shared/contracts';
+import { CaxriError, type RuntimeEvent } from '../shared/ipc';
 import type { StructuredLogger } from '../shared/node/logger';
 import type { FileChange, FileDocument, FileEntry } from '../shared/types';
 import type { CaxriDatabase } from './database';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
-import { isOutsideRoot } from './path-security';
+import { assertInsideRoot, isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
 
 const IGNORED_SEGMENTS = new Set([
@@ -126,13 +126,11 @@ export class FileService {
         input?: string,
     ): Promise<{ root: string; path: string }> {
         const session = this.database.getSession(sessionId);
-        if (!session) throw new Error('Session not found');
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const root = await realpath(session.rootPath);
         const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
         const resolved = await realpath(candidate);
-        const resolvedRelative = relative(root, resolved);
-        if (isOutsideRoot(resolvedRelative))
-            throw new Error('Symlink target is outside the Project root');
+        assertInsideRoot(relative(root, resolved), 'Symlink target is outside the Project root');
         return { root, path: resolved };
     }
 
@@ -157,7 +155,7 @@ export class FileService {
         }
         const before = await lstat(path);
         if (!before.isDirectory() || before.isSymbolicLink())
-            throw new Error('Path is not a directory');
+            throw new CaxriError('IO', 'Path is not a directory');
         const entries = await readdir(path, { withFileTypes: true });
         const after = await lstat(path);
         /** Revalidate around readdir so a Session-root swap cannot disclose another directory. */
@@ -168,7 +166,7 @@ export class FileService {
             before.ino !== after.ino ||
             (await realpath(path)) !== path
         )
-            throw new Error('Directory changed during listing');
+            throw new CaxriError('IO', 'Directory changed during listing');
         const visible = entries.filter(
             (entry) => !IGNORED_SEGMENTS.has(entry.name) && !entry.name.endsWith('.db-wal'),
         );
@@ -196,11 +194,12 @@ export class FileService {
     async read(sessionId: string, path: string): Promise<FileDocument> {
         const resolved = await this.resolveSessionPath(sessionId, path);
         const stats = await lstat(resolved.path);
-        if (!stats.isFile() || stats.isSymbolicLink()) throw new Error('Path is not a file');
+        if (!stats.isFile() || stats.isSymbolicLink())
+            throw new CaxriError('IO', 'Path is not a file');
         const file = await this.openFile(resolved.path, constants.O_RDONLY | constants.O_NOFOLLOW);
         try {
             if ((await realpath(resolved.path)) !== resolved.path)
-                throw new Error('File path changed during read');
+                throw new CaxriError('IO', 'File path changed during read');
             const openedStats = await file.stat();
             if (
                 !openedStats.isFile() ||
@@ -208,13 +207,19 @@ export class FileService {
                 openedStats.ino !== stats.ino ||
                 openedStats.nlink > 1
             ) {
-                throw new Error('File changed during read or has multiple filesystem links');
+                throw new CaxriError(
+                    'IO',
+                    'File changed during read or has multiple filesystem links',
+                );
             }
             if (openedStats.size > this.maxFileBytes())
-                throw new Error(`File exceeds the ${this.maxFileBytes()} byte safety limit`);
+                throw new CaxriError(
+                    'CAPACITY',
+                    `File exceeds the ${this.maxFileBytes()} byte safety limit`,
+                );
             const buffer = await file.readFile();
             if (buffer.subarray(0, 8_192).includes(0))
-                throw new Error('Binary files cannot be opened in the editor');
+                throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
             return {
                 path: resolved.path,
                 content: buffer.toString('utf8'),
@@ -230,13 +235,13 @@ export class FileService {
         const resolved = await this.resolveSessionPath(sessionId, path);
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
-            throw new Error('Only existing regular files can be saved');
+            throw new CaxriError('IO', 'Only existing regular files can be saved');
         if (Buffer.byteLength(content, 'utf8') > this.maxFileBytes())
-            throw new Error('Edited file exceeds the write safety limit');
+            throw new CaxriError('CAPACITY', 'Edited file exceeds the write safety limit');
         const file = await this.openFile(resolved.path, constants.O_WRONLY | constants.O_NOFOLLOW);
         try {
             if ((await realpath(resolved.path)) !== resolved.path)
-                throw new Error('File path changed during save');
+                throw new CaxriError('IO', 'File path changed during save');
             const openedStats = await file.stat();
             if (
                 !openedStats.isFile() ||
@@ -244,7 +249,10 @@ export class FileService {
                 openedStats.ino !== stats.ino ||
                 openedStats.nlink > 1
             ) {
-                throw new Error('File changed during save or has multiple filesystem links');
+                throw new CaxriError(
+                    'IO',
+                    'File changed during save or has multiple filesystem links',
+                );
             }
             await file.truncate(0);
             await file.writeFile(content, 'utf8');

@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { launchCaxri } from './helpers.ts';
+import { launchCaxri, pageRequest, selectedSessionId } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -23,22 +23,8 @@ test('Agent identities stay consistent across every shared surface', async () =>
         await expect(createDialog.locator('[data-agent-icon="shell"]')).toBeVisible();
         await createDialog.getByRole('button', { name: 'Codex' }).click();
 
-        const sessionId = await running.page.evaluate(async () => {
-            const bridge = (
-                window as unknown as {
-                    caxri: {
-                        request<T>(method: string, params?: unknown): Promise<T>;
-                    };
-                }
-            ).caxri;
-            const state = await bridge.request<{ selectedSessionId?: string }>('app.bootstrap');
-            if (!state.selectedSessionId) throw new Error('No Session selected');
-            await bridge.request('terminal.create', {
-                kind: 'claude',
-                sessionId: state.selectedSessionId,
-            });
-            return state.selectedSessionId;
-        });
+        const sessionId = await selectedSessionId(running.page);
+        await pageRequest(running.page, 'terminal.create', { kind: 'claude', sessionId });
 
         await expect(
             running.page.locator('.work-tab').locator('[data-agent-icon="codex"]'),

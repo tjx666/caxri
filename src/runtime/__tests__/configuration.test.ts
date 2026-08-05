@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { RuntimeEvent } from '../../shared/contracts';
+import type { RuntimeEvent } from '../../shared/ipc';
 import { ConfigurationService, findKeybindingConflicts } from '../configuration';
 
 const temporaryDirectories: string[] = [];

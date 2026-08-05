@@ -1,6 +1,6 @@
 import * as pty from 'node-pty';
 
-import type { RuntimeEvent } from '../shared/contracts';
+import { CaxriError, type RuntimeEvent } from '../shared/ipc';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
@@ -78,7 +78,7 @@ export class TerminalManager {
             /** A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell. */
             if (!this.database.getTerminal(record.id)) {
                 child.kill();
-                throw new Error('Terminal was closed before launch completed');
+                throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
             const live: LiveTerminal = {
                 process: child,
@@ -119,7 +119,10 @@ export class TerminalManager {
         if (kind === 'shell') return process.env.SHELL || '/bin/zsh';
         const executable = await discoverExecutable(kind);
         if (!executable)
-            throw new Error(`${kind === 'claude' ? 'Claude Code' : 'Codex'} CLI was not found`);
+            throw new CaxriError(
+                'UNAVAILABLE',
+                `${kind === 'claude' ? 'Claude Code' : 'Codex'} CLI was not found`,
+            );
         return executable;
     }
 
@@ -274,7 +277,7 @@ export class TerminalManager {
 
     async restart(terminalId: string): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
-        if (!record) throw new Error('Terminal not found');
+        if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         const live = this.terminals.get(terminalId);
         const preserveAttachment = this.attached.has(terminalId);
         if (live) {
@@ -285,7 +288,7 @@ export class TerminalManager {
         if (preserveAttachment) this.attached.add(terminalId);
         this.database.updateTerminalState(terminalId, 'starting');
         const restarting = this.database.getTerminal(terminalId);
-        if (!restarting) throw new Error('Terminal was closed while restarting');
+        if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
         return this.start(restarting);
     }
 

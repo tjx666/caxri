@@ -1,247 +1,38 @@
-export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
+/**
+ * Domain types are inferred from the Zod schemas in `src/shared/ipc` so the IPC contract and the
+ * TypeScript model can never drift. This module stays as the stable import path for consumers.
+ */
+export {
+    MAX_CONFIGURABLE_FILE_BYTES,
+    type AgentActivityState,
+    type AgentProvider,
+    type AgentSnapshot,
+    type AppSettings,
+    type BootstrapState,
+    type EditorTabState,
+    type FileChange,
+    type FileDocument,
+    type FileEntry,
+    type GitFileStatus,
+    type GitRepositorySummary,
+    type GitSummary,
+    type InspectorMode,
+    type Keybinding,
+    type KeybindingConflict,
+    type PersistedWindowState,
+    type ProcessState,
+    type ProjectRecord,
+    type SessionRecord,
+    type SessionState,
+    type TerminalKind,
+    type TerminalRecord,
+    type TerminalSnapshot,
+    type ThemeTokens,
+} from './ipc/domain';
 
-export type AgentProvider = 'claude' | 'codex';
-export type AgentActivityState =
-    'running' | 'waiting' | 'completed' | 'failed' | 'idle' | 'unknown';
-export type TerminalKind = AgentProvider | 'shell';
-export type ProcessState = 'starting' | 'running' | 'stopped' | 'dead' | 'failed';
-export type InspectorMode = 'files' | 'git' | 'info';
-
-export interface AgentSnapshot {
-    provider: AgentProvider;
-    sessionId?: string;
-    title?: string;
-    status: AgentActivityState;
-    usage?: Array<{ label: string; value: string }>;
-    observedAt: number;
-    available: boolean;
-    executable?: string;
-    version?: string;
-}
-
-export interface ProjectRecord {
-    id: string;
-    rootPath: string;
-    displayTitle: string;
-    createdAt: number;
-    lastOpenedAt: number;
-}
-
-export interface SessionRecord {
-    id: string;
-    projectId: string;
-    /** Project-owned root projected onto the Session read model for path-scoped services. */
-    rootPath: string;
-    createdAt: number;
-    lastOpenedAt: number;
-    /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
-    primaryAgentTerminalId?: string;
-    lastActivityState: AgentActivityState;
-    layoutVersion: number;
-    displayTitle: string;
-}
-
-export interface TerminalRecord {
-    id: string;
-    sessionId: string;
-    kind: TerminalKind;
-    provider?: AgentProvider;
-    cwd: string;
-    title: string;
-    icon: string;
-    orderIndex: number;
-    layoutNodeId: string;
-    agentSessionId?: string;
-    lastProcessState: ProcessState;
-    createdAt: number;
-    updatedAt: number;
-    /** Live Runtime metadata; absent when the PTY is not running. */
-    processId?: number;
-}
-
-export interface TerminalSnapshot {
-    terminalId: string;
-    encodingVersion: number;
-    lineCount: number;
-    byteCount: number;
-    payload: string;
-    updatedAt: number;
-}
-
-export interface EditorTabState {
-    path: string;
-    dirty: boolean;
-}
-
-export interface TerminalGroupNode {
-    type: 'group';
-    id: string;
-    terminalIds: string[];
-    activeTerminalId?: string;
-}
-
-export interface TerminalSplitNode {
-    type: 'split';
-    id: string;
-    direction: 'horizontal' | 'vertical';
-    ratio: number;
-    first: TerminalLayoutNode;
-    second: TerminalLayoutNode;
-}
-
-export type TerminalLayoutNode = TerminalGroupNode | TerminalSplitNode;
-
-export interface TerminalLayout {
-    root?: TerminalLayoutNode;
-    activeGroupId?: string;
-}
-
-export interface SessionState {
-    sessionId: string;
-    openTabs: EditorTabState[];
-    activeTab?: string;
-    inspectorMode: InspectorMode;
-    layout: TerminalLayout;
-}
-
-export interface AppSettings {
-    'session.defaultAgent': TerminalKind | null;
-    'terminal.fontSize': number;
-    'terminal.scrollback': number;
-    'files.maxFileBytes': number;
-}
-
-export interface PersistedWindowState {
-    bounds: {
-        x?: number;
-        y?: number;
-        width: number;
-        height: number;
-    };
-    isMaximized: boolean;
-    isFullScreen: boolean;
-}
-
-export interface Keybinding {
-    key: string;
-    command: string;
-}
-
-export interface KeybindingConflict {
-    key: string;
-    commands: string[];
-}
-
-export interface ThemeTokens {
-    id: string;
-    name: string;
-    source: 'builtin' | 'custom' | 'vscode' | 'iterm2' | 'warp';
-    colors: {
-        background: string;
-        surface: string;
-        elevated: string;
-        foreground: string;
-        muted: string;
-        border: string;
-        selection: string;
-        accent: string;
-        success: string;
-        warning: string;
-        danger: string;
-    };
-    terminal: {
-        background: string;
-        foreground: string;
-        cursor: string;
-        selectionBackground: string;
-        black: string;
-        red: string;
-        green: string;
-        yellow: string;
-        blue: string;
-        magenta: string;
-        cyan: string;
-        white: string;
-        brightBlack: string;
-        brightRed: string;
-        brightGreen: string;
-        brightYellow: string;
-        brightBlue: string;
-        brightMagenta: string;
-        brightCyan: string;
-        brightWhite: string;
-    };
-    editor: {
-        background: string;
-        foreground: string;
-        lineHighlight: string;
-        selection: string;
-        comment: string;
-        keyword: string;
-        string: string;
-        number: string;
-    };
-    warnings: string[];
-}
-
-export interface FileEntry {
-    name: string;
-    path: string;
-    kind: 'file' | 'directory' | 'symlink';
-    size?: number;
-}
-
-export interface FileChange {
-    path: string;
-    kind: 'create' | 'update' | 'delete';
-}
-
-export interface FileDocument {
-    path: string;
-    content: string;
-    mtimeMs: number;
-    size: number;
-}
-
-export interface GitFileStatus {
-    path: string;
-    index: string;
-    workingTree: string;
-    kind: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
-}
-
-export interface GitRepositorySummary {
-    id: string;
-    kind: 'primary' | 'worktree' | 'nested' | 'submodule';
-    name: string;
-    rootPath: string;
-    branch: string;
-    head?: string;
-    ahead: number;
-    behind: number;
-    files: GitFileStatus[];
-}
-
-export interface GitSummary {
-    isRepository: boolean;
-    repositories: GitRepositorySummary[];
-    error?: string;
-}
-
-export interface BootstrapState {
-    projects: ProjectRecord[];
-    sessions: SessionRecord[];
-    terminals: TerminalRecord[];
-    selectedProjectId?: string;
-    selectedSessionId?: string;
-    sessionStates: SessionState[];
-    settings: AppSettings;
-    keybindings: Keybinding[];
-    keybindingConflicts: KeybindingConflict[];
-    configurationErrors?: string[];
-    theme: ThemeTokens;
-    runtime: {
-        status: 'starting' | 'ready' | 'restarting' | 'failed';
-        restartCount: number;
-    };
-}
+export type {
+    TerminalGroupNode,
+    TerminalLayout,
+    TerminalLayoutNode,
+    TerminalSplitNode,
+} from './ipc/layout';

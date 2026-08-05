@@ -8,6 +8,8 @@ import {
 } from '@shared/editor-state';
 import type { FileDocument, SessionState } from '@shared/types';
 
+import { caxri } from '../lib/caxri';
+
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
 interface ExternalDocumentSyncOptions {
@@ -77,7 +79,7 @@ export function useExternalDocumentSync({
     });
 
     useEffect(() => {
-        const unsubscribe = window.caxri.onEvent((event) => {
+        const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'files.changed' || event.payload.sessionId !== selectedSessionId)
                 return;
             const changedPaths = event.payload.overflow
@@ -91,7 +93,7 @@ export function useExternalDocumentSync({
             if (uniquePaths.length === 0) return;
             void Promise.allSettled(
                 uniquePaths.map((path) =>
-                    window.caxri.request<FileDocument>('files.read', {
+                    caxri.request('files.read', {
                         sessionId: selectedSessionId,
                         path,
                     }),
@@ -120,7 +122,7 @@ export function useExternalDocumentSync({
         let canceled = false;
         void Promise.allSettled(
             paths.map((path) =>
-                window.caxri.request<FileDocument>('files.read', {
+                caxri.request('files.read', {
                     sessionId: selectedSessionId,
                     path,
                 }),

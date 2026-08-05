@@ -4,6 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
+import { caxri } from '../lib/caxri';
 import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
 import { ThemePreview } from './ThemePreview';
 import { Button } from './ui/button';
@@ -56,13 +57,9 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
 
     const load = useCallback((): void => {
         void Promise.all([
-            window.caxri.request<{ value: AppSettings; source: string }>('settings.get'),
-            window.caxri.request<{
-                value: Keybinding[];
-                source: string;
-                conflicts: KeybindingConflict[];
-            }>('keybindings.get'),
-            window.caxri.request<{ value: ThemeTokens; source: string }>('theme.get'),
+            caxri.request('settings.get'),
+            caxri.request('keybindings.get'),
+            caxri.request('theme.get'),
         ])
             .then(([settingsResult, keybindingsResult, themeResult]) => {
                 setSettings(settingsResult.value);
@@ -85,26 +82,20 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
     const apply = async (): Promise<void> => {
         try {
             if (tab === 'settings') {
-                const result = await window.caxri.request<{ value: AppSettings; source: string }>(
-                    'settings.update',
-                    { source: settingsSource },
-                );
+                const result = await caxri.request('settings.update', {
+                    source: settingsSource,
+                });
                 setSettings(result.value);
                 setSettingsSource(result.source);
             } else if (tab === 'keybindings') {
-                const result = await window.caxri.request<{
-                    value: Keybinding[];
-                    source: string;
-                    conflicts: KeybindingConflict[];
-                }>('keybindings.update', { source: keybindingsSource });
+                const result = await caxri.request('keybindings.update', {
+                    source: keybindingsSource,
+                });
                 setKeybindings(result.value);
                 setKeybindingsSource(result.source);
                 setConflicts(result.conflicts);
             } else {
-                const result = await window.caxri.request<{ value: ThemeTokens; source: string }>(
-                    'theme.update',
-                    { source: themeSource },
-                );
+                const result = await caxri.request('theme.update', { source: themeSource });
                 setTheme(result.value);
                 setThemeSource(result.source);
             }
@@ -155,7 +146,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
 
     const importTheme = async (): Promise<void> => {
         try {
-            const imported = await window.caxri.request<ThemeTokens | null>('theme.import');
+            const imported = await caxri.request('theme.import');
             if (imported) {
                 setTheme(imported);
                 load();
@@ -383,9 +374,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                 <footer className="dialog-actions">
                     <Button
                         variant="ghost"
-                        onClick={() =>
-                            void window.caxri.request('app.openConfigFile', { kind: tab })
-                        }
+                        onClick={() => void caxri.request('app.openConfigFile', { kind: tab })}
                     >
                         <FileJson size={14} /> Open File
                     </Button>

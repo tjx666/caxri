@@ -2,18 +2,15 @@ import { mkdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
-    getRuntimeRequestSchema,
+    CaxriError,
+    parseRuntimeRequest,
+    toWireError,
     type RuntimeEvent,
-    type RuntimeMethod,
+    type RuntimeRequest,
     type RuntimeResponse,
-} from '../shared/contracts';
+} from '../shared/ipc';
 import { StructuredLogger } from '../shared/node/logger';
-import type {
-    BootstrapState,
-    PersistedWindowState,
-    SessionState,
-    TerminalKind,
-} from '../shared/types';
+import type { BootstrapState, PersistedWindowState, TerminalKind } from '../shared/types';
 import { AgentService } from './agent';
 import { CoalescedScheduler } from './coalesced-scheduler';
 import { ConfigurationService } from './configuration';
@@ -141,8 +138,9 @@ function scheduleAgentProbe(terminalId: string): void {
     );
 }
 
-async function handle(method: RuntimeMethod, params: Record<string, unknown>): Promise<unknown> {
-    switch (method) {
+/** `request` is a discriminated union, so narrowing `request.method` also narrows `request.params`. */
+async function handle(request: RuntimeRequest): Promise<unknown> {
+    switch (request.method) {
         case 'app.bootstrap':
             return bootstrap();
         case 'app.health':
@@ -166,7 +164,7 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
                 }),
             } satisfies PersistedWindowState;
         case 'app.windowState.update': {
-            const state = params as unknown as PersistedWindowState;
+            const state = request.params;
             database.setAppState('windowBounds', state.bounds);
             database.setAppState('windowState', {
                 isMaximized: state.isMaximized,
@@ -175,14 +173,17 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             return state;
         }
         case 'project.create': {
-            const project = database.createProject(await realpath(params.rootPath as string));
+            const project = database.createProject(await realpath(request.params.rootPath));
             emit({ event: 'state.changed', payload: { reason: 'project.create' } });
             return project;
         }
         case 'project.cancelCreate':
-            throw new Error('Project creation cancellation is owned by the Main process');
+            throw new CaxriError(
+                'CONFLICT',
+                'Project creation cancellation is owned by the Main process',
+            );
         case 'project.delete': {
-            const projectId = params.projectId as string;
+            const { projectId } = request.params;
             for (const session of database.listSessions(projectId)) {
                 for (const terminal of database.listTerminals(session.id)) {
                     agentTerminalIds.delete(terminal.id);
@@ -199,8 +200,8 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
         }
         case 'session.create': {
             const created = database.createSession(
-                params.projectId as string,
-                params.defaultAgent as TerminalKind,
+                request.params.projectId,
+                request.params.defaultAgent,
             );
             try {
                 await terminals.start(created.terminal);
@@ -213,17 +214,19 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             if (created.terminal.provider) scheduleAgentProbe(created.terminal.id);
             emit({ event: 'state.changed', payload: { reason: 'session.create' } });
             return {
-                session: database.getSession(created.session.id),
-                terminal: database.getTerminal(created.terminal.id),
+                session: database.getSession(created.session.id)!,
+                terminal: database.getTerminal(created.terminal.id)!,
             };
         }
-        case 'session.select':
-            database.selectSession(params.sessionId as string);
-            void files.watchSession(params.sessionId as string);
+        case 'session.select': {
+            const { sessionId } = request.params;
+            database.selectSession(sessionId);
+            void files.watchSession(sessionId);
             emit({ event: 'state.changed', payload: { reason: 'session.select' } });
-            return database.getSession(params.sessionId as string);
+            return database.getSession(sessionId)!;
+        }
         case 'session.delete': {
-            const sessionId = params.sessionId as string;
+            const { sessionId } = request.params;
             for (const terminal of database.listTerminals(sessionId)) {
                 agentTerminalIds.delete(terminal.id);
                 agentMetadataRefreshes.cancel(terminal.id);
@@ -237,12 +240,12 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             return bootstrap();
         }
         case 'session.updateState':
-            database.updateSessionState(params as unknown as SessionState);
-            return database.getSessionState(params.sessionId as string);
+            database.updateSessionState(request.params);
+            return database.getSessionState(request.params.sessionId);
         case 'terminal.create': {
             const terminal = await createAndStartTerminal(
-                params.sessionId as string,
-                params.kind as TerminalKind,
+                request.params.sessionId,
+                request.params.kind,
             );
             if (terminal.provider) agentTerminalIds.add(terminal.id);
             if (terminal.provider) scheduleAgentProbe(terminal.id);
@@ -250,17 +253,13 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             return terminal;
         }
         case 'terminal.input':
-            terminals.write(params.terminalId as string, params.data as string);
+            terminals.write(request.params.terminalId, request.params.data);
             return null;
         case 'terminal.resize':
-            terminals.resize(
-                params.terminalId as string,
-                params.cols as number,
-                params.rows as number,
-            );
+            terminals.resize(request.params.terminalId, request.params.cols, request.params.rows);
             return null;
         case 'terminal.close': {
-            const terminalId = params.terminalId as string;
+            const { terminalId } = request.params;
             const sessionId = database.getTerminal(terminalId)?.sessionId;
             agentTerminalIds.delete(terminalId);
             agentMetadataRefreshes.cancel(terminalId);
@@ -270,63 +269,63 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
             return null;
         }
         case 'terminal.attach':
-            return terminals.attach(params.terminalId as string);
+            return terminals.attach(request.params.terminalId);
         case 'terminal.detach':
-            terminals.detachView(params.terminalId as string);
+            terminals.detachView(request.params.terminalId);
             return null;
         case 'terminal.detachAll':
             terminals.detachAllViews();
             return null;
         case 'terminal.restart': {
-            const terminal = await terminals.restart(params.terminalId as string);
+            const terminal = await terminals.restart(request.params.terminalId);
             if (terminal.provider) scheduleAgentProbe(terminal.id);
             emit({ event: 'state.changed', payload: { reason: 'terminal.restart' } });
             return terminal;
         }
         case 'terminal.snapshot':
-            return database.getSnapshot(params.terminalId as string) ?? null;
+            return database.getSnapshot(request.params.terminalId) ?? null;
         case 'terminal.runningCount':
-            return terminals.runningCount(params.sessionId as string | undefined);
+            return terminals.runningCount(request.params.sessionId);
         case 'terminal.terminateAll':
             agentMetadataRefreshes.close();
             terminals.shutdown();
             return null;
         case 'files.list':
-            return files.list(params.sessionId as string, params.directory as string | undefined);
+            return files.list(request.params.sessionId, request.params.directory);
         case 'files.read':
-            return files.read(params.sessionId as string, params.path as string);
+            return files.read(request.params.sessionId, request.params.path);
         case 'files.write':
             return files.write(
-                params.sessionId as string,
-                params.path as string,
-                params.content as string,
+                request.params.sessionId,
+                request.params.path,
+                request.params.content,
             );
         case 'git.summary':
-            return git.summary(params.sessionId as string);
+            return git.summary(request.params.sessionId);
         case 'git.diff':
             return git.diff(
-                params.sessionId as string,
-                params.repositoryId as string,
-                params.path as string,
+                request.params.sessionId,
+                request.params.repositoryId,
+                request.params.path,
             );
         case 'settings.get':
             return configuration.getSettings();
         case 'settings.update':
-            await configuration.updateSettings(params.source as string);
+            await configuration.updateSettings(request.params.source);
             return configuration.getSettings();
         case 'keybindings.get':
             return configuration.getKeybindings();
         case 'keybindings.update':
-            await configuration.updateKeybindings(params.source as string);
+            await configuration.updateKeybindings(request.params.source);
             return configuration.getKeybindings();
         case 'theme.get':
             return configuration.getTheme();
         case 'theme.update':
-            await configuration.updateTheme(params.source as string);
+            await configuration.updateTheme(request.params.source);
             database.setAppState('activeThemeId', configuration.getTheme().value.id);
             return configuration.getTheme();
         case 'theme.importPath': {
-            const theme = await configuration.importTheme(params.path as string);
+            const theme = await configuration.importTheme(request.params.path);
             database.setAppState('activeThemeId', theme.id);
             return theme;
         }
@@ -337,7 +336,7 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
                 theme: configuration.themePath,
             };
         case 'diagnostics.exportPath':
-            return diagnostics.export(params.destination as string);
+            return diagnostics.export(request.params.destination);
         case 'runtime.shutdown':
             agentMetadataRefreshes.close();
             terminals.shutdown();
@@ -349,42 +348,45 @@ async function handle(method: RuntimeMethod, params: Record<string, unknown>): P
         case 'dialog.selectDirectory':
         case 'diagnostics.export':
         case 'theme.import':
-            throw new Error(`${method} must be handled by Electron Main`);
+            throw new CaxriError('CONFLICT', `${request.method} must be handled by Electron Main`);
     }
 }
 
 process.parentPort.on('message', (event) => {
     void (async () => {
-        const request = event.data as { id: string; method: RuntimeMethod; params: unknown };
+        const envelope = event.data as { id: string; method: string; params: unknown };
         const started = performance.now();
         try {
-            const schema = getRuntimeRequestSchema(request.method);
-            if (!schema) throw new Error('Unknown Runtime method');
-            const params = schema.parse(request.params) as Record<string, unknown>;
-            const result = await handle(request.method, params);
-            const response: RuntimeResponse = { id: request.id, ok: true, result };
+            const result = await handle(parseRuntimeRequest(envelope.method, envelope.params));
+            const response: RuntimeResponse = { id: envelope.id, ok: true, result };
             parentPort.postMessage(response);
             /** PTY input and resize are measured by aggregated throughput metrics, never synchronous per-event log writes. */
-            if (request.method !== 'terminal.input' && request.method !== 'terminal.resize') {
+            if (envelope.method !== 'terminal.input' && envelope.method !== 'terminal.resize') {
                 logger.write('debug', 'ipc.request', {
-                    correlationId: request.id,
+                    correlationId: envelope.id,
                     durationMs: performance.now() - started,
-                    fields: { method: request.method },
+                    fields: { method: envelope.method },
                 });
             }
-            if (request.method === 'runtime.shutdown') setTimeout(() => process.exit(0), 10);
+            if (envelope.method === 'runtime.shutdown') setTimeout(() => process.exit(0), 10);
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown Runtime error';
-            const response: RuntimeResponse = {
-                id: request.id,
-                ok: false,
-                error: { code: 'RUNTIME_ERROR', message },
-            };
+            /** Zod failures become VALIDATION, CaxriError keeps its code, everything else is INTERNAL. */
+            const wire = toWireError(error);
+            const response: RuntimeResponse = { id: envelope.id, ok: false, error: wire };
             parentPort.postMessage(response);
             logger.write('error', 'ipc.request_failed', {
-                correlationId: request.id,
+                correlationId: envelope.id,
                 durationMs: performance.now() - started,
-                fields: { method: request.method, error: message },
+                fields: {
+                    method: envelope.method,
+                    code: wire.code,
+                    error: wire.message,
+                    /** Only unclassified faults justify a stack trace in the Runtime log. */
+                    stack:
+                        wire.code === 'INTERNAL' && error instanceof Error
+                            ? (error.stack ?? null)
+                            : null,
+                },
             });
         }
     })();

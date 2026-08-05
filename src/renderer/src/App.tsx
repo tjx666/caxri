@@ -13,9 +13,7 @@ import {
 import type {
     BootstrapState,
     EditorTabState,
-    FileDocument,
     InspectorMode,
-    ProjectRecord,
     SessionState,
     TerminalKind,
 } from '@shared/types';
@@ -43,6 +41,7 @@ import { TERMINAL_DRAG_TYPE, TerminalLayoutView } from './components/TerminalLay
 import { WorkTab } from './components/WorkTab';
 import { Button } from './components/ui/button';
 import { useExternalDocumentSync } from './hooks/useExternalDocumentSync';
+import { caxri } from './lib/caxri';
 import { clearTerminalView } from './lib/terminal-view-commands';
 import { applyCssTheme } from './lib/theme-css';
 
@@ -74,7 +73,7 @@ export default function App() {
 
     const refresh = useCallback(async (): Promise<BootstrapState | undefined> => {
         try {
-            const state = await window.caxri.request<BootstrapState>('app.bootstrap');
+            const state = await caxri.request('app.bootstrap');
             setBootstrap(state);
             return state;
         } catch (error) {
@@ -123,7 +122,7 @@ export default function App() {
                       }
                     : current,
             );
-            void window.caxri.request('session.updateState', next).catch((error: unknown) => {
+            void caxri.request('session.updateState', next).catch((error: unknown) => {
                 showMessage(error instanceof Error ? error.message : errorMessage);
             });
         },
@@ -150,8 +149,8 @@ export default function App() {
     useEffect(() => {
         if (!selectedSession || !restoredEditorPath || documents[restoredEditorPath]) return;
         let canceled = false;
-        void window.caxri
-            .request<FileDocument>('files.read', {
+        void caxri
+            .request('files.read', {
                 sessionId: selectedSession.id,
                 path: restoredEditorPath,
             })
@@ -192,7 +191,7 @@ export default function App() {
     async function openFile(path: string): Promise<void> {
         if (!selectedSession) return;
         try {
-            const document = await window.caxri.request<FileDocument>('files.read', {
+            const document = await caxri.request('files.read', {
                 sessionId: selectedSession.id,
                 path,
             });
@@ -227,7 +226,7 @@ export default function App() {
         const document = documents[path];
         if (!document) return;
         try {
-            const saved = await window.caxri.request<FileDocument>('files.write', {
+            const saved = await caxri.request('files.write', {
                 sessionId: selectedSession.id,
                 path,
                 content: document.content,
@@ -243,7 +242,7 @@ export default function App() {
 
     const chooseProjectDirectory = async (): Promise<void> => {
         try {
-            const root = await window.caxri.request<string | null>('dialog.selectDirectory');
+            const root = await caxri.request('dialog.selectDirectory');
             if (!root) return;
             const defaultAgent = bootstrap?.settings['session.defaultAgent'];
             if (defaultAgent) await createProjectSession(root, defaultAgent);
@@ -255,7 +254,7 @@ export default function App() {
 
     const createSession = async (projectId: string, defaultAgent: TerminalKind): Promise<void> => {
         try {
-            await window.caxri.request('session.create', { projectId, defaultAgent });
+            await caxri.request('session.create', { projectId, defaultAgent });
             setPendingRoot(undefined);
             setPendingProjectId(undefined);
             await refresh();
@@ -269,7 +268,7 @@ export default function App() {
         defaultAgent: TerminalKind,
     ): Promise<void> => {
         try {
-            const project = await window.caxri.request<ProjectRecord>('project.create', {
+            const project = await caxri.request('project.create', {
                 rootPath,
             });
             setPendingRoot(undefined);
@@ -288,7 +287,7 @@ export default function App() {
 
     const selectSession = async (sessionId: string): Promise<void> => {
         try {
-            await window.caxri.request('session.select', { sessionId });
+            await caxri.request('session.select', { sessionId });
             await refresh();
         } catch (error) {
             showMessage(error instanceof Error ? error.message : 'Session selection failed');
@@ -304,7 +303,7 @@ export default function App() {
     const newTerminal = async (kind: TerminalKind = 'shell', split = false): Promise<void> => {
         if (!selectedSession) return;
         try {
-            const terminal = await window.caxri.request<{ id: string }>('terminal.create', {
+            const terminal = await caxri.request('terminal.create', {
                 sessionId: selectedSession.id,
                 kind,
             });
@@ -333,7 +332,7 @@ export default function App() {
         : undefined;
 
     const closeTerminal = (terminalId: string): void => {
-        void window.caxri
+        void caxri
             .request('terminal.close', { terminalId })
             .then(() => refresh())
             .catch((error: unknown) =>
@@ -342,9 +341,9 @@ export default function App() {
     };
 
     const restartTerminal = (terminalId: string): void => {
-        void window.caxri
+        void caxri
             .request('terminal.attach', { terminalId })
-            .then(() => window.caxri.request('terminal.restart', { terminalId }))
+            .then(() => caxri.request('terminal.restart', { terminalId }))
             .then(() => refresh())
             .catch((error: unknown) =>
                 showMessage(error instanceof Error ? error.message : 'Terminal restart failed'),
@@ -365,10 +364,10 @@ export default function App() {
                 break;
             case 'project.delete':
                 if (selectedProject)
-                    void window.caxri
+                    void caxri
                         .request('project.delete', { projectId: selectedProject.id })
-                        .then((result: unknown) => {
-                            if ((result as { canceled?: boolean }).canceled) return;
+                        .then((result) => {
+                            if ('canceled' in result) return;
                             const removedSessionIds = new Set(
                                 bootstrap?.sessions
                                     .filter((session) => session.projectId === selectedProject.id)
@@ -395,10 +394,10 @@ export default function App() {
                 break;
             case 'session.delete':
                 if (selectedSession)
-                    void window.caxri
+                    void caxri
                         .request('session.delete', { sessionId: selectedSession.id })
-                        .then((result: unknown) => {
-                            if ((result as { canceled?: boolean }).canceled) return;
+                        .then((result) => {
+                            if ('canceled' in result) return;
                             setDocumentsBySession((current) =>
                                 Object.fromEntries(
                                     Object.entries(current).filter(
@@ -434,7 +433,7 @@ export default function App() {
                 break;
             case 'terminal.restart':
                 if (activeTerminalId)
-                    void window.caxri
+                    void caxri
                         .request('terminal.restart', { terminalId: activeTerminalId })
                         .then(() => refresh())
                         .catch((error: unknown) =>
@@ -465,8 +464,8 @@ export default function App() {
                 setPaletteOpen(true);
                 break;
             case 'diagnostics.export':
-                void window.caxri
-                    .request<{ path: string } | null>('diagnostics.export')
+                void caxri
+                    .request('diagnostics.export')
                     .then((result) => {
                         if (result) showMessage(`Diagnostics exported to ${result.path}`);
                     })
@@ -485,8 +484,8 @@ export default function App() {
     });
 
     useEffect(() => {
-        void window.caxri
-            .request<BootstrapState>('app.bootstrap')
+        void caxri
+            .request('app.bootstrap')
             .then((state) => {
                 setBootstrap(state);
                 if (state.configurationErrors?.[0]) showMessage(state.configurationErrors[0]);
@@ -496,7 +495,7 @@ export default function App() {
                     error instanceof Error ? error.message : 'Unable to attach to the Runtime',
                 ),
             );
-        const unsubscribe = window.caxri.onEvent((event) => {
+        const unsubscribe = caxri.onEvent((event) => {
             if (event.event === 'state.changed' || event.event === 'terminal.exit') void refresh();
             if (event.event === 'runtime.status') {
                 setBootstrap((current) =>
@@ -758,7 +757,7 @@ export default function App() {
                 }
                 onCancel={() => {
                     if (pendingRoot)
-                        void window.caxri.request('project.cancelCreate', {
+                        void caxri.request('project.cancelCreate', {
                             rootPath: pendingRoot,
                         });
                     setPendingRoot(undefined);
