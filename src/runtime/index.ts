@@ -7,6 +7,7 @@ import {
     type RuntimeMethod,
     type RuntimeResponse,
 } from '../shared/contracts';
+import { StructuredLogger } from '../shared/node/logger';
 import type {
     BootstrapState,
     PersistedWindowState,
@@ -20,7 +21,6 @@ import { CaxriDatabase } from './database';
 import { DiagnosticsService } from './diagnostics';
 import { FileService } from './files';
 import { GitService } from './git';
-import { StructuredLogger } from './logger';
 import { TerminalManager } from './terminal';
 
 const bootStartedAt = performance.now();

@@ -18,8 +18,8 @@ import {
     type CaxriMethod,
     type RuntimeEvent,
 } from '../shared/contracts';
+import { StructuredLogger } from '../shared/node/logger';
 import type { BootstrapState, Keybinding, PersistedWindowState } from '../shared/types';
-import { StructuredLogger } from '../runtime/logger';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { ProjectRootGrants } from './root-grants';

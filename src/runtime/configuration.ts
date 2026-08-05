@@ -3,10 +3,12 @@ import { mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
-import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
 import { z } from 'zod';
 
+import { defaultKeybindings } from '../shared/commands';
 import type { RuntimeEvent } from '../shared/contracts';
+import { parseJsonc } from '../shared/node/jsonc';
+import type { StructuredLogger } from '../shared/node/logger';
 import {
     MAX_CONFIGURABLE_FILE_BYTES,
     type AppSettings,
@@ -14,7 +16,6 @@ import {
     type KeybindingConflict,
     type ThemeTokens,
 } from '../shared/types';
-import type { StructuredLogger } from './logger';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
 
@@ -49,36 +50,6 @@ const defaultSettings: AppSettings = {
     'terminal.scrollback': 2_000,
     'files.maxFileBytes': 2 * 1024 * 1024,
 };
-
-export const defaultKeybindings: Keybinding[] = [
-    { key: 'cmd+shift+p', command: 'commandPalette.open' },
-    { key: 'cmd+n', command: 'project.create' },
-    { key: 'cmd+t', command: 'terminal.new' },
-    { key: 'cmd+k', command: 'terminal.clear' },
-    { key: 'cmd+shift+r', command: 'terminal.restart' },
-    { key: 'cmd+w', command: 'terminal.close' },
-    { key: 'cmd+s', command: 'editor.save' },
-    { key: 'cmd+1', command: 'inspector.showFiles' },
-    { key: 'cmd+2', command: 'inspector.showGit' },
-    { key: 'cmd+3', command: 'inspector.showInfo' },
-    { key: 'cmd+,', command: 'theme.openSettings' },
-];
-
-function parseJsonc(source: string): unknown {
-    const errors: ParseError[] = [];
-    const value: unknown = parse(source, errors, {
-        allowTrailingComma: true,
-        disallowComments: false,
-    });
-    if (errors.length > 0) {
-        const first = errors[0];
-        const before = source.slice(0, first.offset).split('\n');
-        throw new Error(
-            `${printParseErrorCode(first.error)} at line ${before.length}, column ${(before.at(-1)?.length ?? 0) + 1}`,
-        );
-    }
-    return value;
-}
 
 async function atomicWrite(path: string, source: string): Promise<void> {
     const directory = dirname(path);

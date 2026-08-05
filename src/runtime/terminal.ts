@@ -1,11 +1,11 @@
 import * as pty from 'node-pty';
 
 import type { RuntimeEvent } from '../shared/contracts';
+import type { StructuredLogger } from '../shared/node/logger';
+import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
 import { discoverExecutable } from './agent';
 import type { CaxriDatabase } from './database';
-import type { StructuredLogger } from './logger';
-import { safeProcessEnvironment } from './process-environment';
 import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 

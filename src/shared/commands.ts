@@ -1,3 +1,5 @@
+import type { Keybinding } from './types';
+
 export interface CommandDefinition {
     id: string;
     title: string;
@@ -30,3 +32,18 @@ export function getCommandDefinition(id: string): CommandDefinition {
     if (!definition) throw new Error(`Unknown command: ${id}`);
     return definition;
 }
+
+/** Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run. */
+export const defaultKeybindings: Keybinding[] = [
+    { key: 'cmd+shift+p', command: 'commandPalette.open' },
+    { key: 'cmd+n', command: 'project.create' },
+    { key: 'cmd+t', command: 'terminal.new' },
+    { key: 'cmd+k', command: 'terminal.clear' },
+    { key: 'cmd+shift+r', command: 'terminal.restart' },
+    { key: 'cmd+w', command: 'terminal.close' },
+    { key: 'cmd+s', command: 'editor.save' },
+    { key: 'cmd+1', command: 'inspector.showFiles' },
+    { key: 'cmd+2', command: 'inspector.showGit' },
+    { key: 'cmd+3', command: 'inspector.showInfo' },
+    { key: 'cmd+,', command: 'theme.openSettings' },
+];

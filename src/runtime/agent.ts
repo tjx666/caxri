@@ -4,6 +4,8 @@ import { access } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 
+import type { StructuredLogger } from '../shared/node/logger';
+import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { AgentProvider, AgentSnapshot } from '../shared/types';
 import {
     defaultAgentStateLocations,
@@ -13,8 +15,6 @@ import {
     type AgentSnapshotContext,
     type AgentStateLocations,
 } from './agent-state';
-import type { StructuredLogger } from './logger';
-import { safeProcessEnvironment } from './process-environment';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);

@@ -14,9 +14,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { StructuredLogger } from '../../shared/node/logger';
 import { CaxriDatabase } from '../database';
 import { FileService, rememberChangeFingerprint, rememberPolledDirectory } from '../files';
-import { StructuredLogger } from '../logger';
 
 const temporaryDirectories: string[] = [];
 

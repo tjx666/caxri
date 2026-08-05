@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeHome, redactSecrets, summarizePerformanceLogs } from '../diagnostics';
-import { redactLogValue } from '../logger';
+import { redactLogValue, redactSecrets } from '../../shared/node/redaction';
+import { normalizeHome, summarizePerformanceLogs } from '../diagnostics';
 
 describe('diagnostics redaction', () => {
     it('redacts secret-like keys and values', () => {

@@ -33,4 +33,22 @@ export default defineConfig(
             'react-refresh/only-export-components': 'off',
         },
     },
+    {
+        files: ['src/renderer/**/*.ts', 'src/renderer/**/*.tsx'],
+        rules: {
+            /** src/shared/node holds Node-only utilities for main and runtime; the renderer must never import Node.js APIs. */
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            group: ['**/shared/node/**', '@shared/node*', '@shared/node/**'],
+                            message:
+                                'src/shared/node is Node-only (main/runtime); the renderer must never import it.',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 );

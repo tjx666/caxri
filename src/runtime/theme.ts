@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
-import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 import { z } from 'zod';
 
+import { parseJsonc } from '../shared/node/jsonc';
 import type { ThemeTokens } from '../shared/types';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
@@ -113,19 +113,6 @@ export const draculaTheme: ThemeTokens = {
     },
     warnings: [],
 };
-
-function parseJsoncSource(source: string): unknown {
-    const errors: ParseError[] = [];
-    const value: unknown = parseJsonc(source, errors, {
-        allowTrailingComma: true,
-        disallowComments: false,
-    });
-    if (errors.length > 0) {
-        const first = errors[0];
-        throw new Error(`${printParseErrorCode(first.error)} at offset ${first.offset}`);
-    }
-    return value;
-}
 
 function normalizedHex(value: unknown, fallback: string): string {
     if (typeof value !== 'string') return fallback;
@@ -296,7 +283,7 @@ function parseWarp(source: string, name: string): ThemeTokens {
 }
 
 export function parseCaxriTheme(source: string): ThemeTokens {
-    return themeSchema.parse(parseJsoncSource(source));
+    return themeSchema.parse(parseJsonc(source));
 }
 
 export async function importTheme(path: string, current: ThemeTokens): Promise<ThemeTokens> {
@@ -313,7 +300,7 @@ export async function importTheme(path: string, current: ThemeTokens): Promise<T
     } else if (extension === '.yaml' || extension === '.yml') {
         theme = parseWarp(source, name);
     } else {
-        const value = parseJsoncSource(source);
+        const value = parseJsonc(source);
         const parsed = themeSchema.safeParse(value);
         theme = parsed.success
             ? { ...parsed.data, source: 'custom' }

@@ -5,9 +5,9 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import parcelWatcher from '@parcel/watcher';
 
 import type { RuntimeEvent } from '../shared/contracts';
+import type { StructuredLogger } from '../shared/node/logger';
 import type { FileChange, FileDocument, FileEntry } from '../shared/types';
 import type { CaxriDatabase } from './database';
-import type { StructuredLogger } from './logger';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';

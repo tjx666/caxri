@@ -6,10 +6,10 @@ import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { StructuredLogger } from '../../shared/node/logger';
 import { CaxriDatabase } from '../database';
 import { FileService } from '../files';
 import { describeGitFailure, GitService } from '../git';
-import { StructuredLogger } from '../logger';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];

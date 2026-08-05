@@ -4,11 +4,11 @@ import { lstat, realpath } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
+import type { StructuredLogger } from '../shared/node/logger';
+import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { GitFileStatus, GitRepositorySummary, GitSummary } from '../shared/types';
 import type { FileService } from './files';
-import type { StructuredLogger } from './logger';
 import { isOutsideRoot } from './path-security';
-import { safeProcessEnvironment } from './process-environment';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);

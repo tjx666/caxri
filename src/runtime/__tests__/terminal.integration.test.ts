@@ -6,8 +6,8 @@ import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/contracts';
+import { StructuredLogger } from '../../shared/node/logger';
 import { CaxriDatabase } from '../database';
-import { StructuredLogger } from '../logger';
 import { TerminalManager } from '../terminal';
 
 const temporaryDirectories: string[] = [];

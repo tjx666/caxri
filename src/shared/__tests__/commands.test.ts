@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultKeybindings } from '../../runtime/configuration';
-import { commandDefinitions } from '../commands';
+import { commandDefinitions, defaultKeybindings } from '../commands';
 
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {

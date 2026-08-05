@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { utilityProcess, type UtilityProcess } from 'electron';
 
-import { safeProcessEnvironment } from '../runtime/process-environment';
 import type { RuntimeEvent, RuntimeMessage, RuntimeMethod } from '../shared/contracts';
+import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
     resolve: (value: unknown) => void;

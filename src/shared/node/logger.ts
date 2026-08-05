@@ -1,7 +1,9 @@
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { isSecretKey, redactLogValue } from './redaction';
+
+/** Node-only structured JSONL logger; never import from src/renderer. */
 export interface LogRecord {
     timestamp: string;
     process: 'main' | 'runtime';
@@ -12,11 +14,6 @@ export interface LogRecord {
     fields?: Record<string, string | number | boolean | null>;
 }
 
-const SECRET_KEY = /(token|password|secret|credential|api[_-]?key|authorization|cookie)/i;
-const SECRET_ASSIGNMENT =
-    /\b(token|password|secret|credential|api[_-]?key|authorization|cookie)\s*[=:]\s*([^\s,;]+)/gi;
-const SECRET_VALUE =
-    /(sk-[a-zA-Z0-9_-]{12,}|Bearer\s+[a-zA-Z0-9._-]+|gh[pousr]_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{10,}|xox[baprs]-[a-zA-Z0-9-]{10,})/g;
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const LOG_LEVELS: Record<LogRecord['level'], number> = {
     debug: 10,
@@ -25,19 +22,12 @@ const LOG_LEVELS: Record<LogRecord['level'], number> = {
     error: 40,
 };
 
-export function redactLogValue(value: string): string {
-    return value
-        .replaceAll(homedir(), '$HOME')
-        .replace(SECRET_VALUE, '[REDACTED]')
-        .replace(SECRET_ASSIGNMENT, '$1=[REDACTED]');
-}
-
 function safeFields(fields?: LogRecord['fields']): LogRecord['fields'] {
     if (!fields) return undefined;
     return Object.fromEntries(
         Object.entries(fields).map(([key, value]) => [
             key,
-            SECRET_KEY.test(key)
+            isSecretKey(key)
                 ? '[REDACTED]'
                 : typeof value === 'string'
                   ? redactLogValue(value)
