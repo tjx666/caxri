@@ -1,4 +1,4 @@
-import { Files, GitBranch, Info } from 'lucide-react';
+import { Activity, Files, GitBranch, Info } from 'lucide-react';
 
 import type { InspectorMode } from '@shared/types';
 
@@ -6,18 +6,21 @@ import { executeCommand } from '../../commands/execute';
 import { useSelectedSession, useSessionState } from '../../state/selectors';
 import { FileTreePanel } from './FileTreePanel';
 import { GitPanel } from './GitPanel';
+import { ProjectStatusPanel } from './ProjectStatusPanel';
 import { TerminalInfoPanel } from './TerminalInfoPanel';
 
 /** Mode changes go through the command table so the palette, shortcuts, and tabs share one path. */
 const inspectorCommands: Record<InspectorMode, string> = {
     files: 'inspector.showFiles',
     git: 'inspector.showGit',
+    status: 'inspector.showStatus',
     info: 'inspector.showInfo',
 };
 
 const tabs: Array<{ id: InspectorMode; label: string; icon: typeof Files }> = [
     { id: 'files', label: 'Files', icon: Files },
     { id: 'git', label: 'Git', icon: GitBranch },
+    { id: 'status', label: 'Status', icon: Activity },
     { id: 'info', label: 'Info', icon: Info },
 ];
 
@@ -41,6 +44,7 @@ export function Inspector() {
             </div>
             {mode === 'files' && <FileTreePanel />}
             {mode === 'git' && <GitPanel key={sessionId} />}
+            {mode === 'status' && <ProjectStatusPanel key={sessionId} />}
             {mode === 'info' && <TerminalInfoPanel />}
         </aside>
     );

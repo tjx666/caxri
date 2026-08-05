@@ -49,6 +49,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('editor.save', (ctx) => ctx.editor.saveActive(), { allowInEditable: true }),
     fromCatalog('inspector.showFiles', (ctx) => ctx.inspector.setMode('files')),
     fromCatalog('inspector.showGit', (ctx) => ctx.inspector.setMode('git')),
+    fromCatalog('inspector.showStatus', (ctx) => ctx.inspector.setMode('status')),
     fromCatalog('inspector.showInfo', (ctx) => ctx.inspector.setMode('info')),
     fromCatalog('inspector.toggle', (ctx) => ctx.inspector.toggle()),
     fromCatalog('settings.open', (ctx) => ctx.dialogs.openSettings()),

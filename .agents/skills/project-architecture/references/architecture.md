@@ -86,6 +86,8 @@ A Shell Terminal can become an Agent Terminal when its unpublished input line di
 
 The Git inspector treats the selected Project repository, linked worktrees, nested repositories, and initialized submodules as independent status scopes. Repository discovery uses structured Git output, coalesces concurrent summaries, and passes an opaque repository ID back for diff requests. `git.diffDocument` returns bounded original and working-tree text for Monaco without exposing an arbitrary Git command or weakening repository containment. Nested roots inherit the containing Project grant. A linked worktree outside that root appears only after its directory has independently been added as a Project; Git discovery never expands durable path authority.
 
+The Project Status inspector is lazy: opening its tab asks Runtime to combine the approved primary repository and initialized submodules with GitHub PR/check data, deliberate Linear references from the PR body, and Vercel deployments. Runtime invokes `gh`, `linear`, and `vc` only through structured argv arrays, filtered environment inheritance, timeouts, and bounded output; Renderer receives a validated read model and never CLI access. Missing tools, authentication, links, rate limits, and timeouts stay scoped to error rows, while external HTTP(S) links still pass through Main's confirmation boundary.
+
 ## Security
 
 BrowserWindows use `contextIsolation: true`, `nodeIntegration: false`, sandboxed renderers, a restrictive CSP, blocked navigation, and denied new windows. External HTTP(S) URLs require explicit user intent before Main uses the system browser. No telemetry or remote upload exists.

@@ -13,6 +13,7 @@ import {
     MAX_CONFIGURABLE_FILE_BYTES,
     pathSchema,
     persistedWindowStateSchema,
+    projectStatusSummarySchema,
     projectRecordSchema,
     sessionRecordSchema,
     sessionStateSchema,
@@ -204,6 +205,11 @@ export const methods = {
             path: pathSchema,
         }),
         result: gitDiffDocumentSchema,
+    },
+    'projectStatus.summary': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema }),
+        result: projectStatusSummarySchema,
     },
     'settings.get': { owner: 'runtime', params: noParams, result: settingsResult },
     'settings.update': {

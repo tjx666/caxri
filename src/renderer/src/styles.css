@@ -667,9 +667,135 @@ button {
 }
 .inspector-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     min-height: 36px;
     border-bottom: 1px solid var(--border);
+}
+.project-status-panel {
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+}
+.project-status-heading {
+    display: flex;
+    min-height: 38px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px 4px 10px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+}
+.project-status-heading > span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.project-status-repositories {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+}
+.project-status-repository {
+    border-bottom: 1px solid var(--border);
+}
+.project-status-repository-row,
+.project-status-row {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    background: var(--surface);
+    color: var(--foreground);
+    text-align: left;
+    text-decoration: none;
+}
+.project-status-repository-row {
+    height: 34px;
+    padding: 0 8px;
+    cursor: pointer;
+}
+.project-status-row {
+    height: 28px;
+    padding-right: 8px;
+}
+.project-status-expandable-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    background: var(--surface);
+}
+.project-status-expandable-row .project-status-row {
+    min-width: 0;
+    flex: 1;
+    padding-left: 0;
+}
+.project-status-external {
+    display: grid;
+    width: 26px;
+    height: 28px;
+    flex: 0 0 26px;
+    place-items: center;
+    color: var(--muted);
+}
+.project-status-external:hover {
+    color: var(--foreground);
+}
+button.project-status-row {
+    cursor: pointer;
+}
+.project-status-repository-row:hover,
+.project-status-row:hover,
+.project-status-expandable-row:hover {
+    background: var(--elevated);
+}
+.project-status-repository-row strong,
+.project-status-label,
+.project-status-description {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.project-status-repository-row small,
+.project-status-description {
+    color: var(--muted);
+    font-size: 11px;
+}
+.project-status-label {
+    min-width: 0;
+    flex: 1;
+}
+.project-status-description {
+    flex: 0 1 auto;
+}
+.project-status-indent {
+    width: 13px;
+    flex: 0 0 13px;
+}
+.state-success {
+    color: var(--success);
+}
+.state-failure {
+    color: var(--danger);
+}
+.state-pending {
+    color: var(--warning);
+}
+.state-neutral,
+.state-unknown {
+    color: var(--muted);
+}
+.spinning {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 .inspector-tabs button {
     display: flex;

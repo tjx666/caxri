@@ -266,6 +266,41 @@ test('Info inspector lists only the current Session Terminals', async () => {
     }
 });
 
+test('Project Status inspector renders and refreshes the current repository tree', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-status-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await running.page
+            .getByRole('dialog')
+            .getByRole('button', { name: 'Shell', exact: true })
+            .click({ timeout: 5_000 })
+            .catch(() => undefined);
+        await expect(running.page.locator('.session-card')).toHaveCount(1);
+        await running.page.getByRole('button', { name: 'Status', exact: true }).click();
+
+        await expect(running.page.getByText('Project Status', { exact: true })).toBeVisible();
+        const repository = running.page.locator('.project-status-repository');
+        await expect(repository).toHaveCount(1);
+        await expect(repository).toContainText('project');
+        await expect(repository).toContainText('feature/status');
+
+        await repository.locator('.project-status-repository-row').click();
+        await expect(repository.getByText('feature/status', { exact: true })).toHaveCount(0);
+        await repository.locator('.project-status-repository-row').click();
+        await running.page.getByRole('button', { name: 'Refresh Project Status' }).click();
+        await expect(repository.getByText('feature/status', { exact: true })).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Git inspector shows child repositories, submodule state, and changed-file trees', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-repositories-e2e-'));
     const userData = join(testDirectory, 'user-data');

@@ -18,6 +18,7 @@ import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files';
 import { GitService } from './git';
+import { ProjectStatusService } from './project-status';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';
 import { WorkspacePaths } from './workspace-paths';
 
@@ -99,6 +100,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         deps.terminal,
     );
     const git = new GitService(new WorkspacePaths(database), logger);
+    const projectStatus = new ProjectStatusService(git, logger);
     const diagnostics = new DiagnosticsService(
         database,
         logger,
@@ -298,6 +300,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'git.diff': ({ sessionId, repositoryId, path }) => git.diff(sessionId, repositoryId, path),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
+        'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'settings.get': () => configuration.getSettings(),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);

@@ -80,11 +80,13 @@ describe('executeCommand', () => {
         const { calls, context } = recordingContext();
         executeCommand('inspector.showFiles', undefined, context);
         executeCommand('inspector.showGit', undefined, context);
+        executeCommand('inspector.showStatus', undefined, context);
         executeCommand('inspector.showInfo', undefined, context);
 
         expect(calls).toEqual([
             'inspector.setMode(files)',
             'inspector.setMode(git)',
+            'inspector.setMode(status)',
             'inspector.setMode(info)',
         ]);
     });

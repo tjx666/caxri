@@ -19,7 +19,7 @@ export const agentActivityStateSchema = z.enum([
 ]);
 export const terminalKindSchema = z.enum(['claude', 'codex', 'shell']);
 export const processStateSchema = z.enum(['starting', 'running', 'stopped', 'dead', 'failed']);
-export const inspectorModeSchema = z.enum(['files', 'git', 'info']);
+export const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
 
 export type AgentProvider = z.infer<typeof agentProviderSchema>;
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
@@ -228,6 +228,82 @@ export const gitSummarySchema = z.object({
     error: z.string().optional(),
 });
 
+export const projectStatusStateSchema = z.enum([
+    'success',
+    'failure',
+    'pending',
+    'neutral',
+    'unknown',
+]);
+
+export const projectStatusCheckSchema = z.object({
+    name: z.string(),
+    state: projectStatusStateSchema,
+    url: z.string().url().optional(),
+    durationMs: z.number().nonnegative().optional(),
+});
+
+export const projectStatusLinearIssueSchema = z.object({
+    identifier: z.string(),
+    title: z.string().optional(),
+    url: z.string().url().optional(),
+    state: z.string().optional(),
+    stateType: z
+        .enum(['backlog', 'canceled', 'completed', 'duplicate', 'started', 'triage', 'unstarted'])
+        .optional(),
+});
+
+export const projectStatusDeploymentSchema = z.object({
+    environment: z.enum(['production', 'preview']),
+    hostname: z.string(),
+    state: projectStatusStateSchema,
+    url: z.string().url(),
+    createdAt: z.number().optional(),
+});
+
+export const projectStatusErrorSchema = z.object({
+    source: z.enum(['github', 'linear', 'vercel']),
+    message: z.string(),
+    hint: z.string(),
+});
+
+export const projectStatusRepositorySchema = z.object({
+    id: z.string(),
+    kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
+    name: z.string(),
+    rootPath: z.string(),
+    branch: z.string(),
+    defaultBranch: z.string().optional(),
+    githubUrl: z.string().url().optional(),
+    branchUrl: z.string().url().optional(),
+    pullRequest: z
+        .object({
+            number: z.number().int().positive(),
+            title: z.string(),
+            url: z.string().url(),
+            state: projectStatusStateSchema,
+            checks: z.array(projectStatusCheckSchema),
+            hiddenCheckCount: z.number().int().nonnegative(),
+        })
+        .optional(),
+    linearIssues: z.array(projectStatusLinearIssueSchema),
+    deployments: z
+        .object({
+            url: z.string().url(),
+            branchDeployments: z.array(projectStatusDeploymentSchema),
+            production: projectStatusDeploymentSchema.optional(),
+            preview: projectStatusDeploymentSchema.optional(),
+        })
+        .optional(),
+    errors: z.array(projectStatusErrorSchema),
+});
+
+export const projectStatusSummarySchema = z.object({
+    repositories: z.array(projectStatusRepositorySchema),
+    refreshedAt: z.number(),
+    error: z.string().optional(),
+});
+
 export const gitDiffDocumentSchema = z.object({
     path: pathSchema,
     originalPath: pathSchema.optional(),
@@ -274,4 +350,11 @@ export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
 export type GitRepositorySummary = z.infer<typeof gitRepositorySummarySchema>;
 export type GitSummary = z.infer<typeof gitSummarySchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
+export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
+export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
+export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
+export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
+export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
+export type ProjectStatusRepository = z.infer<typeof projectStatusRepositorySchema>;
+export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;
 export type BootstrapState = z.infer<typeof bootstrapStateSchema>;

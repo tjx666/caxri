@@ -21,6 +21,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'editor.save', title: 'Save File', category: 'Editor' },
     { id: 'inspector.showFiles', title: 'Show Files', category: 'Inspector' },
     { id: 'inspector.showGit', title: 'Show Git', category: 'Inspector' },
+    { id: 'inspector.showStatus', title: 'Show Project Status', category: 'Inspector' },
     { id: 'inspector.showInfo', title: 'Show Terminal Info', category: 'Inspector' },
     { id: 'inspector.toggle', title: 'Toggle Inspector', category: 'Inspector' },
     { id: 'settings.open', title: 'Open Settings', category: 'Preferences' },
@@ -45,6 +46,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+s', command: 'editor.save' },
     { key: 'cmd+1', command: 'inspector.showFiles' },
     { key: 'cmd+2', command: 'inspector.showGit' },
-    { key: 'cmd+3', command: 'inspector.showInfo' },
+    { key: 'cmd+3', command: 'inspector.showStatus' },
+    { key: 'cmd+4', command: 'inspector.showInfo' },
     { key: 'cmd+,', command: 'settings.open' },
 ];
