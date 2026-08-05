@@ -44,6 +44,39 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
+    it('coalesces continuous output into one snapshot write per persistence interval', async () => {
+        vi.useFakeTimers();
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-snapshot-rate-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        const saveSnapshot = vi.spyOn(database, 'saveSnapshot');
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                snapshotIntervalMs: 5_000,
+                spawn: () => fake.process,
+            },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            for (let index = 0; index < 100; index += 1) fake.emitData(`line-${index}\n`);
+            await vi.advanceTimersByTimeAsync(4_999);
+            expect(saveSnapshot).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(1);
+            expect(saveSnapshot).toHaveBeenCalledOnce();
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+            vi.useRealTimers();
+        }
+    });
+
     it('does not register a PTY whose durable record was closed while spawn was pending', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-pending-close-'));
         temporaryDirectories.push(directory);
@@ -166,6 +199,7 @@ describe('TerminalManager', () => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
             new StructuredLogger(join(directory, 'logs')),
+            { snapshotIntervalMs: 50 },
         );
 
         await manager.start(created.terminal);

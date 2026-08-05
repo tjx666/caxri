@@ -1,7 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
-import { CaxriError } from '../shared/ipc';
+import { CaxriError } from '../shared/ipc/errors';
 import type { CaxriDatabase } from './database';
 import { assertInsideRoot } from './path-security';
 

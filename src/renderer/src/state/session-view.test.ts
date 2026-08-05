@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { EditorDocument } from '@shared/editor-state';
 
-import { MAX_CACHED_DOCUMENTS_PER_SESSION, useSessionViewStore } from './session-view';
+import {
+    MAX_CACHED_DOCUMENT_BYTES_GLOBAL,
+    MAX_CACHED_DOCUMENTS_PER_SESSION,
+    useSessionViewStore,
+} from './session-view';
 
 const document = (path: string, dirty = false): EditorDocument => ({
     path,
@@ -50,6 +54,28 @@ describe('Session document cache', () => {
             store.cacheDocument('session-1', document(`/file-${index}.ts`));
 
         expect(cachedPaths('session-1')).toContain('/unsaved.ts');
+    });
+
+    it('bounds retained clean document bytes across Sessions', () => {
+        const store = useSessionViewStore.getState();
+        const large = MAX_CACHED_DOCUMENT_BYTES_GLOBAL / 2 + 1;
+        store.cacheDocument('session-1', { ...document('/first.ts'), size: large });
+        store.cacheDocument('session-2', { ...document('/second.ts'), size: large });
+
+        expect(cachedPaths('session-1')).toEqual([]);
+        expect(cachedPaths('session-2')).toEqual(['/second.ts']);
+    });
+
+    it('evicts clean buffers before allowing unsaved work to exceed the byte budget', () => {
+        const store = useSessionViewStore.getState();
+        store.cacheDocument('session-1', {
+            ...document('/unsaved.ts', true),
+            size: MAX_CACHED_DOCUMENT_BYTES_GLOBAL + 1,
+        });
+        store.cacheDocument('session-2', document('/clean.ts'));
+
+        expect(cachedPaths('session-1')).toEqual(['/unsaved.ts']);
+        expect(cachedPaths('session-2')).toEqual([]);
     });
 
     it('keeps caches of different Sessions independent and drops them on deletion', () => {

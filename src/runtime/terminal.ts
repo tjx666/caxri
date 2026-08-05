@@ -1,6 +1,7 @@
 import * as pty from 'node-pty';
 
-import { CaxriError, type RuntimeEvent } from '../shared/ipc';
+import { CaxriError } from '../shared/ipc/errors';
+import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
@@ -10,6 +11,7 @@ import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
+const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
 
 /** Clears a possibly-unset timer and returns the `undefined` it should be replaced with. */
 function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
@@ -42,6 +44,7 @@ interface LiveTerminal {
 
 export interface TerminalManagerOptions {
     resolveExecutable?: (kind: TerminalKind) => Promise<string>;
+    snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
 }
 
@@ -50,6 +53,7 @@ export class TerminalManager {
     private readonly attached = new Set<string>();
     private readonly starts = new SingleFlight<string, TerminalRecord>();
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
+    private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
 
     constructor(
@@ -59,6 +63,7 @@ export class TerminalManager {
         options: TerminalManagerOptions = {},
     ) {
         this.resolveExecutableOverride = options.resolveExecutable;
+        this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
     }
 
@@ -143,7 +148,10 @@ export class TerminalManager {
             live.metricDroppedBytes += droppedBytes;
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
         }
-        live.snapshotTimer ??= setTimeout(() => this.persistSnapshot(live), 750);
+        live.snapshotTimer ??= setTimeout(
+            () => this.persistSnapshot(live),
+            this.snapshotIntervalMs,
+        );
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
     }
 
@@ -164,6 +172,7 @@ export class TerminalManager {
     private persistSnapshot(live: LiveTerminal): void {
         live.snapshotTimer = undefined;
         if (!this.database.getTerminal(live.record.id)) return;
+        if (!live.snapshot.hasUnpersistedChanges()) return;
         const bounded = live.snapshot.read();
         const snapshot: TerminalSnapshot = {
             terminalId: live.record.id,
@@ -173,6 +182,7 @@ export class TerminalManager {
         };
         try {
             this.database.saveSnapshot(snapshot);
+            live.snapshot.markPersisted();
         } catch (error) {
             /** Snapshot persistence is recoverable and must never terminate the shared Runtime. */
             this.logger.write('warn', 'pty.snapshot_failed', {

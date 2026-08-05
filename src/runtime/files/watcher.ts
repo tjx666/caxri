@@ -3,7 +3,8 @@ import { relative, resolve } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
 
-import type { RuntimeEvent } from '../../shared/ipc';
+import type { RuntimeEvent } from '../../shared/ipc/events';
+import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileChange } from '../../shared/types';
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
@@ -17,6 +18,8 @@ const MAX_RECENT_CHANGE_FINGERPRINTS = 5_000;
 const WATCH_BATCH_DELAY_MS = 75;
 const WATCH_POLL_INTERVAL_MS = 750;
 const MISSING_PATH_FINGERPRINT = '<missing>';
+const MAX_CONCURRENT_POLL_DIRECTORIES = 4;
+const MAX_CONCURRENT_SIGNATURE_STATS = 16;
 
 function fileSignature(stats: Awaited<ReturnType<typeof lstat>>): string {
     return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}:${stats.mode}:${stats.ino}`;
@@ -64,6 +67,8 @@ export function rememberChangeFingerprint(
 
 export interface WatcherServiceOptions {
     maxPolledDirectories?: number;
+    pollIntervalMs?: number;
+    subscribe?: typeof parcelWatcher.subscribe;
 }
 
 /**
@@ -81,9 +86,13 @@ export class WatcherService {
     private eventTimer?: NodeJS.Timeout;
     private pollTimer?: NodeJS.Timeout;
     private pollInFlight = false;
+    private pollingActive = false;
+    private readonly listedDirectories = new Map<string, true>();
     private readonly polledDirectories = new Map<string, Map<string, string>>();
     private readonly recentChangeFingerprints = new Map<string, string>();
     private readonly maxPolledDirectories: number;
+    private readonly pollIntervalMs: number;
+    private readonly subscribe: typeof parcelWatcher.subscribe;
     private watchedRoot?: string;
 
     constructor(
@@ -93,11 +102,21 @@ export class WatcherService {
         options: WatcherServiceOptions = {},
     ) {
         this.maxPolledDirectories = options.maxPolledDirectories ?? MAX_POLLED_DIRECTORIES;
+        this.pollIntervalMs = options.pollIntervalMs ?? WATCH_POLL_INTERVAL_MS;
+        this.subscribe = options.subscribe ?? parcelWatcher.subscribe;
     }
 
     /** Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick. */
     noteDirectoryListed(sessionId: string, path: string): void {
         if (sessionId !== this.watchedSessionId) return;
+        rememberPolledDirectory(
+            this.listedDirectories,
+            path,
+            true,
+            this.watchedRoot,
+            this.maxPolledDirectories,
+        );
+        if (!this.pollingActive) return;
         const existing = this.polledDirectories.get(path);
         if (existing) this.rememberPolledDirectory(path, existing);
         else void this.initializePolledDirectory(path, this.watchGeneration);
@@ -113,6 +132,8 @@ export class WatcherService {
         this.droppedEvents = 0;
         if (this.pollTimer) clearInterval(this.pollTimer);
         this.pollTimer = undefined;
+        this.pollingActive = false;
+        this.listedDirectories.clear();
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
         this.watchedRoot = undefined;
@@ -148,23 +169,20 @@ export class WatcherService {
         const { root } = await this.resolveSessionPath(sessionId);
         if (generation !== this.watchGeneration) return;
         this.watchedRoot = root;
-        if (!this.polledDirectories.has(root)) {
-            await this.initializePolledDirectory(root, generation);
-        }
-        if (generation !== this.watchGeneration) return;
-        if (this.pollTimer) clearInterval(this.pollTimer);
-        this.pollTimer = setInterval(
-            () => void this.pollDirectories(sessionId, generation),
-            WATCH_POLL_INTERVAL_MS,
+        rememberPolledDirectory(
+            this.listedDirectories,
+            root,
+            true,
+            root,
+            this.maxPolledDirectories,
         );
-        this.pollTimer.unref();
         try {
-            const watcher = await parcelWatcher.subscribe(
+            const watcher = await this.subscribe(
                 root,
                 (error, events) => {
                     if (generation !== this.watchGeneration) return;
                     if (error) {
-                        this.activatePollingFallback(sessionId, generation, error);
+                        void this.activatePollingFallback(sessionId, generation, error);
                         return;
                     }
                     for (const event of events) {
@@ -179,6 +197,10 @@ export class WatcherService {
                 await watcher.unsubscribe();
                 return;
             }
+            if (this.pollingActive) {
+                await watcher.unsubscribe();
+                return;
+            }
             this.watcher = watcher;
             this.logger.write('info', 'watcher.ready', {
                 durationMs: performance.now() - startedAt,
@@ -186,7 +208,7 @@ export class WatcherService {
             });
         } catch (error) {
             if (generation !== this.watchGeneration) return;
-            this.activatePollingFallback(sessionId, generation, error);
+            await this.activatePollingFallback(sessionId, generation, error);
             this.logger.write('info', 'watcher.ready', {
                 durationMs: performance.now() - startedAt,
                 fields: { sessionId, backend: 'poll' },
@@ -194,11 +216,29 @@ export class WatcherService {
         }
     }
 
-    private activatePollingFallback(sessionId: string, generation: number, error: unknown): void {
+    private async activatePollingFallback(
+        sessionId: string,
+        generation: number,
+        error: unknown,
+    ): Promise<void> {
         if (generation !== this.watchGeneration) return;
         const watcher = this.watcher;
         this.watcher = undefined;
         void watcher?.unsubscribe();
+        if (!this.pollingActive) {
+            this.pollingActive = true;
+            await mapWithConcurrency(
+                [...this.listedDirectories.keys()],
+                MAX_CONCURRENT_POLL_DIRECTORIES,
+                (directory) => this.initializePolledDirectory(directory, generation),
+            );
+            if (generation !== this.watchGeneration) return;
+            this.pollTimer = setInterval(
+                () => void this.pollDirectories(sessionId, generation),
+                this.pollIntervalMs,
+            );
+            this.pollTimer.unref();
+        }
         this.logger.write('warn', 'watcher.fallback', {
             fields: {
                 sessionId,
@@ -279,23 +319,23 @@ export class WatcherService {
     private async readDirectorySignatures(directory: string): Promise<Map<string, string>> {
         const entries = await readdir(directory, { withFileTypes: true });
         const signatures = new Map<string, string>();
-        await Promise.all(
-            entries
-                .filter((entry) => !isIgnoredName(entry.name))
-                .map(async (entry) => {
-                    const path = resolve(directory, entry.name);
-                    try {
-                        signatures.set(path, fileSignature(await lstat(path)));
-                    } catch (error) {
-                        if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-                            this.logger.write('debug', 'watcher.signature_entry_skipped', {
-                                fields: {
-                                    path,
-                                    error: error instanceof Error ? error.message : 'unknown',
-                                },
-                            });
-                    }
-                }),
+        await mapWithConcurrency(
+            entries.filter((entry) => !isIgnoredName(entry.name)),
+            MAX_CONCURRENT_SIGNATURE_STATS,
+            async (entry) => {
+                const path = resolve(directory, entry.name);
+                try {
+                    signatures.set(path, fileSignature(await lstat(path)));
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+                        this.logger.write('debug', 'watcher.signature_entry_skipped', {
+                            fields: {
+                                path,
+                                error: error instanceof Error ? error.message : 'unknown',
+                            },
+                        });
+                }
+            },
         );
         return signatures;
     }
@@ -316,35 +356,39 @@ export class WatcherService {
         if (this.pollInFlight || generation !== this.watchGeneration) return;
         this.pollInFlight = true;
         try {
-            for (const [directory, previous] of this.polledDirectories) {
-                let current: Map<string, string>;
-                try {
-                    current = await this.readDirectorySignatures(directory);
-                } catch {
-                    continue;
-                }
-                if (generation !== this.watchGeneration) return;
-                for (const [path, signature] of current) {
-                    if (previous.get(path) !== signature) {
-                        this.queueFingerprintedEvent(
-                            sessionId,
-                            previous.has(path) ? 'update' : 'create',
-                            path,
-                            signature,
-                        );
+            await mapWithConcurrency(
+                [...this.polledDirectories],
+                MAX_CONCURRENT_POLL_DIRECTORIES,
+                async ([directory, previous]) => {
+                    let current: Map<string, string>;
+                    try {
+                        current = await this.readDirectorySignatures(directory);
+                    } catch {
+                        return;
                     }
-                }
-                for (const path of previous.keys()) {
-                    if (!current.has(path))
-                        this.queueFingerprintedEvent(
-                            sessionId,
-                            'delete',
-                            path,
-                            MISSING_PATH_FINGERPRINT,
-                        );
-                }
-                this.polledDirectories.set(directory, current);
-            }
+                    if (generation !== this.watchGeneration) return;
+                    for (const [path, signature] of current) {
+                        if (previous.get(path) !== signature) {
+                            this.queueFingerprintedEvent(
+                                sessionId,
+                                previous.has(path) ? 'update' : 'create',
+                                path,
+                                signature,
+                            );
+                        }
+                    }
+                    for (const path of previous.keys()) {
+                        if (!current.has(path))
+                            this.queueFingerprintedEvent(
+                                sessionId,
+                                'delete',
+                                path,
+                                MISSING_PATH_FINGERPRINT,
+                            );
+                    }
+                    this.polledDirectories.set(directory, current);
+                },
+            );
         } finally {
             this.pollInFlight = false;
         }
@@ -362,11 +406,13 @@ export class WatcherService {
 
     async close(): Promise<void> {
         this.watchGeneration += 1;
+        this.pollingActive = false;
         if (this.eventTimer) clearTimeout(this.eventTimer);
         if (this.pollTimer) clearInterval(this.pollTimer);
         const watcher = this.watcher;
         const setup = this.watchSetup;
         this.watcher = undefined;
+        this.listedDirectories.clear();
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
         await Promise.allSettled([watcher?.unsubscribe(), setup]);

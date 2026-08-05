@@ -17,6 +17,7 @@ export default function CodeEditor({ path, value, theme, onChange }: CodeEditorP
     return (
         <Editor
             path={path}
+            saveViewState={false}
             value={value}
             theme="caxri-active"
             beforeMount={() => applyEditorTheme(theme)}

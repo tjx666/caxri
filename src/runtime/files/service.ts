@@ -1,14 +1,13 @@
-import type { RuntimeEvent } from '../../shared/ipc';
+import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../database';
 import { WorkspacePaths, type ResolvedSessionPath } from '../workspace-paths';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService } from './listing';
-import { WatcherService } from './watcher';
+import { WatcherService, type WatcherServiceOptions } from './watcher';
 
-export interface FileServiceOptions {
-    maxPolledDirectories?: number;
+export interface FileServiceOptions extends WatcherServiceOptions {
     openFile?: OpenFile;
 }
 

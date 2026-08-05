@@ -1,4 +1,4 @@
-import type { RuntimeEvent } from '../../shared/ipc';
+import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { AgentProvider, TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';

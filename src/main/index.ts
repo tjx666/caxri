@@ -12,18 +12,15 @@ import {
 } from 'electron';
 
 import { getCommandDefinition } from '../shared/commands';
+import { CaxriError, toWireError } from '../shared/ipc/errors';
+import type { RuntimeEvent } from '../shared/ipc/events';
+import { isMainRequest, type CaxriRequest, type MainRequest } from '../shared/ipc/methods';
 import {
-    CaxriError,
-    isMainRequest,
     parseCaxriResult,
     parseCaxriRequest,
     requestEnvelopeSchema,
-    toWireError,
     type CaxriReply,
-    type CaxriRequest,
-    type MainRequest,
-    type RuntimeEvent,
-} from '../shared/ipc';
+} from '../shared/ipc/transport';
 import { StructuredLogger } from '../shared/node/logger';
 import type { PersistedWindowState } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';

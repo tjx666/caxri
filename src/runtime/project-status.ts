@@ -399,10 +399,11 @@ export class ProjectStatusService {
         if (!gitSummary.isRepository) {
             return { repositories: [], refreshedAt: Date.now(), error: gitSummary.error };
         }
+        const visibleRepositories: GitRepositorySummary[] = [];
+        for (const repository of gitSummary.repositories)
+            if (repository.kind !== 'worktree') visibleRepositories.push(repository);
         const repositories = await Promise.all(
-            gitSummary.repositories
-                .filter((repository) => repository.kind !== 'worktree')
-                .map((repository) => this.loadRepository(repository)),
+            visibleRepositories.map((repository) => this.loadRepository(repository)),
         );
         this.logger.write('info', 'project_status.summary', {
             durationMs: performance.now() - startedAt,

@@ -65,10 +65,9 @@ function onFilesChanged(sessionId: string, changedPaths: readonly string[]): voi
  */
 function reconcileSelectedSession(sessionId: string): void {
     const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
-    const paths = (getSessionState()?.openTabs ?? [])
-        .map((tab) => tab.path)
-        .filter((path) => !isGitDiffTabPath(path))
-        .filter((path) => cached[path]);
+    const paths: string[] = [];
+    for (const tab of getSessionState()?.openTabs ?? [])
+        if (!isGitDiffTabPath(tab.path) && cached[tab.path]) paths.push(tab.path);
     if (paths.length === 0) return;
     void readDocuments(sessionId, paths).then((documents) =>
         applyExternalDocuments(
@@ -93,16 +92,16 @@ export function useExternalDocumentSync(): void {
             const sessionId = getSelectedSession()?.id;
             if (!sessionId || event.payload.sessionId !== sessionId) return;
             const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
-            onFilesChanged(
-                sessionId,
-                event.payload.overflow
-                    ? (getSessionState()
-                          ?.openTabs.map((tab) => tab.path)
-                          .filter((path) => !isGitDiffTabPath(path)) ?? [])
-                    : event.payload.changes
-                          .filter((change) => change.kind !== 'delete' && cached[change.path])
-                          .map((change) => change.path),
-            );
+            const changedPaths: string[] = [];
+            if (event.payload.overflow) {
+                for (const tab of getSessionState()?.openTabs ?? [])
+                    if (!isGitDiffTabPath(tab.path)) changedPaths.push(tab.path);
+            } else {
+                for (const change of event.payload.changes)
+                    if (change.kind !== 'delete' && cached[change.path])
+                        changedPaths.push(change.path);
+            }
+            onFilesChanged(sessionId, changedPaths);
         });
         const unsubscribeSelection = useWorkbenchStore.subscribe((state, previous) => {
             const sessionId = selectSelectedSession(state.bootstrap)?.id;

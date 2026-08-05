@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '../shared/ipc';
+import type { RuntimeEvent } from '../shared/ipc/events';
 import { StructuredLogger } from '../shared/node/logger';
 import { createRuntime } from './bootstrap';
 import { createDispatcher, type RuntimeRequestEnvelope } from './dispatch';

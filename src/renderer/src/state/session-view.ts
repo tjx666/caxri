@@ -26,6 +26,7 @@ import { patchSessionState } from './workbench';
  * evicted tab stays open and re-reads from disk when it is selected again.
  */
 export const MAX_CACHED_DOCUMENTS_PER_SESSION = 20;
+export const MAX_CACHED_DOCUMENT_BYTES_GLOBAL = 32 * 1024 * 1024;
 
 interface SessionViewState {
     /** Locally focused WorkItem per Session; the persisted `activeTab` is the durable fallback. */
@@ -76,6 +77,52 @@ function evictExcess(
     return { documents: remaining, recent: kept };
 }
 
+function retainedBytes(document: EditorDocument): number {
+    return Math.max(document.size, document.content.length * 2);
+}
+
+/**
+ * Applies one process-wide content budget after the per-Session count cap. Dirty buffers are the
+ * only exception because reclaiming them would destroy unsaved work; they still displace every
+ * eligible clean buffer before the cache is allowed to exceed the budget.
+ */
+function evictToGlobalBudget(
+    documents: SessionDocuments,
+    recentDocuments: Record<string, string[]>,
+): { documents: SessionDocuments; recentDocuments: Record<string, string[]> } {
+    let total = 0;
+    const cleanCandidates: Array<{ sessionId: string; path: string; bytes: number }> = [];
+    for (const [sessionId, sessionDocuments] of Object.entries(documents)) {
+        const recent = recentDocuments[sessionId] ?? [];
+        const tracked = new Set(recent);
+        const ordered = [
+            ...Object.keys(sessionDocuments).filter((path) => !tracked.has(path)),
+            ...recent.filter((path) => sessionDocuments[path]),
+        ];
+        for (const path of ordered) {
+            const document = sessionDocuments[path];
+            const bytes = retainedBytes(document);
+            total += bytes;
+            if (!document.dirty) cleanCandidates.push({ sessionId, path, bytes });
+        }
+    }
+    if (total <= MAX_CACHED_DOCUMENT_BYTES_GLOBAL) return { documents, recentDocuments };
+
+    const nextDocuments = { ...documents };
+    const nextRecent = { ...recentDocuments };
+    for (const candidate of cleanCandidates) {
+        if (total <= MAX_CACHED_DOCUMENT_BYTES_GLOBAL) break;
+        const sessionDocuments = { ...nextDocuments[candidate.sessionId] };
+        delete sessionDocuments[candidate.path];
+        nextDocuments[candidate.sessionId] = sessionDocuments;
+        nextRecent[candidate.sessionId] = (nextRecent[candidate.sessionId] ?? []).filter(
+            (path) => path !== candidate.path,
+        );
+        total -= candidate.bytes;
+    }
+    return { documents: nextDocuments, recentDocuments: nextRecent };
+}
+
 function withDocuments(
     state: SessionViewState,
     sessionId: string,
@@ -83,10 +130,10 @@ function withDocuments(
     recent: readonly string[],
 ): Pick<SessionViewState, 'documents' | 'recentDocuments'> {
     const trimmed = evictExcess(documents, recent);
-    return {
-        documents: { ...state.documents, [sessionId]: trimmed.documents },
-        recentDocuments: { ...state.recentDocuments, [sessionId]: trimmed.recent },
-    };
+    return evictToGlobalBudget(
+        { ...state.documents, [sessionId]: trimmed.documents },
+        { ...state.recentDocuments, [sessionId]: trimmed.recent },
+    );
 }
 
 export const useSessionViewStore = create<SessionViewState>((set, get) => ({

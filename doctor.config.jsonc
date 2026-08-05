@@ -1,0 +1,57 @@
+{
+    "noScore": true,
+    "blocking": "warning",
+    "supplyChain": {
+        // @lobehub/assets-fileicon is a lockfile-resolved, build-time SVG asset source with a Socket score of 48.
+        "minScore": 48,
+    },
+    "ignore": {
+        "overrides": [
+            {
+                // These Monaco owners are already split behind React.lazy boundaries in their parents.
+                "files": [
+                    "src/renderer/src/features/editor/CodeEditor.tsx",
+                    "src/renderer/src/features/editor/GitDiffEditor.tsx",
+                    "src/renderer/src/features/settings/ConfigurationEditor.tsx",
+                    "src/renderer/src/lib/monaco.ts",
+                ],
+                "rules": ["react-doctor/prefer-dynamic-import"],
+            },
+            {
+                // WAI-ARIA treegrid requires columnheader roles for the four visible columns.
+                "files": ["src/renderer/src/features/process-explorer/ProcessExplorerApp.tsx"],
+                "rules": ["react-doctor/no-noninteractive-element-to-interactive-role"],
+            },
+            {
+                // Rows are position-addressed fields in a controlled JSON array and cannot reorder.
+                "files": ["src/renderer/src/features/settings/KeybindingsForm.tsx"],
+                "rules": ["react-doctor/no-array-index-as-key"],
+            },
+            {
+                // Tabs own independent drafts; Apply All deliberately saves in deterministic order.
+                "files": ["src/renderer/src/features/settings/SettingsDialog.tsx"],
+                "rules": ["react-doctor/prefer-useReducer", "react-doctor/async-await-in-loop"],
+            },
+            {
+                // A key chord contains at most four modifier tokens, so a Set would add overhead.
+                "files": ["src/renderer/src/lib/keybindings.ts"],
+                "rules": ["react-doctor/js-set-map-lookups"],
+            },
+            {
+                // A layout group is schema-bounded to 16 Terminals; the array is the source of truth.
+                "files": ["src/shared/ipc/layout.ts"],
+                "rules": ["react-doctor/js-set-map-lookups"],
+            },
+            {
+                // The second lstat intentionally revalidates directory identity after readdir (TOCTOU).
+                "files": ["src/runtime/files/listing.ts"],
+                "rules": ["react-doctor/server-sequential-independent-await"],
+            },
+            {
+                // Codex indexes are opened newest-first and stop as soon as one matching thread is found.
+                "files": ["src/runtime/agents/codex.ts"],
+                "rules": ["react-doctor/async-await-in-loop"],
+            },
+        ],
+    },
+}

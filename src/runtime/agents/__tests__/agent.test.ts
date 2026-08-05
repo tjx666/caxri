@@ -157,6 +157,17 @@ describe('Agent adapter fallback', () => {
             }),
             'utf8',
         );
+        await writeFile(
+            join(config, 'sessions', 'oversized.json'),
+            `${JSON.stringify({
+                cwd: root,
+                name: 'Oversized metadata must be ignored',
+                sessionId: 'oversized-session',
+                status: 'busy',
+                updatedAt: new Date().toISOString(),
+            })}${' '.repeat(128 * 1024)}`,
+            'utf8',
+        );
         vi.stubEnv('PATH', bin);
         vi.stubEnv('SHELL', '/usr/bin/false');
         const service = new AgentService(

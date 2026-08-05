@@ -219,14 +219,14 @@ const projectStatusStateSchema = z.enum(['success', 'failure', 'pending', 'neutr
 const projectStatusCheckSchema = z.object({
     name: z.string(),
     state: projectStatusStateSchema,
-    url: z.string().url().optional(),
+    url: z.url().optional(),
     durationMs: z.number().nonnegative().optional(),
 });
 
 const projectStatusLinearIssueSchema = z.object({
     identifier: z.string(),
     title: z.string().optional(),
-    url: z.string().url().optional(),
+    url: z.url().optional(),
     state: z.string().optional(),
     stateType: z
         .enum(['backlog', 'canceled', 'completed', 'duplicate', 'started', 'triage', 'unstarted'])
@@ -237,7 +237,7 @@ const projectStatusDeploymentSchema = z.object({
     environment: z.enum(['production', 'preview']),
     hostname: z.string(),
     state: projectStatusStateSchema,
-    url: z.string().url(),
+    url: z.url(),
     createdAt: z.number().optional(),
 });
 
@@ -254,13 +254,13 @@ const projectStatusRepositorySchema = z.object({
     rootPath: z.string(),
     branch: z.string(),
     defaultBranch: z.string().optional(),
-    githubUrl: z.string().url().optional(),
-    branchUrl: z.string().url().optional(),
+    githubUrl: z.url().optional(),
+    branchUrl: z.url().optional(),
     pullRequest: z
         .object({
             number: z.number().int().positive(),
             title: z.string(),
-            url: z.string().url(),
+            url: z.url(),
             state: projectStatusStateSchema,
             checks: z.array(projectStatusCheckSchema),
             hiddenCheckCount: z.number().int().nonnegative(),
@@ -269,7 +269,7 @@ const projectStatusRepositorySchema = z.object({
     linearIssues: z.array(projectStatusLinearIssueSchema),
     deployments: z
         .object({
-            url: z.string().url(),
+            url: z.url(),
             branchDeployments: z.array(projectStatusDeploymentSchema),
             production: projectStatusDeploymentSchema.optional(),
             preview: projectStatusDeploymentSchema.optional(),
@@ -288,13 +288,13 @@ export const projectStatusOverviewSchema = z.object({
     repository: z
         .object({
             branch: z.string(),
-            branchUrl: z.string().url().optional(),
+            branchUrl: z.url().optional(),
             changedFileCount: z.number().int().nonnegative(),
             pullRequest: z
                 .object({
                     number: z.number().int().positive(),
                     title: z.string(),
-                    url: z.string().url(),
+                    url: z.url(),
                 })
                 .optional(),
         })

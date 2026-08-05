@@ -345,6 +345,75 @@ describe('FileService', () => {
         database.close();
     });
 
+    it('does not poll while the native watcher remains healthy', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-native-only-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        await writeFile(join(root, 'watched.txt'), 'before', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        let lstatCount = 0;
+        setLstatOverride(() => {
+            lstatCount += 1;
+            return undefined;
+        });
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            { pollIntervalMs: 20 },
+        );
+
+        try {
+            await service.watchSession(session.id);
+            const afterSetup = lstatCount;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            expect(lstatCount).toBe(afterSetup);
+        } finally {
+            setLstatOverride(undefined);
+            await service.close();
+            database.close();
+        }
+    });
+
+    it('retains directories expanded before a delayed native watcher failure', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-delayed-fallback-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const expanded = join(root, 'expanded');
+        const watchedPath = join(expanded, 'watched.txt');
+        await mkdir(expanded, { recursive: true });
+        await writeFile(watchedPath, 'before', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const events: string[] = [];
+        const subscription = Promise.withResolvers<never>();
+        const subscribe = vi.fn(() => subscription.promise);
+        const service = new FileService(
+            database,
+            (event) => {
+                if (event.event === 'files.changed')
+                    events.push(...event.payload.changes.map((change) => change.path));
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            { pollIntervalMs: 50, subscribe },
+        );
+
+        const setup = service.watchSession(session.id);
+        await expect.poll(() => subscribe.mock.calls.length).toBe(1);
+        await service.list(session.id, expanded);
+        subscription.reject(new Error('native watcher failed after listing'));
+        await setup;
+        await writeFile(watchedPath, 'after', 'utf8');
+
+        await expect.poll(() => events, { timeout: 3_000 }).toContain(await realpath(watchedPath));
+        await service.close();
+        database.close();
+    });
+
     it('rebinds fallback polling when Session watcher setup completes out of order', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-switch-'));
         temporaryDirectories.push(directory);
@@ -366,6 +435,10 @@ describe('FileService', () => {
             },
             new StructuredLogger(join(directory, 'logs')),
             () => 1024,
+            {
+                pollIntervalMs: 50,
+                subscribe: () => Promise.reject(new Error('native watcher unavailable')),
+            },
         );
         const originalResolve = service.resolveSessionPath.bind(service);
         const firstGate = Promise.withResolvers<void>();
@@ -382,12 +455,6 @@ describe('FileService', () => {
         await firstSetup;
         secondGate.resolve();
         await secondSetup;
-        /** Reaches through the composed WatcherService to force the native watcher offline. */
-        const internals = service as unknown as {
-            watcher: { watcher?: { unsubscribe(): Promise<void> } };
-        };
-        await internals.watcher.watcher?.unsubscribe();
-        internals.watcher.watcher = undefined;
         const changedPath = join(secondRoot, 'polled.txt');
         await writeFile(changedPath, 'poll me', 'utf8');
         const canonicalChangedPath = await realpath(changedPath);

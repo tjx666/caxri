@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../shared/ipc/domain';
 import { CaxriError, isCaxriError } from '../shared/ipc/errors';
+import { AsyncSemaphore, mapWithConcurrency } from '../shared/node/concurrency';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type {
@@ -19,6 +20,8 @@ import { SingleFlight } from './single-flight';
 import type { WorkspacePaths } from './workspace-paths';
 
 const execFileAsync = promisify(execFile);
+const MAX_CONCURRENT_GIT_COMMANDS = 8;
+const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
 
 interface RepositoryStatus {
     branch: string;
@@ -174,6 +177,7 @@ function hidesChildRepository(
 }
 
 export class GitService {
+    private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
     private readonly summaries = new SingleFlight<string, GitSummary>();
 
     constructor(
@@ -184,32 +188,34 @@ export class GitService {
     private async git(
         cwd: string,
         args: string[],
-        options: { allowFailure?: boolean } = {},
+        options: { allowFailure?: boolean; maxBufferBytes?: number } = {},
     ): Promise<string> {
         const startedAt = performance.now();
-        try {
-            const { stdout } = await execFileAsync('git', args, {
-                cwd,
-                timeout: 10_000,
-                maxBuffer: MAX_CONFIGURABLE_FILE_BYTES,
-                env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
-            });
-            this.logger.write('info', 'git.command', {
-                durationMs: performance.now() - startedAt,
-                fields: { operation: args[0] ?? 'unknown' },
-            });
-            return stdout;
-        } catch (error) {
-            if (options.allowFailure) return '';
-            this.logger.write('warn', 'git.command_failed', {
-                durationMs: performance.now() - startedAt,
-                fields: {
-                    operation: args[0] ?? 'unknown',
-                    error: error instanceof Error ? error.message : 'unknown',
-                },
-            });
-            throw toGitError(error);
-        }
+        return this.commands.run(async () => {
+            try {
+                const { stdout } = await execFileAsync('git', args, {
+                    cwd,
+                    timeout: 10_000,
+                    maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
+                    env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
+                });
+                this.logger.write('info', 'git.command', {
+                    durationMs: performance.now() - startedAt,
+                    fields: { operation: args[0] ?? 'unknown' },
+                });
+                return stdout;
+            } catch (error) {
+                if (options.allowFailure) return '';
+                this.logger.write('warn', 'git.command_failed', {
+                    durationMs: performance.now() - startedAt,
+                    fields: {
+                        operation: args[0] ?? 'unknown',
+                        error: error instanceof Error ? error.message : 'unknown',
+                    },
+                });
+                throw toGitError(error);
+            }
+        });
     }
 
     private loadStatus(rootPath: string): Promise<RepositoryStatus> {
@@ -248,20 +254,19 @@ export class GitService {
                 '-z',
             ]),
         ]);
-        const nestedCandidates = await Promise.all(
-            untrackedDirectoryOutput
-                .split('\0')
-                .filter((path) => path.endsWith('/'))
-                .map(async (path) => {
-                    const candidate = resolve(parent.rootPath, path);
-                    try {
-                        const marker = await lstat(resolve(candidate, '.git'));
-                        if (marker.isSymbolicLink()) return undefined;
-                        return candidate;
-                    } catch {
-                        return undefined;
-                    }
-                }),
+        const nestedCandidates = await mapWithConcurrency(
+            untrackedDirectoryOutput.split('\0').filter((path) => path.endsWith('/')),
+            MAX_CONCURRENT_GIT_COMMANDS,
+            async (path) => {
+                const candidate = resolve(parent.rootPath, path);
+                try {
+                    const marker = await lstat(resolve(candidate, '.git'));
+                    if (marker.isSymbolicLink()) return undefined;
+                    return candidate;
+                } catch {
+                    return undefined;
+                }
+            },
         );
         const candidates = [
             ...parseGitLinkPaths(gitLinkOutput).map((path) => ({
@@ -272,12 +277,14 @@ export class GitService {
                 .filter((path): path is string => Boolean(path))
                 .map((path) => ({ kind: 'nested' as const, path })),
         ];
-        const discovered = await Promise.all(
-            candidates.map(async (candidate): Promise<RepositoryRoot | undefined> => {
+        const discovered = await mapWithConcurrency(
+            candidates,
+            MAX_CONCURRENT_GIT_COMMANDS,
+            async (candidate): Promise<RepositoryRoot | undefined> => {
                 const rootPath = await this.canonicalRepositoryRoot(candidate.path);
                 if (!rootPath || !isApproved(rootPath, approvedRoots)) return undefined;
                 return { kind: candidate.kind, rootPath };
-            }),
+            },
         );
         return discovered.filter((value): value is RepositoryRoot => Boolean(value));
     }
@@ -448,27 +455,28 @@ export class GitService {
         const chunks: string[] = [];
         if (![' ', '?'].includes(file.index)) {
             chunks.push(
-                await this.git(repositoryRoot, [
-                    'diff',
-                    '--cached',
-                    '--no-ext-diff',
-                    '--no-color',
-                    ...extraArguments,
-                    '--',
-                    relativePath,
-                ]),
+                await this.git(
+                    repositoryRoot,
+                    [
+                        'diff',
+                        '--cached',
+                        '--no-ext-diff',
+                        '--no-color',
+                        ...extraArguments,
+                        '--',
+                        relativePath,
+                    ],
+                    { maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES },
+                ),
             );
         }
         if (![' ', '?'].includes(file.workingTree)) {
             chunks.push(
-                await this.git(repositoryRoot, [
-                    'diff',
-                    '--no-ext-diff',
-                    '--no-color',
-                    ...extraArguments,
-                    '--',
-                    relativePath,
-                ]),
+                await this.git(
+                    repositoryRoot,
+                    ['diff', '--no-ext-diff', '--no-color', ...extraArguments, '--', relativePath],
+                    { maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES },
+                ),
             );
         }
         return chunks.filter(Boolean).join('\n');
@@ -504,6 +512,7 @@ export class GitService {
                 ? ''
                 : await this.git(repository.rootPath, ['show', `HEAD:${originalPath}`], {
                       allowFailure: true,
+                      maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES,
                   });
         return {
             format: 'contents',

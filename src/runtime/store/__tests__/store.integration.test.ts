@@ -214,4 +214,26 @@ describe('CaxriStore', () => {
         expect(store.sessions.getState(session.id).activeTab).toEqual(structuredActiveTab);
         store.close();
     });
+
+    it('loads all Session states in one ordered query', async () => {
+        const directory = await tempDir('caxri-store-session-states-');
+        const store = new CaxriStore(join(directory, 'state.db'));
+        const project = store.projects.create(directory);
+        const first = store.sessions.insert({ projectId: project.id, displayTitle: 'First' });
+        const second = store.sessions.insert({ projectId: project.id, displayTitle: 'Second' });
+        const insertTerminal = (sessionId: string) =>
+            store.terminals.insert({
+                sessionId,
+                kind: 'shell',
+                cwd: directory,
+                title: 'Shell',
+            });
+        store.sessions.insertInitialState(first.id, insertTerminal(first.id).id);
+        store.sessions.insertInitialState(second.id, insertTerminal(second.id).id);
+
+        expect(store.sessions.listStates().map((state) => state.sessionId)).toEqual(
+            store.sessions.list().map((session) => session.id),
+        );
+        store.close();
+    });
 });

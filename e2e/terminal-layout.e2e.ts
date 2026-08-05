@@ -43,6 +43,22 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await expect(terminalSplitter).toHaveCount(1);
         const runningBeforeMove = await pageRequest<number>(running.page, 'terminal.runningCount');
 
+        const splitterBox = await terminalSplitter.boundingBox();
+        expect(splitterBox).not.toBeNull();
+        await running.page.mouse.move(
+            splitterBox!.x + splitterBox!.width / 2,
+            splitterBox!.y + splitterBox!.height / 2,
+        );
+        await running.page.mouse.down();
+        await running.page.mouse.move(
+            splitterBox!.x + 80,
+            splitterBox!.y + splitterBox!.height / 2,
+        );
+        await expect(terminalSplitter).not.toHaveAttribute('aria-valuenow', '50');
+        await terminalSplitter.dispatchEvent('pointercancel', { pointerId: 1 });
+        await running.page.mouse.up();
+        await expect(terminalSplitter).toHaveAttribute('aria-valuenow', '50');
+
         const dragFirstTab = (targetIndex: number, xRatio: number, yRatio: number) =>
             running.page.evaluate(
                 ({ firstTerminalId, targetIndex, xRatio, yRatio }) => {

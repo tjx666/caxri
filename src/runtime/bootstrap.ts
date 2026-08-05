@@ -1,7 +1,9 @@
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { CaxriError, type RuntimeEvent, type RuntimeMethod } from '../shared/ipc';
+import { CaxriError } from '../shared/ipc/errors';
+import type { RuntimeEvent } from '../shared/ipc/events';
+import type { RuntimeMethod } from '../shared/ipc/methods';
 import type { StructuredLogger } from '../shared/node/logger';
 import type {
     AgentProvider,
@@ -16,7 +18,7 @@ import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './database';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
-import { FileService } from './files';
+import { FileService } from './files/service';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';

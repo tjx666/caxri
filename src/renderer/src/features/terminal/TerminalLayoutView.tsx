@@ -175,6 +175,14 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                     setDraftRatio(undefined);
                     applyTerminalLayout(resizeSplit(props.layout, props.node.id, nextRatio));
                 }}
+                onPointerCancel={() => {
+                    dragging.current = false;
+                    setDraftRatio(undefined);
+                }}
+                onLostPointerCapture={() => {
+                    dragging.current = false;
+                    setDraftRatio(undefined);
+                }}
             />
             <div className="terminal-layout-child">
                 <TerminalNodeView {...props} node={props.node.second} />

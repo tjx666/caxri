@@ -169,15 +169,15 @@ export class CaxriDatabase {
         provider: AgentProvider,
         excludingTerminalId: string,
     ): string[] {
-        return this.store.terminals
-            .list()
-            .filter(
-                (candidate) =>
-                    candidate.id !== excludingTerminalId &&
-                    candidate.provider === provider &&
-                    candidate.agentSessionId,
+        const claimed: string[] = [];
+        for (const candidate of this.store.terminals.list())
+            if (
+                candidate.id !== excludingTerminalId &&
+                candidate.provider === provider &&
+                candidate.agentSessionId
             )
-            .map((candidate) => candidate.agentSessionId!);
+                claimed.push(candidate.agentSessionId);
+        return claimed;
     }
 
     isAgentSessionClaimedByOtherTerminal(terminalId: string, agentSessionId: string): boolean {
@@ -339,9 +339,7 @@ export class CaxriDatabase {
     }
 
     listSessionStates(): SessionState[] {
-        return this.store.sessions
-            .list()
-            .map((session) => this.store.sessions.getState(session.id));
+        return this.store.sessions.listStates();
     }
 
     getSessionState(sessionId: string): SessionState {

@@ -138,6 +138,11 @@ function useProjectOverview(sessionId: string | undefined): ProjectStatusOvervie
     return snapshot && snapshot.sessionId === sessionId ? snapshot.overview : undefined;
 }
 
+function showInspector(command: 'inspector.showFiles' | 'inspector.showGit'): void {
+    usePanelLayoutStore.getState().setInspectorVisible(true);
+    executeCommand(command);
+}
+
 export function StatusBar() {
     const project = useSelectedProject();
     const sessionId = useSelectedSession()?.id;
@@ -150,10 +155,6 @@ export function StatusBar() {
     ).length;
     const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
     const toggleLabel = inspectorVisible ? 'Hide Inspector' : 'Show Inspector';
-    const showInspector = (command: 'inspector.showFiles' | 'inspector.showGit'): void => {
-        usePanelLayoutStore.getState().setInspectorVisible(true);
-        executeCommand(command);
-    };
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual

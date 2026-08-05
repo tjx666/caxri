@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
 
+import { mapWithConcurrency } from '../../shared/node/concurrency';
 import { canonicalPath, type AgentSnapshotContext, type LocalAgentState } from './state';
 
 interface SqliteColumn {
@@ -16,21 +17,19 @@ interface CodexThreadRow {
 }
 
 async function findCodexDatabases(directories: string[]): Promise<string[]> {
-    const paths: string[] = [];
-    for (const directory of [...new Set(directories)]) {
+    const groups = await mapWithConcurrency([...new Set(directories)], 4, async (directory) => {
         try {
             const names = await readdir(directory);
-            paths.push(
-                ...names
-                    .filter((name) => /^state_\d+\.sqlite$/.test(name))
-                    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
-                    .map((name) => join(directory, name)),
-            );
+            return names
+                .filter((name) => /^state_\d+\.sqlite$/.test(name))
+                .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
+                .map((name) => join(directory, name));
         } catch {
             /** Missing or unreadable state directories are normal capability misses. */
+            return [];
         }
-    }
-    return paths;
+    });
+    return groups.flat();
 }
 
 /** Queries only a capability-detected Codex thread index and never opens rollout transcripts. */

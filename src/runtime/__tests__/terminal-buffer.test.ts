@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_SNAPSHOT_BYTES } from '../snapshot';
+import { boundSnapshot, MAX_SNAPSHOT_BYTES } from '../snapshot';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from '../terminal-buffer';
 
 describe('Terminal buffers', () => {
@@ -11,6 +11,27 @@ describe('Terminal buffers', () => {
 
         expect(performance.now() - startedAt).toBeLessThan(100);
         expect(buffer.read().byteCount).toBeLessThanOrEqual(MAX_SNAPSHOT_BYTES);
+    });
+
+    it('matches the reference line and UTF-8 byte bounds across chunk boundaries', () => {
+        const chunks = [
+            `${'old\n'.repeat(2_050)}prefix`,
+            '界'.repeat(MAX_SNAPSHOT_BYTES),
+            '\nnewest-line',
+        ];
+        const buffer = new TerminalSnapshotBuffer('initial\n');
+        for (const chunk of chunks) buffer.append(chunk);
+
+        expect(buffer.read()).toEqual(boundSnapshot(`initial\n${chunks.join('')}`));
+    });
+
+    it('tracks whether a changed snapshot has been persisted', () => {
+        const buffer = new TerminalSnapshotBuffer('restored');
+        expect(buffer.hasUnpersistedChanges()).toBe(false);
+        buffer.append(' output');
+        expect(buffer.hasUnpersistedChanges()).toBe(true);
+        buffer.markPersisted();
+        expect(buffer.hasUnpersistedChanges()).toBe(false);
     });
 
     it('bounds queued Renderer output using a byte counter', () => {

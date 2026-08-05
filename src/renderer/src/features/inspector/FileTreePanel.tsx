@@ -9,16 +9,21 @@ import { caxri } from '../../lib/caxri';
 import { useSelectedSession } from '../../state/selectors';
 import { describeFailure, pushToast } from '../../state/toasts';
 import { openFile } from '../editor/document-actions';
+import { updateFileTreeChangeRevisions, type FileTreeChangeRevisions } from './file-tree-refresh';
 
 interface EntryProps {
+    changeRevisions: FileTreeChangeRevisions;
     sessionId: string;
-    directory?: string;
+    directory: string;
     depth?: number;
-    revision: number;
 }
 
-function DirectoryEntries({ sessionId, directory, depth = 0, revision }: EntryProps) {
+function DirectoryEntries({ changeRevisions, sessionId, directory, depth = 0 }: EntryProps) {
     const [entries, setEntries] = useState<FileEntry[]>([]);
+    const refreshRevision =
+        changeRevisions.sessionId === sessionId
+            ? changeRevisions.overflow + (changeRevisions.directories[directory] ?? 0)
+            : 0;
     useEffect(() => {
         let canceled = false;
         void caxri
@@ -33,17 +38,17 @@ function DirectoryEntries({ sessionId, directory, depth = 0, revision }: EntryPr
         return () => {
             canceled = true;
         };
-    }, [sessionId, directory, revision]);
+    }, [sessionId, directory, refreshRevision]);
 
     return (
         <div className="file-list">
             {entries.map((entry) => (
                 <FileTreeItem
                     key={entry.path}
+                    changeRevisions={changeRevisions}
                     entry={entry}
                     sessionId={sessionId}
                     depth={depth}
-                    revision={revision}
                 />
             ))}
         </div>
@@ -51,15 +56,15 @@ function DirectoryEntries({ sessionId, directory, depth = 0, revision }: EntryPr
 }
 
 function FileTreeItem({
+    changeRevisions,
     entry,
     sessionId,
     depth,
-    revision,
 }: {
+    changeRevisions: FileTreeChangeRevisions;
     entry: FileEntry;
     sessionId: string;
     depth: number;
-    revision: number;
 }) {
     const [expanded, setExpanded] = useState(false);
     if (entry.kind === 'directory') {
@@ -76,10 +81,10 @@ function FileTreeItem({
                 </button>
                 {expanded && (
                     <DirectoryEntries
+                        changeRevisions={changeRevisions}
                         sessionId={sessionId}
                         directory={entry.path}
                         depth={depth + 1}
-                        revision={revision}
                     />
                 )}
             </div>
@@ -104,13 +109,19 @@ function FileTreeItem({
 export function FileTreePanel() {
     const session = useSelectedSession();
     const [collapseRevision, setCollapseRevision] = useState(0);
-    const [revision, setRevision] = useState(0);
+    const [changeRevisions, setChangeRevisions] = useState<FileTreeChangeRevisions>({
+        directories: {},
+        overflow: 0,
+    });
     const sessionId = session?.id;
     useEffect(
         () =>
             caxri.onEvent((event) => {
-                if (event.event === 'files.changed' && event.payload.sessionId === sessionId)
-                    setRevision((value) => value + 1);
+                if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId)
+                    return;
+                setChangeRevisions((previous) =>
+                    updateFileTreeChangeRevisions(previous, event.payload),
+                );
             }),
         [sessionId],
     );
@@ -132,8 +143,9 @@ export function FileTreePanel() {
             </div>
             <DirectoryEntries
                 key={`${session.id}:${collapseRevision}`}
+                changeRevisions={changeRevisions}
                 sessionId={session.id}
-                revision={revision}
+                directory={session.rootPath}
             />
         </div>
     );

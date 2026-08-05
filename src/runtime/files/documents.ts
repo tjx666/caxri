@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { relative } from 'node:path';
 
-import { CaxriError } from '../../shared/ipc';
+import { CaxriError } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument } from '../../shared/types';
 import type { ResolvedSessionPath } from '../workspace-paths';

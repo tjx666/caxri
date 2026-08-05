@@ -1,11 +1,10 @@
-import {
-    parseRuntimeRequest,
-    toWireError,
-    type RuntimeMethod,
-    type RuntimeMethodParams,
-    type RuntimeMethodResult,
-    type RuntimeResponse,
-} from '../shared/ipc';
+import { toWireError } from '../shared/ipc/errors';
+import type {
+    RuntimeMethod,
+    RuntimeMethodParams,
+    RuntimeMethodResult,
+} from '../shared/ipc/methods';
+import { parseRuntimeRequest, type RuntimeResponse } from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
 
 /**

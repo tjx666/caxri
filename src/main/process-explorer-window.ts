@@ -2,7 +2,7 @@ import { join } from 'node:path';
 
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 
-import { CaxriError } from '../shared/ipc';
+import { CaxriError } from '../shared/ipc/errors';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
 import {
     processExplorerSnapshotSchema,

@@ -105,8 +105,7 @@ export interface WorkbenchEventHandlers {
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
-        if (event.event === 'state.changed' || event.event === 'terminal.exit')
-            void refreshWorkbench();
+        if (event.event === 'state.changed') void refreshWorkbench();
         if (event.event === 'runtime.status') {
             const payload = event.payload;
             useWorkbenchStore.setState((current) =>

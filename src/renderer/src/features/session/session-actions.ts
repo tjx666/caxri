@@ -81,13 +81,10 @@ export function deleteSelectedProject(): void {
     void tryCommand('Project removal failed', async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
-        useSessionViewStore
-            .getState()
-            .dropSessions(
-                bootstrap.sessions
-                    .filter((session) => session.projectId === project.id)
-                    .map((session) => session.id),
-            );
+        const removedSessionIds: string[] = [];
+        for (const session of bootstrap.sessions)
+            if (session.projectId === project.id) removedSessionIds.push(session.id);
+        useSessionViewStore.getState().dropSessions(removedSessionIds);
         await refreshWorkbench();
     });
 }

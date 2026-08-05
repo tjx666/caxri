@@ -17,6 +17,7 @@ import {
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
 import { TerminalReplayBuffer } from './terminal-replay';
+import { terminalSizeChanged, type TerminalSize } from './terminal-size';
 
 interface TerminalPaneProps {
     active: boolean;
@@ -118,14 +119,17 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                 replay.restore('');
                 onError(error instanceof Error ? error.message : 'Terminal attachment failed');
             });
+        let lastSentSize: TerminalSize | undefined;
         const observer = new ResizeObserver(() => {
             try {
                 fit.fit();
                 if (latestRef.current.processState === 'running') {
+                    const size = { cols: xterm.cols, rows: xterm.rows };
+                    if (!terminalSizeChanged(lastSentSize, size)) return;
+                    lastSentSize = size;
                     void caxri.request('terminal.resize', {
                         terminalId,
-                        cols: xterm.cols,
-                        rows: xterm.rows,
+                        ...size,
                     });
                 }
             } catch {

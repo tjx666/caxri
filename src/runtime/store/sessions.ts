@@ -167,6 +167,18 @@ export class SessionsStore {
         return mapSessionState(row);
     }
 
+    /** Loads every 1:1 Session state row in the same stable order as {@link list}. */
+    listStates(): SessionState[] {
+        const rows = this.database
+            .prepare(
+                `SELECT session_state.* FROM session_state
+                 JOIN sessions ON sessions.id = session_state.session_id
+                 ORDER BY sessions.created_at ASC, sessions.id ASC`,
+            )
+            .all() as SessionStateRow[];
+        return rows.map(mapSessionState);
+    }
+
     insertInitialState(sessionId: string, terminalId: string): void {
         this.database
             .prepare(

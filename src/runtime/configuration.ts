@@ -6,7 +6,7 @@ import parcelWatcher from '@parcel/watcher';
 import { z } from 'zod';
 
 import { defaultKeybindings } from '../shared/commands';
-import type { RuntimeEvent } from '../shared/ipc';
+import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import {
@@ -83,9 +83,10 @@ export function findKeybindingConflicts(keybindings: Keybinding[]): KeybindingCo
         commands.add(binding.command);
         byKey.set(key, commands);
     }
-    return [...byKey.entries()]
-        .filter(([, commands]) => commands.size > 1)
-        .map(([key, commands]) => ({ key, commands: [...commands] }));
+    const conflicts: KeybindingConflict[] = [];
+    for (const [key, commands] of byKey)
+        if (commands.size > 1) conflicts.push({ key, commands: [...commands] });
+    return conflicts;
 }
 
 export class ConfigurationService {

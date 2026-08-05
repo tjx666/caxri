@@ -2,6 +2,8 @@ import type { Dirent } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
+import { AsyncSemaphore, mapWithConcurrency } from './concurrency';
+
 export interface BuildFreshnessOptions {
     inputPaths: string[];
     outputPaths: string[];
@@ -13,31 +15,28 @@ async function newestInputMtimeMs(
     path: string,
     watchedDirectoryExtensions: ReadonlySet<string>,
     explicit: boolean,
+    io: AsyncSemaphore,
 ): Promise<number> {
     let entries: Dirent[];
     try {
-        const metadata = await stat(path);
+        const metadata = await io.run(() => stat(path));
         if (metadata.isFile())
             return explicit || watchedDirectoryExtensions.has(extname(path)) ? metadata.mtimeMs : 0;
         if (!metadata.isDirectory()) return 0;
-        entries = await readdir(path, { withFileTypes: true });
+        entries = await io.run(() => readdir(path, { withFileTypes: true }));
     } catch {
         return 0;
     }
 
-    let newest = 0;
-    for (const entry of entries) {
+    const mtimes = await mapWithConcurrency(entries, 32, async (entry) => {
         const entryPath = join(path, entry.name);
-        if (entry.isDirectory()) {
-            newest = Math.max(
-                newest,
-                await newestInputMtimeMs(entryPath, watchedDirectoryExtensions, false),
-            );
-        } else if (entry.isFile() && watchedDirectoryExtensions.has(extname(entry.name))) {
-            newest = Math.max(newest, (await stat(entryPath)).mtimeMs);
-        }
-    }
-    return newest;
+        if (entry.isDirectory())
+            return newestInputMtimeMs(entryPath, watchedDirectoryExtensions, false, io);
+        if (entry.isFile() && watchedDirectoryExtensions.has(extname(entry.name)))
+            return io.run(() => stat(entryPath)).then((metadata) => metadata.mtimeMs);
+        return 0;
+    });
+    return Math.max(0, ...mtimes);
 }
 
 /**
@@ -46,20 +45,20 @@ async function newestInputMtimeMs(
  * or Renderer bundle.
  */
 export async function assertBuildOutputsFresh(options: BuildFreshnessOptions): Promise<void> {
-    let oldestOutputMtimeMs = Number.POSITIVE_INFINITY;
+    const io = new AsyncSemaphore(32);
+    let outputMtimes: number[];
     try {
-        for (const path of options.outputPaths)
-            oldestOutputMtimeMs = Math.min(oldestOutputMtimeMs, (await stat(path)).mtimeMs);
+        outputMtimes = await mapWithConcurrency(options.outputPaths, 32, (path) =>
+            io.run(() => stat(path)).then((metadata) => metadata.mtimeMs),
+        );
     } catch {
         throw new Error(options.staleMessage);
     }
+    const oldestOutputMtimeMs = Math.min(...outputMtimes);
 
-    let newestBuildInputMtimeMs = 0;
-    for (const path of options.inputPaths) {
-        newestBuildInputMtimeMs = Math.max(
-            newestBuildInputMtimeMs,
-            await newestInputMtimeMs(path, options.watchedDirectoryExtensions, true),
-        );
-    }
+    const inputMtimes = await mapWithConcurrency(options.inputPaths, 32, (path) =>
+        newestInputMtimeMs(path, options.watchedDirectoryExtensions, true, io),
+    );
+    const newestBuildInputMtimeMs = Math.max(0, ...inputMtimes);
     if (newestBuildInputMtimeMs > oldestOutputMtimeMs) throw new Error(options.staleMessage);
 }

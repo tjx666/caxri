@@ -1,12 +1,15 @@
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 
-import { CaxriError } from '../../shared/ipc';
+import { CaxriError } from '../../shared/ipc/errors';
+import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileEntry } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
 import { isIgnoredName } from './ignore-rules';
+
+const MAX_CONCURRENT_ENTRY_STATS = 32;
 
 /** Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it. */
 export type DirectoryListedListener = (sessionId: string, path: string) => void;
@@ -46,8 +49,8 @@ export class ListingService {
         )
             throw new CaxriError('IO', 'Directory changed during listing');
         const visible = entries.filter((entry) => !isIgnoredName(entry.name));
-        const settled = await Promise.all(
-            visible.map((entry) => this.describeEntry(path, entry.name)),
+        const settled = await mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
+            this.describeEntry(path, entry.name),
         );
         const result = settled.filter((entry): entry is FileEntry => entry !== undefined);
         const sorted = result.sort((a, b) =>

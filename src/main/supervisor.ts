@@ -5,15 +5,13 @@ import { join } from 'node:path';
 import { utilityProcess, type UtilityProcess } from 'electron';
 
 import { CaxriError, fromWireError } from '../shared/ipc/errors';
+import type { RuntimeEvent } from '../shared/ipc/events';
+import type { RuntimeMethod, RuntimeMethodResult, RuntimeParamsArg } from '../shared/ipc/methods';
 import {
     parseRuntimeMessage,
     parseRuntimeResult,
-    type RuntimeEvent,
     type RuntimeMessage,
-    type RuntimeMethod,
-    type RuntimeMethodResult,
-    type RuntimeParamsArg,
-} from '../shared/ipc';
+} from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 

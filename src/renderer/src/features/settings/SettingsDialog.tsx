@@ -117,35 +117,38 @@ export function SettingsDialog() {
         if (saving || dirtyKinds.length === 0) return;
         setSaving(true);
         const failures: string[] = [];
-        for (const kind of dirtyKinds) {
-            try {
-                if (kind === 'settings') {
-                    const result = await caxri.request('settings.update', {
-                        source: settingsSource,
-                    });
-                    setSettings(result.value);
-                    setSettingsSource(result.source);
-                    setSettingsAppliedSource(result.source);
-                } else if (kind === 'keybindings') {
-                    const result = await caxri.request('keybindings.update', {
-                        source: keybindingsSource,
-                    });
-                    setKeybindings(result.value);
-                    setKeybindingsSource(result.source);
-                    setKeybindingsAppliedSource(result.source);
-                    setConflicts(result.conflicts);
-                } else {
-                    const result = await caxri.request('theme.update', { source: themeSource });
-                    setTheme(result.value);
-                    setThemeSource(result.source);
-                    setThemeAppliedSource(result.source);
+        try {
+            for (const kind of dirtyKinds) {
+                try {
+                    if (kind === 'settings') {
+                        const result = await caxri.request('settings.update', {
+                            source: settingsSource,
+                        });
+                        setSettings(result.value);
+                        setSettingsSource(result.source);
+                        setSettingsAppliedSource(result.source);
+                    } else if (kind === 'keybindings') {
+                        const result = await caxri.request('keybindings.update', {
+                            source: keybindingsSource,
+                        });
+                        setKeybindings(result.value);
+                        setKeybindingsSource(result.source);
+                        setKeybindingsAppliedSource(result.source);
+                        setConflicts(result.conflicts);
+                    } else {
+                        const result = await caxri.request('theme.update', { source: themeSource });
+                        setTheme(result.value);
+                        setThemeSource(result.source);
+                        setThemeAppliedSource(result.source);
+                    }
+                } catch (error) {
+                    const label = CONFIG_FILE_NAMES[kind];
+                    failures.push(`${label} — ${describeFailure(error, label)}`);
                 }
-            } catch (error) {
-                const label = CONFIG_FILE_NAMES[kind];
-                failures.push(`${label} — ${describeFailure(error, label)}`);
             }
+        } finally {
+            setSaving(false);
         }
-        setSaving(false);
         if (failures.length < dirtyKinds.length) onApplied();
         if (failures.length > 0) pushToast('error', failures.join('; '));
     };
