@@ -11,7 +11,7 @@ description: Measure and protect Caxri startup and Runtime responsiveness in lar
 4. Preserve privacy: timings, counts, IDs, relative paths, and byte totals are allowed; terminal output, source contents, prompts, credentials, environment values, and agent transcripts are not.
 5. Share concurrent identical expensive operations. Aggregate high-frequency Terminal telemetry instead of synchronously logging each input, resize, or output event. Keep editor-only dependencies out of the terminal-first Renderer entry.
 6. Add a focused unit or integration test for the optimized boundary and extend the performance E2E assertion when a regression can be observed there.
-7. Run `bun run lint`, `bun run typecheck`, `bun run test`, `bun run test:e2e`, and the benchmark again. Compare like-for-like repository, build mode, and executable.
+7. Run `bun run check --lint --test --type`, the focused Electron workflow, and the benchmark again. Compare like-for-like repository, build mode, and executable. Reserve the full unit and E2E suites for release or CI parity.
 
 For a packaged application, run:
 

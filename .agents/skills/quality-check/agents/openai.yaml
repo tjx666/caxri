@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Quality Check'
+  short_description: 'Run focused autofix, tests, and type checks'
+  default_prompt: 'Use $quality-check to validate the current Caxri changes with the narrowest checks.'

@@ -576,7 +576,7 @@ button {
  * Shared Sidebar↔main and main↔Inspector drag divider (WP-U3). A hairline sits centered in a wider
  * invisible hit area so a 6px column stays comfortable to grab without widening the visible seam.
  * Hover/focus/drag states use a foreground tint, never `--accent` — the divider is chrome, not the
- * one focus indicator (see docs/ui-design.md "One accent focus per screen").
+ * one focus indicator (see DESIGN.md "One accent focus per screen").
  */
 .panel-divider {
     position: relative;

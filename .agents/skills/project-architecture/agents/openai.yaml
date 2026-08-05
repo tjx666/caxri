@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Project Architecture'
+  short_description: 'Navigate Caxri architecture and technical decisions'
+  default_prompt: 'Use $project-architecture to locate the owning process and applicable Caxri architecture contract.'

@@ -13,7 +13,7 @@ export default defineConfig({
         environment: 'node',
         /** Native watcher streams are process-global and must not be exercised by parallel test workers. */
         fileParallelism: false,
-        include: ['src/**/*.test.ts'],
+        include: ['src/**/*.test.ts', '.agents/skills/**/scripts/*.test.ts'],
         testTimeout: 15_000,
         hookTimeout: 15_000,
         coverage: { reporter: ['text', 'json-summary'] },

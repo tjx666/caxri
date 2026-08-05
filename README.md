@@ -32,6 +32,7 @@ Git hooks use the repository-owned `.githooks` directory through Git's native `c
 Authoritative validation commands:
 
 ```bash
+bun run check
 bun run lint
 bun run format:md:check
 bun run typecheck
@@ -63,4 +64,4 @@ Unsigned development packages are written beneath `release/`. Caxri does not upl
 
 Caxri treats a user-selected directory as a Project and groups durable Sessions beneath it. It is not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs always run in a real PTY. Git integration is read-only and the editor intentionally stays narrow.
 
-See [DESIGN.md](DESIGN.md) for architecture and recovery contracts and [docs/stack-baseline.md](docs/stack-baseline.md) for the dependency baseline.
+See [DESIGN.md](DESIGN.md) for frontend and UI design. Project architecture and recovery contracts live in the [project architecture reference](.agents/skills/project-architecture/references/architecture.md), with the [dependency baseline](.agents/skills/project-architecture/references/stack-baseline.md) alongside it.

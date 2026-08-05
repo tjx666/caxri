@@ -6,6 +6,7 @@
 - Start the Electron app: `bun run dev`
 - Format: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
+- Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--staged]`
 - Validate: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run test:e2e`
 - Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
@@ -14,7 +15,7 @@
 
 ## Skills
 
-Detailed playbooks live under `skills/` (`build`, `debug`, `performance`, `release`, `test`). Use them for step-by-step workflows beyond this summary.
+Detailed playbooks live under `.agents/skills/` (`build`, `debug`, `performance`, `project-architecture`, `quality-check`, `release`, `test`). `.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for step-by-step workflows beyond this summary.
 
 ## Architecture boundaries
 
@@ -41,11 +42,12 @@ Detailed playbooks live under `skills/` (`build`, `debug`, `performance`, `relea
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
 - Keep unit and integration tests with their source domain, using `__tests__/` when the source directory is already busy. Reserve `e2e/` for full Electron workflows.
 - Keep every JavaScript and TypeScript code file at or below 800 physical lines; split cohesive modules before they exceed the ESLint `max-lines` gate.
-- Update `DESIGN.md`, tests, and these commands when an architecture contract changes.
+- Keep root `DESIGN.md` focused on frontend and UI design. Update the `project-architecture` skill references, tests, and these commands when an architecture or toolchain contract changes.
 
 ## Testing workflow
 
 - During implementation, run only tests affected by the changed source files. Do not run `bun run test` or `bun run test:e2e` as a routine iteration step.
+- Prefer `bun run check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
 - Run focused Electron coverage with `bunx playwright test <e2e-file> --reporter=line`; use `-g '<test name>'` when only one workflow changed.
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.

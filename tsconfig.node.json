@@ -9,6 +9,7 @@
         "src/preload/**/*.ts",
         "src/runtime/**/*.ts",
         "src/shared/**/*.ts",
+        ".agents/skills/**/scripts/**/*.ts",
         "scripts/**/*.ts",
         "e2e/**/*.ts"
     ],
