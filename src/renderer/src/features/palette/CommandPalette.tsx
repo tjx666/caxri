@@ -37,7 +37,8 @@ export function CommandPalette() {
     const sessions = useSessions() ?? NO_RECORDS;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="command-dialog">
+            {/* The palette closes on Escape or on select; a close X would be dead weight in it. */}
+            <DialogContent className="command-dialog" showCloseButton={false}>
                 <DialogTitle className="sr-only">Command Palette</DialogTitle>
                 <Command label="Command Palette">
                     <Command.Input

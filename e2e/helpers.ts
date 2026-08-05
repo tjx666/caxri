@@ -73,7 +73,7 @@ export interface LaunchCaxriOptions {
  * Launches the Caxri Electron app for e2e tests without waiting for the
  * Runtime to become ready. Most specs should use {@link launchCaxri} instead;
  * this lower-level entry point exists for specs (eg. the startup benchmark)
- * that need to measure the "Runtime ready" wait themselves.
+ * that need to measure the readiness wait themselves.
  */
 export async function launchCaxriApp(
     options: LaunchCaxriOptions,
@@ -97,9 +97,18 @@ export async function launchCaxriApp(
     return { app, page };
 }
 
-/** Waits for the Runtime-ready signal that every spec relies on for readiness. */
+/**
+ * Waits for the Runtime-ready signal that every spec relies on for readiness.
+ *
+ * The status bar only renders a *visible* state chip while Caxri is degraded, so readiness is
+ * published as a data attribute that exists in every visual state instead of as display copy.
+ */
+export function runtimeStatus(page: Page) {
+    return page.locator('.statusbar');
+}
+
 export async function waitForRuntimeReady(page: Page): Promise<void> {
-    await expect(page.getByText('Runtime ready')).toBeVisible();
+    await expect(runtimeStatus(page)).toHaveAttribute('data-runtime-status', 'ready');
 }
 
 /** Launches Caxri and waits for the Runtime to report ready. */

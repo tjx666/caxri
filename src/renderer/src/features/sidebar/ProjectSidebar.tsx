@@ -2,13 +2,14 @@ import {
     ChevronDown,
     ChevronRight,
     Circle,
-    Folder,
     Plus,
     Search,
     Settings,
     TerminalSquare,
 } from 'lucide-react';
 import { useState } from 'react';
+
+import type { AgentActivityState } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
@@ -23,6 +24,16 @@ import {
 import { beginSessionCreation, selectProject, selectSession } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
+
+/** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
+const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
+    completed: 'Finished',
+    failed: 'Failed',
+    idle: 'Idle',
+    running: 'Working',
+    unknown: 'No activity reported',
+    waiting: 'Waiting for you',
+};
 const onAddProject = (): void => executeCommand('project.create');
 const onOpenSettings = (): void => executeCommand('settings.open');
 const onSearch = (): void => executeCommand('commandPalette.open');
@@ -89,10 +100,9 @@ export function ProjectSidebar() {
                                     onClick={() => onSelectProject(project.id)}
                                     title={project.rootPath}
                                 >
-                                    <Folder size={14} />
                                     <span className="project-copy">
                                         <strong>{project.displayTitle}</strong>
-                                        <small>{project.rootPath}</small>
+                                        <small>{projectSessions.length}</small>
                                     </span>
                                 </button>
                                 <Button
@@ -115,6 +125,8 @@ export function ProjectSidebar() {
                                                 (item) =>
                                                     item.id === session.primaryAgentTerminalId,
                                             ) ?? sessionTerminals[0];
+                                        const activityLabel =
+                                            ACTIVITY_LABELS[session.lastActivityState];
                                         return (
                                             <button
                                                 key={session.id}
@@ -127,6 +139,9 @@ export function ProjectSidebar() {
                                                 onClick={() => onSelectSession(session.id)}
                                             >
                                                 <span
+                                                    role="img"
+                                                    aria-label={activityLabel}
+                                                    title={activityLabel}
                                                     className={`activity activity-${session.lastActivityState}`}
                                                 >
                                                     <Circle size={7} fill="currentColor" />
@@ -137,7 +152,6 @@ export function ProjectSidebar() {
                                                 />
                                                 <span className="session-copy">
                                                     <strong>{session.displayTitle}</strong>
-                                                    <em>{terminal?.title ?? 'Shell'}</em>
                                                 </span>
                                             </button>
                                         );

@@ -12,9 +12,11 @@ import {
     launchCaxri,
     pageReply,
     pageRequest,
+    runtimeStatus,
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    waitForRuntimeReady,
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -349,7 +351,7 @@ test('Keep Running detaches the closed window and reattaches the live Terminal',
         const reopenedPromise = running.app.waitForEvent('window');
         await running.app.evaluate(({ app }) => app.emit('activate'));
         const reopened = await reopenedPromise;
-        await expect(reopened.getByText('Runtime ready')).toBeVisible();
+        await waitForRuntimeReady(reopened);
         await expect(reopened.locator('.process-running').first()).toBeVisible();
         await typeTerminal(reopened, "printf 'KEEP_RUNNING_OK\\n'");
         await expect(reopened.locator('.xterm-rows')).toContainText('KEEP_RUNNING_OK');
@@ -555,7 +557,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .click();
         await typeTerminal(running.page, "sleep 1; printf 'AFTER_RENDERER_RELOAD\\n'");
         await running.page.reload();
-        await expect(running.page.getByText('Runtime ready')).toBeVisible();
+        await waitForRuntimeReady(running.page);
         await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_RENDERER_RELOAD');
 
         await running.app.evaluate(({ app }) => {
@@ -563,8 +565,11 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             if (!runtime) throw new Error('Runtime utility process not found');
             process.kill(runtime.pid, 'SIGKILL');
         });
-        await expect(running.page.getByText('Runtime restarting')).toBeVisible();
-        await expect(running.page.getByText('Runtime ready')).toBeVisible();
+        await expect(runtimeStatus(running.page)).toHaveAttribute(
+            'data-runtime-status',
+            'restarting',
+        );
+        await waitForRuntimeReady(running.page);
         await expect(
             running.page.getByRole('button', { name: /Restart Terminal/ }).first(),
         ).toBeVisible();
@@ -626,7 +631,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.app.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0]?.close(),
         );
-        await expect(running.page.getByText('Runtime ready')).toBeVisible();
+        await waitForRuntimeReady(running.page);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

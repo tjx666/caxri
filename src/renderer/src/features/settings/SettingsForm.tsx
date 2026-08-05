@@ -27,7 +27,7 @@ function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
     if (agent === 'claude') return 'Claude Code';
     if (agent === 'codex') return 'Codex';
     if (agent === 'shell') return 'Shell';
-    return 'Ask when creating a Session';
+    return 'Ask each time';
 }
 
 /** The `settings` tab: structured fields on the left, the raw settings.jsonc source on the right. */
@@ -68,7 +68,7 @@ export function SettingsForm({
                             </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="ask">Ask when creating a Session</SelectItem>
+                            <SelectItem value="ask">Ask each time</SelectItem>
                             <SelectItem value="claude">Claude Code</SelectItem>
                             <SelectItem value="codex">Codex</SelectItem>
                             <SelectItem value="shell">Shell</SelectItem>

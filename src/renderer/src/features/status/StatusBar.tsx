@@ -1,19 +1,40 @@
 import { PanelRight } from 'lucide-react';
 
+import type { BootstrapState } from '@shared/types';
+
 import { useSelectedSession, useSessionTerminals } from '../../state/selectors';
 import { useWorkbenchStore } from '../../state/workbench';
+
+type RuntimeStatus = BootstrapState['runtime']['status'];
+
+/**
+ * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it
+ * does so in the user's vocabulary rather than naming the Runtime process.
+ */
+const DEGRADED_STATES: Partial<Record<RuntimeStatus, { label: string; className: string }>> = {
+    /** No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip. */
+    failed: { label: 'Backend stopped', className: 'statusbar-state-danger' },
+    restarting: { label: 'Reconnecting…', className: 'statusbar-state-warning' },
+};
 
 export function StatusBar() {
     const rootPath = useSelectedSession()?.rootPath;
     const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
+    const degraded = runtimeStatus ? DEGRADED_STATES[runtimeStatus] : undefined;
     const runningCount = useSessionTerminals().filter(
         (terminal) => terminal.lastProcessState === 'running',
     ).length;
     return (
-        <footer className="statusbar">
-            <span>{runtimeStatus === 'ready' ? 'Runtime ready' : `Runtime ${runtimeStatus}`}</span>
-            <span>{rootPath ?? 'No Session selected'}</span>
-            <span>{runningCount} running</span>
+        /**
+         * `data-runtime-status` is the stable readiness signal: it is present in every visual
+         * state, including the healthy one that renders no chip at all.
+         */
+        <footer className="statusbar" data-runtime-status={runtimeStatus ?? 'starting'}>
+            <span className="statusbar-path">{rootPath ?? 'No Session selected'}</span>
+            {degraded && (
+                <span className={`statusbar-state ${degraded.className}`}>{degraded.label}</span>
+            )}
+            <span className="statusbar-count">{runningCount} running</span>
             <PanelRight size={12} />
         </footer>
     );

@@ -39,7 +39,7 @@ export function ThemePreview({ theme }: ThemePreviewProps) {
                 <p>
                     <b>❯</b> <span>bun run dev</span>
                 </p>
-                <p className="preview-success">Runtime ready in 84ms</p>
+                <p className="preview-success">ready in 84 ms</p>
             </div>
             <footer>
                 <span>main</span>

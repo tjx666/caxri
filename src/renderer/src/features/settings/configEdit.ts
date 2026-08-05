@@ -59,7 +59,10 @@ export function mebibytesToBytes(mebibytes: number): number {
     return Math.round(mebibytes * BYTES_PER_MEBIBYTE);
 }
 
-/** Secondary text showing the exact persisted byte value next to the human-readable MB field. */
+/**
+ * Names the unit of the number in the field. The stored value is a raw byte count, but the field
+ * is unit-aware and the UI never says "bytes" at the user.
+ */
 export function formatByteHint(bytes: number): string {
-    return `${bytes.toLocaleString('en-US')} bytes`;
+    return `${bytesToMebibytes(bytes).toLocaleString('en-US')} MB`;
 }

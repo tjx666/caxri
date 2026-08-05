@@ -84,7 +84,17 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         minWidth: 960,
         minHeight: 640,
         title: 'Caxri',
+        /**
+         * Deliberately a literal, and the one color literal left in the app: it paints the window
+         * before any renderer CSS exists, which is what prevents a white flash on launch. It
+         * mirrors the default theme's `--background`; an imported theme cannot change it.
+         */
         backgroundColor: '#282a36',
+        /**
+         * No title bar row: the sidebar header is the drag region and carries the brand instead.
+         * `title` stays for VoiceOver and Mission Control, which still read the window title.
+         */
+        titleBarStyle: 'hiddenInset',
         show: false,
         webPreferences: {
             preload: join(currentDirectory, '../preload/index.cjs'),
@@ -294,13 +304,16 @@ async function handleMainMethod(request: CaxriRequest): Promise<unknown> {
                 ),
             );
             const count = counts.reduce((sum, value) => sum + value, 0);
+            const projectTitle =
+                state.projects.find((project) => project.id === projectId)?.displayTitle ??
+                'this Project';
             const result = await dialog.showMessageBox(mainWindow!, {
                 type: 'warning',
                 title: 'Remove Project',
                 message:
                     count > 0
-                        ? `Remove this Project and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
-                        : 'Remove this Project?',
+                        ? `Remove '${projectTitle}' and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
+                        : `Remove '${projectTitle}'?`,
                 detail: 'Only Caxri metadata and snapshots are removed. The Project directory and its files are never deleted.',
                 buttons: ['Remove Project', 'Cancel'],
                 defaultId: 1,
@@ -312,13 +325,17 @@ async function handleMainMethod(request: CaxriRequest): Promise<unknown> {
         case 'session.delete': {
             const { sessionId } = request.params;
             const count = await supervisor.request('terminal.runningCount', { sessionId });
+            const bootstrap = await supervisor.request('app.bootstrap');
+            const sessionTitle =
+                bootstrap.sessions.find((session) => session.id === sessionId)?.displayTitle ??
+                'this Session';
             const result = await dialog.showMessageBox(mainWindow!, {
                 type: 'warning',
                 title: 'Delete Session',
                 message:
                     count > 0
-                        ? `Delete this Session and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
-                        : 'Delete this Session?',
+                        ? `Delete '${sessionTitle}' and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
+                        : `Delete '${sessionTitle}'?`,
                 detail: 'Only Caxri metadata and snapshots are removed. The selected directory and its files are never deleted.',
                 buttons: ['Delete Session', 'Cancel'],
                 defaultId: 1,

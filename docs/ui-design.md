@@ -32,6 +32,7 @@ reference this file; deviations require updating this spec first.
 | `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons |
 | `--overlay`           | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)` |
 | `--shadow`            | elevation shadows: translucent black derived once            |
+| `--indicator`         | neutral (non-accent) selected-tab underline for inspector/settings tabs |
 
 Derive `--accent-foreground`, `--overlay`, `--shadow` in one place from theme colors.
 The status bar uses `--surface` + top hairline — never an accent fill.
@@ -40,7 +41,7 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 
 | Tier    | Size | Usage                                             |
 | ------- | ---- | ------------------------------------------------- |
-| `title` | 15px | dialog titles only                                |
+| `title` | 15px | dialog titles and the welcome heading             |
 | `base`  | 13px | default UI text, inputs, list rows                |
 | `meta`  | 11px | secondary lines, captions, tab labels, status bar |
 | `badge` | 10px | tiny badges/kbd hints only — never sentences      |
@@ -61,8 +62,9 @@ sidebar header only. Reclaim the ~28px title bar row.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. Shows:
 session root path (left), running-terminal count (right). Runtime state appears ONLY
-when degraded (`Reconnecting…` / `Backend stopped — Restart`) as a `--warning`/`--danger`
-chip; healthy state shows nothing.
+when degraded (`Reconnecting…` / `Backend stopped`) as a `--warning`/`--danger` chip;
+healthy state shows nothing. The chip is informational — recovery lives in the native
+Relaunch dialog, so the chip never fakes an action it cannot perform.
 
 **Sidebar** — flatten the double-box nesting: project groups are a disclosure row
 (caret + name + count, no border, no card), sessions are flat rows indented 16px.
@@ -91,8 +93,9 @@ human units (`2 MB`) with unit-aware input. Every tab keeps a dirty marker; Appl
 all dirty tabs.
 
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status
-color and matching icon; error toasts persist until dismissed, others auto-dismiss 4s.
-Stack bottom-right above the status bar.
+color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a
+second accent). Error toasts persist until dismissed, others auto-dismiss 4s. Stack
+bottom-right above the status bar, capped at three.
 
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a
 native confirm dialog naming the target ("Delete session 'api-fix'? Files on disk are

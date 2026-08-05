@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test, type ElectronApplication } from '@playwright/test';
 
-import { launchCaxriApp } from './helpers.ts';
+import { launchCaxriApp, waitForRuntimeReady } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
@@ -54,7 +54,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                     Promise.resolve({ canceled: false, filePaths: [root] });
             }, sessionRoot);
         }
-        await page.getByText('Runtime ready', { exact: true }).waitFor();
+        await waitForRuntimeReady(page);
         const runtimeReadyMs = performance.now() - launchedAt;
 
         await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
@@ -99,7 +99,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             .locator('.git-heading')
             .waitFor()
             .then(() => performance.now() - restoredAt);
-        await restoredPage.getByText('Runtime ready', { exact: true }).waitFor();
+        await waitForRuntimeReady(restoredPage);
         const restoredRuntimeReadyMs = performance.now() - restoredAt;
         const [restoredTerminalSurfaceMs, restoredGitReadyMs] = await Promise.all([
             restoredTerminalSurface,

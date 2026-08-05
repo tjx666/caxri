@@ -4,11 +4,11 @@ import { useToastStore } from '../../state/toasts';
 
 /** Shown until the first `app.bootstrap` resolves; a failure replaces the wait with its reason. */
 export function LoadingScreen() {
-    const message = useToastStore((state) => state.toast?.message);
+    const message = useToastStore((state) => state.toasts.at(-1)?.message);
     return (
         <main className="loading-screen">
             <Code2 size={25} />
-            <span>{message ?? 'Attaching to Caxri Runtime…'}</span>
+            <span>{message ?? 'Starting Caxri…'}</span>
         </main>
     );
 }

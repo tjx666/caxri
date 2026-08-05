@@ -97,7 +97,8 @@ describe('byte/MB conversion', () => {
         expect(mebibytesToBytes(bytesToMebibytes(1024))).toBe(1024);
     });
 
-    it('formats the byte hint with thousands separators', () => {
-        expect(formatByteHint(2097152)).toBe('2,097,152 bytes');
+    it('formats the size hint in human units instead of raw bytes', () => {
+        expect(formatByteHint(2097152)).toBe('2 MB');
+        expect(formatByteHint(1572864)).toBe('1.5 MB');
     });
 });
