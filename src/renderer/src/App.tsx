@@ -17,18 +17,19 @@ import type {
     SessionState,
     TerminalKind,
 } from '@shared/types';
-import {
-    addTerminal,
-    firstLayoutTerminalId,
-    selectTerminal,
-    splitTerminal,
-} from '@shared/terminal-layout';
+import { addTerminal, splitTerminal } from '@shared/terminal-layout';
 import {
     editorModelPath,
     setSessionDocument,
     type SessionDocuments,
     updateEditorTabState,
 } from '@shared/editor-state';
+import {
+    activateWorkState,
+    resolveActiveWork,
+    workItemsEqual,
+    type WorkItem,
+} from '@shared/work-item';
 
 import { keyboardEventShortcut, normalizeShortcut } from './commands';
 import { CommandPalette } from './components/CommandPalette';
@@ -56,7 +57,7 @@ const inspectorCommands: Record<InspectorMode, string> = {
 export default function App() {
     const [bootstrap, setBootstrap] = useState<BootstrapState>();
     const [documentsBySession, setDocumentsBySession] = useState<SessionDocuments>({});
-    const [activeWork, setActiveWork] = useState<string>();
+    const [activeWork, setActiveWork] = useState<WorkItem>();
     const [pendingRoot, setPendingRoot] = useState<string>();
     const [pendingProjectId, setPendingProjectId] = useState<string>();
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -128,23 +129,26 @@ export default function App() {
         },
         [showMessage],
     );
-    const activeWorkExists = activeWork?.startsWith('terminal:')
-        ? sessionTerminals.some((terminal) => `terminal:${terminal.id}` === activeWork)
-        : activeWork?.startsWith('editor:')
-          ? sessionState?.openTabs.some((tab) => `editor:${tab.path}` === activeWork)
-          : false;
-    const fallbackTerminalId =
-        (sessionState && firstLayoutTerminalId(sessionState.layout)) ?? sessionTerminals[0]?.id;
-    const resolvedActiveWork = activeWorkExists
-        ? activeWork
-        : sessionState?.activeTab
-          ? `editor:${sessionState.activeTab}`
-          : fallbackTerminalId
-            ? `terminal:${fallbackTerminalId}`
-            : undefined;
-    const restoredEditorPath = resolvedActiveWork?.startsWith('editor:')
-        ? resolvedActiveWork.slice('editor:'.length)
-        : undefined;
+
+    /**
+     * The single write path for "what is focused in the center pane": updates local `activeWork`
+     * plus persisted `sessionState.activeTab` (and, for a Terminal, the layout's active group) in one
+     * update. `resolveActiveWork` is the corresponding single read path.
+     */
+    const activateWork = useCallback(
+        (item: WorkItem): void => {
+            setActiveWork(item);
+            const current = sessionStateRef.current;
+            if (!current) return;
+            const next = activateWorkState(current, item);
+            if (next !== current) persistSessionState(next);
+        },
+        [persistSessionState],
+    );
+
+    const resolvedActiveWork = resolveActiveWork({ activeWork, sessionTerminals, sessionState });
+    const restoredEditorPath =
+        resolvedActiveWork?.kind === 'editor' ? resolvedActiveWork.path : undefined;
 
     useEffect(() => {
         if (!selectedSession || !restoredEditorPath || documents[restoredEditorPath]) return;
@@ -198,8 +202,8 @@ export default function App() {
             setDocumentsBySession((current) =>
                 setSessionDocument(current, selectedSession.id, { ...document, dirty: false }),
             );
-            setActiveWork(`editor:${path}`);
             updateOpenTab(path, false);
+            activateWork({ kind: 'editor', path });
         } catch (error) {
             showMessage(error instanceof Error ? error.message : 'Unable to open file');
         }
@@ -209,20 +213,32 @@ export default function App() {
         const current = sessionStateRef.current;
         if (!current) return;
         const openTabs = current.openTabs.filter((tab) => tab.path !== path);
-        const nextActive = current.activeTab === path ? openTabs.at(-1)?.path : current.activeTab;
-        persistSessionState({ ...current, openTabs, activeTab: nextActive });
-        setActiveWork(
-            nextActive
-                ? `editor:${nextActive}`
-                : sessionTerminals[0]
-                  ? `terminal:${sessionTerminals[0].id}`
-                  : undefined,
+        const wasActive = current.activeTab?.kind === 'editor' && current.activeTab.path === path;
+        if (!wasActive) {
+            persistSessionState({ ...current, openTabs });
+            return;
+        }
+        const fallbackPath = openTabs.at(-1)?.path;
+        const nextItem: WorkItem | undefined = fallbackPath
+            ? { kind: 'editor', path: fallbackPath }
+            : sessionTerminals[0]
+              ? { kind: 'terminal', terminalId: sessionTerminals[0].id }
+              : undefined;
+        setActiveWork(nextItem);
+        /**
+         * Reuses `activateWorkState` rather than calling `activateWork` so the openTabs removal and
+         * the fallback selection persist atomically instead of as two IPC round trips.
+         */
+        persistSessionState(
+            nextItem
+                ? activateWorkState({ ...current, openTabs }, nextItem)
+                : { ...current, openTabs, activeTab: undefined },
         );
     };
 
     const saveActiveEditor = async (): Promise<void> => {
-        if (!selectedSession || !resolvedActiveWork?.startsWith('editor:')) return;
-        const path = resolvedActiveWork.slice('editor:'.length);
+        if (!selectedSession || resolvedActiveWork?.kind !== 'editor') return;
+        const path = resolvedActiveWork.path;
         const document = documents[path];
         if (!document) return;
         try {
@@ -308,6 +324,8 @@ export default function App() {
                 kind,
             });
             const currentState = sessionStateRef.current;
+            const item: WorkItem = { kind: 'terminal', terminalId: terminal.id };
+            setActiveWork(item);
             if (currentState) {
                 const layout =
                     split && currentState.layout.activeGroupId
@@ -318,18 +336,16 @@ export default function App() {
                               'horizontal',
                           )
                         : addTerminal(currentState.layout, terminal.id);
-                persistSessionState({ ...currentState, layout });
+                persistSessionState({ ...currentState, activeTab: item, layout });
             }
-            setActiveWork(`terminal:${terminal.id}`);
             await refresh();
         } catch (error) {
             showMessage(error instanceof Error ? error.message : 'Terminal creation failed');
         }
     };
 
-    const activeTerminalId = resolvedActiveWork?.startsWith('terminal:')
-        ? resolvedActiveWork.slice('terminal:'.length)
-        : undefined;
+    const activeTerminalId =
+        resolvedActiveWork?.kind === 'terminal' ? resolvedActiveWork.terminalId : undefined;
 
     const closeTerminal = (terminalId: string): void => {
         void caxri
@@ -546,9 +562,8 @@ export default function App() {
         );
     }
 
-    const activeEditorPath = resolvedActiveWork?.startsWith('editor:')
-        ? resolvedActiveWork.slice('editor:'.length)
-        : undefined;
+    const activeEditorPath =
+        resolvedActiveWork?.kind === 'editor' ? resolvedActiveWork.path : undefined;
     const activeDocument = activeEditorPath ? documents[activeEditorPath] : undefined;
 
     return (
@@ -574,7 +589,10 @@ export default function App() {
                             {sessionTerminals.map((terminal) => (
                                 <WorkTab
                                     key={terminal.id}
-                                    active={resolvedActiveWork === `terminal:${terminal.id}`}
+                                    active={workItemsEqual(resolvedActiveWork, {
+                                        kind: 'terminal',
+                                        terminalId: terminal.id,
+                                    })}
                                     closeLabel="Close Terminal"
                                     icon={terminal.kind}
                                     label={terminal.title}
@@ -586,32 +604,27 @@ export default function App() {
                                         event.dataTransfer.setData(TERMINAL_DRAG_TYPE, terminal.id);
                                         event.dataTransfer.setData('text/plain', terminal.id);
                                     }}
-                                    onSelect={() => {
-                                        setActiveWork(`terminal:${terminal.id}`);
-                                        if (sessionState)
-                                            persistSessionState({
-                                                ...sessionState,
-                                                activeTab: undefined,
-                                                layout: selectTerminal(
-                                                    sessionState.layout,
-                                                    terminal.id,
-                                                ),
-                                            });
-                                    }}
+                                    onSelect={() =>
+                                        activateWork({ kind: 'terminal', terminalId: terminal.id })
+                                    }
                                 />
                             ))}
                             {sessionState?.openTabs.map((tab: EditorTabState) => (
                                 <WorkTab
                                     key={tab.path}
-                                    active={resolvedActiveWork === `editor:${tab.path}`}
+                                    active={workItemsEqual(resolvedActiveWork, {
+                                        kind: 'editor',
+                                        path: tab.path,
+                                    })}
                                     closeLabel="Close Editor"
                                     dirty={documents[tab.path]?.dirty}
                                     icon="file"
                                     label={fileName(tab.path)}
                                     onClose={() => closeEditor(tab.path)}
                                     onSelect={() => {
-                                        setActiveWork(`editor:${tab.path}`);
-                                        if (!documents[tab.path]) void openFile(tab.path);
+                                        if (documents[tab.path])
+                                            activateWork({ kind: 'editor', path: tab.path });
+                                        else void openFile(tab.path);
                                     }}
                                 />
                             ))}
@@ -676,23 +689,9 @@ export default function App() {
                                     theme={bootstrap.theme}
                                     fontSize={bootstrap.settings['terminal.fontSize']}
                                     scrollback={bootstrap.settings['terminal.scrollback']}
-                                    onActivate={(terminalId, groupId) => {
-                                        setActiveWork(`terminal:${terminalId}`);
-                                        const current = sessionStateRef.current;
-                                        if (
-                                            current &&
-                                            (current.layout.activeGroupId !== groupId ||
-                                                current.activeTab)
-                                        )
-                                            persistSessionState({
-                                                ...current,
-                                                activeTab: undefined,
-                                                layout: {
-                                                    ...current.layout,
-                                                    activeGroupId: groupId,
-                                                },
-                                            });
-                                    }}
+                                    onActivate={(terminalId) =>
+                                        activateWork({ kind: 'terminal', terminalId })
+                                    }
                                     onLayoutChange={(layout) => {
                                         const current = sessionStateRef.current;
                                         if (current)

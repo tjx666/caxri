@@ -34,7 +34,7 @@ describe('external editor changes', () => {
                 { path: '/project/reloaded.ts', dirty: true },
                 { path: '/project/other.ts', dirty: true },
             ],
-            activeTab: '/project/other.ts',
+            activeTab: { kind: 'editor', path: '/project/other.ts' },
             inspectorMode: 'info',
             layout: createTerminalLayout('terminal-1', () => 'group-1'),
         };
@@ -50,11 +50,11 @@ describe('external editor changes', () => {
 });
 
 describe('Session editor state', () => {
-    it('returns the same Session state when tab dirtiness and selection are unchanged', () => {
+    it('returns the same Session state when tab dirtiness is unchanged', () => {
         const state: SessionState = {
             sessionId: 'session-1',
             openTabs: [{ path: '/project/file.ts', dirty: true }],
-            activeTab: '/project/file.ts',
+            activeTab: { kind: 'editor', path: '/project/file.ts' },
             inspectorMode: 'files',
             layout: {},
         };

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { workItemSchema } from '../work-item';
 import { terminalLayoutSchema } from './layout';
 
 export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
@@ -94,7 +95,8 @@ export const editorTabStateSchema = z.object({ path: pathSchema, dirty: z.boolea
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
     openTabs: z.array(editorTabStateSchema).max(100),
-    activeTab: pathSchema.optional(),
+    /** The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`. */
+    activeTab: workItemSchema.optional(),
     inspectorMode: inspectorModeSchema,
     layout: terminalLayoutSchema,
 });

@@ -108,6 +108,14 @@ export function firstLayoutTerminalId(layout: TerminalLayout): string | undefine
     return firstGroup(layout.root)?.activeTerminalId ?? firstGroup(layout.root)?.terminalIds[0];
 }
 
+/** The Terminal shown by the layout's currently active group, if any. */
+export function activeLayoutTerminalId(layout: TerminalLayout): string | undefined {
+    const group = layout.activeGroupId
+        ? findGroup(layout.root, layout.activeGroupId)
+        : firstGroup(layout.root);
+    return group?.activeTerminalId ?? group?.terminalIds[0];
+}
+
 export function selectTerminal(layout: TerminalLayout, terminalId: string): TerminalLayout {
     const target = findTerminalGroup(layout.root, terminalId);
     if (!target || !layout.root) return layout;

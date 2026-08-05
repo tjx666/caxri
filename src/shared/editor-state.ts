@@ -27,19 +27,22 @@ export function setSessionDocument(
     };
 }
 
+/**
+ * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is
+ * `activeTab`, owned exclusively by `activateWork` in App.tsx — this function never touches it.
+ */
 export function updateEditorTabState(
     state: SessionState,
     path: string,
     dirty: boolean,
 ): SessionState {
     const existing = state.openTabs.find((tab) => tab.path === path);
-    if (existing?.dirty === dirty && state.activeTab === path) return state;
+    if (existing?.dirty === dirty) return state;
     return {
         ...state,
         openTabs: existing
             ? state.openTabs.map((tab) => (tab.path === path ? { ...tab, dirty } : tab))
             : [...state.openTabs, { path, dirty }],
-        activeTab: path,
     };
 }
 
