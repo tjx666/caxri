@@ -1,10 +1,9 @@
 import { parse } from 'jsonc-parser';
-import { FileJson, Import, Save } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { FileJson, Save } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
-import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
 import {
     Dialog,
@@ -13,23 +12,22 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
-import { Input } from '../../components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '../../components/ui/select';
 import { caxri } from '../../lib/caxri';
 import { setSettingsOpen, useDialogStore } from '../../state/dialogs';
 import { describeFailure, pushToast } from '../../state/toasts';
 import { refreshWorkbench } from '../../state/workbench';
-import { ThemePreview } from './ThemePreview';
-
-const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
-
-type ConfigKind = 'settings' | 'keybindings' | 'theme';
+import {
+    applyFormEdit,
+    CONFIG_FILE_NAMES,
+    CONFIG_KINDS,
+    dirtyConfigKinds,
+    isConfigDirty,
+    type ConfigDrafts,
+    type ConfigKind,
+} from './configEdit';
+import { KeybindingsForm } from './KeybindingsForm';
+import { SettingsForm } from './SettingsForm';
+import { ThemeForm } from './ThemeForm';
 
 const onApplied = (): void => void refreshWorkbench();
 const onError = (error: unknown, label: string): void =>
@@ -50,24 +48,25 @@ function parseThemeSource(source: string): ThemeTokens | undefined {
     return value as ThemeTokens;
 }
 
-function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
-    if (agent === 'claude') return 'Claude Code';
-    if (agent === 'codex') return 'Codex';
-    if (agent === 'shell') return 'Shell';
-    return 'Ask when creating a Session';
-}
-
 export function SettingsDialog() {
     const open = useDialogStore((state) => state.settingsOpen);
     const onOpenChange = setSettingsOpen;
     const [tab, setTab] = useState<ConfigKind>('settings');
+    const [loaded, setLoaded] = useState(false);
+    const [saving, setSaving] = useState(false);
+
     const [settings, setSettings] = useState<AppSettings>();
     const [settingsSource, setSettingsSource] = useState('');
+    const [settingsAppliedSource, setSettingsAppliedSource] = useState('');
+
     const [keybindings, setKeybindings] = useState<Keybinding[]>([]);
     const [keybindingsSource, setKeybindingsSource] = useState('');
+    const [keybindingsAppliedSource, setKeybindingsAppliedSource] = useState('');
     const [conflicts, setConflicts] = useState<KeybindingConflict[]>([]);
+
     const [theme, setTheme] = useState<ThemeTokens>();
     const [themeSource, setThemeSource] = useState('');
+    const [themeAppliedSource, setThemeAppliedSource] = useState('');
 
     const load = useCallback((): void => {
         void Promise.all([
@@ -78,58 +77,93 @@ export function SettingsDialog() {
             .then(([settingsResult, keybindingsResult, themeResult]) => {
                 setSettings(settingsResult.value);
                 setSettingsSource(settingsResult.source);
+                setSettingsAppliedSource(settingsResult.source);
                 setKeybindings(keybindingsResult.value);
                 setKeybindingsSource(keybindingsResult.source);
+                setKeybindingsAppliedSource(keybindingsResult.source);
                 setConflicts(keybindingsResult.conflicts);
                 setTheme(themeResult.value);
                 setThemeSource(themeResult.source);
+                setThemeAppliedSource(themeResult.source);
+                setLoaded(true);
             })
             .catch((error: unknown) => onError(error, 'Unable to load configuration'));
     }, []);
 
+    // Only load once per app session: reopening the dialog after edits must keep the
+    // in-memory drafts instead of silently overwriting them with the on-disk versions.
     useEffect(() => {
-        if (open) load();
-    }, [load, open]);
+        if (open && !loaded) load();
+    }, [load, open, loaded]);
 
-    const apply = async (): Promise<void> => {
-        try {
-            if (tab === 'settings') {
-                const result = await caxri.request('settings.update', {
-                    source: settingsSource,
-                });
-                setSettings(result.value);
-                setSettingsSource(result.source);
-            } else if (tab === 'keybindings') {
-                const result = await caxri.request('keybindings.update', {
-                    source: keybindingsSource,
-                });
-                setKeybindings(result.value);
-                setKeybindingsSource(result.source);
-                setConflicts(result.conflicts);
-            } else {
-                const result = await caxri.request('theme.update', { source: themeSource });
-                setTheme(result.value);
-                setThemeSource(result.source);
+    const drafts: ConfigDrafts = useMemo(
+        () => ({
+            settings: { source: settingsSource, appliedSource: settingsAppliedSource },
+            keybindings: { source: keybindingsSource, appliedSource: keybindingsAppliedSource },
+            theme: { source: themeSource, appliedSource: themeAppliedSource },
+        }),
+        [
+            settingsSource,
+            settingsAppliedSource,
+            keybindingsSource,
+            keybindingsAppliedSource,
+            themeSource,
+            themeAppliedSource,
+        ],
+    );
+    const dirtyKinds = dirtyConfigKinds(drafts);
+
+    const applyAll = async (): Promise<void> => {
+        if (saving || dirtyKinds.length === 0) return;
+        setSaving(true);
+        const failures: string[] = [];
+        for (const kind of dirtyKinds) {
+            try {
+                if (kind === 'settings') {
+                    const result = await caxri.request('settings.update', {
+                        source: settingsSource,
+                    });
+                    setSettings(result.value);
+                    setSettingsSource(result.source);
+                    setSettingsAppliedSource(result.source);
+                } else if (kind === 'keybindings') {
+                    const result = await caxri.request('keybindings.update', {
+                        source: keybindingsSource,
+                    });
+                    setKeybindings(result.value);
+                    setKeybindingsSource(result.source);
+                    setKeybindingsAppliedSource(result.source);
+                    setConflicts(result.conflicts);
+                } else {
+                    const result = await caxri.request('theme.update', { source: themeSource });
+                    setTheme(result.value);
+                    setThemeSource(result.source);
+                    setThemeAppliedSource(result.source);
+                }
+            } catch (error) {
+                const label = CONFIG_FILE_NAMES[kind];
+                failures.push(`${label} — ${describeFailure(error, label)}`);
             }
-            onApplied();
-        } catch (error) {
-            onError(error, 'Configuration update failed');
         }
+        setSaving(false);
+        if (failures.length < dirtyKinds.length) onApplied();
+        if (failures.length > 0) pushToast('error', failures.join('; '));
     };
 
-    const updateSettings = (patch: Partial<AppSettings>): void => {
+    const updateSettingsField = <K extends keyof AppSettings>(
+        key: K,
+        value: AppSettings[K],
+    ): void => {
         if (!settings) return;
-        const value = { ...settings, ...patch };
-        setSettings(value);
-        setSettingsSource(`${JSON.stringify(value, null, 2)}\n`);
+        setSettings({ ...settings, [key]: value });
+        setSettingsSource((current) => applyFormEdit(current, [key], value));
     };
 
-    const updateBinding = (index: number, patch: Partial<Keybinding>): void => {
-        const value = keybindings.map((binding, current) =>
-            current === index ? { ...binding, ...patch } : binding,
+    const updateBinding = (index: number, field: 'key' | 'command', value: string): void => {
+        setKeybindings((current) =>
+            current.map((binding, at) => (at === index ? { ...binding, [field]: value } : binding)),
         );
-        setKeybindings(value);
-        setKeybindingsSource(`${JSON.stringify(value, null, 2)}\n`);
+        setKeybindingsSource((current) => applyFormEdit(current, [index, field], value));
     };
 
     const updateThemeColor = (
@@ -138,12 +172,20 @@ export function SettingsDialog() {
         value: string,
     ): void => {
         if (!theme) return;
-        const next = structuredClone(theme);
-        (next[section] as unknown as Record<string, string>)[key] = value;
-        next.source = 'custom';
-        next.id = next.id === 'dracula' ? 'custom-dracula' : next.id;
-        setTheme(next);
-        setThemeSource(`${JSON.stringify(next, null, 2)}\n`);
+        const wasDracula = theme.id === 'dracula';
+        const nextId = wasDracula ? 'custom-dracula' : theme.id;
+        setTheme({
+            ...theme,
+            id: nextId,
+            source: 'custom',
+            [section]: { ...theme[section], [key]: value },
+        });
+        setThemeSource((current) => {
+            let next = applyFormEdit(current, [section, key], value);
+            next = applyFormEdit(next, ['source'], 'custom');
+            if (wasDracula) next = applyFormEdit(next, ['id'], nextId);
+            return next;
+        });
     };
 
     const updateThemeSource = (source: string): void => {
@@ -159,11 +201,14 @@ export function SettingsDialog() {
     const importTheme = async (): Promise<void> => {
         try {
             const imported = await caxri.request('theme.import');
-            if (imported) {
-                setTheme(imported);
-                load();
-                onApplied();
-            }
+            if (!imported) return;
+            // The importer writes theme.json directly, so re-read only the theme tab
+            // instead of a full `load()` that would discard drafts on the other tabs.
+            const result = await caxri.request('theme.get');
+            setTheme(result.value);
+            setThemeSource(result.source);
+            setThemeAppliedSource(result.source);
+            onApplied();
         } catch (error) {
             onError(error, 'Theme import failed');
         }
@@ -175,212 +220,56 @@ export function SettingsDialog() {
                 <DialogHeader>
                     <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>
-                        Global configuration uses validated files with hot reload and
-                        last-known-good fallback.
+                        Changes apply immediately and are stored as editable files.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="settings-tabs">
-                    {(['settings', 'keybindings', 'theme'] as const).map((value) => (
+                    {CONFIG_KINDS.map((value) => (
                         <button
                             key={value}
                             className={tab === value ? 'active' : ''}
                             onClick={() => setTab(value)}
                         >
                             {value[0].toUpperCase() + value.slice(1)}
+                            {isConfigDirty(drafts[value]) && (
+                                <span className="settings-tab-dirty" aria-hidden="true">
+                                    {' '}
+                                    •
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
 
                 {tab === 'settings' && settings && theme && (
-                    <div className="settings-body">
-                        <div className="structured-editor">
-                            <div className="settings-field">
-                                <label className="settings-field-title" htmlFor="default-agent">
-                                    <AgentIdentityIcon
-                                        identity={settings['session.defaultAgent']}
-                                        size={14}
-                                    />
-                                    Default Agent
-                                </label>
-                                <Select
-                                    value={settings['session.defaultAgent'] ?? 'ask'}
-                                    onValueChange={(value) =>
-                                        updateSettings({
-                                            'session.defaultAgent': (value === 'ask'
-                                                ? null
-                                                : value) as AppSettings['session.defaultAgent'],
-                                        })
-                                    }
-                                >
-                                    <SelectTrigger id="default-agent" aria-label="Default Agent">
-                                        <SelectValue>
-                                            {defaultAgentLabel(settings['session.defaultAgent'])}
-                                        </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ask">
-                                            Ask when creating a Session
-                                        </SelectItem>
-                                        <SelectItem value="claude">Claude Code</SelectItem>
-                                        <SelectItem value="codex">Codex</SelectItem>
-                                        <SelectItem value="shell">Shell</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <label className="settings-field">
-                                <span>Terminal font size</span>
-                                <Input
-                                    type="number"
-                                    min={9}
-                                    max={32}
-                                    value={settings['terminal.fontSize']}
-                                    onChange={(event) =>
-                                        updateSettings({
-                                            'terminal.fontSize': Number(event.target.value),
-                                        })
-                                    }
-                                />
-                            </label>
-                            <label className="settings-field">
-                                <span>Terminal scrollback</span>
-                                <Input
-                                    type="number"
-                                    min={100}
-                                    max={10000}
-                                    value={settings['terminal.scrollback']}
-                                    onChange={(event) =>
-                                        updateSettings({
-                                            'terminal.scrollback': Number(event.target.value),
-                                        })
-                                    }
-                                />
-                            </label>
-                            <label className="settings-field">
-                                <span>Maximum file bytes</span>
-                                <Input
-                                    type="number"
-                                    min={1024}
-                                    max={16777216}
-                                    value={settings['files.maxFileBytes']}
-                                    onChange={(event) =>
-                                        updateSettings({
-                                            'files.maxFileBytes': Number(event.target.value),
-                                        })
-                                    }
-                                />
-                            </label>
-                        </div>
-                        <Suspense fallback={<div className="configuration-editor-loading" />}>
-                            <ConfigurationEditor
-                                ariaLabel="settings.jsonc source"
-                                path="/caxri/settings.jsonc"
-                                theme={theme}
-                                value={settingsSource}
-                                onChange={setSettingsSource}
-                            />
-                        </Suspense>
-                    </div>
+                    <SettingsForm
+                        settings={settings}
+                        source={settingsSource}
+                        theme={theme}
+                        onFieldChange={updateSettingsField}
+                        onSourceChange={setSettingsSource}
+                    />
                 )}
 
                 {tab === 'keybindings' && theme && (
-                    <div className="settings-body">
-                        <div className="structured-editor bindings-editor">
-                            {keybindings.map((binding, index) => (
-                                <div key={`${binding.command}-${index}`} className="binding-row">
-                                    <Input
-                                        aria-label={`Shortcut for ${binding.command}`}
-                                        value={binding.key}
-                                        onChange={(event) =>
-                                            updateBinding(index, { key: event.target.value })
-                                        }
-                                    />
-                                    <Input
-                                        aria-label="Command"
-                                        value={binding.command}
-                                        onChange={(event) =>
-                                            updateBinding(index, { command: event.target.value })
-                                        }
-                                    />
-                                </div>
-                            ))}
-                            {conflicts.length > 0 && (
-                                <div className="config-error">
-                                    {conflicts
-                                        .map(
-                                            (conflict) =>
-                                                `${conflict.key}: ${conflict.commands.join(', ')}`,
-                                        )
-                                        .join('\n')}
-                                </div>
-                            )}
-                        </div>
-                        <Suspense fallback={<div className="configuration-editor-loading" />}>
-                            <ConfigurationEditor
-                                ariaLabel="keybindings.jsonc source"
-                                path="/caxri/keybindings.jsonc"
-                                theme={theme}
-                                value={keybindingsSource}
-                                onChange={setKeybindingsSource}
-                            />
-                        </Suspense>
-                    </div>
+                    <KeybindingsForm
+                        keybindings={keybindings}
+                        conflicts={conflicts}
+                        source={keybindingsSource}
+                        theme={theme}
+                        onFieldChange={updateBinding}
+                        onSourceChange={setKeybindingsSource}
+                    />
                 )}
 
                 {tab === 'theme' && theme && (
-                    <div className="settings-body">
-                        <div className="structured-editor theme-editor">
-                            <ThemePreview theme={theme} />
-                            <div className="theme-name">
-                                <strong>{theme.name}</strong>
-                                <span>{theme.source}</span>
-                            </div>
-                            {(['colors', 'terminal', 'editor'] as const).map((section) => (
-                                <fieldset key={section}>
-                                    <legend>{section[0].toUpperCase() + section.slice(1)}</legend>
-                                    {Object.entries(theme[section]).map(([key, value]) => (
-                                        <label key={key}>
-                                            {key}
-                                            <span>
-                                                <input
-                                                    type="color"
-                                                    value={value.slice(0, 7)}
-                                                    onChange={(event) =>
-                                                        updateThemeColor(
-                                                            section,
-                                                            key,
-                                                            event.target.value,
-                                                        )
-                                                    }
-                                                />
-                                                <code>{value}</code>
-                                            </span>
-                                        </label>
-                                    ))}
-                                </fieldset>
-                            ))}
-                            {theme.warnings.map((warning) => (
-                                <p key={warning} className="config-warning">
-                                    {warning}
-                                </p>
-                            ))}
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => void importTheme()}
-                            >
-                                <Import size={13} /> Import Theme
-                            </Button>
-                        </div>
-                        <Suspense fallback={<div className="configuration-editor-loading" />}>
-                            <ConfigurationEditor
-                                ariaLabel="theme.json source"
-                                path="/caxri/theme.json"
-                                theme={theme}
-                                value={themeSource}
-                                onChange={updateThemeSource}
-                            />
-                        </Suspense>
-                    </div>
+                    <ThemeForm
+                        theme={theme}
+                        source={themeSource}
+                        onColorChange={updateThemeColor}
+                        onSourceChange={updateThemeSource}
+                        onImport={() => void importTheme()}
+                    />
                 )}
 
                 <footer className="dialog-actions">
@@ -390,7 +279,10 @@ export function SettingsDialog() {
                     >
                         <FileJson size={14} /> Open File
                     </Button>
-                    <Button onClick={() => void apply()}>
+                    <Button
+                        disabled={saving || dirtyKinds.length === 0}
+                        onClick={() => void applyAll()}
+                    >
                         <Save size={14} /> Apply
                     </Button>
                 </footer>
