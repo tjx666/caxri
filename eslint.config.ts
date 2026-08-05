@@ -8,7 +8,7 @@ export default defineConfig(
     globalIgnores(['dist', 'logs', 'out', 'release', 'node_modules', 'test-results']),
     eslint.configs.recommended,
     tseslint.configs.recommendedTypeChecked,
-    reactHooks.configs.flat.recommended,
+    reactHooks.configs.flat['recommended-latest'],
     {
         languageOptions: {
             parserOptions: {
