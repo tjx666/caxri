@@ -1,36 +1,39 @@
-import { cva, type VariantProps } from 'class-variance-authority';
 import type { ButtonHTMLAttributes } from 'react';
 
 import { cn } from '@/lib/utils';
 
-const buttonVariants = cva('button', {
-    variants: {
-        variant: {
-            default: 'button-default',
-            secondary: 'button-secondary',
-            ghost: 'button-ghost',
-            danger: 'button-danger',
-        },
-        size: {
-            default: 'button-md',
-            sm: 'button-sm',
-            icon: 'button-icon',
-        },
-    },
-    defaultVariants: { variant: 'default', size: 'default' },
-});
+type ButtonVariant = 'default' | 'secondary' | 'ghost' | 'danger';
+type ButtonSize = 'default' | 'sm' | 'icon';
+
+const variantClassName: Record<ButtonVariant, string> = {
+    default: 'button-default',
+    secondary: 'button-secondary',
+    ghost: 'button-ghost',
+    danger: 'button-danger',
+};
+
+const sizeClassName: Record<ButtonSize, string> = {
+    default: 'button-md',
+    sm: 'button-sm',
+    icon: 'button-icon',
+};
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+}
 
 export function Button({
     className,
-    variant,
-    size,
+    variant = 'default',
+    size = 'default',
     type = 'button',
     ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>) {
+}: ButtonProps) {
     return (
         <button
             type={type}
-            className={cn(buttonVariants({ variant, size }), className)}
+            className={cn('button', variantClassName[variant], sizeClassName[size], className)}
             {...props}
         />
     );

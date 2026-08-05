@@ -15,10 +15,7 @@ export function SelectTrigger({ className, children, ...props }: SelectPrimitive
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
-            className={cn(
-                'flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30',
-                className,
-            )}
+            className={cn('select-trigger', className)}
             {...props}
         >
             {children}
@@ -30,13 +27,10 @@ export function SelectTrigger({ className, children, ...props }: SelectPrimitive
 export function SelectContent({ className, children, ...props }: SelectPrimitive.Popup.Props) {
     return (
         <SelectPrimitive.Portal>
-            <SelectPrimitive.Positioner sideOffset={4} className="z-60">
+            <SelectPrimitive.Positioner sideOffset={4} className="select-positioner">
                 <SelectPrimitive.Popup
                     data-slot="select-content"
-                    className={cn(
-                        'max-h-(--available-height) min-w-(--anchor-width) overflow-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10',
-                        className,
-                    )}
+                    className={cn('select-content', className)}
                     {...props}
                 >
                     <SelectPrimitive.List>{children}</SelectPrimitive.List>
@@ -50,14 +44,11 @@ export function SelectItem({ className, children, ...props }: SelectPrimitive.It
     return (
         <SelectPrimitive.Item
             data-slot="select-item"
-            className={cn(
-                'relative flex cursor-default items-center rounded-md py-1.5 pr-8 pl-2 text-sm outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
-                className,
-            )}
+            className={cn('select-item', className)}
             {...props}
         >
             <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-            <SelectPrimitive.ItemIndicator className="absolute right-2 grid size-4 place-items-center">
+            <SelectPrimitive.ItemIndicator className="select-item-indicator">
                 <Check aria-hidden="true" size={13} />
             </SelectPrimitive.ItemIndicator>
         </SelectPrimitive.Item>

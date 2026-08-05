@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 
@@ -64,7 +63,6 @@ export default defineConfig(({ command }) => ({
         },
         plugins: [
             react(),
-            tailwindcss(),
             {
                 name: 'caxri-renderer-csp',
                 transformIndexHtml(html) {
