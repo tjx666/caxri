@@ -78,13 +78,11 @@ export class SessionsStore {
         const rows = projectId
             ? (this.database
                   .prepare(
-                      `${SESSION_SELECT} WHERE sessions.project_id = ? ORDER BY sessions.last_opened_at DESC, sessions.created_at ASC`,
+                      `${SESSION_SELECT} WHERE sessions.project_id = ? ORDER BY sessions.created_at ASC, sessions.id ASC`,
                   )
                   .all(projectId) as SessionRow[])
             : (this.database
-                  .prepare(
-                      `${SESSION_SELECT} ORDER BY sessions.last_opened_at DESC, sessions.created_at ASC`,
-                  )
+                  .prepare(`${SESSION_SELECT} ORDER BY sessions.created_at ASC, sessions.id ASC`)
                   .all() as SessionRow[]);
         return rows.map(mapSession);
     }

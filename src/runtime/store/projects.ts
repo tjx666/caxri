@@ -33,7 +33,7 @@ export class ProjectsStore {
     list(): ProjectRecord[] {
         return (
             this.database
-                .prepare('SELECT * FROM projects ORDER BY last_opened_at DESC, created_at ASC')
+                .prepare('SELECT * FROM projects ORDER BY created_at ASC, id ASC')
                 .all() as ProjectRow[]
         ).map(mapProject);
     }

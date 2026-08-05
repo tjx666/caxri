@@ -58,6 +58,42 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('keeps Project and Session ordering stable when a Session is selected', async () => {
+        const directory = await tempDir('caxri-db-stable-selection-order-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const firstProject = database.createProject(join(directory, 'first'));
+        const firstSession = database.createSession(firstProject.id, 'shell');
+        const secondSession = database.createSession(firstProject.id, 'codex');
+        const secondProject = database.createProject(join(directory, 'second'));
+        database.createSession(secondProject.id, 'shell');
+
+        database.database
+            .prepare('UPDATE projects SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .run(1, 1, firstProject.id);
+        database.database
+            .prepare('UPDATE projects SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .run(2, 2, secondProject.id);
+        database.database
+            .prepare('UPDATE sessions SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .run(1, 1, firstSession.session.id);
+        database.database
+            .prepare('UPDATE sessions SET created_at = ?, last_opened_at = ? WHERE id = ?')
+            .run(2, 2, secondSession.session.id);
+
+        const projectOrder = database.listProjects().map((project) => project.id);
+        const sessionOrder = database.listSessions(firstProject.id).map((session) => session.id);
+
+        database.selectSession(firstSession.session.id);
+
+        expect(database.listProjects().map((project) => project.id)).toEqual(projectOrder);
+        expect(database.listSessions(firstProject.id).map((session) => session.id)).toEqual(
+            sessionOrder,
+        );
+        expect(database.getAppState<string>('lastSelectedProjectId')).toBe(firstProject.id);
+        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(firstSession.session.id);
+        database.close();
+    });
+
     it('never removes the Project directory or user files when deleting metadata', async () => {
         const directory = await tempDir('caxri-db-project-delete-');
         const root = join(directory, 'project');
