@@ -11,6 +11,12 @@ import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 
+/** Clears a possibly-unset timer and returns the `undefined` it should be replaced with. */
+function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
+    if (timer) clearTimeout(timer);
+    return undefined;
+}
+
 export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = {
         ...safeProcessEnvironment(source),
@@ -200,18 +206,8 @@ export class TerminalManager {
     }
 
     private onExit(live: LiveTerminal, exitCode: number, signal?: number): void {
-        if (this.terminals.get(live.record.id) !== live) return;
-        if (live.outputTimer) clearTimeout(live.outputTimer);
-        if (live.snapshotTimer) clearTimeout(live.snapshotTimer);
-        if (live.metricTimer) clearTimeout(live.metricTimer);
-        live.outputTimer = undefined;
-        live.snapshotTimer = undefined;
-        live.metricTimer = undefined;
-        this.flushOutput(live);
-        this.persistSnapshot(live);
-        this.flushMetrics(live);
-        this.terminals.delete(live.record.id);
-        this.attached.delete(live.record.id);
+        /** onExit always persists the final snapshot; detach persists only when asked to preserve it. */
+        if (!this.retireLiveTerminal(live, { persist: true })) return;
         /** node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected death. */
         const exitedNormally = exitCode === 0 && !signal;
         this.database.updateTerminalState(live.record.id, exitedNormally ? 'stopped' : 'dead');
@@ -249,8 +245,7 @@ export class TerminalManager {
         this.attached.add(terminalId);
         if (!live) return this.database.getSnapshot(terminalId) ?? null;
         /** The snapshot already contains queued bytes, so discard that live batch before replay. */
-        if (live.outputTimer) clearTimeout(live.outputTimer);
-        live.outputTimer = undefined;
+        live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
         live.droppedBytes = 0;
         return {
@@ -265,8 +260,7 @@ export class TerminalManager {
         this.attached.delete(terminalId);
         const live = this.terminals.get(terminalId);
         if (!live) return;
-        if (live.outputTimer) clearTimeout(live.outputTimer);
-        live.outputTimer = undefined;
+        live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
         live.droppedBytes = 0;
     }
@@ -293,18 +287,30 @@ export class TerminalManager {
     }
 
     private detach(live: LiveTerminal, persist: boolean): void {
-        if (this.terminals.get(live.record.id) !== live) return;
-        if (live.outputTimer) clearTimeout(live.outputTimer);
-        if (live.snapshotTimer) clearTimeout(live.snapshotTimer);
-        if (live.metricTimer) clearTimeout(live.metricTimer);
-        live.outputTimer = undefined;
-        live.snapshotTimer = undefined;
-        live.metricTimer = undefined;
+        this.retireLiveTerminal(live, { persist });
+    }
+
+    /**
+     * Stops tracking a live PTY: clears its timer trio, flushes queued output and metrics, and
+     * optionally persists a final snapshot. Shared by `onExit` (always persists, then reports the
+     * exit) and `detach` (persists only when the caller wants the snapshot preserved, e.g. restart).
+     * Returns false when the terminal was already retired, which both callers treat as a no-op.
+     */
+    private retireLiveTerminal(live: LiveTerminal, options: { persist: boolean }): boolean {
+        if (this.terminals.get(live.record.id) !== live) return false;
+        this.clearTerminalTimers(live);
         this.flushOutput(live);
         this.flushMetrics(live);
-        if (persist) this.persistSnapshot(live);
+        if (options.persist) this.persistSnapshot(live);
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
+        return true;
+    }
+
+    private clearTerminalTimers(live: LiveTerminal): void {
+        live.outputTimer = clearScheduledTimer(live.outputTimer);
+        live.snapshotTimer = clearScheduledTimer(live.snapshotTimer);
+        live.metricTimer = clearScheduledTimer(live.metricTimer);
     }
 
     close(terminalId: string): void {

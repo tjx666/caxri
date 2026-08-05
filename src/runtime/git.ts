@@ -8,9 +8,9 @@ import { CaxriError, isCaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { GitFileStatus, GitRepositorySummary, GitSummary } from '../shared/types';
-import type { FileService } from './files';
 import { assertInsideRoot, isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
+import type { WorkspacePaths } from './workspace-paths';
 
 const execFileAsync = promisify(execFile);
 
@@ -146,7 +146,7 @@ export class GitService {
     private readonly summaries = new SingleFlight<string, GitSummary>();
 
     constructor(
-        private readonly files: FileService,
+        private readonly paths: WorkspacePaths,
         private readonly logger: StructuredLogger,
     ) {}
 
@@ -244,11 +244,11 @@ export class GitService {
     }
 
     private async loadSummary(sessionId: string): Promise<GitSummary> {
-        const { root: projectRoot } = await this.files.resolveSessionPath(sessionId);
+        const { root: projectRoot } = await this.paths.resolveSessionPath(sessionId);
         try {
             const approvedRoots = (
                 await Promise.all(
-                    this.files.listApprovedProjectRoots().map(async (path) => {
+                    this.paths.listApprovedProjectRoots().map(async (path) => {
                         try {
                             return await realpath(path);
                         } catch {

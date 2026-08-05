@@ -1,3 +1,4 @@
+import type * as FsPromises from 'node:fs/promises';
 import {
     mkdir,
     mkdtemp,
@@ -14,9 +15,35 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { StructuredLogger } from '../../shared/node/logger';
-import { CaxriDatabase } from '../database';
-import { FileService, rememberChangeFingerprint, rememberPolledDirectory } from '../files';
+import { StructuredLogger } from '../../../shared/node/logger';
+import { CaxriDatabase } from '../../database';
+import { FileService, rememberChangeFingerprint, rememberPolledDirectory } from '..';
+
+/**
+ * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat`
+ * directly. `vi.hoisted` exposes a settable override the mock factory reads per call, letting one
+ * test simulate an entry that vanishes (or fails to stat) mid-listing while every other test keeps
+ * the real filesystem behavior.
+ */
+const { setLstatOverride, getLstatOverride } = vi.hoisted(() => {
+    let override: ((path: string) => Promise<unknown> | undefined) | undefined;
+    return {
+        getLstatOverride: () => override,
+        setLstatOverride: (value: typeof override) => {
+            override = value;
+        },
+    };
+});
+vi.mock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof FsPromises>();
+    return {
+        ...actual,
+        lstat: (path: Parameters<typeof actual.lstat>[0], ...rest: unknown[]) => {
+            const overridden = typeof path === 'string' ? getLstatOverride()?.(path) : undefined;
+            return overridden ?? (actual.lstat as (...args: unknown[]) => unknown)(path, ...rest);
+        },
+    };
+});
 
 const temporaryDirectories: string[] = [];
 
@@ -210,6 +237,54 @@ describe('FileService', () => {
         database.close();
     });
 
+    it('tolerates entries that vanish or fail to stat instead of failing the whole listing', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-vanish-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        await writeFile(join(root, 'stays.txt'), 'stays', 'utf8');
+        await writeFile(join(root, 'vanishes.txt'), 'vanishes', 'utf8');
+        await writeFile(join(root, 'unreadable.txt'), 'unreadable', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const service = new FileService(
+            database,
+            () => undefined,
+            logger,
+            () => 1024,
+        );
+        /** Simulates a file that an AI agent deletes (ENOENT) or a file that briefly fails to stat mid-listing. */
+        setLstatOverride((path) => {
+            if (path.endsWith('vanishes.txt'))
+                return Promise.reject(
+                    Object.assign(new Error('ENOENT: no such file or directory'), {
+                        code: 'ENOENT',
+                    }),
+                );
+            if (path.endsWith('unreadable.txt'))
+                return Promise.reject(
+                    Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }),
+                );
+            return undefined;
+        });
+
+        try {
+            const entries = await service.list(session.id);
+            expect(entries.map((entry) => entry.name)).toEqual(['stays.txt']);
+            const records = (await readFile(logger.path, 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as { event: string; fields?: { path?: string } });
+            const skipped = records.filter((record) => record.event === 'file.list_entry_skipped');
+            expect(skipped).toHaveLength(1);
+            expect(skipped[0].fields?.path).toContain('unreadable.txt');
+        } finally {
+            setLstatOverride(undefined);
+            database.close();
+        }
+    });
+
     it('shares concurrent directory reads and records one timed file-list operation', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-'));
         temporaryDirectories.push(directory);
@@ -307,11 +382,12 @@ describe('FileService', () => {
         await firstSetup;
         secondGate.resolve();
         await secondSetup;
+        /** Reaches through the composed WatcherService to force the native watcher offline. */
         const internals = service as unknown as {
-            watcher?: { unsubscribe(): Promise<void> };
+            watcher: { watcher?: { unsubscribe(): Promise<void> } };
         };
-        await internals.watcher?.unsubscribe();
-        internals.watcher = undefined;
+        await internals.watcher.watcher?.unsubscribe();
+        internals.watcher.watcher = undefined;
         const changedPath = join(secondRoot, 'polled.txt');
         await writeFile(changedPath, 'poll me', 'utf8');
         const canonicalChangedPath = await realpath(changedPath);

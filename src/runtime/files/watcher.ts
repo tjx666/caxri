@@ -1,46 +1,22 @@
-import { constants } from 'node:fs';
-import { lstat, open, readdir, realpath } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { lstat, readdir } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
 
-import { CaxriError, type RuntimeEvent } from '../shared/ipc';
-import type { StructuredLogger } from '../shared/node/logger';
-import type { FileChange, FileDocument, FileEntry } from '../shared/types';
-import type { CaxriDatabase } from './database';
-import { NATIVE_WATCHER_BACKEND } from './native-watcher';
-import { assertInsideRoot, isOutsideRoot } from './path-security';
-import { SingleFlight } from './single-flight';
+import type { RuntimeEvent } from '../../shared/ipc';
+import type { StructuredLogger } from '../../shared/node/logger';
+import type { FileChange } from '../../shared/types';
+import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
+import { isOutsideRoot } from '../path-security';
+import type { ResolveSessionPath } from './documents';
+import { isIgnoredName, isIgnoredPath, WATCHER_IGNORE_PATTERNS } from './ignore-rules';
 
-const IGNORED_SEGMENTS = new Set([
-    '.git',
-    '.hg',
-    '.svn',
-    'node_modules',
-    '.next',
-    '.nuxt',
-    '.turbo',
-    '.cache',
-    'coverage',
-    'dist',
-    'build',
-    'out',
-    'target',
-]);
 const MAX_PENDING_WATCH_EVENTS = 5_000;
 const MAX_POLLED_DIRECTORIES = 64;
 const MAX_RECENT_CHANGE_FINGERPRINTS = 5_000;
 const WATCH_BATCH_DELAY_MS = 75;
 const WATCH_POLL_INTERVAL_MS = 750;
 const MISSING_PATH_FINGERPRINT = '<missing>';
-const WATCHER_IGNORE_PATTERNS = [...IGNORED_SEGMENTS].flatMap((segment) => [
-    `**/${segment}`,
-    `**/${segment}/**`,
-]);
-
-function isIgnored(path: string): boolean {
-    return path.split(sep).some((segment) => IGNORED_SEGMENTS.has(segment));
-}
 
 function fileSignature(stats: Awaited<ReturnType<typeof lstat>>): string {
     return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}:${stats.mode}:${stats.ino}`;
@@ -86,15 +62,16 @@ export function rememberChangeFingerprint(
     return true;
 }
 
-type OpenFile = (path: string, flags: number, mode?: number) => ReturnType<typeof open>;
-
-interface FileServiceOptions {
+export interface WatcherServiceOptions {
     maxPolledDirectories?: number;
-    openFile?: OpenFile;
 }
 
-export class FileService {
-    private readonly listRequests = new SingleFlight<string, FileEntry[]>();
+/**
+ * Watches the selected Session's Project root for changes, with a signature-polling fallback when
+ * the native watcher backend cannot be installed. Also owns the bounded, lazily-populated polled
+ * directory signatures that `ListingService` primes via `noteDirectoryListed`.
+ */
+export class WatcherService {
     private watcher?: parcelWatcher.AsyncSubscription;
     private watchedSessionId?: string;
     private watchGeneration = 0;
@@ -107,162 +84,23 @@ export class FileService {
     private readonly polledDirectories = new Map<string, Map<string, string>>();
     private readonly recentChangeFingerprints = new Map<string, string>();
     private readonly maxPolledDirectories: number;
-    private readonly openFile: OpenFile;
     private watchedRoot?: string;
 
     constructor(
-        private readonly database: CaxriDatabase,
+        private readonly resolveSessionPath: ResolveSessionPath,
         private readonly emit: (event: RuntimeEvent) => void,
         private readonly logger: StructuredLogger,
-        private readonly maxFileBytes: () => number,
-        options: FileServiceOptions = {},
+        options: WatcherServiceOptions = {},
     ) {
         this.maxPolledDirectories = options.maxPolledDirectories ?? MAX_POLLED_DIRECTORIES;
-        this.openFile = options.openFile ?? open;
     }
 
-    async resolveSessionPath(
-        sessionId: string,
-        input?: string,
-    ): Promise<{ root: string; path: string }> {
-        const session = this.database.getSession(sessionId);
-        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const root = await realpath(session.rootPath);
-        const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
-        const resolved = await realpath(candidate);
-        assertInsideRoot(relative(root, resolved), 'Symlink target is outside the Project root');
-        return { root, path: resolved };
-    }
-
-    /** Returns durable Project roots that the user explicitly granted to Caxri. */
-    listApprovedProjectRoots(): string[] {
-        return this.database.listProjects().map((project) => project.rootPath);
-    }
-
-    list(sessionId: string, directory?: string): Promise<FileEntry[]> {
-        return this.listRequests.run(JSON.stringify([sessionId, directory ?? null]), () =>
-            this.loadList(sessionId, directory),
-        );
-    }
-
-    private async loadList(sessionId: string, directory?: string): Promise<FileEntry[]> {
-        const startedAt = performance.now();
-        const { root, path } = await this.resolveSessionPath(sessionId, directory);
-        if (sessionId === this.watchedSessionId) {
-            const existing = this.polledDirectories.get(path);
-            if (existing) this.rememberPolledDirectory(path, existing);
-            else void this.initializePolledDirectory(path, this.watchGeneration);
-        }
-        const before = await lstat(path);
-        if (!before.isDirectory() || before.isSymbolicLink())
-            throw new CaxriError('IO', 'Path is not a directory');
-        const entries = await readdir(path, { withFileTypes: true });
-        const after = await lstat(path);
-        /** Revalidate around readdir so a Session-root swap cannot disclose another directory. */
-        if (
-            !after.isDirectory() ||
-            after.isSymbolicLink() ||
-            before.dev !== after.dev ||
-            before.ino !== after.ino ||
-            (await realpath(path)) !== path
-        )
-            throw new CaxriError('IO', 'Directory changed during listing');
-        const visible = entries.filter(
-            (entry) => !IGNORED_SEGMENTS.has(entry.name) && !entry.name.endsWith('.db-wal'),
-        );
-        const result = await Promise.all(
-            visible.map(async (entry): Promise<FileEntry> => {
-                const entryPath = resolve(path, entry.name);
-                const stats = await lstat(entryPath);
-                if (stats.isSymbolicLink())
-                    return { name: entry.name, path: entryPath, kind: 'symlink' };
-                if (stats.isDirectory())
-                    return { name: entry.name, path: entryPath, kind: 'directory' };
-                return { name: entry.name, path: entryPath, kind: 'file', size: stats.size };
-            }),
-        );
-        const sorted = result.sort((a, b) =>
-            a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
-        );
-        this.logger.write('info', 'file.list', {
-            durationMs: performance.now() - startedAt,
-            fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
-        });
-        return sorted;
-    }
-
-    async read(sessionId: string, path: string): Promise<FileDocument> {
-        const resolved = await this.resolveSessionPath(sessionId, path);
-        const stats = await lstat(resolved.path);
-        if (!stats.isFile() || stats.isSymbolicLink())
-            throw new CaxriError('IO', 'Path is not a file');
-        const file = await this.openFile(resolved.path, constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-            if ((await realpath(resolved.path)) !== resolved.path)
-                throw new CaxriError('IO', 'File path changed during read');
-            const openedStats = await file.stat();
-            if (
-                !openedStats.isFile() ||
-                openedStats.dev !== stats.dev ||
-                openedStats.ino !== stats.ino ||
-                openedStats.nlink > 1
-            ) {
-                throw new CaxriError(
-                    'IO',
-                    'File changed during read or has multiple filesystem links',
-                );
-            }
-            if (openedStats.size > this.maxFileBytes())
-                throw new CaxriError(
-                    'CAPACITY',
-                    `File exceeds the ${this.maxFileBytes()} byte safety limit`,
-                );
-            const buffer = await file.readFile();
-            if (buffer.subarray(0, 8_192).includes(0))
-                throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
-            return {
-                path: resolved.path,
-                content: buffer.toString('utf8'),
-                mtimeMs: openedStats.mtimeMs,
-                size: openedStats.size,
-            };
-        } finally {
-            await file.close();
-        }
-    }
-
-    async write(sessionId: string, path: string, content: string): Promise<FileDocument> {
-        const resolved = await this.resolveSessionPath(sessionId, path);
-        const stats = await lstat(resolved.path);
-        if (!stats.isFile() || stats.isSymbolicLink())
-            throw new CaxriError('IO', 'Only existing regular files can be saved');
-        if (Buffer.byteLength(content, 'utf8') > this.maxFileBytes())
-            throw new CaxriError('CAPACITY', 'Edited file exceeds the write safety limit');
-        const file = await this.openFile(resolved.path, constants.O_WRONLY | constants.O_NOFOLLOW);
-        try {
-            if ((await realpath(resolved.path)) !== resolved.path)
-                throw new CaxriError('IO', 'File path changed during save');
-            const openedStats = await file.stat();
-            if (
-                !openedStats.isFile() ||
-                openedStats.dev !== stats.dev ||
-                openedStats.ino !== stats.ino ||
-                openedStats.nlink > 1
-            ) {
-                throw new CaxriError(
-                    'IO',
-                    'File changed during save or has multiple filesystem links',
-                );
-            }
-            await file.truncate(0);
-            await file.writeFile(content, 'utf8');
-        } finally {
-            await file.close();
-        }
-        this.logger.write('info', 'file.saved', {
-            fields: { sessionId, path: relative(resolved.root, resolved.path) },
-        });
-        return this.read(sessionId, resolved.path);
+    /** Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick. */
+    noteDirectoryListed(sessionId: string, path: string): void {
+        if (sessionId !== this.watchedSessionId) return;
+        const existing = this.polledDirectories.get(path);
+        if (existing) this.rememberPolledDirectory(path, existing);
+        else void this.initializePolledDirectory(path, this.watchGeneration);
     }
 
     watchSession(sessionId?: string): Promise<void> {
@@ -331,7 +169,7 @@ export class FileService {
                     }
                     for (const event of events) {
                         const relativePath = relative(root, event.path);
-                        if (isOutsideRoot(relativePath) || isIgnored(relativePath)) continue;
+                        if (isOutsideRoot(relativePath) || isIgnoredPath(relativePath)) continue;
                         void this.queueNativeEvent(sessionId, event.type, event.path, generation);
                     }
                 },
@@ -433,18 +271,30 @@ export class FileService {
         }, WATCH_BATCH_DELAY_MS);
     }
 
+    /**
+     * Reads directory-entry signatures for the polling fallback, tolerating entries that vanish
+     * between `readdir` and `lstat` the same way `ListingService` does: a single missing or
+     * unreadable entry is skipped rather than failing the whole signature scan.
+     */
     private async readDirectorySignatures(directory: string): Promise<Map<string, string>> {
         const entries = await readdir(directory, { withFileTypes: true });
         const signatures = new Map<string, string>();
         await Promise.all(
             entries
-                .filter(
-                    (entry) => !IGNORED_SEGMENTS.has(entry.name) && !entry.name.endsWith('.db-wal'),
-                )
+                .filter((entry) => !isIgnoredName(entry.name))
                 .map(async (entry) => {
                     const path = resolve(directory, entry.name);
-                    const stats = await lstat(path);
-                    signatures.set(path, fileSignature(stats));
+                    try {
+                        signatures.set(path, fileSignature(await lstat(path)));
+                    } catch (error) {
+                        if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+                            this.logger.write('debug', 'watcher.signature_entry_skipped', {
+                                fields: {
+                                    path,
+                                    error: error instanceof Error ? error.message : 'unknown',
+                                },
+                            });
+                    }
                 }),
         );
         return signatures;

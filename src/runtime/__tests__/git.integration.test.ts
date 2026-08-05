@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { StructuredLogger } from '../../shared/node/logger';
 import { CaxriDatabase } from '../database';
-import { FileService } from '../files';
 import { describeGitFailure, GitService } from '../git';
+import { WorkspacePaths } from '../workspace-paths';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
@@ -41,13 +41,8 @@ describe('GitService', () => {
             'shell',
         ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
-        const files = new FileService(
-            database,
-            () => undefined,
-            logger,
-            () => 1024 * 1024,
-        );
-        const git = new GitService(files, logger);
+        const paths = new WorkspacePaths(database);
+        const git = new GitService(paths, logger);
         const [summary, concurrentSummary] = await Promise.all([
             git.summary(session.id),
             git.summary(session.id),
@@ -90,13 +85,8 @@ describe('GitService', () => {
             'shell',
         ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
-        const files = new FileService(
-            database,
-            () => undefined,
-            logger,
-            () => 1024 * 1024,
-        );
-        const summary = await new GitService(files, logger).summary(session.id);
+        const paths = new WorkspacePaths(database);
+        const summary = await new GitService(paths, logger).summary(session.id);
 
         expect(summary).toMatchObject({
             isRepository: true,
@@ -157,13 +147,8 @@ describe('GitService', () => {
         database.createProject(linked);
         const session = database.createSession(primaryProject.id, 'shell').session;
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const files = new FileService(
-            database,
-            () => undefined,
-            logger,
-            () => 1024 * 1024,
-        );
-        const git = new GitService(files, logger);
+        const paths = new WorkspacePaths(database);
+        const git = new GitService(paths, logger);
         const startedAt = performance.now();
         const summary = await git.summary(session.id);
         const repositories = summary.repositories;
