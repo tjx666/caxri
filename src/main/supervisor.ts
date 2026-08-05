@@ -12,6 +12,7 @@ import type {
     RuntimeMethodResult,
     RuntimeParamsArg,
 } from '../shared/ipc';
+import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
@@ -26,8 +27,18 @@ interface RuntimeReadiness {
     resolve: () => void;
 }
 
+type StdioStream = 'stdout' | 'stderr';
+
 const RUNTIME_READY_TIMEOUT_MS = 15_000;
 const RUNTIME_STABILITY_WINDOW_MS = 30_000;
+/** Caps a single logged Runtime stdio line so a runaway native crash cannot log-bomb main.jsonl. */
+const MAX_STDIO_LINE_LENGTH = 4_096;
+
+function truncateForLog(text: string): string {
+    return text.length > MAX_STDIO_LINE_LENGTH
+        ? `${text.slice(0, MAX_STDIO_LINE_LENGTH)}…[truncated]`
+        : text;
+}
 
 export class RuntimeSupervisor extends EventEmitter {
     private child?: UtilityProcess;
@@ -37,17 +48,29 @@ export class RuntimeSupervisor extends EventEmitter {
     private terminalFailure?: CaxriError;
     private readiness?: RuntimeReadiness;
     private stabilityTimer?: NodeJS.Timeout;
+    /** Set while a crash-triggered restart is waiting out its backoff delay; see `onExit`. */
+    private pendingRestart?: Promise<void>;
+    private readonly logger: StructuredLogger;
+    private readonly stdioBuffers: Record<StdioStream, string> = { stdout: '', stderr: '' };
 
     constructor(
         private readonly runtimeDirectory: string,
         private readonly userDataPath: string,
         private readonly logDirectory: string,
+        logger: StructuredLogger,
         private readonly logLevel: 'debug' | 'info' = 'debug',
     ) {
         super();
+        /** Shares Main's own logger so Runtime stdio and Main records interleave in one main.jsonl file. */
+        this.logger = logger;
     }
 
     start(): Promise<void> {
+        /**
+         * A request arriving while a crash-restart is scheduled must wait for that restart instead
+         * of forking a second Runtime early, which would silently bypass the backoff delay.
+         */
+        if (this.pendingRestart) return this.pendingRestart;
         if (this.child) return this.readiness?.promise ?? Promise.resolve();
         if (this.terminalFailure) return Promise.reject(this.terminalFailure);
         if (this.intentionalStop)
@@ -63,15 +86,15 @@ export class RuntimeSupervisor extends EventEmitter {
                     CAXRI_LOG_DIRECTORY: this.logDirectory,
                     CAXRI_LOG_LEVEL: this.logLevel,
                     CAXRI_USER_DATA_PATH: this.userDataPath,
+                    CAXRI_APP_VERSION: process.env.CAXRI_APP_VERSION ?? 'unknown',
+                    CAXRI_GIT_COMMIT: process.env.CAXRI_GIT_COMMIT ?? 'unknown',
                 },
                 stdio: 'pipe',
             });
         } catch (error) {
-            const failure = new CaxriError(
-                'UNAVAILABLE',
-                error instanceof Error ? error.message : 'Runtime failed to start',
-            );
-            this.emit('runtime-error', failure);
+            const message = error instanceof Error ? error.message : 'Runtime failed to start';
+            const failure = new CaxriError('UNAVAILABLE', message);
+            this.logger.write('error', 'runtime.error', { fields: { error: message } });
             this.onExit(-1);
             return this.readiness?.promise ?? Promise.reject(failure);
         }
@@ -82,10 +105,48 @@ export class RuntimeSupervisor extends EventEmitter {
         child.on('exit', (code) => {
             if (this.child === child) this.onExit(code);
         });
-        child.on('error', (error) => this.emit('runtime-error', error));
-        child.stdout?.on('data', (chunk) => this.emit('runtime-log', String(chunk)));
-        child.stderr?.on('data', (chunk) => this.emit('runtime-log', String(chunk)));
+        /**
+         * Electron's `UtilityProcess` 'error' event is a non-continuable V8 fault, not a JS `Error`
+         * object; it reports a fixed error type plus a diagnostic report, which can be large.
+         */
+        child.on('error', (type, location, report) =>
+            this.logger.write('error', 'runtime.error', {
+                fields: { type, location, report: truncateForLog(report) },
+            }),
+        );
+        child.stdout?.on('data', (chunk: Buffer | string) => this.handleStdio('stdout', chunk));
+        child.stderr?.on('data', (chunk: Buffer | string) => this.handleStdio('stderr', chunk));
         return this.readiness.promise;
+    }
+
+    /**
+     * Buffers Runtime stdio until a line break, capping the buffer so a process that never emits a
+     * newline cannot grow it unbounded, and writes each line as a structured log record instead of
+     * the previous 'runtime-log'/'runtime-error' events, which nothing ever consumed.
+     */
+    private handleStdio(stream: StdioStream, chunk: Buffer | string): void {
+        this.stdioBuffers[stream] += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+        let buffer = this.stdioBuffers[stream];
+        let newlineIndex = buffer.indexOf('\n');
+        while (newlineIndex !== -1) {
+            this.logStdioLine(stream, buffer.slice(0, newlineIndex));
+            buffer = buffer.slice(newlineIndex + 1);
+            newlineIndex = buffer.indexOf('\n');
+        }
+        if (buffer.length > MAX_STDIO_LINE_LENGTH) {
+            this.logStdioLine(stream, buffer);
+            buffer = '';
+        }
+        this.stdioBuffers[stream] = buffer;
+    }
+
+    private logStdioLine(stream: StdioStream, rawLine: string): void {
+        const line = rawLine.replace(/\r$/, '');
+        if (!line) return;
+        /** `logger.write` already redacts secret-shaped field values before the line reaches disk. */
+        this.logger.write(stream === 'stderr' ? 'warn' : 'info', 'runtime.stdio', {
+            fields: { stream, line: truncateForLog(line) },
+        });
     }
 
     private createReadiness(): RuntimeReadiness {
@@ -181,10 +242,32 @@ export class RuntimeSupervisor extends EventEmitter {
             event: 'runtime.status',
             payload: { status: 'restarting', restartCount: this.restartCount },
         } satisfies RuntimeEvent);
-        setTimeout(
-            () => void this.start().catch((error: unknown) => this.emit('runtime-error', error)),
-            Math.min(250 * 2 ** (this.restartCount - 1), 2_000),
-        );
+        /**
+         * `pendingRestart` is fulfilled by the timer below, once the backoff delay has actually
+         * elapsed. `start()` returns this same promise to any caller that arrives during the wait
+         * (see the guard at its top), so a Renderer request cannot trigger an early fork; it just
+         * observes the outcome of the one restart the timer performs.
+         */
+        const pendingRestart = new Promise<void>((resolve, reject) => {
+            setTimeout(
+                () => {
+                    this.pendingRestart = undefined;
+                    this.start().then(resolve, (error: unknown) => {
+                        if (!this.intentionalStop)
+                            this.logger.write('error', 'runtime.error', {
+                                fields: {
+                                    error: error instanceof Error ? error.message : String(error),
+                                },
+                            });
+                        reject(error instanceof Error ? error : new Error(String(error)));
+                    });
+                },
+                Math.min(250 * 2 ** (this.restartCount - 1), 2_000),
+            );
+        });
+        /** Bookkeeping-only handler: a caller that never awaits `pendingRestart` must not trigger an unhandled rejection. */
+        pendingRestart.catch(() => undefined);
+        this.pendingRestart = pendingRestart;
     }
 
     /** Typed entry point for Main's own Runtime calls; the method table supplies params and result. */

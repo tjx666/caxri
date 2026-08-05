@@ -23,6 +23,7 @@ import {
 } from '../shared/ipc';
 import { StructuredLogger } from '../shared/node/logger';
 import type { PersistedWindowState } from '../shared/types';
+import { decideCrashRecovery } from './crash-policy';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { ProjectRootGrants } from './root-grants';
@@ -32,6 +33,14 @@ import { createWindowCloseHandler } from './window-close';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
+/**
+ * Stamps these once at module load, before any logger or the Runtime supervisor is constructed, so
+ * every log record and the forked Runtime's environment can be correlated to this build. See
+ * src/main/global.d.ts and electron.vite.config.ts for where the constants come from.
+ */
+process.env.CAXRI_APP_VERSION =
+    typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
+process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
 if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
 let mainWindow: BrowserWindow | undefined;
 let supervisor: RuntimeSupervisor;
@@ -85,6 +94,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         },
     });
     let persistTimer: NodeJS.Timeout | undefined;
+    let rendererCrashTimestampsMs: number[] = [];
     const persistWindowState = (): void => {
         const state = readWindowState(window);
         void supervisor.request('app.windowState.update', state).catch(() => undefined);
@@ -120,8 +130,47 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         void confirmExternalUrl(url);
     });
     window.webContents.on('render-process-gone', (_event, details) => {
-        if (details.reason !== 'clean-exit' && !window.isDestroyed())
-            setTimeout(() => window.reload(), 250);
+        if (details.reason === 'clean-exit' || window.isDestroyed()) return;
+        const { decision, crashTimestampsMs } = decideCrashRecovery(
+            rendererCrashTimestampsMs,
+            Date.now(),
+        );
+        rendererCrashTimestampsMs = crashTimestampsMs;
+        if (decision.action === 'reload') {
+            mainLogger?.write('warn', 'window.render_process_gone', {
+                fields: {
+                    reason: details.reason,
+                    crashCount: decision.crashCount,
+                    delayMs: decision.delayMs ?? 0,
+                },
+            });
+            setTimeout(() => {
+                if (!window.isDestroyed()) window.reload();
+            }, decision.delayMs);
+            return;
+        }
+        mainLogger?.write('error', 'window.render_process_crash_loop', {
+            fields: { reason: details.reason, crashCount: decision.crashCount },
+        });
+        void dialog
+            .showMessageBox(window, {
+                type: 'error',
+                title: 'Caxri Keeps Crashing',
+                message: 'The Caxri window has crashed repeatedly and automatic reload stopped.',
+                detail: 'Relaunch Caxri, or quit to investigate.',
+                buttons: ['Relaunch', 'Quit'],
+                defaultId: 0,
+                cancelId: 1,
+            })
+            .then((result) =>
+                supervisor
+                    .shutdown()
+                    .catch(() => undefined)
+                    .finally(() => {
+                        if (result.response === 0) app.relaunch();
+                        app.exit(0);
+                    }),
+            );
     });
     const requestWindowClose = createWindowCloseHandler({
         close: () => {
@@ -440,7 +489,13 @@ void app.whenReady().then(async () => {
     const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
     mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
-    supervisor = new RuntimeSupervisor(currentDirectory, userDataPath, logDirectory, logLevel);
+    supervisor = new RuntimeSupervisor(
+        currentDirectory,
+        userDataPath,
+        logDirectory,
+        mainLogger,
+        logLevel,
+    );
     supervisor.on('event', sendEvent);
     const runtimeStartedAt = performance.now();
     await supervisor

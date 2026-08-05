@@ -130,6 +130,8 @@ export class DiagnosticsService {
             archive.append(
                 json({
                     name: 'Caxri',
+                    appVersion: process.env.CAXRI_APP_VERSION ?? 'unknown',
+                    commit: process.env.CAXRI_GIT_COMMIT ?? 'unknown',
                     platform: process.platform,
                     architecture: process.arch,
                     electron: process.versions.electron,

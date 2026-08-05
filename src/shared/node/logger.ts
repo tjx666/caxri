@@ -12,6 +12,9 @@ export interface LogRecord {
     correlationId?: string;
     durationMs?: number;
     fields?: Record<string, string | number | boolean | null>;
+    /** Build correlation, from `CAXRI_APP_VERSION`/`CAXRI_GIT_COMMIT`; omitted when unset. */
+    appVersion?: string;
+    commit?: string;
 }
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
@@ -39,6 +42,9 @@ function safeFields(fields?: LogRecord['fields']): LogRecord['fields'] {
 export class StructuredLogger {
     readonly path: string;
     private bytesWritten: number;
+    /** Read once at construction, not per-write, since the build stamp never changes at runtime. */
+    private readonly appVersion?: string;
+    private readonly commit?: string;
 
     constructor(
         logDirectory: string,
@@ -47,6 +53,8 @@ export class StructuredLogger {
     ) {
         mkdirSync(logDirectory, { recursive: true });
         this.path = join(logDirectory, `${processName}.jsonl`);
+        this.appVersion = process.env.CAXRI_APP_VERSION || undefined;
+        this.commit = process.env.CAXRI_GIT_COMMIT || undefined;
         try {
             this.bytesWritten = statSync(this.path).size;
         } catch {
@@ -68,6 +76,8 @@ export class StructuredLogger {
             correlationId: options.correlationId,
             durationMs: options.durationMs,
             fields: safeFields(options.fields),
+            appVersion: this.appVersion,
+            commit: this.commit,
         };
         const line = `${JSON.stringify(record)}\n`;
         if (this.bytesWritten + Buffer.byteLength(line, 'utf8') > MAX_LOG_BYTES) {
