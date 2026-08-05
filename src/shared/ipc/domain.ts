@@ -304,6 +304,25 @@ export const projectStatusSummarySchema = z.object({
     error: z.string().optional(),
 });
 
+export const projectStatusOverviewSchema = z.object({
+    repository: z
+        .object({
+            branch: z.string(),
+            branchUrl: z.string().url().optional(),
+            changedFileCount: z.number().int().nonnegative(),
+            pullRequest: z
+                .object({
+                    number: z.number().int().positive(),
+                    title: z.string(),
+                    url: z.string().url(),
+                })
+                .optional(),
+        })
+        .optional(),
+    refreshedAt: z.number(),
+    error: z.string().optional(),
+});
+
 export const gitDiffDocumentSchema = z.object({
     format: z.enum(['contents', 'patch']),
     path: pathSchema,
@@ -358,4 +377,5 @@ export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSche
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
 export type ProjectStatusRepository = z.infer<typeof projectStatusRepositorySchema>;
 export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;
+export type ProjectStatusOverview = z.infer<typeof projectStatusOverviewSchema>;
 export type BootstrapState = z.infer<typeof bootstrapStateSchema>;

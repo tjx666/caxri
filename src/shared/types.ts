@@ -26,6 +26,7 @@ export {
     type ProjectStatusDeployment,
     type ProjectStatusError,
     type ProjectStatusLinearIssue,
+    type ProjectStatusOverview,
     type ProjectStatusRepository,
     type ProjectStatusState,
     type ProjectStatusSummary,

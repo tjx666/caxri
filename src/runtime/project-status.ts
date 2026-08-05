@@ -10,6 +10,7 @@ import type {
     ProjectStatusDeployment,
     ProjectStatusError,
     ProjectStatusLinearIssue,
+    ProjectStatusOverview,
     ProjectStatusRepository,
     ProjectStatusState,
     ProjectStatusSummary,
@@ -320,6 +321,7 @@ function parseVercelList(value: string): VercelDeployment[] {
 
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
+    private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
     private readonly vercelLinks = new Map<string, VercelLink>();
 
     constructor(
@@ -330,6 +332,65 @@ export class ProjectStatusService {
 
     summary(sessionId: string): Promise<ProjectStatusSummary> {
         return this.requests.run(sessionId, () => this.load(sessionId));
+    }
+
+    overview(sessionId: string): Promise<ProjectStatusOverview> {
+        return this.overviewRequests.run(sessionId, () => this.loadOverview(sessionId));
+    }
+
+    private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
+        const gitSummary = await this.git.summary(sessionId);
+        if (!gitSummary.isRepository) {
+            return { refreshedAt: Date.now(), error: gitSummary.error };
+        }
+        const repository = gitSummary.repositories.find(
+            (candidate) => candidate.kind === 'primary',
+        );
+        if (!repository) return { refreshedAt: Date.now(), error: 'No primary repository found.' };
+        const remote = await this.optionalGit(repository.rootPath, ['remote', 'get-url', 'origin']);
+        const github = parseGitHubRemote(remote);
+        const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
+        let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
+        if (github) {
+            try {
+                const output = await this.runner(
+                    'gh',
+                    [
+                        'pr',
+                        'view',
+                        repository.branch,
+                        '--repo',
+                        `${github.owner}/${github.repo}`,
+                        '--json',
+                        'number,title,url',
+                    ],
+                    repository.rootPath,
+                );
+                const parsed = parseJson<GitHubPullRequest>(output, {});
+                if (parsed.number && parsed.title && parsed.url) {
+                    pullRequest = {
+                        number: parsed.number,
+                        title: parsed.title,
+                        url: parsed.url,
+                    };
+                }
+            } catch (error) {
+                if (!isNoPullRequest(error)) {
+                    this.logger.write('debug', 'project_status.overview_github_unavailable');
+                }
+            }
+        }
+        return {
+            repository: {
+                branch: repository.branch,
+                branchUrl: githubUrl
+                    ? `${githubUrl}/tree/${encodeURIComponent(repository.branch)}`
+                    : undefined,
+                changedFileCount: repository.files.length,
+                pullRequest,
+            },
+            refreshedAt: Date.now(),
+        };
     }
 
     private async load(sessionId: string): Promise<ProjectStatusSummary> {

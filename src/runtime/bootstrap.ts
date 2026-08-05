@@ -301,6 +301,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
+        'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);

@@ -1079,19 +1079,62 @@ button.project-status-row {
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 12px;
+    gap: 8px;
+    padding: 0 8px;
     border-top: 1px solid var(--border);
     background: var(--surface);
     color: var(--muted);
     font-size: 11px;
 }
-.statusbar-path {
+.statusbar-context,
+.statusbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.statusbar-context {
     min-width: 0;
     flex: 1;
     overflow: hidden;
+}
+.statusbar-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+}
+.statusbar-empty {
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.statusbar-item {
+    display: inline-flex;
+    min-width: 0;
+    height: 20px;
+    align-items: center;
+    gap: 5px;
+    padding: 0 5px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--foreground);
+    cursor: pointer;
+    text-decoration: none;
+}
+.statusbar-item > svg {
+    flex: 0 0 auto;
+}
+.statusbar-item > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.statusbar-item:hover {
+    background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.statusbar-item:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--foreground);
 }
 .statusbar-count {
     flex: 0 0 auto;

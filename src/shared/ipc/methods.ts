@@ -13,6 +13,7 @@ import {
     MAX_CONFIGURABLE_FILE_BYTES,
     pathSchema,
     persistedWindowStateSchema,
+    projectStatusOverviewSchema,
     projectStatusSummarySchema,
     projectRecordSchema,
     sessionRecordSchema,
@@ -210,6 +211,11 @@ export const methods = {
         owner: 'runtime',
         params: z.object({ sessionId: identifierSchema }),
         result: projectStatusSummarySchema,
+    },
+    'projectStatus.overview': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema }),
+        result: projectStatusOverviewSchema,
     },
     'settings.get': { owner: 'runtime', params: noParams, result: settingsResult },
     'settings.update': {
