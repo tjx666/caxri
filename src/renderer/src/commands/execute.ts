@@ -1,5 +1,3 @@
-import type { InspectorMode } from '@shared/types';
-
 import { caxri } from '../lib/caxri';
 import { saveActiveEditor } from '../features/editor/document-actions';
 import {
@@ -19,20 +17,10 @@ import { useDialogStore } from '../state/dialogs';
 import { getBootstrap, selectSelectedProject } from '../state/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../state/session-view';
 import { pushToast, tryCommand } from '../state/toasts';
+import './definitions';
+import { getRegisteredCommand, type CommandContext } from './registry';
 
-/**
- * Everything a command may reach. Passing this in keeps `executeCommand` free of module-level
- * bindings to the feature actions, so a test can drive the table with fakes.
- */
-export interface CommandContext {
-    project: { create(): void; removeSelected(): void };
-    session: { create(): void; deleteSelected(): void; selectAdjacent(delta: 1 | -1): void };
-    terminal: { create(): void; clearActive(): void; restartActive(): void; closeActive(): void };
-    editor: { saveActive(): void };
-    inspector: { setMode(mode: InspectorMode): void };
-    dialogs: { openSettings(): void; openPalette(): void };
-    diagnostics: { export(): void };
-}
+export type { CommandContext } from './registry';
 
 function activeTerminalId(): string | undefined {
     const active = getResolvedActiveWork();
@@ -85,70 +73,29 @@ export const commandContext: CommandContext = {
 };
 
 /**
- * The command table. A follow-up package replaces this switch with a registry; keeping the shape
- * unchanged for now makes that swap a pure move rather than a behavioural change.
+ * Entry point for the palette, buttons, tabs, and the shortcut dispatcher. Looks the command up in
+ * the registry populated by `./definitions`; an unknown id surfaces exactly one error toast instead
+ * of throwing, since it may be reached from a stale keybinding or menu entry.
  */
-export function executeCommand(command: string, context: CommandContext = commandContext): void {
-    switch (command) {
-        case 'project.create':
-            context.project.create();
-            break;
-        case 'project.delete':
-            context.project.removeSelected();
-            break;
-        case 'session.create':
-            context.session.create();
-            break;
-        case 'session.delete':
-            context.session.deleteSelected();
-            break;
-        case 'session.selectNext':
-            context.session.selectAdjacent(1);
-            break;
-        case 'session.selectPrevious':
-            context.session.selectAdjacent(-1);
-            break;
-        case 'terminal.new':
-            context.terminal.create();
-            break;
-        case 'terminal.clear':
-            context.terminal.clearActive();
-            break;
-        case 'terminal.restart':
-            context.terminal.restartActive();
-            break;
-        case 'terminal.close':
-            context.terminal.closeActive();
-            break;
-        case 'editor.save':
-            context.editor.saveActive();
-            break;
-        case 'inspector.showFiles':
-            context.inspector.setMode('files');
-            break;
-        case 'inspector.showGit':
-            context.inspector.setMode('git');
-            break;
-        case 'inspector.showInfo':
-            context.inspector.setMode('info');
-            break;
-        case 'theme.openSettings':
-            context.dialogs.openSettings();
-            break;
-        case 'commandPalette.open':
-            context.dialogs.openPalette();
-            break;
-        case 'diagnostics.export':
-            context.diagnostics.export();
-            break;
+export function executeCommand(
+    command: string,
+    args?: unknown,
+    context: CommandContext = commandContext,
+): void {
+    const definition = getRegisteredCommand(command);
+    if (!definition) {
+        pushToast('error', `Unknown command: ${command}`);
+        return;
     }
+    if (definition.when && !definition.when(context)) return;
+    definition.run(context, args);
 }
 
 /**
  * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state
  * behind a modal dialog, which is why the guard lives here and not in {@link executeCommand}.
  */
-export function runCommand(command: string): void {
+export function runCommand(command: string, args?: unknown): void {
     if (useDialogStore.getState().isModalOpen()) return;
-    executeCommand(command);
+    executeCommand(command, args);
 }

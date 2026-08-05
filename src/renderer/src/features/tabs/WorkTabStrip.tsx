@@ -7,8 +7,12 @@ import { Button } from '../../components/ui/button';
 import { useSelectedSession, useSessionState, useSessionTerminals } from '../../state/selectors';
 import { useActiveWork, useSessionViewStore } from '../../state/session-view';
 import { closeEditor, selectEditorTab } from '../editor/document-actions';
-import { activateTerminal, closeTerminal, createTerminal } from '../terminal/terminal-actions';
-import { TERMINAL_DRAG_TYPE } from '../terminal/terminal-view-commands';
+import {
+    activateTerminal,
+    closeTerminal,
+    createTerminal,
+    TERMINAL_DRAG_TYPE,
+} from '../terminal/terminal-actions';
 import { WorkTab } from './WorkTab';
 
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;

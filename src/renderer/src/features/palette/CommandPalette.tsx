@@ -4,11 +4,31 @@ import { commandDefinitions } from '@shared/commands';
 
 import { executeCommand } from '../../commands/execute';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { setPaletteOpen, useDialogStore } from '../../state/dialogs';
 import { useProjects, useSessions } from '../../state/selectors';
 import { selectProject, selectSession } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
+
+function CommandRow({ command }: { command: (typeof commandDefinitions)[number] }) {
+    const shortcut = useCommandShortcut(command.id);
+    return (
+        <Command.Item
+            value={`${command.category} ${command.title} ${command.id}`}
+            onSelect={() => {
+                setPaletteOpen(false);
+                executeCommand(command.id);
+            }}
+        >
+            <span>{command.title}</span>
+            <small>
+                {command.category}
+                {shortcut && <kbd className="command-shortcut">{shortcut}</kbd>}
+            </small>
+        </Command.Item>
+    );
+}
 
 export function CommandPalette() {
     const open = useDialogStore((state) => state.paletteOpen);
@@ -63,17 +83,7 @@ export function CommandPalette() {
                         </Command.Group>
                         <Command.Group heading="Commands">
                             {commandDefinitions.map((command) => (
-                                <Command.Item
-                                    key={command.id}
-                                    value={`${command.category} ${command.title} ${command.id}`}
-                                    onSelect={() => {
-                                        onOpenChange(false);
-                                        executeCommand(command.id);
-                                    }}
-                                >
-                                    <span>{command.title}</span>
-                                    <small>{command.category}</small>
-                                </Command.Item>
+                                <CommandRow key={command.id} command={command} />
                             ))}
                         </Command.Group>
                     </Command.List>

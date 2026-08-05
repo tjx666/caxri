@@ -425,7 +425,7 @@ async function installMenu(): Promise<void> {
                 submenu: [
                     { role: 'about' },
                     { type: 'separator' },
-                    command('theme.openSettings', 'Settings…'),
+                    command('settings.open', 'Settings…'),
                     { type: 'separator' },
                     { id: 'app.hide', role: 'hide', accelerator: 'Command+H' },
                     { role: 'hideOthers' },

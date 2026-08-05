@@ -9,9 +9,8 @@ import type {
 } from '@shared/types';
 
 import { useSessionState, useSessionTerminals } from '../../state/selectors';
-import { activateTerminal, applyTerminalLayout } from './terminal-actions';
+import { activateTerminal, applyTerminalLayout, TERMINAL_DRAG_TYPE } from './terminal-actions';
 import { TerminalPane } from './TerminalPane';
-import { TERMINAL_DRAG_TYPE } from './terminal-view-commands';
 
 type DropZone = 'center' | 'right' | 'down';
 

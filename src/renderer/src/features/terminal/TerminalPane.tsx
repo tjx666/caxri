@@ -9,11 +9,10 @@ import { caxri } from '../../lib/caxri';
 import { useSettings, useTerminal, useTheme } from '../../state/selectors';
 import { pushToast } from '../../state/toasts';
 import { useWorkbenchStore } from '../../state/workbench';
-import { activateTerminal, restartTerminal } from './terminal-actions';
+import { activateTerminal, registerTerminalClearHandler, restartTerminal } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
 import { TerminalReplayBuffer } from './terminal-replay';
-import { onTerminalViewClear } from './terminal-view-commands';
 
 interface TerminalPaneProps {
     active: boolean;
@@ -176,7 +175,10 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         xtermRef.current.options.theme = terminalTheme;
     }, [fontSize, scrollback, terminalTheme]);
 
-    useEffect(() => onTerminalViewClear(terminalId, () => xtermRef.current?.clear()), [terminalId]);
+    useEffect(
+        () => registerTerminalClearHandler(terminalId, () => xtermRef.current?.clear()),
+        [terminalId],
+    );
 
     const exitPresentation = getTerminalExitPresentation(processState);
     const ExitIcon =

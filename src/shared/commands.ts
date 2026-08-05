@@ -22,7 +22,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'inspector.showFiles', title: 'Show Files', category: 'Inspector' },
     { id: 'inspector.showGit', title: 'Show Git', category: 'Inspector' },
     { id: 'inspector.showInfo', title: 'Show Terminal Info', category: 'Inspector' },
-    { id: 'theme.openSettings', title: 'Open Settings', category: 'Preferences' },
+    { id: 'settings.open', title: 'Open Settings', category: 'Preferences' },
     { id: 'commandPalette.open', title: 'Open Command Palette', category: 'View' },
     { id: 'diagnostics.export', title: 'Export Diagnostics', category: 'Help' },
 ];
@@ -45,5 +45,5 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+1', command: 'inspector.showFiles' },
     { key: 'cmd+2', command: 'inspector.showGit' },
     { key: 'cmd+3', command: 'inspector.showInfo' },
-    { key: 'cmd+,', command: 'theme.openSettings' },
+    { key: 'cmd+,', command: 'settings.open' },
 ];

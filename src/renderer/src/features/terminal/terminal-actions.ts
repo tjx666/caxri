@@ -7,7 +7,9 @@ import { getSelectedSession, getSessionState } from '../../state/selectors';
 import { useSessionViewStore } from '../../state/session-view';
 import { tryCommand } from '../../state/toasts';
 import { patchSessionState, refreshWorkbench } from '../../state/workbench';
-import { clearTerminalView } from './terminal-view-commands';
+
+/** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
+export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
 
 export function activateTerminal(terminalId: string): void {
     useSessionViewStore.getState().activateWork({ kind: 'terminal', terminalId });
@@ -73,8 +75,22 @@ export function restartActiveTerminal(terminalId: string): void {
     );
 }
 
+/**
+ * The mounted {@link TerminalPane} registers its clear handler here so `terminal.clear` can reach the
+ * live xterm instance with a direct call instead of a window-wide `CustomEvent`. Only one pane owns a
+ * given Terminal at a time, so a plain `Map` keyed by id is enough.
+ */
+const clearHandlers = new Map<string, () => void>();
+
+export function registerTerminalClearHandler(terminalId: string, handler: () => void): () => void {
+    clearHandlers.set(terminalId, handler);
+    return () => {
+        if (clearHandlers.get(terminalId) === handler) clearHandlers.delete(terminalId);
+    };
+}
+
 export function clearActiveTerminal(terminalId: string): void {
-    clearTerminalView(terminalId);
+    clearHandlers.get(terminalId)?.();
 }
 
 /**

@@ -913,6 +913,9 @@ button {
     border-bottom-color: var(--accent);
     color: var(--accent);
 }
+.settings-tab-dirty {
+    color: var(--accent);
+}
 .settings-body {
     display: grid;
     grid-template-columns: minmax(250px, 0.85fr) minmax(310px, 1.15fr);
@@ -946,6 +949,11 @@ button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+.settings-field-hint {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
 }
 .configuration-editor,
 .configuration-editor-loading {
@@ -1143,6 +1151,11 @@ button {
 }
 [cmdk-item] small {
     color: var(--muted);
+}
+.command-shortcut {
+    margin-left: 6px;
+    color: var(--muted);
+    font: inherit;
 }
 [cmdk-empty] {
     padding: 20px;

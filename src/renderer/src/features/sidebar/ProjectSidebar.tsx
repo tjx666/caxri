@@ -24,7 +24,7 @@ import { beginSessionCreation, selectProject, selectSession } from '../session/s
 
 const NO_RECORDS: never[] = [];
 const onAddProject = (): void => executeCommand('project.create');
-const onOpenSettings = (): void => executeCommand('theme.openSettings');
+const onOpenSettings = (): void => executeCommand('settings.open');
 const onSearch = (): void => executeCommand('commandPalette.open');
 const onSelectSession = (sessionId: string): void => void selectSession(sessionId);
 
