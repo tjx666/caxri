@@ -10,6 +10,8 @@ describe('command registry', () => {
         expect(defaultKeybindings).toEqual(
             expect.arrayContaining([
                 { key: 'cmd+k', command: 'terminal.clear' },
+                { key: 'cmd+,', command: 'settings.open' },
+                { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+t', command: 'terminal.new' },
                 { key: 'cmd+w', command: 'terminal.close' },
             ]),

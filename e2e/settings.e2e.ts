@@ -16,7 +16,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
     const pageErrors: string[] = [];
     running.page.on('pageerror', (error) => pageErrors.push(error.message));
     try {
-        await running.page.getByRole('button', { name: 'Settings', exact: true }).click();
+        await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
         const settingsEditor = dialog.getByLabel('settings.jsonc source');
         await expect(settingsEditor.locator('.view-lines')).toContainText('terminal.fontSize');

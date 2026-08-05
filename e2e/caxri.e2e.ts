@@ -207,7 +207,7 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
             .click();
         await expect(running.page.locator('.project-group.active')).toContainText('beta-project');
 
-        await running.page.getByRole('button', { name: 'Search', exact: true }).click();
+        await running.page.keyboard.press('Meta+Shift+P');
         const search = running.page.getByPlaceholder('Search projects, sessions, and commands…');
         await search.fill('alpha-project');
         await running.page
@@ -218,7 +218,7 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
         await expect(running.page.locator('.project-group.active')).toContainText('alpha-project');
         await expect(running.page.getByRole('dialog')).toHaveCount(0);
 
-        await running.page.getByRole('button', { name: 'Search', exact: true }).click();
+        await running.page.keyboard.press('Meta+Shift+P');
         await running.page
             .getByPlaceholder('Search projects, sessions, and commands…')
             .fill('beta-project');

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Circle, Plus, Search, Settings } from 'lucide-react';
+import { ChevronDown, ChevronRight, Circle, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import type { AgentActivityState } from '@shared/types';
@@ -27,8 +27,6 @@ const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
     waiting: 'Waiting for you',
 };
 const onAddProject = (): void => executeCommand('project.create');
-const onOpenSettings = (): void => executeCommand('settings.open');
-const onSearch = (): void => executeCommand('commandPalette.open');
 const onSelectSession = (sessionId: string): void => void selectSession(sessionId);
 
 export function ProjectSidebar() {
@@ -163,14 +161,6 @@ export function ProjectSidebar() {
                         <Plus size={16} /> Add your first Project
                     </button>
                 )}
-            </div>
-            <div className="sidebar-footer">
-                <Button size="icon" variant="ghost" aria-label="Settings" onClick={onOpenSettings}>
-                    <Settings size={15} />
-                </Button>
-                <Button size="icon" variant="ghost" aria-label="Search" onClick={onSearch}>
-                    <Search size={15} />
-                </Button>
             </div>
         </aside>
     );

@@ -443,6 +443,7 @@ async function installMenu(): Promise<void> {
     const accelerator = (id: string): string | undefined =>
         electronAccelerator(keybindings.find((binding) => binding.command === id)?.key);
     const command = (id: string, label?: string) => ({
+        id: `command.${id}`,
         label: label ?? getCommandDefinition(id).title,
         accelerator: accelerator(id),
         click: () => sendEvent({ event: 'command.execute', payload: { command: id } }),
