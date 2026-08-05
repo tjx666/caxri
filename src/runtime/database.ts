@@ -186,7 +186,10 @@ export class CaxriDatabase {
                 'CAPACITY',
                 `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
             );
-        if (sessionId && this.store.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION) {
+        if (
+            sessionId &&
+            this.store.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION
+        ) {
             throw new CaxriError(
                 'CAPACITY',
                 `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
@@ -200,7 +203,10 @@ export class CaxriDatabase {
             if (!terminal) return;
             this.store.terminals.updateState(id, state);
             if (terminal.provider)
-                this.store.sessions.setActivityStateByPrimaryTerminal(id, processActivityState(state));
+                this.store.sessions.setActivityStateByPrimaryTerminal(
+                    id,
+                    processActivityState(state),
+                );
         });
     }
 
@@ -229,7 +235,9 @@ export class CaxriDatabase {
     }
 
     listSessionStates(): SessionState[] {
-        return this.store.sessions.list().map((session) => this.store.sessions.getState(session.id));
+        return this.store.sessions
+            .list()
+            .map((session) => this.store.sessions.getState(session.id));
     }
 
     getSessionState(sessionId: string): SessionState {

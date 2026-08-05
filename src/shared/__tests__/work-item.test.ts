@@ -33,10 +33,16 @@ describe('workItemKey', () => {
 describe('workItemsEqual', () => {
     it('compares by kind and identity, not by reference', () => {
         expect(
-            workItemsEqual({ kind: 'terminal', terminalId: 'a' }, { kind: 'terminal', terminalId: 'a' }),
+            workItemsEqual(
+                { kind: 'terminal', terminalId: 'a' },
+                { kind: 'terminal', terminalId: 'a' },
+            ),
         ).toBe(true);
         expect(
-            workItemsEqual({ kind: 'terminal', terminalId: 'a' }, { kind: 'terminal', terminalId: 'b' }),
+            workItemsEqual(
+                { kind: 'terminal', terminalId: 'a' },
+                { kind: 'terminal', terminalId: 'b' },
+            ),
         ).toBe(false);
         expect(
             workItemsEqual({ kind: 'editor', path: '/a' }, { kind: 'terminal', terminalId: '/a' }),
@@ -91,7 +97,9 @@ describe('resolveActiveWork', () => {
     });
 
     it('returns undefined when there is nothing to focus', () => {
-        expect(resolveActiveWork({ sessionTerminals: [], sessionState: undefined })).toBeUndefined();
+        expect(
+            resolveActiveWork({ sessionTerminals: [], sessionState: undefined }),
+        ).toBeUndefined();
     });
 });
 
@@ -121,6 +129,8 @@ describe('activateWorkState', () => {
     it('is a no-op that returns the same state when the item is already active', () => {
         const state = baseState({ activeTab: { kind: 'terminal', terminalId: 'terminal-1' } });
 
-        expect(activateWorkState(state, { kind: 'terminal', terminalId: 'terminal-1' })).toBe(state);
+        expect(activateWorkState(state, { kind: 'terminal', terminalId: 'terminal-1' })).toBe(
+            state,
+        );
     });
 });

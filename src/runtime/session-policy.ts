@@ -141,6 +141,9 @@ export function selectFallbackAfterDeletion(
  * `../shared/terminal-layout.ts` instead of letting the persistence layer perform its own JSON
  * surgery on UI layout state.
  */
-export function withTerminalRemovedFromLayout(state: SessionState, terminalId: string): SessionState {
+export function withTerminalRemovedFromLayout(
+    state: SessionState,
+    terminalId: string,
+): SessionState {
     return { ...state, layout: removeTerminalFromLayout(state.layout, terminalId) };
 }

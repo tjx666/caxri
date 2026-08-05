@@ -14,11 +14,14 @@ import {
 import { getCommandDefinition } from '../shared/commands';
 import {
     CaxriError,
+    isMainRequest,
+    parseCaxriResult,
     parseCaxriRequest,
     requestEnvelopeSchema,
     toWireError,
     type CaxriReply,
     type CaxriRequest,
+    type MainRequest,
     type RuntimeEvent,
 } from '../shared/ipc';
 import { StructuredLogger } from '../shared/node/logger';
@@ -268,7 +271,11 @@ function assertSender(event: IpcMainInvokeEvent): void {
         throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
 }
 
-async function handleMainMethod(request: CaxriRequest): Promise<unknown> {
+function assertNever(value: never): never {
+    throw new CaxriError('INTERNAL', `Unhandled Main request: ${String(value)}`);
+}
+
+async function handleMainMethod(request: MainRequest): Promise<unknown> {
     switch (request.method) {
         case 'dialog.selectDirectory': {
             const testRoot = resolveTestRootPath({ isPackaged: app.isPackaged });
@@ -381,9 +388,15 @@ async function handleMainMethod(request: CaxriRequest): Promise<unknown> {
                 60_000,
             );
         }
-        default:
-            return supervisor.forward(request.method, request.params);
     }
+    return assertNever(request);
+}
+
+async function handleCaxriRequest(request: CaxriRequest): Promise<unknown> {
+    /** Runtime results are validated by the supervisor; only Main-owned results need parsing here. */
+    if (isMainRequest(request))
+        return parseCaxriResult(request.method, await handleMainMethod(request));
+    return supervisor.forward(request.method, request.params);
 }
 
 function installIpc(): void {
@@ -391,9 +404,8 @@ function installIpc(): void {
         try {
             assertSender(event);
             const envelope = requestEnvelopeSchema.parse(raw);
-            const result = await handleMainMethod(
-                parseCaxriRequest(envelope.method, envelope.params),
-            );
+            const request = parseCaxriRequest(envelope.method, envelope.params);
+            const result = await handleCaxriRequest(request);
             return { ok: true, result };
         } catch (error) {
             /** Replying with a classified envelope keeps the error code intact across the preload. */

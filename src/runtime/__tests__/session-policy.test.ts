@@ -132,11 +132,12 @@ describe('choosePrimaryAgentSuccessor', () => {
 
 describe('decideAgentMetadataUpdate', () => {
     it('ignores a snapshot from a different provider than the Terminal', () => {
-        const decision = decideAgentMetadataUpdate(
-            terminal({ provider: 'codex' }),
-            session(),
-            { provider: 'claude', available: true, observedAt: 0, status: 'running' },
-        );
+        const decision = decideAgentMetadataUpdate(terminal({ provider: 'codex' }), session(), {
+            provider: 'claude',
+            available: true,
+            observedAt: 0,
+            status: 'running',
+        });
         expect(decision).toBeUndefined();
     });
 
@@ -144,7 +145,11 @@ describe('decideAgentMetadataUpdate', () => {
         const primary = terminal({ id: 'codex-1', provider: 'codex' });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Codex', lastActivityState: 'idle' }),
+            session({
+                primaryAgentTerminalId: 'codex-1',
+                displayTitle: 'Codex',
+                lastActivityState: 'idle',
+            }),
             {
                 provider: 'codex',
                 available: true,
@@ -156,7 +161,10 @@ describe('decideAgentMetadataUpdate', () => {
         );
         expect(decision).toEqual({
             agentSessionId: 'agent-session-1',
-            sessionPatch: { displayTitle: 'Run the development server', lastActivityState: 'running' },
+            sessionPatch: {
+                displayTitle: 'Run the development server',
+                lastActivityState: 'running',
+            },
         });
     });
 
@@ -164,7 +172,11 @@ describe('decideAgentMetadataUpdate', () => {
         const secondary = terminal({ id: 'claude-1', provider: 'claude' });
         const decision = decideAgentMetadataUpdate(
             secondary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Codex', lastActivityState: 'idle' }),
+            session({
+                primaryAgentTerminalId: 'codex-1',
+                displayTitle: 'Codex',
+                lastActivityState: 'idle',
+            }),
             {
                 provider: 'claude',
                 available: true,
@@ -178,10 +190,18 @@ describe('decideAgentMetadataUpdate', () => {
     });
 
     it('is a no-op when the snapshot changes nothing observable', () => {
-        const primary = terminal({ id: 'codex-1', provider: 'codex', agentSessionId: 'agent-session-1' });
+        const primary = terminal({
+            id: 'codex-1',
+            provider: 'codex',
+            agentSessionId: 'agent-session-1',
+        });
         const decision = decideAgentMetadataUpdate(
             primary,
-            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Codex', lastActivityState: 'running' }),
+            session({
+                primaryAgentTerminalId: 'codex-1',
+                displayTitle: 'Codex',
+                lastActivityState: 'running',
+            }),
             {
                 provider: 'codex',
                 available: true,

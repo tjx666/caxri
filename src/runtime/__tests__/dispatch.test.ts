@@ -138,14 +138,21 @@ describe('createDispatcher', () => {
         const directory = await temporaryDirectory('caxri-dispatch-logging-');
         const logger = new StructuredLogger(join(directory, 'logs'));
         const dispatch = createDispatcher(
-            stubHandlers({ 'app.health': () => ({ ready: true }) }),
+            stubHandlers({
+                'app.health': () => ({
+                    ready: true,
+                    pid: 123,
+                    startedAt: 1,
+                    activePtyCount: 0,
+                }),
+            }),
             logger,
         );
 
         await expect(dispatch({ id: 'r1', method: 'app.health', params: {} })).resolves.toEqual({
             id: 'r1',
             ok: true,
-            result: { ready: true },
+            result: { ready: true, pid: 123, startedAt: 1, activePtyCount: 0 },
         });
         await dispatch({
             id: 'r2',

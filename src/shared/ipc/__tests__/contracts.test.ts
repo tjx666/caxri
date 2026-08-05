@@ -7,7 +7,10 @@ import {
     fromWireError,
     internalMethods,
     methods,
+    parseCaxriResult,
+    parseRuntimeMessage,
     parseRuntimeRequest,
+    parseRuntimeResult,
     requestEnvelopeSchema,
     runtimeEventPayloads,
     runtimeEventSchema,
@@ -41,6 +44,16 @@ describe('method table', () => {
         expect(methods['app.bootstrap'].params.safeParse(undefined).success).toBe(true);
         expect(methods['terminal.runningCount'].params.safeParse(undefined).success).toBe(true);
         expect(methods['files.read'].params.safeParse(undefined).success).toBe(false);
+    });
+
+    it('rejects invalid Main and Runtime results as internal contract failures', () => {
+        expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
+            expect.objectContaining({ code: 'INTERNAL' }) as Error,
+        );
+        expect(() => parseRuntimeResult('app.health', { ready: true })).toThrow(
+            expect.objectContaining({ code: 'INTERNAL' }) as Error,
+        );
+        expect(parseRuntimeResult('terminal.runningCount', 2)).toBe(2);
     });
 });
 
@@ -128,6 +141,26 @@ describe('runtime events', () => {
                 .success,
         ).toBe(false);
         expect(runtimeEventSchema.safeParse({ event: 'nope', payload: {} }).success).toBe(false);
+    });
+
+    it('rejects malformed utility-process messages before they reach Main listeners', () => {
+        expect(() =>
+            parseRuntimeMessage({
+                event: 'terminal.output',
+                payload: { data: 'missing terminal id' },
+            }),
+        ).toThrow();
+        expect(
+            parseRuntimeMessage({
+                id: 'request-1',
+                ok: false,
+                error: { code: 'FUTURE_CODE', message: 'future failure' },
+            }),
+        ).toEqual({
+            id: 'request-1',
+            ok: false,
+            error: { code: 'INTERNAL', message: 'future failure' },
+        });
     });
 });
 

@@ -256,6 +256,13 @@ export type CaxriMethod = keyof typeof methods;
 export type InternalMethod = keyof typeof internalMethods;
 export type RuntimeMethod = CaxriMethod | InternalMethod;
 
+type MethodOwnedBy<Owner extends MethodSpec['owner']> = {
+    [M in CaxriMethod]: (typeof methods)[M]['owner'] extends Owner ? M : never;
+}[CaxriMethod];
+
+export type MainMethod = MethodOwnedBy<'main'>;
+export type RuntimeOwnedMethod = MethodOwnedBy<'runtime'>;
+
 type AllMethods = typeof methods & typeof internalMethods;
 
 /** Parameters as a handler receives them, after Zod applied defaults and coercion. */
@@ -282,12 +289,20 @@ export type CaxriRequest = {
     [M in CaxriMethod]: { method: M; params: MethodParams<M> };
 }[CaxriMethod];
 
+export type MainRequest = Extract<CaxriRequest, { method: MainMethod }>;
+export type RuntimeOwnedRequest = Extract<CaxriRequest, { method: RuntimeOwnedMethod }>;
+
 export type RuntimeRequest = {
     [M in RuntimeMethod]: { method: M; params: RuntimeMethodParams<M> };
 }[RuntimeMethod];
 
 export function isCaxriMethod(value: string): value is CaxriMethod {
     return Object.hasOwn(methods, value);
+}
+
+/** Narrows a validated public request to the Main-owned portion of the method table. */
+export function isMainRequest(request: CaxriRequest): request is MainRequest {
+    return methods[request.method].owner === 'main';
 }
 
 export function isInternalMethod(value: string): value is InternalMethod {

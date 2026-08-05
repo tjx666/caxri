@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 import { identifierSchema } from './domain';
-import { CaxriError, fromWireError, type WireError } from './errors';
-import type { RuntimeEvent } from './events';
+import { CaxriError, fromWireError, toErrorCode, type WireError } from './errors';
+import { runtimeEventSchema, type RuntimeEvent } from './events';
 import {
     getMethodSpec,
     isCaxriMethod,
@@ -11,6 +11,8 @@ import {
     type CaxriRequest,
     type MethodResult,
     type ParamsArg,
+    type RuntimeMethod,
+    type RuntimeMethodResult,
     type RuntimeRequest,
 } from './methods';
 
@@ -38,10 +40,64 @@ export function parseRuntimeRequest(method: string, params: unknown): RuntimeReq
     return { method, params: spec.params.parse(params) } as RuntimeRequest;
 }
 
-export type RuntimeResponse =
-    { id: string; ok: true; result: unknown } | { id: string; ok: false; error: WireError };
+function invalidResult(method: string, issues: z.core.$ZodIssue[]): CaxriError {
+    return new CaxriError('INTERNAL', `Invalid result returned for ${method}`, {
+        issues: issues.slice(0, 5).map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
+        })),
+    });
+}
+
+/** Validates a Main or Runtime result before it crosses the Renderer IPC boundary. */
+export function parseCaxriResult<M extends CaxriMethod>(
+    method: M,
+    result: unknown,
+): MethodResult<M> {
+    const parsed = methods[method].result.safeParse(result);
+    if (!parsed.success) throw invalidResult(method, parsed.error.issues);
+    return parsed.data as MethodResult<M>;
+}
+
+/** Validates a Runtime result, including internal Main-to-Runtime methods. */
+export function parseRuntimeResult<M extends RuntimeMethod>(
+    method: M,
+    result: unknown,
+): RuntimeMethodResult<M> {
+    const spec = getMethodSpec(method);
+    if (!spec) throw new CaxriError('INTERNAL', `Unknown Runtime result method: ${method}`);
+    const parsed = spec.result.safeParse(result);
+    if (!parsed.success) throw invalidResult(method, parsed.error.issues);
+    return parsed.data as RuntimeMethodResult<M>;
+}
+
+const wireErrorSchema = z
+    .object({
+        code: z.unknown(),
+        message: z.string().min(1),
+        details: z.record(z.string(), z.unknown()).optional(),
+    })
+    .transform(({ code, message, details }): WireError => ({
+        code: toErrorCode(code),
+        message,
+        ...(details ? { details } : {}),
+    }));
+
+export const runtimeResponseSchema = z.discriminatedUnion('ok', [
+    z.object({ id: identifierSchema, ok: z.literal(true), result: z.unknown() }),
+    z.object({ id: identifierSchema, ok: z.literal(false), error: wireErrorSchema }),
+]);
+
+export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
 
 export type RuntimeMessage = RuntimeResponse | RuntimeEvent;
+
+/** Parses an untrusted utility-process message as either a response or a declared Runtime event. */
+export function parseRuntimeMessage(message: unknown): RuntimeMessage {
+    const event = runtimeEventSchema.safeParse(message);
+    if (event.success) return event.data;
+    return runtimeResponseSchema.parse(message);
+}
 
 /** Main answers `caxri:request` with this envelope so the error code survives the Electron hop. */
 export type CaxriReply = { ok: true; result: unknown } | { ok: false; error: WireError };

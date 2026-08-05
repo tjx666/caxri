@@ -31,7 +31,12 @@ describe('mergeStructurally', () => {
 
     it('matches array elements by identifier rather than position', () => {
         const previous = { terminals: [{ id: 'a', title: 'Shell' }] };
-        const next = { terminals: [{ id: 'b', title: 'Codex' }, { id: 'a', title: 'Shell' }] };
+        const next = {
+            terminals: [
+                { id: 'b', title: 'Codex' },
+                { id: 'a', title: 'Shell' },
+            ],
+        };
 
         const merged = mergeStructurally(previous, next);
 

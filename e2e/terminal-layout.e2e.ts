@@ -37,7 +37,10 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         ).toContainText('alive');
         await running.page.getByTitle('Split Terminal').click();
         await expect(running.page.locator('.terminal-group')).toHaveCount(2);
-        await expect(running.page.getByRole('separator')).toHaveCount(1);
+        const terminalSplitter = running.page.getByRole('separator', {
+            name: /Terminal split/,
+        });
+        await expect(terminalSplitter).toHaveCount(1);
         const runningBeforeMove = await pageRequest<number>(running.page, 'terminal.runningCount');
 
         const dragFirstTab = (targetIndex: number, xRatio: number, yRatio: number) =>
@@ -85,8 +88,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeMove);
 
-        const splitter = running.page.getByRole('separator');
-        await splitter.focus();
+        await terminalSplitter.focus();
         await running.page.keyboard.press('ArrowRight');
         const savedRatio = (
             await pageRequest<{ sessionStates: Array<{ layout: { root?: { ratio?: number } } }> }>(
@@ -99,7 +101,9 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await running.app.close();
         running = await launchCaxri({ userDataDir: userData, testRootPath: root });
         await expect(running.page.locator('.terminal-group')).toHaveCount(2);
-        await expect(running.page.getByRole('separator')).toHaveAttribute('aria-valuenow', '55');
+        await expect(
+            running.page.getByRole('separator', { name: /Terminal split/ }),
+        ).toHaveAttribute('aria-valuenow', '55');
 
         const restoredFirstTab = running.page.locator(
             `.work-tab[data-terminal-id="${firstTerminalId}"]`,

@@ -42,8 +42,16 @@ describe('CaxriDatabase', () => {
 
         expect(database.listSessions()).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({ id: first.session.id, projectId: project.id, rootPath: root }),
-                expect.objectContaining({ id: second.session.id, projectId: project.id, rootPath: root }),
+                expect.objectContaining({
+                    id: first.session.id,
+                    projectId: project.id,
+                    rootPath: root,
+                }),
+                expect.objectContaining({
+                    id: second.session.id,
+                    projectId: project.id,
+                    rootPath: root,
+                }),
             ]),
         );
         expect(database.listSessions()).toHaveLength(2);
@@ -219,7 +227,9 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const second = database.createTerminal(created.session.id, 'shell');
         const third = database.createTerminal(created.session.id, 'shell');
-        expect([created.terminal.orderIndex, second.orderIndex, third.orderIndex]).toEqual([0, 1, 2]);
+        expect([created.terminal.orderIndex, second.orderIndex, third.orderIndex]).toEqual([
+            0, 1, 2,
+        ]);
 
         database.closeTerminal(second.id);
         const fourth = database.createTerminal(created.session.id, 'shell');

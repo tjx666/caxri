@@ -5,17 +5,20 @@ import { join } from 'node:path';
 import { utilityProcess, type UtilityProcess } from 'electron';
 
 import { CaxriError, fromWireError } from '../shared/ipc/errors';
-import type {
-    RuntimeEvent,
-    RuntimeMessage,
-    RuntimeMethod,
-    RuntimeMethodResult,
-    RuntimeParamsArg,
+import {
+    parseRuntimeMessage,
+    parseRuntimeResult,
+    type RuntimeEvent,
+    type RuntimeMessage,
+    type RuntimeMethod,
+    type RuntimeMethodResult,
+    type RuntimeParamsArg,
 } from '../shared/ipc';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
+    method: RuntimeMethod;
     resolve: (value: unknown) => void;
     reject: (error: CaxriError) => void;
     timer: NodeJS.Timeout;
@@ -99,7 +102,7 @@ export class RuntimeSupervisor extends EventEmitter {
             return this.readiness?.promise ?? Promise.reject(failure);
         }
         this.child = child;
-        child.on('message', (message: RuntimeMessage) => {
+        child.on('message', (message: unknown) => {
             if (this.child === child) this.onMessage(message);
         });
         child.on('exit', (code) => {
@@ -187,7 +190,29 @@ export class RuntimeSupervisor extends EventEmitter {
         return { promise, reject, resolve };
     }
 
-    private onMessage(message: RuntimeMessage): void {
+    private onMessage(raw: unknown): void {
+        let message: RuntimeMessage;
+        try {
+            message = parseRuntimeMessage(raw);
+        } catch {
+            const id =
+                typeof raw === 'object' &&
+                raw !== null &&
+                typeof Reflect.get(raw, 'id') === 'string'
+                    ? (Reflect.get(raw, 'id') as string)
+                    : undefined;
+            const pending = id ? this.pending.get(id) : undefined;
+            if (pending && id) {
+                clearTimeout(pending.timer);
+                this.pending.delete(id);
+                pending.reject(new CaxriError('INTERNAL', 'Runtime returned an invalid message'));
+            }
+            /** Never log the rejected payload because it may contain terminal output or secrets. */
+            this.logger.write('error', 'runtime.message_invalid', {
+                fields: { correlatedRequest: Boolean(pending) },
+            });
+            return;
+        }
         if ('event' in message) {
             if (message.event === 'runtime.status' && message.payload.status === 'ready') {
                 this.readiness?.resolve();
@@ -209,8 +234,22 @@ export class RuntimeSupervisor extends EventEmitter {
         clearTimeout(pending.timer);
         this.pending.delete(response.id);
         /** Rebuilding the error preserves the Runtime's classification through Main to the Renderer. */
-        if (response.ok) pending.resolve(response.result);
-        else pending.reject(fromWireError(response.error));
+        if (!response.ok) {
+            pending.reject(fromWireError(response.error));
+            return;
+        }
+        try {
+            pending.resolve(parseRuntimeResult(pending.method, response.result));
+        } catch (error) {
+            const failure =
+                error instanceof CaxriError
+                    ? error
+                    : new CaxriError('INTERNAL', 'Runtime returned an invalid result');
+            this.logger.write('error', 'runtime.result_invalid', {
+                fields: { method: pending.method, code: failure.code },
+            });
+            pending.reject(failure);
+        }
     }
 
     private onExit(code: number): void {
@@ -301,7 +340,7 @@ export class RuntimeSupervisor extends EventEmitter {
                 this.pending.delete(id);
                 reject(new CaxriError('TIMEOUT', `Runtime request timed out: ${method}`));
             }, timeoutMs);
-            this.pending.set(id, { resolve, reject, timer });
+            this.pending.set(id, { method, resolve, reject, timer });
             child.postMessage({ id, method, params });
         });
     }

@@ -74,8 +74,9 @@ export class ProjectsStore {
     /** Returns true when a row existed and was touched. */
     touchLastOpened(id: string, now = Date.now()): boolean {
         return (
-            this.database.prepare('UPDATE projects SET last_opened_at = ? WHERE id = ?').run(now, id)
-                .changes === 1
+            this.database
+                .prepare('UPDATE projects SET last_opened_at = ? WHERE id = ?')
+                .run(now, id).changes === 1
         );
     }
 }

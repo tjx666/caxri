@@ -9,7 +9,11 @@ import { caxri } from '../../lib/caxri';
 import { useSettings, useTerminal, useTheme } from '../../state/selectors';
 import { pushToast } from '../../state/toasts';
 import { useWorkbenchStore } from '../../state/workbench';
-import { activateTerminal, registerTerminalClearHandler, restartTerminal } from './terminal-actions';
+import {
+    activateTerminal,
+    registerTerminalClearHandler,
+    restartTerminal,
+} from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
 import { TerminalReplayBuffer } from './terminal-replay';

@@ -1,38 +1,38 @@
-import type { Dirent } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { expect, type ElectronApplication, type Page } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 
+import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
+
 const projectRoot = resolve(import.meta.dirname, '..');
-const mainEntryPath = join(projectRoot, 'out', 'main', 'index.js');
-const watchedSourceExtensions = new Set(['.ts', '.tsx', '.css', '.html']);
-
-/**
- * Recursively finds the newest mtime among watched source files under `directory`.
- * Returns `0` when the directory has no matching files (or does not exist).
- */
-async function newestSourceMtimeMs(directory: string): Promise<number> {
-    let entries: Dirent[];
-    try {
-        entries = await readdir(directory, { withFileTypes: true });
-    } catch {
-        return 0;
-    }
-
-    let newest = 0;
-    for (const entry of entries) {
-        const entryPath = join(directory, entry.name);
-        if (entry.isDirectory()) {
-            newest = Math.max(newest, await newestSourceMtimeMs(entryPath));
-        } else if (watchedSourceExtensions.has(extname(entry.name))) {
-            const { mtimeMs } = await stat(entryPath);
-            newest = Math.max(newest, mtimeMs);
-        }
-    }
-    return newest;
-}
+const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';
+const buildInputPaths = [
+    join(projectRoot, 'src'),
+    join(projectRoot, 'electron.vite.config.ts'),
+    join(projectRoot, 'package.json'),
+    join(projectRoot, 'package-lock.json'),
+    join(projectRoot, 'tsconfig.node.json'),
+    join(projectRoot, 'tsconfig.web.json'),
+];
+const buildOutputPaths = [
+    join(projectRoot, 'out', 'main', 'index.js'),
+    join(projectRoot, 'out', 'main', 'runtime.js'),
+    join(projectRoot, 'out', 'preload', 'index.cjs'),
+    join(projectRoot, 'out', 'renderer', 'index.html'),
+];
+const watchedBuildInputExtensions = new Set([
+    '.css',
+    '.html',
+    '.json',
+    '.png',
+    '.svg',
+    '.ts',
+    '.tsx',
+    '.ttf',
+    '.woff',
+    '.woff2',
+]);
 
 /**
  * Guards against testing stale build output. Focused e2e runs (eg.
@@ -41,17 +41,12 @@ async function newestSourceMtimeMs(directory: string): Promise<number> {
  * previously built `out/main/index.js` and pass against old code.
  */
 async function assertBuildIsFresh(): Promise<void> {
-    let outMtimeMs: number;
-    try {
-        outMtimeMs = (await stat(mainEntryPath)).mtimeMs;
-    } catch {
-        throw new Error('Build output is stale — run "bun run build" before running e2e specs.');
-    }
-
-    const sourceMtimeMs = await newestSourceMtimeMs(join(projectRoot, 'src'));
-    if (sourceMtimeMs > outMtimeMs) {
-        throw new Error('Build output is stale — run "bun run build" before running e2e specs.');
-    }
+    await assertBuildOutputsFresh({
+        inputPaths: buildInputPaths,
+        outputPaths: buildOutputPaths,
+        watchedDirectoryExtensions: watchedBuildInputExtensions,
+        staleMessage: staleBuildMessage,
+    });
 }
 
 export interface LaunchCaxriOptions {

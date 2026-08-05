@@ -129,7 +129,7 @@ describe('RuntimeSupervisor', () => {
         electronMock.children[0].emit('exit', 1);
 
         /** A request arriving mid-backoff must wait for the scheduled restart, not fork immediately. */
-        const request = supervisor.request('app.bootstrap');
+        const request = supervisor.request('terminal.runningCount');
         await Promise.resolve();
         await Promise.resolve();
         expect(electronMock.fork).toHaveBeenCalledTimes(1);
@@ -150,10 +150,10 @@ describe('RuntimeSupervisor', () => {
             id: string;
             method: string;
         };
-        expect(sent.method).toBe('app.bootstrap');
-        electronMock.children[1].emit('message', { id: sent.id, ok: true, result: null });
+        expect(sent.method).toBe('terminal.runningCount');
+        electronMock.children[1].emit('message', { id: sent.id, ok: true, result: 0 });
 
-        await expect(request).resolves.toBeNull();
+        await expect(request).resolves.toBe(0);
     });
 
     it('does not restart a Runtime after the readiness deadline has failed closed', async () => {
@@ -313,10 +313,68 @@ describe('RuntimeSupervisor', () => {
         child.stdout.emit('data', Buffer.from('a'.repeat(5_000)));
 
         const call = logger.write.mock.calls.find(([, event]) => event === 'runtime.stdio') as
-            | [string, string, { fields: { line: string } }]
-            | undefined;
+            [string, string, { fields: { line: string } }] | undefined;
         expect(call).toBeDefined();
         expect(call?.[2].fields.line.length).toBeLessThan(5_000);
         expect(call?.[2].fields.line.endsWith('[truncated]')).toBe(true);
+    });
+
+    it('rejects malformed Runtime results at the utility-process boundary', async () => {
+        const logger = fakeLogger();
+        const supervisor = new RuntimeSupervisor(
+            '/runtime',
+            '/user-data',
+            '/logs',
+            logger as unknown as StructuredLogger,
+        );
+        const started = supervisor.start();
+        const child = electronMock.children[0];
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await started;
+
+        const request = supervisor.request('app.health');
+        await Promise.resolve();
+        const sent = child.postMessage.mock.calls[0][0] as { id: string };
+        child.emit('message', { id: sent.id, ok: true, result: { ready: true } });
+
+        await expect(request).rejects.toMatchObject({
+            code: 'INTERNAL',
+            message: 'Invalid result returned for app.health',
+        });
+        expect(logger.write).toHaveBeenCalledWith('error', 'runtime.result_invalid', {
+            fields: { method: 'app.health', code: 'INTERNAL' },
+        });
+    });
+
+    it('drops malformed Runtime events without exposing their payload', async () => {
+        const logger = fakeLogger();
+        const supervisor = new RuntimeSupervisor(
+            '/runtime',
+            '/user-data',
+            '/logs',
+            logger as unknown as StructuredLogger,
+        );
+        const started = supervisor.start();
+        const child = electronMock.children[0];
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await started;
+        const listener = vi.fn();
+        supervisor.on('event', listener);
+
+        child.emit('message', {
+            event: 'terminal.output',
+            payload: { data: 'secret output without a terminal id' },
+        });
+
+        expect(listener).not.toHaveBeenCalled();
+        expect(logger.write).toHaveBeenCalledWith('error', 'runtime.message_invalid', {
+            fields: { correlatedRequest: false },
+        });
     });
 });

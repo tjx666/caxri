@@ -61,7 +61,12 @@ describe('CaxriStore', () => {
         const project = store.projects.create(root);
         const session = store.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
         const insert = () =>
-            store.terminals.insert({ sessionId: session.id, kind: 'shell', cwd: root, title: 'Shell' });
+            store.terminals.insert({
+                sessionId: session.id,
+                kind: 'shell',
+                cwd: root,
+                title: 'Shell',
+            });
 
         const first = insert();
         const second = insert();
@@ -149,7 +154,12 @@ describe('CaxriStore', () => {
         const store = new CaxriStore(databasePath);
         const project = store.projects.create(directory);
         const session = store.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        store.terminals.insert({ sessionId: session.id, kind: 'shell', cwd: directory, title: 'Shell' });
+        store.terminals.insert({
+            sessionId: session.id,
+            kind: 'shell',
+            cwd: directory,
+            title: 'Shell',
+        });
 
         for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
             expect((await stat(path)).mode & 0o777).toBe(0o600);
@@ -196,7 +206,10 @@ describe('CaxriStore', () => {
             typeof store.sessions.getState
         >['activeTab'];
 
-        store.sessions.updateState({ ...store.sessions.getState(session.id), activeTab: structuredActiveTab });
+        store.sessions.updateState({
+            ...store.sessions.getState(session.id),
+            activeTab: structuredActiveTab,
+        });
 
         expect(store.sessions.getState(session.id).activeTab).toEqual(structuredActiveTab);
         store.close();

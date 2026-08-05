@@ -117,8 +117,9 @@ export class SessionsStore {
     /** Returns true when a row existed and was touched. */
     touchLastOpened(id: string, now = Date.now()): boolean {
         return (
-            this.database.prepare('UPDATE sessions SET last_opened_at = ? WHERE id = ?').run(now, id)
-                .changes === 1
+            this.database
+                .prepare('UPDATE sessions SET last_opened_at = ? WHERE id = ?')
+                .run(now, id).changes === 1
         );
     }
 
@@ -149,9 +150,14 @@ export class SessionsStore {
             .run(displayTitle, lastActivityState, id);
     }
 
-    setActivityStateByPrimaryTerminal(terminalId: string, lastActivityState: AgentActivityState): void {
+    setActivityStateByPrimaryTerminal(
+        terminalId: string,
+        lastActivityState: AgentActivityState,
+    ): void {
         this.database
-            .prepare('UPDATE sessions SET last_activity_state = ? WHERE primary_agent_terminal_id = ?')
+            .prepare(
+                'UPDATE sessions SET last_activity_state = ? WHERE primary_agent_terminal_id = ?',
+            )
             .run(lastActivityState, terminalId);
     }
 

@@ -19,20 +19,20 @@ reference this file; deviations require updating this spec first.
 
 ### Color roles (semantic layer over theme colors)
 
-| Token                 | Role                                                        |
-| --------------------- | ----------------------------------------------------------- |
-| `--background`        | editor/terminal canvas                                       |
-| `--surface`           | chrome: sidebar, tab strip, inspector, status bar            |
-| `--elevated`          | hover states, cards, popovers                                |
-| `--border`            | 1px hairlines between regions                                |
-| `--foreground`        | primary text                                                 |
-| `--muted`             | secondary text, inactive icons                               |
-| `--accent`            | the single focus indicator + primary buttons                 |
-| `--accent-foreground` | text/icons on accent fills (derived, not hardcoded)          |
-| `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons |
-| `--overlay`           | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)` |
-| `--shadow`            | elevation shadows: translucent black derived once            |
-| `--indicator`         | neutral (non-accent) selected-tab underline for inspector/settings tabs |
+| Token                                  | Role                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| `--background`                         | editor/terminal canvas                                                    |
+| `--surface`                            | chrome: sidebar, tab strip, inspector, status bar                         |
+| `--elevated`                           | hover states, cards, popovers                                             |
+| `--border`                             | 1px hairlines between regions                                             |
+| `--foreground`                         | primary text                                                              |
+| `--muted`                              | secondary text, inactive icons                                            |
+| `--accent`                             | the single focus indicator + primary buttons                              |
+| `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                       |
+| `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                            |
+| `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)` |
+| `--shadow`                             | elevation shadows: translucent black derived once                         |
+| `--indicator`                          | neutral (non-accent) selected-tab underline for inspector/settings tabs   |
 
 Derive `--accent-foreground`, `--overlay`, `--shadow` in one place from theme colors.
 The status bar uses `--surface` + top hairline — never an accent fill.
