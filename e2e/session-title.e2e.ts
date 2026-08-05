@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -95,6 +95,83 @@ done
         await expect(info).toContainText('current-agent-session');
         await expect(info).toContainText('Title source');
         await expect(info.getByText('PID', { exact: true })).toBeVisible();
+    } finally {
+        await app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('starting Claude in a Shell promotes the Terminal to Claude Code', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-shell-claude-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const bin = join(testDirectory, 'bin');
+    const state = join(testDirectory, 'claude-state');
+    const sessions = join(state, 'sessions');
+    const executable = join(bin, 'claude');
+    await Promise.all([
+        mkdir(root, { recursive: true }),
+        mkdir(bin, { recursive: true }),
+        mkdir(sessions, { recursive: true }),
+    ]);
+    const canonicalRoot = await realpath(root);
+    await writeFile(
+        executable,
+        `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'claude-test 1.0\\n'
+  exit 0
+fi
+now_ms="$(date +%s)999"
+printf '{"cwd":"${canonicalRoot}","name":"Claude from Shell","sessionId":"shell-claude-session","startedAt":%s,"updatedAt":%s,"status":"busy"}\\n' "$now_ms" "$now_ms" > "$CLAUDE_CONFIG_DIR/sessions/current.json"
+printf 'Fake Claude ready\\n'
+while :; do sleep 1; done
+`,
+        'utf8',
+    );
+    await chmod(executable, 0o700);
+
+    const { app, page } = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: {
+            PATH: `${bin}:${process.env.PATH ?? ''}`,
+            CLAUDE_CONFIG_DIR: state,
+        },
+    });
+    try {
+        await createShellSession(page);
+        await expect(page.locator('.session-card strong')).toHaveText('Shell');
+
+        await typeTerminal(page, 'claude');
+
+        await expect(page.locator('.session-card strong')).toHaveText('Claude from Shell');
+        await expect(page.getByRole('tab', { name: 'Claude Code' })).toBeVisible();
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<{
+                    sessions: Array<{ primaryAgentTerminalId?: string }>;
+                    terminals: Array<{
+                        agentSessionId?: string;
+                        id: string;
+                        kind: string;
+                        provider?: string;
+                    }>;
+                }>(page, 'app.bootstrap');
+                const terminal = state.terminals[0];
+                return {
+                    agentSessionId: terminal?.agentSessionId,
+                    isPrimary: state.sessions[0]?.primaryAgentTerminalId === terminal?.id,
+                    kind: terminal?.kind,
+                    provider: terminal?.provider,
+                };
+            })
+            .toMatchObject({
+                agentSessionId: 'shell-claude-session',
+                isPrimary: true,
+                kind: 'claude',
+                provider: 'claude',
+            });
     } finally {
         await app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

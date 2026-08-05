@@ -26,6 +26,100 @@ afterEach(async () => {
 });
 
 describe('AgentCoordinator', () => {
+    it.each(['claude', 'codex'] as const)(
+        'promotes a Shell Terminal after a direct %s command creates Agent metadata',
+        async (provider) => {
+            const directory = await mkdtemp(join(tmpdir(), `caxri-shell-${provider}-`));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'shell');
+            const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
+                Promise.resolve({
+                    provider,
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                    sessionId: `${provider}-session`,
+                    title: `${provider} from Shell`,
+                    ...(context.startedAt ? {} : { sessionId: undefined }),
+                }),
+            );
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(snapshot),
+                () => undefined,
+                new StructuredLogger(join(directory, 'logs')),
+                { refreshDelayMs: 5 },
+            );
+
+            try {
+                coordinator.observeInput(created.terminal.id, `echo ${provider}\r`);
+                coordinator.observeOutput(created.terminal.id);
+                await new Promise((resolve) => setTimeout(resolve, 20));
+                expect(snapshot).not.toHaveBeenCalled();
+
+                coordinator.observeInput(created.terminal.id, `${provider}\r`);
+                coordinator.observeOutput(created.terminal.id);
+
+                await expect
+                    .poll(() => database.getTerminal(created.terminal.id)?.provider)
+                    .toBe(provider);
+                expect(database.getTerminal(created.terminal.id)).toMatchObject({
+                    agentSessionId: `${provider}-session`,
+                    icon: provider,
+                    kind: provider,
+                    title: provider === 'claude' ? 'Claude Code' : 'Codex',
+                });
+                expect(database.getSession(created.session.id)).toMatchObject({
+                    displayTitle: `${provider} from Shell`,
+                    primaryAgentTerminalId: created.terminal.id,
+                });
+            } finally {
+                coordinator.close();
+                database.close();
+            }
+        },
+    );
+
+    it('keeps a Shell Terminal unchanged when an Agent command has no matching metadata', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-unconfirmed-agent-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal.id, 'claude\r');
+            await expect.poll(() => snapshot.mock.calls.length).toBe(3);
+            expect(database.getTerminal(created.terminal.id)).toMatchObject({
+                agentSessionId: undefined,
+                kind: 'shell',
+                provider: undefined,
+            });
+            expect(database.getSession(created.session.id)).toMatchObject({
+                displayTitle: 'Shell',
+                primaryAgentTerminalId: undefined,
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('does not bind concurrent same-root Agent Terminals to one Agent session', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-correlation-'));
         temporaryDirectories.push(directory);

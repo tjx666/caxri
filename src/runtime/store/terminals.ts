@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type Database from 'better-sqlite3';
 
-import type { ProcessState, TerminalKind, TerminalRecord } from '../../shared/types';
+import type { AgentProvider, ProcessState, TerminalKind, TerminalRecord } from '../../shared/types';
 
 export const MAX_TERMINALS_PER_SESSION = 16;
 export const MAX_TERMINALS_GLOBAL = 32;
@@ -137,5 +137,22 @@ export class TerminalsStore {
         this.database
             .prepare('UPDATE terminals SET agent_session_id = ?, updated_at = ? WHERE id = ?')
             .run(agentSessionId ?? null, now, id);
+    }
+
+    promoteShellToAgent(
+        id: string,
+        provider: AgentProvider,
+        title: string,
+        now = Date.now(),
+    ): boolean {
+        return (
+            this.database
+                .prepare(
+                    `UPDATE terminals
+                     SET kind = ?, provider = ?, title = ?, icon = ?, updated_at = ?
+                     WHERE id = ? AND kind = 'shell' AND provider IS NULL`,
+                )
+                .run(provider, provider, title, provider, now, id).changes === 1
+        );
     }
 }

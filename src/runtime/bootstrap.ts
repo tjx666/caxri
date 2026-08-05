@@ -250,6 +250,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return terminal;
         },
         'terminal.input': ({ terminalId, data }) => {
+            if (terminals.processId(terminalId) !== undefined)
+                coordinator.observeInput(terminalId, data);
             terminals.write(terminalId, data);
             return null;
         },

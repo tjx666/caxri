@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 
 import { CaxriError } from '../shared/ipc/errors';
 import type {
+    AgentProvider,
     AgentSnapshot,
     ProcessState,
     ProjectRecord,
@@ -110,16 +111,70 @@ export class CaxriDatabase {
         });
     }
 
+    /**
+     * Atomically reclassifies a live Shell after a direct Agent command produced matching provider
+     * metadata. The session claim, primary-title assignment, and Agent session binding become
+     * visible together, so the Renderer never observes a half-promoted Terminal.
+     */
+    promoteShellToAgent(terminalId: string, snapshot: AgentSnapshot): boolean {
+        return this.store.transaction(() => {
+            const terminal = this.store.terminals.get(terminalId);
+            const agentSessionId = snapshot.sessionId?.trim();
+            if (!terminal || terminal.kind !== 'shell' || terminal.provider || !agentSessionId)
+                return false;
+            if (
+                this.claimedAgentSessionIdsForProvider(snapshot.provider, terminalId).includes(
+                    agentSessionId,
+                )
+            ) {
+                return false;
+            }
+            const session = this.store.sessions.get(terminal.sessionId);
+            if (!session) return false;
+            if (
+                !this.store.terminals.promoteShellToAgent(
+                    terminal.id,
+                    snapshot.provider,
+                    defaultTerminalTitle(snapshot.provider),
+                )
+            ) {
+                return false;
+            }
+            const promoted = this.store.terminals.get(terminal.id)!;
+            const assignment = choosePrimaryAgentForNewTerminal(session, promoted);
+            if (assignment) this.store.sessions.setPrimaryAgent(session.id, assignment);
+            const updatedSession = this.store.sessions.get(session.id)!;
+            const decision = decideAgentMetadataUpdate(promoted, updatedSession, snapshot);
+            if (!decision)
+                throw new CaxriError('INTERNAL', 'Agent promotion produced no metadata update');
+            if (decision.sessionPatch)
+                this.store.sessions.setDisplayTitleAndActivity(
+                    session.id,
+                    decision.sessionPatch.displayTitle,
+                    decision.sessionPatch.lastActivityState,
+                );
+            this.store.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
+            return true;
+        });
+    }
+
     /** Agent session IDs are provider-owned identities and may belong to only one Terminal. */
     claimedAgentSessionIds(terminalId: string): string[] {
         const terminal = this.store.terminals.get(terminalId);
         if (!terminal?.provider) return [];
+        return this.claimedAgentSessionIdsForProvider(terminal.provider, terminalId);
+    }
+
+    claimedAgentSessionIdsForProvider(
+        provider: AgentProvider,
+        excludingTerminalId: string,
+    ): string[] {
         return this.store.terminals
             .list()
             .filter(
                 (candidate) =>
-                    candidate.id !== terminalId &&
-                    candidate.provider === terminal.provider &&
+                    candidate.id !== excludingTerminalId &&
+                    candidate.provider === provider &&
                     candidate.agentSessionId,
             )
             .map((candidate) => candidate.agentSessionId!);

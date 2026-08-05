@@ -1,10 +1,35 @@
 import type { RuntimeEvent } from '../../shared/ipc';
 import type { StructuredLogger } from '../../shared/node/logger';
+import type { AgentProvider, TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../database';
 import type { AgentService } from './service';
 
 const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;
+const MAX_SHELL_COMMAND_LENGTH = 4_096;
+const MAX_SHELL_PROMOTION_PROBES = 3;
+const SHELL_PROMOTION_WINDOW_MS = 30_000;
+
+interface ShellInputState {
+    command: string;
+    valid: boolean;
+}
+
+interface ShellPromotionCandidate {
+    attempts: number;
+    expiresAt: number;
+    provider: AgentProvider;
+    startedAt: number;
+}
+
+function directAgentProvider(command: string): AgentProvider | undefined {
+    const normalized = command.trim();
+    if (/[;&|<>]/.test(normalized)) return undefined;
+    const executable = normalized.match(/^(\S+)/)?.[1];
+    const basename = executable?.split(/[\\/]/).at(-1);
+    if (basename === 'claude' || basename === 'codex') return basename;
+    return undefined;
+}
 
 export interface AgentCoordinatorOptions {
     /** Trailing delay before Agent Terminal output refreshes durable Agent metadata. */
@@ -19,6 +44,8 @@ export interface AgentCoordinatorOptions {
 export class AgentCoordinator {
     private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
     private readonly refreshes: CoalescedScheduler<string>;
+    private readonly shellInputs = new Map<string, ShellInputState>();
+    private readonly shellPromotionCandidates = new Map<string, ShellPromotionCandidate>();
     private readonly startedAtByTerminal = new Map<string, number>();
 
     constructor(
@@ -35,13 +62,76 @@ export class AgentCoordinator {
     }
 
     /**
-     * Agent Terminal membership is derived from the durable Terminal record instead of a cached Set
-     * that every create/close/delete path would have to update. The read is one primary-key SQLite
-     * lookup on an already coalesced path: PTY output is batched before it becomes an event, so this
-     * runs at most once per output batch per Terminal and cannot drift from database truth.
+     * Tracks only the current unpublished Shell input line and never logs or persists it. Detection
+     * is intentionally conservative: a direct `claude` or `codex` command creates a short-lived
+     * candidate, while shell editing escape sequences disable detection until the next submission.
+     * Provider metadata must still confirm the launch before durable Terminal identity changes.
+     */
+    observeInput(terminalId: string, data: string): void {
+        if (this.startedAtByTerminal.has(terminalId)) return;
+        let state = this.shellInputs.get(terminalId);
+        if (!state) {
+            const terminal = this.database.getTerminal(terminalId);
+            if (!terminal || terminal.provider || terminal.kind !== 'shell') return;
+            state = { command: '', valid: true };
+        }
+        const normalized = data.replaceAll('\u001B[200~', '').replaceAll('\u001B[201~', '');
+        for (const character of normalized) {
+            if (character === '\r' || character === '\n') {
+                if (state.valid && state.command.trim()) {
+                    const provider = directAgentProvider(state.command);
+                    if (provider) {
+                        const startedAt = Date.now();
+                        this.shellPromotionCandidates.set(terminalId, {
+                            attempts: 0,
+                            expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
+                            provider,
+                            startedAt,
+                        });
+                        this.refreshes.schedule(terminalId);
+                    } else {
+                        this.shellPromotionCandidates.delete(terminalId);
+                    }
+                }
+                state = { command: '', valid: true };
+                continue;
+            }
+            if (character === '\u0003' || character === '\u0015') {
+                state = { command: '', valid: true };
+                this.shellPromotionCandidates.delete(terminalId);
+                continue;
+            }
+            if (character === '\b' || character === '\u007F') {
+                if (state.valid) state.command = [...state.command].slice(0, -1).join('');
+                continue;
+            }
+            if (character === '\u001B' || character === '\t') {
+                state.valid = false;
+                continue;
+            }
+            if (character < ' ') continue;
+            if (!state.valid) continue;
+            state.command += character;
+            if (state.command.length > MAX_SHELL_COMMAND_LENGTH) state.valid = false;
+        }
+        this.shellInputs.set(terminalId, state);
+    }
+
+    /**
+     * Agent membership normally comes from the durable provider. A Shell with a direct-command
+     * candidate may enter the same coalesced probe path, but only provider metadata can promote it.
      */
     observeOutput(terminalId: string): void {
-        if (!this.database.getTerminal(terminalId)?.provider) return;
+        const terminal = this.database.getTerminal(terminalId);
+        if (!terminal) return;
+        if (!terminal.provider) {
+            const candidate = this.shellPromotionCandidates.get(terminalId);
+            if (!candidate) return;
+            if (candidate.expiresAt < Date.now()) {
+                this.shellPromotionCandidates.delete(terminalId);
+                return;
+            }
+        }
         this.refreshes.schedule(terminalId);
     }
 
@@ -49,6 +139,8 @@ export class AgentCoordinator {
     prepareTerminalStart(terminalId: string): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal?.provider) return;
+        this.shellInputs.delete(terminalId);
+        this.shellPromotionCandidates.delete(terminalId);
         const startedAt = Date.now();
         const excluded = new Set(this.excludedAgentSessionIdsByTerminal.get(terminalId));
         if (terminal.agentSessionId) excluded.add(terminal.agentSessionId);
@@ -72,6 +164,8 @@ export class AgentCoordinator {
     forgetTerminal(terminalId: string): void {
         this.refreshes.cancel(terminalId);
         this.excludedAgentSessionIdsByTerminal.delete(terminalId);
+        this.shellInputs.delete(terminalId);
+        this.shellPromotionCandidates.delete(terminalId);
         this.startedAtByTerminal.delete(terminalId);
     }
 
@@ -79,18 +173,26 @@ export class AgentCoordinator {
         for (const terminal of this.database.listTerminals(sessionId)) {
             this.refreshes.cancel(terminal.id);
             this.excludedAgentSessionIdsByTerminal.delete(terminal.id);
+            this.shellInputs.delete(terminal.id);
+            this.shellPromotionCandidates.delete(terminal.id);
             this.startedAtByTerminal.delete(terminal.id);
         }
     }
 
     close(): void {
         this.refreshes.close();
+        this.shellInputs.clear();
+        this.shellPromotionCandidates.clear();
     }
 
     private async probe(terminalId: string, retryClaim = true): Promise<void> {
         try {
             const terminal = this.database.getTerminal(terminalId);
-            if (!terminal?.provider) return;
+            if (!terminal) return;
+            if (!terminal.provider) {
+                await this.probeShellPromotion(terminal, retryClaim);
+                return;
+            }
             const session = this.database.getSession(terminal.sessionId);
             if (!session) return;
             const excludedAgentSessionIds = [
@@ -123,5 +225,49 @@ export class AgentCoordinator {
                 },
             });
         }
+    }
+
+    private async probeShellPromotion(
+        terminal: TerminalRecord,
+        retryClaim: boolean,
+    ): Promise<void> {
+        const candidate = this.shellPromotionCandidates.get(terminal.id);
+        if (!candidate || terminal.kind !== 'shell') return;
+        if (candidate.expiresAt < Date.now()) {
+            this.shellPromotionCandidates.delete(terminal.id);
+            return;
+        }
+        const session = this.database.getSession(terminal.sessionId);
+        if (!session) return;
+        candidate.attempts += 1;
+        const snapshot = await this.agents.snapshot(candidate.provider, {
+            correlationId: `${terminal.id}:shell-promotion:${candidate.startedAt}`,
+            excludedAgentSessionIds: this.database.claimedAgentSessionIdsForProvider(
+                candidate.provider,
+                terminal.id,
+            ),
+            rootPath: session.rootPath,
+            processState: terminal.lastProcessState,
+            startedAt: candidate.startedAt,
+        });
+        if (
+            this.shellPromotionCandidates.get(terminal.id) !== candidate ||
+            candidate.expiresAt < Date.now()
+        ) {
+            return;
+        }
+        if (!snapshot.sessionId) {
+            if (candidate.attempts < MAX_SHELL_PROMOTION_PROBES)
+                this.refreshes.schedule(terminal.id);
+            return;
+        }
+        if (!this.database.promoteShellToAgent(terminal.id, snapshot)) {
+            if (retryClaim) await this.probe(terminal.id, false);
+            return;
+        }
+        this.shellInputs.delete(terminal.id);
+        this.shellPromotionCandidates.delete(terminal.id);
+        this.startedAtByTerminal.set(terminal.id, candidate.startedAt);
+        this.emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
     }
 }
