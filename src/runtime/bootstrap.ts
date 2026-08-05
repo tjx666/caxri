@@ -19,8 +19,9 @@ import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files';
 import { GitService } from './git';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';
+import { WorkspacePaths } from './workspace-paths';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 
 /**
@@ -97,7 +98,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         logger,
         deps.terminal,
     );
-    const git = new GitService(files, logger);
+    const git = new GitService(new WorkspacePaths(database), logger);
     const diagnostics = new DiagnosticsService(
         database,
         logger,
