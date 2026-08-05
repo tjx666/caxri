@@ -9,6 +9,8 @@
     "type": "module",
     "scripts": {
         "dev": "electron-vite dev",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
         "format:md": "prettier --write \"**/*.md\"",
         "format:md:check": "prettier --check \"**/*.md\"",
         "lint": "eslint . --max-warnings=0",

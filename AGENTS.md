@@ -4,11 +4,17 @@
 
 - Install dependencies: `ni`
 - Start the Electron app: `bun run dev`
+- Format: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
 - Validate: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run test:e2e`
+- Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Build/package: `bun run build`, `bun run package`
 - Native probes: `bun run spike:native`, `bun run spike:pty`, `bun run spike:agents`
+
+## Skills
+
+Detailed playbooks live under `skills/` (`build`, `debug`, `performance`, `release`, `test`). Use them for step-by-step workflows beyond this summary.
 
 ## Architecture boundaries
 
@@ -45,6 +51,16 @@
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
 - Prefer observable output and integration boundaries over internal call assertions. Mock Electron IPC or native boundaries for unit tests; reserve a real Electron launch for the smallest relevant E2E workflow.
 - Run the full unit or E2E suite only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient.
+
+### Scripted repro
+
+Launch Caxri headlessly, without the interactive directory picker, using environment variables read in `src/main/index.ts` and `src/main/test-root.ts`:
+
+- `CAXRI_E2E=1` selects test mode.
+- `CAXRI_USER_DATA_DIR=<tmpdir>` isolates Electron's user-data directory from a developer's real profile.
+- `CAXRI_TEST_ROOT_PATH=<dir>` stubs the directory-picker grant with a fixed Project root (see `src/main/test-root.ts`); only honored when `CAXRI_E2E=1` and the app is unpackaged.
+
+Structured logs land in `logs/main.jsonl` and `logs/runtime.jsonl` in development; packaged/test launches write under the active Electron user-data directory instead.
 
 ## Performance and observability
 

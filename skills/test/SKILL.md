@@ -5,7 +5,7 @@ description: Validate Caxri changes with focused Vitest coverage, real PTY integ
 
 # Test Caxri
 
-1. Keep unit and integration tests beside their source domain, using `__tests__/` in busy directories, then run the narrowest relevant test with `bun run test -- <test-file>`.
+1. Keep unit and integration tests beside their source domain, using `__tests__/` in busy directories, then run the narrowest relevant test with `bunx vitest run --silent='passed-only' <test-file>`.
 2. Run `bun run lint` and `bun run typecheck` for every code change.
 3. Run `bun run test` for Runtime, persistence, security, configuration, and pure-state coverage.
 4. Run `bun run test:e2e` when window lifecycle, IPC, Renderer attach, PTY continuity, recovery, or packaging-facing behavior changes.

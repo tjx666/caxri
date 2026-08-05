@@ -1,0 +1,11 @@
+out/
+dist/
+release/
+node_modules/
+logs/
+test-results/
+playwright-report/
+package-lock.json
+*.tsbuildinfo
+coverage/
+licenses/
