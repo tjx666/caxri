@@ -1,41 +1,10 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+import { expect, test, type Page } from '@playwright/test';
 
-const projectRoot = resolve(import.meta.dirname, '..');
-
-async function launch(
-    userData: string,
-    projectPath: string,
-    environment: NodeJS.ProcessEnv = {},
-): Promise<{ app: ElectronApplication; page: Page }> {
-    const app = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            ...environment,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: projectPath,
-        },
-    });
-    const page = await app.firstWindow();
-    await expect(page.getByText('Runtime ready')).toBeVisible();
-    return { app, page };
-}
-
-async function createProject(page: Page, kind: 'codex' | 'shell'): Promise<void> {
-    await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
-    await page
-        .getByRole('dialog')
-        .getByRole('button', { name: kind === 'shell' ? 'Shell' : 'Codex' })
-        .click();
-    await expect(page.locator('.session-card')).toHaveCount(1);
-}
+import { createProjectSession, launchCaxri } from './helpers.ts';
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
     const input = page.locator('.xterm-helper-textarea').last();
@@ -50,9 +19,9 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await createProject(running.page, 'shell');
+        await createProjectSession(running.page, 'shell');
         const pane = running.page.locator('.terminal-pane');
         const terminalId = await pane.getAttribute('data-terminal-id');
         if (!terminalId) throw new Error('Terminal identity was not rendered');
@@ -112,12 +81,13 @@ test('startup failure uses a compact danger status without covering output', asy
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launch(userData, root, {
-        PATH: '/caxri-e2e-missing',
-        SHELL: '/usr/bin/false',
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },
     });
     try {
-        await createProject(running.page, 'codex');
+        await createProjectSession(running.page, 'codex');
         const failed = running.page.locator('[data-terminal-exit-state="failed"]');
         await expect(failed).toContainText('Terminal failed to start');
         await expect(failed).toHaveClass(/terminal-recovery-danger/);

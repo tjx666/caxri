@@ -2,29 +2,11 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+import { expect, test } from '@playwright/test';
+
+import { launchCaxri } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-
-async function launch(
-    userData: string,
-    sessionRoot: string,
-): Promise<{ app: ElectronApplication; page: Page }> {
-    const app = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: sessionRoot,
-        },
-    });
-    const page = await app.firstWindow();
-    await expect(page.getByText('Runtime ready')).toBeVisible();
-    return { app, page };
-}
 
 test('Files inspector renders local file, folder, open, and fallback icons', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-icons-e2e-'));
@@ -40,7 +22,7 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
         writeFile(join(root, 'LICENSE'), 'unknown extensionless file\n', 'utf8'),
     ]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         await running.page.getByRole('dialog').getByRole('button', { name: 'Shell' }).click();

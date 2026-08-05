@@ -2,29 +2,11 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+import { expect, test } from '@playwright/test';
+
+import { launchCaxri } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-
-async function launch(
-    userData: string,
-    projectPath: string,
-): Promise<{ app: ElectronApplication; page: Page }> {
-    const app = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: projectPath,
-        },
-    });
-    const page = await app.firstWindow();
-    await expect(page.getByText('Runtime ready')).toBeVisible();
-    return { app, page };
-}
 
 test('Agent identities stay consistent across every shared surface', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-icons-e2e-'));
@@ -32,7 +14,7 @@ test('Agent identities stay consistent across every shared surface', async () =>
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         const createDialog = running.page.getByRole('dialog');

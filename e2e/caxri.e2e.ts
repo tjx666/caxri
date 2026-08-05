@@ -1,73 +1,21 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+import { expect, test } from '@playwright/test';
+
+import {
+    createAdditionalShellSession,
+    createShellSession,
+    launchCaxri,
+    selectedSessionId,
+    sessionCard,
+    typeTerminal,
+} from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
-const projectRoot = resolve(import.meta.dirname, '..');
-
-async function launch(
-    userData: string,
-    sessionRoot: string,
-): Promise<{ app: ElectronApplication; page: Page }> {
-    const electronApp = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: sessionRoot,
-        },
-    });
-    const page = await electronApp.firstWindow();
-    await expect(page.getByText('Runtime ready')).toBeVisible();
-    return { app: electronApp, page };
-}
-
-async function createShellSession(page: Page): Promise<void> {
-    await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
-    await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
-    await expect(page.locator('.session-card')).toHaveCount(1);
-    await expect(page.locator('.xterm-helper-textarea')).toBeVisible();
-}
-
-async function createAdditionalShellSession(page: Page): Promise<void> {
-    await page.getByRole('button', { name: /^New Session in / }).click();
-    await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
-}
-
-async function typeTerminal(page: Page, command: string): Promise<void> {
-    const input = page.locator('.xterm-helper-textarea').last();
-    await input.focus();
-    await input.pressSequentially(command);
-    await input.press('Enter');
-}
-
-async function selectedSessionId(page: Page): Promise<string> {
-    return page.evaluate(async () => {
-        const bridge = (
-            window as unknown as {
-                caxri: {
-                    request<T>(method: string, params?: unknown): Promise<T>;
-                };
-            }
-        ).caxri;
-        const state = await bridge.request<{ selectedSessionId?: string }>('app.bootstrap');
-        if (!state.selectedSessionId) throw new Error('No Session selected');
-        return state.selectedSessionId;
-    });
-}
-
-function sessionCard(page: Page, sessionId: string) {
-    return page.locator(`.session-card[data-session-id="${sessionId}"]`);
-}
 
 test('bundles the default terminal typeface and Nerd Font symbols', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-font-e2e-'));
@@ -75,7 +23,7 @@ test('bundles the default terminal typeface and Nerd Font symbols', async () => 
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         const loadedFaces = await running.page.evaluate(async () => {
             const [regular, bold, italic, boldItalic, symbols] = await Promise.all([
@@ -114,7 +62,7 @@ test('file changes refresh entries without collapsing expanded directories', asy
     await execFileAsync('mkdir', ['-p', join(root, 'nested')]);
     await writeFile(join(root, 'nested', 'inside.txt'), 'inside\n', 'utf8');
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.page.getByRole('button', { name: 'nested', exact: true }).click();
@@ -141,7 +89,7 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
@@ -178,7 +126,7 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
     const secondRoot = join(testDirectory, 'beta-project');
     await execFileAsync('mkdir', ['-p', firstRoot, secondRoot]);
 
-    const running = await launch(userData, firstRoot);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: firstRoot });
     try {
         await createShellSession(running.page);
         await running.app.evaluate((_, root) => {
@@ -224,7 +172,7 @@ test('Info inspector lists only the current Session Terminals', async () => {
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         await expect(
@@ -274,7 +222,7 @@ test('Git inspector switches between Project and nested repositories', async () 
         writeFile(join(nested, 'nested.txt'), 'after\n', 'utf8'),
     ]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.page.getByRole('button', { name: 'Git', exact: true }).click();
@@ -302,7 +250,7 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
     await execFileAsync('mkdir', ['-p', root]);
     await writeFile(join(root, 'note.txt'), 'disk state\n', 'utf8');
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.page.getByRole('button', { name: 'note.txt', exact: true }).click();
@@ -333,7 +281,7 @@ test('removing a Project deletes only Caxri metadata', async () => {
     await execFileAsync('mkdir', ['-p', root]);
     await writeFile(userFile, 'user-owned\n', 'utf8');
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.app.evaluate(({ dialog }) => {
@@ -357,7 +305,7 @@ test('canceling the Agent choice revokes the selected Project root grant', async
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         await expect(
@@ -393,7 +341,7 @@ test('Keep Running detaches the closed window and reattaches the live Terminal',
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.app.evaluate(({ dialog }) => {
@@ -436,7 +384,7 @@ test('switching Sessions discards expanded file-tree state from the previous roo
     );
     await writeFile(join(secondRoot, 'second.txt'), 'second\n', 'utf8');
 
-    const running = await launch(userData, firstRoot);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: firstRoot });
     try {
         await createShellSession(running.page);
         for (const directory of expandedDirectories) {
@@ -475,7 +423,7 @@ test('editor buffers stay isolated between Sessions that share one root', async 
     await execFileAsync('mkdir', ['-p', root]);
     await writeFile(join(root, 'shared.txt'), 'disk state\n', 'utf8');
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         await running.page.getByRole('button', { name: 'shared.txt' }).click();
@@ -531,7 +479,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
     await execFileAsync('git', ['add', 'note.txt'], { cwd: sessionRoot });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: sessionRoot });
 
-    let running = await launch(userData, sessionRoot);
+    let running = await launchCaxri({ userDataDir: userData, testRootPath: sessionRoot });
     try {
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
@@ -664,7 +612,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         );
         await running.page.waitForTimeout(400);
         await running.app.close();
-        running = await launch(userData, sessionRoot);
+        running = await launchCaxri({ userDataDir: userData, testRootPath: sessionRoot });
         await expect(running.page.locator('.project-group')).toHaveCount(1);
         await expect(running.page.locator('.project-group.active .session-card')).toHaveCount(2);
         await expect(running.page.locator('.session-card')).toHaveCount(2);

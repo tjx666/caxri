@@ -1,14 +1,14 @@
 import { execFile } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+
+import { launchCaxri } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
-const projectRoot = resolve(import.meta.dirname, '..');
 
 test('Agent output refreshes the Session title without opening Info', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-title-e2e-'));
@@ -60,21 +60,15 @@ done
     );
     await chmod(executable, 0o700);
 
-    const app = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
+    const { app, page } = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
         env: {
-            ...process.env,
             PATH: `${bin}:${process.env.PATH ?? ''}`,
             CODEX_SQLITE_HOME: state,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: root,
         },
     });
     try {
-        const page = await app.firstWindow();
-        await expect(page.getByText('Runtime ready')).toBeVisible();
         await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(page.locator('.session-card strong')).toHaveText('Codex');

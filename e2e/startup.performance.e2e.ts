@@ -5,11 +5,10 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test, type ElectronApplication } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+
+import { launchCaxriApp } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
-const projectRoot = resolve(import.meta.dirname, '..');
-const sessionRoot = resolve(process.env.CAXRI_BENCHMARK_PROJECT_ROOT ?? projectRoot);
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
 const thresholdMs = 3_000;
 
@@ -19,18 +18,12 @@ interface PerformanceLog {
     fields?: Record<string, string | number | boolean | null>;
 }
 
-function launch(userData: string): Promise<ElectronApplication> {
-    return electron.launch({
-        ...(executablePath ? { executablePath } : {}),
-        args: executablePath ? ['--disable-gpu'] : ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_TEST_ROOT_PATH: sessionRoot,
-            CAXRI_USER_DATA_DIR: userData,
-        },
-    });
+function launch(userData: string, sessionRoot: string): Promise<ElectronApplication> {
+    return launchCaxriApp({
+        userDataDir: userData,
+        testRootPath: sessionRoot,
+        executablePath,
+    }).then(({ app }) => app);
 }
 
 function expectTimedEvent(record: PerformanceLog | undefined): void {
@@ -39,9 +32,19 @@ function expectTimedEvent(record: PerformanceLog | undefined): void {
 }
 
 test('large Project opens Runtime, Terminal, files, and Git within three seconds', async () => {
+    // This is a machine-load-sensitive performance assertion, not a functional
+    // check, so it only runs when a benchmark Project root is explicitly
+    // provided. Without this the default suite would silently fall back to
+    // benchmarking the caxri repo itself, which is not representative and
+    // flakes under CI load.
+    test.skip(
+        !process.env.CAXRI_BENCHMARK_PROJECT_ROOT,
+        'benchmark: set CAXRI_BENCHMARK_PROJECT_ROOT to run',
+    );
+    const sessionRoot = resolve(process.env.CAXRI_BENCHMARK_PROJECT_ROOT!);
     const userData = await mkdtemp(join(tmpdir(), 'caxri-startup-benchmark-'));
     const launchedAt = performance.now();
-    let app = await launch(userData);
+    let app = await launch(userData, sessionRoot);
 
     try {
         const page = await app.firstWindow();
@@ -86,7 +89,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
 
         await app.close();
         const restoredAt = performance.now();
-        app = await launch(userData);
+        app = await launch(userData, sessionRoot);
         const restoredPage = await app.firstWindow();
         const restoredTerminalSurface = restoredPage
             .locator('.terminal-surface .xterm-rows')

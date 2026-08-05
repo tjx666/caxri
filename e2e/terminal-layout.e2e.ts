@@ -1,39 +1,14 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+import { expect, test } from '@playwright/test';
+
+import { createShellSession, launchCaxri } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
-const projectRoot = resolve(import.meta.dirname, '..');
-
-async function launch(
-    userData: string,
-    sessionRoot: string,
-): Promise<{ app: ElectronApplication; page: Page }> {
-    const app = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: sessionRoot,
-        },
-    });
-    const page = await app.firstWindow();
-    await expect(page.getByText('Runtime ready')).toBeVisible();
-    return { app, page };
-}
-
-async function createShellSession(page: Page): Promise<void> {
-    await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
-    await expect(page.locator('.xterm-helper-textarea')).toBeVisible();
-}
 
 test('Terminal split layout drags, resizes, restores, and preserves the live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
@@ -41,7 +16,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    let running = await launch(userData, root);
+    let running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
         const firstTerminalId = await running.page.evaluate(async () => {
@@ -151,7 +126,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         expect(savedRatio).toBeCloseTo(0.55, 2);
 
         await running.app.close();
-        running = await launch(userData, root);
+        running = await launchCaxri({ userDataDir: userData, testRootPath: root });
         await expect(running.page.locator('.terminal-group')).toHaveCount(2);
         await expect(running.page.getByRole('separator')).toHaveAttribute('aria-valuenow', '55');
 

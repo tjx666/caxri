@@ -1,30 +1,10 @@
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
+import { expect, test } from '@playwright/test';
 
-const projectRoot = resolve(import.meta.dirname, '..');
-
-async function launch(
-    userData: string,
-    root: string,
-): Promise<{ app: ElectronApplication; page: Page }> {
-    const app = await electron.launch({
-        args: ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userData,
-            CAXRI_TEST_ROOT_PATH: root,
-        },
-    });
-    const page = await app.firstWindow();
-    await expect(page.getByText('Runtime ready')).toBeVisible();
-    return { app, page };
-}
+import { launchCaxri } from './helpers.ts';
 
 test('Settings keeps actions visible and provides highlighted editors and live Theme preview', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-e2e-'));
@@ -32,7 +12,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     const pageErrors: string[] = [];
     running.page.on('pageerror', (error) => pageErrors.push(error.message));
     try {
@@ -97,7 +77,7 @@ test('application menu registers the native macOS Command+H Hide command', async
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launch(userData, root);
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         const hideItem = await running.app.evaluate(({ Menu }) => {
             const item = Menu.getApplicationMenu()?.getMenuItemById('app.hide');
