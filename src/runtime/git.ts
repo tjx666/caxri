@@ -491,6 +491,7 @@ export class GitService {
             ]);
             if (patch)
                 return {
+                    format: 'patch',
                     path: relativePath,
                     originalPath: file.originalPath,
                     original: '',
@@ -505,6 +506,7 @@ export class GitService {
                       allowFailure: true,
                   });
         return {
+            format: 'contents',
             path: relativePath,
             originalPath: file.originalPath,
             original,

@@ -78,10 +78,20 @@ describe('GitService', () => {
                 summary.repositories[0].id,
                 join(directory, 'tracked.txt'),
             ),
-        ).resolves.toEqual({ path: 'tracked.txt', original: 'before\n', modified: 'after\n' });
+        ).resolves.toEqual({
+            format: 'contents',
+            path: 'tracked.txt',
+            original: 'before\n',
+            modified: 'after\n',
+        });
         await expect(
             git.diffDocument(session.id, summary.repositories[0].id, 'new.txt'),
-        ).resolves.toEqual({ path: 'new.txt', original: '', modified: 'new\n' });
+        ).resolves.toEqual({
+            format: 'contents',
+            path: 'new.txt',
+            original: '',
+            modified: 'new\n',
+        });
         database.close();
     });
 
@@ -177,6 +187,7 @@ describe('GitService', () => {
             git.diffDocument(session.id, repository.id, 'generated/new.txt'),
         ).resolves.toMatchObject({ original: '', modified: 'new\n' });
         const submoduleDocument = await git.diffDocument(session.id, repository.id, 'vendor/sub');
+        expect(submoduleDocument.format).toBe('patch');
         expect(submoduleDocument.modified).toContain('Subproject commit');
         database.close();
     });

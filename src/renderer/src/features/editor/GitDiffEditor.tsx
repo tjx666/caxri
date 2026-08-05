@@ -1,4 +1,4 @@
-import { DiffEditor, type MonacoDiffEditor } from '@monaco-editor/react';
+import Editor, { DiffEditor, type MonacoDiffEditor } from '@monaco-editor/react';
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { gitDiffModelPath, type GitDiffTab } from '@shared/git-diff';
@@ -73,6 +73,25 @@ function DiffSurface({
         [],
     );
     if (!theme) return null;
+    if (document.format === 'patch')
+        return (
+            <Editor
+                className="git-patch-editor"
+                language="diff"
+                path={`${gitDiffModelPath(sessionId, repositoryId, document.path, 'modified')}.diff`}
+                value={document.modified}
+                theme="caxri-active"
+                beforeMount={() => applyEditorTheme(theme)}
+                options={{
+                    automaticLayout: true,
+                    fontSize: 13,
+                    minimap: { enabled: false },
+                    readOnly: true,
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'off',
+                }}
+            />
+        );
     return (
         <DiffEditor
             original={document.original}

@@ -27,4 +27,21 @@ window.MonacoEnvironment = {
 
 loader.config({ monaco });
 
+if (!monaco.languages.getLanguages().some((language) => language.id === 'diff')) {
+    monaco.languages.register({ id: 'diff', extensions: ['.diff', '.patch'] });
+    monaco.languages.setMonarchTokensProvider('diff', {
+        tokenizer: {
+            root: [
+                [/^diff --git .*$/, 'meta.diff'],
+                [/^index .*$/, 'meta.diff'],
+                [/^--- .*$/, 'meta.diff'],
+                [/^\+\+\+ .*$/, 'meta.diff'],
+                [/^@@.*@@.*$/, 'keyword.diff'],
+                [/^\+.*/, 'markup.inserted'],
+                [/^-.*/, 'markup.deleted'],
+            ],
+        },
+    });
+}
+
 export { monaco };

@@ -305,6 +305,7 @@ export const projectStatusSummarySchema = z.object({
 });
 
 export const gitDiffDocumentSchema = z.object({
+    format: z.enum(['contents', 'patch']),
     path: pathSchema,
     originalPath: pathSchema.optional(),
     original: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),

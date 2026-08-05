@@ -417,6 +417,10 @@ button {
 .git-file-diff {
     overflow: hidden;
 }
+.git-patch-editor {
+    width: 100%;
+    height: 100%;
+}
 .git-multi-diff {
     overflow: auto;
     background: var(--background);
