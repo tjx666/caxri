@@ -1,22 +1,25 @@
-import type { TerminalKind } from '@shared/types';
+import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { Button } from '../../components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '../../components/ui/dialog';
+import { useDialogStore } from '../../state/dialogs';
+import { useProjects } from '../../state/selectors';
+import { cancelPendingSession, confirmPendingSession } from './session-actions';
 
-import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-
-interface CreateSessionDialogProps {
-    onCancel: () => void;
-    onCreate: (kind: TerminalKind) => void;
-    open: boolean;
-    contextLabel?: string;
-}
-
-export function CreateSessionDialog({
-    contextLabel,
-    onCancel,
-    onCreate,
-    open,
-}: CreateSessionDialogProps) {
+export function CreateSessionDialog() {
+    const pendingRoot = useDialogStore((state) => state.pendingRoot);
+    const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
+    const projects = useProjects();
+    const open = Boolean(pendingRoot || pendingProjectId);
+    const contextLabel =
+        pendingRoot ?? projects?.find((project) => project.id === pendingProjectId)?.displayTitle;
+    const onCancel = cancelPendingSession;
+    const onCreate = confirmPendingSession;
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
             <DialogContent>

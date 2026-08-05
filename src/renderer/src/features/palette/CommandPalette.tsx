@@ -1,27 +1,20 @@
 import { Command } from 'cmdk';
 
-import { commands } from '@/commands';
-import type { ProjectRecord, SessionRecord } from '@shared/types';
+import { commandDefinitions } from '@shared/commands';
 
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { executeCommand } from '../../commands/execute';
+import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { setPaletteOpen, useDialogStore } from '../../state/dialogs';
+import { useProjects, useSessions } from '../../state/selectors';
+import { selectProject, selectSession } from '../session/session-actions';
 
-export function CommandPalette({
-    open,
-    onOpenChange,
-    execute,
-    projects,
-    sessions,
-    selectProject,
-    selectSession,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    execute: (command: string) => void;
-    projects: ProjectRecord[];
-    sessions: SessionRecord[];
-    selectProject: (projectId: string) => void;
-    selectSession: (sessionId: string) => void;
-}) {
+const NO_RECORDS: never[] = [];
+
+export function CommandPalette() {
+    const open = useDialogStore((state) => state.paletteOpen);
+    const onOpenChange = setPaletteOpen;
+    const projects = useProjects() ?? NO_RECORDS;
+    const sessions = useSessions() ?? NO_RECORDS;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="command-dialog">
@@ -59,7 +52,7 @@ export function CommandPalette({
                                         value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''}`}
                                         onSelect={() => {
                                             onOpenChange(false);
-                                            selectSession(session.id);
+                                            void selectSession(session.id);
                                         }}
                                     >
                                         <span>{session.displayTitle}</span>
@@ -69,13 +62,13 @@ export function CommandPalette({
                             })}
                         </Command.Group>
                         <Command.Group heading="Commands">
-                            {commands.map((command) => (
+                            {commandDefinitions.map((command) => (
                                 <Command.Item
                                     key={command.id}
                                     value={`${command.category} ${command.title} ${command.id}`}
                                     onSelect={() => {
                                         onOpenChange(false);
-                                        execute(command.id);
+                                        executeCommand(command.id);
                                     }}
                                 >
                                     <span>{command.title}</span>

@@ -4,69 +4,56 @@ import { Terminal } from '@xterm/xterm';
 import { CircleCheck, CircleX, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { TerminalRecord, ThemeTokens } from '@shared/types';
-
-import { caxri } from '../lib/caxri';
-import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from '../lib/terminal-fonts';
-import { TerminalReplayBuffer } from '../lib/terminal-replay';
-import { onTerminalViewClear } from '../lib/terminal-view-commands';
+import { Button } from '../../components/ui/button';
+import { caxri } from '../../lib/caxri';
+import { useSettings, useTerminal, useTheme } from '../../state/selectors';
+import { pushToast } from '../../state/toasts';
+import { useWorkbenchStore } from '../../state/workbench';
+import { activateTerminal, restartTerminal } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
-import { Button } from './ui/button';
+import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
+import { TerminalReplayBuffer } from './terminal-replay';
+import { onTerminalViewClear } from './terminal-view-commands';
 
 interface TerminalPaneProps {
     active: boolean;
     ariaLabel: string;
-    attachEpoch: number;
-    terminal: TerminalRecord;
-    theme: ThemeTokens;
-    fontSize: number;
-    scrollback: number;
-    onRestart: (terminalId: string) => void;
-    onError: (message: string) => void;
-    onFocus: () => void;
+    terminalId: string;
 }
 
-export function TerminalPane({
-    active,
-    ariaLabel,
-    attachEpoch,
-    terminal,
-    theme,
-    fontSize,
-    scrollback,
-    onRestart,
-    onError,
-    onFocus,
-}: TerminalPaneProps) {
+const onError = (message: string): void => pushToast('error', message);
+
+/**
+ * Owns one xterm instance for the lifetime of its Terminal. Everything the imperative xterm callbacks
+ * need is mirrored into `latestRef`, so the expensive open/attach effect never re-runs for a theme,
+ * font, or process-state change. Presentation inputs are selected from the stores rather than passed
+ * down, which keeps a snapshot refresh from rerendering every pane in a split layout.
+ */
+export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProps) {
+    const terminal = useTerminal(terminalId);
+    const theme = useTheme();
+    const settings = useSettings();
+    const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
+    const fontSize = settings?.['terminal.fontSize'] ?? 13;
+    const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
+    const processState = terminal?.lastProcessState ?? 'starting';
+    const terminalTheme = theme?.terminal;
+
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const attachedEpochRef = useRef(attachEpoch);
-    const latestRef = useRef({
-        active,
-        fontSize,
-        onError,
-        processState: terminal.lastProcessState,
-        scrollback,
-        terminalTheme: theme.terminal,
-    });
+    const latestRef = useRef({ active, fontSize, processState, scrollback, terminalTheme });
 
     useEffect(() => {
-        latestRef.current = {
-            active,
-            fontSize,
-            onError,
-            processState: terminal.lastProcessState,
-            scrollback,
-            terminalTheme: theme.terminal,
-        };
-    }, [active, fontSize, onError, scrollback, terminal.lastProcessState, theme.terminal]);
+        latestRef.current = { active, fontSize, processState, scrollback, terminalTheme };
+    }, [active, fontSize, processState, scrollback, terminalTheme]);
 
     useEffect(() => {
         let canceled = false;
         void loadTerminalFonts()
             .catch((error: unknown) => {
-                latestRef.current.onError(
+                onError(
                     error instanceof Error
                         ? error.message
                         : 'Bundled terminal fonts failed to load',
@@ -105,16 +92,12 @@ export function TerminalPane({
 
         const dataDisposable = xterm.onData((data) => {
             if (latestRef.current.processState !== 'running') return;
-            void caxri
-                .request('terminal.input', { terminalId: terminal.id, data })
-                .catch((error: unknown) => {
-                    latestRef.current.onError(
-                        error instanceof Error ? error.message : 'Terminal input failed',
-                    );
-                });
+            void caxri.request('terminal.input', { terminalId, data }).catch((error: unknown) => {
+                onError(error instanceof Error ? error.message : 'Terminal input failed');
+            });
         });
         const unsubscribe = caxri.onEvent((event) => {
-            if (event.event !== 'terminal.output' || event.payload.terminalId !== terminal.id)
+            if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
             replay.push(event.payload.data);
             if (event.payload.droppedBytes)
@@ -123,23 +106,21 @@ export function TerminalPane({
                 );
         });
         void caxri
-            .request('terminal.attach', { terminalId: terminal.id })
+            .request('terminal.attach', { terminalId })
             .then((snapshot) => {
                 if (!disposed) replay.restore(snapshot?.payload ?? '');
             })
             .catch((error: unknown) => {
                 if (disposed) return;
                 replay.restore('');
-                latestRef.current.onError(
-                    error instanceof Error ? error.message : 'Terminal attachment failed',
-                );
+                onError(error instanceof Error ? error.message : 'Terminal attachment failed');
             });
         const observer = new ResizeObserver(() => {
             try {
                 fit.fit();
                 if (latestRef.current.processState === 'running') {
                     void caxri.request('terminal.resize', {
-                        terminalId: terminal.id,
+                        terminalId,
                         cols: xterm.cols,
                         rows: xterm.rows,
                     });
@@ -162,47 +143,42 @@ export function TerminalPane({
             dataDisposable.dispose();
             xterm.dispose();
             xtermRef.current = undefined;
-            void caxri.request('terminal.detach', { terminalId: terminal.id }).catch(() => {
+            void caxri.request('terminal.detach', { terminalId }).catch(() => {
                 // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
             });
         };
-    }, [fontsReady, terminal.id]);
+    }, [fontsReady, terminalId]);
 
     useEffect(() => {
         if (attachedEpochRef.current === attachEpoch) return;
         attachedEpochRef.current = attachEpoch;
         /** Runtime-owned attachment state is lost with the utility process even though this pane remains mounted. */
         void caxri
-            .request('terminal.attach', { terminalId: terminal.id })
+            .request('terminal.attach', { terminalId })
             .catch((error: unknown) =>
-                latestRef.current.onError(
-                    error instanceof Error ? error.message : 'Terminal reattachment failed',
-                ),
+                onError(error instanceof Error ? error.message : 'Terminal reattachment failed'),
             );
-    }, [attachEpoch, terminal.id]);
+    }, [attachEpoch, terminalId]);
 
     useEffect(() => {
         const xterm = xtermRef.current;
         if (!xterm) return;
-        const isRunning = terminal.lastProcessState === 'running';
+        const isRunning = processState === 'running';
         xterm.options.disableStdin = !isRunning;
         if (active && isRunning) requestAnimationFrame(() => xterm.focus());
         else xterm.blur();
-    }, [active, terminal.lastProcessState]);
+    }, [active, processState]);
 
     useEffect(() => {
         if (!xtermRef.current) return;
         xtermRef.current.options.fontSize = fontSize;
         xtermRef.current.options.scrollback = scrollback;
-        xtermRef.current.options.theme = theme.terminal;
-    }, [fontSize, scrollback, theme]);
+        xtermRef.current.options.theme = terminalTheme;
+    }, [fontSize, scrollback, terminalTheme]);
 
-    useEffect(
-        () => onTerminalViewClear(terminal.id, () => xtermRef.current?.clear()),
-        [terminal.id],
-    );
+    useEffect(() => onTerminalViewClear(terminalId, () => xtermRef.current?.clear()), [terminalId]);
 
-    const exitPresentation = getTerminalExitPresentation(terminal.lastProcessState);
+    const exitPresentation = getTerminalExitPresentation(processState);
     const ExitIcon =
         exitPresentation?.icon === 'completed'
             ? CircleCheck
@@ -215,15 +191,15 @@ export function TerminalPane({
             role="region"
             aria-label={ariaLabel}
             className="terminal-pane"
-            data-terminal-id={terminal.id}
-            onFocus={onFocus}
+            data-terminal-id={terminalId}
+            onFocus={() => activateTerminal(terminalId)}
         >
             <div ref={containerRef} className="terminal-surface" />
             {exitPresentation && (
                 <div
                     aria-live="polite"
                     className={`terminal-recovery terminal-recovery-${exitPresentation.tone}`}
-                    data-terminal-exit-state={terminal.lastProcessState}
+                    data-terminal-exit-state={processState}
                     role="status"
                 >
                     <span className="terminal-recovery-message">
@@ -236,7 +212,7 @@ export function TerminalPane({
                         size="sm"
                         title="Restart Terminal (Command+Shift+R)"
                         variant="ghost"
-                        onClick={() => onRestart(terminal.id)}
+                        onClick={() => restartTerminal(terminalId)}
                     >
                         <RotateCcw size={12} /> Restart
                     </Button>

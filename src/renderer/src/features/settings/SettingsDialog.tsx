@@ -4,24 +4,36 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
-import { caxri } from '../lib/caxri';
-import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
+import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { Button } from '../../components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '../../components/ui/select';
+import { caxri } from '../../lib/caxri';
+import { setSettingsOpen, useDialogStore } from '../../state/dialogs';
+import { describeFailure, pushToast } from '../../state/toasts';
+import { refreshWorkbench } from '../../state/workbench';
 import { ThemePreview } from './ThemePreview';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
 
 type ConfigKind = 'settings' | 'keybindings' | 'theme';
 
-interface SettingsDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onApplied: () => void;
-    onError: (message: string) => void;
-}
+const onApplied = (): void => void refreshWorkbench();
+const onError = (error: unknown, label: string): void =>
+    pushToast('error', describeFailure(error, label));
 
 function parseThemeSource(source: string): ThemeTokens | undefined {
     const value = parse(source) as Partial<ThemeTokens> | undefined;
@@ -45,7 +57,9 @@ function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
     return 'Ask when creating a Session';
 }
 
-export function SettingsDialog({ open, onOpenChange, onApplied, onError }: SettingsDialogProps) {
+export function SettingsDialog() {
+    const open = useDialogStore((state) => state.settingsOpen);
+    const onOpenChange = setSettingsOpen;
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [settings, setSettings] = useState<AppSettings>();
     const [settingsSource, setSettingsSource] = useState('');
@@ -70,10 +84,8 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                 setTheme(themeResult.value);
                 setThemeSource(themeResult.source);
             })
-            .catch((error: unknown) =>
-                onError(error instanceof Error ? error.message : 'Unable to load configuration'),
-            );
-    }, [onError]);
+            .catch((error: unknown) => onError(error, 'Unable to load configuration'));
+    }, []);
 
     useEffect(() => {
         if (open) load();
@@ -101,7 +113,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
             }
             onApplied();
         } catch (error) {
-            onError(error instanceof Error ? error.message : 'Configuration update failed');
+            onError(error, 'Configuration update failed');
         }
     };
 
@@ -153,7 +165,7 @@ export function SettingsDialog({ open, onOpenChange, onApplied, onError }: Setti
                 onApplied();
             }
         } catch (error) {
-            onError(error instanceof Error ? error.message : 'Theme import failed');
+            onError(error, 'Theme import failed');
         }
     };
 

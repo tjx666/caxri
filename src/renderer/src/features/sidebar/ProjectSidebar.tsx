@@ -10,38 +10,32 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
+import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { Button } from '../../components/ui/button';
+import { executeCommand } from '../../commands/execute';
+import {
+    useProjects,
+    useSelectedProject,
+    useSelectedSession,
+    useSessions,
+    useTerminals,
+} from '../../state/selectors';
+import { beginSessionCreation, selectProject, selectSession } from '../session/session-actions';
 
-import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
-import { Button } from './ui/button';
+const NO_RECORDS: never[] = [];
+const onAddProject = (): void => executeCommand('project.create');
+const onOpenSettings = (): void => executeCommand('theme.openSettings');
+const onSearch = (): void => executeCommand('commandPalette.open');
+const onSelectSession = (sessionId: string): void => void selectSession(sessionId);
 
-interface ProjectSidebarProps {
-    projects: ProjectRecord[];
-    sessions: SessionRecord[];
-    terminals: TerminalRecord[];
-    selectedProjectId?: string;
-    selectedSessionId?: string;
-    onAddProject: () => void;
-    onCreateSession: (projectId: string) => void;
-    onSelectProject: (projectId: string) => void;
-    onSelectSession: (sessionId: string) => void;
-    onOpenSettings: () => void;
-    onSearch: () => void;
-}
-
-export function ProjectSidebar({
-    projects,
-    sessions,
-    terminals,
-    selectedProjectId,
-    selectedSessionId,
-    onAddProject,
-    onCreateSession,
-    onSelectProject,
-    onSelectSession,
-    onOpenSettings,
-    onSearch,
-}: ProjectSidebarProps) {
+export function ProjectSidebar() {
+    const projects = useProjects() ?? NO_RECORDS;
+    const sessions = useSessions() ?? NO_RECORDS;
+    const terminals = useTerminals();
+    const selectedProjectId = useSelectedProject()?.id;
+    const selectedSessionId = useSelectedSession()?.id;
+    const onCreateSession = beginSessionCreation;
+    const onSelectProject = selectProject;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
 
     const toggleProject = (projectId: string): void => {

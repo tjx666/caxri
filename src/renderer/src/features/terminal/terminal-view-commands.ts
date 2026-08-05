@@ -1,5 +1,8 @@
 const TERMINAL_CLEAR_EVENT = 'caxri:terminal-clear';
 
+/** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
+export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
+
 interface TerminalClearDetail {
     terminalId: string;
 }

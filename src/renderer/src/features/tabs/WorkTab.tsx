@@ -3,8 +3,8 @@ import type { DragEvent } from 'react';
 
 import type { ProcessState } from '@shared/types';
 
-import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
-import type { AgentIconIdentity } from '../agent-icons/agent-icon-registry';
+import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import type { AgentIconIdentity } from '../../agent-icons/agent-icon-registry';
 
 interface WorkTabProps {
     active: boolean;

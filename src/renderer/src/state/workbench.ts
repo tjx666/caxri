@@ -1,0 +1,132 @@
+import { create } from 'zustand';
+
+import type { BootstrapState, SessionState } from '@shared/types';
+
+import { caxri } from '../lib/caxri';
+import { mergeStructurally } from './structural-sharing';
+import { describeFailure, pushToast } from './toasts';
+
+interface WorkbenchState {
+    /** The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves. */
+    bootstrap?: BootstrapState;
+    /**
+     * Bumped every time the Runtime reports ready again. Mounted Terminal panes watch this to
+     * re-issue `terminal.attach`, because a Runtime restart drops attachment state the pane cannot
+     * observe on its own.
+     */
+    attachEpoch: number;
+    /** Idempotent attach used on mount; joins an in-flight snapshot read instead of duplicating it. */
+    initialize(): Promise<void>;
+    /** Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read. */
+    refresh(): Promise<void>;
+    /** Optimistically applies a Session layout/tab/inspector change and persists it. */
+    patchSessionState(next: SessionState, failureLabel?: string): void;
+}
+
+let inFlight: Promise<void> | undefined;
+let queued: Promise<void> | undefined;
+let configurationErrorsReported = false;
+
+function applySnapshot(state: BootstrapState): void {
+    useWorkbenchStore.setState((previous) => ({
+        bootstrap: mergeStructurally(previous.bootstrap, state),
+    }));
+    if (configurationErrorsReported) return;
+    configurationErrorsReported = true;
+    if (state.configurationErrors?.[0]) pushToast('error', state.configurationErrors[0]);
+}
+
+function loadBootstrap(): Promise<void> {
+    inFlight = caxri
+        .request('app.bootstrap')
+        .then(applySnapshot)
+        .catch((error: unknown) => {
+            pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
+        })
+        .finally(() => {
+            inFlight = undefined;
+        });
+    return inFlight;
+}
+
+/**
+ * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse
+ * it — its own mutation may not be reflected there — so every such caller shares one follow-up read
+ * instead of issuing a burst of `app.bootstrap` requests. React StrictMode's double mount therefore
+ * never doubles the Runtime work, and neither does a burst of `state.changed` events.
+ */
+export function initializeWorkbench(): Promise<void> {
+    return inFlight ?? loadBootstrap();
+}
+
+export function refreshWorkbench(): Promise<void> {
+    if (!inFlight) return loadBootstrap();
+    queued ??= inFlight.then(() => {
+        queued = undefined;
+        return inFlight ?? loadBootstrap();
+    });
+    return queued;
+}
+
+export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
+    bootstrap: undefined,
+    attachEpoch: 0,
+    initialize: initializeWorkbench,
+    refresh: refreshWorkbench,
+    patchSessionState(next, failureLabel = 'Session layout could not be saved') {
+        const bootstrap = get().bootstrap;
+        if (!bootstrap) return;
+        set({
+            bootstrap: {
+                ...bootstrap,
+                sessionStates: bootstrap.sessionStates.map((state) =>
+                    state.sessionId === next.sessionId ? next : state,
+                ),
+            },
+        });
+        void caxri.request('session.updateState', next).catch((error: unknown) => {
+            pushToast('error', describeFailure(error, failureLabel));
+        });
+    },
+}));
+
+export function patchSessionState(next: SessionState, failureLabel?: string): void {
+    useWorkbenchStore.getState().patchSessionState(next, failureLabel);
+}
+
+export interface WorkbenchEventHandlers {
+    /** Runs a command id pushed by the native menu, honouring the modal guard. */
+    onCommand(command: string): void;
+}
+
+/**
+ * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to
+ * live inside App's mount effect dispatches into this store instead.
+ */
+export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
+    return caxri.onEvent((event) => {
+        if (event.event === 'state.changed' || event.event === 'terminal.exit')
+            void refreshWorkbench();
+        if (event.event === 'runtime.status') {
+            const payload = event.payload;
+            useWorkbenchStore.setState((current) =>
+                current.bootstrap
+                    ? { bootstrap: { ...current.bootstrap, runtime: payload } }
+                    : current,
+            );
+            if (payload.status === 'ready') {
+                useWorkbenchStore.setState((current) => ({ attachEpoch: current.attachEpoch + 1 }));
+                void refreshWorkbench();
+            }
+        }
+        if (
+            event.event === 'settings.changed' ||
+            event.event === 'keybindings.changed' ||
+            event.event === 'theme.changed'
+        ) {
+            if (event.payload.error) pushToast('error', event.payload.error);
+            else void refreshWorkbench();
+        }
+        if (event.event === 'command.execute') handlers.onCommand(event.payload.command);
+    });
+}

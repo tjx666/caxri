@@ -1,5 +1,4 @@
-export { commandDefinitions as commands } from '@shared/commands';
-
+/** Shortcut normalization shared by the keybinding table and the global keydown dispatcher. */
 export function normalizeShortcut(value: string): string {
     return value
         .toLowerCase()

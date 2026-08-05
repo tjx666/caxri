@@ -5,32 +5,24 @@ import type {
     TerminalGroupNode,
     TerminalLayout,
     TerminalLayoutNode,
-    TerminalRecord,
     TerminalSplitNode,
-    ThemeTokens,
 } from '@shared/types';
 
+import { useSessionState, useSessionTerminals } from '../../state/selectors';
+import { activateTerminal, applyTerminalLayout } from './terminal-actions';
 import { TerminalPane } from './TerminalPane';
-
-export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
+import { TERMINAL_DRAG_TYPE } from './terminal-view-commands';
 
 type DropZone = 'center' | 'right' | 'down';
 
-interface TerminalLayoutViewProps {
-    attachEpoch: number;
-    fontSize: number;
-    layout: TerminalLayout;
-    scrollback: number;
-    terminals: TerminalRecord[];
-    theme: ThemeTokens;
-    onActivate: (terminalId: string, groupId: string) => void;
-    onError: (message: string) => void;
-    onLayoutChange: (layout: TerminalLayout) => void;
-    onRestart: (terminalId: string) => void;
-}
-
-interface NodeViewProps extends TerminalLayoutViewProps {
+/**
+ * Only the structural facts travel down the recursion. Presentation inputs (theme, font size,
+ * scrollback, attach epoch) and callbacks are read from the stores by the node that needs them, so a
+ * snapshot refresh no longer rerenders every node in the tree.
+ */
+interface NodeViewProps {
     groupNumbers: Map<string, number>;
+    layout: TerminalLayout;
     node: TerminalLayoutNode;
 }
 
@@ -60,11 +52,12 @@ function dropZone(event: React.DragEvent<HTMLElement>): DropZone {
 
 function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
     const [activeDropZone, setActiveDropZone] = useState<DropZone>();
+    const terminals = useSessionTerminals();
     const terminalId =
         props.node.activeTerminalId && props.node.terminalIds.includes(props.node.activeTerminalId)
             ? props.node.activeTerminalId
             : props.node.terminalIds[0];
-    const terminal = props.terminals.find((candidate) => candidate.id === terminalId);
+    const terminal = terminals.find((candidate) => candidate.id === terminalId);
     const isActive = props.layout.activeGroupId === props.node.id;
     const applyDrop = (event: React.DragEvent<HTMLDivElement>): void => {
         event.preventDefault();
@@ -83,8 +76,8 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
                       props.node.id,
                       zone === 'right' ? 'horizontal' : 'vertical',
                   );
-        props.onLayoutChange(next);
-        props.onActivate(draggedTerminalId, next.activeGroupId ?? props.node.id);
+        applyTerminalLayout(next);
+        activateTerminal(draggedTerminalId);
     };
     if (!terminal) return null;
     const label = `Terminal group ${props.groupNumbers.get(props.node.id) ?? 1}: ${terminal.title}`;
@@ -108,18 +101,7 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
             }}
             onDrop={applyDrop}
         >
-            <TerminalPane
-                active={isActive}
-                attachEpoch={props.attachEpoch}
-                terminal={terminal}
-                theme={props.theme}
-                fontSize={props.fontSize}
-                scrollback={props.scrollback}
-                ariaLabel={label}
-                onFocus={() => props.onActivate(terminal.id, props.node.id)}
-                onRestart={props.onRestart}
-                onError={props.onError}
-            />
+            <TerminalPane active={isActive} ariaLabel={label} terminalId={terminal.id} />
             {activeDropZone && (
                 <div className={`terminal-drop-preview terminal-drop-${activeDropZone}`}>
                     {activeDropZone === 'center'
@@ -176,7 +158,7 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                         : event.key === 'ArrowDown';
                     if (!decrease && !increase) return;
                     event.preventDefault();
-                    props.onLayoutChange(
+                    applyTerminalLayout(
                         resizeSplit(props.layout, props.node.id, ratio + (decrease ? -0.05 : 0.05)),
                     );
                 }}
@@ -192,7 +174,7 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                     dragging.current = false;
                     const nextRatio = updateRatio(event);
                     setDraftRatio(undefined);
-                    props.onLayoutChange(resizeSplit(props.layout, props.node.id, nextRatio));
+                    applyTerminalLayout(resizeSplit(props.layout, props.node.id, nextRatio));
                 }}
             />
             <div className="terminal-layout-child">
@@ -210,8 +192,9 @@ function TerminalNodeView(props: NodeViewProps) {
     );
 }
 
-export function TerminalLayoutView(props: TerminalLayoutViewProps) {
-    const numbers = useMemo(() => groupNumbers(props.layout.root), [props.layout.root]);
-    if (!props.layout.root) return null;
-    return <TerminalNodeView {...props} node={props.layout.root} groupNumbers={numbers} />;
+export function TerminalLayoutView() {
+    const layout = useSessionState()?.layout;
+    const numbers = useMemo(() => groupNumbers(layout?.root), [layout?.root]);
+    if (!layout?.root) return null;
+    return <TerminalNodeView layout={layout} node={layout.root} groupNumbers={numbers} />;
 }

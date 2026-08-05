@@ -1,21 +1,19 @@
 import { CircleDot } from 'lucide-react';
 
-import type { SessionRecord, TerminalRecord } from '@shared/types';
+import type { TerminalRecord } from '@shared/types';
 
-import { AgentIdentityIcon } from '../agent-icons/AgentIdentityIcon';
-import { resolveAgentIcon } from '../agent-icons/agent-icon-registry';
+import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { resolveAgentIcon } from '../../agent-icons/agent-icon-registry';
+import { useSelectedSession, useSessionTerminals } from '../../state/selectors';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {
     return state[0].toUpperCase() + state.slice(1);
 }
 
-export function TerminalInfoPanel({
-    session,
-    terminals,
-}: {
-    session?: SessionRecord;
-    terminals: TerminalRecord[];
-}) {
+/** Scoped to the selected Session's Terminals so another Session's Agents never leak in here. */
+export function TerminalInfoPanel() {
+    const session = useSelectedSession();
+    const terminals = useSessionTerminals();
     if (!session) return <div className="empty-panel">Create a Session to inspect Terminals.</div>;
     if (terminals.length === 0)
         return <div className="empty-panel">No Terminals in this Session.</div>;

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 
 import type { ThemeTokens } from '@shared/types';
 
-import { applyEditorTheme } from '../lib/editor-theme';
+import { applyEditorTheme } from '../../lib/editor-theme';
 
 interface ConfigurationEditorProps {
     ariaLabel: string;
