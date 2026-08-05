@@ -99,7 +99,8 @@ button {
     align-items: center;
     justify-content: space-between;
     min-height: 44px;
-    padding: 0 8px 0 70px;
+    /* 84px: the inset traffic lights end near 70px; the extra gap keeps the brand from reading as a fourth light. */
+    padding: 0 8px 0 84px;
     border-bottom: 1px solid var(--border);
     font-weight: 650;
     -webkit-app-region: drag;
