@@ -1,6 +1,11 @@
 import { getCommandDefinition } from '@shared/commands';
 
-import { defineCommand, registerCommand, type CommandContext, type CommandDefinition } from './registry';
+import {
+    defineCommand,
+    registerCommand,
+    type CommandContext,
+    type CommandDefinition,
+} from './registry';
 
 /**
  * Builds a registry entry whose title/category are read from the shared catalog, so the catalog
@@ -45,6 +50,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('inspector.showFiles', (ctx) => ctx.inspector.setMode('files')),
     fromCatalog('inspector.showGit', (ctx) => ctx.inspector.setMode('git')),
     fromCatalog('inspector.showInfo', (ctx) => ctx.inspector.setMode('info')),
+    fromCatalog('inspector.toggle', (ctx) => ctx.inspector.toggle()),
     fromCatalog('settings.open', (ctx) => ctx.dialogs.openSettings()),
     fromCatalog('commandPalette.open', (ctx) => ctx.dialogs.openPalette(), {
         allowInEditable: true,

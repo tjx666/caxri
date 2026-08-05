@@ -28,7 +28,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 closeActive: record('terminal.close'),
             },
             editor: { saveActive: record('editor.save') },
-            inspector: { setMode: record('inspector.setMode') },
+            inspector: { setMode: record('inspector.setMode'), toggle: record('inspector.toggle') },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
@@ -49,10 +49,14 @@ describe('executeCommand', () => {
 
     it('registers exactly the ids the shared catalog declares, in both directions', () => {
         const sharedIds = new Set(sharedCommandDefinitions.map((definition) => definition.id));
-        const registeredIds = new Set(registeredCommandDefinitions.map((definition) => definition.id));
+        const registeredIds = new Set(
+            registeredCommandDefinitions.map((definition) => definition.id),
+        );
 
-        for (const id of sharedIds) expect(registeredIds, `registry is missing ${id}`).toContain(id);
-        for (const id of registeredIds) expect(sharedIds, `shared catalog is missing ${id}`).toContain(id);
+        for (const id of sharedIds)
+            expect(registeredIds, `registry is missing ${id}`).toContain(id);
+        for (const id of registeredIds)
+            expect(sharedIds, `shared catalog is missing ${id}`).toContain(id);
     });
 
     it('keeps registry titles and categories in sync with the shared catalog', () => {

@@ -123,6 +123,61 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
     }
 });
 
+test('dragging the Sidebar divider resizes it and the width survives a reload', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-panel-resize-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        const sidebar = running.page.locator('.session-sidebar');
+        const divider = running.page.getByRole('separator', { name: 'Resize Sidebar' });
+        const startWidth = (await sidebar.boundingBox())!.width;
+        const dividerBox = (await divider.boundingBox())!;
+        const startX = dividerBox.x + dividerBox.width / 2;
+        const y = dividerBox.y + dividerBox.height / 2;
+
+        await running.page.mouse.move(startX, y);
+        await running.page.mouse.down();
+        await running.page.mouse.move(startX + 80, y, { steps: 8 });
+        await running.page.mouse.up();
+
+        await expect
+            .poll(async () => (await sidebar.boundingBox())?.width)
+            .toBeGreaterThan(startWidth + 60);
+        const widthAfterDrag = Math.round((await sidebar.boundingBox())!.width);
+
+        await running.page.reload();
+        await waitForRuntimeReady(running.page);
+        await expect
+            .poll(async () =>
+                Math.round((await running.page.locator('.session-sidebar').boundingBox())!.width),
+            )
+            .toBe(widthAfterDrag);
+
+        // Double-click resets to the default width shipped with `.app-shell` in styles.css.
+        await running.page.getByRole('separator', { name: 'Resize Sidebar' }).dblclick();
+        await expect
+            .poll(async () => (await running.page.locator('.session-sidebar').boundingBox())?.width)
+            .toBe(230);
+
+        // The status-bar toggle (previously a dead icon) collapses the Inspector and its divider.
+        const inspectorToggle = running.page.getByRole('button', { name: 'Hide Inspector' });
+        await expect(running.page.locator('.inspector')).toBeVisible();
+        await inspectorToggle.click();
+        await expect(running.page.locator('.inspector')).toHaveCount(0);
+        await expect(running.page.getByRole('separator', { name: 'Resize Inspector' })).toHaveCount(
+            0,
+        );
+        await running.page.getByRole('button', { name: 'Show Inspector' }).click();
+        await expect(running.page.locator('.inspector')).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('sidebar search finds and selects Projects instead of exporting diagnostics', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));
     const userData = join(testDirectory, 'user-data');

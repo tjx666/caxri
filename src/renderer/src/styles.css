@@ -60,11 +60,23 @@ button {
 
 .app-shell {
     display: grid;
-    grid-template-columns: 230px minmax(420px, 1fr) 310px;
+    /*
+     * Sidebar/Inspector widths are device-local UI state (`state/panel-layout.ts`), not part of the
+     * Runtime-synced Session; each panel writes its own custom property directly on drag and through
+     * React on commit/reset, with `MIN_MAIN_WIDTH` reserved here so a resize never overlaps the
+     * main pane. The 6px tracks are the divider hit areas — see `.panel-divider`.
+     */
+    grid-template-columns:
+        var(--sidebar-width, 230px) 6px minmax(320px, 1fr) 6px
+        var(--inspector-width, 310px);
     grid-template-rows: minmax(0, 1fr) 24px;
     width: 100vw;
     height: 100vh;
     background: var(--background);
+}
+/* Collapsed Inspector: no Inspector column and no divider column for it. */
+.app-shell.inspector-collapsed {
+    grid-template-columns: var(--sidebar-width, 230px) 6px minmax(320px, 1fr);
 }
 
 .session-sidebar,
@@ -75,7 +87,7 @@ button {
 .session-sidebar {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
+    /* The hairline between Sidebar and main pane is drawn by the `.panel-divider` column instead. */
 }
 /**
  * The window ships without a title bar (`titleBarStyle: 'hiddenInset'`), so this header doubles
@@ -556,7 +568,59 @@ button {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    border-left: 1px solid var(--border);
+    /* The hairline between the main pane and Inspector is drawn by `.panel-divider` instead. */
+}
+
+/**
+ * Shared Sidebar↔main and main↔Inspector drag divider (WP-U3). A hairline sits centered in a wider
+ * invisible hit area so a 6px column stays comfortable to grab without widening the visible seam.
+ * Hover/focus/drag states use a foreground tint, never `--accent` — the divider is chrome, not the
+ * one focus indicator (see docs/ui-design.md "One accent focus per screen").
+ */
+.panel-divider {
+    position: relative;
+    width: 6px;
+    min-width: 6px;
+    background: transparent;
+    cursor: col-resize;
+    touch-action: none;
+}
+.panel-divider::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: var(--border);
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+.panel-divider:hover::after,
+.panel-divider[data-dragging='true']::after {
+    width: 3px;
+    background: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+.panel-divider:focus-visible {
+    outline: none;
+}
+.panel-divider:focus-visible::after {
+    width: 3px;
+    background: color-mix(in srgb, var(--foreground) 55%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+/**
+ * Applied to `<body>` for the duration of a drag (`PanelDivider`). Selection and pointer events are
+ * suppressed globally so the gesture survives crossing an xterm surface or the Monaco editor.
+ */
+.panel-resize-active {
+    cursor: col-resize;
+    user-select: none;
+}
+.panel-resize-active .xterm,
+.panel-resize-active .monaco-editor,
+.panel-resize-active iframe {
+    pointer-events: none;
 }
 .inspector-tabs {
     display: grid;
@@ -835,6 +899,27 @@ button {
 .statusbar-state-danger {
     background: color-mix(in srgb, var(--danger) 18%, transparent);
     color: var(--danger);
+}
+.statusbar-toggle {
+    display: grid;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+.statusbar-toggle:hover,
+.statusbar-toggle[aria-pressed='true'] {
+    color: var(--foreground);
+}
+.statusbar-toggle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--foreground) 45%, transparent);
 }
 
 .button {
@@ -1432,9 +1517,10 @@ button {
 }
 
 @media (max-width: 1100px) {
-    .app-shell {
-        grid-template-columns: 205px minmax(400px, 1fr) 270px;
-    }
+    /*
+     * Panel widths already clamp to the viewport in JS (`clampLayoutToViewport`, run on resize by
+     * `usePanelViewportClamp`), so this breakpoint only trims chrome that has no drag handle.
+     */
     .inspector-tabs span {
         display: none;
     }

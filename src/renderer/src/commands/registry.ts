@@ -9,7 +9,7 @@ export interface CommandContext {
     session: { create(): void; deleteSelected(): void; selectAdjacent(delta: 1 | -1): void };
     terminal: { create(): void; clearActive(): void; restartActive(): void; closeActive(): void };
     editor: { saveActive(): void };
-    inspector: { setMode(mode: InspectorMode): void };
+    inspector: { setMode(mode: InspectorMode): void; toggle(): void };
     dialogs: { openSettings(): void; openPalette(): void };
     diagnostics: { export(): void };
 }

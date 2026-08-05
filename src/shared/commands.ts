@@ -22,6 +22,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'inspector.showFiles', title: 'Show Files', category: 'Inspector' },
     { id: 'inspector.showGit', title: 'Show Git', category: 'Inspector' },
     { id: 'inspector.showInfo', title: 'Show Terminal Info', category: 'Inspector' },
+    { id: 'inspector.toggle', title: 'Toggle Inspector', category: 'Inspector' },
     { id: 'settings.open', title: 'Open Settings', category: 'Preferences' },
     { id: 'commandPalette.open', title: 'Open Command Palette', category: 'View' },
     { id: 'diagnostics.export', title: 'Export Diagnostics', category: 'Help' },

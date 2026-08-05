@@ -11,8 +11,19 @@ import { ProjectSidebar } from '../features/sidebar/ProjectSidebar';
 import { StatusBar } from '../features/status/StatusBar';
 import { ToastOutlet } from '../features/toasts/ToastOutlet';
 import { LoadingScreen } from '../features/workbench/LoadingScreen';
+import { PanelDivider } from '../features/workbench/PanelDivider';
 import { Workbench } from '../features/workbench/Workbench';
 import { applyCssTheme } from '../lib/theme-css';
+import {
+    INSPECTOR_DEFAULT_WIDTH,
+    INSPECTOR_MAX_WIDTH,
+    INSPECTOR_MIN_WIDTH,
+    SIDEBAR_DEFAULT_WIDTH,
+    SIDEBAR_MAX_WIDTH,
+    SIDEBAR_MIN_WIDTH,
+    usePanelLayoutStore,
+    usePanelViewportClamp,
+} from '../state/panel-layout';
 import { useTheme } from '../state/selectors';
 import {
     initializeWorkbench,
@@ -34,21 +45,57 @@ function useRuntimeAttachment(): void {
 export default function App() {
     const attached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const theme = useTheme();
+    const sidebarWidth = usePanelLayoutStore((state) => state.sidebarWidth);
+    const inspectorWidth = usePanelLayoutStore((state) => state.inspectorWidth);
+    const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
 
     useRuntimeAttachment();
     useCommandShortcuts();
     useExternalDocumentSync();
+    usePanelViewportClamp();
     useEffect(() => {
         if (theme) applyCssTheme(theme);
     }, [theme]);
+    /**
+     * Only the committed width reaches the DOM through React; a drag in progress writes the same
+     * custom property directly (see `PanelDivider`), so this effect never fires mid-gesture.
+     */
+    useEffect(() => {
+        document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+    }, [sidebarWidth]);
+    useEffect(() => {
+        document.documentElement.style.setProperty('--inspector-width', `${inspectorWidth}px`);
+    }, [inspectorWidth]);
 
     if (!attached) return <LoadingScreen />;
 
     return (
-        <main className="app-shell">
+        <main className={inspectorVisible ? 'app-shell' : 'app-shell inspector-collapsed'}>
             <ProjectSidebar />
+            <PanelDivider
+                ariaLabel="Resize Sidebar"
+                width={sidebarWidth}
+                min={SIDEBAR_MIN_WIDTH}
+                max={SIDEBAR_MAX_WIDTH}
+                defaultWidth={SIDEBAR_DEFAULT_WIDTH}
+                cssVariable="--sidebar-width"
+                growDirection={1}
+                onCommit={(width) => usePanelLayoutStore.getState().setSidebarWidth(width)}
+            />
             <Workbench />
-            <Inspector />
+            {inspectorVisible && (
+                <PanelDivider
+                    ariaLabel="Resize Inspector"
+                    width={inspectorWidth}
+                    min={INSPECTOR_MIN_WIDTH}
+                    max={INSPECTOR_MAX_WIDTH}
+                    defaultWidth={INSPECTOR_DEFAULT_WIDTH}
+                    cssVariable="--inspector-width"
+                    growDirection={-1}
+                    onCommit={(width) => usePanelLayoutStore.getState().setInspectorWidth(width)}
+                />
+            )}
+            {inspectorVisible && <Inspector />}
             <StatusBar />
             <CreateSessionDialog />
             <SettingsDialog />

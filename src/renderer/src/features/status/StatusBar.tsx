@@ -2,6 +2,8 @@ import { PanelRight } from 'lucide-react';
 
 import type { BootstrapState } from '@shared/types';
 
+import { executeCommand } from '../../commands/execute';
+import { usePanelLayoutStore } from '../../state/panel-layout';
 import { useSelectedSession, useSessionTerminals } from '../../state/selectors';
 import { useWorkbenchStore } from '../../state/workbench';
 
@@ -24,6 +26,8 @@ export function StatusBar() {
     const runningCount = useSessionTerminals().filter(
         (terminal) => terminal.lastProcessState === 'running',
     ).length;
+    const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
+    const toggleLabel = inspectorVisible ? 'Hide Inspector' : 'Show Inspector';
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual
@@ -35,7 +39,16 @@ export function StatusBar() {
                 <span className={`statusbar-state ${degraded.className}`}>{degraded.label}</span>
             )}
             <span className="statusbar-count">{runningCount} running</span>
-            <PanelRight size={12} />
+            <button
+                type="button"
+                className="statusbar-toggle"
+                aria-pressed={inspectorVisible}
+                aria-label={toggleLabel}
+                title={toggleLabel}
+                onClick={() => executeCommand('inspector.toggle')}
+            >
+                <PanelRight size={12} />
+            </button>
         </footer>
     );
 }

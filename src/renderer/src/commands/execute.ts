@@ -14,6 +14,7 @@ import {
     restartActiveTerminal,
 } from '../features/terminal/terminal-actions';
 import { useDialogStore } from '../state/dialogs';
+import { usePanelLayoutStore } from '../state/panel-layout';
 import { getBootstrap, selectSelectedProject } from '../state/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../state/session-view';
 import { pushToast, tryCommand } from '../state/toasts';
@@ -57,7 +58,10 @@ export const commandContext: CommandContext = {
         },
     },
     editor: { saveActive: () => void saveActiveEditor() },
-    inspector: { setMode: (mode) => useSessionViewStore.getState().setInspectorMode(mode) },
+    inspector: {
+        setMode: (mode) => useSessionViewStore.getState().setInspectorMode(mode),
+        toggle: () => usePanelLayoutStore.getState().toggleInspector(),
+    },
     dialogs: {
         openSettings: () => useDialogStore.getState().setSettingsOpen(true),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
