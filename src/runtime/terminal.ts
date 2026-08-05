@@ -4,7 +4,7 @@ import { CaxriError, type RuntimeEvent } from '../shared/ipc';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
-import { discoverExecutable } from './agent';
+import { discoverExecutable } from './agents/discovery';
 import type { CaxriDatabase } from './database';
 import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
@@ -34,7 +34,7 @@ interface LiveTerminal {
     metricTimer?: NodeJS.Timeout;
 }
 
-interface TerminalManagerOptions {
+export interface TerminalManagerOptions {
     resolveExecutable?: (kind: TerminalKind) => Promise<string>;
     spawn?: typeof pty.spawn;
 }

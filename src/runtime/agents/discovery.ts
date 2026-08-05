@@ -4,18 +4,8 @@ import { access } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 
-import type { StructuredLogger } from '../shared/node/logger';
-import { safeProcessEnvironment } from '../shared/node/process-environment';
-import type { AgentProvider, AgentSnapshot } from '../shared/types';
-import {
-    defaultAgentStateLocations,
-    processStateToAgentActivity,
-    readClaudeState,
-    readCodexState,
-    type AgentSnapshotContext,
-    type AgentStateLocations,
-} from './agent-state';
-import { SingleFlight } from './single-flight';
+import { safeProcessEnvironment } from '../../shared/node/process-environment';
+import type { AgentProvider } from '../../shared/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -86,12 +76,7 @@ async function findExecutable(name: AgentProvider): Promise<string | undefined> 
     }
 }
 
-export interface AgentAdapter {
-    provider: AgentProvider;
-    snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
-}
-
-async function readVersion(
+export async function readVersion(
     provider: AgentProvider,
     executable: string,
 ): Promise<string | undefined> {
@@ -108,68 +93,5 @@ async function readVersion(
         return version || undefined;
     } catch {
         return undefined;
-    }
-}
-
-function createCliAdapter(provider: AgentProvider, locations: AgentStateLocations): AgentAdapter {
-    return {
-        provider,
-        async snapshot(context): Promise<AgentSnapshot> {
-            const observedAt = Date.now();
-            const [executable, localState] = await Promise.all([
-                discoverExecutable(provider),
-                provider === 'claude'
-                    ? readClaudeState(context, locations.claudeConfigDirectory)
-                    : readCodexState(context, locations.codexStateDirectories),
-            ]);
-            const version = executable ? await readVersion(provider, executable) : undefined;
-            return {
-                provider,
-                status: localState?.status ?? processStateToAgentActivity(context.processState),
-                observedAt,
-                available: Boolean(executable),
-                executable,
-                version,
-                sessionId: localState?.sessionId,
-                title: localState?.title,
-                usage: localState?.usage,
-            };
-        },
-    };
-}
-
-export function createLocalAgentAdapters(
-    locations: AgentStateLocations = defaultAgentStateLocations(),
-): Record<AgentProvider, AgentAdapter> {
-    return {
-        claude: createCliAdapter('claude', locations),
-        codex: createCliAdapter('codex', locations),
-    };
-}
-
-export class AgentService {
-    private readonly requests = new SingleFlight<string, AgentSnapshot>();
-
-    constructor(
-        private readonly logger?: StructuredLogger,
-        private readonly adapters: Record<AgentProvider, AgentAdapter> = createLocalAgentAdapters(),
-    ) {}
-
-    snapshot(
-        provider: AgentProvider,
-        context: AgentSnapshotContext = { rootPath: process.cwd() },
-    ): Promise<AgentSnapshot> {
-        return this.requests.run(
-            `${provider}:${context.rootPath}:${context.agentSessionId ?? ''}`,
-            async () => {
-                const startedAt = performance.now();
-                const snapshot = await this.adapters[provider].snapshot(context);
-                this.logger?.write('info', 'agent.probe', {
-                    durationMs: performance.now() - startedAt,
-                    fields: { provider, available: snapshot.available },
-                });
-                return snapshot;
-            },
-        );
     }
 }

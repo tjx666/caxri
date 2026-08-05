@@ -5,14 +5,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 
-import { StructuredLogger } from '../../shared/node/logger';
-import {
-    AgentService,
-    clearExecutableCache,
-    createLocalAgentAdapters,
-    discoverExecutable,
-    type AgentAdapter,
-} from '../agent';
+import { StructuredLogger } from '../../../shared/node/logger';
+import { clearExecutableCache, discoverExecutable } from '../discovery';
+import { AgentService, createLocalAgentAdapters, type AgentAdapter } from '../service';
 
 const temporaryDirectories: string[] = [];
 
