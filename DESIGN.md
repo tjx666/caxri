@@ -14,6 +14,11 @@ reference this file; deviations require updating this spec first.
    "Restart" — never "Runtime", "hot reload", "last-known-good", "bytes".
 4. **Every color comes from a token.** Zero hardcoded hex in component CSS; themes are
    user-importable, so any literal color is a future light-theme bug.
+5. **Hand-written semantic CSS; no Tailwind or other static design-token compilers.**
+   Theming is runtime CSS variables (users import arbitrary VS Code/iTerm2/Warp themes),
+   which is structurally incompatible with compile-time utility token models. A partial
+   Tailwind setup was deliberately removed in `c42cdbc` after serving only two input
+   controls; do not reintroduce it.
 
 ## Tokens
 

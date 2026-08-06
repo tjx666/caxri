@@ -36,6 +36,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `debug`, `performance`
 - UI strings, code, comments, docs, and commit messages use English.
 - Prefer JSDoc for non-obvious lifecycle/security behavior and document why a workaround exists.
 - Keep the editor intentionally narrow: open/edit/save/in-file search/diff only.
+- Style the Renderer with hand-written semantic CSS on runtime theme variables. Do not introduce Tailwind or other compile-time utility/token frameworks; see the styling principle in `DESIGN.md`.
 - Preserve the explicit external-change rule: disk changes replace dirty editor buffers without prompting.
 - Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state.
 - Let the first Agent Terminal own the Session title, and keep the Info inspector scoped to Terminals actually started in that Session.
