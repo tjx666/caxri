@@ -50,18 +50,23 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
         await running.page.getByRole('button', { name: 'theme.json', exact: true }).click();
         const jsonLine = running.page.locator('.view-line').filter({ hasText: '"name"' });
         await expect(jsonLine).toBeVisible();
-        const jsonTokens = await jsonLine.locator('span span').evaluateAll((elements) =>
-            elements.map((element) => ({
-                color: getComputedStyle(element).color,
-                text: element.textContent,
-            })),
-        );
-        expect(jsonTokens).toEqual(
-            expect.arrayContaining([
-                { color: 'rgb(139, 233, 253)', text: '"name"' },
-                { color: 'rgb(241, 250, 140)', text: '"caxri"' },
-            ]),
-        );
+        // Tokenization runs asynchronously in the language worker, so poll until the line is
+        // split into colored tokens instead of sampling once right after it becomes visible.
+        await expect
+            .poll(() =>
+                jsonLine.locator('span span').evaluateAll((elements) =>
+                    elements.map((element) => ({
+                        color: getComputedStyle(element).color,
+                        text: element.textContent,
+                    })),
+                ),
+            )
+            .toEqual(
+                expect.arrayContaining([
+                    { color: 'rgb(139, 233, 253)', text: '"name"' },
+                    { color: 'rgb(241, 250, 140)', text: '"caxri"' },
+                ]),
+            );
         const booleanLine = running.page.locator('.view-line').filter({ hasText: 'true' });
         await expect(booleanLine.locator('span span').last()).toHaveCSS(
             'color',
