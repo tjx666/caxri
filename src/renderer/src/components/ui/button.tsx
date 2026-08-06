@@ -1,39 +1,40 @@
+import { cva, type VariantProps } from 'class-variance-authority';
 import type { ButtonHTMLAttributes } from 'react';
 
 import { cn } from '@/lib/utils';
 
-type ButtonVariant = 'default' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize = 'default' | 'sm' | 'icon';
+/**
+ * Radius 4 for controls, transitions only the background (DESIGN.md "Spacing and radius").
+ * Variants map 1:1 to the pre-Tailwind `.button-*` classes so behavior is unchanged.
+ */
+const buttonVariants = cva(
+    'inline-flex items-center justify-center gap-2 rounded border border-transparent cursor-pointer transition-[background] duration-75 ease-out disabled:opacity-45 disabled:cursor-not-allowed',
+    {
+        variants: {
+            variant: {
+                default: 'border-accent bg-accent text-accent-foreground hover:brightness-110',
+                secondary: 'border-border bg-elevated hover:bg-[var(--selection)]',
+                ghost: 'bg-transparent hover:bg-[var(--selection)]',
+                danger: 'border-danger bg-danger text-accent-foreground',
+            },
+            size: {
+                default: 'min-h-9 px-3',
+                sm: 'min-h-7 px-2 text-[11px]',
+                icon: 'size-7 p-0',
+            },
+        },
+        defaultVariants: { variant: 'default', size: 'default' },
+    },
+);
 
-const variantClassName: Record<ButtonVariant, string> = {
-    default: 'button-default',
-    secondary: 'button-secondary',
-    ghost: 'button-ghost',
-    danger: 'button-danger',
-};
+export interface ButtonProps
+    extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {}
 
-const sizeClassName: Record<ButtonSize, string> = {
-    default: 'button-md',
-    sm: 'button-sm',
-    icon: 'button-icon',
-};
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: ButtonVariant;
-    size?: ButtonSize;
-}
-
-export function Button({
-    className,
-    variant = 'default',
-    size = 'default',
-    type = 'button',
-    ...props
-}: ButtonProps) {
+export function Button({ className, variant, size, type = 'button', ...props }: ButtonProps) {
     return (
         <button
             type={type}
-            className={cn('button', variantClassName[variant], sizeClassName[size], className)}
+            className={cn(buttonVariants({ variant, size }), className)}
             {...props}
         />
     );

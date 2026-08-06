@@ -3,6 +3,7 @@ import { Activity, Files, GitBranch, Info } from 'lucide-react';
 import type { InspectorMode } from '@shared/types';
 
 import { executeCommand } from '../../commands/execute';
+import { cn } from '../../lib/utils';
 import { useSelectedSession, useSessionState } from '../../state/selectors';
 import { FileTreePanel } from './FileTreePanel';
 import { GitPanel } from './GitPanel';
@@ -28,12 +29,15 @@ export function Inspector() {
     const sessionId = useSelectedSession()?.id;
     const mode = useSessionState()?.inspectorMode ?? 'files';
     return (
-        <aside className="inspector">
-            <div className="inspector-tabs">
+        <aside className="inspector flex min-h-0 flex-col">
+            <div className="inspector-tabs grid grid-cols-4 min-h-9 border-b border-border">
                 {tabs.map(({ id, label, icon: Icon }) => (
                     <button
                         key={id}
-                        className={mode === id ? 'active' : ''}
+                        className={cn(
+                            'flex items-center justify-center gap-1 border-0 border-b-2 border-transparent bg-surface text-muted text-[11px] cursor-pointer hover:text-foreground',
+                            mode === id && 'active border-indicator text-foreground',
+                        )}
                         title={label}
                         onClick={() => executeCommand(inspectorCommands[id])}
                     >

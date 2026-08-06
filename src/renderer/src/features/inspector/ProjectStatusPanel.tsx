@@ -23,6 +23,7 @@ import { useState } from 'react';
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
+import { cn } from '../../lib/utils';
 import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
 import { useSelectedSession } from '../../state/selectors';
 import { buildProjectStatusNodes, type ProjectStatusTreeNode } from './project-status-tree';
@@ -30,12 +31,17 @@ import { buildProjectStatusNodes, type ProjectStatusTreeNode } from './project-s
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_STATUS_REFETCH_INTERVAL_MS = 60_000;
 
+const rowClassName =
+    'project-status-row flex w-full min-w-0 items-center gap-1.5 h-7 pr-2 border-0 bg-surface text-foreground text-left no-underline hover:bg-elevated';
+
 function StateIcon({ state }: { state?: ProjectStatusState }) {
-    if (state === 'success') return <CircleCheck className="state-success" size={14} />;
-    if (state === 'failure') return <CircleX className="state-failure" size={14} />;
-    if (state === 'pending') return <LoaderCircle className="state-pending spinning" size={14} />;
-    if (state === 'neutral') return <Circle className="state-neutral" size={14} />;
-    return <CircleDot className="state-unknown" size={14} />;
+    if (state === 'success')
+        return <CircleCheck className="state-success text-success" size={14} />;
+    if (state === 'failure') return <CircleX className="state-failure text-danger" size={14} />;
+    if (state === 'pending')
+        return <LoaderCircle className="state-pending spinning text-warning" size={14} />;
+    if (state === 'neutral') return <Circle className="state-neutral text-muted" size={14} />;
+    return <CircleDot className="state-unknown text-muted" size={14} />;
 }
 
 function NodeIcon({ node }: { node: ProjectStatusTreeNode }) {
@@ -45,7 +51,8 @@ function NodeIcon({ node }: { node: ProjectStatusTreeNode }) {
     if (node.kind === 'deployment') return <Rocket size={14} />;
     if (node.kind === 'pullRequest') return <GitPullRequest size={14} />;
     if (node.kind === 'hidden') return <EyeOff size={14} />;
-    if (node.kind === 'error') return <AlertTriangle className="state-failure" size={14} />;
+    if (node.kind === 'error')
+        return <AlertTriangle className="state-failure text-danger" size={14} />;
     return <CircleDot size={14} />;
 }
 
@@ -63,12 +70,14 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     <ChevronRight size={13} />
                 )
             ) : (
-                <span className="project-status-indent" />
+                <span className="project-status-indent w-[13px] flex-none" />
             )}
             <NodeIcon node={node} />
-            <span className="project-status-label">{node.label}</span>
+            <span className="project-status-label min-w-0 flex-1 truncate">{node.label}</span>
             {node.description && (
-                <small className="project-status-description">{node.description}</small>
+                <small className="project-status-description flex-[0_1_auto] truncate text-muted text-[11px]">
+                    {node.description}
+                </small>
             )}
         </>
     );
@@ -76,9 +85,12 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
     return (
         <>
             {expandable ? (
-                <div className="project-status-expandable-row" style={style}>
+                <div
+                    className="project-status-expandable-row flex min-w-0 items-center bg-surface"
+                    style={style}
+                >
                     <button
-                        className="project-status-row"
+                        className={cn(rowClassName, 'min-w-0 flex-1 pl-0 cursor-pointer')}
                         aria-expanded={expanded}
                         title={node.label}
                         onClick={() => setExpanded((value) => !value)}
@@ -87,7 +99,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     </button>
                     {node.url && (
                         <a
-                            className="project-status-external"
+                            className="project-status-external grid w-[26px] h-7 place-items-center text-muted hover:text-foreground"
                             href={node.url}
                             target="_blank"
                             rel="noreferrer"
@@ -100,7 +112,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                 </div>
             ) : node.url ? (
                 <a
-                    className="project-status-row"
+                    className={rowClassName}
                     style={style}
                     href={node.url}
                     target="_blank"
@@ -110,7 +122,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     {content}
                 </a>
             ) : (
-                <div className="project-status-row" style={style} title={node.description}>
+                <div className={rowClassName} style={style} title={node.description}>
                     {content}
                 </div>
             )}
@@ -127,17 +139,19 @@ function RepositorySection({ repository }: { repository: ProjectStatusRepository
     const [expanded, setExpanded] = useState(true);
     const Icon = repository.kind === 'submodule' ? Package : Monitor;
     return (
-        <section className="project-status-repository">
+        <section className="project-status-repository border-b border-border">
             <button
-                className="project-status-repository-row"
+                className="project-status-repository-row flex w-full min-w-0 items-center gap-1.5 h-[34px] px-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => setExpanded((value) => !value)}
             >
                 {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <Icon size={15} />
-                <strong>{repository.name}</strong>
-                {repository.kind === 'submodule' && <small>submodule</small>}
+                <strong className="truncate font-semibold">{repository.name}</strong>
+                {repository.kind === 'submodule' && (
+                    <small className="truncate text-muted text-[11px]">submodule</small>
+                )}
             </button>
             {expanded && (
                 <div className="project-status-nodes">
@@ -172,11 +186,16 @@ export function ProjectStatusPanel() {
     const refresh = (): void => void refetch();
     const refreshing = isFetching;
 
-    if (!session) return <div className="empty-panel">Create a Session to inspect status.</div>;
+    if (!session)
+        return (
+            <div className="empty-panel py-4 px-3 text-muted text-center">
+                Create a Session to inspect status.
+            </div>
+        );
     return (
-        <div className="inspector-content project-status-panel">
-            <div className="project-status-heading">
-                <span>
+        <div className="inspector-content project-status-panel flex min-h-0 flex-1 flex-col overflow-auto">
+            <div className="project-status-heading flex min-h-[38px] items-center justify-between pt-1 pr-1.5 pb-1 pl-2.5 border-b border-border uppercase">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.04em]">
                     <Activity size={14} /> Project Status
                 </span>
                 <Button
@@ -190,14 +209,22 @@ export function ProjectStatusPanel() {
                     <RefreshCw className={refreshing ? 'spinning' : undefined} size={14} />
                 </Button>
             </div>
-            {!summary && <div className="empty-panel">Loading Project Status…</div>}
-            {summary?.error && <div className="empty-panel">{summary.error}</div>}
+            {!summary && (
+                <div className="empty-panel py-4 px-3 text-muted text-center">
+                    Loading Project Status…
+                </div>
+            )}
+            {summary?.error && (
+                <div className="empty-panel py-4 px-3 text-muted text-center">{summary.error}</div>
+            )}
             {summary && !summary.error && summary.repositories.length === 0 && (
-                <div className="empty-panel">No repositories found.</div>
+                <div className="empty-panel py-4 px-3 text-muted text-center">
+                    No repositories found.
+                </div>
             )}
             {summary && summary.repositories.length > 0 && (
                 <div
-                    className="project-status-repositories"
+                    className="project-status-repositories min-h-0 flex-1 overflow-auto"
                     aria-label="Project Status repositories"
                 >
                     {summary.repositories.map((repository) => (

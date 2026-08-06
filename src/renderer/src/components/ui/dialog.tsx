@@ -16,7 +16,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
     return (
         <DialogPrimitive.Backdrop
             data-slot="dialog-overlay"
-            className={cn('dialog-overlay', className)}
+            className={cn('fixed inset-0 z-50 bg-overlay backdrop-blur-[2px]', className)}
             {...props}
         />
     );
@@ -33,14 +33,17 @@ export function DialogContent({
             <DialogOverlay />
             <DialogPrimitive.Popup
                 data-slot="dialog-content"
-                className={cn('dialog-content', className)}
+                className={cn(
+                    'fixed top-1/2 left-1/2 z-[51] w-[min(520px,calc(100vw-32px))] max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)]',
+                    className,
+                )}
                 {...props}
             >
                 {children}
                 {showCloseButton && (
                     <DialogPrimitive.Close
                         data-slot="dialog-close"
-                        className="dialog-close"
+                        className="absolute top-2 right-2 grid size-7 place-items-center rounded border-0 bg-transparent p-0 cursor-pointer hover:bg-elevated"
                         aria-label="Close"
                     >
                         <X aria-hidden="true" size={15} />
@@ -52,14 +55,20 @@ export function DialogContent({
 }
 
 export function DialogHeader({ className, ...props }: ComponentProps<'div'>) {
-    return <div data-slot="dialog-header" className={cn('dialog-header', className)} {...props} />;
+    return (
+        <div
+            data-slot="dialog-header"
+            className={cn('border-b border-border pt-4 pr-12 pb-3 pl-4', className)}
+            {...props}
+        />
+    );
 }
 
 export function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     return (
         <DialogPrimitive.Title
             data-slot="dialog-title"
-            className={cn('dialog-title', className)}
+            className={cn('m-0 text-[15px] font-semibold', className)}
             {...props}
         />
     );
@@ -69,7 +78,7 @@ export function DialogDescription({ className, ...props }: DialogPrimitive.Descr
     return (
         <DialogPrimitive.Description
             data-slot="dialog-description"
-            className={cn('dialog-description', className)}
+            className={cn('mt-1 mb-0 text-[11px] leading-[1.45] text-muted', className)}
             {...props}
         />
     );

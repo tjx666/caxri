@@ -14,11 +14,13 @@ reference this file; deviations require updating this spec first.
    "Restart" — never "Runtime", "hot reload", "last-known-good", "bytes".
 4. **Every color comes from a token.** Zero hardcoded hex in component CSS; themes are
    user-importable, so any literal color is a future light-theme bug.
-5. **Hand-written semantic CSS; no Tailwind or other static design-token compilers.**
-   Theming is runtime CSS variables (users import arbitrary VS Code/iTerm2/Warp themes),
-   which is structurally incompatible with compile-time utility token models. A partial
-   Tailwind setup was deliberately removed in `c42cdbc` after serving only two input
-   controls; do not reintroduce it.
+5. **Tailwind v4 utilities over the semantic runtime tokens — and only those tokens.**
+   The color roles below are bridged to Tailwind via `@theme inline`, so utilities like
+   `bg-surface` resolve to the runtime theme variables and imported themes restyle the
+   whole app live — the standard shadcn pattern. The default Tailwind palette is
+   unregistered (`--color-*: initial`): `bg-blue-500` or arbitrary color literals must
+   not compile, which makes rule 4 a build-time guarantee instead of a convention.
+   Non-color scales (spacing, type, radius) use stock Tailwind defaults.
 
 ## Tokens
 

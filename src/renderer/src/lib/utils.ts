@@ -1,12 +1,11 @@
 import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 /**
- * Thin wrapper over `clsx` for conditional class-name composition.
- *
- * Historically this also ran output through `tailwind-merge` to dedupe
- * conflicting Tailwind utility classes, but the app now uses hand-written
- * semantic CSS classes exclusively, so the merge step is unnecessary.
+ * Thin wrapper over `clsx` + `tailwind-merge` for conditional Tailwind class-name
+ * composition: `clsx` resolves conditionals/arrays, `twMerge` dedupes conflicting
+ * utilities (e.g. a caller-supplied `className` overriding a component's own `px-2`).
  */
 export function cn(...inputs: ClassValue[]): string {
-    return clsx(inputs);
+    return twMerge(clsx(inputs));
 }

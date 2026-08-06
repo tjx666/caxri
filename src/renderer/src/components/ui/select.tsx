@@ -15,7 +15,10 @@ export function SelectTrigger({ className, children, ...props }: SelectPrimitive
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
-            className={cn('select-trigger', className)}
+            className={cn(
+                'flex h-9 w-full items-center justify-between gap-2 rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit outline-none transition-[border-color,box-shadow,background-color] duration-150 ease-out focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:overflow-hidden [&>[data-slot=select-value]]:text-ellipsis [&>[data-slot=select-value]]:whitespace-nowrap [&>svg]:flex-none',
+                className,
+            )}
             {...props}
         >
             {children}
@@ -27,10 +30,13 @@ export function SelectTrigger({ className, children, ...props }: SelectPrimitive
 export function SelectContent({ className, children, ...props }: SelectPrimitive.Popup.Props) {
     return (
         <SelectPrimitive.Portal>
-            <SelectPrimitive.Positioner sideOffset={4} className="select-positioner">
+            <SelectPrimitive.Positioner sideOffset={4} className="z-[60]">
                 <SelectPrimitive.Popup
                     data-slot="select-content"
-                    className={cn('select-content', className)}
+                    className={cn(
+                        'max-h-(--available-height) min-w-(--anchor-width) overflow-auto rounded-md bg-elevated p-1 text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]',
+                        className,
+                    )}
                     {...props}
                 >
                     <SelectPrimitive.List>{children}</SelectPrimitive.List>
@@ -44,11 +50,14 @@ export function SelectItem({ className, children, ...props }: SelectPrimitive.It
     return (
         <SelectPrimitive.Item
             data-slot="select-item"
-            className={cn('select-item', className)}
+            className={cn(
+                'relative flex h-7 cursor-default items-center rounded pr-6 pl-2 text-[13px] outline-none data-highlighted:bg-[var(--selection)] data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
+                className,
+            )}
             {...props}
         >
             <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-            <SelectPrimitive.ItemIndicator className="select-item-indicator">
+            <SelectPrimitive.ItemIndicator className="absolute right-2 grid size-4 place-items-center">
                 <Check aria-hidden="true" size={13} />
             </SelectPrimitive.ItemIndicator>
         </SelectPrimitive.Item>

@@ -16,6 +16,9 @@ interface EntryProps {
     depth?: number;
 }
 
+const treeRowClassName =
+    'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed';
+
 function DirectoryEntries({ sessionId, directory, depth = 0 }: EntryProps) {
     const {
         data: entries = [],
@@ -50,13 +53,13 @@ function FileTreeItem({
         return (
             <div>
                 <button
-                    className="tree-row"
+                    className={treeRowClassName}
                     style={{ paddingLeft: 8 + depth * 12 }}
                     onClick={() => setExpanded((value) => !value)}
                 >
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <FileTypeIcon entry={entry} expanded={expanded} />
-                    <span>{entry.name}</span>
+                    <span className="truncate">{entry.name}</span>
                 </button>
                 {expanded && (
                     <DirectoryEntries
@@ -70,7 +73,7 @@ function FileTreeItem({
     }
     return (
         <button
-            className="tree-row"
+            className={treeRowClassName}
             style={{ paddingLeft: 23 + depth * 12 }}
             disabled={entry.kind === 'symlink'}
             title={
@@ -79,7 +82,7 @@ function FileTreeItem({
             onClick={() => void openFile(entry.path)}
         >
             <FileTypeIcon entry={entry} />
-            <span>{entry.name}</span>
+            <span className="truncate">{entry.name}</span>
         </button>
     );
 }
@@ -95,13 +98,21 @@ export function FileTreePanel() {
      * `useRuntimeQueryInvalidation` pass because it needs the per-directory targeting.
      */
     useFileTreeInvalidation(sessionId);
-    if (!session) return <div className="empty-panel">Create a Session to browse files.</div>;
+    if (!session)
+        return (
+            <div className="empty-panel py-4 px-3 text-muted text-center">
+                Create a Session to browse files.
+            </div>
+        );
     /** Keyed by Session so expansion state from another Project root is never reused. */
     return (
-        <div key={session.id} className="inspector-content">
-            <div className="panel-caption">
-                <span title={session.rootPath}>{session.rootPath}</span>
+        <div key={session.id} className="inspector-content min-h-0 flex-1 overflow-auto">
+            <div className="panel-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]">
+                <span className="truncate" title={session.rootPath}>
+                    {session.rootPath}
+                </span>
                 <Button
+                    className="shrink-0"
                     size="icon"
                     variant="ghost"
                     aria-label="Collapse Folders"
