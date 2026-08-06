@@ -1,5 +1,7 @@
 node_modules/
 out/
+# Local clones of competitor/agent-CLI repositories for analysis (see .agents/skills/competitors)
+/competitors/
 dist/
 /logs/
 /release/

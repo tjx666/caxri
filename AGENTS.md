@@ -18,7 +18,7 @@
 
 ## Skills
 
-Detailed playbooks live under `.agents/skills/` (`build`, `debug`, `performance`, `project-architecture`, `quality-check`, `release`, `test`). `.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for step-by-step workflows beyond this summary.
+Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`, `performance`, `project-architecture`, `quality-check`, `release`, `test`). `.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for step-by-step workflows beyond this summary.
 
 ## Architecture boundaries
 
