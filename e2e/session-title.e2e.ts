@@ -101,9 +101,10 @@ done
     }
 });
 
-test('starting Claude in a Shell promotes the Terminal to Claude Code', async () => {
+test('starting Claude through a Shell alias promotes the Terminal to Claude Code', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-shell-claude-e2e-'));
     const userData = join(testDirectory, 'user-data');
+    const home = join(testDirectory, 'home');
     const root = join(testDirectory, 'project');
     const bin = join(testDirectory, 'bin');
     const state = join(testDirectory, 'claude-state');
@@ -111,13 +112,14 @@ test('starting Claude in a Shell promotes the Terminal to Claude Code', async ()
     const executable = join(bin, 'claude');
     await Promise.all([
         mkdir(root, { recursive: true }),
+        mkdir(home, { recursive: true }),
         mkdir(bin, { recursive: true }),
         mkdir(sessions, { recursive: true }),
     ]);
     const canonicalRoot = await realpath(root);
     await writeFile(
         executable,
-        `#!/bin/sh
+        `#!/bin/zsh
 if [ "$1" = "--version" ]; then
   printf 'claude-test 1.0\\n'
   exit 0
@@ -125,16 +127,20 @@ fi
 now_ms="$(date +%s)999"
 printf '{"cwd":"${canonicalRoot}","name":"Claude from Shell","sessionId":"shell-claude-session","startedAt":%s,"updatedAt":%s,"status":"busy"}\\n' "$now_ms" "$now_ms" > "$CLAUDE_CONFIG_DIR/sessions/current.json"
 printf 'Fake Claude ready\\n'
-while :; do sleep 1; done
+# Rename to the provider executable and keep emitting output like a real Agent TUI:
+# foreground-process probes are bounded and only run when Terminal output arrives.
+exec -a claude /bin/zsh -c 'while :; do printf "tick\\n"; sleep 1; done'
 `,
         'utf8',
     );
     await chmod(executable, 0o700);
+    await writeFile(join(home, '.zshrc'), 'alias ccy=claude\n', 'utf8');
 
     const { app, page } = await launchCaxri({
         userDataDir: userData,
         testRootPath: root,
         env: {
+            HOME: home,
             PATH: `${bin}:${process.env.PATH ?? ''}`,
             CLAUDE_CONFIG_DIR: state,
         },
@@ -143,7 +149,7 @@ while :; do sleep 1; done
         await createShellSession(page);
         await expect(page.locator('.session-card strong')).toHaveText('Shell');
 
-        await typeTerminal(page, 'claude');
+        await typeTerminal(page, 'ccy');
 
         await expect(page.locator('.session-card strong')).toHaveText('Claude from Shell');
         await expect(page.getByRole('tab', { name: 'Claude Code' })).toBeVisible();

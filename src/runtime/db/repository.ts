@@ -112,30 +112,35 @@ export class CaxriDatabase {
     }
 
     /**
-     * Atomically reclassifies a live Shell after a direct Agent command produced matching provider
-     * metadata. The session claim, primary-title assignment, and Agent session binding become
-     * visible together, so the Renderer never observes a half-promoted Terminal.
+     * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider.
+     * Optional metadata is committed in the same transaction when it already exists; otherwise the
+     * Agent coordinator can publish the correct Terminal identity before the first provider session
+     * record is written.
      */
-    promoteShellToAgent(terminalId: string, snapshot: AgentSnapshot): boolean {
+    promoteShellToAgent(
+        terminalId: string,
+        provider: AgentProvider,
+        snapshot?: AgentSnapshot,
+    ): boolean {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
-            const agentSessionId = snapshot.sessionId?.trim();
-            if (!terminal || terminal.kind !== 'shell' || terminal.provider || !agentSessionId)
-                return false;
+            if (!terminal || terminal.kind !== 'shell' || terminal.provider) return false;
+            if (snapshot?.provider !== undefined && snapshot.provider !== provider) return false;
+            const agentSessionId = snapshot?.sessionId?.trim();
             if (
-                this.claimedAgentSessionIdsForProvider(snapshot.provider, terminalId).includes(
+                agentSessionId &&
+                this.claimedAgentSessionIdsForProvider(provider, terminalId).includes(
                     agentSessionId,
                 )
-            ) {
+            )
                 return false;
-            }
             const session = this.db.sessions.get(terminal.sessionId);
             if (!session) return false;
             if (
                 !this.db.terminals.promoteShellToAgent(
                     terminal.id,
-                    snapshot.provider,
-                    defaultTerminalTitle(snapshot.provider),
+                    provider,
+                    defaultTerminalTitle(provider),
                 )
             ) {
                 return false;
@@ -143,6 +148,7 @@ export class CaxriDatabase {
             const promoted = this.db.terminals.get(terminal.id)!;
             const assignment = choosePrimaryAgentForNewTerminal(session, promoted);
             if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
+            if (!snapshot) return true;
             const updatedSession = this.db.sessions.get(session.id)!;
             const decision = decideAgentMetadataUpdate(promoted, updatedSession, snapshot);
             if (!decision)

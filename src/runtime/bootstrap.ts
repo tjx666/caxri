@@ -96,7 +96,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         (event) => {
             send(event);
             if (event.event === 'terminal.output')
-                coordinator.observeOutput(event.payload.terminalId);
+                coordinator.observeOutput(
+                    event.payload.terminalId,
+                    terminals.processId(event.payload.terminalId),
+                );
         },
         logger,
         deps.terminal,

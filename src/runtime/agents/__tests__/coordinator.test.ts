@@ -81,6 +81,90 @@ describe('AgentCoordinator', () => {
         },
     );
 
+    it('promotes a Shell alias as soon as its foreground Codex process is confirmed', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-codex-alias-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const detectForegroundAgent = vi.fn(() => Promise.resolve('codex' as const));
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { detectForegroundAgent, refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal.id, 'cxy\r');
+            coordinator.observeOutput(created.terminal.id, 4242);
+
+            await expect
+                .poll(() => database.getTerminal(created.terminal.id)?.provider)
+                .toBe('codex');
+            expect(detectForegroundAgent).toHaveBeenCalledWith(4242);
+            expect(database.getTerminal(created.terminal.id)).toMatchObject({
+                agentSessionId: undefined,
+                icon: 'codex',
+                kind: 'codex',
+                title: 'Codex',
+            });
+            expect(database.getSession(created.session.id)).toMatchObject({
+                displayTitle: 'Codex',
+                primaryAgentTerminalId: created.terminal.id,
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('bounds foreground process probes for a chatty non-Agent command', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-probe-bound-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const detectForegroundAgent = vi.fn(() => Promise.resolve(undefined));
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.reject(new Error('metadata probing must not run without a provider')),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { detectForegroundAgent, refreshDelayMs: 5 },
+        );
+        /** Fake only Date so the probe-interval clock advances without touching real timers. */
+        vi.useFakeTimers({ toFake: ['Date'] });
+
+        try {
+            coordinator.observeInput(created.terminal.id, 'tail -f dev.log\r');
+            // Simulate a long-lived command emitting output far past the probe budget.
+            for (let round = 0; round < 10; round += 1) {
+                for (let chunk = 0; chunk < 20; chunk += 1)
+                    coordinator.observeOutput(created.terminal.id, 4242);
+                await new Promise((resolve) => setTimeout(resolve, 5));
+                vi.setSystemTime(Date.now() + 2_100);
+            }
+            expect(detectForegroundAgent.mock.calls.length).toBeLessThanOrEqual(5);
+            expect(snapshot).not.toHaveBeenCalled();
+            expect(database.getTerminal(created.terminal.id)?.provider).toBeUndefined();
+        } finally {
+            vi.useRealTimers();
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('keeps a Shell Terminal unchanged when an Agent command has no matching metadata', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-unconfirmed-agent-'));
         temporaryDirectories.push(directory);

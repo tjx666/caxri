@@ -5,11 +5,14 @@ import type { StructuredLogger } from '../../shared/node/logger';
 import type { TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db/repository';
+import { detectForegroundAgentProvider } from './process-detection';
 import type { AgentService } from './service';
 
 const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;
 const MAX_SHELL_COMMAND_LENGTH = 4_096;
+const MAX_SHELL_PROCESS_PROBES = 5;
 const MAX_SHELL_PROMOTION_PROBES = 3;
+const SHELL_PROCESS_PROBE_INTERVAL_MS = 1_000;
 const SHELL_PROMOTION_WINDOW_MS = 30_000;
 
 interface ShellInputState {
@@ -20,7 +23,9 @@ interface ShellInputState {
 interface ShellPromotionCandidate {
     attempts: number;
     expiresAt: number;
-    provider: AgentProvider;
+    nextProcessProbeAt: number;
+    processProbes: number;
+    provider?: AgentProvider;
     startedAt: number;
 }
 
@@ -36,9 +41,16 @@ function directAgentProvider(command: string): AgentProvider | undefined {
     return basename ? providerByExecutableName.get(basename) : undefined;
 }
 
+function canInspectShellLaunch(command: string): boolean {
+    const normalized = command.trim();
+    return Boolean(normalized) && !/[;&|<>]/.test(normalized);
+}
+
 export interface AgentCoordinatorOptions {
     /** Trailing delay before Agent Terminal output refreshes durable Agent metadata. */
     refreshDelayMs?: number;
+    /** Test seam for the bounded foreground-process probe used to resolve shell aliases. */
+    detectForegroundAgent?: (shellPid: number) => Promise<AgentProvider | undefined>;
 }
 
 /**
@@ -48,8 +60,12 @@ export interface AgentCoordinatorOptions {
  */
 export class AgentCoordinator {
     private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
+    private readonly detectForegroundAgent: (
+        shellPid: number,
+    ) => Promise<AgentProvider | undefined>;
     private readonly refreshes: CoalescedScheduler<string>;
     private readonly shellInputs = new Map<string, ShellInputState>();
+    private readonly shellProcessDetections = new Map<string, ShellPromotionCandidate>();
     private readonly shellPromotionCandidates = new Map<string, ShellPromotionCandidate>();
     private readonly startedAtByTerminal = new Map<string, number>();
 
@@ -60,6 +76,7 @@ export class AgentCoordinator {
         private readonly logger: StructuredLogger,
         options: AgentCoordinatorOptions = {},
     ) {
+        this.detectForegroundAgent = options.detectForegroundAgent ?? detectForegroundAgentProvider;
         this.refreshes = new CoalescedScheduler(
             options.refreshDelayMs ?? AGENT_METADATA_REFRESH_DELAY_MS,
             (terminalId: string) => this.probe(terminalId),
@@ -84,16 +101,18 @@ export class AgentCoordinator {
         for (const character of normalized) {
             if (character === '\r' || character === '\n') {
                 if (state.valid && state.command.trim()) {
-                    const provider = directAgentProvider(state.command);
-                    if (provider) {
+                    if (canInspectShellLaunch(state.command)) {
                         const startedAt = Date.now();
+                        const provider = directAgentProvider(state.command);
                         this.shellPromotionCandidates.set(terminalId, {
                             attempts: 0,
                             expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
+                            nextProcessProbeAt: 0,
+                            processProbes: 0,
                             provider,
                             startedAt,
                         });
-                        this.refreshes.schedule(terminalId);
+                        if (provider) this.refreshes.schedule(terminalId);
                     } else {
                         this.shellPromotionCandidates.delete(terminalId);
                     }
@@ -123,10 +142,11 @@ export class AgentCoordinator {
     }
 
     /**
-     * Agent membership normally comes from the durable provider. A Shell with a direct-command
-     * candidate may enter the same coalesced probe path, but only provider metadata can promote it.
+     * Agent membership normally comes from the durable provider. A Shell with a simple-command
+     * candidate first confirms its foreground process; direct commands retain metadata probing as a
+     * fallback when process inspection is unavailable.
      */
-    observeOutput(terminalId: string): void {
+    observeOutput(terminalId: string, shellPid?: number): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal) return;
         if (!terminal.provider) {
@@ -136,6 +156,8 @@ export class AgentCoordinator {
                 this.shellPromotionCandidates.delete(terminalId);
                 return;
             }
+            if (shellPid !== undefined) this.detectShellPromotion(terminalId, shellPid, candidate);
+            if (!candidate.provider) return;
         }
         this.refreshes.schedule(terminalId);
     }
@@ -146,6 +168,7 @@ export class AgentCoordinator {
         if (!terminal?.provider) return;
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
+        this.shellProcessDetections.delete(terminalId);
         const startedAt = Date.now();
         const excluded = new Set(this.excludedAgentSessionIdsByTerminal.get(terminalId));
         if (terminal.agentSessionId) excluded.add(terminal.agentSessionId);
@@ -171,6 +194,7 @@ export class AgentCoordinator {
         this.excludedAgentSessionIdsByTerminal.delete(terminalId);
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
+        this.shellProcessDetections.delete(terminalId);
         this.startedAtByTerminal.delete(terminalId);
     }
 
@@ -180,6 +204,7 @@ export class AgentCoordinator {
             this.excludedAgentSessionIdsByTerminal.delete(terminal.id);
             this.shellInputs.delete(terminal.id);
             this.shellPromotionCandidates.delete(terminal.id);
+            this.shellProcessDetections.delete(terminal.id);
             this.startedAtByTerminal.delete(terminal.id);
         }
     }
@@ -188,6 +213,57 @@ export class AgentCoordinator {
         this.refreshes.close();
         this.shellInputs.clear();
         this.shellPromotionCandidates.clear();
+        this.shellProcessDetections.clear();
+    }
+
+    /**
+     * Every simple command opens a promotion window, and chatty commands (dev servers, tails) emit
+     * output for the whole window, so process inspection must be bounded per candidate: at most
+     * `MAX_SHELL_PROCESS_PROBES` spaced probes, after which an alias candidate (no direct provider)
+     * is dropped because nothing else can ever promote it.
+     */
+    private detectShellPromotion(
+        terminalId: string,
+        shellPid: number,
+        candidate: ShellPromotionCandidate,
+    ): void {
+        if (this.shellProcessDetections.get(terminalId) === candidate) return;
+        const now = Date.now();
+        if (now < candidate.nextProcessProbeAt) return;
+        if (candidate.processProbes >= MAX_SHELL_PROCESS_PROBES) {
+            if (!candidate.provider) this.shellPromotionCandidates.delete(terminalId);
+            return;
+        }
+        candidate.processProbes += 1;
+        candidate.nextProcessProbeAt = now + SHELL_PROCESS_PROBE_INTERVAL_MS;
+        this.shellProcessDetections.set(terminalId, candidate);
+        void this.detectForegroundAgent(shellPid)
+            .then((provider) => {
+                if (
+                    !provider ||
+                    this.shellPromotionCandidates.get(terminalId) !== candidate ||
+                    candidate.expiresAt < Date.now() ||
+                    (candidate.provider && candidate.provider !== provider)
+                ) {
+                    return;
+                }
+                if (!this.database.promoteShellToAgent(terminalId, provider)) return;
+                this.shellInputs.delete(terminalId);
+                this.shellPromotionCandidates.delete(terminalId);
+                this.startedAtByTerminal.set(terminalId, candidate.startedAt);
+                this.emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
+                this.refreshes.schedule(terminalId);
+            })
+            .catch((error: unknown) => {
+                /** Process inspection is a recoverable capability miss; direct metadata probing remains available. */
+                this.logger.write('warn', 'agent.process_probe_failed', {
+                    fields: { terminalId, error: errorMessage(error, 'unknown') },
+                });
+            })
+            .finally(() => {
+                if (this.shellProcessDetections.get(terminalId) === candidate)
+                    this.shellProcessDetections.delete(terminalId);
+            });
     }
 
     private async probe(terminalId: string, retryClaim = true): Promise<void> {
@@ -237,7 +313,8 @@ export class AgentCoordinator {
         retryClaim: boolean,
     ): Promise<void> {
         const candidate = this.shellPromotionCandidates.get(terminal.id);
-        if (!candidate || terminal.kind !== 'shell') return;
+        if (!candidate?.provider || terminal.kind !== 'shell') return;
+        const provider = candidate.provider;
         if (candidate.expiresAt < Date.now()) {
             this.shellPromotionCandidates.delete(terminal.id);
             return;
@@ -245,10 +322,10 @@ export class AgentCoordinator {
         const session = this.database.getSession(terminal.sessionId);
         if (!session) return;
         candidate.attempts += 1;
-        const snapshot = await this.agents.snapshot(candidate.provider, {
+        const snapshot = await this.agents.snapshot(provider, {
             correlationId: `${terminal.id}:shell-promotion:${candidate.startedAt}`,
             excludedAgentSessionIds: this.database.claimedAgentSessionIdsForProvider(
-                candidate.provider,
+                provider,
                 terminal.id,
             ),
             rootPath: session.rootPath,
@@ -266,7 +343,7 @@ export class AgentCoordinator {
                 this.refreshes.schedule(terminal.id);
             return;
         }
-        if (!this.database.promoteShellToAgent(terminal.id, snapshot)) {
+        if (!this.database.promoteShellToAgent(terminal.id, provider, snapshot)) {
             if (retryClaim) await this.probe(terminal.id, false);
             return;
         }
