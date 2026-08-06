@@ -83,7 +83,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     }, []);
 
     useEffect(() => {
-        if (!fontsReady || !containerRef.current) return;
+        const container = containerRef.current;
+        if (!fontsReady || !container) return;
         const latest = latestRef.current;
         const xterm = new Terminal({
             allowProposedApi: false,
@@ -99,10 +100,30 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         const search = new SearchAddon();
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
-        xterm.open(containerRef.current);
+        xterm.open(container);
         xtermRef.current = xterm;
-        const replay = new TerminalReplayBuffer((value) => xterm.write(value));
+        const replay = new TerminalReplayBuffer(
+            (value) => new Promise<void>((resolve) => xterm.write(value, resolve)),
+        );
         let disposed = false;
+        let lastSentSize: TerminalSize | undefined;
+
+        const fitAndResize = (): void => {
+            try {
+                fit.fit();
+                if (latestRef.current.processState !== 'running') return;
+                const size = { cols: xterm.cols, rows: xterm.rows };
+                if (!terminalSizeChanged(lastSentSize, size)) return;
+                lastSentSize = size;
+                void caxri.request('terminal.resize', { terminalId, ...size }).catch(() => {
+                    /** Runtime restarts can reject a resize; allow the next layout observation to retry it. */
+                    if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows)
+                        lastSentSize = undefined;
+                });
+            } catch {
+                // The pane may be between layout and disposal during a Session switch.
+            }
+        };
 
         const dataDisposable = xterm.onData((data) => {
             if (latestRef.current.processState !== 'running') return;
@@ -119,39 +140,29 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                     `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
                 );
         });
-        void caxri
-            .request('terminal.attach', { terminalId })
-            .then((snapshot) => {
-                if (!disposed) replay.restore(snapshot?.payload ?? '');
-            })
-            .catch((error: unknown) => {
-                if (disposed) return;
-                replay.restore('');
-                onError(errorMessage(error, 'Terminal attachment failed'));
-            });
-        let lastSentSize: TerminalSize | undefined;
-        const observer = new ResizeObserver(() => {
+        const observer = new ResizeObserver(fitAndResize);
+        /** Restore into the final visible grid instead of xterm's default 80x24 viewport. */
+        fit.fit();
+        const initialize = async (): Promise<void> => {
+            let payload = '';
             try {
-                fit.fit();
-                if (latestRef.current.processState === 'running') {
-                    const size = { cols: xterm.cols, rows: xterm.rows };
-                    if (!terminalSizeChanged(lastSentSize, size)) return;
-                    lastSentSize = size;
-                    void caxri.request('terminal.resize', {
-                        terminalId,
-                        ...size,
-                    });
-                }
-            } catch {
-                // The pane may be between layout and disposal during a Session switch.
+                payload = (await caxri.request('terminal.attach', { terminalId }))?.payload ?? '';
+            } catch (error) {
+                if (!disposed) onError(errorMessage(error, 'Terminal attachment failed'));
             }
-        });
-        observer.observe(containerRef.current);
-        requestAnimationFrame(() => {
-            fit.fit();
-            if (latestRef.current.active && latestRef.current.processState === 'running')
-                xterm.focus();
-        });
+            if (disposed) return;
+            await replay.restore(payload);
+            if (disposed) return;
+            /** Resize only after xterm has parsed the snapshot and every output event buffered behind it. */
+            fitAndResize();
+            observer.observe(container);
+            requestAnimationFrame(() => {
+                if (disposed) return;
+                if (latestRef.current.active && latestRef.current.processState === 'running')
+                    xterm.focus();
+            });
+        };
+        void initialize();
 
         return () => {
             disposed = true;

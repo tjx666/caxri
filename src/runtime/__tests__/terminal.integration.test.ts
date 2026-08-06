@@ -15,8 +15,17 @@ const temporaryDirectories: string[] = [];
 function createFakePty() {
     let onData: ((data: string) => void) | undefined;
     let onExit: ((event: { exitCode: number; signal?: number }) => void) | undefined;
+    let cols = 100;
+    let rows = 30;
     const kill = vi.fn();
+    const resize = vi.fn((nextCols: number, nextRows: number) => {
+        cols = nextCols;
+        rows = nextRows;
+    });
     const process = {
+        get cols() {
+            return cols;
+        },
         kill,
         onData: vi.fn((listener: (data: string) => void) => {
             onData = listener;
@@ -26,7 +35,10 @@ function createFakePty() {
             onExit = listener;
             return { dispose: vi.fn() };
         }),
-        resize: vi.fn(),
+        resize,
+        get rows() {
+            return rows;
+        },
         write: vi.fn(),
     } as unknown as IPty;
     return {
@@ -34,6 +46,7 @@ function createFakePty() {
         emitExit: (event: { exitCode: number; signal?: number }) => onExit?.(event),
         kill,
         process,
+        resize,
     };
 }
 
@@ -133,6 +146,34 @@ describe('TerminalManager', () => {
 
         try {
             expect(output).toBe('');
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('does not resize a live PTY when its grid dimensions are unchanged', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-resize-dedup-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            expect(manager.resize(created.terminal.id, 100, 30)).toBe(true);
+            expect(fake.resize).not.toHaveBeenCalled();
+
+            expect(manager.resize(created.terminal.id, 120, 40)).toBe(true);
+            expect(manager.resize(created.terminal.id, 120, 40)).toBe(true);
+            expect(fake.resize).toHaveBeenCalledOnce();
+            expect(fake.resize).toHaveBeenCalledWith(120, 40);
         } finally {
             manager.close(created.terminal.id);
             database.close();

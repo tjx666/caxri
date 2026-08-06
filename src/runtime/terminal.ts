@@ -260,6 +260,8 @@ export class TerminalManager {
         const live = this.terminals.get(terminalId);
         /** ResizeObserver callbacks may likewise arrive after the PTY has exited or its pane has detached. */
         if (!live) return false;
+        /** A remounted Renderer forgets its last grid; avoid turning that first measurement into a redundant SIGWINCH. */
+        if (live.process.cols === cols && live.process.rows === rows) return true;
         live.process.resize(cols, rows);
         return true;
     }
