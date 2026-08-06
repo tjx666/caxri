@@ -143,6 +143,9 @@ exec -a claude /bin/zsh -c 'while :; do printf "tick\\n"; sleep 1; done'
             HOME: home,
             PATH: `${bin}:${process.env.PATH ?? ''}`,
             CLAUDE_CONFIG_DIR: state,
+            // CI runners default SHELL to /bin/bash, which never reads the .zshrc that defines
+            // the alias; pin zsh so the promotion flow under test is deterministic everywhere.
+            SHELL: '/bin/zsh',
         },
     });
     try {
