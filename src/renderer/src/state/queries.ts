@@ -1,9 +1,6 @@
 import {
-    useMutation,
     useQuery,
     useQueryClient,
-    type UseMutationOptions,
-    type UseMutationResult,
     type UseQueryOptions,
     type UseQueryResult,
 } from '@tanstack/react-query';
@@ -50,21 +47,6 @@ export function useCaxriQuery<M extends CaxriMethod>(
     return useQuery({
         queryKey: caxriQueryKey(method, params),
         queryFn: () => caxri.request(method, ...([params] as ParamsArg<M>)),
-        ...options,
-    });
-}
-
-/**
- * Typed `useMutation` over a Caxri RPC method. `onSuccess`/`onSettled` is where a call site
- * invalidates the queries the write affects, replacing the repeated `.then(refresh).catch(toast)`
- * idiom with the standard React Query write path.
- */
-export function useCaxriMutation<M extends CaxriMethod>(
-    method: M,
-    options?: Omit<UseMutationOptions<MethodResult<M>, Error, MethodParams<M>>, 'mutationFn'>,
-): UseMutationResult<MethodResult<M>, Error, MethodParams<M>> {
-    return useMutation({
-        mutationFn: (params) => caxri.request(method, ...([params] as ParamsArg<M>)),
         ...options,
     });
 }

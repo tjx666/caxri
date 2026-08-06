@@ -6,8 +6,10 @@
 - Start the Electron app: `bun run dev`
 - Format: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
-- Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--staged]`
+- Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]`
 - Validate: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run test:e2e`
+- CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
+- `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Build/package: `bun run build`, `bun run package`

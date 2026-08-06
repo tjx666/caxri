@@ -6,6 +6,7 @@ describe('parseCheckArgs', () => {
     it('defaults to lint and related tests', () => {
         expect(parseCheckArgs(['src/main/index.ts'])).toEqual({
             files: ['src/main/index.ts'],
+            knip: false,
             lint: true,
             staged: false,
             test: true,
@@ -16,10 +17,22 @@ describe('parseCheckArgs', () => {
     it('uses explicit selectors without adding defaults', () => {
         expect(parseCheckArgs(['--staged', '--type'])).toEqual({
             files: [],
+            knip: false,
             lint: false,
             staged: true,
             test: false,
             type: true,
+        });
+    });
+
+    it('treats --knip as an explicit selector that suppresses defaults', () => {
+        expect(parseCheckArgs(['--knip'])).toEqual({
+            files: [],
+            knip: true,
+            lint: false,
+            staged: false,
+            test: false,
+            type: false,
         });
     });
 });

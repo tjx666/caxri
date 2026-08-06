@@ -12,6 +12,7 @@ const TEST_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
 
 export interface CheckOptions {
     files: string[];
+    knip: boolean;
     lint: boolean;
     staged: boolean;
     test: boolean;
@@ -32,12 +33,13 @@ interface ProcessFailure extends Error {
     stdout?: Buffer | string;
 }
 
-const usage = `Usage: bun run check [files...] [--lint] [--test] [--type] [--staged]
+const usage = `Usage: bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]
 
 Selectors:
   --lint     Autofix supported changed files with ESLint and Prettier
   --test     Run changed tests and colocated tests for changed source files
   --type     Run the repository-wide TypeScript check
+  --knip     Run the repository-wide dead code/export check (CI blocking)
   --staged   Discover only staged files when no file arguments are supplied
 
 With no selector, --lint and --test are enabled.`;
@@ -45,6 +47,7 @@ With no selector, --lint and --test are enabled.`;
 export function parseCheckArgs(args: string[]): CheckOptions {
     const options: CheckOptions = {
         files: [],
+        knip: false,
         lint: false,
         staged: false,
         test: false,
@@ -56,6 +59,9 @@ export function parseCheckArgs(args: string[]): CheckOptions {
             case '--help':
             case '-h':
                 throw new CheckError(usage, 0);
+            case '--knip':
+                options.knip = true;
+                break;
             case '--lint':
                 options.lint = true;
                 break;
@@ -76,7 +82,7 @@ export function parseCheckArgs(args: string[]): CheckOptions {
         }
     }
 
-    if (!options.lint && !options.test && !options.type) {
+    if (!options.knip && !options.lint && !options.test && !options.type) {
         options.lint = true;
         options.test = true;
     }
@@ -214,6 +220,10 @@ async function main(): Promise<void> {
     if (options.type) {
         await runCapture('bun', ['run', 'typecheck'], root);
         summaries.push('typecheck');
+    }
+    if (options.knip) {
+        await runTool(root, 'knip', []);
+        summaries.push('knip');
     }
 
     console.log(`✓ check · ${files.length} changed · ${summaries.join(' · ')}`);
