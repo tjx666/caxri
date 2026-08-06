@@ -14,6 +14,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # React Doctor reports only issues new relative to the push/PR base; a shallow
+          # checkout breaks that base detection and it falls back to reporting every
+          # existing issue (https://www.react.doctor/docs/ci-and-prs/github-actions-setup).
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22
