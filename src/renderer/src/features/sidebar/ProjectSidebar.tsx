@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import type { AgentActivityState } from '@shared/types';
 
+import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
 import { executeCommand } from '../../commands/execute';
@@ -18,6 +19,8 @@ import {
 import { beginSessionCreation, selectProject, selectSession } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
+/** Vite serves this repo-only asset in development without bundling it into production. */
+const sidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
 
 /** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
 const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
@@ -56,9 +59,15 @@ export function ProjectSidebar() {
     return (
         <aside className="session-sidebar group flex min-w-0 flex-col bg-surface">
             <div
-                className="sidebar-title flex min-h-11 items-center justify-end border-b border-border py-0 pr-2 pl-[84px] font-semibold"
+                className="sidebar-title flex min-h-11 items-center justify-between border-b border-border py-0 pr-2 pl-[84px] font-semibold"
                 style={{ WebkitAppRegion: 'drag' } as CSSProperties}
             >
+                <img
+                    src={sidebarLogoUrl}
+                    alt="Caxri"
+                    className="h-7 w-7 object-contain"
+                    data-caxri-logo
+                />
                 <Button
                     size="icon"
                     variant="ghost"

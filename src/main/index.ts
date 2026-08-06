@@ -24,6 +24,7 @@ import {
 import { StructuredLogger } from '../shared/node/logger';
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
+import { resolveDevelopmentDockIconPath } from './app-icon';
 import { decideCrashRecovery } from './crash-policy';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
@@ -536,6 +537,11 @@ async function installMenu(): Promise<void> {
 }
 
 void app.whenReady().then(async () => {
+    const developmentDockIconPath = resolveDevelopmentDockIconPath({
+        currentDirectory,
+        isPackaged: app.isPackaged,
+    });
+    if (developmentDockIconPath && app.dock) app.dock.setIcon(developmentDockIconPath);
     const userDataPath = app.getPath('userData');
     const logDirectory = resolveLogDirectory({
         currentDirectory,
