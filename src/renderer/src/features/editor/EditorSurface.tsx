@@ -3,8 +3,8 @@ import { lazy, Suspense, useEffect } from 'react';
 import { editorModelPath } from '@shared/editor-state';
 import { parseGitDiffTab } from '@shared/git-diff';
 
-import { useSelectedSession, useTheme } from '../../state/selectors';
-import { useDocument } from '../../state/session-view';
+import { useSelectedSession, useTheme } from '../../stores/selectors';
+import { useDocument } from '../../stores/session-view';
 import { cacheDocument, changeDocument } from './document-actions';
 
 const CodeEditor = lazy(() => import('./CodeEditor'));

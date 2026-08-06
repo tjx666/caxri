@@ -3,13 +3,13 @@ import { basename } from 'node:path';
 
 import { asc, eq } from 'drizzle-orm';
 
-import type { ProjectRecord } from '../../shared/types';
-import { projects } from './schema';
-import type { CaxriDrizzleDatabase } from './sqlite';
+import type { ProjectRecord } from '../../../shared/types';
+import { projects } from '../schema';
+import type { CaxriDrizzleDatabase } from '../connection';
 
 /**
  * Pure CRUD over the `projects` table. Deletion-fallback selection and every other cross-record
- * decision live in `../../session-policy`, not here.
+ * decision live in `../../session-policy.ts`, not here.
  */
 export class ProjectsStore {
     constructor(private readonly db: CaxriDrizzleDatabase) {}

@@ -3,7 +3,7 @@
 /*
  * DESIGN.md principle 5: unregister Tailwind's default palette so literal color utilities
  * (e.g. `bg-blue-500`) fail to compile — every color must resolve through a runtime theme
- * token, matching the bridge in `src/renderer/src/styles.css`.
+ * token, matching the bridge in `src/renderer/src/styles/styles.css`.
  */
 @theme {
     --color-*: initial;
@@ -59,7 +59,7 @@ body,
  * Base UI text size lives on `body`, not `:root`/`html` — Tailwind's spacing/sizing scale is
  * rem-based against the *root* (html) font-size, so a 13px root would silently shrink every
  * rem utility (e.g. `min-h-11` would render ~36px instead of 44px). See the matching comment
- * in `src/renderer/src/styles.css`.
+ * in `src/renderer/src/styles/styles.css`.
  */
 body {
     font-size: 13px;

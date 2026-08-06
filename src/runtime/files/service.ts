@@ -1,7 +1,7 @@
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument, FileEntry } from '../../shared/types';
-import type { CaxriDatabase } from '../database';
+import type { CaxriDatabase } from '../db/repository';
 import { WorkspacePaths, type ResolvedSessionPath } from '../workspace-paths';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService } from './listing';

@@ -1,6 +1,6 @@
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 
-import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
 import {
     Dialog,
@@ -9,8 +9,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
-import { useDialogStore } from '../../state/dialogs';
-import { useProjects } from '../../state/selectors';
+import { useDialogStore } from '../../stores/dialogs';
+import { useProjects } from '../../stores/selectors';
 import { cancelPendingSession, confirmPendingSession } from './session-actions';
 
 export function CreateSessionDialog() {

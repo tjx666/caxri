@@ -1,6 +1,6 @@
 import { executeCommand } from '../../commands/execute';
 import { cn } from '../../lib/utils';
-import { useSelectedSession, useSessionState } from '../../state/selectors';
+import { useSelectedSession, useSessionState } from '../../stores/selectors';
 import { getInspectorPanel, inspectorPanels } from './panels';
 
 export function Inspector() {

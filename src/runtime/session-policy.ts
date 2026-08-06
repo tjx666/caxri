@@ -11,8 +11,8 @@ import type {
 
 /**
  * Domain policy for the persisted Project/Session/Terminal model: decisions take plain records as
- * input and return plain patches or facts, with no SQL and no side effects. `../runtime/database.ts`
- * composes these with `./store/*` (pure SQL) inside its own transactions.
+ * input and return plain patches or facts, with no SQL and no side effects. `./db/repository.ts`
+ * composes these with `./db/models/*` (pure SQL) inside its own transactions.
  */
 
 /** Single source of truth for the title a Terminal (or a newly promoted primary Agent) starts with. */

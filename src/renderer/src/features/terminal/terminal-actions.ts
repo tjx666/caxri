@@ -3,10 +3,10 @@ import type { TerminalKind, TerminalLayout } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
-import { getSelectedSession, getSessionState } from '../../state/selectors';
-import { useSessionViewStore } from '../../state/session-view';
-import { tryCommand } from '../../state/toasts';
-import { patchSessionState, refreshWorkbench } from '../../state/workbench';
+import { getSelectedSession, getSessionState } from '../../stores/selectors';
+import { useSessionViewStore } from '../../stores/session-view';
+import { tryCommand } from '../../stores/toasts';
+import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
 
 /** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import type { Keybinding } from '@shared/types';
 
 import { buildShortcutMap, isEditableEventTarget, keyboardEventShortcut } from '../lib/keybindings';
-import { useWorkbenchStore } from '../state/workbench';
+import { useWorkbenchStore } from '../stores/workbench';
 import { runCommand } from './execute';
 import { getRegisteredCommand } from './registry';
 

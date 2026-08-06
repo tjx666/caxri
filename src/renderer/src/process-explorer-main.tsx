@@ -1,4 +1,4 @@
-import './process-explorer.css';
+import './styles/process-explorer.css';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

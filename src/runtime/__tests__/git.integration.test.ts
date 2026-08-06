@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { StructuredLogger } from '../../shared/node/logger';
-import { CaxriDatabase } from '../database';
+import { CaxriDatabase } from '../db/repository';
 import { describeGitFailure, GitService } from '../git';
 import { WorkspacePaths } from '../workspace-paths';
 

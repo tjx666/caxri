@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import type { Keybinding } from '@shared/types';
 
-import { useWorkbenchStore } from '../state/workbench';
+import { useWorkbenchStore } from '../stores/workbench';
 
 /** Shortcut normalization shared by the keybinding table and the global keydown dispatcher. */
 function normalizeShortcut(value: string): string {

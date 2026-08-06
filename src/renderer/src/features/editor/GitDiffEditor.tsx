@@ -5,9 +5,9 @@ import { gitDiffModelPath, type GitDiffTab } from '@shared/git-diff';
 import type { GitDiffDocument, GitFileStatus } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
-import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
-import { useSelectedSession, useTheme } from '../../state/selectors';
-import { describeFailure } from '../../state/toasts';
+import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
+import { useSelectedSession, useTheme } from '../../stores/selectors';
+import { describeFailure } from '../../stores/toasts';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';

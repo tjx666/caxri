@@ -9,7 +9,7 @@ import type {
 } from '@shared/types';
 
 import { cn } from '../../lib/utils';
-import { useSessionState, useSessionTerminals } from '../../state/selectors';
+import { useSessionState, useSessionTerminals } from '../../stores/selectors';
 import { activateTerminal, applyTerminalLayout, TERMINAL_DRAG_TYPE } from './terminal-actions';
 import { TerminalPane } from './TerminalPane';
 

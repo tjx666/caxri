@@ -1,7 +1,7 @@
 import { CircleCheck, CircleX, Info, X } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
-import { dismissToast, useToastStore, type ToastKind } from '../../state/toasts';
+import { dismissToast, useToastStore, type ToastKind } from '../../stores/toasts';
 
 const TOAST_ICONS: Record<ToastKind, typeof Info> = {
     error: CircleX,

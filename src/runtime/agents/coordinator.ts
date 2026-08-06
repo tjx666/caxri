@@ -3,7 +3,7 @@ import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { AgentProvider, TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
-import type { CaxriDatabase } from '../database';
+import type { CaxriDatabase } from '../db/repository';
 import type { AgentService } from './service';
 
 const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;

@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '../../shared/ipc/errors';
 import type {
     AgentProvider,
     AgentSnapshot,
@@ -11,7 +11,7 @@ import type {
     TerminalKind,
     TerminalRecord,
     TerminalSnapshot,
-} from '../shared/types';
+} from '../../shared/types';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
@@ -20,13 +20,13 @@ import {
     processActivityState,
     selectFallbackAfterDeletion,
     withTerminalRemovedFromLayout,
-} from './session-policy';
-import { CaxriStore, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './store';
+} from '../session-policy';
+import { CaxriStore, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './index';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager,
- * File service, Agent coordinator, Diagnostics) needs no changes. `./store` (`CaxriStore`) owns
- * connection lifecycle and pure SQL; `./session-policy` owns the domain decisions; this class
+ * File service, Agent coordinator, Diagnostics) needs no changes. `./index` (`CaxriStore`) owns
+ * connection lifecycle and pure SQL; `../session-policy` owns the domain decisions; this class
  * composes the two per operation, each inside one transaction.
  */
 export class CaxriDatabase {

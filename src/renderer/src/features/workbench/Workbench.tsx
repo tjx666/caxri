@@ -1,8 +1,8 @@
 import { Code2, Plus, TerminalSquare } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import { useSelectedSession, useSessionState } from '../../state/selectors';
-import { useActiveWork } from '../../state/session-view';
+import { useSelectedSession, useSessionState } from '../../stores/selectors';
+import { useActiveWork } from '../../stores/session-view';
 import { EditorSurface } from '../editor/EditorSurface';
 import { chooseProjectDirectory } from '../session/session-actions';
 import { createTerminal } from '../terminal/terminal-actions';

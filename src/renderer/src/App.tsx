@@ -1,20 +1,21 @@
 import { useEffect } from 'react';
 
-import { runCommand } from '../commands/execute';
-import { useCommandShortcuts } from '../commands/useCommandShortcuts';
-import { useExternalDocumentSync } from '../features/editor/external-sync';
-import { Inspector } from '../features/inspector/Inspector';
-import { CommandPalette } from '../features/palette/CommandPalette';
-import { CreateSessionDialog } from '../features/session/CreateSessionDialog';
-import { SettingsDialog } from '../features/settings/SettingsDialog';
-import { ProjectSidebar } from '../features/sidebar/ProjectSidebar';
-import { StatusBar } from '../features/status-bar/StatusBar';
-import { ToastOutlet } from '../features/toasts/ToastOutlet';
-import { LoadingScreen } from '../features/workbench/LoadingScreen';
-import { PanelDivider } from '../features/workbench/PanelDivider';
-import { Workbench } from '../features/workbench/Workbench';
-import { applyCssTheme } from '../lib/theme-css';
-import { cn } from '../lib/utils';
+import { runCommand } from './commands/execute';
+import { useCommandShortcuts } from './commands/useCommandShortcuts';
+import { useExternalDocumentSync } from './features/editor/external-sync';
+import { Inspector } from './features/inspector/Inspector';
+import { CommandPalette } from './features/palette/CommandPalette';
+import { CreateSessionDialog } from './features/session/CreateSessionDialog';
+import { SettingsDialog } from './features/settings/SettingsDialog';
+import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
+import { StatusBar } from './features/status-bar/StatusBar';
+import { ToastOutlet } from './features/toasts/ToastOutlet';
+import { LoadingScreen } from './features/workbench/LoadingScreen';
+import { PanelDivider } from './features/workbench/PanelDivider';
+import { Workbench } from './features/workbench/Workbench';
+import { applyCssTheme } from './lib/theme-css';
+import { cn } from './lib/utils';
+import { useRuntimeQueryInvalidation } from './queries/invalidation';
 import {
     INSPECTOR_DEFAULT_WIDTH,
     INSPECTOR_MAX_WIDTH,
@@ -24,14 +25,13 @@ import {
     SIDEBAR_MIN_WIDTH,
     usePanelLayoutStore,
     usePanelViewportClamp,
-} from '../state/panel-layout';
-import { useRuntimeQueryInvalidation } from '../state/queries';
-import { useTheme } from '../state/selectors';
+} from './stores/panel-layout';
+import { useTheme } from './stores/selectors';
 import {
     initializeWorkbench,
     subscribeWorkbenchEvents,
     useWorkbenchStore,
-} from '../state/workbench';
+} from './stores/workbench';
 
 /**
  * Attaches to the Runtime and keeps the snapshot current. `initialize` is single-flight, so React
@@ -76,7 +76,7 @@ export default function App() {
         <main
             className={cn(
                 /*
-                 * Sidebar/Inspector widths are device-local UI state (`state/panel-layout.ts`), not part
+                 * Sidebar/Inspector widths are device-local UI state (`stores/panel-layout.ts`), not part
                  * of the Runtime-synced Session; each panel writes its own custom property directly on
                  * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
                  * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.

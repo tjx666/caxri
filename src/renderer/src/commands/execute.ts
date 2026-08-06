@@ -13,11 +13,11 @@ import {
     createTerminal,
     restartActiveTerminal,
 } from '../features/terminal/terminal-actions';
-import { useDialogStore } from '../state/dialogs';
-import { usePanelLayoutStore } from '../state/panel-layout';
-import { getBootstrap, selectSelectedProject } from '../state/selectors';
-import { getResolvedActiveWork, useSessionViewStore } from '../state/session-view';
-import { pushToast, tryCommand } from '../state/toasts';
+import { useDialogStore } from '../stores/dialogs';
+import { usePanelLayoutStore } from '../stores/panel-layout';
+import { getBootstrap, selectSelectedProject } from '../stores/selectors';
+import { getResolvedActiveWork, useSessionViewStore } from '../stores/session-view';
+import { pushToast, tryCommand } from '../stores/toasts';
 import './definitions';
 import { getRegisteredCommand, type CommandContext } from './registry';
 

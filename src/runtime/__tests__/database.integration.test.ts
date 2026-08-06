@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 
 import { listLayoutTerminalIds, splitTerminal } from '../../shared/terminal-layout';
-import { CaxriDatabase } from '../database';
+import { CaxriDatabase } from '../db/repository';
 
 const temporaryDirectories: string[] = [];
 
@@ -24,10 +24,10 @@ async function tempDir(prefix: string): Promise<string> {
 }
 
 /**
- * Facade-level coverage for `CaxriDatabase`: proves that `./store` (pure SQL) and
- * `./session-policy` (pure decisions) are wired together correctly inside one transaction per
- * operation. Pure-SQL/schema behavior lives in `../store/__tests__/store.integration.test.ts`;
- * pure-decision behavior lives in `./session-policy.test.ts`.
+ * Facade-level coverage for `CaxriDatabase`: proves that `../db` (pure SQL) and
+ * `../session-policy` (pure decisions) are wired together correctly inside one transaction per
+ * operation. Pure-SQL/schema behavior lives in `../db/__tests__/store.integration.test.ts`;
+ * pure-decision behavior lives in `../session-policy.test.ts`.
  */
 describe('CaxriDatabase', () => {
     it('groups Sessions with the same root under one Project', async () => {

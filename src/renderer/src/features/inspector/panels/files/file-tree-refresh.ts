@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import { caxri } from '../../../../lib/caxri';
-import { caxriQueryKey } from '../../../../state/queries';
+import { caxriQueryKey } from '../../../../queries/client';
 
 /** Returns the directory whose listing directly owns a changed absolute path. */
 export function parentDirectoryPath(path: string): string {

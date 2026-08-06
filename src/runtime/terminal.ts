@@ -7,7 +7,7 @@ import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
 import { discoverExecutable } from './agents/discovery';
-import type { CaxriDatabase } from './database';
+import type { CaxriDatabase } from './db/repository';
 import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 

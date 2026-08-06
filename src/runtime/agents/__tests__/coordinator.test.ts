@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
-import { CaxriDatabase } from '../../database';
+import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import { AgentService, type AgentAdapter } from '../service';
 

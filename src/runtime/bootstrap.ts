@@ -15,13 +15,13 @@ import type {
 import { AgentCoordinator } from './agents/coordinator';
 import { AgentService, type AgentAdapter } from './agents/service';
 import { ConfigurationService } from './configuration';
-import { CaxriDatabase } from './database';
+import { CURRENT_SCHEMA_VERSION } from './db';
+import { CaxriDatabase } from './db/repository';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files/service';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
-import { CURRENT_SCHEMA_VERSION } from './store';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';
 import { WorkspacePaths } from './workspace-paths';
 

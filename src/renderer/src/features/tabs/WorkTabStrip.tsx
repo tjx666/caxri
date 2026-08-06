@@ -5,8 +5,8 @@ import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import { workItemsEqual, type WorkItem } from '@shared/work-item';
 
 import { Button } from '../../components/ui/button';
-import { useSelectedSession, useSessionState, useSessionTerminals } from '../../state/selectors';
-import { useActiveWork, useSessionViewStore } from '../../state/session-view';
+import { useSelectedSession, useSessionState, useSessionTerminals } from '../../stores/selectors';
+import { useActiveWork, useSessionViewStore } from '../../stores/session-view';
 import { closeEditor, selectEditorTab } from '../editor/document-actions';
 import {
     activateTerminal,

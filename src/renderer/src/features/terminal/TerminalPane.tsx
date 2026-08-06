@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
-import { useSettings, useTerminal, useTheme } from '../../state/selectors';
-import { pushToast } from '../../state/toasts';
-import { useWorkbenchStore } from '../../state/workbench';
+import { useSettings, useTerminal, useTheme } from '../../stores/selectors';
+import { pushToast } from '../../stores/toasts';
+import { useWorkbenchStore } from '../../stores/workbench';
 import {
     activateTerminal,
     registerTerminalClearHandler,

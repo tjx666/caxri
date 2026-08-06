@@ -1,11 +1,11 @@
 import type { TerminalKind } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
-import { clearPendingSession, useDialogStore } from '../../state/dialogs';
-import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../state/selectors';
-import { useSessionViewStore } from '../../state/session-view';
-import { tryCommand } from '../../state/toasts';
-import { refreshWorkbench } from '../../state/workbench';
+import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
+import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
+import { useSessionViewStore } from '../../stores/session-view';
+import { tryCommand } from '../../stores/toasts';
+import { refreshWorkbench } from '../../stores/workbench';
 
 export async function selectSession(sessionId: string): Promise<void> {
     await tryCommand(

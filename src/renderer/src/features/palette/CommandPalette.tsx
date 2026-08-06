@@ -5,8 +5,8 @@ import { commandDefinitions } from '@shared/commands';
 import { executeCommand } from '../../commands/execute';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { useCommandShortcut } from '../../lib/keybindings';
-import { setPaletteOpen, useDialogStore } from '../../state/dialogs';
-import { useProjects, useSessions } from '../../state/selectors';
+import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
+import { useProjects, useSessions } from '../../stores/selectors';
 import { selectProject, selectSession } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];

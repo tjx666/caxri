@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { asc, eq } from 'drizzle-orm';
 
-import { createTerminalLayout } from '../../shared/terminal-layout';
-import type { AgentActivityState, SessionRecord, SessionState } from '../../shared/types';
-import { projects, sessionState as sessionStateTable, sessions } from './schema';
-import { DEFAULT_LAYOUT_VERSION, type CaxriDrizzleDatabase } from './sqlite';
+import { createTerminalLayout } from '../../../shared/terminal-layout';
+import type { AgentActivityState, SessionRecord, SessionState } from '../../../shared/types';
+import { projects, sessionState as sessionStateTable, sessions } from '../schema';
+import { DEFAULT_LAYOUT_VERSION, type CaxriDrizzleDatabase } from '../connection';
 
 const sessionSelection = {
     id: sessions.id,
@@ -72,7 +72,7 @@ function mapSessionState(row: SessionStateRow): SessionState {
 
 /**
  * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession,
- * default titles, and deletion-fallback selection are decided in `../../session-policy` and applied
+ * default titles, and deletion-fallback selection are decided in `../../session-policy.ts` and applied
  * here through plain setters; `session_state.active_tab_json` is opaque JSON serialized/deserialized
  * without ever being interpreted.
  */

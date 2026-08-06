@@ -3,10 +3,10 @@ import { isGitDiffTabPath } from '@shared/git-diff';
 import { activateWorkState, type WorkItem } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
-import { getSelectedSession, getSessionState, getSessionTerminals } from '../../state/selectors';
-import { getResolvedActiveWork, useSessionViewStore } from '../../state/session-view';
-import { tryCommand } from '../../state/toasts';
-import { patchSessionState } from '../../state/workbench';
+import { getSelectedSession, getSessionState, getSessionTerminals } from '../../stores/selectors';
+import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session-view';
+import { tryCommand } from '../../stores/toasts';
+import { patchSessionState } from '../../stores/workbench';
 
 /** Open-tab bookkeeping only; which WorkItem is focused stays owned by `activateWork`. */
 function updateOpenTab(path: string, dirty: boolean): void {

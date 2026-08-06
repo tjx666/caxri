@@ -4,9 +4,9 @@ import { useState } from 'react';
 import type { FileEntry } from '@shared/types';
 
 import { Button } from '../../../../components/ui/button';
-import { FileTypeIcon } from '../../../../file-icons/FileTypeIcon';
-import { useCaxriQuery, useToastOnQueryError } from '../../../../state/queries';
-import { useSelectedSession } from '../../../../state/selectors';
+import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
+import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
+import { useSelectedSession } from '../../../../stores/selectors';
 import { openFile } from '../../../editor/document-actions';
 import { useFileTreeInvalidation } from './file-tree-refresh';
 

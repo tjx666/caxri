@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 
-import { appState } from './schema';
-import type { CaxriDrizzleDatabase } from './sqlite';
+import { appState } from '../schema';
+import type { CaxriDrizzleDatabase } from '../connection';
 
 /** Pure key/value CRUD over the `app_state` table. */
 export class AppStateStore {

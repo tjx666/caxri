@@ -1,18 +1,18 @@
 import type Database from 'better-sqlite3';
 
-import { AppStateStore } from './app-state';
-import { ProjectsStore } from './projects';
-import { SessionsStore } from './sessions';
-import { SnapshotsStore } from './snapshots';
 import {
     type CaxriDrizzleDatabase,
     markAllStopped as markAllTerminalsStopped,
     openDatabase,
-} from './sqlite';
-import { TerminalsStore } from './terminals';
+} from './connection';
+import { AppStateStore } from './models/app-state';
+import { ProjectsStore } from './models/projects';
+import { SessionsStore } from './models/sessions';
+import { SnapshotsStore } from './models/snapshots';
+import { TerminalsStore } from './models/terminals';
 
-export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './terminals';
-export { CURRENT_SCHEMA_VERSION } from './sqlite';
+export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
+export { CURRENT_SCHEMA_VERSION } from './connection';
 
 /**
  * Owns the SQLite connection and composes one pure CRUD module per table family. No domain

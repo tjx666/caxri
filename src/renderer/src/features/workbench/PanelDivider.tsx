@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
 
-import { PANEL_RESIZE_STEP } from '../../state/panel-layout';
+import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
 
 /**
  * Applied to `document.body` for the duration of a drag; see `styles.css`. Suppresses selection

@@ -12,10 +12,14 @@ import type { BootstrapState } from '@shared/types';
 
 import { executeCommand } from '../../commands/execute';
 import { cn } from '../../lib/utils';
-import { usePanelLayoutStore } from '../../state/panel-layout';
-import { useCaxriQuery } from '../../state/queries';
-import { useSelectedProject, useSelectedSession, useSessionTerminals } from '../../state/selectors';
-import { useWorkbenchStore } from '../../state/workbench';
+import { usePanelLayoutStore } from '../../stores/panel-layout';
+import { useCaxriQuery } from '../../queries/client';
+import {
+    useSelectedProject,
+    useSelectedSession,
+    useSessionTerminals,
+} from '../../stores/selectors';
+import { useWorkbenchStore } from '../../stores/workbench';
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
@@ -93,7 +97,7 @@ function StatusItem({
 /**
  * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it
  * stays on the 60s poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries`
- * in `state/queries.ts`). Branch and changed-file count instead come from the `git.summary` query —
+ * in `queries/client.ts`). Branch and changed-file count instead come from the `git.summary` query —
  * the same cheap read `GitPanel` and `GitDiffEditor` use, already invalidated on `files.changed` — so
  * the status bar reflects a Git-affecting change immediately without waiting on the slow poll or
  * calling the delivery CLI any more often than the interval already does.

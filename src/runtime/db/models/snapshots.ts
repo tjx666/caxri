@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 
-import type { TerminalSnapshot } from '../../shared/types';
-import { terminalSnapshots } from './schema';
-import type { CaxriDrizzleDatabase } from './sqlite';
+import type { TerminalSnapshot } from '../../../shared/types';
+import { terminalSnapshots } from '../schema';
+import type { CaxriDrizzleDatabase } from '../connection';
 
 interface SnapshotRow {
     terminalId: string;

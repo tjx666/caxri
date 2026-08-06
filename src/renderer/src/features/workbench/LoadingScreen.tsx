@@ -1,6 +1,6 @@
 import { Code2 } from 'lucide-react';
 
-import { useToastStore } from '../../state/toasts';
+import { useToastStore } from '../../stores/toasts';
 
 /** Shown until the first `app.bootstrap` resolves; a failure replaces the wait with its reason. */
 export function LoadingScreen() {

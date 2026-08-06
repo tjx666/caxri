@@ -5,10 +5,10 @@ import { isGitDiffTabPath } from '@shared/git-diff';
 import type { FileDocument } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
-import { getSelectedSession, getSessionState, selectSelectedSession } from '../../state/selectors';
-import { useSessionViewStore } from '../../state/session-view';
-import { pushToast } from '../../state/toasts';
-import { patchSessionState, useWorkbenchStore } from '../../state/workbench';
+import { getSelectedSession, getSessionState, selectSelectedSession } from '../../stores/selectors';
+import { useSessionViewStore } from '../../stores/session-view';
+import { pushToast } from '../../stores/toasts';
+import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
 
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 

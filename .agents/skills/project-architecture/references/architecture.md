@@ -41,7 +41,7 @@ The preload exposes one `request` method backed by a fixed method union plus `on
 
 ## Persistence
 
-SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Table definitions live declaratively in `src/runtime/store/schema.ts` (Drizzle ORM); `bunx drizzle-kit generate` emits the checked-in SQL under `src/runtime/store/migrations/`, which the Runtime bundles via `?raw` imports so packaged builds never read migration files from disk. After any schema change, regenerate with drizzle-kit — never hand-edit the migrations directory. `user_version` (currently 6) still gates the pre-release drop-and-rebuild in `store/sqlite.ts`; query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
+SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Table definitions live declaratively in `src/runtime/db/schema.ts` (Drizzle ORM); `bunx drizzle-kit generate` emits the checked-in SQL under `src/runtime/db/migrations/`, which the Runtime bundles via `?raw` imports so packaged builds never read migration files from disk. After any schema change, regenerate with drizzle-kit — never hand-edit the migrations directory. `user_version` (currently 6) still gates the pre-release drop-and-rebuild in `db/connection.ts`; query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
 
 - `projects`: identity, unique root, display title, and timestamps
 - `sessions`: Project ownership, identity, timestamps, primary Agent Terminal, last activity, layout version

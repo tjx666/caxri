@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import type { AgentActivityState } from '@shared/types';
 
-import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
 import { executeCommand } from '../../commands/execute';
 import { cn } from '../../lib/utils';
@@ -14,7 +14,7 @@ import {
     useSelectedSession,
     useSessions,
     useTerminals,
-} from '../../state/selectors';
+} from '../../stores/selectors';
 import { beginSessionCreation, selectProject, selectSession } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];

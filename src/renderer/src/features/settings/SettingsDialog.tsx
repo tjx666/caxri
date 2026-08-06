@@ -14,9 +14,9 @@ import {
 } from '../../components/ui/dialog';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
-import { setSettingsOpen, useDialogStore } from '../../state/dialogs';
-import { describeFailure, pushToast } from '../../state/toasts';
-import { refreshWorkbench } from '../../state/workbench';
+import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
+import { describeFailure, pushToast } from '../../stores/toasts';
+import { refreshWorkbench } from '../../stores/workbench';
 import {
     applyFormEdit,
     CONFIG_FILE_NAMES,

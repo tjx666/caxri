@@ -2,9 +2,14 @@ import { randomUUID } from 'node:crypto';
 
 import { and, asc, eq, sql } from 'drizzle-orm';
 
-import type { AgentProvider, ProcessState, TerminalKind, TerminalRecord } from '../../shared/types';
-import { terminals } from './schema';
-import type { CaxriDrizzleDatabase } from './sqlite';
+import type {
+    AgentProvider,
+    ProcessState,
+    TerminalKind,
+    TerminalRecord,
+} from '../../../shared/types';
+import { terminals } from '../schema';
+import type { CaxriDrizzleDatabase } from '../connection';
 
 export const MAX_TERMINALS_PER_SESSION = 16;
 export const MAX_TERMINALS_GLOBAL = 32;

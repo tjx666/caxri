@@ -3,7 +3,7 @@ import { Suspense, lazy } from 'react';
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import type { AppSettings, ThemeTokens } from '@shared/types';
 
-import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
+import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Input } from '../../components/ui/input';
 import {
     Select,
