@@ -72,7 +72,8 @@ const MODIFIER_DISPLAY_ORDER = ['ctrl', 'alt', 'shift', 'cmd'];
 /** Formats a keybinding chord for display, e.g. `cmd+shift+p` -> `⌘⇧P`. */
 function formatShortcut(key: string): string {
     const parts = normalizeShortcut(key).split('+');
-    const symbols = MODIFIER_DISPLAY_ORDER.filter((modifier) => parts.includes(modifier)).map(
+    const partSet = new Set(parts);
+    const symbols = MODIFIER_DISPLAY_ORDER.filter((modifier) => partSet.has(modifier)).map(
         (modifier) => MODIFIER_SYMBOLS[modifier],
     );
     const mainKey = parts.find((part) => !(part in MODIFIER_SYMBOLS)) ?? '';

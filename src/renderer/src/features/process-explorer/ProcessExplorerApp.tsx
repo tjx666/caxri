@@ -157,21 +157,21 @@ export function ProcessExplorerApp() {
                     className="process-header grid grid-cols-[minmax(320px,1fr)_110px_140px_90px] border-b border-border bg-surface"
                     role="row"
                 >
-                    <strong
+                    <span
                         role="columnheader"
                         className={cn(processHeaderCellClassName, 'border-l-0')}
                     >
                         Process Name
-                    </strong>
-                    <strong role="columnheader" className={processHeaderCellClassName}>
+                    </span>
+                    <span role="columnheader" className={processHeaderCellClassName}>
                         CPU (%)
-                    </strong>
-                    <strong role="columnheader" className={processHeaderCellClassName}>
+                    </span>
+                    <span role="columnheader" className={processHeaderCellClassName}>
                         Memory (MB)
-                    </strong>
-                    <strong role="columnheader" className={processHeaderCellClassName}>
+                    </span>
+                    <span role="columnheader" className={processHeaderCellClassName}>
                         PID
-                    </strong>
+                    </span>
                 </div>
                 <div className="process-rows min-h-0 overflow-auto">
                     {!snapshot && !error && (

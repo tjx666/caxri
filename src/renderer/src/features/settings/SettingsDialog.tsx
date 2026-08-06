@@ -1,6 +1,6 @@
 import { parse } from 'jsonc-parser';
 import { FileJson, Save } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
@@ -49,6 +49,139 @@ function parseThemeSource(source: string): ThemeTokens | undefined {
     return value as ThemeTokens;
 }
 
+/**
+ * The three config kinds share the same value/source/appliedSource shape (plus
+ * keybinding conflicts), so they are consolidated into one `useReducer` instead of
+ * ~12 independent `useState` calls. Grouping them keeps a load/apply/import from
+ * ever leaving one kind's value, draft source, and applied source out of sync.
+ */
+interface ConfigState {
+    settings: { value: AppSettings | undefined; source: string; appliedSource: string };
+    keybindings: {
+        value: Keybinding[];
+        source: string;
+        appliedSource: string;
+        conflicts: KeybindingConflict[];
+    };
+    theme: { value: ThemeTokens | undefined; source: string; appliedSource: string };
+}
+
+const initialConfigState: ConfigState = {
+    settings: { value: undefined, source: '', appliedSource: '' },
+    keybindings: { value: [], source: '', appliedSource: '', conflicts: [] },
+    theme: { value: undefined, source: '', appliedSource: '' },
+};
+
+type ConfigAction =
+    | {
+          type: 'loaded';
+          settings: { value: AppSettings; source: string };
+          keybindings: { value: Keybinding[]; source: string; conflicts: KeybindingConflict[] };
+          theme: { value: ThemeTokens; source: string };
+      }
+    | { type: 'settings/changed'; value: AppSettings; source: string }
+    | { type: 'settings/sourceChanged'; source: string }
+    | { type: 'settings/applied'; value: AppSettings; source: string }
+    | { type: 'keybindings/changed'; value: Keybinding[]; source: string }
+    | { type: 'keybindings/sourceChanged'; source: string }
+    | {
+          type: 'keybindings/applied';
+          value: Keybinding[];
+          source: string;
+          conflicts: KeybindingConflict[];
+      }
+    | { type: 'theme/changed'; value: ThemeTokens; source: string }
+    | { type: 'theme/sourceChanged'; source: string; value?: ThemeTokens }
+    | { type: 'theme/applied'; value: ThemeTokens; source: string }
+    | { type: 'theme/imported'; value: ThemeTokens; source: string };
+
+function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
+    switch (action.type) {
+        case 'loaded':
+            return {
+                settings: {
+                    value: action.settings.value,
+                    source: action.settings.source,
+                    appliedSource: action.settings.source,
+                },
+                keybindings: {
+                    value: action.keybindings.value,
+                    source: action.keybindings.source,
+                    appliedSource: action.keybindings.source,
+                    conflicts: action.keybindings.conflicts,
+                },
+                theme: {
+                    value: action.theme.value,
+                    source: action.theme.source,
+                    appliedSource: action.theme.source,
+                },
+            };
+        case 'settings/changed':
+            return {
+                ...state,
+                settings: { ...state.settings, value: action.value, source: action.source },
+            };
+        case 'settings/sourceChanged':
+            return { ...state, settings: { ...state.settings, source: action.source } };
+        case 'settings/applied':
+            return {
+                ...state,
+                settings: {
+                    value: action.value,
+                    source: action.source,
+                    appliedSource: action.source,
+                },
+            };
+        case 'keybindings/changed':
+            return {
+                ...state,
+                keybindings: { ...state.keybindings, value: action.value, source: action.source },
+            };
+        case 'keybindings/sourceChanged':
+            return { ...state, keybindings: { ...state.keybindings, source: action.source } };
+        case 'keybindings/applied':
+            return {
+                ...state,
+                keybindings: {
+                    value: action.value,
+                    source: action.source,
+                    appliedSource: action.source,
+                    conflicts: action.conflicts,
+                },
+            };
+        case 'theme/changed':
+            return {
+                ...state,
+                theme: { ...state.theme, value: action.value, source: action.source },
+            };
+        case 'theme/sourceChanged':
+            return {
+                ...state,
+                theme: {
+                    ...state.theme,
+                    source: action.source,
+                    value: action.value ?? state.theme.value,
+                },
+            };
+        case 'theme/applied':
+            return {
+                ...state,
+                theme: { value: action.value, source: action.source, appliedSource: action.source },
+            };
+        case 'theme/imported':
+            return {
+                ...state,
+                theme: {
+                    value: action.value,
+                    source: action.source,
+                    appliedSource: action.source,
+                },
+            };
+        default:
+            return state;
+    }
+}
+
 export function SettingsDialog() {
     const open = useDialogStore((state) => state.settingsOpen);
     const onOpenChange = setSettingsOpen;
@@ -56,18 +189,7 @@ export function SettingsDialog() {
     const [loaded, setLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    const [settings, setSettings] = useState<AppSettings>();
-    const [settingsSource, setSettingsSource] = useState('');
-    const [settingsAppliedSource, setSettingsAppliedSource] = useState('');
-
-    const [keybindings, setKeybindings] = useState<Keybinding[]>([]);
-    const [keybindingsSource, setKeybindingsSource] = useState('');
-    const [keybindingsAppliedSource, setKeybindingsAppliedSource] = useState('');
-    const [conflicts, setConflicts] = useState<KeybindingConflict[]>([]);
-
-    const [theme, setTheme] = useState<ThemeTokens>();
-    const [themeSource, setThemeSource] = useState('');
-    const [themeAppliedSource, setThemeAppliedSource] = useState('');
+    const [state, dispatch] = useReducer(configReducer, initialConfigState);
 
     const load = useCallback((): void => {
         void Promise.all([
@@ -76,16 +198,16 @@ export function SettingsDialog() {
             caxri.request('theme.get'),
         ])
             .then(([settingsResult, keybindingsResult, themeResult]) => {
-                setSettings(settingsResult.value);
-                setSettingsSource(settingsResult.source);
-                setSettingsAppliedSource(settingsResult.source);
-                setKeybindings(keybindingsResult.value);
-                setKeybindingsSource(keybindingsResult.source);
-                setKeybindingsAppliedSource(keybindingsResult.source);
-                setConflicts(keybindingsResult.conflicts);
-                setTheme(themeResult.value);
-                setThemeSource(themeResult.source);
-                setThemeAppliedSource(themeResult.source);
+                dispatch({
+                    type: 'loaded',
+                    settings: { value: settingsResult.value, source: settingsResult.source },
+                    keybindings: {
+                        value: keybindingsResult.value,
+                        source: keybindingsResult.source,
+                        conflicts: keybindingsResult.conflicts,
+                    },
+                    theme: { value: themeResult.value, source: themeResult.source },
+                });
                 setLoaded(true);
             })
             .catch((error: unknown) => onError(error, 'Unable to load configuration'));
@@ -99,75 +221,102 @@ export function SettingsDialog() {
 
     const drafts: ConfigDrafts = useMemo(
         () => ({
-            settings: { source: settingsSource, appliedSource: settingsAppliedSource },
-            keybindings: { source: keybindingsSource, appliedSource: keybindingsAppliedSource },
-            theme: { source: themeSource, appliedSource: themeAppliedSource },
+            settings: {
+                source: state.settings.source,
+                appliedSource: state.settings.appliedSource,
+            },
+            keybindings: {
+                source: state.keybindings.source,
+                appliedSource: state.keybindings.appliedSource,
+            },
+            theme: { source: state.theme.source, appliedSource: state.theme.appliedSource },
         }),
-        [
-            settingsSource,
-            settingsAppliedSource,
-            keybindingsSource,
-            keybindingsAppliedSource,
-            themeSource,
-            themeAppliedSource,
-        ],
+        [state.settings, state.keybindings, state.theme],
     );
     const dirtyKinds = dirtyConfigKinds(drafts);
 
     const applyAll = async (): Promise<void> => {
         if (saving || dirtyKinds.length === 0) return;
         setSaving(true);
-        const failures: string[] = [];
         try {
-            for (const kind of dirtyKinds) {
-                try {
-                    if (kind === 'settings') {
-                        const result = await caxri.request('settings.update', {
-                            source: settingsSource,
-                        });
-                        setSettings(result.value);
-                        setSettingsSource(result.source);
-                        setSettingsAppliedSource(result.source);
-                    } else if (kind === 'keybindings') {
-                        const result = await caxri.request('keybindings.update', {
-                            source: keybindingsSource,
-                        });
-                        setKeybindings(result.value);
-                        setKeybindingsSource(result.source);
-                        setKeybindingsAppliedSource(result.source);
-                        setConflicts(result.conflicts);
-                    } else {
-                        const result = await caxri.request('theme.update', { source: themeSource });
-                        setTheme(result.value);
-                        setThemeSource(result.source);
-                        setThemeAppliedSource(result.source);
+            // The three config kinds are independent runtime operations, so apply them
+            // concurrently instead of awaiting each one sequentially. Each kind catches
+            // its own failure so one rejection never blocks the others from applying.
+            const results = await Promise.all(
+                dirtyKinds.map(async (kind): Promise<string | null> => {
+                    try {
+                        if (kind === 'settings') {
+                            const result = await caxri.request('settings.update', {
+                                source: state.settings.source,
+                            });
+                            dispatch({
+                                type: 'settings/applied',
+                                value: result.value,
+                                source: result.source,
+                            });
+                        } else if (kind === 'keybindings') {
+                            const result = await caxri.request('keybindings.update', {
+                                source: state.keybindings.source,
+                            });
+                            dispatch({
+                                type: 'keybindings/applied',
+                                value: result.value,
+                                source: result.source,
+                                conflicts: result.conflicts,
+                            });
+                        } else {
+                            const result = await caxri.request('theme.update', {
+                                source: state.theme.source,
+                            });
+                            dispatch({
+                                type: 'theme/applied',
+                                value: result.value,
+                                source: result.source,
+                            });
+                        }
+                        return null;
+                    } catch (error) {
+                        const label = CONFIG_FILE_NAMES[kind];
+                        return `${label} — ${describeFailure(error, label)}`;
                     }
-                } catch (error) {
-                    const label = CONFIG_FILE_NAMES[kind];
-                    failures.push(`${label} — ${describeFailure(error, label)}`);
-                }
-            }
+                }),
+            );
+            const failures = results.filter((failure): failure is string => failure !== null);
+            if (failures.length < dirtyKinds.length) onApplied();
+            if (failures.length > 0) pushToast('error', failures.join('; '));
         } finally {
             setSaving(false);
         }
-        if (failures.length < dirtyKinds.length) onApplied();
-        if (failures.length > 0) pushToast('error', failures.join('; '));
     };
 
     const updateSettingsField = <K extends keyof AppSettings>(
         key: K,
         value: AppSettings[K],
     ): void => {
-        if (!settings) return;
-        setSettings({ ...settings, [key]: value });
-        setSettingsSource((current) => applyFormEdit(current, [key], value));
+        if (!state.settings.value) return;
+        dispatch({
+            type: 'settings/changed',
+            value: { ...state.settings.value, [key]: value },
+            source: applyFormEdit(state.settings.source, [key], value),
+        });
+    };
+
+    const updateSettingsSource = (source: string): void => {
+        dispatch({ type: 'settings/sourceChanged', source });
     };
 
     const updateBinding = (index: number, field: 'key' | 'command', value: string): void => {
-        setKeybindings((current) =>
-            current.map((binding, at) => (at === index ? { ...binding, [field]: value } : binding)),
-        );
-        setKeybindingsSource((current) => applyFormEdit(current, [index, field], value));
+        dispatch({
+            type: 'keybindings/changed',
+            value: state.keybindings.value.map((binding, at) =>
+                at === index ? { ...binding, [field]: value } : binding,
+            ),
+            source: applyFormEdit(state.keybindings.source, [index, field], value),
+        });
+    };
+
+    const updateKeybindingsSource = (source: string): void => {
+        dispatch({ type: 'keybindings/sourceChanged', source });
     };
 
     const updateThemeColor = (
@@ -175,31 +324,33 @@ export function SettingsDialog() {
         key: string,
         value: string,
     ): void => {
+        const theme = state.theme.value;
         if (!theme) return;
         const wasDracula = theme.id === 'dracula';
         const nextId = wasDracula ? 'custom-dracula' : theme.id;
-        setTheme({
-            ...theme,
-            id: nextId,
-            source: 'custom',
-            [section]: { ...theme[section], [key]: value },
-        });
-        setThemeSource((current) => {
-            let next = applyFormEdit(current, [section, key], value);
-            next = applyFormEdit(next, ['source'], 'custom');
-            if (wasDracula) next = applyFormEdit(next, ['id'], nextId);
-            return next;
+        let nextSource = applyFormEdit(state.theme.source, [section, key], value);
+        nextSource = applyFormEdit(nextSource, ['source'], 'custom');
+        if (wasDracula) nextSource = applyFormEdit(nextSource, ['id'], nextId);
+        dispatch({
+            type: 'theme/changed',
+            value: {
+                ...theme,
+                id: nextId,
+                source: 'custom',
+                [section]: { ...theme[section], [key]: value },
+            },
+            source: nextSource,
         });
     };
 
     const updateThemeSource = (source: string): void => {
-        setThemeSource(source);
+        let value: ThemeTokens | undefined;
         try {
-            const next = parseThemeSource(source);
-            if (next) setTheme(next);
+            value = parseThemeSource(source);
         } catch {
             // Keep the last valid preview while the user is editing incomplete JSON.
         }
+        dispatch({ type: 'theme/sourceChanged', source, value });
     };
 
     const importTheme = async (): Promise<void> => {
@@ -209,9 +360,7 @@ export function SettingsDialog() {
             // The importer writes theme.json directly, so re-read only the theme tab
             // instead of a full `load()` that would discard drafts on the other tabs.
             const result = await caxri.request('theme.get');
-            setTheme(result.value);
-            setThemeSource(result.source);
-            setThemeAppliedSource(result.source);
+            dispatch({ type: 'theme/imported', value: result.value, source: result.source });
             onApplied();
         } catch (error) {
             onError(error, 'Theme import failed');
@@ -248,31 +397,31 @@ export function SettingsDialog() {
                     ))}
                 </div>
 
-                {tab === 'settings' && settings && theme && (
+                {tab === 'settings' && state.settings.value && state.theme.value && (
                     <SettingsForm
-                        settings={settings}
-                        source={settingsSource}
-                        theme={theme}
+                        settings={state.settings.value}
+                        source={state.settings.source}
+                        theme={state.theme.value}
                         onFieldChange={updateSettingsField}
-                        onSourceChange={setSettingsSource}
+                        onSourceChange={updateSettingsSource}
                     />
                 )}
 
-                {tab === 'keybindings' && theme && (
+                {tab === 'keybindings' && state.theme.value && (
                     <KeybindingsForm
-                        keybindings={keybindings}
-                        conflicts={conflicts}
-                        source={keybindingsSource}
-                        theme={theme}
+                        keybindings={state.keybindings.value}
+                        conflicts={state.keybindings.conflicts}
+                        source={state.keybindings.source}
+                        theme={state.theme.value}
                         onFieldChange={updateBinding}
-                        onSourceChange={setKeybindingsSource}
+                        onSourceChange={updateKeybindingsSource}
                     />
                 )}
 
-                {tab === 'theme' && theme && (
+                {tab === 'theme' && state.theme.value && (
                     <ThemeForm
-                        theme={theme}
-                        source={themeSource}
+                        theme={state.theme.value}
+                        source={state.theme.source}
                         onColorChange={updateThemeColor}
                         onSourceChange={updateThemeSource}
                         onImport={() => void importTheme()}

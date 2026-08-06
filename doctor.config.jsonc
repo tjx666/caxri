@@ -1,14 +1,14 @@
 {
-    "noScore": true,
-    "blocking": "warning",
-    "supplyChain": {
-        // @lobehub/assets-fileicon is a lockfile-resolved, build-time SVG asset source with a Socket score of 48.
-        "minScore": 48,
-    },
     "ignore": {
+        // Third-party competitor repositories cloned locally for analysis (gitignored;
+        // absent from CI checkouts). Findings there are not ours to fix.
+        "files": ["competitors/**"],
         "overrides": [
             {
-                // These Monaco owners are already split behind React.lazy boundaries in their parents.
+                // False positive: every one of these files is only reachable through
+                // React.lazy(() => import(...)) boundaries (EditorSurface and the settings
+                // forms), so the static monaco imports stay inside the lazily loaded chunk
+                // and never run at startup. The rule only inspects import syntax per file.
                 "files": [
                     "src/renderer/src/features/editor/CodeEditor.tsx",
                     "src/renderer/src/features/editor/GitDiffEditor.tsx",
@@ -18,39 +18,24 @@
                 "rules": ["react-doctor/prefer-dynamic-import"],
             },
             {
-                // WAI-ARIA treegrid requires columnheader roles for the four visible columns.
-                "files": ["src/renderer/src/features/process-explorer/ProcessExplorerApp.tsx"],
-                "rules": ["react-doctor/no-noninteractive-element-to-interactive-role"],
-            },
-            {
-                // Rows are position-addressed fields in a controlled JSON array and cannot reorder.
+                // Keybinding rows have no stable identity: both the key and the command are
+                // editable in place and rows are addressed by index (onFieldChange(index, ...)),
+                // so an index-derived key is the correct choice here.
                 "files": ["src/renderer/src/features/settings/KeybindingsForm.tsx"],
                 "rules": ["react-doctor/no-array-index-as-key"],
             },
             {
-                // Tabs own independent drafts; Apply All deliberately saves in deterministic order.
-                "files": ["src/renderer/src/features/settings/SettingsDialog.tsx"],
-                "rules": ["react-doctor/prefer-useReducer", "react-doctor/async-await-in-loop"],
+                // Socket scores @lobehub/assets-fileicon low on popularity, but it is the
+                // official LobeHub asset package and this project's owner maintains LobeHub.
+                "files": ["package.json"],
+                "rules": ["socket/low-supply-chain-score"],
             },
             {
-                // A key chord contains at most four modifier tokens, so a Set would add overhead.
-                "files": ["src/renderer/src/lib/keybindings.ts"],
-                "rules": ["react-doctor/js-set-map-lookups"],
-            },
-            {
-                // A layout group is schema-bounded to 16 Terminals; the array is the source of truth.
-                "files": ["src/shared/ipc/layout.ts"],
-                "rules": ["react-doctor/js-set-map-lookups"],
-            },
-            {
-                // The second lstat intentionally revalidates directory identity after readdir (TOCTOU).
+                // False positive: the lstat -> readdir -> lstat/realpath sequence in
+                // ListingService.loadList is a deliberate TOCTOU revalidation (see the inline
+                // JSDoc); the awaits are ordered on purpose and must not be parallelized.
                 "files": ["src/runtime/files/listing.ts"],
                 "rules": ["react-doctor/server-sequential-independent-await"],
-            },
-            {
-                // Codex indexes are opened newest-first and stop as soon as one matching thread is found.
-                "files": ["src/runtime/agents/codex.ts"],
-                "rules": ["react-doctor/async-await-in-loop"],
             },
         ],
     },

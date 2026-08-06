@@ -72,18 +72,17 @@ function checkLayoutInvariants(
             pending.push(node.first, node.second);
             continue;
         }
+        const groupTerminalIds = new Set<string>();
         for (const terminalId of node.terminalIds) {
             if (terminalIds.has(terminalId))
                 return fail('A Terminal cannot be attached to two layout groups');
             terminalIds.add(terminalId);
+            groupTerminalIds.add(terminalId);
         }
         terminalCount += node.terminalIds.length;
         if (terminalCount > MAX_LAYOUT_TERMINALS)
             return fail(`Terminal layout exceeds ${MAX_LAYOUT_TERMINALS} Terminals`);
-        if (
-            node.activeTerminalId !== undefined &&
-            !node.terminalIds.includes(node.activeTerminalId)
-        )
+        if (node.activeTerminalId !== undefined && !groupTerminalIds.has(node.activeTerminalId))
             return fail('The active Terminal must belong to its layout group');
     }
     if (layout.activeGroupId !== undefined && !nodeIds.has(layout.activeGroupId))
