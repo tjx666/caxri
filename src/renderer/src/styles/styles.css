@@ -100,8 +100,10 @@ textarea,
 select {
     font: inherit;
 }
-button {
-    color: inherit;
+@layer base {
+    button {
+        color: inherit;
+    }
 }
 
 /**

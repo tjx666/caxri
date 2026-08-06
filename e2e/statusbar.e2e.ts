@@ -64,6 +64,16 @@ test('Status Bar links Project, primary branch, pull request, and changes', asyn
             'https://github.com/tjx666/status-project/pull/11',
         );
         await expect(changes).toBeVisible();
+        const [projectColor, branchColor, changesColor] = await Promise.all(
+            [project, branch, changes].map((item) =>
+                item.evaluate((element) => getComputedStyle(element).color),
+            ),
+        );
+        expect([projectColor, branchColor, changesColor]).toEqual([
+            branchColor,
+            branchColor,
+            branchColor,
+        ]);
 
         await running.page.getByRole('button', { name: 'Hide Inspector' }).click();
         await project.click();
