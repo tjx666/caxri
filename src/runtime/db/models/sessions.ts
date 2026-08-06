@@ -76,7 +76,7 @@ function mapSessionState(row: SessionStateRow): SessionState {
  * here through plain setters; `session_state.active_tab_json` is opaque JSON serialized/deserialized
  * without ever being interpreted.
  */
-export class SessionsStore {
+export class SessionsModel {
     constructor(private readonly db: CaxriDrizzleDatabase) {}
 
     list(projectId?: string): SessionRecord[] {

@@ -12,7 +12,7 @@ import {
 } from 'electron';
 
 import { getCommandDefinition } from '../shared/commands';
-import { CaxriError, toWireError } from '../shared/ipc/errors';
+import { CaxriError, errorMessage, toWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { isMainRequest, type CaxriRequest, type MainRequest } from '../shared/ipc/methods';
 import {
@@ -27,7 +27,7 @@ import type { PersistedWindowState } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
-import { ProcessExplorerSampler } from './process-explorer';
+import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
@@ -339,13 +339,13 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
                 'this Session';
             const result = await dialog.showMessageBox(mainWindow!, {
                 type: 'warning',
-                title: 'Delete Session',
+                title: 'Remove Session',
                 message:
                     count > 0
-                        ? `Delete '${sessionTitle}' and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
-                        : `Delete '${sessionTitle}'?`,
+                        ? `Remove '${sessionTitle}' and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
+                        : `Remove '${sessionTitle}'?`,
                 detail: 'Only Caxri metadata and snapshots are removed. The selected directory and its files are never deleted.',
-                buttons: ['Delete Session', 'Cancel'],
+                buttons: ['Remove Session', 'Cancel'],
                 defaultId: 1,
                 cancelId: 1,
             });
@@ -479,7 +479,7 @@ async function installMenu(): Promise<void> {
                 label: 'Session',
                 submenu: [
                     command('session.create', 'New Session'),
-                    command('session.delete', 'Delete Session…'),
+                    command('session.delete', 'Remove Session…'),
                     { type: 'separator' },
                     command('session.selectPrevious', 'Previous Session'),
                     command('session.selectNext', 'Next Session'),
@@ -566,7 +566,7 @@ void app.whenReady().then(async () => {
                     name: metric.name,
                     serviceName: metric.serviceName,
                     cpuPercent: metric.cpu.percentCPUUsage,
-                    memoryMb: Math.round((metric.memory.workingSetSize / 1024) * 10) / 10,
+                    memoryMb: kilobytesToMegabytes(metric.memory.workingSetSize),
                 })),
         }),
         theme: () => supervisor.request('theme.get').then((result) => result.value),
@@ -583,7 +583,7 @@ void app.whenReady().then(async () => {
         .catch((error: unknown) =>
             mainLogger?.write('error', 'runtime.attach_failed', {
                 durationMs: performance.now() - runtimeStartedAt,
-                fields: { error: error instanceof Error ? error.message : 'unknown' },
+                fields: { error: errorMessage(error, 'unknown') },
             }),
         );
     installIpc();

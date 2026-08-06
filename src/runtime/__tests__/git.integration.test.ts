@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { StructuredLogger } from '../../shared/node/logger';
 import { CaxriDatabase } from '../db/repository';
 import { describeGitFailure, GitService } from '../git';
-import { WorkspacePaths } from '../workspace-paths';
+import { ProjectRootResolver } from '../project-roots';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
@@ -41,7 +41,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
-        const paths = new WorkspacePaths(database);
+        const paths = new ProjectRootResolver(database);
         const git = new GitService(paths, logger);
         const [summary, concurrentSummary] = await Promise.all([
             git.summary(session.id),
@@ -105,7 +105,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
-        const paths = new WorkspacePaths(database);
+        const paths = new ProjectRootResolver(database);
         const summary = await new GitService(paths, logger).summary(session.id);
 
         expect(summary).toMatchObject({
@@ -160,7 +160,7 @@ describe('GitService', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         const git = new GitService(
-            new WorkspacePaths(database),
+            new ProjectRootResolver(database),
             new StructuredLogger(join(directory, 'logs')),
         );
         const repository = (await git.summary(session.id)).repositories[0];
@@ -243,7 +243,7 @@ describe('GitService', () => {
         database.createProject(linked);
         const session = database.createSession(primaryProject.id, 'shell').session;
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const paths = new WorkspacePaths(database);
+        const paths = new ProjectRootResolver(database);
         const git = new GitService(paths, logger);
         const startedAt = performance.now();
         const summary = await git.summary(session.id);

@@ -17,7 +17,7 @@ export interface ResolvedSessionPath {
  * a filesystem location, so `FileService` and `GitService` share one TOCTOU-safe resolution instead
  * of Git depending on the whole `FileService` just to find a Session's root.
  */
-export class WorkspacePaths {
+export class ProjectRootResolver {
     constructor(private readonly database: CaxriDatabase) {}
 
     async resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {

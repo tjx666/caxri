@@ -2,7 +2,7 @@ import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-import type { AgentProviderId } from '../../shared/agents';
+import type { AgentProvider } from '../../shared/agents';
 import type { AgentActivityState, ProcessState } from '../../shared/types';
 
 export interface AgentSnapshotContext {
@@ -50,7 +50,7 @@ export function defaultAgentEnvironment(
  * `providers/<id>/` module plus one registry line, with zero edits to this contract.
  */
 export interface AgentProviderDescriptor {
-    id: AgentProviderId;
+    id: AgentProvider;
     readState(
         context: AgentSnapshotContext,
         environment: AgentEnvironment,

@@ -1,7 +1,7 @@
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 
-import { CaxriError } from '../../shared/ipc/errors';
+import { CaxriError, errorMessage } from '../../shared/ipc/errors';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileEntry } from '../../shared/types';
@@ -78,7 +78,7 @@ export class ListingService {
                 this.logger.write('debug', 'file.list_entry_skipped', {
                     fields: {
                         path: entryPath,
-                        error: error instanceof Error ? error.message : 'unknown',
+                        error: errorMessage(error, 'unknown'),
                     },
                 });
             return undefined;

@@ -21,71 +21,71 @@ import {
     selectFallbackAfterDeletion,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
-import { CaxriStore, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './index';
+import { CaxriDb, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './index';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager,
- * File service, Agent coordinator, Diagnostics) needs no changes. `./index` (`CaxriStore`) owns
+ * File service, Agent coordinator, Diagnostics) needs no changes. `./index` (`CaxriDb`) owns
  * connection lifecycle and pure SQL; `../session-policy` owns the domain decisions; this class
  * composes the two per operation, each inside one transaction.
  */
 export class CaxriDatabase {
-    private readonly store: CaxriStore;
+    private readonly db: CaxriDb;
 
     constructor(path: string) {
-        this.store = new CaxriStore(path);
+        this.db = new CaxriDb(path);
     }
 
     /** Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly. */
     get database(): Database.Database {
-        return this.store.database;
+        return this.db.database;
     }
 
     listProjects(): ProjectRecord[] {
-        return this.store.projects.list();
+        return this.db.projects.list();
     }
 
     getProject(id: string): ProjectRecord | undefined {
-        return this.store.projects.get(id);
+        return this.db.projects.get(id);
     }
 
     createProject(rootPath: string): ProjectRecord {
-        return this.store.projects.create(rootPath);
+        return this.db.projects.create(rootPath);
     }
 
     deleteProject(projectId: string): void {
-        this.store.transaction(() => {
-            if (!this.store.projects.remove(projectId))
+        this.db.transaction(() => {
+            if (!this.db.projects.remove(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
-            if (this.store.appState.get<string>('lastSelectedProjectId') !== projectId) return;
-            const fallbackProject = this.store.projects.list().at(0);
+            if (this.db.appState.get<string>('lastSelectedProjectId') !== projectId) return;
+            const fallbackProject = this.db.projects.list().at(0);
             const fallbackSession = fallbackProject
-                ? this.store.sessions.list(fallbackProject.id).at(0)
+                ? this.db.sessions.list(fallbackProject.id).at(0)
                 : undefined;
             const selection = selectFallbackAfterDeletion(
                 fallbackSession,
                 fallbackProject?.id ?? null,
             );
-            this.store.appState.set('lastSelectedProjectId', selection.projectId);
-            this.store.appState.set('lastSelectedSessionId', selection.sessionId);
+            this.db.appState.set('lastSelectedProjectId', selection.projectId);
+            this.db.appState.set('lastSelectedSessionId', selection.sessionId);
         });
     }
 
     listSessions(projectId?: string): SessionRecord[] {
-        return this.store.sessions.list(projectId);
+        return this.db.sessions.list(projectId);
     }
 
     getSession(id: string): SessionRecord | undefined {
-        return this.store.sessions.get(id);
+        return this.db.sessions.get(id);
     }
 
     updateAgentMetadata(terminalId: string, snapshot: AgentSnapshot): boolean {
-        return this.store.transaction(() => {
-            const terminal = this.store.terminals.get(terminalId);
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(terminalId);
             if (!terminal) return false;
             if (
                 snapshot.sessionId &&
-                this.store.terminals
+                this.db.terminals
                     .list()
                     .some(
                         (candidate) =>
@@ -96,17 +96,17 @@ export class CaxriDatabase {
             ) {
                 return false;
             }
-            const session = this.store.sessions.get(terminal.sessionId);
+            const session = this.db.sessions.get(terminal.sessionId);
             if (!session) return false;
             const decision = decideAgentMetadataUpdate(terminal, session, snapshot);
             if (!decision) return false;
             if (decision.sessionPatch)
-                this.store.sessions.setDisplayTitleAndActivity(
+                this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
                     decision.sessionPatch.displayTitle,
                     decision.sessionPatch.lastActivityState,
                 );
-            this.store.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
+            this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
             return true;
         });
     }
@@ -117,8 +117,8 @@ export class CaxriDatabase {
      * visible together, so the Renderer never observes a half-promoted Terminal.
      */
     promoteShellToAgent(terminalId: string, snapshot: AgentSnapshot): boolean {
-        return this.store.transaction(() => {
-            const terminal = this.store.terminals.get(terminalId);
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(terminalId);
             const agentSessionId = snapshot.sessionId?.trim();
             if (!terminal || terminal.kind !== 'shell' || terminal.provider || !agentSessionId)
                 return false;
@@ -129,10 +129,10 @@ export class CaxriDatabase {
             ) {
                 return false;
             }
-            const session = this.store.sessions.get(terminal.sessionId);
+            const session = this.db.sessions.get(terminal.sessionId);
             if (!session) return false;
             if (
-                !this.store.terminals.promoteShellToAgent(
+                !this.db.terminals.promoteShellToAgent(
                     terminal.id,
                     snapshot.provider,
                     defaultTerminalTitle(snapshot.provider),
@@ -140,27 +140,27 @@ export class CaxriDatabase {
             ) {
                 return false;
             }
-            const promoted = this.store.terminals.get(terminal.id)!;
+            const promoted = this.db.terminals.get(terminal.id)!;
             const assignment = choosePrimaryAgentForNewTerminal(session, promoted);
-            if (assignment) this.store.sessions.setPrimaryAgent(session.id, assignment);
-            const updatedSession = this.store.sessions.get(session.id)!;
+            if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
+            const updatedSession = this.db.sessions.get(session.id)!;
             const decision = decideAgentMetadataUpdate(promoted, updatedSession, snapshot);
             if (!decision)
                 throw new CaxriError('INTERNAL', 'Agent promotion produced no metadata update');
             if (decision.sessionPatch)
-                this.store.sessions.setDisplayTitleAndActivity(
+                this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
                     decision.sessionPatch.displayTitle,
                     decision.sessionPatch.lastActivityState,
                 );
-            this.store.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
+            this.db.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
             return true;
         });
     }
 
     /** Agent session IDs are provider-owned identities and may belong to only one Terminal. */
     claimedAgentSessionIds(terminalId: string): string[] {
-        const terminal = this.store.terminals.get(terminalId);
+        const terminal = this.db.terminals.get(terminalId);
         if (!terminal?.provider) return [];
         return this.claimedAgentSessionIdsForProvider(terminal.provider, terminalId);
     }
@@ -170,7 +170,7 @@ export class CaxriDatabase {
         excludingTerminalId: string,
     ): string[] {
         const claimed: string[] = [];
-        for (const candidate of this.store.terminals.list())
+        for (const candidate of this.db.terminals.list())
             if (
                 candidate.id !== excludingTerminalId &&
                 candidate.provider === provider &&
@@ -186,13 +186,13 @@ export class CaxriDatabase {
 
     /** Clears the previous process binding so a restarted Agent cannot inherit its old session. */
     resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {
-        this.store.transaction(() => {
-            const terminal = this.store.terminals.get(terminalId);
+        this.db.transaction(() => {
+            const terminal = this.db.terminals.get(terminalId);
             if (!terminal?.provider) return;
-            this.store.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
-            const session = this.store.sessions.get(terminal.sessionId);
+            this.db.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
+            const session = this.db.sessions.get(terminal.sessionId);
             if (session?.primaryAgentTerminalId === terminalId) {
-                this.store.sessions.setDisplayTitleAndActivity(
+                this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
                     defaultTerminalTitle(terminal.kind),
                     'running',
@@ -205,94 +205,94 @@ export class CaxriDatabase {
         projectId: string,
         kind: TerminalKind,
     ): { session: SessionRecord; terminal: TerminalRecord } {
-        return this.store.transaction(() => {
+        return this.db.transaction(() => {
             this.assertTerminalCapacity();
-            const project = this.store.projects.get(projectId);
+            const project = this.db.projects.get(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
             const displayTitle = defaultTerminalTitle(kind);
-            const session = this.store.sessions.insert({ projectId, displayTitle });
-            const terminal = this.store.terminals.insert({
+            const session = this.db.sessions.insert({ projectId, displayTitle });
+            const terminal = this.db.terminals.insert({
                 sessionId: session.id,
                 kind,
                 cwd: project.rootPath,
                 title: displayTitle,
             });
             const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-            if (assignment) this.store.sessions.setPrimaryAgent(session.id, assignment);
-            this.store.sessions.insertInitialState(session.id, terminal.id);
-            this.store.appState.set('lastSelectedSessionId', session.id);
-            this.store.appState.set('lastSelectedProjectId', projectId);
-            this.store.projects.touchLastOpened(projectId);
+            if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
+            this.db.sessions.insertInitialState(session.id, terminal.id);
+            this.db.appState.set('lastSelectedSessionId', session.id);
+            this.db.appState.set('lastSelectedProjectId', projectId);
+            this.db.projects.touchLastOpened(projectId);
             return {
-                session: this.store.sessions.get(session.id)!,
-                terminal: this.store.terminals.get(terminal.id)!,
+                session: this.db.sessions.get(session.id)!,
+                terminal: this.db.terminals.get(terminal.id)!,
             };
         });
     }
 
     selectSession(sessionId: string): void {
-        this.store.transaction(() => {
-            if (!this.store.sessions.touchLastOpened(sessionId))
+        this.db.transaction(() => {
+            if (!this.db.sessions.touchLastOpened(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            const session = this.store.sessions.get(sessionId)!;
-            this.store.projects.touchLastOpened(session.projectId);
-            this.store.appState.set('lastSelectedSessionId', sessionId);
-            this.store.appState.set('lastSelectedProjectId', session.projectId);
+            const session = this.db.sessions.get(sessionId)!;
+            this.db.projects.touchLastOpened(session.projectId);
+            this.db.appState.set('lastSelectedSessionId', sessionId);
+            this.db.appState.set('lastSelectedProjectId', session.projectId);
         });
     }
 
     deleteSession(sessionId: string): void {
-        this.store.transaction(() => {
-            if (!this.store.sessions.remove(sessionId))
+        this.db.transaction(() => {
+            if (!this.db.sessions.remove(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            if (this.store.appState.get<string>('lastSelectedSessionId') !== sessionId) return;
-            const selectedProjectId = this.store.appState.get<string>('lastSelectedProjectId');
+            if (this.db.appState.get<string>('lastSelectedSessionId') !== sessionId) return;
+            const selectedProjectId = this.db.appState.get<string>('lastSelectedProjectId');
             const candidateSessions = selectedProjectId
-                ? this.store.sessions.list(selectedProjectId)
-                : this.store.sessions.list();
+                ? this.db.sessions.list(selectedProjectId)
+                : this.db.sessions.list();
             const selection = selectFallbackAfterDeletion(
                 candidateSessions.at(0),
                 selectedProjectId ?? null,
             );
-            this.store.appState.set('lastSelectedSessionId', selection.sessionId);
-            this.store.appState.set('lastSelectedProjectId', selection.projectId);
+            this.db.appState.set('lastSelectedSessionId', selection.sessionId);
+            this.db.appState.set('lastSelectedProjectId', selection.projectId);
         });
     }
 
     listTerminals(sessionId?: string): TerminalRecord[] {
-        return this.store.terminals.list(sessionId);
+        return this.db.terminals.list(sessionId);
     }
 
     getTerminal(id: string): TerminalRecord | undefined {
-        return this.store.terminals.get(id);
+        return this.db.terminals.get(id);
     }
 
     createTerminal(sessionId: string, kind: TerminalKind): TerminalRecord {
-        return this.store.transaction(() => {
-            const session = this.store.sessions.get(sessionId);
+        return this.db.transaction(() => {
+            const session = this.db.sessions.get(sessionId);
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
             this.assertTerminalCapacity(sessionId);
-            const terminal = this.store.terminals.insert({
+            const terminal = this.db.terminals.insert({
                 sessionId,
                 kind,
                 cwd: session.rootPath,
                 title: defaultTerminalTitle(kind),
             });
             const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-            if (assignment) this.store.sessions.setPrimaryAgent(sessionId, assignment);
+            if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
             return terminal;
         });
     }
 
     private assertTerminalCapacity(sessionId?: string): void {
-        if (this.store.terminals.countAll() >= MAX_TERMINALS_GLOBAL)
+        if (this.db.terminals.countAll() >= MAX_TERMINALS_GLOBAL)
             throw new CaxriError(
                 'CAPACITY',
                 `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
             );
         if (
             sessionId &&
-            this.store.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION
+            this.db.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION
         ) {
             throw new CaxriError(
                 'CAPACITY',
@@ -302,67 +302,64 @@ export class CaxriDatabase {
     }
 
     updateTerminalState(id: string, state: ProcessState): void {
-        this.store.transaction(() => {
-            const terminal = this.store.terminals.get(id);
+        this.db.transaction(() => {
+            const terminal = this.db.terminals.get(id);
             if (!terminal) return;
-            this.store.terminals.updateState(id, state);
+            this.db.terminals.updateState(id, state);
             if (terminal.provider)
-                this.store.sessions.setActivityStateByPrimaryTerminal(
-                    id,
-                    processActivityState(state),
-                );
+                this.db.sessions.setActivityStateByPrimaryTerminal(id, processActivityState(state));
         });
     }
 
     closeTerminal(id: string): void {
-        this.store.transaction(() => {
-            const terminal = this.store.terminals.get(id);
+        this.db.transaction(() => {
+            const terminal = this.db.terminals.get(id);
             if (!terminal) return;
-            this.store.terminals.remove(id);
-            const session = this.store.sessions.get(terminal.sessionId);
+            this.db.terminals.remove(id);
+            const session = this.db.sessions.get(terminal.sessionId);
             if (session?.primaryAgentTerminalId === id) {
-                const remaining = this.store.terminals.list(terminal.sessionId);
+                const remaining = this.db.terminals.list(terminal.sessionId);
                 const succession = choosePrimaryAgentSuccessor(remaining);
-                this.store.sessions.setPrimaryAgent(terminal.sessionId, succession);
+                this.db.sessions.setPrimaryAgent(terminal.sessionId, succession);
             }
-            const state = this.store.sessions.getState(terminal.sessionId);
-            this.store.sessions.updateState(withTerminalRemovedFromLayout(state, id));
+            const state = this.db.sessions.getState(terminal.sessionId);
+            this.db.sessions.updateState(withTerminalRemovedFromLayout(state, id));
         });
     }
 
     getSnapshot(terminalId: string): TerminalSnapshot | undefined {
-        return this.store.snapshots.get(terminalId);
+        return this.db.snapshots.get(terminalId);
     }
 
     saveSnapshot(snapshot: TerminalSnapshot): void {
-        this.store.snapshots.save(snapshot);
+        this.db.snapshots.save(snapshot);
     }
 
     listSessionStates(): SessionState[] {
-        return this.store.sessions.listStates();
+        return this.db.sessions.listStates();
     }
 
     getSessionState(sessionId: string): SessionState {
-        return this.store.sessions.getState(sessionId);
+        return this.db.sessions.getState(sessionId);
     }
 
     updateSessionState(state: SessionState): void {
-        this.store.sessions.updateState(state);
+        this.db.sessions.updateState(state);
     }
 
     getAppState<T>(key: string): T | undefined {
-        return this.store.appState.get<T>(key);
+        return this.db.appState.get<T>(key);
     }
 
     setAppState(key: string, value: unknown): void {
-        this.store.appState.set(key, value);
+        this.db.appState.set(key, value);
     }
 
     markAllStopped(): void {
-        this.store.markAllStopped();
+        this.db.markAllStopped();
     }
 
     close(): void {
-        this.store.close();
+        this.db.close();
     }
 }

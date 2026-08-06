@@ -61,7 +61,7 @@ export interface NewTerminalInput {
  * of a Session never collides with a surviving one's index. Every caller shares this one INSERT
  * instead of duplicating it.
  */
-export class TerminalsStore {
+export class TerminalsModel {
     constructor(private readonly db: CaxriDrizzleDatabase) {}
 
     /** Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows. */

@@ -2,7 +2,7 @@ import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
-import { WorkspacePaths, type ResolvedSessionPath } from '../workspace-paths';
+import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService } from './listing';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
@@ -17,7 +17,7 @@ export interface FileServiceOptions extends WatcherServiceOptions {
  * wires them together and preserves the public API bootstrap.ts and tests depend on.
  */
 export class FileService {
-    private readonly workspacePaths: WorkspacePaths;
+    private readonly projectRoots: ProjectRootResolver;
     private readonly documents: DocumentService;
     private readonly listing: ListingService;
     private readonly watcher: WatcherService;
@@ -29,10 +29,10 @@ export class FileService {
         maxFileBytes: () => number,
         options: FileServiceOptions = {},
     ) {
-        this.workspacePaths = new WorkspacePaths(database);
+        this.projectRoots = new ProjectRootResolver(database);
         /**
          * Sub-services call back through `this.resolveSessionPath` (a real prototype method) rather
-         * than `workspacePaths` directly, so a test spying on `service.resolveSessionPath` still
+         * than `projectRoots` directly, so a test spying on `service.resolveSessionPath` still
          * observes every internal call.
          */
         const resolveSessionPath = (sessionId: string, input?: string) =>
@@ -45,12 +45,12 @@ export class FileService {
     }
 
     resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
-        return this.workspacePaths.resolveSessionPath(sessionId, input);
+        return this.projectRoots.resolveSessionPath(sessionId, input);
     }
 
     /** Returns durable Project roots that the user explicitly granted to Caxri. */
     listApprovedProjectRoots(): string[] {
-        return this.workspacePaths.listApprovedProjectRoots();
+        return this.projectRoots.listApprovedProjectRoots();
     }
 
     list(sessionId: string, directory?: string): Promise<FileEntry[]> {

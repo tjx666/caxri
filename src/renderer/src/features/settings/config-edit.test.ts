@@ -8,7 +8,7 @@ import {
     isConfigDirty,
     mebibytesToBytes,
     type ConfigDrafts,
-} from './configEdit';
+} from './config-edit';
 
 describe('applyFormEdit', () => {
     it('preserves comments and unrelated formatting when changing a flat key', () => {

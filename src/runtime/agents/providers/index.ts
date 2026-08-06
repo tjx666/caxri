@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '../../../shared/agents';
+import type { AgentProvider } from '../../../shared/agents';
 import { claudeProvider } from './claude';
 import { codexProvider } from './codex';
 import type { AgentProviderDescriptor } from '../contract';
@@ -7,4 +7,4 @@ import type { AgentProviderDescriptor } from '../contract';
 export const agentProviders = {
     claude: claudeProvider,
     codex: codexProvider,
-} satisfies Record<AgentProviderId, AgentProviderDescriptor>;
+} satisfies Record<AgentProvider, AgentProviderDescriptor>;

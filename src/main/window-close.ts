@@ -1,3 +1,5 @@
+import { errorMessage } from '../shared/ipc/errors';
+
 interface WindowCloseOptions {
     close: () => void;
     confirm: (runningCount: number) => Promise<'cancel' | 'close' | 'terminate'>;
@@ -21,7 +23,7 @@ export async function resolveWindowClose(options: WindowCloseOptions): Promise<v
             await options.detachAll();
         }
     } catch (error) {
-        options.logFailure(error instanceof Error ? error.message : 'Unknown close failure');
+        options.logFailure(errorMessage(error, 'Unknown close failure'));
     }
     options.close();
 }

@@ -5,7 +5,7 @@ import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../shared/ipc/domain';
-import { CaxriError, isCaxriError } from '../shared/ipc/errors';
+import { CaxriError, errorMessage, isCaxriError } from '../shared/ipc/errors';
 import { AsyncSemaphore, mapWithConcurrency } from '../shared/node/concurrency';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
@@ -17,7 +17,7 @@ import type {
 } from '../shared/types';
 import { assertInsideRoot, isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
-import type { WorkspacePaths } from './workspace-paths';
+import type { ProjectRootResolver } from './project-roots';
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -181,7 +181,7 @@ export class GitService {
     private readonly summaries = new SingleFlight<string, GitSummary>();
 
     constructor(
-        private readonly paths: WorkspacePaths,
+        private readonly paths: ProjectRootResolver,
         private readonly logger: StructuredLogger,
     ) {}
 
@@ -210,7 +210,7 @@ export class GitService {
                     durationMs: performance.now() - startedAt,
                     fields: {
                         operation: args[0] ?? 'unknown',
-                        error: error instanceof Error ? error.message : 'unknown',
+                        error: errorMessage(error, 'unknown'),
                     },
                 });
                 throw toGitError(error);

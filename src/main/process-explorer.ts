@@ -35,6 +35,11 @@ interface ProcessExplorerSamplerOptions {
     runtimePid: () => number | undefined;
 }
 
+/** Converts kilobytes to megabytes, rounded to one decimal place for display. */
+export function kilobytesToMegabytes(kilobytes: number): number {
+    return Math.round((kilobytes / 1024) * 10) / 10;
+}
+
 /** Hides common credential flag values without removing the useful executable and argv context. */
 export function redactProcessName(command: string): string {
     return command
@@ -60,7 +65,7 @@ export function parseProcessList(output: string): ProcessExplorerEntry[] {
             parentPid,
             name: redactProcessName(match[5]),
             cpuPercent,
-            memoryMb: Math.round((rssKb / 1024) * 10) / 10,
+            memoryMb: kilobytesToMegabytes(rssKb),
         });
     }
     return processes;

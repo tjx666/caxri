@@ -5,11 +5,11 @@ import {
     markAllStopped as markAllTerminalsStopped,
     openDatabase,
 } from './connection';
-import { AppStateStore } from './models/app-state';
-import { ProjectsStore } from './models/projects';
-import { SessionsStore } from './models/sessions';
-import { SnapshotsStore } from './models/snapshots';
-import { TerminalsStore } from './models/terminals';
+import { AppStateModel } from './models/app-state';
+import { ProjectsModel } from './models/projects';
+import { SessionsModel } from './models/sessions';
+import { SnapshotsModel } from './models/snapshots';
+import { TerminalsModel } from './models/terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
 export { CURRENT_SCHEMA_VERSION } from './connection';
@@ -19,27 +19,27 @@ export { CURRENT_SCHEMA_VERSION } from './connection';
  * decision-making lives here; see `../session-policy.ts` for primary-Agent succession, default
  * titles, deletion-fallback selection, and layout edits.
  */
-export class CaxriStore {
+export class CaxriDb {
     /** Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
         `table_info`/`user_version` touch this directly. Every query goes through {@link db}. */
     readonly database: Database.Database;
     /** Drizzle query-builder instance bound to `./schema`; used by every CRUD module below. */
     readonly db: CaxriDrizzleDatabase;
-    readonly projects: ProjectsStore;
-    readonly sessions: SessionsStore;
-    readonly terminals: TerminalsStore;
-    readonly snapshots: SnapshotsStore;
-    readonly appState: AppStateStore;
+    readonly projects: ProjectsModel;
+    readonly sessions: SessionsModel;
+    readonly terminals: TerminalsModel;
+    readonly snapshots: SnapshotsModel;
+    readonly appState: AppStateModel;
 
     constructor(path: string) {
         const opened = openDatabase(path);
         this.database = opened.database;
         this.db = opened.db;
-        this.projects = new ProjectsStore(this.db);
-        this.sessions = new SessionsStore(this.db);
-        this.terminals = new TerminalsStore(this.db);
-        this.snapshots = new SnapshotsStore(this.db);
-        this.appState = new AppStateStore(this.db);
+        this.projects = new ProjectsModel(this.db);
+        this.sessions = new SessionsModel(this.db);
+        this.terminals = new TerminalsModel(this.db);
+        this.snapshots = new SnapshotsModel(this.db);
+        this.appState = new AppStateModel(this.db);
     }
 
     transaction<T>(work: () => T): T {

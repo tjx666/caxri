@@ -4,7 +4,7 @@ import { appState } from '../schema';
 import type { CaxriDrizzleDatabase } from '../connection';
 
 /** Pure key/value CRUD over the `app_state` table. */
-export class AppStateStore {
+export class AppStateModel {
     constructor(private readonly db: CaxriDrizzleDatabase) {}
 
     get<T>(key: string): T | undefined {

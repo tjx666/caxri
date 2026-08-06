@@ -5,7 +5,7 @@
  */
 export const agentProviderIds = ['claude', 'codex'] as const;
 
-export type AgentProviderId = (typeof agentProviderIds)[number];
+export type AgentProvider = (typeof agentProviderIds)[number];
 
 /** Display and executable metadata for one Agent provider. */
 export interface AgentProviderCatalogEntry {
@@ -18,4 +18,4 @@ export interface AgentProviderCatalogEntry {
 export const agentProviderCatalog = {
     claude: { displayName: 'Claude Code', executableName: 'claude' },
     codex: { displayName: 'Codex', executableName: 'codex' },
-} satisfies Record<AgentProviderId, AgentProviderCatalogEntry>;
+} satisfies Record<AgentProvider, AgentProviderCatalogEntry>;

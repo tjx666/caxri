@@ -3,6 +3,7 @@ import { relative, resolve } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
 
+import { errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
@@ -147,7 +148,7 @@ export class WatcherService {
                 this.logger.write('warn', 'watcher.setup_failed', {
                     fields: {
                         sessionId: sessionId ?? 'none',
-                        error: error instanceof Error ? error.message : 'unknown watcher error',
+                        error: errorMessage(error, 'unknown watcher error'),
                     },
                 });
             })
@@ -242,7 +243,7 @@ export class WatcherService {
         this.logger.write('warn', 'watcher.fallback', {
             fields: {
                 sessionId,
-                error: error instanceof Error ? error.message : 'unknown watcher error',
+                error: errorMessage(error, 'unknown watcher error'),
             },
         });
     }
@@ -331,7 +332,7 @@ export class WatcherService {
                         this.logger.write('debug', 'watcher.signature_entry_skipped', {
                             fields: {
                                 path,
-                                error: error instanceof Error ? error.message : 'unknown',
+                                error: errorMessage(error, 'unknown'),
                             },
                         });
                 }

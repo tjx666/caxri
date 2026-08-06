@@ -27,8 +27,8 @@ const IGNORED_SEGMENTS = new Set([
  * File-name suffixes excluded from listings, watcher subscriptions, and polling signatures.
  *
  * `.db-wal` matches SQLite's write-ahead-log file. Caxri's own database runs in WAL mode (see
- * `database.ts`), and a WAL file is rewritten on nearly every transaction; surfacing or watching
- * one would create constant listing/watcher churn for no benefit to the user.
+ * `db/connection.ts`), and a WAL file is rewritten on nearly every transaction; surfacing or
+ * watching one would create constant listing/watcher churn for no benefit to the user.
  */
 const IGNORED_SUFFIXES = ['.db-wal'];
 

@@ -4,6 +4,8 @@ import { Terminal } from '@xterm/xterm';
 import { CircleCheck, CircleX, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { errorMessage } from '@shared/ipc';
+
 import { Button } from '../../components/ui/button';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
@@ -69,11 +71,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         let canceled = false;
         void loadTerminalFonts()
             .catch((error: unknown) => {
-                onError(
-                    error instanceof Error
-                        ? error.message
-                        : 'Bundled terminal fonts failed to load',
-                );
+                onError(errorMessage(error, 'Bundled terminal fonts failed to load'));
             })
             .finally(() => {
                 /** A corrupt font must degrade to the system monospace stack instead of blocking the PTY. */
@@ -109,7 +107,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         const dataDisposable = xterm.onData((data) => {
             if (latestRef.current.processState !== 'running') return;
             void caxri.request('terminal.input', { terminalId, data }).catch((error: unknown) => {
-                onError(error instanceof Error ? error.message : 'Terminal input failed');
+                onError(errorMessage(error, 'Terminal input failed'));
             });
         });
         const unsubscribe = caxri.onEvent((event) => {
@@ -129,7 +127,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             .catch((error: unknown) => {
                 if (disposed) return;
                 replay.restore('');
-                onError(error instanceof Error ? error.message : 'Terminal attachment failed');
+                onError(errorMessage(error, 'Terminal attachment failed'));
             });
         let lastSentSize: TerminalSize | undefined;
         const observer = new ResizeObserver(() => {
@@ -175,7 +173,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         void caxri
             .request('terminal.attach', { terminalId })
             .catch((error: unknown) =>
-                onError(error instanceof Error ? error.message : 'Terminal reattachment failed'),
+                onError(errorMessage(error, 'Terminal reattachment failed')),
             );
     }, [attachEpoch, terminalId]);
 

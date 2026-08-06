@@ -25,7 +25,7 @@ import {
     isConfigDirty,
     type ConfigDrafts,
     type ConfigKind,
-} from './configEdit';
+} from './config-edit';
 import { KeybindingsForm } from './KeybindingsForm';
 import { SettingsForm } from './SettingsForm';
 import { ThemeForm } from './ThemeForm';

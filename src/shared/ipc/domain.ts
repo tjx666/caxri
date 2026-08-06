@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentProviderIds } from '../agents';
+import { agentProviderIds, type AgentProvider } from '../agents';
 import { workItemSchema } from '../work-item';
 import { terminalLayoutSchema } from './layout';
 
@@ -22,7 +22,7 @@ export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum(['starting', 'running', 'stopped', 'dead', 'failed']);
 const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
 
-export type AgentProvider = z.infer<typeof agentProviderSchema>;
+export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
@@ -87,6 +87,22 @@ export const sessionStateSchema = z.object({
     inspectorMode: inspectorModeSchema,
     layout: terminalLayoutSchema,
 });
+
+/**
+ * Numeric bounds and defaults for the user-configurable settings below. `appSettingsSchema` stays
+ * intentionally unconstrained (it only validates the wire shape); the strict per-field bounds live
+ * here so `src/runtime/configuration.ts`'s Runtime-side validation schema can import them instead of
+ * re-declaring the same numbers with no compiler link back to this contract.
+ */
+export const SETTINGS_BOUNDS = {
+    'terminal.fontSize': { min: 9, max: 32, default: 13 },
+    'terminal.scrollback': { min: 100, max: 10_000, default: 2_000 },
+    'files.maxFileBytes': {
+        min: 1_024,
+        max: MAX_CONFIGURABLE_FILE_BYTES,
+        default: 2 * 1024 * 1024,
+    },
+} as const;
 
 export const appSettingsSchema = z.object({
     'session.defaultAgent': terminalKindSchema.nullable(),

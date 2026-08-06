@@ -1,7 +1,7 @@
 import * as pty from 'node-pty';
 
 import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
@@ -119,7 +119,7 @@ export class TerminalManager {
                 fields: {
                     terminalId: record.id,
                     kind: record.kind,
-                    error: error instanceof Error ? error.message : 'unknown',
+                    error: errorMessage(error, 'unknown'),
                 },
             });
             throw error;
@@ -189,7 +189,7 @@ export class TerminalManager {
             this.logger.write('warn', 'pty.snapshot_failed', {
                 fields: {
                     terminalId: live.record.id,
-                    error: error instanceof Error ? error.message : 'unknown',
+                    error: errorMessage(error, 'unknown'),
                 },
             });
         }

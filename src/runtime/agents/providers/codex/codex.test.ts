@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 
-import { clearExecutableCache } from '../../../discovery';
-import { AgentService, createLocalAgentAdapters } from '../../../service';
+import { clearExecutableCache } from '../../discovery';
+import { AgentService, createLocalAgentAdapters } from '../../service';
 
 const temporaryDirectories: string[] = [];
 

@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { errorMessage } from '@shared/ipc';
 import type { ProcessExplorerSnapshot } from '@shared/process-explorer';
 
 import { applyCssTheme } from '../../lib/theme-css';
@@ -100,7 +101,7 @@ export function ProcessExplorerApp() {
                 setError(undefined);
             })
             .catch((failure: unknown) =>
-                setError(failure instanceof Error ? failure.message : 'Unable to sample processes'),
+                setError(errorMessage(failure, 'Unable to sample processes')),
             )
             .finally(() => setRefreshing(false));
     }, []);

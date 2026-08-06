@@ -44,6 +44,15 @@ export function isCaxriError(value: unknown): value is CaxriError {
     return value instanceof CaxriError;
 }
 
+/**
+ * Extracts a human-readable message from a caught value, falling back to a caller-supplied default
+ * for non-`Error` throws (e.g. rejected primitives or `null`). Centralizes the
+ * `error instanceof Error ? error.message : fallback` idiom repeated across every process.
+ */
+export function errorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
 /** Unknown codes decay to `INTERNAL` so a newer Runtime can never break an older reader. */
 export function toErrorCode(value: unknown): CaxriErrorCode {
     return errorCodes.includes(value as CaxriErrorCode) ? (value as CaxriErrorCode) : 'INTERNAL';
@@ -87,7 +96,7 @@ export function toWireError(error: unknown): WireError {
     if (isZodError(error)) return { code: 'VALIDATION', message: describeValidationError(error) };
     return {
         code: 'INTERNAL',
-        message: error instanceof Error ? error.message : 'Unknown Caxri error',
+        message: errorMessage(error, 'Unknown Caxri error'),
     };
 }
 

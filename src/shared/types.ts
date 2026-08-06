@@ -3,7 +3,8 @@
  * TypeScript model can never drift. This module stays as the stable import path for consumers.
  */
 export {
-    MAX_CONFIGURABLE_FILE_BYTES,
+    keybindingSchema,
+    SETTINGS_BOUNDS,
     type AgentActivityState,
     type AgentProvider,
     type AgentSnapshot,

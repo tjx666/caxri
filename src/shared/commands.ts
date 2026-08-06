@@ -11,7 +11,7 @@ export const commandDefinitions: CommandDefinition[] = [
     { id: 'project.create', title: 'Add Project', category: 'Project' },
     { id: 'project.delete', title: 'Remove Project', category: 'Project' },
     { id: 'session.create', title: 'New Session', category: 'Session' },
-    { id: 'session.delete', title: 'Delete Session', category: 'Session' },
+    { id: 'session.delete', title: 'Remove Session', category: 'Session' },
     { id: 'session.selectNext', title: 'Select Next Session', category: 'Session' },
     { id: 'session.selectPrevious', title: 'Select Previous Session', category: 'Session' },
     { id: 'terminal.new', title: 'New Terminal', category: 'Terminal' },

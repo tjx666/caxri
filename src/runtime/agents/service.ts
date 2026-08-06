@@ -1,6 +1,6 @@
 import type { StructuredLogger } from '../../shared/node/logger';
-import { agentProviderIds, type AgentProviderId } from '../../shared/agents';
-import type { AgentProvider, AgentSnapshot } from '../../shared/types';
+import { agentProviderIds, type AgentProvider } from '../../shared/agents';
+import type { AgentSnapshot } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import {
     defaultAgentEnvironment,
@@ -21,7 +21,7 @@ export interface AgentAdapter {
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
 }
 
-function createCliAdapter(provider: AgentProviderId, environment: AgentEnvironment): AgentAdapter {
+function createCliAdapter(provider: AgentProvider, environment: AgentEnvironment): AgentAdapter {
     return {
         provider,
         async snapshot(context): Promise<AgentSnapshot> {

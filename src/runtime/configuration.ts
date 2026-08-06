@@ -7,11 +7,13 @@ import { z } from 'zod';
 
 import { agentProviderIds } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
+import { errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import {
-    MAX_CONFIGURABLE_FILE_BYTES,
+    keybindingSchema as sharedKeybindingSchema,
+    SETTINGS_BOUNDS,
     type AppSettings,
     type Keybinding,
     type KeybindingConflict,
@@ -29,30 +31,42 @@ interface WatcherSubscription {
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
 
+/**
+ * Bounds and defaults come from `SETTINGS_BOUNDS` in `src/shared/ipc/domain.ts`, keeping the strict
+ * Runtime validation here linked to the wire-shape `appSettingsSchema` it validates against.
+ */
 const settingsSchema = z.object({
     'session.defaultAgent': z
         .enum([...agentProviderIds, 'shell'])
         .nullable()
         .default(null),
-    'terminal.fontSize': z.number().int().min(9).max(32).default(13),
-    'terminal.scrollback': z.number().int().min(100).max(10_000).default(2_000),
+    'terminal.fontSize': z
+        .number()
+        .int()
+        .min(SETTINGS_BOUNDS['terminal.fontSize'].min)
+        .max(SETTINGS_BOUNDS['terminal.fontSize'].max)
+        .default(SETTINGS_BOUNDS['terminal.fontSize'].default),
+    'terminal.scrollback': z
+        .number()
+        .int()
+        .min(SETTINGS_BOUNDS['terminal.scrollback'].min)
+        .max(SETTINGS_BOUNDS['terminal.scrollback'].max)
+        .default(SETTINGS_BOUNDS['terminal.scrollback'].default),
     'files.maxFileBytes': z
         .number()
         .int()
-        .min(1_024)
-        .max(MAX_CONFIGURABLE_FILE_BYTES)
-        .default(2 * 1024 * 1024),
+        .min(SETTINGS_BOUNDS['files.maxFileBytes'].min)
+        .max(SETTINGS_BOUNDS['files.maxFileBytes'].max)
+        .default(SETTINGS_BOUNDS['files.maxFileBytes'].default),
 });
 
-const keybindingSchema = z.array(
-    z.object({ key: z.string().min(1).max(100), command: z.string().min(1).max(200) }),
-);
+const keybindingSchema = z.array(sharedKeybindingSchema);
 
 const defaultSettings: AppSettings = {
     'session.defaultAgent': null,
-    'terminal.fontSize': 13,
-    'terminal.scrollback': 2_000,
-    'files.maxFileBytes': 2 * 1024 * 1024,
+    'terminal.fontSize': SETTINGS_BOUNDS['terminal.fontSize'].default,
+    'terminal.scrollback': SETTINGS_BOUNDS['terminal.scrollback'].default,
+    'files.maxFileBytes': SETTINGS_BOUNDS['files.maxFileBytes'].default,
 };
 
 async function atomicWrite(path: string, source: string): Promise<void> {
@@ -161,7 +175,7 @@ export class ConfigurationService {
             this.logger?.write('warn', 'configuration.watcher.fallback', {
                 fields: {
                     backend,
-                    error: error instanceof Error ? error.message : 'unknown watcher error',
+                    error: errorMessage(error, 'unknown watcher error'),
                 },
             });
         }
@@ -191,7 +205,7 @@ export class ConfigurationService {
             this.apply(kind, source);
             this.errors.delete(kind);
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Configuration parse failed';
+            const message = errorMessage(error, 'Configuration parse failed');
             this.errors.set(kind, message);
             this.logger?.write('warn', 'configuration.load_failed', {
                 fields: { kind, error: message },
@@ -224,7 +238,7 @@ export class ConfigurationService {
             };
         } catch (error) {
             throw new Error(
-                `${basename(path)}: ${error instanceof Error ? error.message : 'configuration parse failed'}`,
+                `${basename(path)}: ${errorMessage(error, 'configuration parse failed')}`,
                 {
                     cause: error,
                 },
@@ -298,7 +312,7 @@ export class ConfigurationService {
             this.errors.delete(kind);
             this.emitChange(kind, source);
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Configuration parse failed';
+            const message = errorMessage(error, 'Configuration parse failed');
             this.errors.set(kind, message);
             this.emitChange(kind, this.sourceFor(kind), message);
         }

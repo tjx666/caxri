@@ -33,6 +33,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 
 - Renderer code never imports Node.js, Electron, PTY, Git, or filesystem APIs.
 - The preload exposes only the typed `window.caxri` allowlist from `src/shared/ipc`, whose method table, domain schemas, event union, and error taxonomy are the single source of truth for both processes.
+- Sanctioned exception: the Process Explorer diagnostic window uses its own dedicated preload bridge and IPC channels (`src/shared/process-explorer-channels.ts`); it is read-only diagnostics and must not grow project/session/file operations — those belong to the structured `window.caxri` contract.
 - Main owns windows, native dialogs, application lifecycle, and Runtime supervision.
 - The utility-process Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.
 - Add operations to the structured request contract. Never accept an arbitrary shell command from the Renderer.
@@ -54,7 +55,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 - Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state.
 - Let the first Agent Terminal own the Session title, and keep the Info inspector scoped to Terminals actually started in that Session.
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
-- Keep unit and integration tests with their source domain, using `__tests__/` when the source directory is already busy. Reserve `e2e/` for full Electron workflows.
+- Keep unit and integration tests with their source domain: Renderer code keeps tests beside their source files; Main, Runtime, and shared code use a `__tests__/` directory per domain. Reserve `e2e/` for full Electron workflows.
 - Keep every JavaScript and TypeScript code file at or below 800 physical lines; split cohesive modules before they exceed the ESLint `max-lines` gate.
 - Keep root `DESIGN.md` focused on frontend and UI design. Update the `project-architecture` skill references, tests, and these commands when an architecture or toolchain contract changes.
 

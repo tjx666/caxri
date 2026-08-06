@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { utilityProcess, type UtilityProcess } from 'electron';
 
-import { CaxriError, fromWireError } from '../shared/ipc/errors';
+import { CaxriError, errorMessage, fromWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod, RuntimeMethodResult, RuntimeParamsArg } from '../shared/ipc/methods';
 import {
@@ -97,7 +97,7 @@ export class RuntimeSupervisor extends EventEmitter {
                 stdio: 'pipe',
             });
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Runtime failed to start';
+            const message = errorMessage(error, 'Runtime failed to start');
             const failure = new CaxriError('UNAVAILABLE', message);
             this.logger.write('error', 'runtime.error', { fields: { error: message } });
             this.onExit(-1);
@@ -297,7 +297,7 @@ export class RuntimeSupervisor extends EventEmitter {
                         if (!this.intentionalStop)
                             this.logger.write('error', 'runtime.error', {
                                 fields: {
-                                    error: error instanceof Error ? error.message : String(error),
+                                    error: errorMessage(error, String(error)),
                                 },
                             });
                         reject(error instanceof Error ? error : new Error(String(error)));

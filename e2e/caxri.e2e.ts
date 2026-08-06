@@ -425,7 +425,7 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
             dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
         });
         await running.page.keyboard.press('Meta+Shift+P');
-        await running.page.getByText('Delete Session', { exact: true }).click();
+        await running.page.getByText('Remove Session', { exact: true }).click();
         await running.page.waitForTimeout(300);
 
         await expect(running.page.locator('.session-card')).toHaveCount(1);

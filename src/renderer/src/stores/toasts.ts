@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { isCaxriError } from '@shared/ipc';
+import { errorMessage, isCaxriError } from '@shared/ipc';
 
 import { refreshWorkbench } from './workbench';
 
@@ -98,7 +98,7 @@ export function describeFailure(error: unknown, label: string): string {
         if (error.code === 'TIMEOUT') return `${label}: Caxri did not respond in time.`;
         return error.message;
     }
-    return error instanceof Error ? error.message : label;
+    return errorMessage(error, label);
 }
 
 export interface TryCommandOptions {

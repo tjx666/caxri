@@ -17,7 +17,7 @@ import {
     configurationEditorLoadingClassName,
     settingsFieldRowClassName,
 } from '../../lib/utils';
-import { bytesToMebibytes, formatByteHint, mebibytesToBytes } from './configEdit';
+import { bytesToMebibytes, formatByteHint, mebibytesToBytes } from './config-edit';
 
 const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
 

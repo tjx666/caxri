@@ -1,7 +1,8 @@
-import { agentProviderCatalog, agentProviderIds, type AgentProviderId } from '../../shared/agents';
+import { agentProviderCatalog, agentProviderIds, type AgentProvider } from '../../shared/agents';
+import { errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
-import type { AgentProvider, TerminalRecord } from '../../shared/types';
+import type { TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db/repository';
 import type { AgentService } from './service';
@@ -23,7 +24,7 @@ interface ShellPromotionCandidate {
     startedAt: number;
 }
 
-const providerByExecutableName = new Map<string, AgentProviderId>(
+const providerByExecutableName = new Map<string, AgentProvider>(
     agentProviderIds.map((provider) => [agentProviderCatalog[provider].executableName, provider]),
 );
 
@@ -225,7 +226,7 @@ export class AgentCoordinator {
             this.logger.write('warn', 'agent.probe_failed', {
                 fields: {
                     terminalId,
-                    error: error instanceof Error ? error.message : 'unknown',
+                    error: errorMessage(error, 'unknown'),
                 },
             });
         }

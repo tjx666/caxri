@@ -5,7 +5,16 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-    globalIgnores(['dist', 'logs', 'out', 'release', 'node_modules', 'test-results']),
+    globalIgnores([
+        'dist',
+        'logs',
+        'out',
+        'release',
+        'node_modules',
+        'test-results',
+        /** Shallow clones of third-party repos for competitive research; never lint someone else's project config. */
+        'competitors/**',
+    ]),
     eslint.configs.recommended,
     tseslint.configs.recommendedTypeChecked,
     reactHooks.configs.flat['recommended-latest'],
