@@ -70,7 +70,10 @@ export function WorkTab({
                             'group-hover:opacity-0 group-focus-within:opacity-0',
                             `process-${status}`,
                             (status === 'running' && 'bg-success') ||
-                                ((status === 'failed' || status === 'dead') && 'bg-danger'),
+                                ((status === 'failed' ||
+                                    status === 'dead' ||
+                                    status === 'interrupted') &&
+                                    'bg-danger'),
                         )}
                     />
                 )}

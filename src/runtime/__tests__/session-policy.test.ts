@@ -66,16 +66,24 @@ describe('processActivityState', () => {
 });
 
 describe('shutdownOutcome', () => {
-    it('maps an unclean shutdown to dead Terminals and a failed primary Agent Session', () => {
+    it('maps an unclean shutdown to interrupted Terminals and a failed primary Agent Session', () => {
         expect(shutdownOutcome('unclean')).toEqual({
             liveProcessStates: ['running', 'starting'],
-            terminalProcessState: 'dead',
+            terminalProcessState: 'interrupted',
             primaryAgentSessionState: 'failed',
         });
     });
 
-    it('maps an orderly shutdown to stopped Terminals and a completed primary Agent Session', () => {
+    it('maps an orderly shutdown to interrupted Terminals and a completed primary Agent Session', () => {
         expect(shutdownOutcome('orderly')).toEqual({
+            liveProcessStates: ['running', 'starting'],
+            terminalProcessState: 'interrupted',
+            primaryAgentSessionState: 'completed',
+        });
+    });
+
+    it('maps an explicit terminate shutdown to stopped Terminals and a completed primary Agent Session', () => {
+        expect(shutdownOutcome('terminate')).toEqual({
             liveProcessStates: ['running', 'starting'],
             terminalProcessState: 'stopped',
             primaryAgentSessionState: 'completed',

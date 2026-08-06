@@ -19,6 +19,7 @@ import {
     defaultTerminalTitle,
     processActivityState,
     selectFallbackAfterDeletion,
+    type ShutdownReason,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
 import { CaxriDb, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './index';
@@ -361,8 +362,8 @@ export class CaxriDatabase {
         this.db.appState.set(key, value);
     }
 
-    markAllStopped(): void {
-        this.db.markAllStopped();
+    markShutdown(reason: ShutdownReason): void {
+        this.db.markShutdown(reason);
     }
 
     close(): void {

@@ -155,12 +155,43 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         }
     }
 
+    /**
+     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue
+     * #18). A Terminal with a bound Agent conversation (`terminal.provider` set) resumes it via
+     * `resumeArguments`, so `coordinator.prepareTerminalStart` — which clears the Agent session
+     * binding through `resetAgentMetadataForStart` — must be skipped for that Terminal; that clearing
+     * is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation
+     * (a shell, or an Agent Terminal that never reached a capability-detected session id) gets a
+     * fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
+     */
+    async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
+        const interrupted = database
+            .listTerminals(sessionId)
+            .filter((terminal) => terminal.lastProcessState === 'interrupted');
+        let restoredAny = false;
+        for (const terminal of interrupted) {
+            const resumeAgentSessionId = terminal.provider ? terminal.agentSessionId : undefined;
+            if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
+            try {
+                await terminals.restart(
+                    terminal.id,
+                    resumeAgentSessionId ? { resumeAgentSessionId } : undefined,
+                );
+            } catch {
+                continue;
+            }
+            restoredAny = true;
+            if (terminal.provider) coordinator.probeTerminal(terminal.id);
+        }
+        if (restoredAny) send({ event: 'state.changed', payload: { reason: 'session.restore' } });
+    }
+
     let closed = false;
     async function close(): Promise<void> {
         if (closed) return;
         closed = true;
         coordinator.close();
-        terminals.shutdown();
+        terminals.shutdown('orderly');
         await files.close();
         await configuration.close();
         database.close();
@@ -236,6 +267,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'session.select': ({ sessionId }) => {
             database.selectSession(sessionId);
             void files.watchSession(sessionId);
+            /** Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay
+                the Session-select response, so it runs fire-and-forget like `files.watchSession`. */
+            void restoreInterruptedTerminals(sessionId);
             send({ event: 'state.changed', payload: { reason: 'session.select' } });
             return database.getSession(sessionId)!;
         },
@@ -296,7 +330,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.terminateAll': () => {
             coordinator.close();
-            terminals.shutdown();
+            terminals.shutdown('terminate');
             return null;
         },
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
@@ -343,6 +377,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
 
     /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
     void files.watchSession(selectedSessionId());
+    /** Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected
+        Session's interrupted Terminals must never delay Runtime startup past the 3s large-Project gate. */
+    const initialSessionId = selectedSessionId();
+    if (initialSessionId) void restoreInterruptedTerminals(initialSessionId);
     for (const session of database.listSessions()) coordinator.probeSessionPrimaryAgent(session.id);
 
     return { handlers, close };

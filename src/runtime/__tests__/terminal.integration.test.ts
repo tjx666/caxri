@@ -219,7 +219,7 @@ describe('TerminalManager', () => {
             .toContain('DETACHED_AGAIN');
         expect(output).not.toContain('DETACHED_AGAIN');
 
-        manager.shutdown();
+        manager.shutdown('orderly');
         database.close();
     });
 
@@ -322,7 +322,7 @@ describe('TerminalManager', () => {
         await manager.start(created.terminal);
         expect(manager.write(created.terminal.id, "printf 'CAXRI_LIVE_INPUT_OK\\n'\r")).toBe(true);
         expect(manager.resize(created.terminal.id, 120, 40)).toBe(true);
-        manager.shutdown();
+        manager.shutdown('orderly');
         expect(manager.write(created.terminal.id, 'ignored')).toBe(false);
         database.close();
     });

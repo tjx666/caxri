@@ -225,7 +225,7 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
-    it('marks Terminals that claimed to be running as dead after Runtime reopen', async () => {
+    it('marks Terminals that claimed to be running as interrupted after Runtime reopen', async () => {
         const directory = await tempDir('caxri-db-recovery-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
@@ -234,7 +234,7 @@ describe('CaxriDatabase', () => {
         database.close();
 
         const recovered = new CaxriDatabase(databasePath);
-        expect(recovered.getTerminal(created.terminal.id)?.lastProcessState).toBe('dead');
+        expect(recovered.getTerminal(created.terminal.id)?.lastProcessState).toBe('interrupted');
         recovered.close();
     });
 

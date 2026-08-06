@@ -19,7 +19,14 @@ const agentActivityStateSchema = z.enum([
     'unknown',
 ]);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
-const processStateSchema = z.enum(['starting', 'running', 'stopped', 'dead', 'failed']);
+const processStateSchema = z.enum([
+    'starting',
+    'running',
+    'stopped',
+    'dead',
+    'failed',
+    'interrupted',
+]);
 const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
 
 export type { AgentProvider };

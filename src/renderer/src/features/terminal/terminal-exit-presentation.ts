@@ -16,6 +16,12 @@ export function getTerminalExitPresentation(
             return { icon: 'failed', label: 'Terminal failed to start', tone: 'danger' };
         case 'dead':
             return { icon: 'unexpected', label: 'Terminal stopped unexpectedly', tone: 'danger' };
+        case 'interrupted':
+            return {
+                icon: 'unexpected',
+                label: 'Interrupted by app shutdown — restoring',
+                tone: 'neutral',
+            };
         case 'starting':
         case 'running':
             return undefined;

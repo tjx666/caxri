@@ -1,8 +1,9 @@
 import type Database from 'better-sqlite3';
 
+import type { ShutdownReason } from '../session-policy';
 import {
     type CaxriDrizzleDatabase,
-    markAllStopped as markAllTerminalsStopped,
+    markShutdown as markTerminalsShutdown,
     openDatabase,
 } from './connection';
 import { AppStateModel } from './models/app-state';
@@ -46,9 +47,9 @@ export class CaxriDb {
         return this.database.transaction(work)();
     }
 
-    markAllStopped(): void {
+    markShutdown(reason: ShutdownReason): void {
         this.transaction(() => {
-            markAllTerminalsStopped(this.db, Date.now());
+            markTerminalsShutdown(this.db, Date.now(), reason);
         });
     }
 

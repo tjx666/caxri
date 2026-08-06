@@ -8,6 +8,7 @@ import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
 import { discoverExecutable } from './agents/discovery';
 import type { CaxriDatabase } from './db/repository';
+import type { ShutdownReason } from './session-policy';
 import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
 
@@ -68,17 +69,30 @@ export class TerminalManager {
         this.spawnProcess = options.spawn ?? pty.spawn;
     }
 
-    start(record: TerminalRecord): Promise<TerminalRecord> {
+    start(
+        record: TerminalRecord,
+        options?: { resumeAgentSessionId?: string },
+    ): Promise<TerminalRecord> {
         if (this.terminals.has(record.id))
             return Promise.resolve(this.database.getTerminal(record.id)!);
-        return this.starts.run(record.id, () => this.spawn(record));
+        return this.starts.run(record.id, () => this.spawn(record, options));
     }
 
-    private async spawn(record: TerminalRecord): Promise<TerminalRecord> {
+    private async spawn(
+        record: TerminalRecord,
+        options?: { resumeAgentSessionId?: string },
+    ): Promise<TerminalRecord> {
         const startedAt = performance.now();
         try {
             const executable = await this.resolveExecutable(record.kind);
-            const args = record.kind === 'shell' ? ['-l'] : [];
+            const args =
+                record.kind === 'shell'
+                    ? ['-l']
+                    : options?.resumeAgentSessionId
+                      ? agentProviderCatalog[record.kind].resumeArguments(
+                            options.resumeAgentSessionId,
+                        )
+                      : [];
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -280,7 +294,10 @@ export class TerminalManager {
         for (const terminalId of [...this.attached]) this.detachView(terminalId);
     }
 
-    async restart(terminalId: string): Promise<TerminalRecord> {
+    async restart(
+        terminalId: string,
+        options?: { resumeAgentSessionId?: string },
+    ): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         const live = this.terminals.get(terminalId);
@@ -294,7 +311,7 @@ export class TerminalManager {
         this.database.updateTerminalState(terminalId, 'starting');
         const restarting = this.database.getTerminal(terminalId);
         if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
-        return this.start(restarting);
+        return this.start(restarting, options);
     }
 
     private detach(live: LiveTerminal, persist: boolean): void {
@@ -357,11 +374,16 @@ export class TerminalManager {
         return this.terminals.get(terminalId)?.process.pid;
     }
 
-    shutdown(): void {
+    /**
+     * Kills every live PTY (final snapshot persisted) and bulk-marks Terminals per `reason`.
+     * `unclean` is excluded: that recovery path only ever runs from `openDatabase` on the next
+     * Runtime start, never from a live Runtime shutting itself down.
+     */
+    shutdown(reason: Exclude<ShutdownReason, 'unclean'>): void {
         for (const live of [...this.terminals.values()]) {
             this.detach(live, true);
             live.process.kill();
         }
-        this.database.markAllStopped();
+        this.database.markShutdown(reason);
     }
 }

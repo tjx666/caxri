@@ -167,7 +167,7 @@ describe('CaxriDb', () => {
         db.close();
     });
 
-    it('marks Terminals that claimed to be running as dead after reopening', async () => {
+    it('marks Terminals that claimed to be running as interrupted after reopening, so they can auto-restore', async () => {
         const directory = await tempDir('caxri-db-recovery-');
         const databasePath = join(directory, 'state.db');
         const db = new CaxriDb(databasePath);
@@ -183,8 +183,48 @@ describe('CaxriDb', () => {
         db.close();
 
         const reopened = new CaxriDb(databasePath);
-        expect(reopened.terminals.get(terminal.id)?.lastProcessState).toBe('dead');
+        expect(reopened.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
         reopened.close();
+    });
+
+    it('marks running Terminals as interrupted for an orderly shutdown, keeping the Session resumable', async () => {
+        const directory = await tempDir('caxri-db-shutdown-orderly-');
+        const databasePath = join(directory, 'state.db');
+        const db = new CaxriDb(databasePath);
+        const project = db.projects.create(directory);
+        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = db.terminals.insert({
+            sessionId: session.id,
+            kind: 'shell',
+            cwd: directory,
+            title: 'Shell',
+        });
+        db.terminals.updateState(terminal.id, 'running');
+
+        db.markShutdown('orderly');
+
+        expect(db.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
+        db.close();
+    });
+
+    it('marks running Terminals as stopped for an explicit terminate shutdown', async () => {
+        const directory = await tempDir('caxri-db-shutdown-terminate-');
+        const databasePath = join(directory, 'state.db');
+        const db = new CaxriDb(databasePath);
+        const project = db.projects.create(directory);
+        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = db.terminals.insert({
+            sessionId: session.id,
+            kind: 'shell',
+            cwd: directory,
+            title: 'Shell',
+        });
+        db.terminals.updateState(terminal.id, 'running');
+
+        db.markShutdown('terminate');
+
+        expect(db.terminals.get(terminal.id)?.lastProcessState).toBe('stopped');
+        db.close();
     });
 
     it('treats session_state.active_tab_json as an opaque round-tripped blob', async () => {

@@ -130,30 +130,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             'restarting',
         );
         await waitForRuntimeReady(running.page);
-        await expect(
-            running.page.getByRole('button', { name: /Restart Terminal/ }).first(),
-        ).toBeVisible();
-        const deadTerminalId = await running.page
-            .locator('.terminal-pane')
-            .first()
-            .getAttribute('data-terminal-id');
-        if (!deadTerminalId) throw new Error('Dead Terminal ID was not rendered');
-        await pageRequest(running.page, 'terminal.input', {
-            terminalId: deadTerminalId,
-            data: 'ignored stale input',
-        });
-        await pageRequest(running.page, 'terminal.resize', {
-            terminalId: deadTerminalId,
-            cols: 120,
-            rows: 40,
-        });
-        await running.page.locator('.terminal-surface').first().click();
-        await running.page.keyboard.insertText('ignored dead Terminal input');
-        await expect(running.page.locator('.toast')).toHaveCount(0);
-        await running.page
-            .getByRole('button', { name: /Restart Terminal/ })
-            .first()
-            .click();
+        // Terminals killed with the Runtime are marked interrupted and auto-restored for the
+        // selected Session without a manual Restart click (GitHub issue #18).
         await expect(running.page.locator('.process-running').first()).toBeVisible();
         await typeTerminal(running.page, "printf 'AFTER_RUNTIME_RESTART\\n'");
         await expect(running.page.locator('.xterm-rows').first()).toContainText(
@@ -178,13 +156,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
                 ),
             )
             .toMatchObject({ width: 960, height: 640 });
-        await expect(
-            running.page.getByRole('button', { name: /Restart Terminal/ }).first(),
-        ).toBeVisible();
-        await running.page
-            .getByRole('button', { name: /Restart Terminal/ })
-            .first()
-            .click();
+        // An orderly app quit also leaves running Terminals interrupted; the relaunched Runtime
+        // restores the selected Session's Terminals on startup without user action.
         await expect(running.page.locator('.process-running').first()).toBeVisible();
 
         await running.app.evaluate(({ dialog }) => {

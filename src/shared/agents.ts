@@ -13,9 +13,23 @@ export interface AgentProviderCatalogEntry {
     displayName: string;
     /** Name of the CLI executable resolved from `PATH` or the user's login shell. */
     executableName: string;
+    /**
+     * Structured argv for resuming a previous provider conversation identified by
+     * `agentSessionId`. Used to auto-restore an Agent Terminal interrupted by an app shutdown
+     * (see GitHub issue #18) without losing its conversation history.
+     */
+    resumeArguments(agentSessionId: string): string[];
 }
 
 export const agentProviderCatalog = {
-    claude: { displayName: 'Claude Code', executableName: 'claude' },
-    codex: { displayName: 'Codex', executableName: 'codex' },
+    claude: {
+        displayName: 'Claude Code',
+        executableName: 'claude',
+        resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
+    },
+    codex: {
+        displayName: 'Codex',
+        executableName: 'codex',
+        resumeArguments: (agentSessionId) => ['resume', agentSessionId],
+    },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;

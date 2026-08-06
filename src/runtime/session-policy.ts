@@ -34,12 +34,17 @@ export function processActivityState(state: ProcessState): AgentActivityState {
 }
 
 /**
- * Why a Runtime is bulk-marking every still-alive Terminal at connection-open/close time.
- * `unclean` covers a previous process crash/kill discovered on the next `openDatabase` call;
- * `orderly` covers a graceful Runtime shutdown. Add new reasons here (e.g. a future
- * session-restore `interrupted` marker per GitHub issue #18) instead of growing call sites.
+ * Why a Runtime is bulk-marking every still-alive Terminal at connection-open/close time. `unclean`
+ * covers a previous process crash/kill discovered on the next `openDatabase` call; `orderly` covers
+ * a graceful Runtime shutdown (app quit, Session reload). Both leave still-alive Terminals
+ * `interrupted` so the next Runtime start can auto-resume them (with their Agent conversation
+ * intact, per GitHub issue #18) — only their primary Agent Session outcome differs: `failed` for an
+ * unclean shutdown versus `completed` for an orderly one, since nothing actually failed there.
+ * `terminate` covers the explicit user-initiated "Terminate and Close" action
+ * (`terminal.terminateAll`): Terminals are marked `stopped`, the same terminal state as a normal
+ * exit, so the next Runtime start treats them as finished and does not auto-restore them.
  */
-export type ShutdownReason = 'unclean' | 'orderly';
+export type ShutdownReason = 'unclean' | 'orderly' | 'terminate';
 
 export interface ShutdownOutcome {
     /** Terminal process states treated as "still alive" and eligible for bulk-marking. */
@@ -53,10 +58,15 @@ export interface ShutdownOutcome {
 const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
     unclean: {
         liveProcessStates: ['running', 'starting'],
-        terminalProcessState: 'dead',
+        terminalProcessState: 'interrupted',
         primaryAgentSessionState: 'failed',
     },
     orderly: {
+        liveProcessStates: ['running', 'starting'],
+        terminalProcessState: 'interrupted',
+        primaryAgentSessionState: 'completed',
+    },
+    terminate: {
         liveProcessStates: ['running', 'starting'],
         terminalProcessState: 'stopped',
         primaryAgentSessionState: 'completed',

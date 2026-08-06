@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
+import { CaxriDatabase } from '../db/repository';
 
 const temporaryDirectories: string[] = [];
 
@@ -145,5 +146,146 @@ describe('Runtime composition root', () => {
 
         expect(await runtime.handlers['runtime.shutdown']({})).toBeNull();
         await expect(runtime.close()).resolves.toBeUndefined();
+    });
+});
+
+/** No-op stub: the resume-restore workflow only needs `updateAgentMetadata` to stay a no-op so the
+    directly-written `agent_session_id` (see below) is never overwritten by a real probe result. */
+function fakeAgentAdapters(): Record<
+    'claude' | 'codex',
+    { provider: 'claude' | 'codex'; snapshot: () => Promise<never> }
+> {
+    const pending = new Promise<never>(() => undefined);
+    return {
+        claude: { provider: 'claude', snapshot: () => pending },
+        codex: { provider: 'codex', snapshot: () => pending },
+    };
+}
+
+describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
+    it('resumes a claude Terminal interrupted by an orderly shutdown with its bound Agent session id', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const resolveExecutable = () => Promise.resolve('/usr/local/bin/claude');
+
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: { resolveExecutable, spawn: () => createFakePty() },
+            agentAdapters: fakeAgentAdapters(),
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'claude',
+        });
+        expect(created.terminal.provider).toBe('claude');
+        /** Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`. */
+        await runtimeA.close();
+
+        /** Simulate a capability-detected Agent session id having been bound before the shutdown; done
+            through the raw better-sqlite3 handle because `updateAgentMetadata` requires a matching
+            provider snapshot, which this hermetic test does not produce. */
+        const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+        expect(direct.getTerminal(created.terminal.id)?.lastProcessState).toBe('interrupted');
+        direct.database
+            .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+            .run('sess-resume-1', created.terminal.id);
+        direct.close();
+
+        const spawnSpy = vi.fn();
+        spawnSpy.mockImplementation(() => createFakePty());
+        const runtimeB = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-b')),
+            send: () => undefined,
+            terminal: { resolveExecutable, spawn: spawnSpy },
+            agentAdapters: fakeAgentAdapters(),
+        });
+        try {
+            await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalled());
+            expect(spawnSpy.mock.calls[0]?.[1]).toEqual(['--resume', 'sess-resume-1']);
+
+            const bootstrap = await vi.waitFor(async () => {
+                const state = await runtimeB.handlers['app.bootstrap']({});
+                const terminal = state.terminals.find((entry) => entry.id === created.terminal.id);
+                expect(terminal?.lastProcessState).toBe('running');
+                return state;
+            });
+            const restoredTerminal = bootstrap.terminals.find(
+                (entry) => entry.id === created.terminal.id,
+            );
+            expect(restoredTerminal?.agentSessionId).toBe('sess-resume-1');
+        } finally {
+            await runtimeB.close();
+        }
+    });
+
+    it('restarts an interrupted Agent Terminal without a bound session fresh, and never auto-restarts an explicitly terminated one', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-fresh-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const resolveExecutable = () => Promise.resolve('/usr/local/bin/claude');
+
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: { resolveExecutable, spawn: () => createFakePty() },
+            agentAdapters: fakeAgentAdapters(),
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'claude',
+        });
+        /** No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset. */
+        await runtimeA.close();
+
+        const freshSpawnSpy = vi.fn();
+        freshSpawnSpy.mockImplementation(() => createFakePty());
+        const runtimeB = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-b')),
+            send: () => undefined,
+            terminal: { resolveExecutable, spawn: freshSpawnSpy },
+            agentAdapters: fakeAgentAdapters(),
+        });
+        try {
+            await vi.waitFor(() => expect(freshSpawnSpy).toHaveBeenCalled());
+            expect(freshSpawnSpy.mock.calls[0]?.[1]).toEqual([]);
+
+            await runtimeB.handlers['terminal.terminateAll']({});
+            const afterTerminate = await runtimeB.handlers['app.bootstrap']({});
+            expect(
+                afterTerminate.terminals.find((entry) => entry.id === created.terminal.id)
+                    ?.lastProcessState,
+            ).toBe('stopped');
+        } finally {
+            await runtimeB.close();
+        }
+
+        const noRestartSpawnSpy = vi.fn();
+        noRestartSpawnSpy.mockImplementation(() => createFakePty());
+        const runtimeC = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-c')),
+            send: () => undefined,
+            terminal: { resolveExecutable, spawn: noRestartSpawnSpy },
+            agentAdapters: fakeAgentAdapters(),
+        });
+        try {
+            /** Give the fire-and-forget restore a beat to (not) run before asserting it stayed idle. */
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(noRestartSpawnSpy).not.toHaveBeenCalled();
+        } finally {
+            await runtimeC.close();
+        }
     });
 });

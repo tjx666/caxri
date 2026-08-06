@@ -70,8 +70,10 @@ function initializeSchema(database: Database.Database): void {
  * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the
  * resulting Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}.
  * This module owns only the query/update mechanics; which states apply is a domain decision.
+ * Exported as `markShutdown` for both the recovery path at {@link openDatabase} (always `unclean`)
+ * and `./index.ts`'s `CaxriDb.markShutdown` (orderly/terminate, chosen by the caller).
  */
-function bulkMarkShutdown(db: CaxriDrizzleDatabase, now: number, reason: ShutdownReason): void {
+export function markShutdown(db: CaxriDrizzleDatabase, now: number, reason: ShutdownReason): void {
     const { liveProcessStates, terminalProcessState, primaryAgentSessionState } =
         shutdownOutcome(reason);
     db.update(terminals)
@@ -95,16 +97,6 @@ function bulkMarkShutdown(db: CaxriDrizzleDatabase, now: number, reason: Shutdow
             ),
         )
         .run();
-}
-
-/** Bulk-marks Terminals that claimed to be alive as `dead` after an unclean Runtime shutdown. */
-function markUncleanShutdownDead(db: CaxriDrizzleDatabase, now: number): void {
-    bulkMarkShutdown(db, now, 'unclean');
-}
-
-/** Bulk-marks running Terminals as `stopped` for an orderly Runtime shutdown. */
-export function markAllStopped(db: CaxriDrizzleDatabase, now: number): void {
-    bulkMarkShutdown(db, now, 'orderly');
 }
 
 export interface OpenedDatabase {
@@ -134,7 +126,7 @@ export function openDatabase(path: string): OpenedDatabase {
         database.pragma('busy_timeout = 5000');
         initializeSchema(database);
         const db = drizzle(database, { schema });
-        markUncleanShutdownDead(db, Date.now());
+        markShutdown(db, Date.now(), 'unclean');
         if (path !== ':memory:') {
             restrictPath(`${path}-wal`, 0o600);
             restrictPath(`${path}-shm`, 0o600);

@@ -17,6 +17,8 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
     stopped: 'text-muted',
     dead: 'text-danger',
     failed: 'text-danger',
+    /** Same treatment as `dead`: an interrupted Terminal is restoring in the background, not a live process. */
+    interrupted: 'text-danger',
 };
 
 /** Scoped to the selected Session's Terminals so another Session's Agents never leak in here. */
