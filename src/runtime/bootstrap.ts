@@ -163,27 +163,33 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
      * is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation
      * (a shell, or an Agent Terminal that never reached a capability-detected session id) gets a
      * fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
+     * Each Terminal owns an independent PTY and durable ID, so restore them concurrently to keep
+     * Session recovery bounded by the slowest executable discovery rather than their sum.
      */
     async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
         const interrupted = database
             .listTerminals(sessionId)
             .filter((terminal) => terminal.lastProcessState === 'interrupted');
-        let restoredAny = false;
-        for (const terminal of interrupted) {
-            const resumeAgentSessionId = terminal.provider ? terminal.agentSessionId : undefined;
-            if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
-            try {
-                await terminals.restart(
-                    terminal.id,
-                    resumeAgentSessionId ? { resumeAgentSessionId } : undefined,
-                );
-            } catch {
-                continue;
-            }
-            restoredAny = true;
-            if (terminal.provider) coordinator.probeTerminal(terminal.id);
-        }
-        if (restoredAny) send({ event: 'state.changed', payload: { reason: 'session.restore' } });
+        const restored = await Promise.all(
+            interrupted.map(async (terminal) => {
+                const resumeAgentSessionId = terminal.provider
+                    ? terminal.agentSessionId
+                    : undefined;
+                if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
+                try {
+                    await terminals.restart(
+                        terminal.id,
+                        resumeAgentSessionId ? { resumeAgentSessionId } : undefined,
+                    );
+                } catch {
+                    return false;
+                }
+                if (terminal.provider) coordinator.probeTerminal(terminal.id);
+                return true;
+            }),
+        );
+        if (restored.some(Boolean))
+            send({ event: 'state.changed', payload: { reason: 'session.restore' } });
     }
 
     let closed = false;

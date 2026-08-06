@@ -225,6 +225,58 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         }
     });
 
+    it("restores a Session's interrupted Terminals concurrently", async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-concurrent-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: () => createFakePty(),
+            },
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'shell',
+        });
+        await runtimeA.handlers['terminal.create']({
+            sessionId: created.session.id,
+            kind: 'shell',
+        });
+        await runtimeA.close();
+
+        let releaseDiscovery = (): void => undefined;
+        const discoveryGate = new Promise<void>((resolve) => {
+            releaseDiscovery = resolve;
+        });
+        const resolveExecutable = vi.fn(async () => {
+            await discoveryGate;
+            return '/bin/zsh';
+        });
+        const spawnSpy = vi.fn(() => createFakePty());
+        const runtimeB = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-b')),
+            send: () => undefined,
+            terminal: { resolveExecutable, spawn: spawnSpy },
+        });
+        try {
+            await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledTimes(2));
+            releaseDiscovery();
+            await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalledTimes(2));
+        } finally {
+            releaseDiscovery();
+            await runtimeB.close();
+        }
+    });
+
     it('restarts an interrupted Agent Terminal without a bound session fresh, and never auto-restarts an explicitly terminated one', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-fresh-'));
         temporaryDirectories.push(directory);

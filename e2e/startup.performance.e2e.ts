@@ -95,24 +95,18 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             .locator('.terminal-surface .xterm-rows')
             .waitFor()
             .then(() => performance.now() - restoredAt);
+        const restoredTerminalReady = restoredPage
+            .locator('.process-running')
+            .waitFor()
+            .then(() => performance.now() - restoredAt);
         const restoredGit = restoredPage
             .locator('.git-heading')
             .waitFor()
             .then(() => performance.now() - restoredAt);
         await waitForRuntimeReady(restoredPage);
         const restoredRuntimeReadyMs = performance.now() - restoredAt;
-        const [restoredTerminalSurfaceMs, restoredGitReadyMs] = await Promise.all([
-            restoredTerminalSurface,
-            restoredGit,
-        ]);
-
-        const terminalRestartedAt = performance.now();
-        await restoredPage.getByRole('button', { name: /Restart Terminal/ }).click();
-        await Promise.all([
-            restoredPage.locator('.terminal-recovery').waitFor({ state: 'hidden' }),
-            restoredPage.locator('.process-running').waitFor(),
-        ]);
-        const restoredTerminalRestartMs = performance.now() - terminalRestartedAt;
+        const [restoredTerminalSurfaceMs, restoredTerminalReadyMs, restoredGitReadyMs] =
+            await Promise.all([restoredTerminalSurface, restoredTerminalReady, restoredGit]);
 
         const restoredFilesStartedAt = performance.now();
         await restoredPage.getByRole('button', { name: 'Files', exact: true }).click();
@@ -169,7 +163,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             gitReadyMs: Math.round(gitReadyMs),
             restoredRuntimeReadyMs: Math.round(restoredRuntimeReadyMs),
             restoredTerminalSurfaceMs: Math.round(restoredTerminalSurfaceMs),
-            restoredTerminalRestartMs: Math.round(restoredTerminalRestartMs),
+            restoredTerminalReadyMs: Math.round(restoredTerminalReadyMs),
             restoredFilesReadyMs: Math.round(restoredFilesReadyMs),
             restoredGitReadyMs: Math.round(restoredGitReadyMs),
             runtimeBootMs:
@@ -210,7 +204,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expect(gitReadyMs).toBeLessThan(thresholdMs);
         expect(restoredRuntimeReadyMs).toBeLessThan(thresholdMs);
         expect(restoredTerminalSurfaceMs).toBeLessThan(thresholdMs);
-        expect(restoredTerminalRestartMs).toBeLessThan(thresholdMs);
+        expect(restoredTerminalReadyMs).toBeLessThan(thresholdMs);
         expect(restoredFilesReadyMs).toBeLessThan(thresholdMs);
         expect(restoredGitReadyMs).toBeLessThan(thresholdMs);
         expectTimedEvent(runtimeBoot);
