@@ -103,14 +103,9 @@ export function ProjectSidebar() {
                                     onClick={() => onSelectProject(project.id)}
                                     title={project.rootPath}
                                 >
-                                    <span className="project-copy flex min-w-0 flex-1 items-baseline gap-2">
-                                        <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-semibold">
-                                            {project.displayTitle}
-                                        </strong>
-                                        <small className="flex-none text-muted text-[11px]">
-                                            {projectSessions.length}
-                                        </small>
-                                    </span>
+                                    <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold">
+                                        {project.displayTitle}
+                                    </strong>
                                 </button>
                                 <Button
                                     size="icon"
