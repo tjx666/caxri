@@ -19,7 +19,7 @@ import { CURRENT_SCHEMA_VERSION } from './db';
 import { CaxriDatabase } from './db/repository';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
-import { FileService } from './files';
+import { FileService } from './files/service';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';

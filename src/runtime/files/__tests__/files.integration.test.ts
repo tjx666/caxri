@@ -17,7 +17,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
-import { FileService, rememberChangeFingerprint, rememberPolledDirectory } from '..';
+import { FileService } from '../service';
+import { rememberChangeFingerprint, rememberPolledDirectory } from '../watcher';
 
 /**
  * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat`
