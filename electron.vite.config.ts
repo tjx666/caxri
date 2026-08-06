@@ -1,23 +1,23 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { defineConfig, type UserConfig } from 'electron-vite';
 
-const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
-    version: string;
-};
+const execFileAsync = promisify(execFile);
 
 /** Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'. */
-function resolveGitCommit(): string {
+async function resolveGitCommit(): Promise<string> {
     try {
-        return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
             cwd: resolve('.'),
             encoding: 'utf8',
-        }).trim();
+        });
+        return stdout.trim();
     } catch {
         return 'unknown';
     }
@@ -30,6 +30,10 @@ export default defineConfig(async ({ command }) => {
      * Compiler preset reaches only the Renderer pipeline as a plain plugin object.
      */
     const reactCompiler = await babel({ presets: [reactCompilerPreset()] });
+    const packageJson = JSON.parse(await readFile(resolve('package.json'), 'utf8')) as {
+        version: string;
+    };
+    const gitCommit = await resolveGitCommit();
 
     return {
         main: {
@@ -40,7 +44,7 @@ export default defineConfig(async ({ command }) => {
              */
             define: {
                 __CAXRI_VERSION__: JSON.stringify(packageJson.version),
-                __CAXRI_COMMIT__: JSON.stringify(resolveGitCommit()),
+                __CAXRI_COMMIT__: JSON.stringify(gitCommit),
             },
             build: {
                 externalizeDeps: true,

@@ -14,6 +14,7 @@
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Build/package: `bun run build`, `bun run package`
 - Native probes: `bun run spike:native`, `bun run spike:pty`, `bun run spike:agents`
+- Issue tracking lives in GitHub issues (`gh issue`); this project does not use Linear.
 
 ## Skills
 
@@ -36,6 +37,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `debug`, `performance`
 ## Code conventions
 
 - UI strings, code, comments, docs, and commit messages use English.
+- Prefer asynchronous Node.js APIs (`node:fs/promises`, promisified `child_process`) over `*Sync` variants in Main, Runtime, and tooling code; test code is exempt and may use `*Sync` APIs for brevity. Elsewhere, a deliberately synchronous boundary (better-sqlite3 by design, strict startup ordering) needs a comment justifying it.
 - Prefer JSDoc for non-obvious lifecycle/security behavior and document why a workaround exists.
 - Keep the editor intentionally narrow: open/edit/save/in-file search/diff only.
 - Style the Renderer with Tailwind v4 utilities backed by the semantic runtime theme tokens. Color utilities must reference tokens only (`bg-surface`, `text-muted`); the default palette is unregistered, and literal color utilities are forbidden. See the styling principle in `DESIGN.md`.
@@ -54,8 +56,9 @@ Detailed playbooks live under `.agents/skills/` (`build`, `debug`, `performance`
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
 - Run focused Electron coverage with `bunx playwright test <e2e-file> --reporter=line`; use `-g '<test name>'` when only one workflow changed.
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
+- Do not unit-test React components by default. When component logic needs coverage, extract it into a hook or pure function and test that; rendering and interaction belong to the smallest relevant E2E workflow.
 - Prefer observable output and integration boundaries over internal call assertions. Mock Electron IPC or native boundaries for unit tests; reserve a real Electron launch for the smallest relevant E2E workflow.
-- Run the full unit or E2E suite only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient.
+- Run the full unit or E2E suite only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient. This applies doubly to implementation subagents: an orchestrator must scope each subagent to the specs covering its change (`bunx playwright test <file> [-g '<name>']`) instead of handing every task the full `bun run test:e2e` gate.
 
 ### Scripted repro
 
