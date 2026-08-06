@@ -1,0 +1,104 @@
+name: Release macOS
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-macos
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: "${{ startsWith(github.event.head_commit.message, 'release: v') }}"
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Validate release commit
+        id: release
+        env:
+          RELEASE_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          subject="${RELEASE_COMMIT_MESSAGE%%$'\n'*}"
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          expected="release: ${tag}"
+
+          if [[ "$subject" != "$expected" ]]; then
+            echo "Expected commit subject '${expected}', received '${subject}'." >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag '${tag}' already exists." >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+      - name: Run release gates
+        run: |
+          bun run lint
+          bun run knip
+          bun run doctor
+          bun run typecheck
+          bun run format:check
+          bun run format:md:check
+          bun run test
+          bun run test:e2e
+
+      - name: Package unsigned Apple Silicon DMG
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: bun run package:dmg -- --arm64
+
+      - name: Verify packaged application
+        env:
+          CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
+        run: |
+          file "$CAXRI_BENCHMARK_EXECUTABLE" | grep -q 'arm64'
+          bunx playwright test e2e/startup.performance.e2e.ts --reporter=line
+
+      - name: Verify release artifact
+        id: artifact
+        run: |
+          dmg="$(find release -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          if [[ -z "$dmg" ]]; then
+            echo "No DMG was produced." >&2
+            exit 1
+          fi
+
+          hdiutil verify "$dmg"
+          dmg_directory="$(dirname "$dmg")"
+          dmg_name="$(basename "$dmg")"
+          (cd "$dmg_directory" && shasum -a 256 "$dmg_name" > "${dmg_name}.sha256")
+
+          echo "dmg=${dmg}" >> "$GITHUB_OUTPUT"
+          echo "checksum=${dmg}.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_DMG: ${{ steps.artifact.outputs.dmg }}
+          RELEASE_CHECKSUM: ${{ steps.artifact.outputs.checksum }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "$RELEASE_DMG" \
+            "$RELEASE_CHECKSUM" \
+            --target "$GITHUB_SHA" \
+            --title "Caxri ${RELEASE_TAG}" \
+            --generate-notes \
+            --fail-on-no-commits
