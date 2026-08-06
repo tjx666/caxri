@@ -14,6 +14,7 @@ import { LoadingScreen } from '../features/workbench/LoadingScreen';
 import { PanelDivider } from '../features/workbench/PanelDivider';
 import { Workbench } from '../features/workbench/Workbench';
 import { applyCssTheme } from '../lib/theme-css';
+import { cn } from '../lib/utils';
 import {
     INSPECTOR_DEFAULT_WIDTH,
     INSPECTOR_MAX_WIDTH,
@@ -72,7 +73,20 @@ export default function App() {
     if (!attached) return <LoadingScreen />;
 
     return (
-        <main className={inspectorVisible ? 'app-shell' : 'app-shell inspector-collapsed'}>
+        <main
+            className={cn(
+                /*
+                 * Sidebar/Inspector widths are device-local UI state (`state/panel-layout.ts`), not part
+                 * of the Runtime-synced Session; each panel writes its own custom property directly on
+                 * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
+                 * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
+                 */
+                'app-shell grid w-screen h-screen bg-background grid-rows-[minmax(0,1fr)_24px]',
+                inspectorVisible
+                    ? 'grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
+                    : 'inspector-collapsed grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)]',
+            )}
+        >
             <ProjectSidebar />
             <PanelDivider
                 ariaLabel="Resize Sidebar"

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '../../components/ui/button';
 import { caxri } from '../../lib/caxri';
+import { cn } from '../../lib/utils';
 import { useSettings, useTerminal, useTheme } from '../../state/selectors';
 import { pushToast } from '../../state/toasts';
 import { useWorkbenchStore } from '../../state/workbench';
@@ -26,6 +27,17 @@ interface TerminalPaneProps {
 }
 
 const onError = (message: string): void => pushToast('error', message);
+
+const terminalPaneClassName =
+    'terminal-pane relative flex h-full w-full min-h-0 min-w-0 flex-col pt-2 pr-1 pb-0 pl-2 bg-background';
+
+const terminalRecoveryToneClassName = {
+    danger: 'text-danger',
+    neutral: 'text-muted',
+} as const;
+
+const terminalRecoveryMessageClassName =
+    'terminal-recovery-message inline-flex items-center gap-2 overflow-hidden whitespace-nowrap text-ellipsis';
 
 /**
  * Owns one xterm instance for the lifetime of its Terminal. Everything the imperative xterm callbacks
@@ -200,25 +212,30 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         <div
             role="region"
             aria-label={ariaLabel}
-            className="terminal-pane"
+            className={terminalPaneClassName}
             data-terminal-id={terminalId}
             onFocus={() => activateTerminal(terminalId)}
         >
-            <div ref={containerRef} className="terminal-surface" />
+            <div ref={containerRef} className="terminal-surface min-h-0 w-full flex-1" />
             {exitPresentation && (
                 <div
                     aria-live="polite"
-                    className={`terminal-recovery terminal-recovery-${exitPresentation.tone}`}
+                    className={cn(
+                        `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
+                        'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 -ml-2 pt-0 pr-1 pb-0 pl-2 border-t border-border text-[11px]',
+                        'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
+                        terminalRecoveryToneClassName[exitPresentation.tone],
+                    )}
                     data-terminal-exit-state={processState}
                     role="status"
                 >
-                    <span className="terminal-recovery-message">
+                    <span className={terminalRecoveryMessageClassName}>
                         <ExitIcon size={14} />
                         {exitPresentation.label}
                     </span>
                     <Button
                         aria-label="Restart Terminal"
-                        className="terminal-recovery-action"
+                        className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
                         size="sm"
                         title="Restart Terminal (Command+Shift+R)"
                         variant="ghost"

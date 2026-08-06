@@ -11,6 +11,7 @@ import { type ReactNode } from 'react';
 import type { BootstrapState } from '@shared/types';
 
 import { executeCommand } from '../../commands/execute';
+import { cn } from '../../lib/utils';
 import { usePanelLayoutStore } from '../../state/panel-layout';
 import { useCaxriQuery } from '../../state/queries';
 import { useSelectedProject, useSelectedSession, useSessionTerminals } from '../../state/selectors';
@@ -21,14 +22,27 @@ const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 
 type RuntimeStatus = BootstrapState['runtime']['status'];
 
+const statusItemClassName =
+    'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded-[3px] border-0 bg-transparent px-[5px] text-foreground no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
+
+const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]';
+
 /**
  * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it
  * does so in the user's vocabulary rather than naming the Runtime process.
  */
 const DEGRADED_STATES: Partial<Record<RuntimeStatus, { label: string; className: string }>> = {
     /** No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip. */
-    failed: { label: 'Backend stopped', className: 'statusbar-state-danger' },
-    restarting: { label: 'Reconnecting…', className: 'statusbar-state-warning' },
+    failed: {
+        label: 'Backend stopped',
+        className:
+            'statusbar-state-danger bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-danger',
+    },
+    restarting: {
+        label: 'Reconnecting…',
+        className:
+            'statusbar-state-warning bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning',
+    },
 };
 
 function StatusItem({
@@ -54,7 +68,7 @@ function StatusItem({
     );
     return href ? (
         <a
-            className="statusbar-item"
+            className={statusItemClassName}
             href={href}
             target="_blank"
             rel="noreferrer"
@@ -66,7 +80,7 @@ function StatusItem({
     ) : (
         <button
             type="button"
-            className="statusbar-item"
+            className={statusItemClassName}
             aria-label={ariaLabel}
             title={title}
             onClick={onClick}
@@ -133,8 +147,11 @@ export function StatusBar() {
          * `data-runtime-status` is the stable readiness signal: it is present in every visual
          * state, including the healthy one that renders no chip at all.
          */
-        <footer className="statusbar" data-runtime-status={runtimeStatus ?? 'starting'}>
-            <div className="statusbar-context">
+        <footer
+            className="statusbar col-span-full flex items-center gap-2 px-2 border-t border-border bg-surface text-muted text-[11px]"
+            data-runtime-status={runtimeStatus ?? 'starting'}
+        >
+            <div className="statusbar-context min-w-0 flex-1 flex items-center gap-0.5 overflow-hidden">
                 {project ? (
                     <StatusItem
                         icon={Monitor}
@@ -145,7 +162,9 @@ export function StatusBar() {
                         {project.displayTitle}
                     </StatusItem>
                 ) : (
-                    <span className="statusbar-empty">No Project selected</span>
+                    <span className="statusbar-empty overflow-hidden text-ellipsis whitespace-nowrap">
+                        No Project selected
+                    </span>
                 )}
                 {repository && (
                     <StatusItem
@@ -184,16 +203,21 @@ export function StatusBar() {
                     </StatusItem>
                 )}
             </div>
-            <div className="statusbar-actions">
+            <div className="statusbar-actions flex flex-none items-center gap-2">
                 {degraded && (
-                    <span className={`statusbar-state ${degraded.className}`}>
+                    <span className={cn(statusStateClassName, degraded.className)}>
                         {degraded.label}
                     </span>
                 )}
-                <span className="statusbar-count">{runningCount} running</span>
+                <span className="statusbar-count flex-none">{runningCount} running</span>
                 <button
                     type="button"
-                    className="statusbar-toggle"
+                    className={cn(
+                        'statusbar-toggle',
+                        'grid flex-none size-4 place-items-center p-0 border-0 rounded bg-transparent text-muted cursor-pointer',
+                        'hover:text-foreground aria-pressed:text-foreground',
+                        'focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_45%,transparent)]',
+                    )}
                     aria-pressed={inspectorVisible}
                     aria-label={toggleLabel}
                     title={toggleLabel}

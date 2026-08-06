@@ -8,11 +8,26 @@ import type {
     TerminalSplitNode,
 } from '@shared/types';
 
+import { cn } from '../../lib/utils';
 import { useSessionState, useSessionTerminals } from '../../state/selectors';
 import { activateTerminal, applyTerminalLayout, TERMINAL_DRAG_TYPE } from './terminal-actions';
 import { TerminalPane } from './TerminalPane';
 
 type DropZone = 'center' | 'right' | 'down';
+
+const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
+
+/** The focused pane ring is the app's one accent indicator (DESIGN.md "Terminal panes"). */
+const terminalGroupClassName = cn('terminal-group', fullBleedClassName, 'relative');
+
+const terminalDropPreviewClassName =
+    'absolute z-[5] grid place-items-center border border-accent bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-foreground text-[11px] pointer-events-none';
+
+const dropZoneClassName: Record<DropZone, string> = {
+    center: 'inset-[18%]',
+    right: 'inset-[0_0_0_50%]',
+    down: 'inset-[50%_0_0]',
+};
 
 /**
  * Only the structural facts travel down the recursion. Presentation inputs (theme, font size,
@@ -82,7 +97,11 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
     const label = `Terminal group ${props.groupNumbers.get(props.node.id) ?? 1}: ${terminal.title}`;
     return (
         <div
-            className={isActive ? 'terminal-group active' : 'terminal-group'}
+            className={cn(
+                terminalGroupClassName,
+                isActive &&
+                    'active shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_55%,transparent)]',
+            )}
             data-drop-zone={activeDropZone}
             data-group-id={props.node.id}
             onDragEnter={(event) => {
@@ -102,7 +121,13 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
         >
             <TerminalPane active={isActive} ariaLabel={label} terminalId={terminal.id} />
             {activeDropZone && (
-                <div className={`terminal-drop-preview terminal-drop-${activeDropZone}`}>
+                <div
+                    className={cn(
+                        `terminal-drop-preview terminal-drop-${activeDropZone}`,
+                        terminalDropPreviewClassName,
+                        dropZoneClassName[activeDropZone],
+                    )}
+                >
                     {activeDropZone === 'center'
                         ? 'Move to group'
                         : activeDropZone === 'right'
@@ -133,16 +158,29 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
     } satisfies CSSProperties;
     return (
         <div
-            className={`terminal-split terminal-split-${props.node.direction}`}
+            className={cn(
+                `terminal-split terminal-split-${props.node.direction}`,
+                fullBleedClassName,
+                'flex',
+                horizontal ? 'flex-row' : 'flex-col',
+            )}
             data-split-id={props.node.id}
         >
-            <div className="terminal-layout-child" style={firstStyle}>
+            <div
+                className={cn('terminal-layout-child', fullBleedClassName, 'flex-1')}
+                style={firstStyle}
+            >
                 <TerminalNodeView {...props} node={props.node.first} />
             </div>
             <div
                 role="separator"
                 tabIndex={0}
-                className="terminal-splitter"
+                className={cn(
+                    'terminal-splitter',
+                    'relative z-[3] flex-none basis-1 border-0 bg-border',
+                    'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
+                    horizontal ? 'cursor-col-resize' : 'cursor-row-resize',
+                )}
                 aria-label={`Resize ${horizontal ? 'horizontal' : 'vertical'} Terminal split`}
                 aria-orientation={horizontal ? 'vertical' : 'horizontal'}
                 aria-valuemin={15}
@@ -184,7 +222,7 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                     setDraftRatio(undefined);
                 }}
             />
-            <div className="terminal-layout-child">
+            <div className={cn('terminal-layout-child', fullBleedClassName, 'flex-1')}>
                 <TerminalNodeView {...props} node={props.node.second} />
             </div>
         </div>

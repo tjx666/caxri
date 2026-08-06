@@ -13,6 +13,7 @@ import {
     DialogTitle,
 } from '../../components/ui/dialog';
 import { caxri } from '../../lib/caxri';
+import { cn } from '../../lib/utils';
 import { setSettingsOpen, useDialogStore } from '../../state/dialogs';
 import { describeFailure, pushToast } from '../../state/toasts';
 import { refreshWorkbench } from '../../state/workbench';
@@ -219,23 +220,26 @@ export function SettingsDialog() {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="settings-dialog">
+            <DialogContent className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>
                         Changes apply immediately and are stored as editable files.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="settings-tabs">
+                <div className="flex border-b border-border">
                     {CONFIG_KINDS.map((value) => (
                         <button
                             key={value}
-                            className={tab === value ? 'active' : ''}
+                            className={cn(
+                                'min-h-9 cursor-pointer border-0 border-b-2 border-transparent bg-surface px-4 text-muted hover:text-foreground',
+                                tab === value && 'border-b-indicator text-foreground',
+                            )}
                             onClick={() => setTab(value)}
                         >
                             {value[0].toUpperCase() + value.slice(1)}
                             {isConfigDirty(drafts[value]) && (
-                                <span className="settings-tab-dirty" aria-hidden="true">
+                                <span className="text-warning" aria-hidden="true">
                                     {' '}
                                     •
                                 </span>
@@ -275,7 +279,12 @@ export function SettingsDialog() {
                     />
                 )}
 
-                <footer className="dialog-actions">
+                <footer
+                    className={cn(
+                        'dialog-actions',
+                        'flex justify-end gap-2 border-t border-border px-3 py-2',
+                    )}
+                >
                     <Button
                         variant="ghost"
                         onClick={() => void caxri.request('app.openConfigFile', { kind: tab })}

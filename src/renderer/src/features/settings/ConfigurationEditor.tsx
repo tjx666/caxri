@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import type { ThemeTokens } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { configurationEditorClassName } from '../../lib/utils';
 
 interface ConfigurationEditorProps {
     ariaLabel: string;
@@ -23,7 +24,7 @@ export default function ConfigurationEditor({
     useEffect(() => applyEditorTheme(theme), [theme]);
 
     return (
-        <div className="configuration-editor" aria-label={ariaLabel}>
+        <div className={configurationEditorClassName} aria-label={ariaLabel}>
             <Editor
                 path={path}
                 language="json"

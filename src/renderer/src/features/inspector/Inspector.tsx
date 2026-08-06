@@ -29,7 +29,7 @@ export function Inspector() {
     const sessionId = useSelectedSession()?.id;
     const mode = useSessionState()?.inspectorMode ?? 'files';
     return (
-        <aside className="inspector flex min-h-0 flex-col">
+        <aside className="inspector min-w-0 flex min-h-0 flex-col bg-surface">
             <div className="inspector-tabs grid grid-cols-4 min-h-9 border-b border-border">
                 {tabs.map(({ id, label, icon: Icon }) => (
                     <button
@@ -42,7 +42,7 @@ export function Inspector() {
                         onClick={() => executeCommand(inspectorCommands[id])}
                     >
                         <Icon size={15} />
-                        <span>{label}</span>
+                        <span className="max-[1100px]:hidden">{label}</span>
                     </button>
                 ))}
             </div>

@@ -39,7 +39,7 @@ function StateIcon({ state }: { state?: ProjectStatusState }) {
         return <CircleCheck className="state-success text-success" size={14} />;
     if (state === 'failure') return <CircleX className="state-failure text-danger" size={14} />;
     if (state === 'pending')
-        return <LoaderCircle className="state-pending spinning text-warning" size={14} />;
+        return <LoaderCircle className="state-pending animate-spin text-warning" size={14} />;
     if (state === 'neutral') return <Circle className="state-neutral text-muted" size={14} />;
     return <CircleDot className="state-unknown text-muted" size={14} />;
 }
@@ -206,7 +206,7 @@ export function ProjectStatusPanel() {
                     disabled={refreshing}
                     onClick={refresh}
                 >
-                    <RefreshCw className={refreshing ? 'spinning' : undefined} size={14} />
+                    <RefreshCw className={refreshing ? 'animate-spin' : undefined} size={14} />
                 </Button>
             </div>
             {!summary && (

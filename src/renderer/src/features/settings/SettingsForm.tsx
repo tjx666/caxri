@@ -11,6 +11,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import {
+    cn,
+    configurationEditorLoadingClassName,
+    settingsFieldRowClassName,
+} from '../../lib/utils';
 import { bytesToMebibytes, formatByteHint, mebibytesToBytes } from './configEdit';
 
 const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
@@ -41,10 +46,10 @@ export function SettingsForm({
     const maxFileMebibytes = bytesToMebibytes(settings['files.maxFileBytes']);
 
     return (
-        <div className="settings-body">
-            <div className="structured-editor">
-                <div className="settings-field">
-                    <label className="settings-field-title" htmlFor="default-agent">
+        <div className="grid min-h-0 grid-cols-[minmax(250px,0.85fr)_minmax(310px,1.15fr)] overflow-hidden">
+            <div className="structured-editor min-h-0 overflow-auto border-r border-border p-3">
+                <div className={cn(settingsFieldRowClassName, 'min-h-9')}>
+                    <label className="inline-flex items-center gap-2" htmlFor="default-agent">
                         <AgentIdentityIcon identity={settings['session.defaultAgent']} size={14} />
                         Default agent for new sessions
                     </label>
@@ -62,6 +67,7 @@ export function SettingsForm({
                         <SelectTrigger
                             id="default-agent"
                             aria-label="Default agent for new sessions"
+                            className="w-40 flex-none"
                         >
                             <SelectValue>
                                 {defaultAgentLabel(settings['session.defaultAgent'])}
@@ -75,9 +81,10 @@ export function SettingsForm({
                         </SelectContent>
                     </Select>
                 </div>
-                <label className="settings-field">
+                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
                     <span>Terminal font size</span>
                     <Input
+                        className="w-40 flex-none"
                         type="number"
                         min={9}
                         max={32}
@@ -87,9 +94,10 @@ export function SettingsForm({
                         }
                     />
                 </label>
-                <label className="settings-field">
+                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
                     <span>Terminal scrollback lines</span>
                     <Input
+                        className="w-40 flex-none"
                         type="number"
                         min={100}
                         max={10000}
@@ -99,14 +107,15 @@ export function SettingsForm({
                         }
                     />
                 </label>
-                <label className="settings-field">
+                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
                     <span>
                         Maximum editable file size
-                        <span className="settings-field-hint">
+                        <span className="block text-[11px] text-muted">
                             {formatByteHint(settings['files.maxFileBytes'])}
                         </span>
                     </span>
                     <Input
+                        className="w-40 flex-none"
                         type="number"
                         min={0.001}
                         max={16}
@@ -121,7 +130,7 @@ export function SettingsForm({
                     />
                 </label>
             </div>
-            <Suspense fallback={<div className="configuration-editor-loading" />}>
+            <Suspense fallback={<div className={configurationEditorLoadingClassName} />}>
                 <ConfigurationEditor
                     ariaLabel="settings.jsonc source"
                     path="/caxri/settings.jsonc"

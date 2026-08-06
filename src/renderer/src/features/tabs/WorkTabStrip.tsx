@@ -67,7 +67,11 @@ export function WorkTabStrip() {
     const openTabs = useSessionState()?.openTabs;
     const activeWork = useActiveWork();
     return (
-        <div className="work-tabs" role="tablist" aria-label="Open work">
+        <div
+            className="work-tabs flex min-h-9 overflow-x-auto border-b border-border bg-surface"
+            role="tablist"
+            aria-label="Open work"
+        >
             {sessionTerminals.map((terminal) => (
                 <TerminalWorkTab
                     key={terminal.id}
@@ -82,7 +86,7 @@ export function WorkTabStrip() {
                     path={tab.path}
                 />
             ))}
-            <div className="tab-actions">
+            <div className="tab-actions flex items-center gap-1 ml-auto px-1 bg-surface">
                 <Button
                     size="icon"
                     variant="ghost"

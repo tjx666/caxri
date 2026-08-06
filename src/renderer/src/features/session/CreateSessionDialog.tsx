@@ -30,7 +30,7 @@ export function CreateSessionDialog() {
                         Agent Terminal provides the Session title when metadata is available.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="agent-choice">
+                <div className="grid grid-cols-3 gap-2 p-4">
                     <Button variant="secondary" onClick={() => onCreate('claude')}>
                         <AgentIdentityIcon identity="claude" size={15} /> Claude Code
                     </Button>

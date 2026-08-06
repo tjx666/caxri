@@ -1,5 +1,6 @@
 import { CircleCheck, CircleX, Info, X } from 'lucide-react';
 
+import { cn } from '../../lib/utils';
 import { dismissToast, useToastStore, type ToastKind } from '../../state/toasts';
 
 const TOAST_ICONS: Record<ToastKind, typeof Info> = {
@@ -16,20 +17,39 @@ export function ToastOutlet() {
     const toasts = useToastStore((state) => state.toasts);
     if (toasts.length === 0) return null;
     return (
-        <div className="toast-stack" role="status" aria-live="polite">
+        <div
+            className="fixed right-4 bottom-10 z-[80] flex flex-col items-end gap-2"
+            role="status"
+            aria-live="polite"
+        >
             {toasts.map((toast) => {
                 const Icon = TOAST_ICONS[toast.kind];
                 return (
                     <div
                         key={toast.id}
-                        className={`toast toast-${toast.kind}`}
+                        className={cn(
+                            'toast',
+                            'flex max-w-[460px] items-start gap-2 rounded-md border border-border border-l-[3px] border-l-muted bg-elevated px-3 py-2 text-left shadow-[0_8px_24px_var(--shadow)]',
+                            toast.kind === 'success' && 'border-l-success',
+                            toast.kind === 'error' && 'border-l-danger',
+                        )}
                         onClick={() => dismissToast(toast.id)}
                     >
-                        <Icon className="toast-icon" size={14} aria-hidden="true" />
-                        <span className="toast-message">{toast.message}</span>
+                        <Icon
+                            className={cn(
+                                'mt-px flex-none text-muted',
+                                toast.kind === 'success' && 'text-success',
+                                toast.kind === 'error' && 'text-danger',
+                            )}
+                            size={14}
+                            aria-hidden="true"
+                        />
+                        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                            {toast.message}
+                        </span>
                         <button
                             type="button"
-                            className="toast-dismiss"
+                            className="grid size-4 flex-none place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-[var(--selection)] hover:text-foreground"
                             aria-label="Dismiss notification"
                             onClick={() => dismissToast(toast.id)}
                         >

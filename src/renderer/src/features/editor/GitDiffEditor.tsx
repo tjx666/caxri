@@ -9,6 +9,13 @@ import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
 import { useSelectedSession, useTheme } from '../../state/selectors';
 import { describeFailure } from '../../state/toasts';
 
+const emptyWorkClassName =
+    'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
+const gitMultiDiffPlaceholderClassName =
+    'git-multi-diff-placeholder grid h-full place-items-center text-muted text-[11px]';
+const gitMultiDiffErrorClassName =
+    'git-multi-diff-error grid h-full place-items-center text-danger text-[11px]';
+
 function useNearMultiDiffViewport(): {
     active: boolean;
     containerRef: RefObject<HTMLElement | null>;
@@ -63,7 +70,7 @@ function DiffSurface({
     if (document.format === 'patch')
         return (
             <Editor
-                className="git-patch-editor"
+                className="git-patch-editor w-full h-full"
                 language="diff"
                 path={`${gitDiffModelPath(sessionId, repositoryId, document.path, 'modified')}.diff`}
                 value={document.modified}
@@ -124,11 +131,13 @@ function FileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> })
     if (!sessionId) return null;
     if (isError)
         return (
-            <div className="empty-work">{describeFailure(error, 'Unable to open Git diff')}</div>
+            <div className={emptyWorkClassName}>
+                {describeFailure(error, 'Unable to open Git diff')}
+            </div>
         );
-    if (!document) return <div className="empty-work">Loading diff…</div>;
+    if (!document) return <div className={emptyWorkClassName}>Loading diff…</div>;
     return (
-        <div className="git-file-diff">
+        <div className="git-file-diff absolute inset-0 overflow-hidden">
             <DiffSurface
                 document={document}
                 repositoryId={tab.repositoryId}
@@ -159,11 +168,11 @@ function GitChangesDiffContent({
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
     if (isError)
         return (
-            <div className="git-multi-diff-error">
+            <div className={gitMultiDiffErrorClassName}>
                 {describeFailure(error, 'Unable to open Git diff')}
             </div>
         );
-    if (!document) return <div className="git-multi-diff-placeholder">Loading diff…</div>;
+    if (!document) return <div className={gitMultiDiffPlaceholderClassName}>Loading diff…</div>;
     return <DiffSurface document={document} repositoryId={repositoryId} sessionId={sessionId} />;
 }
 
@@ -179,12 +188,15 @@ function GitChangesDiffItem({
     const { active, containerRef } = useNearMultiDiffViewport();
     const label = file.originalPath ? `${file.originalPath} → ${file.path}` : file.path;
     return (
-        <section ref={containerRef} className="git-multi-diff-item">
-            <div className="git-multi-diff-heading" title={label}>
+        <section ref={containerRef} className="git-multi-diff-item border-b border-border">
+            <div
+                className="git-multi-diff-heading h-9 overflow-hidden border-b border-border bg-surface px-3 text-[11px] font-semibold text-ellipsis whitespace-nowrap text-foreground leading-9"
+                title={label}
+            >
                 {label}
             </div>
-            <div className="git-multi-diff-editor">
-                {!active && <div className="git-multi-diff-placeholder" aria-hidden="true" />}
+            <div className="git-multi-diff-editor h-[360px]">
+                {!active && <div className={gitMultiDiffPlaceholderClassName} aria-hidden="true" />}
                 {active && (
                     <GitChangesDiffContent
                         path={file.path}
@@ -212,16 +224,20 @@ function ChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes'
     if (!sessionId) return null;
     if (isError)
         return (
-            <div className="empty-work">{describeFailure(error, 'Unable to open Git changes')}</div>
+            <div className={emptyWorkClassName}>
+                {describeFailure(error, 'Unable to open Git changes')}
+            </div>
         );
-    if (!summary) return <div className="empty-work">Loading changes…</div>;
+    if (!summary) return <div className={emptyWorkClassName}>Loading changes…</div>;
     const repository = summary.isRepository
         ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)
         : undefined;
-    if (!repository) return <div className="empty-work">Git repository is no longer available</div>;
-    if (repository.files.length === 0) return <div className="empty-work">Working tree clean.</div>;
+    if (!repository)
+        return <div className={emptyWorkClassName}>Git repository is no longer available</div>;
+    if (repository.files.length === 0)
+        return <div className={emptyWorkClassName}>Working tree clean.</div>;
     return (
-        <div className="git-multi-diff">
+        <div className="git-multi-diff absolute inset-0 overflow-auto bg-background">
             {repository.files.map((file) => (
                 <GitChangesDiffItem
                     key={file.path}

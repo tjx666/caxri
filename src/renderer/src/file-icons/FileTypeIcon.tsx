@@ -14,7 +14,7 @@ export function FileTypeIcon({
         <img
             alt=""
             aria-hidden="true"
-            className="file-type-icon"
+            className="file-type-icon w-4 h-4 flex-none object-contain"
             data-file-icon={icon.id}
             draggable={false}
             src={icon.src}

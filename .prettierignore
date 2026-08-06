@@ -9,3 +9,4 @@ package-lock.json
 *.tsbuildinfo
 coverage/
 licenses/
+src/runtime/store/migrations/

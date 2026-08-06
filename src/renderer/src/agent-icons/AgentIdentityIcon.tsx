@@ -20,7 +20,7 @@ export function AgentIdentityIcon({
             <img
                 alt=""
                 aria-hidden="true"
-                className="agent-identity-icon"
+                className="agent-identity-icon inline-block flex-none object-contain"
                 data-agent-icon={icon.id}
                 draggable={false}
                 height={size}
@@ -31,12 +31,13 @@ export function AgentIdentityIcon({
     const style = {
         '--agent-icon-mask': `url("${icon.src}")`,
         'height': size,
+        'mask': 'var(--agent-icon-mask) center / contain no-repeat',
         'width': size,
     } as CSSProperties;
     return (
         <span
             aria-hidden="true"
-            className="agent-identity-icon agent-identity-icon-mask"
+            className="agent-identity-icon agent-identity-icon-mask inline-block flex-none object-contain bg-current"
             data-agent-icon={icon.id}
             style={style}
         />

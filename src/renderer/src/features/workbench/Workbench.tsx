@@ -14,16 +14,16 @@ function WorkSurface() {
     const hasLayout = Boolean(useSessionState()?.layout.root);
     if (activeWork?.kind === 'editor')
         return (
-            <div className="work-surface">
+            <div className="work-surface relative min-h-0 flex-1">
                 <EditorSurface path={activeWork.path} />
             </div>
         );
     return (
-        <div className="work-surface">
+        <div className="work-surface relative min-h-0 flex-1">
             {hasLayout ? (
                 <TerminalLayoutView />
             ) : (
-                <div className="empty-work">
+                <div className="empty-work flex h-full flex-col items-center justify-center gap-3 text-muted">
                     <TerminalSquare size={30} />
                     <p>No Terminal in this Session.</p>
                     <Button onClick={() => void createTerminal('shell')}>New Terminal</Button>
@@ -35,10 +35,12 @@ function WorkSurface() {
 
 function Welcome() {
     return (
-        <div className="welcome">
+        <div className="welcome flex h-full max-w-[540px] flex-col items-center justify-center gap-3 mx-auto p-6 text-center text-muted">
             <Code2 size={38} />
-            <h1>Project-first development.</h1>
-            <p>
+            <h1 className="mt-1 mx-0 mb-0 text-foreground text-[15px]">
+                Project-first development.
+            </h1>
+            <p className="m-0 leading-relaxed">
                 Add a local folder as a Project, then keep every Agent and Shell Session together
                 beneath it.
             </p>
@@ -52,7 +54,7 @@ function Welcome() {
 export function Workbench() {
     const session = useSelectedSession();
     return (
-        <section className="workbench">
+        <section className="workbench flex min-w-0 min-h-0 flex-col bg-background">
             {session ? (
                 <>
                     <WorkTabStrip />

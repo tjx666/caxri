@@ -2,8 +2,28 @@ import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
 
 import { PANEL_RESIZE_STEP } from '../../state/panel-layout';
 
-/** Applied to `document.body` for the duration of a drag; see `styles.css`. */
+/**
+ * Applied to `document.body` for the duration of a drag; see `styles.css`. Suppresses selection
+ * and pointer events globally so the gesture survives crossing an xterm surface or the Monaco
+ * editor, neither of which a Tailwind utility on this component could reach.
+ */
 const DRAG_CLASS = 'panel-resize-active';
+
+/**
+ * A hairline sits centered in a wider invisible hit area so a 6px column stays comfortable to
+ * grab without widening the visible seam. Hover/focus/drag states use a foreground tint, never
+ * `--accent` — the divider is chrome, not the one focus indicator (DESIGN.md "One accent focus
+ * per screen").
+ */
+const dividerClassName =
+    'panel-divider relative w-1.5 min-w-1.5 bg-transparent cursor-col-resize touch-none ' +
+    "after:content-[''] after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 " +
+    'after:bg-border after:pointer-events-none ' +
+    'hover:after:w-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+    'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+    'focus-visible:outline-none focus-visible:after:w-[3px] ' +
+    'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
+    'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]';
 
 interface PanelDividerProps {
     ariaLabel: string;
@@ -75,7 +95,7 @@ export function PanelDivider(props: PanelDividerProps) {
         <div
             role="separator"
             tabIndex={0}
-            className="panel-divider"
+            className={dividerClassName}
             aria-orientation="vertical"
             aria-label={props.ariaLabel}
             aria-valuemin={props.min}
