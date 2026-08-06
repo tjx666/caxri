@@ -1,43 +1,45 @@
 import { randomUUID } from 'node:crypto';
 
-import type Database from 'better-sqlite3';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { AgentProvider, ProcessState, TerminalKind, TerminalRecord } from '../../shared/types';
+import { terminals } from './schema';
+import type { CaxriDrizzleDatabase } from './sqlite';
 
 export const MAX_TERMINALS_PER_SESSION = 16;
 export const MAX_TERMINALS_GLOBAL = 32;
 
 interface TerminalRow {
     id: string;
-    session_id: string;
-    kind: TerminalKind;
-    provider: 'claude' | 'codex' | null;
+    sessionId: string;
+    kind: string;
+    provider: string | null;
     cwd: string;
     title: string;
     icon: string;
-    order_index: number;
-    layout_node_id: string;
-    agent_session_id: string | null;
-    last_process_state: ProcessState;
-    created_at: number;
-    updated_at: number;
+    orderIndex: number;
+    layoutNodeId: string;
+    agentSessionId: string | null;
+    lastProcessState: string;
+    createdAt: number;
+    updatedAt: number;
 }
 
 function mapTerminal(row: TerminalRow): TerminalRecord {
     return {
         id: row.id,
-        sessionId: row.session_id,
-        kind: row.kind,
-        provider: row.provider ?? undefined,
+        sessionId: row.sessionId,
+        kind: row.kind as TerminalKind,
+        provider: (row.provider as AgentProvider | null) ?? undefined,
         cwd: row.cwd,
         title: row.title,
         icon: row.icon,
-        orderIndex: row.order_index,
-        layoutNodeId: row.layout_node_id,
-        agentSessionId: row.agent_session_id ?? undefined,
-        lastProcessState: row.last_process_state,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        orderIndex: row.orderIndex,
+        layoutNodeId: row.layoutNodeId,
+        agentSessionId: row.agentSessionId ?? undefined,
+        lastProcessState: row.lastProcessState as ProcessState,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
     };
 }
 
@@ -55,88 +57,92 @@ export interface NewTerminalInput {
  * instead of duplicating it.
  */
 export class TerminalsStore {
-    constructor(private readonly database: Database.Database) {}
+    constructor(private readonly db: CaxriDrizzleDatabase) {}
 
     /** Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows. */
     list(sessionId?: string): TerminalRecord[] {
         const rows = sessionId
-            ? (this.database
-                  .prepare(
-                      'SELECT * FROM terminals WHERE session_id = ? ORDER BY order_index ASC, id ASC',
-                  )
-                  .all(sessionId) as TerminalRow[])
-            : (this.database
-                  .prepare(
-                      'SELECT * FROM terminals ORDER BY session_id ASC, order_index ASC, id ASC',
-                  )
-                  .all() as TerminalRow[]);
+            ? this.db
+                  .select()
+                  .from(terminals)
+                  .where(eq(terminals.sessionId, sessionId))
+                  .orderBy(asc(terminals.orderIndex), asc(terminals.id))
+                  .all()
+            : this.db
+                  .select()
+                  .from(terminals)
+                  .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex), asc(terminals.id))
+                  .all();
         return rows.map(mapTerminal);
     }
 
     get(id: string): TerminalRecord | undefined {
-        const row = this.database.prepare('SELECT * FROM terminals WHERE id = ?').get(id) as
-            TerminalRow | undefined;
+        const row = this.db.select().from(terminals).where(eq(terminals.id, id)).get();
         return row ? mapTerminal(row) : undefined;
     }
 
     countAll(): number {
-        return (
-            this.database.prepare('SELECT COUNT(*) AS count FROM terminals').get() as {
-                count: number;
-            }
-        ).count;
+        const row = this.db
+            .select({ count: sql<number>`count(*)` })
+            .from(terminals)
+            .get()!;
+        return row.count;
     }
 
     countForSession(sessionId: string): number {
-        return (
-            this.database
-                .prepare('SELECT COUNT(*) AS count FROM terminals WHERE session_id = ?')
-                .get(sessionId) as { count: number }
-        ).count;
+        const row = this.db
+            .select({ count: sql<number>`count(*)` })
+            .from(terminals)
+            .where(eq(terminals.sessionId, sessionId))
+            .get()!;
+        return row.count;
     }
 
     insert(input: NewTerminalInput): TerminalRecord {
         const id = randomUUID();
         const now = Date.now();
-        this.database
-            .prepare(
-                `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
-                  last_process_state, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?,
-                         COALESCE((SELECT MAX(order_index) + 1 FROM terminals WHERE session_id = ?), 0),
-                         ?, 'starting', ?, ?)`,
-            )
-            .run(
+        /** Mirrors the original `COALESCE((SELECT MAX(order_index) + 1 FROM terminals WHERE
+            session_id = ?), 0)` insert-time subquery so a Terminal removed from the middle of a
+            Session never collides with a surviving one's `order_index`. */
+        const orderIndex = sql<number>`COALESCE((SELECT MAX(${terminals.orderIndex}) + 1 FROM ${terminals} WHERE ${terminals.sessionId} = ${input.sessionId}), 0)`;
+        this.db
+            .insert(terminals)
+            .values({
                 id,
-                input.sessionId,
-                input.kind,
-                input.kind === 'shell' ? null : input.kind,
-                input.cwd,
-                input.title,
-                input.kind,
-                input.sessionId,
-                randomUUID(),
-                now,
-                now,
-            );
+                sessionId: input.sessionId,
+                kind: input.kind,
+                provider: input.kind === 'shell' ? null : input.kind,
+                cwd: input.cwd,
+                title: input.title,
+                icon: input.kind,
+                orderIndex,
+                layoutNodeId: randomUUID(),
+                lastProcessState: 'starting',
+                createdAt: now,
+                updatedAt: now,
+            })
+            .run();
         return this.get(id)!;
     }
 
     remove(id: string): boolean {
-        return this.database.prepare('DELETE FROM terminals WHERE id = ?').run(id).changes === 1;
+        return this.db.delete(terminals).where(eq(terminals.id, id)).run().changes === 1;
     }
 
     updateState(id: string, state: ProcessState, now = Date.now()): void {
-        this.database
-            .prepare('UPDATE terminals SET last_process_state = ?, updated_at = ? WHERE id = ?')
-            .run(state, now, id);
+        this.db
+            .update(terminals)
+            .set({ lastProcessState: state, updatedAt: now })
+            .where(eq(terminals.id, id))
+            .run();
     }
 
     updateAgentSessionId(id: string, agentSessionId: string | undefined, now = Date.now()): void {
-        this.database
-            .prepare('UPDATE terminals SET agent_session_id = ?, updated_at = ? WHERE id = ?')
-            .run(agentSessionId ?? null, now, id);
+        this.db
+            .update(terminals)
+            .set({ agentSessionId: agentSessionId ?? null, updatedAt: now })
+            .where(eq(terminals.id, id))
+            .run();
     }
 
     promoteShellToAgent(
@@ -146,13 +152,17 @@ export class TerminalsStore {
         now = Date.now(),
     ): boolean {
         return (
-            this.database
-                .prepare(
-                    `UPDATE terminals
-                     SET kind = ?, provider = ?, title = ?, icon = ?, updated_at = ?
-                     WHERE id = ? AND kind = 'shell' AND provider IS NULL`,
+            this.db
+                .update(terminals)
+                .set({ kind: provider, provider, title, icon: provider, updatedAt: now })
+                .where(
+                    and(
+                        eq(terminals.id, id),
+                        eq(terminals.kind, 'shell'),
+                        sql`${terminals.provider} IS NULL`,
+                    ),
                 )
-                .run(provider, provider, title, provider, now, id).changes === 1
+                .run().changes === 1
         );
     }
 }

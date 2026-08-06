@@ -1,58 +1,64 @@
-import type Database from 'better-sqlite3';
+import { eq } from 'drizzle-orm';
 
 import type { TerminalSnapshot } from '../../shared/types';
+import { terminalSnapshots } from './schema';
+import type { CaxriDrizzleDatabase } from './sqlite';
 
 interface SnapshotRow {
-    terminal_id: string;
-    encoding_version: number;
-    line_count: number;
-    byte_count: number;
+    terminalId: string;
+    encodingVersion: number;
+    lineCount: number;
+    byteCount: number;
     payload: string;
-    updated_at: number;
+    updatedAt: number;
 }
 
 function mapSnapshot(row: SnapshotRow): TerminalSnapshot {
     return {
-        terminalId: row.terminal_id,
-        encodingVersion: row.encoding_version,
-        lineCount: row.line_count,
-        byteCount: row.byte_count,
+        terminalId: row.terminalId,
+        encodingVersion: row.encodingVersion,
+        lineCount: row.lineCount,
+        byteCount: row.byteCount,
         payload: row.payload,
-        updatedAt: row.updated_at,
+        updatedAt: row.updatedAt,
     };
 }
 
 /** Pure CRUD over the `terminal_snapshots` table. */
 export class SnapshotsStore {
-    constructor(private readonly database: Database.Database) {}
+    constructor(private readonly db: CaxriDrizzleDatabase) {}
 
     get(terminalId: string): TerminalSnapshot | undefined {
-        const row = this.database
-            .prepare('SELECT * FROM terminal_snapshots WHERE terminal_id = ?')
-            .get(terminalId) as SnapshotRow | undefined;
+        const row = this.db
+            .select()
+            .from(terminalSnapshots)
+            .where(eq(terminalSnapshots.terminalId, terminalId))
+            .get();
         return row ? mapSnapshot(row) : undefined;
     }
 
     save(snapshot: TerminalSnapshot): void {
-        this.database
-            .prepare(
-                `INSERT INTO terminal_snapshots
-                 (terminal_id, encoding_version, line_count, byte_count, payload, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(terminal_id) DO UPDATE SET
-                   encoding_version = excluded.encoding_version,
-                   line_count = excluded.line_count,
-                   byte_count = excluded.byte_count,
-                   payload = excluded.payload,
-                   updated_at = excluded.updated_at`,
-            )
-            .run(
-                snapshot.terminalId,
-                snapshot.encodingVersion,
-                snapshot.lineCount,
-                snapshot.byteCount,
-                snapshot.payload,
-                snapshot.updatedAt,
-            );
+        const values = {
+            terminalId: snapshot.terminalId,
+            encodingVersion: snapshot.encodingVersion,
+            lineCount: snapshot.lineCount,
+            byteCount: snapshot.byteCount,
+            payload: snapshot.payload,
+            updatedAt: snapshot.updatedAt,
+        };
+        this.db
+            .insert(terminalSnapshots)
+            .values(values)
+            .onConflictDoUpdate({
+                target: terminalSnapshots.terminalId,
+                set: {
+                    encodingVersion: values.encodingVersion,
+                    lineCount: values.lineCount,
+                    byteCount: values.byteCount,
+                    payload: values.payload,
+                    updatedAt: values.updatedAt,
+                },
+            })
+            .run();
     }
 }

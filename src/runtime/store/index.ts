@@ -4,7 +4,11 @@ import { AppStateStore } from './app-state';
 import { ProjectsStore } from './projects';
 import { SessionsStore } from './sessions';
 import { SnapshotsStore } from './snapshots';
-import { markAllStopped as markAllTerminalsStopped, openDatabase } from './sqlite';
+import {
+    type CaxriDrizzleDatabase,
+    markAllStopped as markAllTerminalsStopped,
+    openDatabase,
+} from './sqlite';
 import { TerminalsStore } from './terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './terminals';
@@ -15,7 +19,11 @@ export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './terminals';
  * titles, deletion-fallback selection, and layout edits.
  */
 export class CaxriStore {
+    /** Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
+        `table_info`/`user_version` touch this directly. Every query goes through {@link db}. */
     readonly database: Database.Database;
+    /** Drizzle query-builder instance bound to `./schema`; used by every CRUD module below. */
+    readonly db: CaxriDrizzleDatabase;
     readonly projects: ProjectsStore;
     readonly sessions: SessionsStore;
     readonly terminals: TerminalsStore;
@@ -23,12 +31,14 @@ export class CaxriStore {
     readonly appState: AppStateStore;
 
     constructor(path: string) {
-        this.database = openDatabase(path);
-        this.projects = new ProjectsStore(this.database);
-        this.sessions = new SessionsStore(this.database);
-        this.terminals = new TerminalsStore(this.database);
-        this.snapshots = new SnapshotsStore(this.database);
-        this.appState = new AppStateStore(this.database);
+        const opened = openDatabase(path);
+        this.database = opened.database;
+        this.db = opened.db;
+        this.projects = new ProjectsStore(this.db);
+        this.sessions = new SessionsStore(this.db);
+        this.terminals = new TerminalsStore(this.db);
+        this.snapshots = new SnapshotsStore(this.db);
+        this.appState = new AppStateStore(this.db);
     }
 
     transaction<T>(work: () => T): T {
@@ -37,7 +47,7 @@ export class CaxriStore {
 
     markAllStopped(): void {
         this.transaction(() => {
-            markAllTerminalsStopped(this.database, Date.now());
+            markAllTerminalsStopped(this.db, Date.now());
         });
     }
 

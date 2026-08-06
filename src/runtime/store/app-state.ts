@@ -1,22 +1,27 @@
-import type Database from 'better-sqlite3';
+import { eq } from 'drizzle-orm';
+
+import { appState } from './schema';
+import type { CaxriDrizzleDatabase } from './sqlite';
 
 /** Pure key/value CRUD over the `app_state` table. */
 export class AppStateStore {
-    constructor(private readonly database: Database.Database) {}
+    constructor(private readonly db: CaxriDrizzleDatabase) {}
 
     get<T>(key: string): T | undefined {
-        const row = this.database
-            .prepare('SELECT value_json FROM app_state WHERE key = ?')
-            .get(key) as { value_json: string } | undefined;
-        return row ? (JSON.parse(row.value_json) as T) : undefined;
+        const row = this.db
+            .select({ valueJson: appState.valueJson })
+            .from(appState)
+            .where(eq(appState.key, key))
+            .get();
+        return row ? (JSON.parse(row.valueJson) as T) : undefined;
     }
 
     set(key: string, value: unknown): void {
-        this.database
-            .prepare(
-                `INSERT INTO app_state (key, value_json) VALUES (?, ?)
-                 ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`,
-            )
-            .run(key, JSON.stringify(value));
+        const valueJson = JSON.stringify(value);
+        this.db
+            .insert(appState)
+            .values({ key, valueJson })
+            .onConflictDoUpdate({ target: appState.key, set: { valueJson } })
+            .run();
     }
 }

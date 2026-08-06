@@ -2,6 +2,7 @@
     "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
     "include": [
         "electron.vite.config.*",
+        "drizzle.config.*",
         "vitest.config.*",
         "playwright.config.*",
         "eslint.config.*",
