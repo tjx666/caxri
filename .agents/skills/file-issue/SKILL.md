@@ -1,7 +1,6 @@
 ---
 name: file-issue
-description: 'Draft and file a well-formed GitHub issue for this repository. Use whenever creating an issue with gh — a bug report, an enhancement, or a follow-up task spun out of the current conversation — or when the user asks to 提 issue / file an issue.'
-argument-hint: '[what the issue is about]'
+description: 'Draft and directly file a well-formed GitHub issue for this repository. Explicit invocation authorizes creation without a preview or confirmation. Use whenever creating an issue with gh — a bug report, an enhancement, or a follow-up task spun out of the current conversation — or when the user asks to 提 issue / file an issue.'
 ---
 
 # File Issue
@@ -35,12 +34,10 @@ Code references (`path:line`) are welcome when they anchor the diagnosis or desi
 - Apply one label from the repo's existing vocabulary (`bug`, `enhancement`, `documentation`, `question`); don't invent new labels without asking.
 - Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the Problem section. Do not close or edit the parent.
 
-## Confirm before filing
+## Filing behavior
 
-Present the title, label, and full body in the conversation, then use `AskUserQuestion` to let the user pick:
+Treat explicit invocation as execution authorization. When the user invokes `$file-issue` or asks to file, create, or 提 an issue, draft it internally and file it immediately. Do not present a preview or ask for confirmation first. Reply with the verified issue link and a concise summary of what was filed.
 
-- **File it** — create the issue as shown.
-- **Revise** — the user annotates what to change; iterate.
-- **Don't file** — keep the draft in the conversation only.
+Stop before creating only when the user explicitly asks for a draft, preview, or review, or when a missing decision would materially change the issue. In draft-only mode, present the title, label, and full body without creating anything.
 
-Exception: when the user already gave the full issue content and explicitly said to file it, create it directly and reply with the issue link.
+After creation, fetch the issue once to verify its title, body, and label rather than treating the create command's exit status as the complete outcome.
