@@ -1,10 +1,8 @@
-import type { FileChange } from '@shared/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
-export interface FileTreeChangeRevisions {
-    directories: Record<string, number>;
-    overflow: number;
-    sessionId?: string;
-}
+import { caxri } from '../../lib/caxri';
+import { caxriQueryKey } from '../../state/queries';
 
 /** Returns the directory whose listing directly owns a changed absolute path. */
 export function parentDirectoryPath(path: string): string {
@@ -13,23 +11,37 @@ export function parentDirectoryPath(path: string): string {
     return separator === 0 ? '/' : path.slice(0, separator);
 }
 
-/** Advances only directly affected directory revisions; overflow invalidates every visible list. */
-export function updateFileTreeChangeRevisions(
-    previous: FileTreeChangeRevisions,
-    payload: { changes: FileChange[]; overflow: boolean; sessionId: string },
-): FileTreeChangeRevisions {
-    const current =
-        previous.sessionId === payload.sessionId ? previous : { directories: {}, overflow: 0 };
-    if (payload.overflow)
-        return {
-            ...current,
-            overflow: current.overflow + 1,
-            sessionId: payload.sessionId,
-        };
-    const directories = { ...current.directories };
-    for (const change of payload.changes) {
-        const parent = parentDirectoryPath(change.path);
-        directories[parent] = (directories[parent] ?? 0) + 1;
-    }
-    return { ...current, directories, sessionId: payload.sessionId };
+/**
+ * Invalidates only the `files.list` query cache entries a `files.changed` event actually touched.
+ * An overflowed watcher batch invalidates every directory listed for the Session — the change set
+ * was too large to enumerate — otherwise only the parent directory of each changed path is
+ * invalidated, so an edit in one expanded directory never re-fetches a sibling.
+ */
+export function useFileTreeInvalidation(sessionId: string | undefined): void {
+    const queryClient = useQueryClient();
+    useEffect(() => {
+        if (!sessionId) return;
+        return caxri.onEvent((event) => {
+            if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId) return;
+            if (event.payload.overflow) {
+                void queryClient.invalidateQueries({
+                    predicate: (query) => {
+                        const [method, params] = query.queryKey as [
+                            string,
+                            { sessionId?: string } | undefined,
+                        ];
+                        return method === 'files.list' && params?.sessionId === sessionId;
+                    },
+                });
+                return;
+            }
+            const directories = new Set(
+                event.payload.changes.map((change) => parentDirectoryPath(change.path)),
+            );
+            for (const directory of directories)
+                void queryClient.invalidateQueries({
+                    queryKey: caxriQueryKey('files.list', { sessionId, directory }),
+                });
+        });
+    }, [sessionId, queryClient]);
 }

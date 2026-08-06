@@ -7,16 +7,15 @@ import {
     GitBranch,
     RefreshCw,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { parseGitDiffTab, type GitDiffTab } from '@shared/git-diff';
-import type { GitRepositorySummary, GitSummary } from '@shared/types';
+import type { GitRepositorySummary } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
-import { caxri } from '../../lib/caxri';
+import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
 import { useSelectedSession } from '../../state/selectors';
 import { useActiveWork } from '../../state/session-view';
-import { describeFailure, pushToast } from '../../state/toasts';
 import { openGitChangesDiff, openGitFileDiff } from './git-diff-actions';
 import { buildGitFileTree, type GitFileTreeNode } from './git-tree';
 
@@ -171,35 +170,25 @@ function GitRepositorySection({
 export function GitPanel() {
     const session = useSelectedSession();
     const activeWork = useActiveWork();
-    const [summary, setSummary] = useState<GitSummary>();
     const sessionId = session?.id;
     const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
-    const refresh = useCallback((): void => {
-        if (!sessionId) return;
-        void caxri
-            .request('git.summary', { sessionId })
-            .then((nextSummary) => {
-                setSummary(nextSummary);
-            })
-            .catch((error: unknown) =>
-                pushToast('error', describeFailure(error, 'Git refresh failed')),
-            );
-    }, [sessionId]);
-    useEffect(() => {
-        refresh();
-    }, [refresh]);
-    useEffect(() => {
-        let refreshTimer: number | undefined;
-        const unsubscribe = caxri.onEvent((event) => {
-            if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId) return;
-            if (refreshTimer) window.clearTimeout(refreshTimer);
-            refreshTimer = window.setTimeout(refresh, 150);
-        });
-        return () => {
-            unsubscribe();
-            if (refreshTimer) window.clearTimeout(refreshTimer);
-        };
-    }, [refresh, sessionId]);
+    /**
+     * `files.changed` invalidation is wired centrally in `useRuntimeQueryInvalidation`, so this
+     * query only needs to describe what it reads; the debounced re-fetch on Git-affecting file
+     * activity happens without a local effect.
+     */
+    const {
+        data: summary,
+        isError,
+        error,
+        refetch,
+    } = useCaxriQuery(
+        'git.summary',
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId) },
+    );
+    useToastOnQueryError(isError, error, 'Git refresh failed');
+    const refresh = (): void => void refetch();
     if (!session) return <div className="empty-panel">Create a Session to inspect Git.</div>;
     if (!summary) return <div className="empty-panel">Loading Git status…</div>;
     if (!summary.isRepository) return <div className="empty-panel">{summary.error}</div>;

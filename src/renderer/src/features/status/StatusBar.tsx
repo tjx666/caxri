@@ -6,15 +6,18 @@ import {
     PanelRight,
     type LucideIcon,
 } from 'lucide-react';
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode } from 'react';
 
-import type { BootstrapState, ProjectStatusOverview } from '@shared/types';
+import type { BootstrapState } from '@shared/types';
 
 import { executeCommand } from '../../commands/execute';
-import { caxri } from '../../lib/caxri';
 import { usePanelLayoutStore } from '../../state/panel-layout';
+import { useCaxriQuery } from '../../state/queries';
 import { useSelectedProject, useSelectedSession, useSessionTerminals } from '../../state/selectors';
 import { useWorkbenchStore } from '../../state/workbench';
+
+/** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
+const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 
 type RuntimeStatus = BootstrapState['runtime']['status'];
 
@@ -73,69 +76,39 @@ function StatusItem({
     );
 }
 
-function useProjectOverview(sessionId: string | undefined): ProjectStatusOverview | undefined {
-    const [snapshot, setSnapshot] = useState<{
-        overview: ProjectStatusOverview;
-        sessionId: string;
-    }>();
-    const refreshOverview = useCallback((): void => {
-        if (!sessionId) return;
-        void caxri
-            .request('projectStatus.overview', { sessionId })
-            .then((overview) => setSnapshot({ overview, sessionId }))
-            .catch(() => undefined);
-    }, [sessionId]);
-    useEffect(() => {
-        if (!sessionId) return;
-        const initialRefresh = window.setTimeout(refreshOverview, 0);
-        const interval = window.setInterval(refreshOverview, 60_000);
-        return () => {
-            window.clearTimeout(initialRefresh);
-            window.clearInterval(interval);
-        };
-    }, [refreshOverview, sessionId]);
-    useEffect(() => {
-        if (!sessionId) return;
-        let refreshTimer: number | undefined;
-        let active = true;
-        const unsubscribe = caxri.onEvent((event) => {
-            if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId) return;
-            if (refreshTimer) window.clearTimeout(refreshTimer);
-            refreshTimer = window.setTimeout(() => {
-                void caxri
-                    .request('git.summary', { sessionId })
-                    .then((summary) => {
-                        if (!active) return;
-                        const primary = summary.repositories.find(
-                            (repository) => repository.kind === 'primary',
-                        );
-                        if (!primary) return;
-                        setSnapshot((current) =>
-                            current?.sessionId === sessionId && current.overview.repository
-                                ? {
-                                      ...current,
-                                      overview: {
-                                          ...current.overview,
-                                          repository: {
-                                              ...current.overview.repository,
-                                              branch: primary.branch,
-                                              changedFileCount: primary.files.length,
-                                          },
-                                      },
-                                  }
-                                : current,
-                        );
-                    })
-                    .catch(() => undefined);
-            }, 150);
-        });
-        return () => {
-            active = false;
-            unsubscribe();
-            if (refreshTimer) window.clearTimeout(refreshTimer);
-        };
-    }, [sessionId]);
-    return snapshot && snapshot.sessionId === sessionId ? snapshot.overview : undefined;
+/**
+ * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it
+ * stays on the 60s poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries`
+ * in `state/queries.ts`). Branch and changed-file count instead come from the `git.summary` query —
+ * the same cheap read `GitPanel` and `GitDiffEditor` use, already invalidated on `files.changed` — so
+ * the status bar reflects a Git-affecting change immediately without waiting on the slow poll or
+ * calling the delivery CLI any more often than the interval already does.
+ */
+function useProjectOverview(sessionId: string | undefined) {
+    const overviewQuery = useCaxriQuery(
+        'projectStatus.overview',
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId), refetchInterval: PROJECT_OVERVIEW_REFETCH_INTERVAL_MS },
+    );
+    const gitSummaryQuery = useCaxriQuery(
+        'git.summary',
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId) },
+    );
+    const overview = sessionId ? overviewQuery.data : undefined;
+    if (!overview?.repository) return overview;
+    const primary = gitSummaryQuery.data?.isRepository
+        ? gitSummaryQuery.data.repositories.find((repository) => repository.kind === 'primary')
+        : undefined;
+    if (!primary) return overview;
+    return {
+        ...overview,
+        repository: {
+            ...overview.repository,
+            branch: primary.branch,
+            changedFileCount: primary.files.length,
+        },
+    };
 }
 
 function showInspector(command: 'inspector.showFiles' | 'inspector.showGit'): void {

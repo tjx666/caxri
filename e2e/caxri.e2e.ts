@@ -677,7 +677,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('.view-lines')).toContainText('external wins');
 
         await running.page.getByRole('button', { name: 'Git', exact: true }).click();
-        await expect(running.page.getByText('main', { exact: false })).toBeVisible();
+        const gitPanelText = running.page.locator('.git-panel').getByText('main', { exact: false });
+        await expect(gitPanelText).toBeVisible();
         await expect(
             running.page.locator('.git-files .git-row', { hasText: 'note.txt' }),
         ).toBeVisible();

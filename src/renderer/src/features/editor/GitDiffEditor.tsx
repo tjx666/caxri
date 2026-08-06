@@ -2,25 +2,12 @@ import Editor, { DiffEditor, type MonacoDiffEditor } from '@monaco-editor/react'
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { gitDiffModelPath, type GitDiffTab } from '@shared/git-diff';
-import type { GitDiffDocument, GitFileStatus, GitRepositorySummary } from '@shared/types';
+import type { GitDiffDocument, GitFileStatus } from '@shared/types';
 
-import { caxri } from '../../lib/caxri';
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
 import { useSelectedSession, useTheme } from '../../state/selectors';
-import { describeFailure, pushToast } from '../../state/toasts';
-
-function useGitRevision(sessionId: string | undefined): number {
-    const [revision, setRevision] = useState(0);
-    useEffect(
-        () =>
-            caxri.onEvent((event) => {
-                if (event.event === 'files.changed' && event.payload.sessionId === sessionId)
-                    setRevision((value) => value + 1);
-            }),
-        [sessionId],
-    );
-    return revision;
-}
+import { describeFailure } from '../../state/toasts';
 
 function useNearMultiDiffViewport(): {
     active: boolean;
@@ -124,36 +111,21 @@ function DiffSurface({
 
 function FileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> }) {
     const sessionId = useSelectedSession()?.id;
-    const revision = useGitRevision(sessionId);
-    const [document, setDocument] = useState<GitDiffDocument>();
-    const [error, setError] = useState<string>();
-    useEffect(() => {
-        if (!sessionId) return;
-        let canceled = false;
-        void caxri
-            .request('git.diffDocument', {
-                sessionId,
-                repositoryId: tab.repositoryId,
-                path: tab.path,
-            })
-            .then((nextDocument) => {
-                if (!canceled) {
-                    setDocument(nextDocument);
-                    setError(undefined);
-                }
-            })
-            .catch((failure: unknown) => {
-                if (canceled) return;
-                const message = describeFailure(failure, 'Unable to open Git diff');
-                setError(message);
-                pushToast('error', message);
-            });
-        return () => {
-            canceled = true;
-        };
-    }, [revision, sessionId, tab.path, tab.repositoryId]);
+    const {
+        data: document,
+        isError,
+        error,
+    } = useCaxriQuery(
+        'git.diffDocument',
+        { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
+        { enabled: Boolean(sessionId) },
+    );
+    useToastOnQueryError(isError, error, 'Unable to open Git diff');
     if (!sessionId) return null;
-    if (error) return <div className="empty-work">{error}</div>;
+    if (isError)
+        return (
+            <div className="empty-work">{describeFailure(error, 'Unable to open Git diff')}</div>
+        );
     if (!document) return <div className="empty-work">Loading diff…</div>;
     return (
         <div className="git-file-diff">
@@ -175,23 +147,22 @@ function GitChangesDiffContent({
     repositoryId: string;
     sessionId: string;
 }) {
-    const [document, setDocument] = useState<GitDiffDocument>();
-    const [error, setError] = useState<string>();
-    useEffect(() => {
-        let canceled = false;
-        void caxri
-            .request('git.diffDocument', { sessionId, repositoryId, path })
-            .then((nextDocument) => {
-                if (!canceled) setDocument(nextDocument);
-            })
-            .catch((failure: unknown) => {
-                if (!canceled) setError(describeFailure(failure, 'Unable to open Git diff'));
-            });
-        return () => {
-            canceled = true;
-        };
-    }, [path, repositoryId, sessionId]);
-    if (error) return <div className="git-multi-diff-error">{error}</div>;
+    const {
+        data: document,
+        isError,
+        error,
+    } = useCaxriQuery('git.diffDocument', {
+        sessionId,
+        repositoryId,
+        path,
+    });
+    useToastOnQueryError(isError, error, 'Unable to open Git diff');
+    if (isError)
+        return (
+            <div className="git-multi-diff-error">
+                {describeFailure(error, 'Unable to open Git diff')}
+            </div>
+        );
     if (!document) return <div className="git-multi-diff-placeholder">Loading diff…</div>;
     return <DiffSurface document={document} repositoryId={repositoryId} sessionId={sessionId} />;
 }
@@ -199,12 +170,10 @@ function GitChangesDiffContent({
 function GitChangesDiffItem({
     file,
     repositoryId,
-    revision,
     sessionId,
 }: {
     file: GitFileStatus;
     repositoryId: string;
-    revision: number;
     sessionId: string;
 }) {
     const { active, containerRef } = useNearMultiDiffViewport();
@@ -218,7 +187,6 @@ function GitChangesDiffItem({
                 {!active && <div className="git-multi-diff-placeholder" aria-hidden="true" />}
                 {active && (
                     <GitChangesDiffContent
-                        key={revision}
                         path={file.path}
                         repositoryId={repositoryId}
                         sessionId={sessionId}
@@ -231,40 +199,26 @@ function GitChangesDiffItem({
 
 function ChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes' }> }) {
     const sessionId = useSelectedSession()?.id;
-    const revision = useGitRevision(sessionId);
-    const [repository, setRepository] = useState<GitRepositorySummary>();
-    const [error, setError] = useState<string>();
-    useEffect(() => {
-        if (!sessionId) return;
-        let canceled = false;
-        void caxri
-            .request('git.summary', { sessionId })
-            .then((summary) => {
-                const nextRepository = summary.repositories.find(
-                    (candidate) => candidate.id === tab.repositoryId,
-                );
-                if (!nextRepository) throw new Error('Git repository is no longer available');
-                return nextRepository;
-            })
-            .then((nextRepository) => {
-                if (!canceled) {
-                    setRepository(nextRepository);
-                    setError(undefined);
-                }
-            })
-            .catch((failure: unknown) => {
-                if (canceled) return;
-                const message = describeFailure(failure, 'Unable to open Git changes');
-                setError(message);
-                pushToast('error', message);
-            });
-        return () => {
-            canceled = true;
-        };
-    }, [revision, sessionId, tab.repositoryId]);
+    const {
+        data: summary,
+        isError,
+        error,
+    } = useCaxriQuery(
+        'git.summary',
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId) },
+    );
+    useToastOnQueryError(isError, error, 'Unable to open Git changes');
     if (!sessionId) return null;
-    if (error) return <div className="empty-work">{error}</div>;
-    if (!repository) return <div className="empty-work">Loading changes…</div>;
+    if (isError)
+        return (
+            <div className="empty-work">{describeFailure(error, 'Unable to open Git changes')}</div>
+        );
+    if (!summary) return <div className="empty-work">Loading changes…</div>;
+    const repository = summary.isRepository
+        ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)
+        : undefined;
+    if (!repository) return <div className="empty-work">Git repository is no longer available</div>;
     if (repository.files.length === 0) return <div className="empty-work">Working tree clean.</div>;
     return (
         <div className="git-multi-diff">
@@ -273,7 +227,6 @@ function ChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes'
                     key={file.path}
                     file={file}
                     repositoryId={repository.id}
-                    revision={revision}
                     sessionId={sessionId}
                 />
             ))}

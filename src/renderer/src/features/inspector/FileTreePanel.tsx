@@ -1,67 +1,46 @@
 import { ChevronDown, ChevronRight, ListCollapse } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
 import { FileTypeIcon } from '../../file-icons/FileTypeIcon';
-import { caxri } from '../../lib/caxri';
+import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
 import { useSelectedSession } from '../../state/selectors';
-import { describeFailure, pushToast } from '../../state/toasts';
 import { openFile } from '../editor/document-actions';
-import { updateFileTreeChangeRevisions, type FileTreeChangeRevisions } from './file-tree-refresh';
+import { useFileTreeInvalidation } from './file-tree-refresh';
 
 interface EntryProps {
-    changeRevisions: FileTreeChangeRevisions;
     sessionId: string;
     directory: string;
     depth?: number;
 }
 
-function DirectoryEntries({ changeRevisions, sessionId, directory, depth = 0 }: EntryProps) {
-    const [entries, setEntries] = useState<FileEntry[]>([]);
-    const refreshRevision =
-        changeRevisions.sessionId === sessionId
-            ? changeRevisions.overflow + (changeRevisions.directories[directory] ?? 0)
-            : 0;
-    useEffect(() => {
-        let canceled = false;
-        void caxri
-            .request('files.list', { sessionId, directory })
-            .then((nextEntries) => {
-                if (!canceled) setEntries(nextEntries);
-            })
-            .catch((error: unknown) => {
-                if (!canceled)
-                    pushToast('error', describeFailure(error, 'Unable to read directory'));
-            });
-        return () => {
-            canceled = true;
-        };
-    }, [sessionId, directory, refreshRevision]);
+function DirectoryEntries({ sessionId, directory, depth = 0 }: EntryProps) {
+    const {
+        data: entries = [],
+        isError,
+        error,
+    } = useCaxriQuery('files.list', {
+        sessionId,
+        directory,
+    });
+    useToastOnQueryError(isError, error, 'Unable to read directory');
 
     return (
         <div className="file-list">
             {entries.map((entry) => (
-                <FileTreeItem
-                    key={entry.path}
-                    changeRevisions={changeRevisions}
-                    entry={entry}
-                    sessionId={sessionId}
-                    depth={depth}
-                />
+                <FileTreeItem key={entry.path} entry={entry} sessionId={sessionId} depth={depth} />
             ))}
         </div>
     );
 }
 
 function FileTreeItem({
-    changeRevisions,
     entry,
     sessionId,
     depth,
 }: {
-    changeRevisions: FileTreeChangeRevisions;
     entry: FileEntry;
     sessionId: string;
     depth: number;
@@ -81,7 +60,6 @@ function FileTreeItem({
                 </button>
                 {expanded && (
                     <DirectoryEntries
-                        changeRevisions={changeRevisions}
                         sessionId={sessionId}
                         directory={entry.path}
                         depth={depth + 1}
@@ -109,22 +87,14 @@ function FileTreeItem({
 export function FileTreePanel() {
     const session = useSelectedSession();
     const [collapseRevision, setCollapseRevision] = useState(0);
-    const [changeRevisions, setChangeRevisions] = useState<FileTreeChangeRevisions>({
-        directories: {},
-        overflow: 0,
-    });
     const sessionId = session?.id;
-    useEffect(
-        () =>
-            caxri.onEvent((event) => {
-                if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId)
-                    return;
-                setChangeRevisions((previous) =>
-                    updateFileTreeChangeRevisions(previous, event.payload),
-                );
-            }),
-        [sessionId],
-    );
+    /**
+     * Invalidates only the `files.list` queries a `files.changed` event actually touched — an
+     * overflowed watcher batch invalidates every visible directory, otherwise only the parent
+     * directory of each changed path does. This stays local rather than joining the central
+     * `useRuntimeQueryInvalidation` pass because it needs the per-directory targeting.
+     */
+    useFileTreeInvalidation(sessionId);
     if (!session) return <div className="empty-panel">Create a Session to browse files.</div>;
     /** Keyed by Session so expansion state from another Project root is never reused. */
     return (
@@ -143,7 +113,6 @@ export function FileTreePanel() {
             </div>
             <DirectoryEntries
                 key={`${session.id}:${collapseRevision}`}
-                changeRevisions={changeRevisions}
                 sessionId={session.id}
                 directory={session.rootPath}
             />

@@ -24,6 +24,7 @@ import {
     usePanelLayoutStore,
     usePanelViewportClamp,
 } from '../state/panel-layout';
+import { useRuntimeQueryInvalidation } from '../state/queries';
 import { useTheme } from '../state/selectors';
 import {
     initializeWorkbench,
@@ -50,6 +51,7 @@ export default function App() {
     const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
 
     useRuntimeAttachment();
+    useRuntimeQueryInvalidation();
     useCommandShortcuts();
     useExternalDocumentSync();
     usePanelViewportClamp();

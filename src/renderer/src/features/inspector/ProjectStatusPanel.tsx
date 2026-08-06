@@ -18,19 +18,17 @@ import {
     RefreshCw,
     Rocket,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import type {
-    ProjectStatusRepository,
-    ProjectStatusState,
-    ProjectStatusSummary,
-} from '@shared/types';
+import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
-import { caxri } from '../../lib/caxri';
+import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
 import { useSelectedSession } from '../../state/selectors';
-import { describeFailure, pushToast } from '../../state/toasts';
 import { buildProjectStatusNodes, type ProjectStatusTreeNode } from './project-status-tree';
+
+/** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
+const PROJECT_STATUS_REFETCH_INTERVAL_MS = 60_000;
 
 function StateIcon({ state }: { state?: ProjectStatusState }) {
     if (state === 'success') return <CircleCheck className="state-success" size={14} />;
@@ -156,27 +154,23 @@ function RepositorySection({ repository }: { repository: ProjectStatusRepository
 export function ProjectStatusPanel() {
     const session = useSelectedSession();
     const sessionId = session?.id;
-    const [summary, setSummary] = useState<ProjectStatusSummary>();
-    const [refreshing, setRefreshing] = useState(false);
-    const refresh = useCallback((): void => {
-        if (!sessionId) return;
-        setRefreshing(true);
-        void caxri
-            .request('projectStatus.summary', { sessionId })
-            .then(setSummary)
-            .catch((error: unknown) =>
-                pushToast('error', describeFailure(error, 'Project Status refresh failed')),
-            )
-            .finally(() => setRefreshing(false));
-    }, [sessionId]);
-    useEffect(() => {
-        const initialRefresh = window.setTimeout(refresh, 0);
-        const timer = window.setInterval(refresh, 60_000);
-        return () => {
-            window.clearTimeout(initialRefresh);
-            window.clearInterval(timer);
-        };
-    }, [refresh]);
+    const {
+        data: summary,
+        isError,
+        error,
+        isFetching,
+        refetch,
+    } = useCaxriQuery(
+        'projectStatus.summary',
+        { sessionId: sessionId ?? '' },
+        {
+            enabled: Boolean(sessionId),
+            refetchInterval: PROJECT_STATUS_REFETCH_INTERVAL_MS,
+        },
+    );
+    useToastOnQueryError(isError, error, 'Project Status refresh failed');
+    const refresh = (): void => void refetch();
+    const refreshing = isFetching;
 
     if (!session) return <div className="empty-panel">Create a Session to inspect status.</div>;
     return (
