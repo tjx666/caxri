@@ -12,6 +12,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import migrationSql from './migrations/0000_silly_groot.sql?raw';
 import * as schema from './schema';
 import { sessions, terminals } from './schema';
+import { shutdownOutcome, type ShutdownReason } from '../session-policy';
 
 /**
  * Single source of truth for the schema version. Bumped whenever the DDL below changes shape;
@@ -65,36 +66,20 @@ function initializeSchema(database: Database.Database): void {
     })();
 }
 
-/** Bulk-marks Terminals that claimed to be alive as `dead` after an unclean Runtime shutdown. */
-function markUncleanShutdownDead(db: CaxriDrizzleDatabase, now: number): void {
+/**
+ * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the
+ * resulting Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}.
+ * This module owns only the query/update mechanics; which states apply is a domain decision.
+ */
+function bulkMarkShutdown(db: CaxriDrizzleDatabase, now: number, reason: ShutdownReason): void {
+    const { liveProcessStates, terminalProcessState, primaryAgentSessionState } =
+        shutdownOutcome(reason);
     db.update(terminals)
-        .set({ lastProcessState: 'dead', updatedAt: now })
-        .where(inArray(terminals.lastProcessState, ['running', 'starting']))
+        .set({ lastProcessState: terminalProcessState, updatedAt: now })
+        .where(inArray(terminals.lastProcessState, liveProcessStates))
         .run();
     db.update(sessions)
-        .set({ lastActivityState: 'failed' })
-        .where(
-            inArray(
-                sessions.primaryAgentTerminalId,
-                db
-                    .select({ id: terminals.id })
-                    .from(terminals)
-                    .where(
-                        and(isNotNull(terminals.provider), eq(terminals.lastProcessState, 'dead')),
-                    ),
-            ),
-        )
-        .run();
-}
-
-/** Bulk-marks running Terminals as `stopped` for an orderly Runtime shutdown. */
-export function markAllStopped(db: CaxriDrizzleDatabase, now: number): void {
-    db.update(terminals)
-        .set({ lastProcessState: 'stopped', updatedAt: now })
-        .where(inArray(terminals.lastProcessState, ['running', 'starting']))
-        .run();
-    db.update(sessions)
-        .set({ lastActivityState: 'completed' })
+        .set({ lastActivityState: primaryAgentSessionState })
         .where(
             inArray(
                 sessions.primaryAgentTerminalId,
@@ -104,12 +89,22 @@ export function markAllStopped(db: CaxriDrizzleDatabase, now: number): void {
                     .where(
                         and(
                             isNotNull(terminals.provider),
-                            eq(terminals.lastProcessState, 'stopped'),
+                            eq(terminals.lastProcessState, terminalProcessState),
                         ),
                     ),
             ),
         )
         .run();
+}
+
+/** Bulk-marks Terminals that claimed to be alive as `dead` after an unclean Runtime shutdown. */
+function markUncleanShutdownDead(db: CaxriDrizzleDatabase, now: number): void {
+    bulkMarkShutdown(db, now, 'unclean');
+}
+
+/** Bulk-marks running Terminals as `stopped` for an orderly Runtime shutdown. */
+export function markAllStopped(db: CaxriDrizzleDatabase, now: number): void {
+    bulkMarkShutdown(db, now, 'orderly');
 }
 
 export interface OpenedDatabase {

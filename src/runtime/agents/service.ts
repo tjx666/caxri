@@ -1,31 +1,34 @@
 import type { StructuredLogger } from '../../shared/node/logger';
+import { agentProviderIds, type AgentProviderId } from '../../shared/agents';
 import type { AgentProvider, AgentSnapshot } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
-import { readClaudeState } from './claude';
-import { readCodexState } from './codex';
-import { discoverExecutable, readVersion } from './discovery';
 import {
-    defaultAgentStateLocations,
+    defaultAgentEnvironment,
     processStateToAgentActivity,
+    type AgentEnvironment,
     type AgentSnapshotContext,
-    type AgentStateLocations,
-} from './state';
+} from './contract';
+import { discoverExecutable, readVersion } from './discovery';
+import { agentProviders } from './providers';
 
+/**
+ * A descriptor's `readState` reads only that provider's local on-disk state. An adapter layers
+ * executable discovery and version probing on top of a descriptor, so it is the unit that
+ * `AgentService` actually snapshots.
+ */
 export interface AgentAdapter {
     provider: AgentProvider;
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
 }
 
-function createCliAdapter(provider: AgentProvider, locations: AgentStateLocations): AgentAdapter {
+function createCliAdapter(provider: AgentProviderId, environment: AgentEnvironment): AgentAdapter {
     return {
         provider,
         async snapshot(context): Promise<AgentSnapshot> {
             const observedAt = Date.now();
             const [executable, localState] = await Promise.all([
                 discoverExecutable(provider),
-                provider === 'claude'
-                    ? readClaudeState(context, locations.claudeConfigDirectory)
-                    : readCodexState(context, locations.codexStateDirectories),
+                agentProviders[provider].readState(context, environment),
             ]);
             const version = executable ? await readVersion(provider, executable) : undefined;
             return {
@@ -44,12 +47,11 @@ function createCliAdapter(provider: AgentProvider, locations: AgentStateLocation
 }
 
 export function createLocalAgentAdapters(
-    locations: AgentStateLocations = defaultAgentStateLocations(),
+    environment: AgentEnvironment = defaultAgentEnvironment(),
 ): Record<AgentProvider, AgentAdapter> {
-    return {
-        claude: createCliAdapter('claude', locations),
-        codex: createCliAdapter('codex', locations),
-    };
+    return Object.fromEntries(
+        agentProviderIds.map((provider) => [provider, createCliAdapter(provider, environment)]),
+    ) as Record<AgentProvider, AgentAdapter>;
 }
 
 export class AgentService {

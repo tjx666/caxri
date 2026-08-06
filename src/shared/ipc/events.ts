@@ -44,29 +44,32 @@ export type RuntimeEvent = {
     [E in CaxriEventName]: { event: E; payload: RuntimeEventPayload<E> };
 }[CaxriEventName];
 
-export const runtimeEventSchema = z.discriminatedUnion('event', [
-    z.object({
-        event: z.literal('runtime.status'),
-        payload: runtimeEventPayloads['runtime.status'],
-    }),
-    z.object({ event: z.literal('state.changed'), payload: runtimeEventPayloads['state.changed'] }),
-    z.object({
-        event: z.literal('terminal.output'),
-        payload: runtimeEventPayloads['terminal.output'],
-    }),
-    z.object({ event: z.literal('terminal.exit'), payload: runtimeEventPayloads['terminal.exit'] }),
-    z.object({ event: z.literal('files.changed'), payload: runtimeEventPayloads['files.changed'] }),
-    z.object({
-        event: z.literal('settings.changed'),
-        payload: runtimeEventPayloads['settings.changed'],
-    }),
-    z.object({
-        event: z.literal('keybindings.changed'),
-        payload: runtimeEventPayloads['keybindings.changed'],
-    }),
-    z.object({ event: z.literal('theme.changed'), payload: runtimeEventPayloads['theme.changed'] }),
-    z.object({
-        event: z.literal('command.execute'),
-        payload: runtimeEventPayloads['command.execute'],
-    }),
-]);
+/** Per-event `{ event, payload }` schema, keyed the same way as `runtimeEventPayloads`. */
+type RuntimeEventSchemaMap = {
+    [E in CaxriEventName]: z.ZodObject<{
+        event: z.ZodLiteral<E>;
+        payload: (typeof runtimeEventPayloads)[E];
+    }>;
+};
+
+/**
+ * `runtimeEventSchema` is derived from `runtimeEventPayloads` instead of listing the event names
+ * a second time, so a new entry only needs to be added once (to `runtimeEventPayloads`) to be
+ * both a valid payload and a validated member of the discriminated union. `Object.keys`/`.map`
+ * can't distribute a generic per array element, so the per-event schema map is built once and
+ * cast to `RuntimeEventSchemaMap` (itself derived from `CaxriEventName`, not a hand-listed union)
+ * to restore the precise per-event literal types that `z.discriminatedUnion` needs for narrowing.
+ */
+const runtimeEventSchemas = Object.fromEntries(
+    (Object.keys(runtimeEventPayloads) as CaxriEventName[]).map((event) => [
+        event,
+        z.object({ event: z.literal(event), payload: runtimeEventPayloads[event] }),
+    ]),
+) as RuntimeEventSchemaMap;
+
+const runtimeEventSchemaList = Object.values(runtimeEventSchemas) as [
+    RuntimeEventSchemaMap[CaxriEventName],
+    ...RuntimeEventSchemaMap[CaxriEventName][],
+];
+
+export const runtimeEventSchema = z.discriminatedUnion('event', runtimeEventSchemaList);

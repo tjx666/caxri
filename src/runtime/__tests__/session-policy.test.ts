@@ -9,6 +9,7 @@ import {
     defaultTerminalTitle,
     processActivityState,
     selectFallbackAfterDeletion,
+    shutdownOutcome,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
 
@@ -61,6 +62,24 @@ describe('processActivityState', () => {
         expect(processActivityState('stopped')).toBe('completed');
         expect(processActivityState('dead')).toBe('failed');
         expect(processActivityState('failed')).toBe('failed');
+    });
+});
+
+describe('shutdownOutcome', () => {
+    it('maps an unclean shutdown to dead Terminals and a failed primary Agent Session', () => {
+        expect(shutdownOutcome('unclean')).toEqual({
+            liveProcessStates: ['running', 'starting'],
+            terminalProcessState: 'dead',
+            primaryAgentSessionState: 'failed',
+        });
+    });
+
+    it('maps an orderly shutdown to stopped Terminals and a completed primary Agent Session', () => {
+        expect(shutdownOutcome('orderly')).toEqual({
+            liveProcessStates: ['running', 'starting'],
+            terminalProcessState: 'stopped',
+            primaryAgentSessionState: 'completed',
+        });
     });
 });
 

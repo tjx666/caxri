@@ -1,3 +1,5 @@
+import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
+
 import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
 import {
@@ -31,12 +33,16 @@ export function CreateSessionDialog() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-3 gap-2 p-4">
-                    <Button variant="secondary" onClick={() => onCreate('claude')}>
-                        <AgentIdentityIcon identity="claude" size={15} /> Claude Code
-                    </Button>
-                    <Button variant="secondary" onClick={() => onCreate('codex')}>
-                        <AgentIdentityIcon identity="codex" size={15} /> Codex
-                    </Button>
+                    {agentProviderIds.map((provider) => (
+                        <Button
+                            key={provider}
+                            variant="secondary"
+                            onClick={() => onCreate(provider)}
+                        >
+                            <AgentIdentityIcon identity={provider} size={15} />{' '}
+                            {agentProviderCatalog[provider].displayName}
+                        </Button>
+                    ))}
                     <Button variant="secondary" onClick={() => onCreate('shell')}>
                         <AgentIdentityIcon identity="shell" size={15} /> Shell
                     </Button>

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentProviderIds } from '../agents';
 import { workItemSchema } from '../work-item';
 import { terminalLayoutSchema } from './layout';
 
@@ -8,7 +9,7 @@ export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
 
-const agentProviderSchema = z.enum(['claude', 'codex']);
+const agentProviderSchema = z.enum(agentProviderIds);
 const agentActivityStateSchema = z.enum([
     'running',
     'waiting',
@@ -17,7 +18,7 @@ const agentActivityStateSchema = z.enum([
     'idle',
     'unknown',
 ]);
-export const terminalKindSchema = z.enum(['claude', 'codex', 'shell']);
+export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum(['starting', 'running', 'stopped', 'dead', 'failed']);
 const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
 

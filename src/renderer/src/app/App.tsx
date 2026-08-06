@@ -8,7 +8,7 @@ import { CommandPalette } from '../features/palette/CommandPalette';
 import { CreateSessionDialog } from '../features/session/CreateSessionDialog';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { ProjectSidebar } from '../features/sidebar/ProjectSidebar';
-import { StatusBar } from '../features/status/StatusBar';
+import { StatusBar } from '../features/status-bar/StatusBar';
 import { ToastOutlet } from '../features/toasts/ToastOutlet';
 import { LoadingScreen } from '../features/workbench/LoadingScreen';
 import { PanelDivider } from '../features/workbench/PanelDivider';

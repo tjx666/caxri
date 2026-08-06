@@ -22,6 +22,7 @@ import {
     type CaxriReply,
 } from '../shared/ipc/transport';
 import { StructuredLogger } from '../shared/node/logger';
+import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import { resolveLogLevel } from './log-level';
@@ -358,7 +359,7 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
                 filters: [
                     {
                         name: 'Theme files',
-                        extensions: ['json', 'jsonc', 'itermcolors', 'yaml', 'yml'],
+                        extensions: [...themeImportExtensions],
                     },
                 ],
             });

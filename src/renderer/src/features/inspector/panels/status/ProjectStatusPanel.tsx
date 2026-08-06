@@ -22,10 +22,10 @@ import { useState } from 'react';
 
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 
-import { Button } from '../../components/ui/button';
-import { cn } from '../../lib/utils';
-import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
-import { useSelectedSession } from '../../state/selectors';
+import { Button } from '../../../../components/ui/button';
+import { cn } from '../../../../lib/utils';
+import { useCaxriQuery, useToastOnQueryError } from '../../../../state/queries';
+import { useSelectedSession } from '../../../../state/selectors';
 import { buildProjectStatusNodes, type ProjectStatusTreeNode } from './project-status-tree';
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */

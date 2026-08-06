@@ -1,5 +1,6 @@
 import * as pty from 'node-pty';
 
+import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
@@ -132,7 +133,7 @@ export class TerminalManager {
         if (!executable)
             throw new CaxriError(
                 'UNAVAILABLE',
-                `${kind === 'claude' ? 'Claude Code' : 'Codex'} CLI was not found`,
+                `${agentProviderCatalog[kind].displayName} CLI was not found`,
             );
         return executable;
     }

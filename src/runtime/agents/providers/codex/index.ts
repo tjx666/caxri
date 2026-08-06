@@ -1,10 +1,16 @@
 import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import Database from 'better-sqlite3';
 
-import { mapWithConcurrency } from '../../shared/node/concurrency';
-import { canonicalPath, type AgentSnapshotContext, type LocalAgentState } from './state';
+import { mapWithConcurrency } from '../../../../shared/node/concurrency';
+import {
+    canonicalPath,
+    type AgentEnvironment,
+    type AgentProviderDescriptor,
+    type AgentSnapshotContext,
+    type LocalAgentState,
+} from '../../contract';
 
 interface SqliteColumn {
     name: string;
@@ -33,7 +39,7 @@ async function findCodexDatabases(directories: string[]): Promise<string[]> {
 }
 
 /** Queries only a capability-detected Codex thread index and never opens rollout transcripts. */
-export async function readCodexState(
+async function readCodexState(
     context: AgentSnapshotContext,
     stateDirectories: string[],
 ): Promise<LocalAgentState | undefined> {
@@ -111,3 +117,20 @@ export async function readCodexState(
     }
     return undefined;
 }
+
+/**
+ * Resolves the ordered set of directories Codex may keep its thread index SQLite databases in, from
+ * generic environment inputs. `CODEX_SQLITE_HOME` takes priority when set, followed by Codex's own
+ * `sqlite` subdirectory and its home directory, mirroring Codex's own resolution order.
+ */
+function resolveCodexStateDirectories(environment: AgentEnvironment): string[] {
+    const codexHome = environment.variables.CODEX_HOME || join(environment.homeDirectory, '.codex');
+    const sqliteHome = environment.variables.CODEX_SQLITE_HOME;
+    return [...(sqliteHome ? [resolve(sqliteHome)] : []), join(codexHome, 'sqlite'), codexHome];
+}
+
+export const codexProvider: AgentProviderDescriptor = {
+    id: 'codex',
+    readState: (context, environment) =>
+        readCodexState(context, resolveCodexStateDirectories(environment)),
+};

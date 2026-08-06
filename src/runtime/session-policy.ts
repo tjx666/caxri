@@ -33,6 +33,41 @@ export function processActivityState(state: ProcessState): AgentActivityState {
     return 'failed';
 }
 
+/**
+ * Why a Runtime is bulk-marking every still-alive Terminal at connection-open/close time.
+ * `unclean` covers a previous process crash/kill discovered on the next `openDatabase` call;
+ * `orderly` covers a graceful Runtime shutdown. Add new reasons here (e.g. a future
+ * session-restore `interrupted` marker per GitHub issue #18) instead of growing call sites.
+ */
+export type ShutdownReason = 'unclean' | 'orderly';
+
+export interface ShutdownOutcome {
+    /** Terminal process states treated as "still alive" and eligible for bulk-marking. */
+    liveProcessStates: ProcessState[];
+    /** Process state written to every previously-alive Terminal. */
+    terminalProcessState: ProcessState;
+    /** Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`. */
+    primaryAgentSessionState: AgentActivityState;
+}
+
+const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
+    unclean: {
+        liveProcessStates: ['running', 'starting'],
+        terminalProcessState: 'dead',
+        primaryAgentSessionState: 'failed',
+    },
+    orderly: {
+        liveProcessStates: ['running', 'starting'],
+        terminalProcessState: 'stopped',
+        primaryAgentSessionState: 'completed',
+    },
+};
+
+/** Decides the bulk Terminal/Session state transition for a given shutdown `reason`. */
+export function shutdownOutcome(reason: ShutdownReason): ShutdownOutcome {
+    return SHUTDOWN_OUTCOMES[reason];
+}
+
 export interface PrimaryAgentAssignment {
     primaryAgentTerminalId: string;
     displayTitle: string;

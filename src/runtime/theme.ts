@@ -7,7 +7,10 @@ import YAML from 'yaml';
 /** The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it. */
 import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
 import { parseJsonc } from '../shared/node/jsonc';
+import { themeImportFormats } from '../shared/theme-import';
 import type { ThemeTokens } from '../shared/types';
+
+type ThemeImportFormat = (typeof themeImportFormats)[number];
 
 /** Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers. */
 export const draculaTheme: ThemeTokens = {
@@ -234,6 +237,51 @@ export function parseCaxriTheme(source: string): ThemeTokens {
     return themeSchema.parse(parseJsonc(source));
 }
 
+/**
+ * VS Code files aren't distinguished by content sniffing: a full Caxri theme export and a VS
+ * Code color theme are both plain JSON. Try parsing as a Caxri theme first, and only fall back
+ * to the VS Code token mapping when that validation fails.
+ */
+function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
+    const value = parseJsonc(source);
+    const parsed = themeSchema.safeParse(value);
+    return parsed.success
+        ? { ...parsed.data, source: 'custom' }
+        : parseVsCode(value as Record<string, unknown>, name);
+}
+
+/** Format id -> parser, keyed by `themeImportFormats[number]['id']` from the shared registry. */
+const parsersByFormatId: Record<
+    ThemeImportFormat['id'],
+    (source: string, name: string) => ThemeTokens
+> = {
+    iterm2: parseIterm,
+    warp: parseWarp,
+    vscode: parseVsCodeOrCustom,
+};
+
+function findFormatByExtension(extension: string): ThemeImportFormat | undefined {
+    const bareExtension = extension.replace(/^\./, '');
+    return themeImportFormats.find((format) =>
+        (format.extensions as readonly string[]).includes(bareExtension),
+    );
+}
+
+function findFormatById(id: ThemeImportFormat['id']): ThemeImportFormat {
+    // Every id referenced below is a literal from themeImportFormats, so this always resolves.
+    return themeImportFormats.find((format) => format.id === id)!;
+}
+
+/**
+ * Picks the import format for a file. The `<plist` content sniff takes priority over the
+ * extension so extensionless or misnamed iTerm2 exports still parse correctly; any extension
+ * that isn't declared in `themeImportFormats` falls back to the VS Code/Caxri JSON path.
+ */
+function resolveThemeImportFormat(extension: string, source: string): ThemeImportFormat {
+    if (source.includes('<plist')) return findFormatById('iterm2');
+    return findFormatByExtension(extension) ?? findFormatById('vscode');
+}
+
 export async function importTheme(path: string, current: ThemeTokens): Promise<ThemeTokens> {
     const source = await readFile(path, 'utf8');
     const name =
@@ -242,20 +290,10 @@ export async function importTheme(path: string, current: ThemeTokens): Promise<T
             .at(-1)
             ?.replace(/\.[^.]+$/, '') ?? 'Imported Theme';
     const extension = extname(path).toLowerCase();
-    let theme: ThemeTokens;
-    if (extension === '.itermcolors' || source.includes('<plist')) {
-        theme = parseIterm(source, name);
-    } else if (extension === '.yaml' || extension === '.yml') {
-        theme = parseWarp(source, name);
-    } else {
-        const value = parseJsonc(source);
-        const parsed = themeSchema.safeParse(value);
-        theme = parsed.success
-            ? { ...parsed.data, source: 'custom' }
-            : parseVsCode(value as Record<string, unknown>, name);
-    }
+    const format = resolveThemeImportFormat(extension, source);
+    const theme = parsersByFormatId[format.id](source, name);
 
-    if (theme.source === 'iterm2' || theme.source === 'warp') {
+    if (format.terminalOnly) {
         theme.colors = structuredClone(current.colors);
         theme.editor = structuredClone(current.editor);
     }

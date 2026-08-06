@@ -1,7 +1,8 @@
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
+import type { AgentProviderId } from '../../shared/agents';
 import type { AgentActivityState, ProcessState } from '../../shared/types';
 
 export interface AgentSnapshotContext {
@@ -24,25 +25,36 @@ export interface LocalAgentState {
     usage?: Array<{ label: string; value: string }>;
 }
 
-export interface AgentStateLocations {
-    claudeConfigDirectory: string;
-    codexStateDirectories: string[];
+/**
+ * Provider-agnostic inputs every `AgentProviderDescriptor` may consult to locate its own on-disk
+ * state. This is intentionally generic (home directory, environment variables) so no provider-specific
+ * field ever needs to live here; each provider module derives its own directories from these inputs.
+ */
+export interface AgentEnvironment {
+    homeDirectory: string;
+    variables: NodeJS.ProcessEnv;
 }
 
-export function defaultAgentStateLocations(
-    environment: NodeJS.ProcessEnv = process.env,
-): AgentStateLocations {
-    const home = homedir();
-    const codexHome = environment.CODEX_HOME || join(home, '.codex');
-    const sqliteHome = environment.CODEX_SQLITE_HOME;
-    return {
-        claudeConfigDirectory: environment.CLAUDE_CONFIG_DIR || join(home, '.claude'),
-        codexStateDirectories: [
-            ...(sqliteHome ? [resolve(sqliteHome)] : []),
-            join(codexHome, 'sqlite'),
-            codexHome,
-        ],
-    };
+export function defaultAgentEnvironment(
+    variables: NodeJS.ProcessEnv = process.env,
+): AgentEnvironment {
+    return { homeDirectory: homedir(), variables };
+}
+
+/**
+ * One self-contained descriptor per Agent provider. `displayName` and `executableName` live in the
+ * shared catalog (`src/shared/agents.ts`); this interface only carries provider-specific behavior
+ * so `service.ts`, `discovery.ts`, and `coordinator.ts` can iterate providers instead of hard-coding
+ * a `claude`/`codex` branch each. A descriptor is pure provider-local state reading: it never touches
+ * executable discovery or version probing, so adding a new provider only means adding a new
+ * `providers/<id>/` module plus one registry line, with zero edits to this contract.
+ */
+export interface AgentProviderDescriptor {
+    id: AgentProviderId;
+    readState(
+        context: AgentSnapshotContext,
+        environment: AgentEnvironment,
+    ): Promise<LocalAgentState | undefined>;
 }
 
 export function processStateToAgentActivity(state?: ProcessState): AgentActivityState {

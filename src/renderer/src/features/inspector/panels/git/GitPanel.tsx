@@ -12,11 +12,11 @@ import { useState } from 'react';
 import { parseGitDiffTab, type GitDiffTab } from '@shared/git-diff';
 import type { GitRepositorySummary } from '@shared/types';
 
-import { Button } from '../../components/ui/button';
-import { cn } from '../../lib/utils';
-import { useCaxriQuery, useToastOnQueryError } from '../../state/queries';
-import { useSelectedSession } from '../../state/selectors';
-import { useActiveWork } from '../../state/session-view';
+import { Button } from '../../../../components/ui/button';
+import { cn } from '../../../../lib/utils';
+import { useCaxriQuery, useToastOnQueryError } from '../../../../state/queries';
+import { useSelectedSession } from '../../../../state/selectors';
+import { useActiveWork } from '../../../../state/session-view';
 import { openGitChangesDiff, openGitFileDiff } from './git-diff-actions';
 import { buildGitFileTree, type GitFileTreeNode } from './git-tree';
 

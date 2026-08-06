@@ -1,0 +1,13 @@
+import { Info } from 'lucide-react';
+
+import type { InspectorPanelDefinition } from '../types';
+import { TerminalInfoPanel } from './TerminalInfoPanel';
+
+export const infoPanel: InspectorPanelDefinition = {
+    id: 'info',
+    title: 'Info',
+    icon: Info,
+    Component: TerminalInfoPanel,
+    commandId: 'inspector.showInfo',
+    resetOnSessionChange: false,
+};

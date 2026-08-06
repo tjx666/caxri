@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 
+import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import type { AppSettings, ThemeTokens } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
@@ -29,9 +30,8 @@ interface SettingsFormProps {
 }
 
 function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
-    if (agent === 'claude') return 'Claude Code';
-    if (agent === 'codex') return 'Codex';
     if (agent === 'shell') return 'Shell';
+    if (agent && agent in agentProviderCatalog) return agentProviderCatalog[agent].displayName;
     return 'Ask each time';
 }
 
@@ -75,8 +75,11 @@ export function SettingsForm({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ask">Ask each time</SelectItem>
-                            <SelectItem value="claude">Claude Code</SelectItem>
-                            <SelectItem value="codex">Codex</SelectItem>
+                            {agentProviderIds.map((provider) => (
+                                <SelectItem key={provider} value={provider}>
+                                    {agentProviderCatalog[provider].displayName}
+                                </SelectItem>
+                            ))}
                             <SelectItem value="shell">Shell</SelectItem>
                         </SelectContent>
                     </Select>

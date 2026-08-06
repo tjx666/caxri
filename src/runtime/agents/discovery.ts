@@ -4,15 +4,15 @@ import { access } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 
+import { agentProviderCatalog, agentProviderIds, type AgentProviderId } from '../../shared/agents';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type { AgentProvider } from '../../shared/types';
 
 const execFileAsync = promisify(execFile);
 
-const executableNames: Record<AgentProvider, string> = {
-    claude: 'claude',
-    codex: 'codex',
-};
+const executableNames: Record<AgentProviderId, string> = Object.fromEntries(
+    agentProviderIds.map((provider) => [provider, agentProviderCatalog[provider].executableName]),
+) as Record<AgentProviderId, string>;
 
 const executableCache = new Map<AgentProvider, string>();
 const executableRequests = new Map<AgentProvider, Promise<string | undefined>>();

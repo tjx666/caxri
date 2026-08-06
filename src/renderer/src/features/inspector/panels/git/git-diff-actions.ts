@@ -1,6 +1,6 @@
 import { gitChangesDiffTabPath, gitFileDiffTabPath } from '@shared/git-diff';
 
-import { openEditorTab } from '../editor/document-actions';
+import { openEditorTab } from '../../../editor/document-actions';
 
 export function openGitFileDiff(repositoryId: string, path: string): void {
     openEditorTab(gitFileDiffTabPath(repositoryId, path));

@@ -1,3 +1,4 @@
+import { agentProviderCatalog, agentProviderIds, type AgentProviderId } from '../../shared/agents';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { AgentProvider, TerminalRecord } from '../../shared/types';
@@ -22,13 +23,16 @@ interface ShellPromotionCandidate {
     startedAt: number;
 }
 
+const providerByExecutableName = new Map<string, AgentProviderId>(
+    agentProviderIds.map((provider) => [agentProviderCatalog[provider].executableName, provider]),
+);
+
 function directAgentProvider(command: string): AgentProvider | undefined {
     const normalized = command.trim();
     if (/[;&|<>]/.test(normalized)) return undefined;
     const executable = normalized.match(/^(\S+)/)?.[1];
     const basename = executable?.split(/[\\/]/).at(-1);
-    if (basename === 'claude' || basename === 'codex') return basename;
-    return undefined;
+    return basename ? providerByExecutableName.get(basename) : undefined;
 }
 
 export interface AgentCoordinatorOptions {

@@ -1,9 +1,15 @@
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AgentActivityState } from '../../shared/types';
-import { mapWithConcurrency } from '../../shared/node/concurrency';
-import { canonicalPath, type AgentSnapshotContext, type LocalAgentState } from './state';
+import type { AgentActivityState } from '../../../../shared/types';
+import { mapWithConcurrency } from '../../../../shared/node/concurrency';
+import {
+    canonicalPath,
+    type AgentEnvironment,
+    type AgentProviderDescriptor,
+    type AgentSnapshotContext,
+    type LocalAgentState,
+} from '../../contract';
 
 interface ClaudeSessionMetadata {
     cwd?: unknown;
@@ -50,7 +56,7 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
 }
 
 /** Reads only Claude Code's compact live-session metadata, never project transcripts. */
-export async function readClaudeState(
+async function readClaudeState(
     context: AgentSnapshotContext,
     configDirectory: string,
 ): Promise<LocalAgentState | undefined> {
@@ -112,3 +118,14 @@ export async function readClaudeState(
             typeof latest.name === 'string' && latest.name.trim() ? latest.name.trim() : undefined,
     };
 }
+
+/** Resolves Claude Code's config directory from generic environment inputs, honoring its override var. */
+function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
+    return environment.variables.CLAUDE_CONFIG_DIR || join(environment.homeDirectory, '.claude');
+}
+
+export const claudeProvider: AgentProviderDescriptor = {
+    id: 'claude',
+    readState: (context, environment) =>
+        readClaudeState(context, resolveClaudeConfigDirectory(environment)),
+};

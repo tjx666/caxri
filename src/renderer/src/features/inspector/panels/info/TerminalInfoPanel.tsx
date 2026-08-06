@@ -2,10 +2,10 @@ import { CircleDot } from 'lucide-react';
 
 import type { TerminalRecord } from '@shared/types';
 
-import { AgentIdentityIcon } from '../../agent-icons/AgentIdentityIcon';
-import { resolveAgentIcon } from '../../agent-icons/agent-icon-registry';
-import { cn } from '../../lib/utils';
-import { useSelectedSession, useSessionTerminals } from '../../state/selectors';
+import { AgentIdentityIcon } from '../../../../agent-icons/AgentIdentityIcon';
+import { resolveAgentIcon } from '../../../../agent-icons/agent-icon-registry';
+import { cn } from '../../../../lib/utils';
+import { useSelectedSession, useSessionTerminals } from '../../../../state/selectors';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {
     return state[0].toUpperCase() + state.slice(1);

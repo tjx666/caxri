@@ -5,6 +5,7 @@ import { basename, dirname, join, relative } from 'node:path';
 import parcelWatcher from '@parcel/watcher';
 import { z } from 'zod';
 
+import { agentProviderIds } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
@@ -29,7 +30,10 @@ const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
 
 const settingsSchema = z.object({
-    'session.defaultAgent': z.enum(['claude', 'codex', 'shell']).nullable().default(null),
+    'session.defaultAgent': z
+        .enum([...agentProviderIds, 'shell'])
+        .nullable()
+        .default(null),
     'terminal.fontSize': z.number().int().min(9).max(32).default(13),
     'terminal.scrollback': z.number().int().min(100).max(10_000).default(2_000),
     'files.maxFileBytes': z
