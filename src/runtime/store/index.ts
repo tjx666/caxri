@@ -12,6 +12,7 @@ import {
 import { TerminalsStore } from './terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './terminals';
+export { CURRENT_SCHEMA_VERSION } from './sqlite';
 
 /**
  * Owns the SQLite connection and composes one pure CRUD module per table family. No domain

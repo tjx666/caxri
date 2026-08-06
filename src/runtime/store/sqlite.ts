@@ -14,10 +14,12 @@ import * as schema from './schema';
 import { sessions, terminals } from './schema';
 
 /**
- * Bumped whenever the DDL below changes shape. Pre-release databases are dropped and rebuilt
- * fresh (see {@link initializeSchema}); there is no migration path yet.
+ * Single source of truth for the schema version. Bumped whenever the DDL below changes shape;
+ * pre-release databases are dropped and rebuilt fresh (see {@link initializeSchema}), there is no
+ * migration path yet. Recorded in two places that must stay in sync: the SQLite `user_version`
+ * pragma (managed below) and the `schemaVersion` app-state row (written by `bootstrap.ts`).
  */
-const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export { DEFAULT_LAYOUT_VERSION } from './schema';
 

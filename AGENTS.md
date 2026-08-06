@@ -16,6 +16,15 @@
 - Native probes: `bun run spike:native`, `bun run spike:pty`, `bun run spike:agents`
 - Issue tracking lives in GitHub issues (`gh issue`); this project does not use Linear.
 
+## Forbidden
+
+- Install dependencies only with `ni`; `package-lock.json` is the only lockfile, so never run `bun install`, `pnpm install`, or `yarn`, and never commit a second lockfile.
+- Never change the `typescript` / `@typescript/native` dependency aliases or run `npm i typescript@latest` — the repo intentionally pins TS6 for typescript-eslint while compiling with TS7.
+- The `@shared` / `@` path aliases exist only in the Renderer TypeScript project (`tsconfig.web.json`) and Vitest; Main, Preload, and Runtime code must use relative imports.
+- Never import Node.js, Electron, or native APIs in Renderer code (see Architecture boundaries below).
+- Never bypass the structured IPC request contract with arbitrary shell commands (see Architecture boundaries below).
+- Do not edit `package-lock.json` or the `packageManager` field by hand.
+
 ## Skills
 
 Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`, `performance`, `project-architecture`, `quality-check`, `release`, `test`). `.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for step-by-step workflows beyond this summary.

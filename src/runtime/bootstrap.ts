@@ -21,10 +21,10 @@ import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files/service';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
+import { CURRENT_SCHEMA_VERSION } from './store';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';
 import { WorkspacePaths } from './workspace-paths';
 
-const SCHEMA_VERSION = 5;
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 
 /**
@@ -74,7 +74,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const database = new CaxriDatabase(join(userDataPath, 'caxri.db'));
     const configuration = new ConfigurationService(userDataPath, send, logger);
     await configuration.initialize();
-    database.setAppState('schemaVersion', SCHEMA_VERSION);
+    database.setAppState('schemaVersion', CURRENT_SCHEMA_VERSION);
     database.setAppState('activeThemeId', configuration.getTheme().value.id);
 
     const files = new FileService(
