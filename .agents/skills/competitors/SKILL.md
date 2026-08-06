@@ -1,6 +1,6 @@
 ---
 name: competitors
-description: Survey competing agent-workbench terminals and the agent CLIs Caxri hosts. Use before designing a feature another product already solved (session persistence, agent-state detection, theming, worktree isolation), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr, Mux, Kooky, Warp, Otty), or when updating competitive research notes.
+description: Survey competing agent-workbench terminals and the agent CLIs Caxri hosts. Use before designing a feature another product already solved (session persistence, agent-state detection, theming, worktree isolation), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr, Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), or when updating competitive research notes.
 ---
 
 # Competitors
@@ -14,6 +14,6 @@ Load only what the current question needs:
 
 ## Working rules
 
-- Check the license before copying any code; AGPL-3.0 (Warp, Termany, Mux) and GPL-3.0 (cmux, Kero) products are reference-only.
-- Closed-source products (Otty) can only be analyzed via their packaged app (extract `app.asar` for Electron apps) or public materials.
+- Check the license before copying any code; AGPL-3.0 (Warp, Termany, Mux, Paseo), GPL-3.0 (cmux, Kero), and Elastic License 2.0 (Superset) products are reference-only.
+- Closed-source products (Otty, Conductor, Trevize) can only be analyzed via their packaged app (extract `app.asar` for Electron apps) or public materials.
 - When research reveals a durable architectural insight, record it in the matching per-product reference in the same change, with the research date. Add a new `references/<product>.md` when a new competitor is added to the landscape table, and add its repository to `scripts/sync.sh`.

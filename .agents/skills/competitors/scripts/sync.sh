@@ -19,6 +19,12 @@ REPOS=(
     coder/mux
     iAmCorey/kooky
     warpdotdev/Warp:warp
+    superset-sh/superset
+    getpaseo/paseo
+    pingdotgg/t3code
+    Emanuele-web04/synara
+    coollabsio/jean
+    omnara-ai/omnara
     anthropics/claude-code
     openai/codex
     xai-org/grok-build
