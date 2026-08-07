@@ -197,6 +197,8 @@ export function sessionCard(page: Page, sessionId: string) {
 
 /** Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user. */
 export async function splitTerminalToRight(page: Page, terminalId: string): Promise<void> {
+    await expect(page.locator(`.work-tab[data-terminal-id="${terminalId}"]`)).toBeAttached();
+    await expect(page.locator('.terminal-group').first()).toBeAttached();
     await page.evaluate((draggedTerminalId) => {
         const source = document.querySelector(`.work-tab[data-terminal-id="${draggedTerminalId}"]`);
         const target = document.querySelector('.terminal-group');
