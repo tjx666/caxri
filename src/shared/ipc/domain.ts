@@ -226,6 +226,7 @@ const fileSearchMatchSchema = z.object({
     column: z.number().int().positive().optional(),
     matchLength: z.number().int().nonnegative().max(1_024).optional(),
     preview: z.string().max(500).optional(),
+    previewMatchIndex: z.number().int().nonnegative().max(500).optional(),
 });
 
 export const fileSearchResultSchema = z.object({

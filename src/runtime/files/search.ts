@@ -88,11 +88,18 @@ function matchesGlobs(
     );
 }
 
-function previewLine(line: string): string {
-    const trimmed = line.trim();
-    return trimmed.length <= MAX_PREVIEW_LENGTH
-        ? trimmed
-        : `${trimmed.slice(0, MAX_PREVIEW_LENGTH - 1)}…`;
+function previewLine(
+    line: string,
+    matchIndex: number,
+): Pick<FileSearchMatch, 'preview' | 'previewMatchIndex'> {
+    const start = Math.min(
+        Math.max(0, matchIndex - Math.floor(MAX_PREVIEW_LENGTH / 3)),
+        Math.max(0, line.length - MAX_PREVIEW_LENGTH),
+    );
+    return {
+        preview: line.slice(start, start + MAX_PREVIEW_LENGTH),
+        previewMatchIndex: matchIndex - start,
+    };
 }
 
 /** Bounded, Session-rooted Project search with latest-request cancellation per Session. */
@@ -268,13 +275,14 @@ export class SearchService {
         for (let index = 0; index < lines.length && !accumulator.full; index += 1) {
             query.lastIndex = 0;
             for (const match of lines[index].matchAll(query)) {
+                const matchIndex = match.index ?? 0;
                 this.appendMatch(accumulator, {
                     path,
                     relativePath,
                     line: index + 1,
-                    column: (match.index ?? 0) + 1,
+                    column: matchIndex + 1,
                     matchLength: match[0].length,
-                    preview: previewLine(lines[index]),
+                    ...previewLine(lines[index], matchIndex),
                 });
                 if (accumulator.full || match[0].length === 0) break;
             }

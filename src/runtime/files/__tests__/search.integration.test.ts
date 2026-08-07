@@ -90,8 +90,8 @@ describe('SearchService', () => {
                 searchParams(session.id, { include: 'src/**', exclude: '*.test.ts' }),
             );
             expect(content.matches).toMatchObject([
-                { relativePath: 'src/alpha.ts', line: 1, column: 7 },
-                { relativePath: 'src/alpha.ts', line: 2, column: 7 },
+                { relativePath: 'src/alpha.ts', line: 1, column: 7, previewMatchIndex: 6 },
+                { relativePath: 'src/alpha.ts', line: 2, column: 7, previewMatchIndex: 6 },
             ]);
             expect(content.matches.every((match) => match.preview!.length <= 300)).toBe(true);
 

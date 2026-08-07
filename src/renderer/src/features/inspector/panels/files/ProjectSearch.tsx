@@ -1,16 +1,33 @@
-import { LoaderCircle, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, LoaderCircle, Search, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 
+import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery } from '../../../../queries/client';
 import { openFile } from '../../../editor/document-actions';
 import { revealEditorMatch } from '../../../editor/editor-reveal';
 
-const optionClassName =
-    'h-6 min-w-6 px-1 border border-border rounded bg-transparent text-muted text-[11px] cursor-pointer hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground';
+const searchOptionClassName =
+    'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted text-[11px] cursor-pointer hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground';
+
+interface NameSearchFileNode {
+    kind: 'file';
+    match: FileSearchMatch;
+    name: string;
+    relativePath: string;
+}
+
+interface NameSearchDirectoryNode {
+    kind: 'directory';
+    children: NameSearchNode[];
+    name: string;
+    relativePath: string;
+}
+
+type NameSearchNode = NameSearchDirectoryNode | NameSearchFileNode;
 
 function useDebouncedValue(value: string, delayMs: number): string {
     const [debounced, setDebounced] = useState(value);
@@ -31,6 +48,44 @@ function groupMatches(matches: readonly FileSearchMatch[]): Map<string, FileSear
     return groups;
 }
 
+function sortNameNodes(nodes: NameSearchNode[]): void {
+    nodes.sort(
+        (left, right) =>
+            Number(left.kind === 'file') - Number(right.kind === 'file') ||
+            left.name.localeCompare(right.name),
+    );
+    for (const node of nodes) if (node.kind === 'directory') sortNameNodes(node.children);
+}
+
+function buildNameSearchTree(matches: readonly FileSearchMatch[]): NameSearchNode[] {
+    const roots: NameSearchNode[] = [];
+    for (const match of matches) {
+        const segments = match.relativePath.split('/').filter(Boolean);
+        let nodes = roots;
+        for (let index = 0; index < segments.length - 1; index += 1) {
+            const relativePath = segments.slice(0, index + 1).join('/');
+            let directory = nodes.find(
+                (node): node is NameSearchDirectoryNode =>
+                    node.kind === 'directory' && node.relativePath === relativePath,
+            );
+            if (!directory) {
+                directory = {
+                    kind: 'directory',
+                    children: [],
+                    name: segments[index],
+                    relativePath,
+                };
+                nodes.push(directory);
+            }
+            nodes = directory.children;
+        }
+        const name = segments.at(-1) ?? match.relativePath;
+        nodes.push({ kind: 'file', match, name, relativePath: match.relativePath });
+    }
+    sortNameNodes(roots);
+    return roots;
+}
+
 async function openSearchMatch(
     sessionId: string,
     match: FileSearchMatch,
@@ -45,7 +100,77 @@ async function openSearchMatch(
     });
 }
 
-function ResultRow({ match, sessionId }: { match: FileSearchMatch; sessionId: string }) {
+function NameSearchTreeNode({
+    depth,
+    node,
+    sessionId,
+}: {
+    depth: number;
+    node: NameSearchNode;
+    sessionId: string;
+}) {
+    const [expanded, setExpanded] = useState(true);
+    if (node.kind === 'directory')
+        return (
+            <div>
+                <button
+                    type="button"
+                    className="search-tree-folder flex h-7 w-full items-center gap-1.5 border-0 bg-transparent pr-2 text-left text-foreground cursor-pointer hover:bg-elevated"
+                    style={{ paddingLeft: 8 + depth * 12 }}
+                    title={node.relativePath}
+                    aria-expanded={expanded}
+                    onClick={() => setExpanded((value) => !value)}
+                >
+                    {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    <FileTypeIcon
+                        entry={{ kind: 'directory', name: node.name }}
+                        expanded={expanded}
+                    />
+                    <span className="truncate">{node.name}</span>
+                </button>
+                {expanded &&
+                    node.children.map((child) => (
+                        <NameSearchTreeNode
+                            key={child.relativePath}
+                            depth={depth + 1}
+                            node={child}
+                            sessionId={sessionId}
+                        />
+                    ))}
+            </div>
+        );
+    return (
+        <button
+            type="button"
+            className="search-result flex h-7 w-full items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground cursor-pointer hover:bg-elevated"
+            style={{ paddingLeft: 23 + depth * 12 }}
+            title={node.match.path}
+            onClick={() => void openSearchMatch(sessionId, node.match)}
+            onDoubleClick={() => void openSearchMatch(sessionId, node.match, false)}
+        >
+            <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
+            <span className="truncate">{node.name}</span>
+        </button>
+    );
+}
+
+function HighlightedPreview({ match }: { match: FileSearchMatch }) {
+    const preview = match.preview ?? '';
+    const start = Math.min(match.previewMatchIndex ?? 0, preview.length);
+    const length = Math.min(match.matchLength ?? 0, preview.length - start);
+    if (length <= 0) return preview;
+    return (
+        <>
+            {preview.slice(0, start)}
+            <mark className="rounded-sm bg-warning px-0.5 text-background">
+                {preview.slice(start, start + length)}
+            </mark>
+            {preview.slice(start + length)}
+        </>
+    );
+}
+
+function ContentResultRow({ match, sessionId }: { match: FileSearchMatch; sessionId: string }) {
     return (
         <button
             type="button"
@@ -54,15 +179,52 @@ function ResultRow({ match, sessionId }: { match: FileSearchMatch; sessionId: st
             onClick={() => void openSearchMatch(sessionId, match)}
             onDoubleClick={() => void openSearchMatch(sessionId, match, false)}
         >
-            {match.line === undefined ? (
-                <span className="truncate">{match.relativePath}</span>
-            ) : (
-                <>
-                    <span className="w-8 shrink-0 text-right text-muted">{match.line}</span>
-                    <span className="truncate font-mono text-[11px]">{match.preview}</span>
-                </>
-            )}
+            <span className="w-8 shrink-0 text-right text-muted">{match.line}</span>
+            <span className="truncate font-mono text-[11px]">
+                <HighlightedPreview match={match} />
+            </span>
         </button>
+    );
+}
+
+function ContentResultGroup({
+    matches,
+    relativePath,
+    sessionId,
+}: {
+    matches: FileSearchMatch[];
+    relativePath: string;
+    sessionId: string;
+}) {
+    const [expanded, setExpanded] = useState(true);
+    const segments = relativePath.split('/');
+    const name = segments.pop() ?? relativePath;
+    const directory = segments.join('/');
+    return (
+        <div className="search-result-group" title={relativePath}>
+            <button
+                type="button"
+                className="sticky top-0 z-1 flex h-7 w-full min-w-0 items-center gap-1.5 border-x-0 border-t-0 border-b border-border bg-surface px-2 text-left text-[11px] font-medium text-foreground cursor-pointer hover:bg-elevated"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+            >
+                {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <FileTypeIcon entry={{ kind: 'file', name }} />
+                <span className="shrink-0">{name}</span>
+                {directory && (
+                    <span className="min-w-0 flex-1 truncate text-muted">{directory}</span>
+                )}
+                <span className="ml-auto shrink-0 text-muted">{matches.length}</span>
+            </button>
+            {expanded &&
+                matches.map((match) => (
+                    <ContentResultRow
+                        key={`${match.line}:${match.column}`}
+                        match={match}
+                        sessionId={sessionId}
+                    />
+                ))}
+        </div>
     );
 }
 
@@ -92,11 +254,15 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
         { enabled: debouncedQuery.length > 0 },
     );
     const groups = useMemo(() => groupMatches(result.data?.matches ?? []), [result.data?.matches]);
+    const nameTree = useMemo(
+        () => buildNameSearchTree(result.data?.matches ?? []),
+        [result.data?.matches],
+    );
 
     return (
         <div className="project-search flex min-h-0 flex-1 flex-col">
             <div className="search-controls flex flex-col gap-1.5 border-b border-border p-2">
-                <label className="flex h-7 items-center gap-1.5 rounded border border-border bg-background px-2 focus-within:border-accent">
+                <div className="flex h-7 items-center gap-1 rounded border border-border bg-background px-2 focus-within:border-accent">
                     <Search size={13} className="shrink-0 text-muted" />
                     <input
                         className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none placeholder:text-muted"
@@ -106,26 +272,24 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                         onChange={(event) => setQuery(event.currentTarget.value)}
                     />
                     {(result.isFetching || (active && !settled)) && (
-                        <LoaderCircle size={13} className="animate-spin text-muted" />
+                        <LoaderCircle size={13} className="shrink-0 animate-spin text-muted" />
                     )}
-                </label>
-                <div className="flex items-center gap-1">
-                    {(['name', 'content'] as const).map((value) => (
+                    {active && (
                         <button
-                            key={value}
                             type="button"
-                            className={cn(optionClassName, 'capitalize')}
-                            aria-pressed={mode === value}
-                            onClick={() => setMode(value)}
+                            className={searchOptionClassName}
+                            aria-label="Clear Project search"
+                            title="Clear"
+                            onClick={() => setQuery('')}
                         >
-                            {value}
+                            <X size={13} />
                         </button>
-                    ))}
+                    )}
                     {mode === 'content' && (
-                        <div className="ml-auto flex items-center gap-1">
+                        <>
                             <button
                                 type="button"
-                                className={optionClassName}
+                                className={searchOptionClassName}
                                 aria-label="Match Case"
                                 aria-pressed={caseSensitive}
                                 title="Match Case"
@@ -135,7 +299,7 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                             </button>
                             <button
                                 type="button"
-                                className={optionClassName}
+                                className={searchOptionClassName}
                                 aria-label="Match Whole Word"
                                 aria-pressed={wholeWord}
                                 title="Match Whole Word"
@@ -145,7 +309,7 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                             </button>
                             <button
                                 type="button"
-                                className={optionClassName}
+                                className={searchOptionClassName}
                                 aria-label="Use Regular Expression"
                                 aria-pressed={regex}
                                 title="Use Regular Expression"
@@ -153,8 +317,24 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                             >
                                 .*
                             </button>
-                        </div>
+                        </>
                     )}
+                </div>
+                <div className="search-mode-segments grid w-full grid-cols-2 gap-0.5 rounded-md bg-elevated p-0.5">
+                    {(['name', 'content'] as const).map((value) => (
+                        <button
+                            key={value}
+                            type="button"
+                            className={cn(
+                                'h-6 rounded border-0 bg-transparent text-muted text-[12px] font-medium cursor-pointer hover:text-foreground',
+                                mode === value && 'bg-surface text-foreground shadow-sm',
+                            )}
+                            aria-pressed={mode === value}
+                            onClick={() => setMode(value)}
+                        >
+                            {value === 'name' ? 'Name' : 'Content'}
+                        </button>
+                    ))}
                 </div>
                 {mode === 'content' && (
                     <div className="grid grid-cols-2 gap-1">
@@ -188,30 +368,21 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
             ) : (
                 <div className="search-results min-h-0 flex-1 overflow-auto">
                     {mode === 'name'
-                        ? result.data?.matches.map((match) => (
-                              <ResultRow
-                                  key={match.relativePath}
-                                  match={match}
+                        ? nameTree.map((node) => (
+                              <NameSearchTreeNode
+                                  key={node.relativePath}
+                                  depth={0}
+                                  node={node}
                                   sessionId={sessionId}
                               />
                           ))
                         : [...groups].map(([relativePath, matches]) => (
-                              <div className="search-result-group" key={relativePath}>
-                                  <div
-                                      className="sticky top-0 z-1 flex h-7 items-center gap-1 border-b border-border bg-surface px-2 text-[11px] font-medium"
-                                      title={matches[0].path}
-                                  >
-                                      <span className="truncate">{relativePath}</span>
-                                      <span className="ml-auto text-muted">{matches.length}</span>
-                                  </div>
-                                  {matches.map((match) => (
-                                      <ResultRow
-                                          key={`${match.line}:${match.column}`}
-                                          match={match}
-                                          sessionId={sessionId}
-                                      />
-                                  ))}
-                              </div>
+                              <ContentResultGroup
+                                  key={relativePath}
+                                  relativePath={relativePath}
+                                  matches={matches}
+                                  sessionId={sessionId}
+                              />
                           ))}
                     {result.data?.truncated && (
                         <div className="border-t border-border p-2 text-center text-[11px] text-warning">
