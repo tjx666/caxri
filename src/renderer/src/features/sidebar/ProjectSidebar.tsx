@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Circle, Folder, Plus } from 'lucide-react';
+import { Circle, Folder, FolderOpen, Plus } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 
@@ -97,25 +97,32 @@ export function ProjectSidebar() {
                                 )}
                             >
                                 <button
-                                    className="project-disclosure grid h-7 w-4 flex-none place-items-center border-0 bg-transparent p-0 text-inherit cursor-pointer"
+                                    className="project-disclosure grid h-7 w-6 flex-none place-items-center border-0 bg-transparent p-0 text-inherit cursor-pointer"
                                     aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                                     onClick={() => toggleProject(project.id)}
                                 >
                                     {expanded ? (
-                                        <ChevronDown size={13} />
+                                        <FolderOpen
+                                            aria-hidden="true"
+                                            className="project-folder-icon"
+                                            size={15}
+                                            strokeWidth={1.7}
+                                        />
                                     ) : (
-                                        <ChevronRight size={13} />
+                                        <Folder
+                                            aria-hidden="true"
+                                            className="project-folder-icon"
+                                            size={15}
+                                            strokeWidth={1.7}
+                                        />
                                     )}
                                 </button>
-                                <Folder
-                                    aria-hidden="true"
-                                    className="project-folder-icon shrink-0"
-                                    size={14}
-                                    strokeWidth={1.7}
-                                />
                                 <button
                                     className="project-select flex min-h-7 min-w-0 flex-1 items-center px-1 text-inherit text-left border-0 bg-transparent cursor-pointer"
-                                    onClick={() => onSelectProject(project.id)}
+                                    onClick={() => {
+                                        if (!active) onSelectProject(project.id);
+                                        toggleProject(project.id);
+                                    }}
                                     title={project.rootPath}
                                 >
                                     <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold">
@@ -153,7 +160,7 @@ export function ProjectSidebar() {
                                                 className={cn(
                                                     sessionCardClassName,
                                                     sessionActive &&
-                                                        'active bg-elevated text-foreground group-focus-within:shadow-[inset_2px_0_var(--accent)]',
+                                                        'active bg-elevated text-foreground',
                                                 )}
                                                 onClick={() => onSelectSession(session.id)}
                                             >

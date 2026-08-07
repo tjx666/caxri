@@ -130,23 +130,33 @@ function GitRepositorySection({
     return (
         <section className="git-repository-section border-b border-border">
             <button
-                className="git-repository-row flex w-full items-center justify-between gap-2 p-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
+                className="git-repository-row flex w-full min-w-0 items-center gap-2 overflow-hidden p-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => setExpanded((value) => !value)}
             >
-                <span className="flex min-w-0 items-center gap-1">
+                <span className="git-repository-identity flex shrink-0 items-center gap-1">
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <GitBranch size={12} />
-                    <strong className="truncate font-semibold">{repository.name}</strong>
-                    <small className="truncate text-muted text-[11px]">{repository.kind}</small>
+                    <strong className="git-repository-name shrink-0 whitespace-nowrap font-semibold">
+                        {repository.name}
+                    </strong>
+                    {repository.kind !== 'primary' && (
+                        <small className="git-repository-kind shrink-0 whitespace-nowrap text-muted text-[11px]">
+                            {repository.kind}
+                        </small>
+                    )}
                 </span>
                 <span
-                    className="truncate text-muted text-[11px]"
+                    className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-muted text-[11px]"
                     title={`${repository.ahead} ahead, ${repository.behind} behind`}
                 >
-                    {repository.branch} · ↑{repository.ahead} ↓{repository.behind} ·{' '}
-                    {repository.files.length}
+                    <span className="git-repository-branch min-w-0 truncate">
+                        {repository.branch}
+                    </span>
+                    <span className="git-repository-counts shrink-0 whitespace-nowrap">
+                        · ↑{repository.ahead} ↓{repository.behind} · {repository.files.length}
+                    </span>
                 </span>
             </button>
             {expanded && (

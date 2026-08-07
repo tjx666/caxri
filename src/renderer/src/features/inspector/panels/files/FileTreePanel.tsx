@@ -115,11 +115,9 @@ export function FileTreePanel() {
         >
             <div className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]">
                 <span className="truncate" title={session.rootPath}>
-                    {(
-                        project?.displayTitle ??
+                    {project?.displayTitle ??
                         session.rootPath.split('/').filter(Boolean).at(-1) ??
-                        ''
-                    ).toLocaleUpperCase()}
+                        ''}
                 </span>
                 <Button
                     className="pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100"

@@ -56,23 +56,51 @@ test('Project and Files actions reveal on hover or focus', async () => {
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
+        const caption = running.page.locator('.panel-caption');
+        const collapse = caption.getByRole('button', { name: 'Collapse Folders' });
+        await expect(caption.locator('span')).toHaveText('project');
+        await expect(caption.locator('span')).toHaveAttribute('title', await realpath(root));
+        await expect(collapse).toHaveCSS('opacity', '0');
+        await caption.hover({ position: { x: 8, y: 8 } });
+        await expect(collapse).toHaveCSS('opacity', '1');
+        await running.page.mouse.move(500, 300);
+
         const projectHeading = running.page.locator('.project-heading');
         const newSession = projectHeading.getByRole('button', { name: 'New Session in project' });
-        await expect(projectHeading.locator('.project-folder-icon')).toBeVisible();
+        const projectDisclosure = projectHeading.getByRole('button', {
+            name: 'Collapse project',
+        });
+        await expect(projectHeading.locator('.project-disclosure')).toHaveCount(1);
+        await expect(projectDisclosure.locator('.project-folder-icon')).toHaveClass(
+            /lucide-folder-open/,
+        );
+        await projectDisclosure.click();
+        const collapsedDisclosure = projectHeading.getByRole('button', {
+            name: 'Expand project',
+        });
+        await expect(collapsedDisclosure.locator('.project-folder-icon')).toHaveClass(
+            /lucide-folder(?!-open)/,
+        );
+        await collapsedDisclosure.click();
+        const projectName = projectHeading.getByRole('button', { name: 'project', exact: true });
+        await projectName.click();
+        await expect(projectHeading.getByRole('button', { name: 'Expand project' })).toBeVisible();
+        await expect(running.page.locator('.session-list')).toHaveCount(0);
+        await projectName.click();
+        await expect(
+            projectHeading.getByRole('button', { name: 'Collapse project' }),
+        ).toBeVisible();
+        await expect(running.page.locator('.session-list')).toBeVisible();
+        const selectedSession = running.page.locator('.session-card.active');
+        await selectedSession.focus();
+        await expect(selectedSession).toHaveCSS('box-shadow', 'none');
+        await running.page.mouse.move(500, 300);
         await expect(newSession).toHaveCSS('opacity', '0');
         await projectHeading.hover();
         await expect(newSession).toHaveCSS('opacity', '1');
         await running.page.mouse.move(500, 300);
         await newSession.focus();
         await expect(newSession).toHaveCSS('opacity', '1');
-
-        const caption = running.page.locator('.panel-caption');
-        const collapse = caption.getByRole('button', { name: 'Collapse Folders' });
-        await expect(caption.locator('span')).toHaveText('PROJECT');
-        await expect(caption.locator('span')).toHaveAttribute('title', await realpath(root));
-        await expect(collapse).toHaveCSS('opacity', '0');
-        await caption.hover();
-        await expect(collapse).toHaveCSS('opacity', '1');
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

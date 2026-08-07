@@ -51,6 +51,13 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         const nestedSection = running.page.locator('.git-repository-section').filter({
             has: running.page.locator(`.git-repository-row[title="${canonicalNested}"]`),
         });
+        await expect(primary.locator('.git-repository-kind')).toHaveCount(0);
+        await expect(nestedSection.locator('.git-repository-kind')).toHaveText('nested');
+        await expect(primary.locator('.git-repository-name')).toHaveCSS('flex-shrink', '0');
+        await expect(primary.locator('.git-repository-branch')).toHaveCSS(
+            'text-overflow',
+            'ellipsis',
+        );
 
         await primary.getByRole('button', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);
