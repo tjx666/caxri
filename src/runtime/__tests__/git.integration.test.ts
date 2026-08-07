@@ -266,10 +266,27 @@ describe('GitService', () => {
         for (const repository of repositories.filter((item) => item.kind !== 'primary')) {
             expect(repository.files).toHaveLength(1);
             await expect(
+                git.commits({
+                    sessionId: session.id,
+                    repositoryId: repository.id,
+                    offset: 0,
+                    pageSize: 5,
+                }),
+            ).resolves.toMatchObject({ commits: [expect.any(Object)] });
+            await expect(
                 git.diff(session.id, repository.id, repository.files[0].path),
             ).resolves.toContain('-before');
         }
         await expect(git.diff(session.id, primary.id, 'root.txt')).resolves.toContain('-before');
+        await expect(
+            git.commits({
+                sessionId: session.id,
+                repositoryId: primary.id,
+                offset: 0,
+                pageSize: 5,
+                path: 'root.txt',
+            }),
+        ).resolves.toMatchObject({ commits: [expect.any(Object)] });
         database.close();
     });
 });

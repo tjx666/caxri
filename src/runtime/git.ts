@@ -10,11 +10,16 @@ import { AsyncSemaphore, mapWithConcurrency } from '../shared/node/concurrency';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type {
+    GitCommit,
+    GitCommitDetails,
+    GitCommitFile,
+    GitCommitPage,
     GitDiffDocument,
     GitFileStatus,
     GitRepositorySummary,
     GitSummary,
 } from '../shared/types';
+import type { RuntimeMethodParams } from '../shared/ipc/methods';
 import { assertInsideRoot, isOutsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
 import type { ProjectRootResolver } from './project-roots';
@@ -22,6 +27,7 @@ import type { ProjectRootResolver } from './project-roots';
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
 const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
+const MAX_COMMIT_FILES = 500;
 
 interface RepositoryStatus {
     branch: string;
@@ -150,6 +156,71 @@ function parseGitLinkPaths(output: string): string[] {
         .filter((path): path is string => Boolean(path));
 }
 
+const COMMIT_FORMAT = '%H%x00%an%x00%at%x00%P%x00%D%x00%s%x00';
+
+/** Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects. */
+function parseCommitLog(output: string): GitCommit[] {
+    const fields = output.split('\0');
+    const commits: GitCommit[] = [];
+    for (let index = 0; index < fields.length && fields[index];) {
+        const sha = fields[index++].replace(/^\n+/, '');
+        const author = fields[index++];
+        const authoredAt = fields[index++];
+        const parents = fields[index++] ?? '';
+        const decorations = fields[index++] ?? '';
+        const subject = fields[index++] ?? '';
+        const terminator = fields[index++];
+        if (!/^[0-9a-f]{40}$/.test(sha) || !/^\d+$/.test(authoredAt) || terminator !== '')
+            throw new CaxriError('GIT', 'Git returned malformed commit history');
+        commits.push({
+            sha,
+            shortSha: sha.slice(0, 7),
+            subject: subject.slice(0, 4_096),
+            author: author.slice(0, 1_024),
+            authoredAt: Number(authoredAt) * 1_000,
+            decorations: decorations
+                .split(', ')
+                .map((value) => value.trim())
+                .filter(Boolean)
+                .slice(0, 50)
+                .map((value) => value.slice(0, 1_024)),
+            parents: parents.split(' ').filter(Boolean).slice(0, 64),
+        });
+    }
+    return commits;
+}
+
+function commitFileStatus(code: string): GitCommitFile['status'] {
+    if (code.startsWith('A')) return 'added';
+    if (code.startsWith('D')) return 'deleted';
+    if (code.startsWith('R')) return 'renamed';
+    if (code.startsWith('C')) return 'copied';
+    if (code.startsWith('T')) return 'type-changed';
+    if (code.startsWith('M')) return 'modified';
+    return 'unknown';
+}
+
+function parseCommitFiles(output: string): GitCommitFile[] {
+    const fields = output.split('\0').filter(Boolean);
+    const files: GitCommitFile[] = [];
+    for (let index = 0; index < fields.length;) {
+        const code = fields[index++];
+        if (!code) break;
+        if (code.startsWith('R') || code.startsWith('C')) {
+            const previousPath = fields[index++];
+            const path = fields[index++];
+            if (!path || !previousPath)
+                throw new CaxriError('GIT', 'Git returned malformed commit files');
+            files.push({ path, previousPath, status: commitFileStatus(code) });
+            continue;
+        }
+        const path = fields[index++];
+        if (!path) throw new CaxriError('GIT', 'Git returned malformed commit files');
+        files.push({ path, status: commitFileStatus(code) });
+    }
+    return files;
+}
+
 function repositoryId(rootPath: string): string {
     return createHash('sha256').update(rootPath).digest('hex').slice(0, 20);
 }
@@ -179,6 +250,7 @@ function hidesChildRepository(
 export class GitService {
     private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
     private readonly summaries = new SingleFlight<string, GitSummary>();
+    private readonly histories = new SingleFlight<string, GitCommitPage>();
 
     constructor(
         private readonly paths: ProjectRootResolver,
@@ -293,11 +365,10 @@ export class GitService {
         return this.summaries.run(sessionId, () => this.loadSummary(sessionId));
     }
 
-    private async resolveDiffTarget(
+    private async resolveRepository(
         sessionId: string,
         repositoryIdValue: string,
-        path: string,
-    ): Promise<DiffTarget> {
+    ): Promise<GitRepositorySummary> {
         const summary = await this.summary(sessionId);
         const repository = summary.repositories.find(
             (candidate) => candidate.id === repositoryIdValue,
@@ -307,6 +378,91 @@ export class GitService {
                 'PATH_DENIED',
                 'Git repository is outside the approved Project roots',
             );
+        return repository;
+    }
+
+    private async resolveHistoryPath(
+        repository: GitRepositorySummary,
+        input?: string,
+    ): Promise<string | undefined> {
+        if (!input || input === '.') return undefined;
+        const candidate = isAbsolute(input) ? input : resolve(repository.rootPath, input);
+        const stats = await lstat(candidate);
+        if (stats.isSymbolicLink())
+            throw new CaxriError('PATH_DENIED', 'Git history path cannot be a symlink');
+        const canonical = await realpath(candidate);
+        const relativePath = relative(repository.rootPath, canonical);
+        assertInsideRoot(relativePath, 'Git history path is outside the selected repository');
+        return relativePath || undefined;
+    }
+
+    commits(params: RuntimeMethodParams<'git.commits'>): Promise<GitCommitPage> {
+        return this.histories.run(JSON.stringify(params), async () => {
+            const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
+            if (!repository.head) return { commits: [] };
+            const path = await this.resolveHistoryPath(repository, params.path);
+            const args = [
+                'log',
+                '-z',
+                '--date-order',
+                '--full-history',
+                '--decorate=short',
+                `--skip=${params.offset}`,
+                `--max-count=${params.pageSize + 1}`,
+                `--format=${COMMIT_FORMAT}`,
+            ];
+            if (path) args.push('--', path);
+            const commits = parseCommitLog(await this.git(repository.rootPath, args));
+            const hasMore = commits.length > params.pageSize;
+            return {
+                commits: commits.slice(0, params.pageSize),
+                nextOffset: hasMore ? params.offset + params.pageSize : undefined,
+            };
+        });
+    }
+
+    async commitDetails(
+        params: RuntimeMethodParams<'git.commitDetails'>,
+    ): Promise<GitCommitDetails> {
+        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
+        const path = await this.resolveHistoryPath(repository, params.path);
+        const commitOutput = await this.git(repository.rootPath, [
+            'show',
+            '-s',
+            '-z',
+            '--decorate=short',
+            `--format=${COMMIT_FORMAT}`,
+            params.sha,
+        ]);
+        const commit = parseCommitLog(commitOutput)[0];
+        if (!commit) throw new CaxriError('NOT_FOUND', 'Git commit no longer exists');
+        const fileArguments = [
+            'diff-tree',
+            '--root',
+            '--first-parent',
+            '-m',
+            '--no-commit-id',
+            '--name-status',
+            '-r',
+            '-z',
+            '-M',
+            params.sha,
+        ];
+        if (path) fileArguments.push('--', path);
+        const files = parseCommitFiles(await this.git(repository.rootPath, fileArguments));
+        return {
+            commit,
+            files: files.slice(0, MAX_COMMIT_FILES),
+            filesTruncated: files.length > MAX_COMMIT_FILES,
+        };
+    }
+
+    private async resolveDiffTarget(
+        sessionId: string,
+        repositoryIdValue: string,
+        path: string,
+    ): Promise<DiffTarget> {
+        const repository = await this.resolveRepository(sessionId, repositoryIdValue);
         let candidate = isAbsolute(path) ? path : resolve(repository.rootPath, path);
         try {
             candidate = await realpath(candidate);

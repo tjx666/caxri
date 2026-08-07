@@ -84,7 +84,12 @@ export const terminalSnapshotSchema = z.object({
     updatedAt: z.number(),
 });
 
-const editorTabStateSchema = z.object({ path: pathSchema, dirty: z.boolean() });
+const editorTabStateSchema = z.object({
+    path: pathSchema,
+    dirty: z.boolean(),
+    /** Missing on legacy state and pinned tabs; only the one replaceable editor sets this. */
+    preview: z.literal(true).optional(),
+});
 
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
@@ -212,6 +217,25 @@ export const fileDocumentSchema = z.object({
     size: z.number(),
 });
 
+export const fileSearchModeSchema = z.enum(['name', 'content']);
+
+const fileSearchMatchSchema = z.object({
+    path: pathSchema,
+    relativePath: z.string().min(1).max(16_384),
+    line: z.number().int().positive().optional(),
+    column: z.number().int().positive().optional(),
+    matchLength: z.number().int().nonnegative().max(1_024).optional(),
+    preview: z.string().max(500).optional(),
+});
+
+export const fileSearchResultSchema = z.object({
+    mode: fileSearchModeSchema,
+    matches: z.array(fileSearchMatchSchema).max(500),
+    scannedFiles: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    canceled: z.boolean(),
+});
+
 const gitFileStatusSchema = z.object({
     path: z.string(),
     originalPath: z.string().optional(),
@@ -230,6 +254,41 @@ const gitRepositorySummarySchema = z.object({
     ahead: z.number(),
     behind: z.number(),
     files: z.array(gitFileStatusSchema),
+});
+
+const gitCommitSchema = z.object({
+    sha: z.string().regex(/^[0-9a-f]{40}$/),
+    shortSha: z.string().min(7).max(12),
+    subject: z.string().max(4_096),
+    author: z.string().max(1_024),
+    authoredAt: z.number().int().nonnegative(),
+    decorations: z.array(z.string().max(1_024)).max(50),
+    parents: z.array(z.string().regex(/^[0-9a-f]{40}$/)).max(64),
+});
+
+export const gitCommitPageSchema = z.object({
+    commits: z.array(gitCommitSchema).max(50),
+    nextOffset: z.number().int().nonnegative().optional(),
+});
+
+const gitCommitFileSchema = z.object({
+    path: pathSchema,
+    previousPath: pathSchema.optional(),
+    status: z.enum([
+        'modified',
+        'added',
+        'deleted',
+        'renamed',
+        'copied',
+        'type-changed',
+        'unknown',
+    ]),
+});
+
+export const gitCommitDetailsSchema = z.object({
+    commit: gitCommitSchema,
+    files: z.array(gitCommitFileSchema).max(500),
+    filesTruncated: z.boolean(),
 });
 
 export const gitSummarySchema = z.object({
@@ -379,9 +438,15 @@ export type ThemeTokens = z.infer<typeof themeTokensSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
+export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;
+export type FileSearchMatch = z.infer<typeof fileSearchMatchSchema>;
 export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
 export type GitRepositorySummary = z.infer<typeof gitRepositorySummarySchema>;
 export type GitSummary = z.infer<typeof gitSummarySchema>;
+export type GitCommit = z.infer<typeof gitCommitSchema>;
+export type GitCommitPage = z.infer<typeof gitCommitPageSchema>;
+export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
+export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
 export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;

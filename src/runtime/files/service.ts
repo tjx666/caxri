@@ -1,14 +1,17 @@
 import type { RuntimeEvent } from '../../shared/ipc/events';
+import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService } from './listing';
+import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
 export interface FileServiceOptions extends WatcherServiceOptions {
     openFile?: OpenFile;
+    search?: SearchServiceOptions;
 }
 
 /**
@@ -20,6 +23,7 @@ export class FileService {
     private readonly projectRoots: ProjectRootResolver;
     private readonly documents: DocumentService;
     private readonly listing: ListingService;
+    private readonly searcher: SearchService;
     private readonly watcher: WatcherService;
 
     constructor(
@@ -42,6 +46,13 @@ export class FileService {
         this.listing = new ListingService(resolveSessionPath, logger, (sessionId, path) =>
             this.watcher.noteDirectoryListed(sessionId, path),
         );
+        this.searcher = new SearchService(
+            resolveSessionPath,
+            (sessionId, path) => this.documents.read(sessionId, path),
+            logger,
+            maxFileBytes,
+            options.search,
+        );
     }
 
     resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
@@ -63,6 +74,12 @@ export class FileService {
 
     write(sessionId: string, path: string, content: string): Promise<FileDocument> {
         return this.documents.write(sessionId, path, content);
+    }
+
+    search(
+        params: RuntimeMethodParams<'files.search'>,
+    ): Promise<RuntimeMethodResult<'files.search'>> {
+        return this.searcher.search(params);
     }
 
     watchSession(sessionId?: string): Promise<void> {

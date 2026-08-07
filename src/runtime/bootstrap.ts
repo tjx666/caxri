@@ -342,10 +342,13 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
+        'files.search': (params) => files.search(params),
         'git.summary': ({ sessionId }) => git.summary(sessionId),
         'git.diff': ({ sessionId, repositoryId, path }) => git.diff(sessionId, repositoryId, path),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
+        'git.commits': (params) => git.commits(params),
+        'git.commitDetails': (params) => git.commitDetails(params),
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),
