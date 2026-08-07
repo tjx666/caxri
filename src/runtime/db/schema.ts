@@ -25,6 +25,7 @@ export const sessions = sqliteTable(
             .references(() => projects.id, { onDelete: 'cascade' }),
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),
+        archivedAt: integer('archived_at'),
         primaryAgentTerminalId: text('primary_agent_terminal_id'),
         lastActivityState: text('last_activity_state').notNull().default('idle'),
         layoutVersion: integer('layout_version').notNull().default(DEFAULT_LAYOUT_VERSION),

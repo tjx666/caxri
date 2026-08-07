@@ -6,7 +6,14 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { createProjectSession, launchCaxri } from './helpers.ts';
+import {
+    createAdditionalShellSession,
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+    selectedSessionId,
+    sessionCard,
+} from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -57,9 +64,10 @@ test('Project and Files actions reveal on hover or focus', async () => {
     try {
         await createProjectSession(running.page);
         const caption = running.page.locator('.panel-caption');
+        const captionTitle = caption.locator(':scope > span').first();
         const collapse = caption.getByRole('button', { name: 'Collapse Folders' });
-        await expect(caption.locator('span')).toHaveText('project');
-        await expect(caption.locator('span')).toHaveAttribute('title', await realpath(root));
+        await expect(captionTitle).toHaveText('project');
+        await expect(captionTitle).toHaveAttribute('title', await realpath(root));
         await expect(collapse).toHaveCSS('opacity', '0');
         await caption.hover({ position: { x: 8, y: 8 } });
         await expect(collapse).toHaveCSS('opacity', '1');
@@ -107,6 +115,102 @@ test('Project and Files actions reveal on hover or focus', async () => {
     }
 });
 
+test('work tabs leave a draggable titlebar and keep New Terminal beside the last tab', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const strip = running.page.locator('.work-tabs');
+        const tab = strip.locator('.work-tab').last();
+        const actions = strip.locator('.tab-actions');
+        const metrics = await Promise.all([
+            strip.evaluate((element) => ({
+                region: getComputedStyle(element).getPropertyValue('-webkit-app-region'),
+                right: element.getBoundingClientRect().right,
+            })),
+            tab.evaluate((element) => ({
+                region: getComputedStyle(element).getPropertyValue('-webkit-app-region'),
+                right: element.getBoundingClientRect().right,
+            })),
+            actions.evaluate((element) => {
+                const bounds = element.getBoundingClientRect();
+                return {
+                    left: bounds.left,
+                    region: getComputedStyle(element).getPropertyValue('-webkit-app-region'),
+                    right: bounds.right,
+                };
+            }),
+        ]);
+
+        expect(metrics[0].region).toBe('drag');
+        expect(metrics[1].region).toBe('no-drag');
+        expect(metrics[2].region).toBe('no-drag');
+        expect(Math.abs(metrics[2].left - metrics[1].right)).toBeLessThanOrEqual(1);
+        expect(metrics[0].right - metrics[2].right).toBeGreaterThan(100);
+        await expect(running.page.getByRole('button', { name: 'Split Terminal' })).toHaveCount(0);
+
+        const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
+        await newTerminal.hover();
+        const tooltip = running.page.locator('.tooltip-popup');
+        await expect(tooltip).toContainText('Create a Terminal in the current Session');
+        await expect(tooltip.locator('kbd')).toHaveText('⌘T');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Session archive hides active navigation without stopping Terminals and can restore', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const firstSessionId = await selectedSessionId(running.page);
+        await createAdditionalShellSession(running.page);
+        const secondSessionId = await selectedSessionId(running.page);
+        await expect(running.page.locator('.session-card')).toHaveCount(2);
+        const runningBeforeArchive = await pageRequest<number>(
+            running.page,
+            'terminal.runningCount',
+        );
+
+        const secondRow = sessionCard(running.page, secondSessionId).locator('..');
+        await secondRow.hover();
+        await secondRow.getByRole('button', { name: /^Archive / }).click();
+
+        await expect(sessionCard(running.page, secondSessionId)).toHaveCount(0);
+        await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
+        await expect
+            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
+            .toBe(runningBeforeArchive);
+        const archived = running.page.getByRole('button', { name: /Archived 1/ });
+        await archived.click();
+        const restore = running.page.getByRole('button', { name: /^Restore / });
+        await expect(restore.locator('svg')).toHaveCount(2);
+        await restore.click();
+
+        await expect(running.page.locator('.session-card')).toHaveCount(2);
+        await expect(running.page.locator('.archived-sessions')).toHaveCount(0);
+        const snapshot = await pageRequest<{
+            sessions: Array<{ archivedAt?: number; id: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect(
+            snapshot.sessions.find((session) => session.id === secondSessionId)?.archivedAt,
+        ).toBe(undefined);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('sidebar omits Settings and Search while shortcuts and app menu keep both commands', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-sidebar-entrypoints-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -118,6 +222,27 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
         await expect(running.page.locator('.sidebar-footer')).toHaveCount(0);
         await expect(running.page.getByRole('button', { name: 'Settings' })).toHaveCount(0);
         await expect(running.page.getByRole('button', { name: 'Search' })).toHaveCount(0);
+        await expect(running.page.locator('.statusbar-toggle')).toHaveCount(0);
+
+        await expect(running.page.locator('.session-sidebar')).toBeVisible();
+        await running.page.keyboard.press('Meta+[');
+        await expect(running.page.locator('.session-sidebar')).toHaveCount(0);
+        await expect(running.page.locator('.collapsed-sidebar-titlebar')).toBeVisible();
+        await running.page.keyboard.press('Meta+[');
+        await expect(running.page.locator('.session-sidebar')).toBeVisible();
+
+        await expect(running.page.locator('.inspector')).toBeVisible();
+        await running.page.keyboard.press('Meta+]');
+        await expect(running.page.locator('.inspector')).toHaveCount(0);
+        await running.page.setViewportSize({ width: 800, height: 700 });
+        await running.page.keyboard.press('Meta+]');
+        await expect(running.page.locator('.inspector')).toBeVisible();
+        expect(
+            await running.page.locator('.app-shell').evaluate((element) => ({
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+            })),
+        ).toEqual({ clientWidth: 800, scrollWidth: 800 });
 
         await running.page.keyboard.press('Meta+,');
         await expect(running.page.getByRole('dialog')).toContainText('Settings');
@@ -130,12 +255,19 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
 
         const menuItems = await running.app.evaluate(({ Menu }) => {
             const menu = Menu.getApplicationMenu();
-            return ['command.settings.open', 'command.commandPalette.open'].map((id) => {
+            return [
+                'command.sidebar.toggle',
+                'command.inspector.toggle',
+                'command.settings.open',
+                'command.commandPalette.open',
+            ].map((id) => {
                 const item = menu?.getMenuItemById(id);
                 return item ? { accelerator: item.accelerator, id: item.id } : undefined;
             });
         });
         expect(menuItems).toEqual([
+            { accelerator: 'Command+[', id: 'command.sidebar.toggle' },
+            { accelerator: 'Command+]', id: 'command.inspector.toggle' },
             { accelerator: 'Command+,', id: 'command.settings.open' },
             { accelerator: 'Command+Shift+P', id: 'command.commandPalette.open' },
         ]);

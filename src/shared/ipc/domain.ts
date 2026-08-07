@@ -50,6 +50,8 @@ export const sessionRecordSchema = z.object({
     rootPath: z.string(),
     createdAt: z.number(),
     lastOpenedAt: z.number(),
+    /** Archived Sessions stay durable and keep their Terminals; only active navigation hides them. */
+    archivedAt: z.number().optional(),
     /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
     primaryAgentTerminalId: z.string().optional(),
     lastActivityState: agentActivityStateSchema,

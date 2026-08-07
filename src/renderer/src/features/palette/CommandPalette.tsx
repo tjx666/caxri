@@ -46,7 +46,9 @@ export function CommandPalette() {
     const open = useDialogStore((state) => state.paletteOpen);
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
-    const sessions = useSessions() ?? NO_RECORDS;
+    const sessions = (useSessions() ?? NO_RECORDS).filter(
+        (session) => session.archivedAt === undefined,
+    );
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* The palette closes on Escape or on select; a close X would be dead weight in it. */}

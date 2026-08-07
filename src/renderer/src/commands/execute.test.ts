@@ -28,7 +28,12 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 closeActive: record('terminal.close'),
             },
             editor: { saveActive: record('editor.save') },
-            inspector: { setMode: record('inspector.setMode'), toggle: record('inspector.toggle') },
+            inspector: {
+                searchFiles: record('inspector.searchFiles'),
+                setMode: record('inspector.setMode'),
+                toggle: record('inspector.toggle'),
+            },
+            sidebar: { toggle: record('sidebar.toggle') },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),

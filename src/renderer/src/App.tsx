@@ -14,6 +14,7 @@ import { ToastOutlet } from './features/toasts/ToastOutlet';
 import { LoadingScreen } from './features/workbench/LoadingScreen';
 import { PanelDivider } from './features/workbench/PanelDivider';
 import { Workbench } from './features/workbench/Workbench';
+import { TooltipProvider } from './components/ui/tooltip';
 import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utils';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
@@ -50,6 +51,7 @@ export function App() {
     const theme = useTheme();
     const sidebarWidth = usePanelLayoutStore((state) => state.sidebarWidth);
     const inspectorWidth = usePanelLayoutStore((state) => state.inspectorWidth);
+    const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
 
     useRuntimeAttachment();
@@ -78,50 +80,66 @@ export function App() {
     if (!attached) return <LoadingScreen />;
 
     return (
-        <main
-            className={cn(
-                /*
-                 * Sidebar/Inspector widths are device-local UI state (`stores/panel-layout.ts`), not part
-                 * of the Runtime-synced Session; each panel writes its own custom property directly on
-                 * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
-                 * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
-                 */
-                'app-shell grid w-screen h-screen bg-background grid-rows-[minmax(0,1fr)_24px]',
-                inspectorVisible
-                    ? 'grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
-                    : 'inspector-collapsed grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)]',
-            )}
-        >
-            <ProjectSidebar />
-            <PanelDivider
-                ariaLabel="Resize Sidebar"
-                width={sidebarWidth}
-                min={SIDEBAR_MIN_WIDTH}
-                max={SIDEBAR_MAX_WIDTH}
-                defaultWidth={SIDEBAR_DEFAULT_WIDTH}
-                cssVariable="--sidebar-width"
-                growDirection={1}
-                onCommit={(width) => usePanelLayoutStore.getState().setSidebarWidth(width)}
-            />
-            <Workbench />
-            {inspectorVisible && (
-                <PanelDivider
-                    ariaLabel="Resize Inspector"
-                    width={inspectorWidth}
-                    min={INSPECTOR_MIN_WIDTH}
-                    max={INSPECTOR_MAX_WIDTH}
-                    defaultWidth={INSPECTOR_DEFAULT_WIDTH}
-                    cssVariable="--inspector-width"
-                    growDirection={-1}
-                    onCommit={(width) => usePanelLayoutStore.getState().setInspectorWidth(width)}
-                />
-            )}
-            {inspectorVisible && <Inspector />}
-            <StatusBar />
-            <CreateSessionDialog />
-            <SettingsDialog />
-            <CommandPalette />
-            <ToastOutlet />
-        </main>
+        <TooltipProvider>
+            <main
+                className={cn(
+                    /*
+                     * Sidebar/Inspector widths are device-local UI state (`stores/panel-layout.ts`), not part
+                     * of the Runtime-synced Session; each panel writes its own custom property directly on
+                     * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
+                     * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
+                     */
+                    'app-shell grid w-screen h-screen bg-background grid-rows-[minmax(0,1fr)_24px]',
+                    sidebarVisible && inspectorVisible
+                        ? 'grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
+                        : sidebarVisible
+                          ? 'inspector-collapsed grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)]'
+                          : inspectorVisible
+                            ? 'sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
+                            : 'sidebar-collapsed inspector-collapsed grid-cols-[minmax(320px,1fr)]',
+                )}
+            >
+                {!sidebarVisible && (
+                    <div
+                        aria-hidden="true"
+                        className="collapsed-sidebar-titlebar fixed top-0 left-0 z-20 h-9 w-[78px] [-webkit-app-region:drag]"
+                    />
+                )}
+                {sidebarVisible && <ProjectSidebar />}
+                {sidebarVisible && (
+                    <PanelDivider
+                        ariaLabel="Resize Sidebar"
+                        width={sidebarWidth}
+                        min={SIDEBAR_MIN_WIDTH}
+                        max={SIDEBAR_MAX_WIDTH}
+                        defaultWidth={SIDEBAR_DEFAULT_WIDTH}
+                        cssVariable="--sidebar-width"
+                        growDirection={1}
+                        onCommit={(width) => usePanelLayoutStore.getState().setSidebarWidth(width)}
+                    />
+                )}
+                <Workbench />
+                {inspectorVisible && (
+                    <PanelDivider
+                        ariaLabel="Resize Inspector"
+                        width={inspectorWidth}
+                        min={INSPECTOR_MIN_WIDTH}
+                        max={INSPECTOR_MAX_WIDTH}
+                        defaultWidth={INSPECTOR_DEFAULT_WIDTH}
+                        cssVariable="--inspector-width"
+                        growDirection={-1}
+                        onCommit={(width) =>
+                            usePanelLayoutStore.getState().setInspectorWidth(width)
+                        }
+                    />
+                )}
+                {inspectorVisible && <Inspector />}
+                <StatusBar />
+                <CreateSessionDialog />
+                <SettingsDialog />
+                <CommandPalette />
+                <ToastOutlet />
+            </main>
+        </TooltipProvider>
     );
 }

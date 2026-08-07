@@ -51,7 +51,11 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('inspector.showGit', (ctx) => ctx.inspector.setMode('git')),
     fromCatalog('inspector.showStatus', (ctx) => ctx.inspector.setMode('status')),
     fromCatalog('inspector.showInfo', (ctx) => ctx.inspector.setMode('info')),
-    fromCatalog('inspector.toggle', (ctx) => ctx.inspector.toggle()),
+    fromCatalog('inspector.searchFiles', (ctx) => ctx.inspector.searchFiles(), {
+        allowInEditable: true,
+    }),
+    fromCatalog('inspector.toggle', (ctx) => ctx.inspector.toggle(), { allowInEditable: true }),
+    fromCatalog('sidebar.toggle', (ctx) => ctx.sidebar.toggle(), { allowInEditable: true }),
     fromCatalog('settings.open', (ctx) => ctx.dialogs.openSettings()),
     fromCatalog('commandPalette.open', (ctx) => ctx.dialogs.openPalette(), {
         allowInEditable: true,

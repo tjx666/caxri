@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { defaultKeybindings } from '../../shared/commands';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigurationService, findKeybindingConflicts } from '../configuration';
@@ -17,6 +18,72 @@ afterEach(async () => {
 });
 
 describe('ConfigurationService', () => {
+    it('adds newly shipped shortcuts to an untouched legacy default keybinding set', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-defaults-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(
+                defaultKeybindings.filter(
+                    (binding) =>
+                        !['inspector.searchFiles', 'inspector.toggle', 'sidebar.toggle'].includes(
+                            binding.command,
+                        ),
+                ),
+                null,
+                2,
+            )}\n`,
+            'utf8',
+        );
+        const service = new ConfigurationService(directory, () => undefined);
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toContainEqual({
+            command: 'inspector.searchFiles',
+            key: 'cmd+shift+f',
+        });
+        expect(service.getKeybindings().value).toContainEqual({
+            command: 'sidebar.toggle',
+            key: 'cmd+[',
+        });
+        expect(service.getKeybindings().value).toContainEqual({
+            command: 'inspector.toggle',
+            key: 'cmd+]',
+        });
+        expect(service.getKeybindings().source).toContain('inspector.searchFiles');
+        expect(
+            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
+        ).toEqual(defaultKeybindings);
+        await service.close();
+    });
+
+    it('adds panel shortcuts to the immediately previous untouched defaults', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-panel-shortcuts-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(
+                defaultKeybindings.filter(
+                    (binding) => !['inspector.toggle', 'sidebar.toggle'].includes(binding.command),
+                ),
+                null,
+                2,
+            )}\n`,
+            'utf8',
+        );
+        const service = new ConfigurationService(directory, () => undefined);
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toEqual(defaultKeybindings);
+        await service.close();
+    });
+
     it('detects shortcut conflicts without flagging duplicate identical commands', () => {
         expect(
             findKeybindingConflicts([

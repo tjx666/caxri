@@ -33,10 +33,7 @@ test('Project search opens name results and reveals grouped content matches', as
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const nameSearch = running.page.getByRole('textbox', { name: 'Find Project files' });
-        const modeSegments = running.page.locator('.search-mode-segments');
-        await expect(running.page.locator('[data-search-mode-icon="name"]')).toBeVisible();
-        await expect(running.page.getByRole('textbox', { name: 'Files to include' })).toHaveCount(
+        await expect(running.page.getByRole('textbox', { name: 'Find Project files' })).toHaveCount(
             0,
         );
         await expect(
@@ -75,6 +72,26 @@ test('Project search opens name results and reveals grouped content matches', as
         await expect(
             running.page.getByRole('button', { name: 'node_modules', exact: true }),
         ).toBeVisible();
+        const fileCaption = running.page.locator('.panel-caption');
+        const searchButton = fileCaption.getByRole('button', { name: 'Search Files' });
+        await running.page.keyboard.press('Meta+Shift+F');
+        const nameSearch = running.page.getByRole('textbox', { name: 'Find Project files' });
+        const modeSegments = running.page.locator('.search-mode-segments');
+        await expect(nameSearch).toBeFocused();
+        await expect(running.page.locator('[data-search-mode-icon="name"]')).toBeVisible();
+        await expect(running.page.getByRole('textbox', { name: 'Files to include' })).toHaveCount(
+            0,
+        );
+        await expect(running.page.locator('.file-list')).toHaveCount(0);
+        await expect(
+            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+        ).toHaveCount(0);
+        await running.page.mouse.move(600, 300);
+        await expect(searchButton).toHaveAttribute('aria-pressed', 'true');
+        await expect(searchButton).toHaveCSS('opacity', '1');
+        expect(
+            await searchButton.evaluate((element) => getComputedStyle(element).backgroundColor),
+        ).not.toBe('rgba(0, 0, 0, 0)');
         const [nameBounds, contentBounds, segmentBounds] = await Promise.all([
             running.page.getByRole('button', { name: 'Name', exact: true }).boundingBox(),
             running.page.getByRole('button', { name: 'Content', exact: true }).boundingBox(),
@@ -141,6 +158,15 @@ test('Project search opens name results and reveals grouped content matches', as
         await expect(running.page.locator('.line-numbers.active-line-number')).toHaveText('80');
         await expect(
             running.page.locator('.view-line').filter({ hasText: 'MagicNeedle' }),
+        ).toBeVisible();
+        await running.page.keyboard.press('Meta+Shift+F');
+        await expect(contentSearch).toBeFocused();
+        await searchButton.click();
+        await expect(
+            running.page.getByRole('textbox', { name: 'Search Project contents' }),
+        ).toHaveCount(0);
+        await expect(
+            running.page.getByRole('button', { name: 'node_modules', exact: true }),
         ).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);

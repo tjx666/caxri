@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 
 import { CaxriDb } from '../index';
+import { CURRENT_SCHEMA_VERSION } from '../connection';
 
 const temporaryDirectories: string[] = [];
 
@@ -23,6 +24,19 @@ async function tempDir(prefix: string): Promise<string> {
 }
 
 describe('CaxriDb', () => {
+    it('creates the current schema with reversible Session archive metadata', async () => {
+        const directory = await tempDir('caxri-db-schema-');
+        const db = new CaxriDb(join(directory, 'state.db'));
+
+        expect(db.database.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
+        expect(
+            (db.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                (column) => column.name,
+            ),
+        ).toContain('archived_at');
+        db.close();
+    });
+
     it('deduplicates Projects by root path', async () => {
         const directory = await tempDir('caxri-db-project-dedup-');
         const root = join(directory, 'project');

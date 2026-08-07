@@ -1,15 +1,19 @@
-import { ChevronDown, ChevronRight, SquareMinus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search, SquareMinus } from 'lucide-react';
 import { useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
 import { Button } from '../../../../components/ui/button';
+import { CommandTooltip, Tooltip } from '../../../../components/ui/tooltip';
+import { executeCommand } from '../../../../commands/execute';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
+import { cn } from '../../../../lib/utils';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedProject, useSelectedSession } from '../../../../stores/selectors';
 import { openFile } from '../../../editor/document-actions';
 import { useFileTreeInvalidation } from './file-tree-refresh';
 import { ProjectSearch } from './ProjectSearch';
+import { closeFileSearch, useFileSearchStore } from './file-search-state';
 
 interface EntryProps {
     sessionId: string;
@@ -19,6 +23,8 @@ interface EntryProps {
 
 const treeRowClassName =
     'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed';
+const captionActionClassName =
+    'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
 
 function DirectoryEntries({ sessionId, directory, depth = 0 }: EntryProps) {
     const {
@@ -92,8 +98,12 @@ function FileTreeItem({
 export function FileTreePanel() {
     const session = useSelectedSession();
     const project = useSelectedProject();
-    const [collapseRevision, setCollapseRevision] = useState(0);
     const sessionId = session?.id;
+    const [collapseRevision, setCollapseRevision] = useState(0);
+    const searchVisible = useFileSearchStore(
+        (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
+    );
+    const searchFocusRevision = useFileSearchStore((state) => state.focusRevision);
     /**
      * Invalidates only the `files.list` queries a `files.changed` event actually touched — an
      * overflowed watcher batch invalidates every visible directory, otherwise only the parent
@@ -119,24 +129,50 @@ export function FileTreePanel() {
                         session.rootPath.split('/').filter(Boolean).at(-1) ??
                         ''}
                 </span>
-                <Button
-                    className="pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Collapse Folders"
-                    title="Collapse Folders"
-                    onClick={() => setCollapseRevision((value) => value + 1)}
-                >
-                    <SquareMinus size={13} />
-                </Button>
+                <span className="flex items-center gap-0.5">
+                    <CommandTooltip commandId="inspector.searchFiles">
+                        <Button
+                            className={cn(
+                                searchVisible
+                                    ? 'shrink-0 pointer-events-auto bg-elevated opacity-100 text-foreground'
+                                    : captionActionClassName,
+                            )}
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Search Files"
+                            aria-pressed={searchVisible}
+                            onClick={() => {
+                                if (searchVisible) closeFileSearch(session.id);
+                                else executeCommand('inspector.searchFiles');
+                            }}
+                        >
+                            <Search size={13} />
+                        </Button>
+                    </CommandTooltip>
+                    <Tooltip content="Collapse Folders">
+                        <Button
+                            className={captionActionClassName}
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Collapse Folders"
+                            onClick={() => setCollapseRevision((value) => value + 1)}
+                        >
+                            <SquareMinus size={13} />
+                        </Button>
+                    </Tooltip>
+                </span>
             </div>
-            <ProjectSearch sessionId={session.id}>
-                <DirectoryEntries
-                    key={`${session.id}:${collapseRevision}`}
-                    sessionId={session.id}
-                    directory={session.rootPath}
-                />
-            </ProjectSearch>
+            {searchVisible ? (
+                <ProjectSearch focusRevision={searchFocusRevision} sessionId={session.id} />
+            ) : (
+                <div className="min-h-0 flex-1 overflow-auto">
+                    <DirectoryEntries
+                        key={`${session.id}:${collapseRevision}`}
+                        sessionId={session.id}
+                        directory={session.rootPath}
+                    />
+                </div>
+            )}
         </div>
     );
 }

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { errorMessage } from '@shared/ipc';
 
 import { Button } from '../../components/ui/button';
+import { CommandTooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
 import { useSettings, useTerminal, useTheme } from '../../stores/selectors';
@@ -242,16 +243,17 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                         <ExitIcon size={14} />
                         {exitPresentation.label}
                     </span>
-                    <Button
-                        aria-label="Restart Terminal"
-                        className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
-                        size="sm"
-                        title="Restart Terminal (Command+Shift+R)"
-                        variant="ghost"
-                        onClick={() => restartTerminal(terminalId)}
-                    >
-                        <RotateCcw size={12} /> Restart
-                    </Button>
+                    <CommandTooltip commandId="terminal.restart">
+                        <Button
+                            aria-label="Restart Terminal"
+                            className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => restartTerminal(terminalId)}
+                        >
+                            <RotateCcw size={12} /> Restart
+                        </Button>
+                    </CommandTooltip>
                 </div>
             )}
         </div>

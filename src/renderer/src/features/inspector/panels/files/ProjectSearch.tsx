@@ -1,9 +1,10 @@
 import { ChevronDown, ChevronRight, ListFilter, LoaderCircle, Search, X } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 
+import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery } from '../../../../queries/client';
@@ -228,7 +229,14 @@ function ContentResultGroup({
     );
 }
 
-export function ProjectSearch({ sessionId, children }: { sessionId: string; children: ReactNode }) {
+export function ProjectSearch({
+    focusRevision,
+    sessionId,
+}: {
+    focusRevision: number;
+    sessionId: string;
+}) {
+    const inputRef = useRef<HTMLInputElement>(null);
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<FileSearchMode>('name');
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -260,6 +268,13 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
     );
     const SearchModeIcon = mode === 'name' ? ListFilter : Search;
 
+    useEffect(() => {
+        /** Focus after the panel commit so a Terminal attachment finishing in the same frame cannot
+         * reclaim focus from the app-wide Search Files command. */
+        const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+        return () => window.cancelAnimationFrame(frame);
+    }, [focusRevision]);
+
     return (
         <div className="project-search flex min-h-0 flex-1 flex-col">
             <div className="search-controls flex flex-col gap-1.5 border-b border-border p-2">
@@ -270,6 +285,7 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                         data-search-mode-icon={mode}
                     />
                     <input
+                        ref={inputRef}
                         className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none placeholder:text-muted"
                         aria-label={
                             mode === 'name' ? 'Find Project files' : 'Search Project contents'
@@ -282,48 +298,52 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                         <LoaderCircle size={13} className="shrink-0 animate-spin text-muted" />
                     )}
                     {active && (
-                        <button
-                            type="button"
-                            className={searchOptionClassName}
-                            aria-label="Clear Project search"
-                            title="Clear"
-                            onClick={() => setQuery('')}
-                        >
-                            <X size={13} />
-                        </button>
+                        <Tooltip content="Clear Search">
+                            <button
+                                type="button"
+                                className={searchOptionClassName}
+                                aria-label="Clear Project search"
+                                onClick={() => setQuery('')}
+                            >
+                                <X size={13} />
+                            </button>
+                        </Tooltip>
                     )}
                     {mode === 'content' && (
                         <>
-                            <button
-                                type="button"
-                                className={searchOptionClassName}
-                                aria-label="Match Case"
-                                aria-pressed={caseSensitive}
-                                title="Match Case"
-                                onClick={() => setCaseSensitive((value) => !value)}
-                            >
-                                Aa
-                            </button>
-                            <button
-                                type="button"
-                                className={searchOptionClassName}
-                                aria-label="Match Whole Word"
-                                aria-pressed={wholeWord}
-                                title="Match Whole Word"
-                                onClick={() => setWholeWord((value) => !value)}
-                            >
-                                ab
-                            </button>
-                            <button
-                                type="button"
-                                className={searchOptionClassName}
-                                aria-label="Use Regular Expression"
-                                aria-pressed={regex}
-                                title="Use Regular Expression"
-                                onClick={() => setRegex((value) => !value)}
-                            >
-                                .*
-                            </button>
+                            <Tooltip content="Match Case">
+                                <button
+                                    type="button"
+                                    className={searchOptionClassName}
+                                    aria-label="Match Case"
+                                    aria-pressed={caseSensitive}
+                                    onClick={() => setCaseSensitive((value) => !value)}
+                                >
+                                    Aa
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="Match Whole Word">
+                                <button
+                                    type="button"
+                                    className={searchOptionClassName}
+                                    aria-label="Match Whole Word"
+                                    aria-pressed={wholeWord}
+                                    onClick={() => setWholeWord((value) => !value)}
+                                >
+                                    ab
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="Use Regular Expression">
+                                <button
+                                    type="button"
+                                    className={searchOptionClassName}
+                                    aria-label="Use Regular Expression"
+                                    aria-pressed={regex}
+                                    onClick={() => setRegex((value) => !value)}
+                                >
+                                    .*
+                                </button>
+                            </Tooltip>
                         </>
                     )}
                 </div>
@@ -367,7 +387,7 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                 )}
             </div>
             {!active ? (
-                <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+                <div className="min-h-0 flex-1" />
             ) : !settled ? (
                 <div className="p-3 text-center text-muted">Searching…</div>
             ) : result.isError ? (

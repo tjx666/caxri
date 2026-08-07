@@ -116,6 +116,16 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema }),
         result: sessionRecordSchema,
     },
+    'session.archive': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema }),
+        result: sessionRecordSchema,
+    },
+    'session.unarchive': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema }),
+        result: sessionRecordSchema,
+    },
     'session.updateState': {
         owner: 'runtime',
         params: sessionStateSchema,

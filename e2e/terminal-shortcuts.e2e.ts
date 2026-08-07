@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -41,10 +41,11 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
             ),
         ).toContainText('FIRST_MARKER');
 
-        await running.page.getByTitle('Split Terminal').click();
+        await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = (await terminalIds(running.page)).find(
             (terminalId) => terminalId !== firstTerminalId,
         )!;
+        await splitTerminalToRight(running.page, secondTerminalId);
         await typeInTerminal(running.page, secondTerminalId, "printf 'SECOND_MARKER\\n'");
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)

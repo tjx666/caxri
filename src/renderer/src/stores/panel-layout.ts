@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 
 /**
- * Renderer-local chrome layout: Sidebar/Inspector widths and Inspector visibility. Unlike Session
+ * Renderer-local chrome layout: Sidebar/Inspector widths and visibility. Unlike Session
  * state (`workbench.ts`), this is device-specific presentation, never written through to the
  * Runtime, so it persists to `localStorage` instead.
  */
@@ -17,6 +17,9 @@ export const INSPECTOR_MAX_WIDTH = 600;
 /** Matches the width `.app-shell` already shipped with in `styles.css` before this feature. */
 export const INSPECTOR_DEFAULT_WIDTH = 310;
 
+/** Width of each visible Sidebar/Inspector resize track in `App.tsx`. */
+export const PANEL_DIVIDER_WIDTH = 6;
+
 /** The main pane must keep at least this much room; see `clampLayoutToViewport`. */
 export const MIN_MAIN_WIDTH = 320;
 
@@ -28,12 +31,14 @@ const STORAGE_KEY = 'caxri.panel-layout';
 export interface PanelLayout {
     sidebarWidth: number;
     inspectorWidth: number;
+    sidebarVisible: boolean;
     inspectorVisible: boolean;
 }
 
 const DEFAULT_PANEL_LAYOUT: PanelLayout = {
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     inspectorWidth: INSPECTOR_DEFAULT_WIDTH,
+    sidebarVisible: true,
     inspectorVisible: true,
 };
 
@@ -54,18 +59,28 @@ export function clampLayoutToViewport(layout: PanelLayout, viewportWidth: number
         INSPECTOR_MIN_WIDTH,
         INSPECTOR_MAX_WIDTH,
     );
-    const reserved = layout.inspectorVisible ? inspectorWidth : 0;
-    let overflow = sidebarWidth + reserved + MIN_MAIN_WIDTH - viewportWidth;
+    const reservedSidebar = layout.sidebarVisible ? sidebarWidth : 0;
+    const reservedInspector = layout.inspectorVisible ? inspectorWidth : 0;
+    const dividerWidth =
+        Number(layout.sidebarVisible) * PANEL_DIVIDER_WIDTH +
+        Number(layout.inspectorVisible) * PANEL_DIVIDER_WIDTH;
+    let overflow =
+        reservedSidebar + reservedInspector + dividerWidth + MIN_MAIN_WIDTH - viewportWidth;
     if (overflow > 0 && layout.inspectorVisible) {
         const shrink = Math.min(overflow, inspectorWidth - INSPECTOR_MIN_WIDTH);
         inspectorWidth -= shrink;
         overflow -= shrink;
     }
-    if (overflow > 0) {
+    if (overflow > 0 && layout.sidebarVisible) {
         const shrink = Math.min(overflow, sidebarWidth - SIDEBAR_MIN_WIDTH);
         sidebarWidth -= shrink;
     }
-    return { sidebarWidth, inspectorWidth, inspectorVisible: layout.inspectorVisible };
+    return {
+        sidebarWidth,
+        inspectorWidth,
+        sidebarVisible: layout.sidebarVisible,
+        inspectorVisible: layout.inspectorVisible,
+    };
 }
 
 function isBrowser(): boolean {
@@ -94,6 +109,8 @@ function readPersistedLayout(): PanelLayout {
                 INSPECTOR_MIN_WIDTH,
                 INSPECTOR_MAX_WIDTH,
             ),
+            sidebarVisible:
+                typeof parsed.sidebarVisible === 'boolean' ? parsed.sidebarVisible : true,
             inspectorVisible:
                 typeof parsed.inspectorVisible === 'boolean' ? parsed.inspectorVisible : true,
         };
@@ -111,12 +128,19 @@ function writePersistedLayout(layout: PanelLayout): void {
     }
 }
 
+/** Revalidates a visibility change immediately instead of waiting for the next window resize. */
+function fitCurrentViewport(layout: PanelLayout): PanelLayout {
+    return isBrowser() ? clampLayoutToViewport(layout, window.innerWidth) : layout;
+}
+
 interface PanelLayoutState extends PanelLayout {
     setSidebarWidth(width: number): void;
     setInspectorWidth(width: number): void;
     resetSidebarWidth(): void;
     resetInspectorWidth(): void;
+    toggleSidebar(): void;
     toggleInspector(): void;
+    setSidebarVisible(visible: boolean): void;
     setInspectorVisible(visible: boolean): void;
     /** Re-clamps the persisted layout against a new viewport width; see {@link clampLayoutToViewport}. */
     clampToViewport(viewportWidth: number): void;
@@ -126,6 +150,7 @@ function pickLayout(state: PanelLayout): PanelLayout {
     return {
         sidebarWidth: state.sidebarWidth,
         inspectorWidth: state.inspectorWidth,
+        sidebarVisible: state.sidebarVisible,
         inspectorVisible: state.inspectorVisible,
     };
 }
@@ -150,14 +175,27 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => ({
         writePersistedLayout({ ...pickLayout(get()), inspectorWidth: INSPECTOR_DEFAULT_WIDTH });
         set({ inspectorWidth: INSPECTOR_DEFAULT_WIDTH });
     },
+    toggleSidebar() {
+        const sidebarVisible = !get().sidebarVisible;
+        const layout = fitCurrentViewport({ ...pickLayout(get()), sidebarVisible });
+        writePersistedLayout(layout);
+        set(layout);
+    },
     toggleInspector() {
         const inspectorVisible = !get().inspectorVisible;
-        writePersistedLayout({ ...pickLayout(get()), inspectorVisible });
-        set({ inspectorVisible });
+        const layout = fitCurrentViewport({ ...pickLayout(get()), inspectorVisible });
+        writePersistedLayout(layout);
+        set(layout);
+    },
+    setSidebarVisible(visible) {
+        const layout = fitCurrentViewport({ ...pickLayout(get()), sidebarVisible: visible });
+        writePersistedLayout(layout);
+        set(layout);
     },
     setInspectorVisible(visible) {
-        writePersistedLayout({ ...pickLayout(get()), inspectorVisible: visible });
-        set({ inspectorVisible: visible });
+        const layout = fitCurrentViewport({ ...pickLayout(get()), inspectorVisible: visible });
+        writePersistedLayout(layout);
+        set(layout);
     },
     clampToViewport(viewportWidth) {
         const current = pickLayout(get());

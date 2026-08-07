@@ -29,6 +29,11 @@ interface WatcherSubscription {
     unsubscribe(): Promise<void>;
 }
 
+interface PreparedConfiguration {
+    apply(): void;
+    source: string;
+}
+
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
 const MAX_FILES_EXCLUDE_PATTERNS = 100;
@@ -72,6 +77,25 @@ const settingsSchema = z.object({
 });
 
 const keybindingSchema = z.array(sharedKeybindingSchema);
+const newlyAddedDefaultCommands = new Set([
+    'inspector.searchFiles',
+    'inspector.toggle',
+    'sidebar.toggle',
+]);
+const previousDefaultKeybindingSets = [
+    defaultKeybindings.filter(
+        (binding) => !['inspector.toggle', 'sidebar.toggle'].includes(binding.command),
+    ),
+    defaultKeybindings.filter((binding) => !newlyAddedDefaultCommands.has(binding.command)),
+];
+
+/** Adds newly shipped defaults only when the file matches a prior untouched default set. */
+function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[] {
+    const source = JSON.stringify(keybindings);
+    return previousDefaultKeybindingSets.some((defaults) => source === JSON.stringify(defaults))
+        ? defaultKeybindings
+        : keybindings;
+}
 
 const defaultSettings: AppSettings = {
     'session.defaultAgent': null,
@@ -214,7 +238,10 @@ export class ConfigurationService {
             return;
         }
         try {
-            this.apply(kind, source);
+            const prepared = this.prepare(kind, source);
+            if (prepared.source !== source) await atomicWrite(path, prepared.source);
+            prepared.apply();
+            this.observedSources.set(path, prepared.source);
             this.errors.delete(kind);
         } catch (error) {
             const message = errorMessage(error, 'Configuration parse failed');
@@ -226,27 +253,39 @@ export class ConfigurationService {
         }
     }
 
-    private prepare(kind: ConfigurationKind, source: string): () => void {
+    private prepare(kind: ConfigurationKind, source: string): PreparedConfiguration {
         const path = this.pathFor(kind);
         try {
             if (kind === 'settings') {
                 const settings = settingsSchema.parse(parseJsonc(source));
-                return () => {
-                    this.settings = settings;
-                    this.settingsSource = source;
+                return {
+                    source,
+                    apply: () => {
+                        this.settings = settings;
+                        this.settingsSource = source;
+                    },
                 };
             }
             if (kind === 'keybindings') {
-                const keybindings = keybindingSchema.parse(parseJsonc(source));
-                return () => {
-                    this.keybindings = keybindings;
-                    this.keybindingsSource = source;
+                const parsed = keybindingSchema.parse(parseJsonc(source));
+                const keybindings = migrateLegacyDefaultKeybindings(parsed);
+                const normalizedSource =
+                    keybindings === parsed ? source : `${JSON.stringify(keybindings, null, 2)}\n`;
+                return {
+                    source: normalizedSource,
+                    apply: () => {
+                        this.keybindings = keybindings;
+                        this.keybindingsSource = normalizedSource;
+                    },
                 };
             }
             const theme = parseCaxriTheme(source);
-            return () => {
-                this.theme = theme;
-                this.themeSource = source;
+            return {
+                source,
+                apply: () => {
+                    this.theme = theme;
+                    this.themeSource = source;
+                },
             };
         } catch (error) {
             throw new Error(
@@ -256,10 +295,6 @@ export class ConfigurationService {
                 },
             );
         }
-    }
-
-    private apply(kind: ConfigurationKind, source: string): void {
-        this.prepare(kind, source)();
     }
 
     private pathFor(kind: ConfigurationKind): string {
@@ -319,10 +354,15 @@ export class ConfigurationService {
             const source = await readFile(path, 'utf8');
             if (source === this.observedSources.get(path)) return;
             this.observedSources.set(path, source);
-            if (source === this.sourceFor(kind)) return;
-            this.apply(kind, source);
+            const prepared = this.prepare(kind, source);
+            if (prepared.source !== source) {
+                await atomicWrite(path, prepared.source);
+                this.observedSources.set(path, prepared.source);
+            }
+            if (prepared.source === this.sourceFor(kind)) return;
+            prepared.apply();
             this.errors.delete(kind);
-            this.emitChange(kind, source);
+            this.emitChange(kind, prepared.source);
         } catch (error) {
             const message = errorMessage(error, 'Configuration parse failed');
             this.errors.set(kind, message);
@@ -341,11 +381,13 @@ export class ConfigurationService {
     }
 
     private async update(kind: ConfigurationKind, source: string): Promise<void> {
-        const commit = this.prepare(kind, source);
-        await atomicWrite(this.pathFor(kind), source);
-        commit();
+        const prepared = this.prepare(kind, source);
+        const path = this.pathFor(kind);
+        await atomicWrite(path, prepared.source);
+        this.observedSources.set(path, prepared.source);
+        prepared.apply();
         this.errors.delete(kind);
-        this.emitChange(kind, source);
+        this.emitChange(kind, prepared.source);
     }
 
     getErrors(): string[] {

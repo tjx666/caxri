@@ -6,6 +6,7 @@ import {
     INSPECTOR_DEFAULT_WIDTH,
     INSPECTOR_MIN_WIDTH,
     MIN_MAIN_WIDTH,
+    PANEL_DIVIDER_WIDTH,
     SIDEBAR_DEFAULT_WIDTH,
     SIDEBAR_MIN_WIDTH,
     type PanelLayout,
@@ -34,6 +35,7 @@ describe('clampLayoutToViewport', () => {
     const wideLayout: PanelLayout = {
         sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
         inspectorWidth: INSPECTOR_DEFAULT_WIDTH,
+        sidebarVisible: true,
         inspectorVisible: true,
     };
 
@@ -42,7 +44,12 @@ describe('clampLayoutToViewport', () => {
     });
 
     it('shrinks the Inspector before the Sidebar as the viewport narrows', () => {
-        const viewportWidth = SIDEBAR_DEFAULT_WIDTH + INSPECTOR_DEFAULT_WIDTH + MIN_MAIN_WIDTH - 40;
+        const viewportWidth =
+            SIDEBAR_DEFAULT_WIDTH +
+            INSPECTOR_DEFAULT_WIDTH +
+            MIN_MAIN_WIDTH +
+            PANEL_DIVIDER_WIDTH * 2 -
+            40;
 
         const next = clampLayoutToViewport(wideLayout, viewportWidth);
 
@@ -51,7 +58,12 @@ describe('clampLayoutToViewport', () => {
     });
 
     it('shrinks the Sidebar once the Inspector has reached its minimum', () => {
-        const viewportWidth = SIDEBAR_DEFAULT_WIDTH + INSPECTOR_MIN_WIDTH + MIN_MAIN_WIDTH - 20;
+        const viewportWidth =
+            SIDEBAR_DEFAULT_WIDTH +
+            INSPECTOR_MIN_WIDTH +
+            MIN_MAIN_WIDTH +
+            PANEL_DIVIDER_WIDTH * 2 -
+            20;
 
         const next = clampLayoutToViewport(wideLayout, viewportWidth);
 
@@ -68,12 +80,22 @@ describe('clampLayoutToViewport', () => {
 
     it('ignores the Inspector width in the overflow budget once it is collapsed', () => {
         const collapsed: PanelLayout = { ...wideLayout, inspectorVisible: false };
-        const viewportWidth = SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + 10;
+        const viewportWidth = SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + PANEL_DIVIDER_WIDTH + 10;
 
         const next = clampLayoutToViewport(collapsed, viewportWidth);
 
         expect(next.sidebarWidth).toBe(SIDEBAR_DEFAULT_WIDTH);
         expect(next.inspectorVisible).toBe(false);
+    });
+
+    it('ignores the Sidebar width in the overflow budget once it is collapsed', () => {
+        const collapsed: PanelLayout = { ...wideLayout, sidebarVisible: false };
+        const viewportWidth = INSPECTOR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + PANEL_DIVIDER_WIDTH + 10;
+
+        const next = clampLayoutToViewport(collapsed, viewportWidth);
+
+        expect(next.inspectorWidth).toBe(INSPECTOR_DEFAULT_WIDTH);
+        expect(next.sidebarVisible).toBe(false);
     });
 
     it('clamps an out-of-range persisted width even when the viewport is not the constraint', () => {

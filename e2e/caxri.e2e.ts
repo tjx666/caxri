@@ -170,15 +170,14 @@ test('dragging the Sidebar divider resizes it and the width survives a reload', 
             .poll(async () => (await running.page.locator('.session-sidebar').boundingBox())?.width)
             .toBe(230);
 
-        // The status-bar toggle (previously a dead icon) collapses the Inspector and its divider.
-        const inspectorToggle = running.page.getByRole('button', { name: 'Hide Inspector' });
+        // The global Inspector shortcut collapses the panel and its divider.
         await expect(running.page.locator('.inspector')).toBeVisible();
-        await inspectorToggle.click();
+        await running.page.keyboard.press('Meta+]');
         await expect(running.page.locator('.inspector')).toHaveCount(0);
         await expect(running.page.getByRole('separator', { name: 'Resize Inspector' })).toHaveCount(
             0,
         );
-        await running.page.getByRole('button', { name: 'Show Inspector' }).click();
+        await running.page.keyboard.press('Meta+]');
         await expect(running.page.locator('.inspector')).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);

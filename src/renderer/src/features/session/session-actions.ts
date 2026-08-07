@@ -53,9 +53,27 @@ export async function chooseProjectDirectory(): Promise<void> {
 }
 
 export function selectProject(projectId: string): void {
-    const session = getBootstrap()?.sessions.find((item) => item.projectId === projectId);
+    const session = getBootstrap()?.sessions.find(
+        (item) => item.projectId === projectId && item.archivedAt === undefined,
+    );
     if (session) void selectSession(session.id);
     else beginSessionCreation(projectId);
+}
+
+export function archiveSession(sessionId: string): void {
+    void tryCommand(
+        'Session archive failed',
+        () => caxri.request('session.archive', { sessionId }),
+        { refresh: true },
+    );
+}
+
+export function unarchiveSession(sessionId: string): void {
+    void tryCommand(
+        'Session restore failed',
+        () => caxri.request('session.unarchive', { sessionId }),
+        { refresh: true },
+    );
 }
 
 /**
@@ -102,14 +120,14 @@ export function deleteSelectedSession(): void {
 
 export function selectAdjacentSession(delta: 1 | -1): void {
     const bootstrap = getBootstrap();
-    if (!bootstrap || bootstrap.sessions.length === 0) return;
-    const selectedIndex = bootstrap.sessions.findIndex(
+    if (!bootstrap) return;
+    const activeSessions = bootstrap.sessions.filter((session) => session.archivedAt === undefined);
+    if (activeSessions.length === 0) return;
+    const selectedIndex = activeSessions.findIndex(
         (session) => session.id === getSelectedSession()?.id,
     );
     if (selectedIndex < 0) return;
     const next =
-        bootstrap.sessions[
-            (selectedIndex + delta + bootstrap.sessions.length) % bootstrap.sessions.length
-        ];
+        activeSessions[(selectedIndex + delta + activeSessions.length) % activeSessions.length];
     if (next) void selectSession(next.id);
 }

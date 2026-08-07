@@ -194,3 +194,26 @@ export async function selectedSessionId(page: Page): Promise<string> {
 export function sessionCard(page: Page, sessionId: string) {
     return page.locator(`.session-card[data-session-id="${sessionId}"]`);
 }
+
+/** Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user. */
+export async function splitTerminalToRight(page: Page, terminalId: string): Promise<void> {
+    await page.evaluate((draggedTerminalId) => {
+        const source = document.querySelector(`.work-tab[data-terminal-id="${draggedTerminalId}"]`);
+        const target = document.querySelector('.terminal-group');
+        if (!source || !target) throw new Error('Terminal split drag fixture not found');
+        const transfer = new DataTransfer();
+        const bounds = target.getBoundingClientRect();
+        const options = {
+            bubbles: true,
+            cancelable: true,
+            clientX: bounds.left + bounds.width * 0.9,
+            clientY: bounds.top + bounds.height * 0.5,
+            dataTransfer: transfer,
+        };
+        source.dispatchEvent(new DragEvent('dragstart', options));
+        target.dispatchEvent(new DragEvent('dragenter', options));
+        target.dispatchEvent(new DragEvent('dragover', options));
+        target.dispatchEvent(new DragEvent('drop', options));
+        source.dispatchEvent(new DragEvent('dragend', options));
+    }, terminalId);
+}

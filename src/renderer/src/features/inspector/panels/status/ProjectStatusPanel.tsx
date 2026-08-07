@@ -23,6 +23,7 @@ import { useState } from 'react';
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 
 import { Button } from '../../../../components/ui/button';
+import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
@@ -198,16 +199,17 @@ export function ProjectStatusPanel() {
                 <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.04em]">
                     <Activity size={14} /> Project Status
                 </span>
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Refresh Project Status"
-                    title="Refresh Project Status"
-                    disabled={refreshing}
-                    onClick={refresh}
-                >
-                    <RefreshCw className={refreshing ? 'animate-spin' : undefined} size={14} />
-                </Button>
+                <Tooltip content="Refresh Project Status">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Refresh Project Status"
+                        disabled={refreshing}
+                        onClick={refresh}
+                    >
+                        <RefreshCw className={refreshing ? 'animate-spin' : undefined} size={14} />
+                    </Button>
+                </Tooltip>
             </div>
             {!summary && (
                 <div className="empty-panel py-4 px-3 text-muted text-center">

@@ -1,6 +1,10 @@
 import { caxri } from '../lib/caxri';
 import { saveActiveEditor } from '../features/editor/document-actions';
 import {
+    closeFileSearch,
+    requestFileSearchFocus,
+} from '../features/inspector/panels/files/file-search-state';
+import {
     beginSessionCreation,
     chooseProjectDirectory,
     deleteSelectedProject,
@@ -15,7 +19,7 @@ import {
 } from '../features/terminal/terminal-actions';
 import { useDialogStore } from '../stores/dialogs';
 import { usePanelLayoutStore } from '../stores/panel-layout';
-import { getBootstrap, selectSelectedProject } from '../stores/selectors';
+import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
 import './definitions';
@@ -59,9 +63,21 @@ const commandContext: CommandContext = {
     },
     editor: { saveActive: () => void saveActiveEditor() },
     inspector: {
-        setMode: (mode) => useSessionViewStore.getState().setInspectorMode(mode),
+        searchFiles: () => {
+            const session = getSelectedSession();
+            if (!session) return;
+            usePanelLayoutStore.getState().setInspectorVisible(true);
+            useSessionViewStore.getState().setInspectorMode('files');
+            requestFileSearchFocus(session.id);
+        },
+        setMode: (mode) => {
+            const session = getSelectedSession();
+            if (session && mode !== 'files') closeFileSearch(session.id);
+            useSessionViewStore.getState().setInspectorMode(mode);
+        },
         toggle: () => usePanelLayoutStore.getState().toggleInspector(),
     },
+    sidebar: { toggle: () => usePanelLayoutStore.getState().toggleSidebar() },
     dialogs: {
         openSettings: () => useDialogStore.getState().setSettingsOpen(true),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),

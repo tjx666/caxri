@@ -13,6 +13,7 @@ const sessionSelection = {
     rootPath: projects.rootPath,
     createdAt: sessions.createdAt,
     lastOpenedAt: sessions.lastOpenedAt,
+    archivedAt: sessions.archivedAt,
     primaryAgentTerminalId: sessions.primaryAgentTerminalId,
     lastActivityState: sessions.lastActivityState,
     layoutVersion: sessions.layoutVersion,
@@ -25,6 +26,7 @@ interface SessionJoinRow {
     rootPath: string;
     createdAt: number;
     lastOpenedAt: number;
+    archivedAt: number | null;
     primaryAgentTerminalId: string | null;
     lastActivityState: string;
     layoutVersion: number;
@@ -38,6 +40,7 @@ function mapSession(row: SessionJoinRow): SessionRecord {
         rootPath: row.rootPath,
         createdAt: row.createdAt,
         lastOpenedAt: row.lastOpenedAt,
+        archivedAt: row.archivedAt ?? undefined,
         primaryAgentTerminalId: row.primaryAgentTerminalId ?? undefined,
         lastActivityState: row.lastActivityState as AgentActivityState,
         layoutVersion: row.layoutVersion,
@@ -135,6 +138,14 @@ export class SessionsModel {
     touchLastOpened(id: string, now = Date.now()): boolean {
         return (
             this.db.update(sessions).set({ lastOpenedAt: now }).where(eq(sessions.id, id)).run()
+                .changes === 1
+        );
+    }
+
+    /** Archiving is reversible metadata; it never removes or stops the Session's Terminals. */
+    setArchived(id: string, archivedAt: number | null): boolean {
+        return (
+            this.db.update(sessions).set({ archivedAt }).where(eq(sessions.id, id)).run()
                 .changes === 1
         );
     }

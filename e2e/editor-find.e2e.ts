@@ -71,7 +71,7 @@ test('editor Find controls remain stable and close on the first click', async ()
 
         await running.page.keyboard.press('Meta+f');
         await expect(findWidget).toHaveAttribute('aria-hidden', 'false');
-        await running.page.getByRole('button', { name: 'Hide Inspector' }).click();
+        await running.page.keyboard.press('Meta+]');
         await running.page.setViewportSize({ width: 1_000, height: 700 });
         await findWidget.getByRole('button', { name: /^Close \(Escape\)$/ }).click();
         await expect(findWidget).toHaveAttribute('aria-hidden', 'true');

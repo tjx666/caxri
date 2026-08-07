@@ -7,6 +7,7 @@ import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { FileTypeIcon } from '../../icons/files/FileTypeIcon';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
 
 const processIndicatorClassName =
@@ -48,7 +49,7 @@ export function WorkTab({
     const tab = (
         <div
             className={cn(
-                'work-tab group relative flex max-w-[180px] items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground',
+                'work-tab group relative flex max-w-[180px] items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground [-webkit-app-region:no-drag]',
                 active &&
                     "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
             )}
@@ -89,15 +90,16 @@ export function WorkTab({
                         )}
                     />
                 )}
-                <button
-                    type="button"
-                    className="tab-close absolute inset-0 m-auto grid w-5 h-5 place-items-center p-0 border-0 rounded text-inherit bg-transparent cursor-pointer opacity-0 pointer-events-none hover:bg-[var(--selection)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
-                    aria-label={closeLabel}
-                    title={closeLabel}
-                    onClick={onClose}
-                >
-                    <X size={12} />
-                </button>
+                <Tooltip content={closeLabel}>
+                    <button
+                        type="button"
+                        className="tab-close absolute inset-0 m-auto grid w-5 h-5 place-items-center p-0 border-0 rounded text-inherit bg-transparent cursor-pointer opacity-0 pointer-events-none hover:bg-[var(--selection)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+                        aria-label={closeLabel}
+                        onClick={onClose}
+                    >
+                        <X size={12} />
+                    </button>
+                </Tooltip>
             </span>
         </div>
     );

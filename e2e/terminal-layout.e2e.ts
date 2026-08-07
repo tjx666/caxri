@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,7 +35,11 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('alive');
-        await running.page.getByTitle('Split Terminal').click();
+        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        const secondTerminalId = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals.find((terminal) => terminal.id !== firstTerminalId)!.id;
+        await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.terminal-group')).toHaveCount(2);
         const terminalSplitter = running.page.getByRole('separator', {
             name: /Terminal split/,

@@ -1,17 +1,20 @@
-import { Plus, SplitSquareVertical } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import { workItemsEqual, type WorkItem } from '@shared/work-item';
 
 import { Button } from '../../components/ui/button';
+import { CommandTooltip } from '../../components/ui/tooltip';
 import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../components/ui/context-menu';
 import { useSelectedSession, useSessionState, useSessionTerminals } from '../../stores/selectors';
+import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { useActiveWork, useSessionViewStore } from '../../stores/session-view';
+import { cn } from '../../lib/utils';
 import {
     closeAllEditors,
     closeEditor,
@@ -118,9 +121,13 @@ export function WorkTabStrip() {
     const sessionTerminals = useSessionTerminals();
     const openTabs = useSessionState()?.openTabs;
     const activeWork = useActiveWork();
+    const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     return (
         <div
-            className="work-tabs flex min-h-9 overflow-x-auto border-b border-border bg-surface"
+            className={cn(
+                'work-tabs flex min-h-9 overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag]',
+                !sidebarVisible && 'pl-[78px]',
+            )}
             role="tablist"
             aria-label="Open work"
         >
@@ -139,23 +146,17 @@ export function WorkTabStrip() {
                     preview={tab.preview}
                 />
             ))}
-            <div className="tab-actions flex items-center gap-1 ml-auto px-1 bg-surface">
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    title="New Terminal"
-                    onClick={() => void createTerminal('shell')}
-                >
-                    <Plus size={14} />
-                </Button>
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    title="Split Terminal"
-                    onClick={() => void createTerminal('shell', true)}
-                >
-                    <SplitSquareVertical size={14} />
-                </Button>
+            <div className="tab-actions flex flex-none items-center px-1 bg-surface [-webkit-app-region:no-drag]">
+                <CommandTooltip commandId="terminal.new">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="New Terminal"
+                        onClick={() => void createTerminal('shell')}
+                    >
+                        <Plus size={14} />
+                    </Button>
+                </CommandTooltip>
             </div>
         </div>
     );

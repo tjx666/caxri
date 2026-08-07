@@ -2,7 +2,7 @@
 
 ## Product model
 
-A `Project` is a user-selected local folder and the durable owner of its `rootPath`, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. The first Agent Terminal in a Session is its title source; Shell-only Sessions keep their Shell title. Multiple Sessions can share one Project without duplicating its directory identity.
+A `Project` is a user-selected local folder and the durable owner of its `rootPath`, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. Archiving a Session hides it from active navigation without stopping or deleting its Terminals, and restore only clears that metadata. The first Agent Terminal in a Session is its title source; Shell-only Sessions keep their Shell title. Multiple Sessions can share one Project without duplicating its directory identity.
 
 ## Process model
 
@@ -41,10 +41,10 @@ The preload exposes one `request` method backed by a fixed method union plus `on
 
 ## Persistence
 
-SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Table definitions live declaratively in `src/runtime/db/schema.ts` (Drizzle ORM); `bunx drizzle-kit generate` emits the checked-in SQL under `src/runtime/db/migrations/`, which the Runtime bundles via `?raw` imports so packaged builds never read migration files from disk. After any schema change, regenerate with drizzle-kit — never hand-edit the migrations directory. `user_version` (currently 6) still gates the pre-release drop-and-rebuild in `db/connection.ts`; query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
+SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Table definitions live declaratively in `src/runtime/db/schema.ts` (Drizzle ORM); `bunx drizzle-kit generate` emits the checked-in SQL under `src/runtime/db/migrations/`, which the Runtime bundles via `?raw` imports so packaged builds never read migration files from disk. After any schema change, regenerate with drizzle-kit — never hand-edit the migrations directory. `user_version` (currently 7) still gates the pre-release drop-and-rebuild in `db/connection.ts`; query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
 
 - `projects`: identity, unique root, display title, and timestamps
-- `sessions`: Project ownership, identity, timestamps, primary Agent Terminal, last activity, layout version
+- `sessions`: Project ownership, identity, timestamps, reversible archive time, primary Agent Terminal, last activity, layout version
 - `terminals`: durable identity/position/cwd/title/icon/provider and last process state
 - `terminal_snapshots`: versioned bounded VT/text payload with line and byte counts
 - `session_state`: open editor tabs, active tab, inspector mode, and a recursive Terminal split layout

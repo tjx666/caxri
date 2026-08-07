@@ -145,6 +145,33 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('archives Session metadata without deleting its Terminal and restores it later', async () => {
+        const directory = await tempDir('caxri-db-session-archive-');
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(root);
+        const first = database.createSession(project.id, 'shell');
+        const second = database.createSession(project.id, 'codex');
+        const archivedAt = Date.now();
+
+        expect(database.archiveSession(second.session.id, archivedAt)).toMatchObject({
+            archivedAt,
+            id: second.session.id,
+        });
+        expect(database.getTerminal(second.terminal.id)).toMatchObject({
+            id: second.terminal.id,
+            sessionId: second.session.id,
+        });
+        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(first.session.id);
+        expect(() => database.selectSession(second.session.id)).toThrow(/restore/i);
+
+        expect(database.unarchiveSession(second.session.id).archivedAt).toBeUndefined();
+        database.selectSession(second.session.id);
+        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(second.session.id);
+        database.close();
+    });
+
     it('synchronizes default Agent metadata into the Session and Terminal records', async () => {
         const directory = await tempDir('caxri-db-agent-metadata-');
         const root = join(directory, 'project');

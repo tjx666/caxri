@@ -61,7 +61,9 @@ export class CaxriDatabase {
             if (this.db.appState.get<string>('lastSelectedProjectId') !== projectId) return;
             const fallbackProject = this.db.projects.list().at(0);
             const fallbackSession = fallbackProject
-                ? this.db.sessions.list(fallbackProject.id).at(0)
+                ? this.db.sessions
+                      .list(fallbackProject.id)
+                      .find((session) => session.archivedAt === undefined)
                 : undefined;
             const selection = selectFallbackAfterDeletion(
                 fallbackSession,
@@ -239,9 +241,11 @@ export class CaxriDatabase {
 
     selectSession(sessionId: string): void {
         this.db.transaction(() => {
-            if (!this.db.sessions.touchLastOpened(sessionId))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            const session = this.db.sessions.get(sessionId)!;
+            const session = this.db.sessions.get(sessionId);
+            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+            if (session.archivedAt !== undefined)
+                throw new CaxriError('CONFLICT', 'Restore the archived Session before opening it');
+            this.db.sessions.touchLastOpened(sessionId);
             this.db.projects.touchLastOpened(session.projectId);
             this.db.appState.set('lastSelectedSessionId', sessionId);
             this.db.appState.set('lastSelectedProjectId', session.projectId);
@@ -258,11 +262,48 @@ export class CaxriDatabase {
                 ? this.db.sessions.list(selectedProjectId)
                 : this.db.sessions.list();
             const selection = selectFallbackAfterDeletion(
-                candidateSessions.at(0),
+                candidateSessions.find((session) => session.archivedAt === undefined),
                 selectedProjectId ?? null,
             );
             this.db.appState.set('lastSelectedSessionId', selection.sessionId);
             this.db.appState.set('lastSelectedProjectId', selection.projectId);
+        });
+    }
+
+    /**
+     * Archives a Session without touching its Terminal records or PTYs. If it was selected, active
+     * navigation moves to another non-archived Session in the same Project, or leaves that Project
+     * selected with no Session when none remain.
+     */
+    archiveSession(sessionId: string, now = Date.now()): SessionRecord {
+        return this.db.transaction(() => {
+            const session = this.db.sessions.get(sessionId);
+            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+            if (session.archivedAt === undefined && !this.db.sessions.setArchived(sessionId, now))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            if (this.db.appState.get<string>('lastSelectedSessionId') === sessionId) {
+                const fallback = this.db.sessions
+                    .list(session.projectId)
+                    .find(
+                        (candidate) =>
+                            candidate.id !== sessionId && candidate.archivedAt === undefined,
+                    );
+                const selection = selectFallbackAfterDeletion(fallback, session.projectId);
+                this.db.appState.set('lastSelectedSessionId', selection.sessionId);
+                this.db.appState.set('lastSelectedProjectId', selection.projectId);
+            }
+            return this.db.sessions.get(sessionId)!;
+        });
+    }
+
+    /** Restores an archived Session to active navigation without selecting or restarting it. */
+    unarchiveSession(sessionId: string): SessionRecord {
+        return this.db.transaction(() => {
+            const session = this.db.sessions.get(sessionId);
+            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+            if (session.archivedAt !== undefined && !this.db.sessions.setArchived(sessionId, null))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            return this.db.sessions.get(sessionId)!;
         });
     }
 

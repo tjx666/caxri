@@ -121,5 +121,6 @@ not touched.").
   Monaco, xterm) unless the binding explicitly opts in (e.g. save).
 - Every interactive element is keyboard-reachable; status conveyed by color always has
   a text/aria twin.
-- Sidebar and inspector get min/max-constrained drag resize; double-click a divider
-  resets to default. Inspector is collapsible (status-bar toggle already exists).
+- Sidebar and inspector get min/max-constrained drag resize; double-click a divider resets to
+  default. `Command+[` toggles the Sidebar and `Command+]` toggles the Inspector; the Status Bar
+  contains no panel-collapse controls.

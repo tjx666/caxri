@@ -282,6 +282,17 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { reason: 'session.select' } });
             return database.getSession(sessionId)!;
         },
+        'session.archive': ({ sessionId }) => {
+            const session = database.archiveSession(sessionId);
+            void files.watchSession(selectedSessionId());
+            send({ event: 'state.changed', payload: { reason: 'session.archive' } });
+            return session;
+        },
+        'session.unarchive': ({ sessionId }) => {
+            const session = database.unarchiveSession(sessionId);
+            send({ event: 'state.changed', payload: { reason: 'session.unarchive' } });
+            return session;
+        },
         'session.delete': ({ sessionId }) => {
             coordinator.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
