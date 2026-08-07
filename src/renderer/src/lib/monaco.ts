@@ -52,23 +52,24 @@ if (!monaco.languages.getLanguages().some((language) => language.id === DOTENV_L
         filenames: ['.env'],
         filenamePatterns: ['.env.*', '*.env'],
     });
-    monaco.languages.setMonarchTokensProvider(DOTENV_LANGUAGE_ID, {
-        tokenizer: {
-            root: [
-                [/^\s*#.*/, 'comment'],
-                [/^\s*export(?=\s+)/, 'keyword'],
-                [/[A-Za-z_][\w.]*(?=\s*=)/, 'variable.env'],
-                [/=/, 'delimiter.env'],
-                [/"(?:\\.|[^"\\])*"/, 'string'],
-                [/'[^']*'/, 'string'],
-                [/\$\{[A-Za-z_][\w]*\}/, 'variable.env'],
-                [/\b(?:true|false|null)\b/, 'keyword'],
-                [/\b\d+(?:\.\d+)?\b/, 'number'],
-                [/#.*$/, 'comment'],
-            ],
-        },
-    });
 }
+/** Monaco may pre-register `dotenv`; Caxri still owns the tokenizer and theme token contract. */
+monaco.languages.setMonarchTokensProvider(DOTENV_LANGUAGE_ID, {
+    tokenizer: {
+        root: [
+            [/^\s*#.*/, 'comment'],
+            [/^\s*export(?=\s+)/, 'keyword'],
+            [/[A-Za-z_][\w.]*(?=\s*=)/, 'variable.env'],
+            [/=/, 'delimiter.env'],
+            [/"(?:\\.|[^"\\])*"/, 'string'],
+            [/'[^']*'/, 'string'],
+            [/\$\{[A-Za-z_][\w]*\}/, 'variable.env'],
+            [/\b(?:true|false|null)\b/, 'keyword'],
+            [/\b\d+(?:\.\d+)?\b/, 'number'],
+            [/#.*$/, 'comment'],
+        ],
+    },
+});
 
 if (!monaco.languages.getLanguages().some((language) => language.id === IGNORE_LANGUAGE_ID)) {
     monaco.languages.register({
