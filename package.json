@@ -27,7 +27,7 @@
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "electron-vite build",
         "package": "bun run build && electron-builder --mac dir",
-        "package:dmg": "bun run build && electron-builder --mac dmg",
+        "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
         "postinstall": "electron-builder install-app-deps",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
         "rebuild": "electron-builder install-app-deps",
