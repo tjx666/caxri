@@ -38,6 +38,9 @@ test('editor previews pin and expose the standard close actions', async () => {
         await bTab.getByRole('tab').dblclick();
         await expect(bTab).not.toHaveAttribute('data-preview');
 
+        /** Reproduces the custom tokenizer race seen on loaded GitHub-hosted runners. */
+        const cdp = await running.page.context().newCDPSession(running.page);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
         await running.page.getByRole('button', { name: '.env', exact: true }).click();
         const environmentLine = running.page
             .locator('.view-line')
@@ -50,6 +53,8 @@ test('editor previews pin and expose the standard close actions', async () => {
                 }),
             )
             .toBe(true);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+        await cdp.detach();
 
         await running.page.getByRole('button', { name: 'c.js', exact: true }).click();
         const cTab = running.page.locator('.work-tab', { hasText: 'c.js' });
