@@ -5,9 +5,21 @@ import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import { workItemsEqual, type WorkItem } from '@shared/work-item';
 
 import { Button } from '../../components/ui/button';
+import {
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+} from '../../components/ui/context-menu';
 import { useSelectedSession, useSessionState, useSessionTerminals } from '../../stores/selectors';
 import { useActiveWork, useSessionViewStore } from '../../stores/session-view';
-import { closeEditor, selectEditorTab } from '../editor/document-actions';
+import {
+    closeAllEditors,
+    closeEditor,
+    closeEditorsToRight,
+    closeOtherEditors,
+    pinEditorTab,
+    selectEditorTab,
+} from '../editor/document-actions';
 import {
     activateTerminal,
     closeTerminal,
@@ -39,12 +51,22 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
 }
 
 /** Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped. */
-function EditorWorkTab({ active, path }: { active: boolean; path: string }) {
+function EditorWorkTab({
+    active,
+    path,
+    preview,
+}: {
+    active: boolean;
+    path: string;
+    preview?: true;
+}) {
     const sessionId = useSelectedSession()?.id;
     const gitDiffTab = parseGitDiffTab(path);
     const dirty = useSessionViewStore((state) =>
         sessionId ? Boolean(state.documents[sessionId]?.[path]?.dirty) : false,
     );
+    const openTabs = useSessionState()?.openTabs ?? [];
+    const index = openTabs.findIndex((tab) => tab.path === path);
     return (
         <WorkTab
             active={active}
@@ -52,8 +74,31 @@ function EditorWorkTab({ active, path }: { active: boolean; path: string }) {
             dirty={dirty}
             icon="file"
             label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
+            onDoubleClick={() => pinEditorTab(path)}
             onClose={() => closeEditor(path)}
             onSelect={() => selectEditorTab(path)}
+            contextMenu={
+                <ContextMenuContent>
+                    <ContextMenuItem onClick={() => closeEditor(path)}>Close</ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                        disabled={openTabs.length < 2}
+                        onClick={() => closeOtherEditors(path)}
+                    >
+                        Close Others
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                        disabled={index < 0 || index === openTabs.length - 1}
+                        onClick={() => closeEditorsToRight(path)}
+                    >
+                        Close to the Right
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => closeAllEditors(path)}>
+                        Close All
+                    </ContextMenuItem>
+                </ContextMenuContent>
+            }
+            preview={preview}
         />
     );
 }
@@ -84,6 +129,7 @@ export function WorkTabStrip() {
                     key={tab.path}
                     active={isActive(activeWork, { kind: 'editor', path: tab.path })}
                     path={tab.path}
+                    preview={tab.preview}
                 />
             ))}
             <div className="tab-actions flex items-center gap-1 ml-auto px-1 bg-surface">

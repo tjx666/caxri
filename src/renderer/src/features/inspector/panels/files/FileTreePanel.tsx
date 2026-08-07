@@ -79,7 +79,8 @@ function FileTreeItem({
             title={
                 entry.kind === 'symlink' ? 'Symlink browsing is disabled for safety' : entry.path
             }
-            onClick={() => void openFile(entry.path)}
+            onClick={() => void openFile(entry.path, { preview: true })}
+            onDoubleClick={() => void openFile(entry.path)}
         >
             <FileTypeIcon entry={entry} />
             <span className="truncate">{entry.name}</span>

@@ -1,10 +1,11 @@
 import { FileCode2, X } from 'lucide-react';
-import type { DragEvent } from 'react';
+import type { DragEvent, ReactElement, ReactNode } from 'react';
 
 import type { ProcessState } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
+import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { cn } from '../../lib/utils';
 
 const processIndicatorClassName =
@@ -16,9 +17,12 @@ interface WorkTabProps {
     dirty?: boolean;
     icon: 'file' | AgentIconIdentity;
     label: string;
+    preview?: boolean;
     status?: ProcessState;
     terminalId?: string;
+    contextMenu?: ReactNode;
     onClose: () => void;
+    onDoubleClick?: () => void;
     onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
     onSelect: () => void;
 }
@@ -29,13 +33,16 @@ export function WorkTab({
     dirty = false,
     icon,
     label,
+    preview = false,
     status,
     terminalId,
+    contextMenu,
     onClose,
+    onDoubleClick,
     onDragStart,
     onSelect,
 }: WorkTabProps) {
-    return (
+    const tab = (
         <div
             className={cn(
                 'work-tab group relative flex max-w-[180px] items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground',
@@ -43,8 +50,10 @@ export function WorkTab({
                     "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
             )}
             data-terminal-id={terminalId}
+            data-preview={preview || undefined}
             draggable={Boolean(onDragStart)}
             onDragStart={onDragStart}
+            onDoubleClick={onDoubleClick}
         >
             <button
                 type="button"
@@ -58,7 +67,7 @@ export function WorkTab({
                 ) : (
                     <AgentIdentityIcon identity={icon} size={13} />
                 )}
-                <span>{label}</span>
+                <span className={cn(preview && 'italic')}>{label}</span>
                 {dirty && <b className="text-warning text-[10px]">●</b>}
             </button>
             <span className="tab-tail relative w-6 h-6 flex-none">
@@ -88,5 +97,12 @@ export function WorkTab({
                 </button>
             </span>
         </div>
+    );
+    if (!contextMenu) return tab;
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger render={tab as ReactElement} />
+            {contextMenu}
+        </ContextMenu>
     );
 }

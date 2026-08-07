@@ -122,6 +122,46 @@ select {
     pointer-events: none;
 }
 
+/* Native horizontal scrollbars overwhelm the 36px tab strip; keep its thumb discoverable but quiet. */
+.work-tabs {
+    scrollbar-color: var(--muted) transparent;
+    scrollbar-width: thin;
+}
+.work-tabs::-webkit-scrollbar {
+    height: 3px;
+}
+.work-tabs::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--muted);
+}
+
+/*
+ * Monaco slides its 16px Find close control through a 200ms transform. Near the workbench edge,
+ * the compact pointer tooltip can overlap that moving hit target, repeatedly lose hover, and absorb
+ * the intended click. Keep the widget stationary, let pointer events pass through simple tooltips,
+ * and provide the standard 24px action target without changing Monaco's keyboard/search behavior.
+ */
+.work-surface .monaco-editor .find-widget {
+    transition-duration: 0s;
+}
+.work-surface .monaco-editor .find-widget:not(.visible) {
+    pointer-events: none;
+}
+.work-surface .monaco-editor .find-widget > .find-part {
+    margin-right: 32px;
+}
+.work-surface .monaco-editor .find-widget > .button.codicon-widget-close {
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+}
+.context-view.monaco-component:has(.monaco-hover.workbench-hover.compact.with-pointer),
+.workbench-hover-container:has(.monaco-hover.workbench-hover.compact.with-pointer),
+.monaco-hover.workbench-hover.compact.with-pointer {
+    pointer-events: none;
+}
+
 /*
  * Suspense-fallback shimmer for the lazy Monaco-backed structured editors (Settings/Keybindings/
  * Theme forms; see `configurationEditorLoadingClassName` in `lib/utils.ts`). The `background-position`
