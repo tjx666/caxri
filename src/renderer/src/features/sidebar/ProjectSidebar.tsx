@@ -160,7 +160,7 @@ export function ProjectSidebar() {
                                                 className={cn(
                                                     sessionCardClassName,
                                                     sessionActive &&
-                                                        'active bg-elevated text-foreground group-focus-within:shadow-[inset_2px_0_var(--accent)]',
+                                                        'active bg-elevated text-foreground',
                                                 )}
                                                 onClick={() => onSelectSession(session.id)}
                                             >

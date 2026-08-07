@@ -75,8 +75,8 @@ Relaunch dialog, so the chip never fakes an action it cannot perform.
 
 **Sidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows
-indented 16px. Selection = `--elevated` fill (radius 6), no border. The single accent
-use here: a 2px left bar on the active session row only when the sidebar owns focus.
+indented 16px. Selection = `--elevated` fill (radius 6), no border and no accent — the
+sidebar stays entirely neutral so the focused pane keeps the screen's one accent.
 Activity dots keep color + gain `title`/`aria-label` text.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
