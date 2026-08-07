@@ -34,10 +34,26 @@ Code references (`path:line`) are welcome when they anchor the diagnosis or desi
 - Apply one label from the repo's existing vocabulary (`bug`, `enhancement`, `documentation`, `question`); don't invent new labels without asking.
 - Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the Problem section. Do not close or edit the parent.
 
+## Project tracking
+
+After creating the issue, always add it to the owner's Caxri project and set its fields explicitly:
+
+```bash
+gh project item-add 2 --owner tjx666 --url "$issue_url"
+gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "P2 Normal"
+gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Backlog"
+```
+
+- Use `In Progress` instead of `Backlog` only when implementation or verification is already underway.
+- Raise priority to `P1 High` or `P0 Critical` only when the issue body establishes concrete user impact; use `P3 Low` for explicitly deferrable work.
+- Do not assign the sole maintainer or invent a milestone merely to fill metadata.
+- If a Project mutation fails, retry it once. Keep the successfully created issue, report the tracking failure, and never delete or recreate the issue to recover.
+- Fetch the Project item once and verify its URL, Status, and Priority before reporting success.
+
 ## Filing behavior
 
 Treat explicit invocation as execution authorization. When the user invokes `$file-issue` or asks to file, create, or 提 an issue, draft it internally and file it immediately. Do not present a preview or ask for confirmation first. Reply with the verified issue link and a concise summary of what was filed.
 
 Stop before creating only when the user explicitly asks for a draft, preview, or review, or when a missing decision would materially change the issue. In draft-only mode, present the title, label, and full body without creating anything.
 
-After creation, fetch the issue once to verify its title, body, and label rather than treating the create command's exit status as the complete outcome.
+After creation, fetch the issue and Project item once to verify the title, body, label, Status, and Priority rather than treating command exit statuses as the complete outcome.
