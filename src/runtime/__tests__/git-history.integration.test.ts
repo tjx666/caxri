@@ -105,6 +105,11 @@ describe('Git commit history', () => {
         await expect(git.commits({ ...params, path: directory })).rejects.toMatchObject({
             code: 'PATH_DENIED',
         });
+        // A partial or nonexistent path is expected while the user types into the history filter;
+        // it must surface as NOT_FOUND, not a generic INTERNAL failure from the raw ENOENT.
+        await expect(git.commits({ ...params, path: 'does-not-exist' })).rejects.toMatchObject({
+            code: 'NOT_FOUND',
+        });
 
         const records = (await readFile(logger.path, 'utf8'))
             .trim()

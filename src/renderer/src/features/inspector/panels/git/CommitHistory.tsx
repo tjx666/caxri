@@ -182,7 +182,8 @@ export function CommitHistory({
                 if (request === intent.current) setLoading(false);
             }
         },
-        [repository.id, scopePath, sessionId],
+        // `repository.head` is included so a branch switch (which changes head but not id) reloads page 0.
+        [repository.head, repository.id, scopePath, sessionId],
     );
 
     useEffect(() => {
