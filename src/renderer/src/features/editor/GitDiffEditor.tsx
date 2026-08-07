@@ -250,6 +250,6 @@ function ChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes'
     );
 }
 
-export default function GitDiffEditor({ tab }: { tab: GitDiffTab }) {
+export function GitDiffEditor({ tab }: { tab: GitDiffTab }) {
     return tab.kind === 'file' ? <FileDiffEditor tab={tab} /> : <ChangesDiffEditor tab={tab} />;
 }

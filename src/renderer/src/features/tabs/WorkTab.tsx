@@ -1,10 +1,11 @@
-import { FileCode2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { DragEvent, ReactElement, ReactNode } from 'react';
 
 import type { ProcessState } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
+import { FileTypeIcon } from '../../icons/files/FileTypeIcon';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { cn } from '../../lib/utils';
 
@@ -15,6 +16,7 @@ interface WorkTabProps {
     active: boolean;
     closeLabel: string;
     dirty?: boolean;
+    fileIconName?: string;
     icon: 'file' | AgentIconIdentity;
     label: string;
     preview?: boolean;
@@ -31,6 +33,7 @@ export function WorkTab({
     active,
     closeLabel,
     dirty = false,
+    fileIconName,
     icon,
     label,
     preview = false,
@@ -63,7 +66,7 @@ export function WorkTab({
                 onClick={onSelect}
             >
                 {icon === 'file' ? (
-                    <FileCode2 size={13} />
+                    <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
                 ) : (
                     <AgentIdentityIcon identity={icon} size={13} />
                 )}

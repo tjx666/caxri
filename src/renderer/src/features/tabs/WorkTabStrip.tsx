@@ -72,6 +72,13 @@ function EditorWorkTab({
             active={active}
             closeLabel="Close Editor"
             dirty={dirty}
+            fileIconName={
+                gitDiffTab?.kind === 'file'
+                    ? fileName(gitDiffTab.path)
+                    : gitDiffTab?.kind === 'changes'
+                      ? 'changes.diff'
+                      : fileName(path)
+            }
             icon="file"
             label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
             onDoubleClick={() => pinEditorTab(path)}

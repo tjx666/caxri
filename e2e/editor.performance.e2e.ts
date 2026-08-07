@@ -9,13 +9,13 @@ import { createProjectSession, launchCaxri } from './helpers.ts';
 const preloadThresholdMs = 3_000;
 const highlightThresholdMs = 250;
 
-test('first JavaScript editor reports document, mount, and syntax-highlight latency', async () => {
+test('first TypeScript editor reports document, mount, and syntax-highlight latency', async () => {
     test.skip(
         !process.env.CAXRI_BENCHMARK_PROJECT_ROOT,
         'benchmark: set CAXRI_BENCHMARK_PROJECT_ROOT to run',
     );
     const projectRoot = resolve(process.env.CAXRI_BENCHMARK_PROJECT_ROOT!);
-    const relativeFile = process.env.CAXRI_BENCHMARK_EDITOR_FILE ?? '.changelogrc.cjs';
+    const relativeFile = process.env.CAXRI_BENCHMARK_EDITOR_FILE ?? 'vitest.config.mts';
     const userData = await mkdtemp(join(tmpdir(), 'caxri-editor-benchmark-'));
     const running = await launchCaxri({ userDataDir: userData, testRootPath: projectRoot });
 
@@ -30,6 +30,27 @@ test('first JavaScript editor reports document, mount, and syntax-highlight late
         const fileName = basename(relativeFile);
         const file = running.page.getByRole('button', { name: fileName, exact: true });
         await file.waitFor();
+        await running.page.evaluate(() => {
+            const benchmarkWindow = window as typeof window & {
+                caxriFirstTypeScriptHighlight?: Promise<number>;
+            };
+            benchmarkWindow.caxriFirstTypeScriptHighlight = new Promise((resolve) => {
+                const check = (): void => {
+                    const openedAt = performance.getEntriesByName('caxri.editor.open-start').at(-1);
+                    const line = [...document.querySelectorAll('.view-line')].find((element) =>
+                        element.textContent?.includes('defineConfig'),
+                    );
+                    const tokens = line ? [...line.querySelectorAll('span span')] : [];
+                    const colors = new Set(tokens.map((token) => getComputedStyle(token).color));
+                    if (openedAt && tokens.length > 1 && colors.size > 1) {
+                        resolve(performance.now() - openedAt.startTime);
+                        return;
+                    }
+                    requestAnimationFrame(check);
+                };
+                requestAnimationFrame(check);
+            });
+        });
         await file.click();
 
         const documentReadyMs = await expect
@@ -56,19 +77,13 @@ test('first JavaScript editor reports document, mount, and syntax-highlight late
                 .duration,
             editorReadyMs: performance.getEntriesByName('caxri.editor.open-to-mount')[0].duration,
         }));
-        const sourceLine = running.page.locator('.view-line').filter({ hasText: 'module.exports' });
-        await expect
-            .poll(() =>
-                sourceLine.locator('span span').evaluateAll((tokens) => {
-                    const colors = new Set(tokens.map((token) => getComputedStyle(token).color));
-                    return tokens.length > 1 && colors.size > 1;
-                }),
-            )
-            .toBe(true);
-        const firstHighlightMs = await running.page.evaluate(() => {
-            const openedAt = performance.getEntriesByName('caxri.editor.open-start').at(-1);
-            if (!openedAt) throw new Error('Editor open-start mark was not recorded');
-            return performance.now() - openedAt.startTime;
+        const firstHighlightMs = await running.page.evaluate(async () => {
+            const benchmarkWindow = window as typeof window & {
+                caxriFirstTypeScriptHighlight?: Promise<number>;
+            };
+            if (!benchmarkWindow.caxriFirstTypeScriptHighlight)
+                throw new Error('TypeScript highlight observer was not installed');
+            return benchmarkWindow.caxriFirstTypeScriptHighlight;
         });
         const result = {
             projectRoot,

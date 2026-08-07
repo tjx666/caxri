@@ -12,6 +12,8 @@ export function applyEditorTheme(theme: ThemeTokens): void {
             { token: 'keyword', foreground: theme.editor.keyword.slice(1) },
             { token: 'string', foreground: theme.editor.string.slice(1) },
             { token: 'number', foreground: theme.editor.number.slice(1) },
+            { token: 'variable.env', foreground: theme.terminal.cyan.slice(1) },
+            { token: 'delimiter.env', foreground: theme.editor.keyword.slice(1) },
             { token: 'string.key.json', foreground: theme.terminal.cyan.slice(1) },
             { token: 'string.value.json', foreground: theme.editor.string.slice(1) },
             { token: 'keyword.json', foreground: theme.editor.keyword.slice(1) },

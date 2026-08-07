@@ -9,7 +9,10 @@ import { cacheDocument, changeDocument } from './document-actions';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import type { CodeEditorProps } from './CodeEditor';
 
-const GitDiffEditor = lazy(() => import('./GitDiffEditor'));
+const GitDiffEditor = lazy(async () => {
+    const module = await import('./GitDiffEditor');
+    return { default: module.GitDiffEditor };
+});
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -21,8 +24,8 @@ function LoadedCodeEditor(props: CodeEditorProps) {
         getLoadedCodeEditor,
     );
     useEffect(() => {
-        if (!CodeEditor) void loadCodeEditor().catch(() => undefined);
-    }, [CodeEditor]);
+        void loadCodeEditor().catch(() => undefined);
+    }, []);
     return CodeEditor ? (
         createElement(CodeEditor, props)
     ) : (

@@ -14,7 +14,7 @@ export interface CodeEditorProps {
     onChange: (content: string | undefined) => void;
 }
 
-export default function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
+export function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
     const registrationRef = useRef<(() => void) | undefined>(undefined);
     useEffect(() => applyEditorTheme(theme), [theme]);

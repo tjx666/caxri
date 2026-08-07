@@ -20,6 +20,7 @@ test('editor previews pin and expose the standard close actions', async () => {
             writeFile(join(root, name), `export const ${name[0]} = true;\n`, 'utf8'),
         ),
     );
+    await writeFile(join(root, '.env'), '# Caxri\nCAXRI_TOKEN="enabled"\n', 'utf8');
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
@@ -32,9 +33,23 @@ test('editor previews pin and expose the standard close actions', async () => {
         await running.page.getByRole('button', { name: 'b.js', exact: true }).click();
         await expect(running.page.locator('.work-tab', { hasText: 'a.js' })).toHaveCount(0);
         const bTab = running.page.locator('.work-tab', { hasText: 'b.js' });
+        await expect(bTab.locator('[data-file-icon="javascript"]')).toBeVisible();
         await expect(bTab).toHaveAttribute('data-preview', 'true');
         await bTab.getByRole('tab').dblclick();
         await expect(bTab).not.toHaveAttribute('data-preview');
+
+        await running.page.getByRole('button', { name: '.env', exact: true }).click();
+        const environmentLine = running.page
+            .locator('.view-line')
+            .filter({ hasText: 'CAXRI_TOKEN' });
+        await expect
+            .poll(() =>
+                environmentLine.locator('span span').evaluateAll((tokens) => {
+                    const colors = new Set(tokens.map((token) => getComputedStyle(token).color));
+                    return tokens.length > 1 && colors.size > 1;
+                }),
+            )
+            .toBe(true);
 
         await running.page.getByRole('button', { name: 'c.js', exact: true }).click();
         const cTab = running.page.locator('.work-tab', { hasText: 'c.js' });

@@ -27,6 +27,34 @@ window.MonacoEnvironment = {
 
 loader.config({ monaco });
 
+const DOTENV_LANGUAGE_ID = 'dotenv';
+
+if (!monaco.languages.getLanguages().some((language) => language.id === DOTENV_LANGUAGE_ID)) {
+    monaco.languages.register({
+        id: DOTENV_LANGUAGE_ID,
+        aliases: ['Environment variables', 'dotenv'],
+        extensions: ['.env'],
+        filenames: ['.env'],
+        filenamePatterns: ['.env.*', '*.env'],
+    });
+    monaco.languages.setMonarchTokensProvider(DOTENV_LANGUAGE_ID, {
+        tokenizer: {
+            root: [
+                [/^\s*#.*/, 'comment'],
+                [/^\s*export(?=\s+)/, 'keyword'],
+                [/[A-Za-z_][\w.]*(?=\s*=)/, 'variable.env'],
+                [/=/, 'delimiter.env'],
+                [/"(?:\\.|[^"\\])*"/, 'string'],
+                [/'[^']*'/, 'string'],
+                [/\$\{[A-Za-z_][\w]*\}/, 'variable.env'],
+                [/\b(?:true|false|null)\b/, 'keyword'],
+                [/\b\d+(?:\.\d+)?\b/, 'number'],
+                [/#.*$/, 'comment'],
+            ],
+        },
+    });
+}
+
 /** Resolves immediately after the first call; idle preloading and editor mounts share this loader. */
 export async function initializeMonaco(): Promise<void> {
     await loader.init();
@@ -34,17 +62,39 @@ export async function initializeMonaco(): Promise<void> {
 
 let editorWarmup: Promise<void> | undefined;
 
+function nextAnimationFrame(): Promise<void> {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function warmLanguage(
+    model: monaco.editor.ITextModel,
+    language: string,
+    source: string,
+    shouldContinue: () => boolean,
+): Promise<void> {
+    monaco.editor.setModelLanguage(model, language);
+    model.setValue(source);
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+        if (!shouldContinue()) return;
+        const tokens = monaco.editor.tokenize(source, language)[0] ?? [];
+        if (new Set(tokens.map((token) => token.type).filter(Boolean)).size > 1) return;
+        await nextAnimationFrame();
+    }
+}
+
 /**
- * Monaco defers most editor and JavaScript token infrastructure until the first `editor.create`,
- * which otherwise blocks the user's first file click. Prime that one-time path in a disposable,
- * off-screen editor after the workbench is idle; no Project content enters the warm-up model.
+ * Monaco defers editor and language-token infrastructure until the first matching model. Prime the
+ * common editable languages in a disposable, off-screen editor after the workbench is idle; no
+ * Project content enters the warm-up model and heavyweight language workers remain demand-loaded.
+ * The continuation check stops between languages when a real editor load starts, so idle work
+ * cannot keep competing with the user's first file selection.
  */
-export function warmMonacoEditor(): Promise<void> {
-    editorWarmup ??= warmMonacoEditorOnce();
+export function warmMonacoEditor(shouldContinue: () => boolean = () => true): Promise<void> {
+    editorWarmup ??= warmMonacoEditorOnce(shouldContinue);
     return editorWarmup;
 }
 
-async function warmMonacoEditorOnce(): Promise<void> {
+async function warmMonacoEditorOnce(shouldContinue: () => boolean): Promise<void> {
     await initializeMonaco();
     const container = document.createElement('div');
     container.setAttribute('aria-hidden', 'true');
@@ -65,13 +115,19 @@ async function warmMonacoEditorOnce(): Promise<void> {
         readOnly: true,
     });
     try {
-        const source = 'export const caxriWarmup = true;\n';
-        monaco.editor.setModelLanguage(model, 'javascript');
-        model.setValue(source);
-        monaco.editor.tokenize(source, 'javascript');
-        await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        });
+        for (const [language, source] of [
+            ['javascript', 'export const caxriWarmup = true;\n'],
+            ['typescript', 'export const CaxriWarmup = (): JSX.Element => <main>Caxri</main>;\n'],
+            ['json', '{"caxri": true}\n'],
+            ['html', '<main class="caxri">Caxri</main>\n'],
+            ['css', '.caxri { display: grid; }\n'],
+            ['markdown', '# Caxri\n\n**Ready**\n'],
+            [DOTENV_LANGUAGE_ID, 'CAXRI_READY="true"\n'],
+        ] as const) {
+            if (!shouldContinue()) break;
+            await warmLanguage(model, language, source, shouldContinue);
+        }
+        if (shouldContinue()) await nextAnimationFrame();
     } finally {
         editor.dispose();
         model.dispose();

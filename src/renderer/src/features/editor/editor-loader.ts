@@ -1,11 +1,14 @@
-import type CodeEditor from './CodeEditor';
+import type { CodeEditor } from './CodeEditor';
+import type * as MonacoApi from '../../lib/monaco';
 
 const EDITOR_PRELOAD_MEASURE = 'caxri.editor.preload';
 
-type CodeEditorModule = { default: typeof CodeEditor };
+type CodeEditorModule = { CodeEditor: typeof CodeEditor };
+type MonacoModule = typeof MonacoApi;
 
-let modulePromise: Promise<CodeEditorModule> | undefined;
+let dependenciesPromise: Promise<[CodeEditorModule, MonacoModule]> | undefined;
 let loadedEditor: typeof CodeEditor | undefined;
+let userLoadRequested = false;
 const listeners = new Set<() => void>();
 
 export function getLoadedCodeEditor(): typeof loadedEditor {
@@ -19,38 +22,52 @@ export function subscribeLoadedCodeEditor(listener: () => void): () => void {
     };
 }
 
-/** Shares intent-driven loading and the idle preload so StrictMode never parses Monaco twice. */
-export function loadCodeEditor(): Promise<CodeEditorModule> {
-    if (modulePromise) return modulePromise;
+function loadDependencies(): Promise<[CodeEditorModule, MonacoModule]> {
+    dependenciesPromise ??= Promise.all([import('./CodeEditor'), import('../../lib/monaco')]).catch(
+        (error: unknown) => {
+            dependenciesPromise = undefined;
+            throw error;
+        },
+    );
+    return dependenciesPromise;
+}
+
+function publishCodeEditor(module: CodeEditorModule): CodeEditorModule {
+    if (loadedEditor) return module;
+    loadedEditor = module.CodeEditor;
+    for (const listener of listeners) listener();
+    return module;
+}
+
+/** User intent publishes the real editor as soon as its module loads instead of blocking on warm-up. */
+export async function loadCodeEditor(): Promise<CodeEditorModule> {
+    userLoadRequested = true;
+    const [module] = await loadDependencies();
+    return publishCodeEditor(module);
+}
+
+/** Idle work primes Monaco before any file selection without delaying a selection already in flight. */
+async function preloadCodeEditor(): Promise<void> {
     performance.clearMarks('caxri.editor.preload-start');
     performance.clearMarks('caxri.editor.preload-ready');
     performance.clearMeasures(EDITOR_PRELOAD_MEASURE);
     performance.mark('caxri.editor.preload-start');
-    modulePromise = Promise.all([import('./CodeEditor'), import('../../lib/monaco')])
-        .then(async ([module, { warmMonacoEditor }]) => {
-            await warmMonacoEditor();
-            loadedEditor = module.default;
-            for (const listener of listeners) listener();
-            performance.mark('caxri.editor.preload-ready');
-            performance.measure(
-                EDITOR_PRELOAD_MEASURE,
-                'caxri.editor.preload-start',
-                'caxri.editor.preload-ready',
-            );
-            return module;
-        })
-        .catch((error: unknown) => {
-            modulePromise = undefined;
-            throw error;
-        });
-    return modulePromise;
+    const [module, { warmMonacoEditor }] = await loadDependencies();
+    publishCodeEditor(module);
+    if (!userLoadRequested) await warmMonacoEditor(() => !userLoadRequested);
+    performance.mark('caxri.editor.preload-ready');
+    performance.measure(
+        EDITOR_PRELOAD_MEASURE,
+        'caxri.editor.preload-start',
+        'caxri.editor.preload-ready',
+    );
 }
 
 /** Starts after initial workbench work yields, without moving Monaco into the entry bundle. */
 export function scheduleCodeEditorPreload(): () => void {
     let canceled = false;
     const preload = (): void => {
-        if (!canceled) void loadCodeEditor().catch(() => undefined);
+        if (!canceled) void preloadCodeEditor().catch(() => undefined);
     };
     if (typeof window.requestIdleCallback === 'function') {
         const idleId = window.requestIdleCallback(preload, { timeout: 1_000 });
