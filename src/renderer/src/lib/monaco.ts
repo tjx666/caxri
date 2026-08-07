@@ -34,6 +34,15 @@ window.MonacoEnvironment = {
 loader.config({ monaco });
 
 const DOTENV_LANGUAGE_ID = 'dotenv';
+const MONACO_WARMUP_LANGUAGES = [
+    ['javascript', 'export const caxriWarmup = true;\n'],
+    ['typescript', 'export const CaxriWarmup = (): JSX.Element => <main>Caxri</main>;\n'],
+    ['json', '{"caxri": true}\n'],
+    ['html', '<main class="caxri">Caxri</main>\n'],
+    ['css', '.caxri { display: grid; }\n'],
+    ['markdown', '# Caxri\n\n**Ready**\n'],
+    [DOTENV_LANGUAGE_ID, 'CAXRI_READY="true"\n'],
+] as const;
 
 if (!monaco.languages.getLanguages().some((language) => language.id === DOTENV_LANGUAGE_ID)) {
     monaco.languages.register({
@@ -128,12 +137,36 @@ async function warmLanguage(
 ): Promise<void> {
     monaco.editor.setModelLanguage(model, language);
     model.setValue(source);
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-        if (!shouldContinue()) return;
-        const tokens = monaco.editor.tokenize(source, language)[0] ?? [];
-        if (new Set(tokens.map((token) => token.type).filter(Boolean)).size > 1) return;
-        await nextAnimationFrame();
+    await waitForLanguageTokens(language, source, shouldContinue);
+}
+
+/** Tokenization readiness is frame-dependent, so each retry must follow the preceding frame. */
+async function waitForLanguageTokens(
+    language: string,
+    source: string,
+    shouldContinue: () => boolean,
+    attempt = 0,
+): Promise<void> {
+    if (!shouldContinue() || attempt >= 60) return;
+    const tokenTypes = new Set<string>();
+    for (const token of monaco.editor.tokenize(source, language)[0] ?? []) {
+        if (token.type) tokenTypes.add(token.type);
     }
+    if (tokenTypes.size > 1) return;
+    await nextAnimationFrame();
+    return waitForLanguageTokens(language, source, shouldContinue, attempt + 1);
+}
+
+/** A single shared model requires each language warm-up to finish before the next one starts. */
+async function warmLanguages(
+    model: monaco.editor.ITextModel,
+    shouldContinue: () => boolean,
+    index = 0,
+): Promise<void> {
+    if (!shouldContinue() || index >= MONACO_WARMUP_LANGUAGES.length) return;
+    const [language, source] = MONACO_WARMUP_LANGUAGES[index];
+    await warmLanguage(model, language, source, shouldContinue);
+    return warmLanguages(model, shouldContinue, index + 1);
 }
 
 /**
@@ -169,18 +202,7 @@ async function warmMonacoEditorOnce(shouldContinue: () => boolean): Promise<void
         readOnly: true,
     });
     try {
-        for (const [language, source] of [
-            ['javascript', 'export const caxriWarmup = true;\n'],
-            ['typescript', 'export const CaxriWarmup = (): JSX.Element => <main>Caxri</main>;\n'],
-            ['json', '{"caxri": true}\n'],
-            ['html', '<main class="caxri">Caxri</main>\n'],
-            ['css', '.caxri { display: grid; }\n'],
-            ['markdown', '# Caxri\n\n**Ready**\n'],
-            [DOTENV_LANGUAGE_ID, 'CAXRI_READY="true"\n'],
-        ] as const) {
-            if (!shouldContinue()) break;
-            await warmLanguage(model, language, source, shouldContinue);
-        }
+        await warmLanguages(model, shouldContinue);
         if (shouldContinue()) await nextAnimationFrame();
     } finally {
         editor.dispose();

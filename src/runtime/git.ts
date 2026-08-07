@@ -401,8 +401,7 @@ export class GitService {
         return repository;
     }
 
-    async branches(params: RuntimeMethodParams<'git.branches'>): Promise<string[]> {
-        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
+    private async listBranches(repository: GitRepositorySummary): Promise<string[]> {
         const output = await this.git(repository.rootPath, [
             'for-each-ref',
             `--count=${MAX_LOCAL_BRANCHES}`,
@@ -415,9 +414,14 @@ export class GitService {
             .filter(Boolean);
     }
 
+    async branches(params: RuntimeMethodParams<'git.branches'>): Promise<string[]> {
+        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
+        return this.listBranches(repository);
+    }
+
     async switchBranch(params: RuntimeMethodParams<'git.switchBranch'>): Promise<null> {
         const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
-        const branches = await this.branches(params);
+        const branches = await this.listBranches(repository);
         if (!branches.includes(params.branch))
             throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
         if (repository.branch !== params.branch)
@@ -486,14 +490,16 @@ export class GitService {
         params: RuntimeMethodParams<'git.commitDetails'>,
     ): Promise<GitCommitDetails> {
         const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
-        const path = await this.resolveHistoryPath(repository, params.path);
-        const commitOutput = await this.git(repository.rootPath, [
-            'show',
-            '-s',
-            '-z',
-            '--decorate=short',
-            `--format=${COMMIT_FORMAT}`,
-            params.sha,
+        const [path, commitOutput] = await Promise.all([
+            this.resolveHistoryPath(repository, params.path),
+            this.git(repository.rootPath, [
+                'show',
+                '-s',
+                '-z',
+                '--decorate=short',
+                `--format=${COMMIT_FORMAT}`,
+                params.sha,
+            ]),
         ]);
         const commit = parseCommitLog(commitOutput)[0];
         if (!commit) throw new CaxriError('NOT_FOUND', 'Git commit no longer exists');

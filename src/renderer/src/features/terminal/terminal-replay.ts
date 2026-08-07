@@ -18,7 +18,24 @@ export class TerminalReplayBuffer {
 
     private async restoreOnce(snapshot: string): Promise<void> {
         if (snapshot) await this.write(snapshot);
-        while (this.pending.length > 0) await this.write(this.pending.shift()!);
+        await this.drainPending();
+    }
+
+    /**
+     * Preserve xterm write order while draining output that may continue arriving during a write.
+     * Each captured batch is serialized, then a later batch picks up anything queued meanwhile.
+     */
+    private async drainPending(): Promise<void> {
+        const pending = this.pending.splice(0);
+        await this.writeBatch(pending);
+        if (this.pending.length > 0) return this.drainPending();
         this.restored = true;
+    }
+
+    private async writeBatch(pending: readonly string[], index = 0): Promise<void> {
+        const value = pending[index];
+        if (value === undefined) return;
+        await this.write(value);
+        return this.writeBatch(pending, index + 1);
     }
 }

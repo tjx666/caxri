@@ -10,6 +10,7 @@ import { useCaxriQuery } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 
 const PAGE_SIZE = 5;
+const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
 function useDebouncedValue(value: string, delayMs: number): string {
     const [debounced, setDebounced] = useState(value);
@@ -29,11 +30,11 @@ function relativeTime(timestamp: number): string {
         ['hour', 3_600],
         ['minute', 60],
     ];
-    const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
     for (const [unit, size] of ranges) {
-        if (Math.abs(seconds) >= size) return formatter.format(Math.round(seconds / size), unit);
+        if (Math.abs(seconds) >= size)
+            return RELATIVE_TIME_FORMATTER.format(Math.round(seconds / size), unit);
     }
-    return formatter.format(seconds, 'second');
+    return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
 }
 
 function CommitDetails({
@@ -152,12 +153,14 @@ export function CommitHistory({
     const [selectedSha, setSelectedSha] = useState<string | undefined>(undefined);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | undefined>(undefined);
-    const intent = useRef(0);
+    const requestSequence = useRef(0);
+    const activeRequest = useRef<{ head?: string; sequence: number } | undefined>(undefined);
     const scopePath = debouncedPath.trim() || undefined;
 
     const loadPage = useCallback(
-        async (offset: number, replace: boolean) => {
-            const request = ++intent.current;
+        async (offset: number, replace: boolean, head?: string) => {
+            const request = { head, sequence: ++requestSequence.current };
+            activeRequest.current = request;
             setLoading(true);
             if (replace) {
                 setCommits([]);
@@ -172,31 +175,31 @@ export function CommitHistory({
                     pageSize: PAGE_SIZE,
                     path: scopePath,
                 });
-                if (request !== intent.current) return;
+                if (request !== activeRequest.current) return;
                 setCommits((current) => (replace ? page.commits : [...current, ...page.commits]));
                 setNextOffset(page.nextOffset);
             } catch (failure) {
-                if (request !== intent.current) return;
+                if (request !== activeRequest.current) return;
                 setError(describeFailure(failure, 'Unable to load commits'));
             } finally {
-                if (request === intent.current) setLoading(false);
+                if (request === activeRequest.current) activeRequest.current = undefined;
+                setLoading(activeRequest.current !== undefined);
             }
         },
-        // `repository.head` is included so a branch switch (which changes head but not id) reloads page 0.
-        [repository.head, repository.id, scopePath, sessionId],
+        [repository.id, scopePath, sessionId],
     );
 
     useEffect(() => {
         if (!expanded) {
-            intent.current += 1;
+            activeRequest.current = undefined;
             return;
         }
-        const timer = window.setTimeout(() => void loadPage(0, true), 0);
+        const timer = window.setTimeout(() => void loadPage(0, true, repository.head), 0);
         return () => {
             window.clearTimeout(timer);
-            intent.current += 1;
+            activeRequest.current = undefined;
         };
-    }, [expanded, loadPage]);
+    }, [expanded, loadPage, repository.head]);
 
     return (
         <section className="commit-history border-t border-border">
@@ -259,7 +262,7 @@ export function CommitHistory({
                                 className="w-full"
                                 variant="ghost"
                                 disabled={loading || path !== debouncedPath}
-                                onClick={() => void loadPage(nextOffset, false)}
+                                onClick={() => void loadPage(nextOffset, false, repository.head)}
                             >
                                 {loading ? 'Loading…' : 'Load more'}
                             </Button>

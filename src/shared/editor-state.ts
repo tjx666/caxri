@@ -106,7 +106,10 @@ export function editorTabPathsToClose(
     if (mode === 'all') return openTabs.map((tab) => tab.path);
     if (mode === 'one') return [targetPath];
     if (mode === 'others')
-        return openTabs.filter((tab) => tab.path !== targetPath).map((tab) => tab.path);
+        return openTabs.reduce<string[]>((paths, tab) => {
+            if (tab.path !== targetPath) paths.push(tab.path);
+            return paths;
+        }, []);
     return openTabs.slice(targetIndex + 1).map((tab) => tab.path);
 }
 
