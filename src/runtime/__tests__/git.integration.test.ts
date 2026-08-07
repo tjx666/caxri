@@ -50,6 +50,7 @@ describe('GitService', () => {
         expect(summary.isRepository).toBe(true);
         expect(concurrentSummary).toEqual(summary);
         expect(summary.repositories[0].branch).toBe('main');
+        expect(summary.repositories[0]).toMatchObject({ additions: 1, deletions: 1 });
         expect(summary.repositories[0].files.map((file) => file.path)).toEqual(
             expect.arrayContaining(['tracked.txt', 'new.txt']),
         );
@@ -92,6 +93,53 @@ describe('GitService', () => {
             original: '',
             modified: 'new\n',
         });
+        database.close();
+    });
+
+    it('lists and switches only existing local branches', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-branches-'));
+        temporaryDirectories.push(directory);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: directory,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: directory });
+        await writeFile(join(directory, 'tracked.txt'), 'initial\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: directory });
+        await execFileAsync('git', ['branch', 'feature/local-picker'], { cwd: directory });
+
+        const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const git = new GitService(
+            new ProjectRootResolver(database),
+            new StructuredLogger(join(directory, '.logs')),
+        );
+        const repository = (await git.summary(session.id)).repositories[0];
+
+        await expect(
+            git.branches({ sessionId: session.id, repositoryId: repository.id }),
+        ).resolves.toEqual(['feature/local-picker', 'main']);
+        await expect(
+            git.switchBranch({
+                sessionId: session.id,
+                repositoryId: repository.id,
+                branch: 'feature/local-picker',
+            }),
+        ).resolves.toBeNull();
+        await expect(
+            execFileAsync('git', ['branch', '--show-current'], { cwd: directory }),
+        ).resolves.toMatchObject({ stdout: 'feature/local-picker\n' });
+        await expect(
+            git.switchBranch({
+                sessionId: session.id,
+                repositoryId: repository.id,
+                branch: '--discard-changes',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
         database.close();
     });
 

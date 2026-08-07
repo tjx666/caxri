@@ -6,20 +6,31 @@ import {
     PanelRight,
     type LucideIcon,
 } from 'lucide-react';
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
+import type { CaxriMethod } from '@shared/ipc';
 import type { BootstrapState } from '@shared/types';
 
 import { executeCommand } from '../../commands/execute';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '../../components/ui/select';
+import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
-import { useCaxriQuery } from '../../queries/client';
+import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import {
     useSelectedProject,
     useSelectedSession,
     useSessionTerminals,
 } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { tryCommand } from '../../stores/toasts';
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
@@ -123,10 +134,106 @@ function useProjectOverview(sessionId: string | undefined) {
         ...overview,
         repository: {
             ...overview.repository,
+            id: primary.id,
             branch: primary.branch,
             changedFileCount: primary.files.length,
+            additions: primary.additions,
+            deletions: primary.deletions,
         },
     };
+}
+
+const BRANCH_SWITCH_DEPENDENCIES = new Set<CaxriMethod>([
+    'git.summary',
+    'git.branches',
+    'git.diff',
+    'git.diffDocument',
+    'git.commits',
+    'git.commitDetails',
+    'projectStatus.overview',
+    'projectStatus.summary',
+]);
+
+function BranchPicker({
+    branch,
+    repositoryId,
+    sessionId,
+}: {
+    branch: string;
+    repositoryId: string;
+    sessionId: string;
+}) {
+    const queryClient = useQueryClient();
+    const [open, setOpen] = useState(false);
+    const [switching, setSwitching] = useState(false);
+    const branchesQuery = useCaxriQuery(
+        'git.branches',
+        { sessionId, repositoryId },
+        { enabled: open },
+    );
+    useToastOnQueryError(branchesQuery.isError, branchesQuery.error, 'Unable to list branches');
+    const branches = branchesQuery.data ?? [branch];
+
+    const switchBranch = async (nextBranch: string | null): Promise<void> => {
+        if (!nextBranch || nextBranch === branch || switching) return;
+        setSwitching(true);
+        try {
+            const result = await tryCommand('Unable to switch branch', () =>
+                caxri.request('git.switchBranch', {
+                    sessionId,
+                    repositoryId,
+                    branch: nextBranch,
+                }),
+            );
+            if (result === undefined) return;
+            await queryClient.invalidateQueries({
+                predicate: (query) => {
+                    const [method, params] = query.queryKey as [
+                        CaxriMethod,
+                        { sessionId?: string } | undefined,
+                    ];
+                    return (
+                        BRANCH_SWITCH_DEPENDENCIES.has(method) && params?.sessionId === sessionId
+                    );
+                },
+            });
+        } finally {
+            setSwitching(false);
+        }
+    };
+
+    return (
+        <Select
+            value={branch}
+            open={open}
+            disabled={switching}
+            onOpenChange={setOpen}
+            onValueChange={(value) => void switchBranch(value)}
+        >
+            <SelectTrigger
+                showIcon={false}
+                aria-label={`Switch branch from ${branch}`}
+                title={`Switch branch from ${branch}`}
+                className={cn(
+                    statusItemClassName,
+                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+                )}
+            >
+                <GitBranch size={13} />
+                <SelectValue>{branch}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="min-w-48 max-w-80">
+                {branches.map((name) => (
+                    <SelectItem key={name} value={name} className="max-w-80">
+                        {name}
+                    </SelectItem>
+                ))}
+                {branchesQuery.isLoading && (
+                    <div className="px-2 py-1.5 text-[12px] text-muted">Loading branches…</div>
+                )}
+            </SelectContent>
+        </Select>
+    );
 }
 
 function showInspector(command: 'inspector.showFiles' | 'inspector.showGit'): void {
@@ -170,20 +277,12 @@ export function StatusBar() {
                         No Project selected
                     </span>
                 )}
-                {repository && (
-                    <StatusItem
-                        icon={GitBranch}
-                        href={repository.branchUrl}
-                        ariaLabel={`Open branch ${repository.branch}`}
-                        title={
-                            repository.branchUrl
-                                ? `Open ${repository.branch} on GitHub`
-                                : `Show Git changes for ${repository.branch}`
-                        }
-                        onClick={() => showInspector('inspector.showGit')}
-                    >
-                        {repository.branch}
-                    </StatusItem>
+                {repository && sessionId && (
+                    <BranchPicker
+                        branch={repository.branch}
+                        repositoryId={repository.id}
+                        sessionId={sessionId}
+                    />
                 )}
                 {repository?.pullRequest && (
                     <StatusItem
@@ -198,12 +297,11 @@ export function StatusBar() {
                 {repository && (
                     <StatusItem
                         icon={FileDiff}
-                        ariaLabel={`Open ${repository.changedFileCount} changes`}
+                        ariaLabel={`Open changes: ${repository.additions} ${repository.additions === 1 ? 'addition' : 'additions'}, ${repository.deletions} ${repository.deletions === 1 ? 'deletion' : 'deletions'}`}
                         title="Show primary repository changes"
                         onClick={() => showInspector('inspector.showGit')}
                     >
-                        {repository.changedFileCount}{' '}
-                        {repository.changedFileCount === 1 ? 'change' : 'changes'}
+                        +{repository.additions} -{repository.deletions}
                     </StatusItem>
                 )}
             </div>

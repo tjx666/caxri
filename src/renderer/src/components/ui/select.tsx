@@ -11,7 +11,12 @@ export function SelectValue(props: SelectPrimitive.Value.Props) {
     return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
-export function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigger.Props) {
+export function SelectTrigger({
+    className,
+    children,
+    showIcon = true,
+    ...props
+}: SelectPrimitive.Trigger.Props & { showIcon?: boolean }) {
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
@@ -22,7 +27,9 @@ export function SelectTrigger({ className, children, ...props }: SelectPrimitive
             {...props}
         >
             {children}
-            <SelectPrimitive.Icon render={<ChevronDown aria-hidden="true" size={14} />} />
+            {showIcon && (
+                <SelectPrimitive.Icon render={<ChevronDown aria-hidden="true" size={14} />} />
+            )}
         </SelectPrimitive.Trigger>
     );
 }

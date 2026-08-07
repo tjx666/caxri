@@ -28,12 +28,15 @@ const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
 const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
 const MAX_COMMIT_FILES = 500;
+const MAX_LOCAL_BRANCHES = 1_000;
 
 interface RepositoryStatus {
     branch: string;
     head?: string;
     ahead: number;
     behind: number;
+    additions: number;
+    deletions: number;
     files: GitFileStatus[];
 }
 
@@ -99,7 +102,7 @@ function parseStatusRecord(
     return undefined;
 }
 
-function parseStatus(output: string): RepositoryStatus {
+function parseStatus(output: string): Omit<RepositoryStatus, 'additions' | 'deletions'> {
     const records = output.split('\0').filter(Boolean);
     const files: GitFileStatus[] = [];
     let branch = 'detached';
@@ -139,6 +142,17 @@ function parseStatus(output: string): RepositoryStatus {
         if (record.startsWith('2 ')) index += 1;
     }
     return { branch, head, ahead, behind, files };
+}
+
+function parseLineStats(output: string): Pick<RepositoryStatus, 'additions' | 'deletions'> {
+    let additions = 0;
+    let deletions = 0;
+    for (const line of output.split('\n')) {
+        const [added, deleted] = line.split('\t', 2);
+        if (/^\d+$/.test(added)) additions += Number(added);
+        if (/^\d+$/.test(deleted)) deletions += Number(deleted);
+    }
+    return { additions, deletions };
 }
 
 function parseWorktreeRoots(output: string): string[] {
@@ -290,14 +304,20 @@ export class GitService {
         });
     }
 
-    private loadStatus(rootPath: string): Promise<RepositoryStatus> {
-        return this.git(rootPath, [
-            'status',
-            '--porcelain=v2',
-            '--branch',
-            '-z',
-            '--untracked-files=all',
-        ]).then(parseStatus);
+    private async loadStatus(rootPath: string): Promise<RepositoryStatus> {
+        const [status, lineStats] = await Promise.all([
+            this.git(rootPath, [
+                'status',
+                '--porcelain=v2',
+                '--branch',
+                '-z',
+                '--untracked-files=all',
+            ]).then(parseStatus),
+            this.git(rootPath, ['diff', '--numstat', '--no-renames', 'HEAD', '--'], {
+                allowFailure: true,
+            }).then(parseLineStats),
+        ]);
+        return { ...status, ...lineStats };
     }
 
     private async canonicalRepositoryRoot(path: string): Promise<string | undefined> {
@@ -379,6 +399,30 @@ export class GitService {
                 'Git repository is outside the approved Project roots',
             );
         return repository;
+    }
+
+    async branches(params: RuntimeMethodParams<'git.branches'>): Promise<string[]> {
+        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
+        const output = await this.git(repository.rootPath, [
+            'for-each-ref',
+            `--count=${MAX_LOCAL_BRANCHES}`,
+            '--format=%(refname:short)',
+            'refs/heads',
+        ]);
+        return output
+            .split('\n')
+            .map((branch) => branch.trim())
+            .filter(Boolean);
+    }
+
+    async switchBranch(params: RuntimeMethodParams<'git.switchBranch'>): Promise<null> {
+        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
+        const branches = await this.branches(params);
+        if (!branches.includes(params.branch))
+            throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
+        if (repository.branch !== params.branch)
+            await this.git(repository.rootPath, ['switch', '--', params.branch]);
+        return null;
     }
 
     private async resolveHistoryPath(
@@ -572,6 +616,8 @@ export class GitService {
                     head: status.head,
                     ahead: status.ahead,
                     behind: status.behind,
+                    additions: status.additions,
+                    deletions: status.deletions,
                     files: status.files.filter(
                         (file) =>
                             !children.some((child) =>

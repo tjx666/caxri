@@ -344,6 +344,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (params) => files.search(params),
         'git.summary': ({ sessionId }) => git.summary(sessionId),
+        'git.branches': (params) => git.branches(params),
+        'git.switchBranch': (params) => git.switchBranch(params),
         'git.diff': ({ sessionId, repositoryId, path }) => git.diff(sessionId, repositoryId, path),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),

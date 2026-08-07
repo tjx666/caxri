@@ -382,11 +382,14 @@ export class ProjectStatusService {
         }
         return {
             repository: {
+                id: repository.id,
                 branch: repository.branch,
                 branchUrl: githubUrl
                     ? `${githubUrl}/tree/${encodeURIComponent(repository.branch)}`
                     : undefined,
                 changedFileCount: repository.files.length,
+                additions: repository.additions,
+                deletions: repository.deletions,
                 pullRequest,
             },
             refreshedAt: Date.now(),

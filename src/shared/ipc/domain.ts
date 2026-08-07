@@ -254,6 +254,8 @@ const gitRepositorySummarySchema = z.object({
     head: z.string().optional(),
     ahead: z.number(),
     behind: z.number(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
     files: z.array(gitFileStatusSchema),
 });
 
@@ -371,9 +373,12 @@ export const projectStatusSummarySchema = z.object({
 export const projectStatusOverviewSchema = z.object({
     repository: z
         .object({
+            id: z.string(),
             branch: z.string(),
             branchUrl: z.url().optional(),
             changedFileCount: z.number().int().nonnegative(),
+            additions: z.number().int().nonnegative(),
+            deletions: z.number().int().nonnegative(),
             pullRequest: z
                 .object({
                     number: z.number().int().positive(),

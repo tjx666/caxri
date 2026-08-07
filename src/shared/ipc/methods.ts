@@ -208,6 +208,23 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema }),
         result: gitSummarySchema,
     },
+    'git.branches': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+        }),
+        result: z.array(z.string().min(1).max(1_024)).max(1_000),
+    },
+    'git.switchBranch': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            branch: z.string().min(1).max(1_024),
+        }),
+        result: z.null(),
+    },
     'git.diff': {
         owner: 'runtime',
         params: z.object({

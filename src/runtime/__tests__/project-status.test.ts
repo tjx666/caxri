@@ -40,6 +40,8 @@ const gitSummary: GitSummary = {
             head: '1234567',
             ahead: 0,
             behind: 0,
+            additions: 0,
+            deletions: 0,
             files: [],
         },
     ],
@@ -52,6 +54,8 @@ describe('ProjectStatusService', () => {
             repositories: [
                 {
                     ...gitSummary.repositories[0],
+                    additions: 2,
+                    deletions: 1,
                     files: [
                         {
                             index: ' ',
@@ -89,9 +93,12 @@ describe('ProjectStatusService', () => {
 
         expect(concurrent).toEqual(overview);
         expect(overview.repository).toEqual({
+            id: 'repo-1',
             branch: 'feature/status',
             branchUrl: 'https://github.com/lobehub/project/tree/feature%2Fstatus',
             changedFileCount: 1,
+            additions: 2,
+            deletions: 1,
             pullRequest: {
                 number: 11,
                 title: 'Status Bar context',

@@ -10,7 +10,7 @@ import { createProjectSession, launchCaxri } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
-test('Status Bar links Project, primary branch, pull request, and changes', async () => {
+test('Status Bar switches the primary branch and shows changed line counts', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'status-project');
@@ -35,7 +35,8 @@ test('Status Bar links Project, primary branch, pull request, and changes', asyn
     await writeFile(join(root, 'tracked.txt'), 'before\n', 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
-    await writeFile(join(root, 'tracked.txt'), 'after\n', 'utf8');
+    await execFileAsync('git', ['branch', 'feature/local-picker'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), 'after\nadded\n', 'utf8');
 
     const running = await launchCaxri({
         userDataDir: userData,
@@ -47,23 +48,22 @@ test('Status Bar links Project, primary branch, pull request, and changes', asyn
         const project = running.page.getByRole('button', {
             name: 'Open project files: status-project',
         });
-        const branch = running.page.getByRole('link', {
-            name: 'Open branch feature/status-bar',
+        const branch = running.page.getByRole('combobox', {
+            name: 'Switch branch from feature/status-bar',
         });
         const pullRequest = running.page.getByRole('link', {
             name: 'Open pull request #11',
         });
-        const changes = running.page.getByRole('button', { name: 'Open 1 changes' });
+        const changes = running.page.getByRole('button', {
+            name: 'Open changes: 2 additions, 1 deletion',
+        });
         await expect(project).toBeVisible();
-        await expect(branch).toHaveAttribute(
-            'href',
-            'https://github.com/tjx666/status-project/tree/feature%2Fstatus-bar',
-        );
+        await expect(branch).toHaveText('feature/status-bar');
         await expect(pullRequest).toHaveAttribute(
             'href',
             'https://github.com/tjx666/status-project/pull/11',
         );
-        await expect(changes).toBeVisible();
+        await expect(changes).toHaveText('+2 -1');
         const [projectColor, branchColor, changesColor] = await Promise.all(
             [project, branch, changes].map((item) =>
                 item.evaluate((element) => getComputedStyle(element).color),
@@ -75,6 +75,24 @@ test('Status Bar links Project, primary branch, pull request, and changes', asyn
             branchColor,
         ]);
 
+        await branch.click();
+        await running.page
+            .getByRole('option', { name: 'feature/local-picker', exact: true })
+            .click();
+        await expect(
+            running.page.getByRole('combobox', {
+                name: 'Switch branch from feature/local-picker',
+            }),
+        ).toBeVisible();
+        await expect
+            .poll(async () => {
+                const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
+                    cwd: root,
+                });
+                return stdout.trim();
+            })
+            .toBe('feature/local-picker');
+
         await running.page.getByRole('button', { name: 'Hide Inspector' }).click();
         await project.click();
         await expect(running.page.locator('.inspector')).toBeVisible();
@@ -83,8 +101,12 @@ test('Status Bar links Project, primary branch, pull request, and changes', asyn
         await expect(running.page.getByText('Source Control', { exact: true })).toBeVisible();
 
         await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
-        await expect(running.page.getByRole('button', { name: 'Open 2 changes' })).toBeVisible();
-        expect((await readFile(ghCalls, 'utf8')).trim().split('\n')).toHaveLength(1);
+        await expect(
+            running.page.getByRole('button', {
+                name: 'Open changes: 2 additions, 1 deletion',
+            }),
+        ).toBeVisible();
+        expect((await readFile(ghCalls, 'utf8')).trim().split('\n')).toHaveLength(2);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
