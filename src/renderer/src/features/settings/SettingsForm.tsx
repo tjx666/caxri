@@ -19,7 +19,10 @@ import {
 } from '../../lib/utils';
 import { bytesToMebibytes, formatByteHint, mebibytesToBytes } from './config-edit';
 
-const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
+const ConfigurationEditor = lazy(async () => {
+    const module = await import('./ConfigurationEditor');
+    return { default: module.ConfigurationEditor };
+});
 
 interface SettingsFormProps {
     settings: AppSettings;

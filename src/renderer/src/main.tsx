@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import App from './App';
+import { App } from './App';
 
 /**
  * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other

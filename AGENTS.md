@@ -50,6 +50,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 ## Code conventions
 
 - UI strings, code, comments, docs, and commit messages use English.
+- Prefer named exports; React components under `src/` must not use default exports. Keep default exports only where a framework or module contract requires them.
 - Prefer asynchronous Node.js APIs (`node:fs/promises`, promisified `child_process`) over `*Sync` variants in Main, Runtime, and tooling code; test code is exempt and may use `*Sync` APIs for brevity. Elsewhere, a deliberately synchronous boundary (better-sqlite3 by design, strict startup ordering) needs a comment justifying it.
 - Prefer JSDoc for non-obvious lifecycle/security behavior and document why a workaround exists.
 - Keep the editor intentionally narrow: open/edit/save/in-file search/diff only.

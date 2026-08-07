@@ -5,7 +5,10 @@ import type { Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types'
 import { Input } from '../../components/ui/input';
 import { configurationEditorLoadingClassName } from '../../lib/utils';
 
-const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
+const ConfigurationEditor = lazy(async () => {
+    const module = await import('./ConfigurationEditor');
+    return { default: module.ConfigurationEditor };
+});
 
 interface KeybindingsFormProps {
     keybindings: Keybinding[];

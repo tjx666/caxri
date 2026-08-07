@@ -7,7 +7,10 @@ import { Button } from '../../components/ui/button';
 import { configurationEditorLoadingClassName, settingsFieldRowClassName } from '../../lib/utils';
 import { ThemePreview } from './ThemePreview';
 
-const ConfigurationEditor = lazy(() => import('./ConfigurationEditor'));
+const ConfigurationEditor = lazy(async () => {
+    const module = await import('./ConfigurationEditor');
+    return { default: module.ConfigurationEditor };
+});
 
 interface ThemeFormProps {
     theme: ThemeTokens;

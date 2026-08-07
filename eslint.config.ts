@@ -43,6 +43,18 @@ export default defineConfig(
         },
     },
     {
+        files: ['src/**/*.tsx'],
+        rules: {
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector: 'ExportDefaultDeclaration',
+                    message: 'Use a named export for React components and modules.',
+                },
+            ],
+        },
+    },
+    {
         files: ['src/renderer/**/*.ts', 'src/renderer/**/*.tsx'],
         rules: {
             /** src/shared/node holds Node-only utilities for main and runtime; the renderer must never import Node.js APIs. */

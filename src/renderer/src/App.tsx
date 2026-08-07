@@ -45,7 +45,7 @@ function useRuntimeAttachment(): void {
     }, []);
 }
 
-export default function App() {
+export function App() {
     const attached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const theme = useTheme();
     const sidebarWidth = usePanelLayoutStore((state) => state.sidebarWidth);

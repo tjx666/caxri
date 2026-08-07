@@ -14,7 +14,7 @@ interface ConfigurationEditorProps {
     onChange: (value: string) => void;
 }
 
-export default function ConfigurationEditor({
+export function ConfigurationEditor({
     ariaLabel,
     path,
     theme,
