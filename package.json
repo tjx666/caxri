@@ -44,6 +44,11 @@
             "prettier --write --no-error-on-unmatched-pattern"
         ]
     },
+    "knip": {
+        "ignore": [
+            ".agents/skills/deep-review/scripts/vitest.config.ts"
+        ]
+    },
     "dependencies": {
         "@parcel/watcher": "2.5.6",
         "archiver": "8.0.0",
