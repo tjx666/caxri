@@ -100,6 +100,8 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
          * `title` stays for VoiceOver and Mission Control, which still read the window title.
          */
         titleBarStyle: 'hiddenInset',
+        /** Centers the 12px macOS traffic lights in the Renderer's 44px drag header. */
+        trafficLightPosition: { x: 15, y: 15 },
         show: false,
         webPreferences: {
             preload: join(currentDirectory, '../preload/index.cjs'),

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Circle, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Circle, Folder, Plus } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 
@@ -92,7 +92,7 @@ export function ProjectSidebar() {
                         >
                             <div
                                 className={cn(
-                                    'project-heading flex min-h-7 items-center gap-1 text-muted',
+                                    'project-heading group/project-heading flex min-h-7 items-center gap-1 text-muted',
                                     active && 'text-foreground',
                                 )}
                             >
@@ -107,6 +107,12 @@ export function ProjectSidebar() {
                                         <ChevronRight size={13} />
                                     )}
                                 </button>
+                                <Folder
+                                    aria-hidden="true"
+                                    className="project-folder-icon shrink-0"
+                                    size={14}
+                                    strokeWidth={1.7}
+                                />
                                 <button
                                     className="project-select flex min-h-7 min-w-0 flex-1 items-center px-1 text-inherit text-left border-0 bg-transparent cursor-pointer"
                                     onClick={() => onSelectProject(project.id)}
@@ -117,6 +123,7 @@ export function ProjectSidebar() {
                                     </strong>
                                 </button>
                                 <Button
+                                    className="pointer-events-none opacity-0 transition-opacity group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100 group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100"
                                     size="icon"
                                     variant="ghost"
                                     aria-label={`New Session in ${project.displayTitle}`}

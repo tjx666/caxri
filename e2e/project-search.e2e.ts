@@ -1,0 +1,87 @@
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import { expect, test } from '@playwright/test';
+
+import { createProjectSession, launchCaxri } from './helpers.ts';
+
+const execFileAsync = promisify(execFile);
+
+test('Project search opens name results and reveals grouped content matches', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', [
+        '-p',
+        join(root, 'src'),
+        join(root, 'docs'),
+        join(root, 'node_modules'),
+    ]);
+    const source = Array.from({ length: 100 }, (_, index) =>
+        index === 79 ? 'const MagicNeedle = Token;' : `const line${index + 1} = ${index + 1};`,
+    ).join('\n');
+    await Promise.all([
+        writeFile(join(root, 'src', 'target-name.ts'), source, 'utf8'),
+        writeFile(join(root, 'src', 'target-name.test.ts'), 'MagicNeedle in test\n', 'utf8'),
+        writeFile(join(root, 'docs', 'guide.md'), 'MagicNeedle in docs\n', 'utf8'),
+        writeFile(join(root, 'node_modules', 'hidden.ts'), 'MagicNeedle hidden\n', 'utf8'),
+    ]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const search = running.page.getByRole('textbox', { name: 'Search Project files' });
+        await search.fill('target-name');
+        const nameResult = running.page
+            .locator('.search-result')
+            .filter({ hasText: 'src/target-name.ts' });
+        await expect(nameResult).toBeVisible();
+        await nameResult.click();
+        await expect(
+            running.page.locator('.work-tab', { hasText: 'target-name.ts' }),
+        ).toBeVisible();
+
+        await running.page.getByRole('button', { name: 'content', exact: true }).click();
+        await running.page.getByRole('textbox', { name: 'Files to include' }).fill('src/**');
+        await running.page.getByRole('textbox', { name: 'Files to exclude' }).fill('*.test.ts');
+        await search.fill('magicneedle');
+        const sourceGroup = running.page
+            .locator('.search-result-group')
+            .filter({ hasText: 'src/target-name.ts' });
+        await expect(sourceGroup).toBeVisible();
+        await expect(running.page.locator('.search-results')).not.toContainText('docs/guide.md');
+        await expect(running.page.locator('.search-results')).not.toContainText(
+            'target-name.test.ts',
+        );
+
+        const matchCase = running.page.getByRole('button', { name: 'Match Case' });
+        await matchCase.click();
+        await expect(running.page.getByText('No results.')).toBeVisible();
+        await matchCase.click();
+        await expect(sourceGroup).toBeVisible();
+
+        await search.fill('[');
+        await running.page.getByRole('button', { name: 'Use Regular Expression' }).click();
+        await expect(running.page.locator('.project-search [role="alert"]')).toContainText(
+            'Search failed.',
+        );
+        await search.fill('MagicN[a-z]+');
+        await expect(sourceGroup).toBeVisible();
+
+        await search.fill('MagicNeedle');
+        await running.page.getByRole('button', { name: 'Use Regular Expression' }).click();
+        const contentResult = sourceGroup.locator('.search-result').filter({ hasText: '80' });
+        await expect(contentResult).toContainText('const MagicNeedle = Token;');
+        await contentResult.click();
+        await expect(running.page.locator('.line-numbers.active-line-number')).toHaveText('80');
+        await expect(
+            running.page.locator('.view-line').filter({ hasText: 'MagicNeedle' }),
+        ).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

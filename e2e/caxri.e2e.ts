@@ -80,6 +80,7 @@ test('file changes refresh entries without collapsing expanded directories', asy
             running.page.getByRole('button', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
 
+        await running.page.locator('.panel-caption').hover();
         await running.page.getByRole('button', { name: 'Collapse Folders' }).click();
         await expect(
             running.page.getByRole('button', { name: 'inside.txt', exact: true }),

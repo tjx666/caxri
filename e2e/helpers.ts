@@ -142,6 +142,10 @@ export async function createShellSession(page: Page): Promise<void> {
 }
 
 export async function createAdditionalShellSession(page: Page): Promise<void> {
+    await page
+        .locator('.project-heading')
+        .filter({ has: page.getByRole('button', { name: /^New Session in / }) })
+        .hover();
     await page.getByRole('button', { name: /^New Session in / }).click();
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();

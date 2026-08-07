@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ListCollapse } from 'lucide-react';
+import { ChevronDown, ChevronRight, SquareMinus } from 'lucide-react';
 import { useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
@@ -6,9 +6,10 @@ import type { FileEntry } from '@shared/types';
 import { Button } from '../../../../components/ui/button';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
-import { useSelectedSession } from '../../../../stores/selectors';
+import { useSelectedProject, useSelectedSession } from '../../../../stores/selectors';
 import { openFile } from '../../../editor/document-actions';
 import { useFileTreeInvalidation } from './file-tree-refresh';
+import { ProjectSearch } from './ProjectSearch';
 
 interface EntryProps {
     sessionId: string;
@@ -90,6 +91,7 @@ function FileTreeItem({
 
 export function FileTreePanel() {
     const session = useSelectedSession();
+    const project = useSelectedProject();
     const [collapseRevision, setCollapseRevision] = useState(0);
     const sessionId = session?.id;
     /**
@@ -107,27 +109,36 @@ export function FileTreePanel() {
         );
     /** Keyed by Session so expansion state from another Project root is never reused. */
     return (
-        <div key={session.id} className="inspector-content min-h-0 flex-1 overflow-auto">
-            <div className="panel-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]">
+        <div
+            key={session.id}
+            className="inspector-content flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+            <div className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]">
                 <span className="truncate" title={session.rootPath}>
-                    {session.rootPath}
+                    {(
+                        project?.displayTitle ??
+                        session.rootPath.split('/').filter(Boolean).at(-1) ??
+                        ''
+                    ).toLocaleUpperCase()}
                 </span>
                 <Button
-                    className="shrink-0"
+                    className="pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100"
                     size="icon"
                     variant="ghost"
                     aria-label="Collapse Folders"
                     title="Collapse Folders"
                     onClick={() => setCollapseRevision((value) => value + 1)}
                 >
-                    <ListCollapse size={13} />
+                    <SquareMinus size={13} />
                 </Button>
             </div>
-            <DirectoryEntries
-                key={`${session.id}:${collapseRevision}`}
-                sessionId={session.id}
-                directory={session.rootPath}
-            />
+            <ProjectSearch sessionId={session.id}>
+                <DirectoryEntries
+                    key={`${session.id}:${collapseRevision}`}
+                    sessionId={session.id}
+                    directory={session.rootPath}
+                />
+            </ProjectSearch>
         </div>
     );
 }

@@ -76,6 +76,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
 
+        await running.page.locator('.project-heading').hover();
         await running.page.getByRole('button', { name: /^New Session in / }).click();
         const dialog = running.page.getByRole('dialog');
         await expect(dialog).toBeVisible();
