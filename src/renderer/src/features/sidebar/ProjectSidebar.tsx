@@ -1,4 +1,4 @@
-import { Circle, Folder, FolderOpen, Plus } from 'lucide-react';
+import { Circle, FolderClosed, FolderOpen, Plus } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 
@@ -109,7 +109,7 @@ export function ProjectSidebar() {
                                             strokeWidth={1.7}
                                         />
                                     ) : (
-                                        <Folder
+                                        <FolderClosed
                                             aria-hidden="true"
                                             className="project-folder-icon"
                                             size={15}

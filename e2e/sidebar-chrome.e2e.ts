@@ -79,7 +79,7 @@ test('Project and Files actions reveal on hover or focus', async () => {
             name: 'Expand project',
         });
         await expect(collapsedDisclosure.locator('.project-folder-icon')).toHaveClass(
-            /lucide-folder(?!-open)/,
+            /lucide-folder-closed/,
         );
         await collapsedDisclosure.click();
         const projectName = projectHeading.getByRole('button', { name: 'project', exact: true });
