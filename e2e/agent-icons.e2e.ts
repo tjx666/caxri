@@ -38,7 +38,8 @@ test('Agent identities stay consistent across every shared surface', async () =>
                 .locator('[data-agent-icon="codex"]'),
         ).toBeVisible();
 
-        await running.page.getByRole('button', { name: 'Info', exact: true }).click();
+        const infoTab = running.page.getByRole('button', { name: 'Info', exact: true });
+        await infoTab.click();
         await expect(
             running.page.locator('.terminal-info-card').locator('[data-agent-icon="claude"]'),
         ).toBeVisible();
@@ -46,6 +47,9 @@ test('Agent identities stay consistent across every shared surface', async () =>
             running.page.locator('.terminal-info-card').locator('[data-agent-icon="codex"]'),
         ).toBeVisible();
 
+        /** Chromium on macOS may leave xterm focused after a pointer click on a button. This test
+         * covers icons, so give its settings shortcut a deterministic non-editable focus target. */
+        await infoTab.focus();
         await running.page.keyboard.press('Meta+,');
         const settingsDialog = running.page.getByRole('dialog');
         await expect(settingsDialog.locator('[data-agent-icon="unknown"]')).toBeVisible();
