@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Architecture Debt Audit'
+  short_description: 'Audit Caxri debt with independent reviewers'
+  default_prompt: 'Use $audit-architecture-debt to run a subagent-backed audit of Caxri architecture and technical debt.'
