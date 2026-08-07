@@ -53,7 +53,7 @@ if (!monaco.languages.getLanguages().some((language) => language.id === DOTENV_L
         filenamePatterns: ['.env.*', '*.env'],
     });
 }
-/** Monaco may pre-register `dotenv`; Caxri still owns the tokenizer and theme token contract. */
+/** Reinstalls the provider during HMR while keeping one Caxri-owned language identity. */
 monaco.languages.setMonarchTokensProvider(DOTENV_LANGUAGE_ID, {
     tokenizer: {
         root: [

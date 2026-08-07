@@ -25,7 +25,7 @@ describe('resolveEditorLanguage', () => {
         'uses dotenv syntax for %s without relying on model inference',
         (filename) => {
             expect(resolveEditorLanguage(`caxri://session/session-1/project/${filename}`)).toBe(
-                'dotenv',
+                'caxri-dotenv',
             );
         },
     );

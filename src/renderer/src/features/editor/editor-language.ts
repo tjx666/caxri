@@ -1,4 +1,5 @@
-export const DOTENV_LANGUAGE_ID = 'dotenv';
+/** Avoids lazy or extension-provided `dotenv` registrations replacing Caxri's tokenizer. */
+export const DOTENV_LANGUAGE_ID = 'caxri-dotenv';
 export const IGNORE_LANGUAGE_ID = 'ignore';
 export const RC_LANGUAGE_ID = 'rc';
 
