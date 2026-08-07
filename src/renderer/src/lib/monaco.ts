@@ -7,6 +7,7 @@ import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
 import TypeScriptWorker from 'monaco-editor/language/typescript/ts.worker?worker';
 
 import {
+    DOTENV_LANGUAGE_ID,
     IGNORE_LANGUAGE_FILENAMES,
     IGNORE_LANGUAGE_ID,
     RC_LANGUAGE_ID,
@@ -33,7 +34,6 @@ window.MonacoEnvironment = {
 
 loader.config({ monaco });
 
-const DOTENV_LANGUAGE_ID = 'dotenv';
 const MONACO_WARMUP_LANGUAGES = [
     ['javascript', 'export const caxriWarmup = true;\n'],
     ['typescript', 'export const CaxriWarmup = (): JSX.Element => <main>Caxri</main>;\n'],

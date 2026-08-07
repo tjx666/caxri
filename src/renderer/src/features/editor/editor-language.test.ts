@@ -21,7 +21,16 @@ describe('resolveEditorLanguage', () => {
         },
     );
 
-    it.each(['source.ts', 'settings.json', '.env', 'README', '.yarnrc.yml'])(
+    it.each(['.env', '.env.local', 'development.env'])(
+        'uses dotenv syntax for %s without relying on model inference',
+        (filename) => {
+            expect(resolveEditorLanguage(`caxri://session/session-1/project/${filename}`)).toBe(
+                'dotenv',
+            );
+        },
+    );
+
+    it.each(['source.ts', 'settings.json', 'README', '.yarnrc.yml'])(
         'leaves Monaco inference unchanged for %s',
         (filename) => {
             expect(

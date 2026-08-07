@@ -505,6 +505,11 @@ test('Keep Running detaches the closed window and reattaches the live Terminal',
             BrowserWindow.getAllWindows()[0]?.close(),
         );
         await closed;
+        await expect
+            .poll(() =>
+                running.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
+            )
+            .toBe(0);
 
         const reopenedPromise = running.app.waitForEvent('window');
         await running.app.evaluate(({ app }) => app.emit('activate'));
