@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Deep Review'
+  short_description: 'Run a multi-dimensional Caxri code review'
+  default_prompt: 'Use $deep-review to run a full multi-agent review of the current change.'

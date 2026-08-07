@@ -1,0 +1,51 @@
+---
+id_prefix: ux
+verify: true
+skip_when: no user-visible component, style, copy, shortcut, dialog, editor, terminal, or interaction changed
+---
+
+# UX and Accessibility
+
+Review observable states against Caxri's workbench behavior and `DESIGN.md`, not generic taste.
+
+## Quick checklist
+
+- Terminal loses visual priority, multiple accents compete, or chrome uses saturated state color
+  where semantic foreground/background tokens should carry the design
+- Literal/default-palette color utilities bypass runtime theme tokens; imported themes or contrast
+  break
+- UI exposes implementation terms such as Runtime, hot reload, snapshot bytes, or internal error
+  codes instead of a user action and outcome
+- Focus, hover, disabled, loading, empty, success, error, exited, reconnecting, or recovery state is
+  missing or contradictory
+- Global shortcuts fire inside editable targets or modal dialogs, ignore IME/repeat behavior, or do
+  not render from live keybindings where the UI shows a hint
+- Interactive controls are not keyboard reachable; color-only status lacks text/ARIA; focus is lost
+  after dialogs, menus, tab moves, or Session switches
+- Deleting a Project/Session lacks a native confirmation naming the target and stating that files on
+  disk are untouched
+- External disk changes introduce a conflict prompt or preserve a dirty buffer contrary to the
+  explicit replace-with-notice product rule
+- Terminal exit/restart, tab preview/pinning, Git diff tabs, split panes, or Session-scoped state
+  diverges from the nearest established interaction without a recorded product decision
+- Large lists/diffs/search results become unusable without pagination, lazy loading,
+  virtualization, or bounded results
+
+## How to check
+
+1. Enumerate every visible state introduced or changed.
+2. Walk mouse, keyboard, and failure paths in the smallest relevant Electron workflow.
+3. Inspect computed behavior/theme tokens, not only class names.
+4. Compare with the nearest existing Caxri interaction and recorded acceptance criteria.
+
+## Rule sources
+
+- `DESIGN.md`
+- `.agents/skills/project-architecture/references/architecture.md` product behavior sections
+- Existing focused Playwright workflows in `e2e/`
+
+## Not violations
+
+- Taste differences within the semantic-token and spacing system
+- Missing decorative polish that does not hide state or block interaction
+- States unreachable through the real UI and typed contract
