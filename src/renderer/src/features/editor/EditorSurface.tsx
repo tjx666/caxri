@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { createElement, lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import { parseGitDiffTab } from '@shared/git-diff';
@@ -6,12 +6,29 @@ import { parseGitDiffTab } from '@shared/git-diff';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { useDocument } from '../../stores/session-view';
 import { cacheDocument, changeDocument } from './document-actions';
+import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
+import type { CodeEditorProps } from './CodeEditor';
 
-const CodeEditor = lazy(() => import('./CodeEditor'));
 const GitDiffEditor = lazy(() => import('./GitDiffEditor'));
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
+
+function LoadedCodeEditor(props: CodeEditorProps) {
+    const CodeEditor = useSyncExternalStore(
+        subscribeLoadedCodeEditor,
+        getLoadedCodeEditor,
+        getLoadedCodeEditor,
+    );
+    useEffect(() => {
+        if (!CodeEditor) void loadCodeEditor().catch(() => undefined);
+    }, [CodeEditor]);
+    return CodeEditor ? (
+        createElement(CodeEditor, props)
+    ) : (
+        <div className={emptyWorkClassName}>Loading editor…</div>
+    );
+}
 
 /**
  * Renders the focused editor tab. A tab whose content is not cached — restored from a previous run,
@@ -30,14 +47,12 @@ function FileEditorSurface({ path }: { path: string }) {
     if (!sessionId || !theme) return null;
     if (!document) return <div className={emptyWorkClassName}>Loading file…</div>;
     return (
-        <Suspense fallback={<div className={emptyWorkClassName}>Loading editor…</div>}>
-            <CodeEditor
-                path={editorModelPath(sessionId, path)}
-                value={document.content}
-                theme={theme}
-                onChange={(content) => changeDocument(path, content ?? '')}
-            />
-        </Suspense>
+        <LoadedCodeEditor
+            path={editorModelPath(sessionId, path)}
+            value={document.content}
+            theme={theme}
+            onChange={(content) => changeDocument(path, content ?? '')}
+        />
     );
 }
 

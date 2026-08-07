@@ -12,6 +12,7 @@
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
+- First JavaScript highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
 - Build/package: `bun run build`, `bun run package`, `bun run package:dmg`
 - GitHub Release: follow `RELEASING.md`; only a pushed `main` commit whose subject exactly matches
   `release: v<package-version>` triggers the remote macOS release workflow.

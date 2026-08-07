@@ -1,11 +1,13 @@
-import Editor from '@monaco-editor/react';
-import { useEffect } from 'react';
+import Editor, { type OnMount } from '@monaco-editor/react';
+import { useEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
+import { registerEditorRevealTarget } from './editor-reveal';
 
-interface CodeEditorProps {
+export interface CodeEditorProps {
     path: string;
     value: string;
     theme: ThemeTokens;
@@ -13,14 +15,36 @@ interface CodeEditorProps {
 }
 
 export default function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
+    const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+    const registrationRef = useRef<(() => void) | undefined>(undefined);
     useEffect(() => applyEditorTheme(theme), [theme]);
+    useEffect(() => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        registrationRef.current?.();
+        const unregister = registerEditorRevealTarget(path, editor);
+        registrationRef.current = unregister;
+        return () => {
+            unregister();
+            if (registrationRef.current === unregister) registrationRef.current = undefined;
+        };
+    }, [path]);
     return (
         <Editor
             path={path}
             saveViewState={false}
             value={value}
             theme="caxri-active"
-            beforeMount={() => applyEditorTheme(theme)}
+            beforeMount={() => {
+                markEditorBeforeMount();
+                applyEditorTheme(theme);
+            }}
+            onMount={(editor) => {
+                editorRef.current = editor;
+                registrationRef.current?.();
+                registrationRef.current = registerEditorRevealTarget(path, editor);
+                markEditorMounted();
+            }}
             onChange={onChange}
             options={{
                 automaticLayout: true,

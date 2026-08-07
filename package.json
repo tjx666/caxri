@@ -24,6 +24,7 @@
         "test:e2e": "bun run build && playwright test",
         "test:smoke": "playwright test e2e/smoke.e2e.ts --reporter=line",
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
+        "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "electron-vite build",
         "package": "bun run build && electron-builder --mac dir",
         "package:dmg": "bun run build && electron-builder --mac dmg",

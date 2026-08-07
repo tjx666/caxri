@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/useCommandShortcuts';
 import { useExternalDocumentSync } from './features/editor/external-sync';
+import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
 import { CommandPalette } from './features/palette/CommandPalette';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
@@ -59,6 +60,10 @@ export default function App() {
     useEffect(() => {
         if (theme) applyCssTheme(theme);
     }, [theme]);
+    useEffect(() => {
+        if (!attached) return;
+        return scheduleCodeEditorPreload();
+    }, [attached]);
     /**
      * Only the committed width reaches the DOM through React; a drag in progress writes the same
      * custom property directly (see `PanelDivider`), so this effect never fires mid-gesture.
