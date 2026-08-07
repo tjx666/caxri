@@ -24,6 +24,9 @@ test('smoke: launches, creates a shell Session, and runs a Terminal command', as
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
+        if (process.platform === 'darwin') {
+            expect(await running.app.evaluate(() => process.title)).toBe('Caxri Dev');
+        }
         await expect(running.page.getByRole('img', { name: 'Caxri' })).toBeVisible();
         await createShellSession(running.page);
         await typeTerminal(running.page, 'echo caxri-smoke-ok');

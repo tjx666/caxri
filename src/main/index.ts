@@ -45,6 +45,13 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 process.env.CAXRI_APP_VERSION =
     typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
 process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
+/**
+ * Work around macOS deriving the native application-menu name from Electron's development process
+ * title. `app.setName()` only changes Electron's internal name, so keep this unsupported behavior
+ * limited to unpackaged macOS launches until Electron exposes a development-host naming API.
+ * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
+ */
+if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
 if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
 let mainWindow: BrowserWindow | undefined;
 let supervisor: RuntimeSupervisor;
