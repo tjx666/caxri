@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
+import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigurationService, findKeybindingConflicts } from '../configuration';
 
 const temporaryDirectories: string[] = [];
@@ -57,6 +58,32 @@ describe('ConfigurationService', () => {
                     event.payload.error?.includes('settings.jsonc'),
             ),
         ).toBe(true);
+        await service.close();
+    });
+
+    it('merges file-tree exclusions with defaults without hiding dependency directories', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-files-exclude-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigurationService(directory, () => undefined);
+        await service.initialize();
+
+        expect(service.getSettings().value['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
+        expect(service.getSettings().value['files.exclude']).not.toHaveProperty('**/node_modules');
+        const source = `${JSON.stringify(
+            {
+                ...service.getSettings().value,
+                'files.exclude': { '**/.git': false, '**/generated': true },
+            },
+            null,
+            2,
+        )}\n`;
+
+        await service.updateSettings(source);
+        expect(service.getSettings().value['files.exclude']).toMatchObject({
+            '**/.git': false,
+            '**/.hg': true,
+            '**/generated': true,
+        });
         await service.close();
     });
 

@@ -116,10 +116,21 @@ export const SETTINGS_BOUNDS = {
     },
 } as const;
 
+/** VS Code-style defaults for file-tree visibility; dependency and build output stay visible. */
+export const DEFAULT_FILES_EXCLUDE = {
+    '**/.git': true,
+    '**/.hg': true,
+    '**/.svn': true,
+    '**/.DS_Store': true,
+    '**/CVS': true,
+    '**/Thumbs.db': true,
+} as const;
+
 export const appSettingsSchema = z.object({
     'session.defaultAgent': terminalKindSchema.nullable(),
     'terminal.fontSize': z.number(),
     'terminal.scrollback': z.number(),
+    'files.exclude': z.record(z.string(), z.boolean()),
     'files.maxFileBytes': z.number(),
 });
 

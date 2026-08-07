@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, LoaderCircle, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ListFilter, LoaderCircle, Search, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
@@ -258,16 +258,23 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
         () => buildNameSearchTree(result.data?.matches ?? []),
         [result.data?.matches],
     );
+    const SearchModeIcon = mode === 'name' ? ListFilter : Search;
 
     return (
         <div className="project-search flex min-h-0 flex-1 flex-col">
             <div className="search-controls flex flex-col gap-1.5 border-b border-border p-2">
                 <div className="flex h-7 items-center gap-1 rounded border border-border bg-background px-2 focus-within:border-accent">
-                    <Search size={13} className="shrink-0 text-muted" />
+                    <SearchModeIcon
+                        size={14}
+                        className="shrink-0 text-muted"
+                        data-search-mode-icon={mode}
+                    />
                     <input
                         className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none placeholder:text-muted"
-                        aria-label="Search Project files"
-                        placeholder="Search files"
+                        aria-label={
+                            mode === 'name' ? 'Find Project files' : 'Search Project contents'
+                        }
+                        placeholder={mode === 'name' ? 'Find files' : 'Search text'}
                         value={query}
                         onChange={(event) => setQuery(event.currentTarget.value)}
                     />
@@ -337,21 +344,25 @@ export function ProjectSearch({ sessionId, children }: { sessionId: string; chil
                     ))}
                 </div>
                 {mode === 'content' && (
-                    <div className="grid grid-cols-2 gap-1">
-                        <input
-                            className="h-6 min-w-0 rounded border border-border bg-background px-1.5 text-[11px] text-foreground outline-none focus:border-accent"
-                            aria-label="Files to include"
-                            placeholder="Include"
-                            value={include}
-                            onChange={(event) => setInclude(event.currentTarget.value)}
-                        />
-                        <input
-                            className="h-6 min-w-0 rounded border border-border bg-background px-1.5 text-[11px] text-foreground outline-none focus:border-accent"
-                            aria-label="Files to exclude"
-                            placeholder="Exclude"
-                            value={exclude}
-                            onChange={(event) => setExclude(event.currentTarget.value)}
-                        />
+                    <div className="flex flex-col gap-1.5 pt-0.5">
+                        <label className="flex flex-col gap-1 text-[11px] text-muted">
+                            <span>Files to include</span>
+                            <input
+                                className="h-7 min-w-0 rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none placeholder:text-muted focus:border-accent"
+                                placeholder="Files to include (e.g. *.ts, src/**)"
+                                value={include}
+                                onChange={(event) => setInclude(event.currentTarget.value)}
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-muted">
+                            <span>Files to exclude</span>
+                            <input
+                                className="h-7 min-w-0 rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none placeholder:text-muted focus:border-accent"
+                                placeholder="Files to exclude (e.g. *.min.js, dist/**)"
+                                value={exclude}
+                                onChange={(event) => setExclude(event.currentTarget.value)}
+                            />
+                        </label>
                     </div>
                 )}
             </div>

@@ -1,7 +1,7 @@
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
-import type { FileDocument, FileEntry } from '../../shared/types';
+import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
@@ -10,6 +10,7 @@ import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
 export interface FileServiceOptions extends WatcherServiceOptions {
+    fileTreeExcludes?: () => AppSettings['files.exclude'];
     openFile?: OpenFile;
     search?: SearchServiceOptions;
 }
@@ -43,8 +44,11 @@ export class FileService {
             this.resolveSessionPath(sessionId, input);
         this.documents = new DocumentService(resolveSessionPath, logger, maxFileBytes, options);
         this.watcher = new WatcherService(resolveSessionPath, emit, logger, options);
-        this.listing = new ListingService(resolveSessionPath, logger, (sessionId, path) =>
-            this.watcher.noteDirectoryListed(sessionId, path),
+        this.listing = new ListingService(
+            resolveSessionPath,
+            logger,
+            options.fileTreeExcludes ?? (() => ({})),
+            (sessionId, path) => this.watcher.noteDirectoryListed(sessionId, path),
         );
         this.searcher = new SearchService(
             resolveSessionPath,

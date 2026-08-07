@@ -3,6 +3,7 @@
  * TypeScript model can never drift. This module stays as the stable import path for consumers.
  */
 export {
+    DEFAULT_FILES_EXCLUDE,
     keybindingSchema,
     SETTINGS_BOUNDS,
     type AgentActivityState,

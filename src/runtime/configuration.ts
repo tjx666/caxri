@@ -12,6 +12,7 @@ import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import {
+    DEFAULT_FILES_EXCLUDE,
     keybindingSchema as sharedKeybindingSchema,
     SETTINGS_BOUNDS,
     type AppSettings,
@@ -30,6 +31,15 @@ interface WatcherSubscription {
 
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
+const MAX_FILES_EXCLUDE_PATTERNS = 100;
+
+const filesExcludeSchema = z
+    .record(z.string().min(1).max(256), z.boolean())
+    .refine((value) => Object.keys(value).length <= MAX_FILES_EXCLUDE_PATTERNS, {
+        message: `files.exclude supports at most ${MAX_FILES_EXCLUDE_PATTERNS} patterns`,
+    })
+    .default({})
+    .transform((value) => ({ ...DEFAULT_FILES_EXCLUDE, ...value }));
 
 /**
  * Bounds and defaults come from `SETTINGS_BOUNDS` in `src/shared/ipc/domain.ts`, keeping the strict
@@ -52,6 +62,7 @@ const settingsSchema = z.object({
         .min(SETTINGS_BOUNDS['terminal.scrollback'].min)
         .max(SETTINGS_BOUNDS['terminal.scrollback'].max)
         .default(SETTINGS_BOUNDS['terminal.scrollback'].default),
+    'files.exclude': filesExcludeSchema,
     'files.maxFileBytes': z
         .number()
         .int()
@@ -66,6 +77,7 @@ const defaultSettings: AppSettings = {
     'session.defaultAgent': null,
     'terminal.fontSize': SETTINGS_BOUNDS['terminal.fontSize'].default,
     'terminal.scrollback': SETTINGS_BOUNDS['terminal.scrollback'].default,
+    'files.exclude': { ...DEFAULT_FILES_EXCLUDE },
     'files.maxFileBytes': SETTINGS_BOUNDS['files.maxFileBytes'].default,
 };
 

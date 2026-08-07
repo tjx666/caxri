@@ -82,6 +82,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         send,
         logger,
         () => configuration.getSettings().value['files.maxFileBytes'],
+        {
+            fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
+        },
     );
     const agents = new AgentService(logger, deps.agentAdapters);
     const coordinator = new AgentCoordinator(database, agents, send, logger, {

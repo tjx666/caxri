@@ -1,13 +1,12 @@
 import { sep } from 'node:path';
 
 /**
- * Directory names excluded from listings, watcher subscriptions, and polling signatures.
+ * Directory names excluded from Project search and watcher traversal for bounded Runtime work.
  *
  * VCS metadata (`.git`, `.hg`, `.svn`) and dependency/build output directories are large,
- * frequently-churning trees that add noise to the file tree, Git diffs, and watcher traffic
- * without adding value.
+ * frequently-churning trees. File-tree visibility is configured independently by `files.exclude`.
  */
-const IGNORED_SEGMENTS = new Set([
+const TRAVERSAL_EXCLUDED_SEGMENTS = new Set([
     '.git',
     '.hg',
     '.svn',
@@ -24,25 +23,28 @@ const IGNORED_SEGMENTS = new Set([
 ]);
 
 /**
- * File-name suffixes excluded from listings, watcher subscriptions, and polling signatures.
+ * File-name suffixes excluded from Project search and polling signatures.
  *
  * `.db-wal` matches SQLite's write-ahead-log file. Caxri's own database runs in WAL mode (see
  * `db/connection.ts`), and a WAL file is rewritten on nearly every transaction; surfacing or
  * watching one would create constant listing/watcher churn for no benefit to the user.
  */
-const IGNORED_SUFFIXES = ['.db-wal'];
+const TRAVERSAL_EXCLUDED_SUFFIXES = ['.db-wal'];
 
-/** True when a bare file or directory name should be excluded from a listing or signature scan. */
-export function isIgnoredName(name: string): boolean {
-    return IGNORED_SEGMENTS.has(name) || IGNORED_SUFFIXES.some((suffix) => name.endsWith(suffix));
+/** True when bounded search or polling should skip a bare file or directory name. */
+export function isTraversalExcludedName(name: string): boolean {
+    return (
+        TRAVERSAL_EXCLUDED_SEGMENTS.has(name) ||
+        TRAVERSAL_EXCLUDED_SUFFIXES.some((suffix) => name.endsWith(suffix))
+    );
 }
 
-/** True when any path segment matches an ignored directory name. */
-export function isIgnoredPath(relativePath: string): boolean {
-    return relativePath.split(sep).some((segment) => IGNORED_SEGMENTS.has(segment));
+/** True when bounded search or watching should skip any segment in a relative path. */
+export function isTraversalExcludedPath(relativePath: string): boolean {
+    return relativePath.split(sep).some((segment) => TRAVERSAL_EXCLUDED_SEGMENTS.has(segment));
 }
 
-export const WATCHER_IGNORE_PATTERNS = [...IGNORED_SEGMENTS].flatMap((segment) => [
+export const WATCHER_EXCLUDE_PATTERNS = [...TRAVERSAL_EXCLUDED_SEGMENTS].flatMap((segment) => [
     `**/${segment}`,
     `**/${segment}/**`,
 ]);

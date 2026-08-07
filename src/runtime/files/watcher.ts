@@ -11,7 +11,11 @@ import type { FileChange } from '../../shared/types';
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
 import { isOutsideRoot } from '../path-security';
 import type { ResolveSessionPath } from './documents';
-import { isIgnoredName, isIgnoredPath, WATCHER_IGNORE_PATTERNS } from './ignore-rules';
+import {
+    isTraversalExcludedName,
+    isTraversalExcludedPath,
+    WATCHER_EXCLUDE_PATTERNS,
+} from './ignore-rules';
 
 const MAX_PENDING_WATCH_EVENTS = 5_000;
 const MAX_POLLED_DIRECTORIES = 64;
@@ -110,6 +114,10 @@ export class WatcherService {
     /** Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick. */
     noteDirectoryListed(sessionId: string, path: string): void {
         if (sessionId !== this.watchedSessionId) return;
+        if (this.watchedRoot) {
+            const relativePath = relative(this.watchedRoot, path);
+            if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath)) return;
+        }
         rememberPolledDirectory(
             this.listedDirectories,
             path,
@@ -188,11 +196,12 @@ export class WatcherService {
                     }
                     for (const event of events) {
                         const relativePath = relative(root, event.path);
-                        if (isOutsideRoot(relativePath) || isIgnoredPath(relativePath)) continue;
+                        if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath))
+                            continue;
                         void this.queueNativeEvent(sessionId, event.type, event.path, generation);
                     }
                 },
-                { backend: NATIVE_WATCHER_BACKEND, ignore: WATCHER_IGNORE_PATTERNS },
+                { backend: NATIVE_WATCHER_BACKEND, ignore: WATCHER_EXCLUDE_PATTERNS },
             );
             if (generation !== this.watchGeneration) {
                 await watcher.unsubscribe();
@@ -321,7 +330,7 @@ export class WatcherService {
         const entries = await readdir(directory, { withFileTypes: true });
         const signatures = new Map<string, string>();
         await mapWithConcurrency(
-            entries.filter((entry) => !isIgnoredName(entry.name)),
+            entries.filter((entry) => !isTraversalExcludedName(entry.name)),
             MAX_CONCURRENT_SIGNATURE_STATS,
             async (entry) => {
                 const path = resolve(directory, entry.name);

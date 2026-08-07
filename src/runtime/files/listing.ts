@@ -1,5 +1,5 @@
 import { lstat, readdir, realpath } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 
 import { CaxriError, errorMessage } from '../../shared/ipc/errors';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
@@ -7,7 +7,7 @@ import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileEntry } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
-import { isIgnoredName } from './ignore-rules';
+import { matchesFileTreeExclude, type FileTreeExcludes } from './file-tree-excludes';
 
 const MAX_CONCURRENT_ENTRY_STATS = 32;
 
@@ -21,16 +21,22 @@ export class ListingService {
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
         private readonly logger: StructuredLogger,
+        private readonly fileTreeExcludes: () => FileTreeExcludes,
         private readonly onDirectoryListed?: DirectoryListedListener,
     ) {}
 
     list(sessionId: string, directory?: string): Promise<FileEntry[]> {
-        return this.listRequests.run(JSON.stringify([sessionId, directory ?? null]), () =>
-            this.loadList(sessionId, directory),
+        const excludes = this.fileTreeExcludes();
+        return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
+            this.loadList(sessionId, directory, excludes),
         );
     }
 
-    private async loadList(sessionId: string, directory?: string): Promise<FileEntry[]> {
+    private async loadList(
+        sessionId: string,
+        directory: string | undefined,
+        excludes: FileTreeExcludes,
+    ): Promise<FileEntry[]> {
         const startedAt = performance.now();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
         this.onDirectoryListed?.(sessionId, path);
@@ -48,7 +54,10 @@ export class ListingService {
             (await realpath(path)) !== path
         )
             throw new CaxriError('IO', 'Directory changed during listing');
-        const visible = entries.filter((entry) => !isIgnoredName(entry.name));
+        const visible = entries.filter((entry) => {
+            const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
+            return !matchesFileTreeExclude(relativePath, excludes);
+        });
         const settled = await mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
             this.describeEntry(path, entry.name),
         );

@@ -32,6 +32,13 @@ function invalidateFileDependentQueries(
     });
 }
 
+/** `files.exclude` is global, so any valid settings reload refreshes every visible tree listing. */
+function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient>): void {
+    void queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'files.list',
+    });
+}
+
 /**
  * Wires `caxri.onEvent` runtime pushes to targeted query invalidation. Mounted once at the app root
  * (see `App.tsx`) alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project
@@ -43,6 +50,10 @@ export function useRuntimeQueryInvalidation(): void {
     useEffect(() => {
         const pendingTimers = new Map<string, number>();
         const unsubscribe = caxri.onEvent((event) => {
+            if (event.event === 'settings.changed') {
+                if (!event.payload.error) invalidateFileTreeQueries(queryClient);
+                return;
+            }
             if (event.event !== 'files.changed') return;
             const { sessionId } = event.payload;
             const existing = pendingTimers.get(sessionId);

@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { createProjectSession, launchCaxri } from './helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -33,8 +33,48 @@ test('Project search opens name results and reveals grouped content matches', as
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const search = running.page.getByRole('textbox', { name: 'Search Project files' });
+        const nameSearch = running.page.getByRole('textbox', { name: 'Find Project files' });
         const modeSegments = running.page.locator('.search-mode-segments');
+        await expect(running.page.locator('[data-search-mode-icon="name"]')).toBeVisible();
+        await expect(running.page.getByRole('textbox', { name: 'Files to include' })).toHaveCount(
+            0,
+        );
+        await expect(
+            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+        ).toBeVisible();
+        const settings = await pageRequest<{
+            value: Record<string, unknown> & { 'files.exclude': Record<string, boolean> };
+        }>(running.page, 'settings.get');
+        const hiddenSource = `${JSON.stringify(
+            {
+                ...settings.value,
+                'files.exclude': {
+                    ...settings.value['files.exclude'],
+                    '**/node_modules': true,
+                },
+            },
+            null,
+            2,
+        )}\n`;
+        await pageRequest(running.page, 'settings.update', { source: hiddenSource });
+        await expect(
+            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+        ).toHaveCount(0);
+        const visibleSource = `${JSON.stringify(
+            {
+                ...settings.value,
+                'files.exclude': {
+                    ...settings.value['files.exclude'],
+                    '**/node_modules': false,
+                },
+            },
+            null,
+            2,
+        )}\n`;
+        await pageRequest(running.page, 'settings.update', { source: visibleSource });
+        await expect(
+            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+        ).toBeVisible();
         const [nameBounds, contentBounds, segmentBounds] = await Promise.all([
             running.page.getByRole('button', { name: 'Name', exact: true }).boundingBox(),
             running.page.getByRole('button', { name: 'Content', exact: true }).boundingBox(),
@@ -46,7 +86,7 @@ test('Project search opens name results and reveals grouped content matches', as
         expect(Math.abs(nameBounds!.width - contentBounds!.width)).toBeLessThanOrEqual(1);
         expect(nameBounds!.width + contentBounds!.width).toBeGreaterThan(segmentBounds!.width - 8);
 
-        await search.fill('target-name');
+        await nameSearch.fill('target-name');
         const nameResult = running.page
             .locator('.search-result')
             .filter({ hasText: 'target-name.ts' });
@@ -61,9 +101,13 @@ test('Project search opens name results and reveals grouped content matches', as
         ).toBeVisible();
 
         await running.page.getByRole('button', { name: 'Content', exact: true }).click();
+        const contentSearch = running.page.getByRole('textbox', {
+            name: 'Search Project contents',
+        });
+        await expect(running.page.locator('[data-search-mode-icon="content"]')).toBeVisible();
         await running.page.getByRole('textbox', { name: 'Files to include' }).fill('src/**');
         await running.page.getByRole('textbox', { name: 'Files to exclude' }).fill('*.test.ts');
-        await search.fill('magicneedle');
+        await contentSearch.fill('magicneedle');
         const sourceGroup = running.page.locator(
             '.search-result-group[title="src/target-name.ts"]',
         );
@@ -80,15 +124,15 @@ test('Project search opens name results and reveals grouped content matches', as
         await matchCase.click();
         await expect(sourceGroup).toBeVisible();
 
-        await search.fill('[');
+        await contentSearch.fill('[');
         await running.page.getByRole('button', { name: 'Use Regular Expression' }).click();
         await expect(running.page.locator('.project-search [role="alert"]')).toContainText(
             'Search failed.',
         );
-        await search.fill('MagicN[a-z]+');
+        await contentSearch.fill('MagicN[a-z]+');
         await expect(sourceGroup).toBeVisible();
 
-        await search.fill('MagicNeedle');
+        await contentSearch.fill('MagicNeedle');
         await running.page.getByRole('button', { name: 'Use Regular Expression' }).click();
         const contentResult = sourceGroup.locator('.search-result').filter({ hasText: '80' });
         await expect(contentResult).toContainText('const MagicNeedle = Token;');

@@ -286,6 +286,83 @@ describe('FileService', () => {
         }
     });
 
+    it('keeps dependency and build directories visible unless files.exclude hides them', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-tree-excludes-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await Promise.all([
+            mkdir(join(root, '.git'), { recursive: true }),
+            mkdir(join(root, 'dist'), { recursive: true }),
+            mkdir(join(root, 'node_modules'), { recursive: true }),
+        ]);
+        await writeFile(join(root, 'visible.ts'), 'visible', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        let excludes: Record<string, boolean> = { '**/.git': true };
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            { fileTreeExcludes: () => excludes },
+        );
+
+        expect((await service.list(session.id)).map((entry) => entry.name)).toEqual([
+            'dist',
+            'node_modules',
+            'visible.ts',
+        ]);
+        excludes = { '**/.git': false, '**/dist': true };
+        expect((await service.list(session.id)).map((entry) => entry.name)).toEqual([
+            '.git',
+            'node_modules',
+            'visible.ts',
+        ]);
+        database.close();
+    });
+
+    it('keeps visible dependency directories out of fallback polling', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-tree-poll-excludes-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const dependencies = join(root, 'node_modules');
+        await mkdir(dependencies, { recursive: true });
+        await writeFile(join(dependencies, 'existing.js'), 'existing', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const events: string[] = [];
+        const service = new FileService(
+            database,
+            (event) => {
+                if (event.event === 'files.changed')
+                    events.push(...event.payload.changes.map((change) => change.path));
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            {
+                pollIntervalMs: 30,
+                subscribe: () => Promise.reject(new Error('native watcher unavailable')),
+            },
+        );
+
+        await service.watchSession(session.id);
+        await service.list(session.id, dependencies);
+        const rootFile = join(root, 'root-change.ts');
+        const dependencyFile = join(dependencies, 'dependency-change.js');
+        await Promise.all([
+            writeFile(rootFile, 'root', 'utf8'),
+            writeFile(dependencyFile, 'dependency', 'utf8'),
+        ]);
+        const canonicalRootFile = await realpath(rootFile);
+        const canonicalDependencyFile = await realpath(dependencyFile);
+
+        await expect.poll(() => events, { timeout: 3_000 }).toContain(canonicalRootFile);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect(events).not.toContain(canonicalDependencyFile);
+        await service.close();
+        database.close();
+    });
+
     it('shares concurrent directory reads and records one timed file-list operation', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-'));
         temporaryDirectories.push(directory);

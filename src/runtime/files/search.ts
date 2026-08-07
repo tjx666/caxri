@@ -7,7 +7,7 @@ import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument, FileSearchMatch } from '../../shared/types';
 import type { ResolveSessionPath } from './documents';
-import { isIgnoredName } from './ignore-rules';
+import { isTraversalExcludedName } from './ignore-rules';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_RESULTS = 500;
@@ -182,7 +182,7 @@ export class SearchService {
                     truncated = true;
                     break;
                 }
-                if (isIgnoredName(entry.name)) continue;
+                if (isTraversalExcludedName(entry.name)) continue;
                 const path = join(directory, entry.name);
                 const relativePath = normalizedRelative(root, path);
                 if (matchesGlobs(relativePath, exclude)) continue;
