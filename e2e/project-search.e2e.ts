@@ -89,9 +89,7 @@ test('Project search opens name results and reveals grouped content matches', as
         await running.page.mouse.move(600, 300);
         await expect(searchButton).toHaveAttribute('aria-pressed', 'true');
         await expect(searchButton).toHaveCSS('opacity', '1');
-        expect(
-            await searchButton.evaluate((element) => getComputedStyle(element).backgroundColor),
-        ).not.toBe('rgba(0, 0, 0, 0)');
+        await expect(searchButton).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
         const [nameBounds, contentBounds, segmentBounds] = await Promise.all([
             running.page.getByRole('button', { name: 'Name', exact: true }).boundingBox(),
             running.page.getByRole('button', { name: 'Content', exact: true }).boundingBox(),
