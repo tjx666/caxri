@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '@shared/ipc/events';
+import type { BootstrapState, SessionState } from '@shared/types';
 
 const mocks = vi.hoisted(() => {
     let listener: ((event: RuntimeEvent) => void) | undefined;
@@ -12,7 +13,9 @@ const mocks = vi.hoisted(() => {
                 listener = undefined;
             };
         }),
-        request: vi.fn(() => Promise.resolve({ configurationErrors: [] })),
+        request: vi.fn<(method?: unknown) => Promise<unknown>>(() =>
+            Promise.resolve({ configurationErrors: [] }),
+        ),
         reset: () => {
             listener = undefined;
         },
@@ -23,12 +26,18 @@ vi.mock('../lib/caxri', () => ({
     caxri: { onEvent: mocks.onEvent, request: mocks.request },
 }));
 
-import { subscribeWorkbenchEvents } from './workbench';
+import {
+    patchSessionState,
+    refreshWorkbench,
+    subscribeWorkbenchEvents,
+    useWorkbenchStore,
+} from './workbench';
 
 afterEach(() => {
     mocks.request.mockClear();
     mocks.onEvent.mockClear();
     mocks.reset();
+    useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
 });
 
 describe('workbench Runtime events', () => {
@@ -45,5 +54,37 @@ describe('workbench Runtime events', () => {
         mocks.emit({ event: 'state.changed', payload: { reason: 'terminal.exit' } });
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
         unsubscribe();
+    });
+});
+
+describe('workbench Session state', () => {
+    it('keeps an optimistic change when an older bootstrap request resolves', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const staleBootstrap = {
+            configurationErrors: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        const bootstrapRequest = Promise.withResolvers<BootstrapState>();
+        const updateRequest = Promise.withResolvers<SessionState>();
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'app.bootstrap') return bootstrapRequest.promise;
+            if (method === 'session.updateState') return updateRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        useWorkbenchStore.setState({ bootstrap: staleBootstrap });
+
+        const refresh = refreshWorkbench();
+        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        patchSessionState(statusState);
+        bootstrapRequest.resolve(staleBootstrap);
+        await refresh;
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
+        updateRequest.resolve(statusState);
     });
 });

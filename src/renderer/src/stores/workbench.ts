@@ -26,14 +26,30 @@ interface WorkbenchState {
 let inFlight: Promise<void> | undefined;
 let queued: Promise<void> | undefined;
 let configurationErrorsReported = false;
+let nextSessionPatchRevision = 0;
+const pendingSessionPatches = new Map<string, { revision: number; state: SessionState }>();
+
+/**
+ * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer
+ * write. Preserve the latest unacknowledged Session state so that stale Runtime snapshots cannot
+ * make a just-selected tab or layout visibly jump backwards.
+ */
+function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
+    if (pendingSessionPatches.size === 0) return state;
+    const sessionStates = state.sessionStates.map(
+        (sessionState) => pendingSessionPatches.get(sessionState.sessionId)?.state ?? sessionState,
+    );
+    return { ...state, sessionStates };
+}
 
 function applySnapshot(state: BootstrapState): void {
+    const current = applyPendingSessionPatches(state);
     useWorkbenchStore.setState((previous) => ({
-        bootstrap: mergeStructurally(previous.bootstrap, state),
+        bootstrap: mergeStructurally(previous.bootstrap, current),
     }));
     if (configurationErrorsReported) return;
     configurationErrorsReported = true;
-    if (state.configurationErrors?.[0]) pushToast('error', state.configurationErrors[0]);
+    if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
 }
 
 function loadBootstrap(): Promise<void> {
@@ -76,6 +92,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     patchSessionState(next, failureLabel = 'Session layout could not be saved') {
         const bootstrap = get().bootstrap;
         if (!bootstrap) return;
+        const revision = ++nextSessionPatchRevision;
+        pendingSessionPatches.set(next.sessionId, { revision, state: next });
         set({
             bootstrap: {
                 ...bootstrap,
@@ -84,9 +102,17 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 ),
             },
         });
-        void caxri.request('session.updateState', next).catch((error: unknown) => {
-            pushToast('error', describeFailure(error, failureLabel));
-        });
+        const finish = (): void => {
+            if (pendingSessionPatches.get(next.sessionId)?.revision === revision)
+                pendingSessionPatches.delete(next.sessionId);
+        };
+        void caxri
+            .request('session.updateState', next)
+            .then(finish)
+            .catch((error: unknown) => {
+                finish();
+                pushToast('error', describeFailure(error, failureLabel));
+            });
     },
 }));
 
