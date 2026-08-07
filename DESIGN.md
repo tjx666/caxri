@@ -74,10 +74,10 @@ healthy state shows nothing. The chip is informational — recovery lives in the
 Relaunch dialog, so the chip never fakes an action it cannot perform.
 
 **Sidebar** — flatten the double-box nesting: project groups are a disclosure row
-(caret + name + count, no border, no card), sessions are flat rows indented 16px.
-Selection = `--elevated` fill (radius 6), no border. The single accent use here: a 2px
-left bar on the active session row only when the sidebar owns focus. Activity dots keep
-color + gain `title`/`aria-label` text.
+(Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows
+indented 16px. Selection = `--elevated` fill (radius 6), no border. The single accent
+use here: a 2px left bar on the active session row only when the sidebar owns focus.
+Activity dots keep color + gain `title`/`aria-label` text.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
