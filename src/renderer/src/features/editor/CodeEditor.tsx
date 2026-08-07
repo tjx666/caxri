@@ -8,17 +8,38 @@ import { monaco } from '../../lib/monaco';
 import { resolveEditorLanguage } from './editor-language';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
+import { useEditorStatusStore } from './editor-status';
 
 export interface CodeEditorProps {
     path: string;
+    statusKey?: string;
     value: string;
     theme: ThemeTokens;
     onChange: (content: string | undefined) => void;
 }
 
-export function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
+type MonacoCodeEditor = Parameters<OnMount>[0];
+
+function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undefined): void {
+    if (!statusKey) return;
+    const model = editor.getModel();
+    const selection = editor.getSelection();
+    if (!model || !selection) return;
+    const startOffset = model.getOffsetAt(selection.getStartPosition());
+    const endOffset = model.getOffsetAt(selection.getEndPosition());
+    useEditorStatusStore.getState().setStatus(statusKey, {
+        line: selection.positionLineNumber,
+        column: selection.positionColumn,
+        selectedCharacters: Math.max(0, endOffset - startOffset),
+        languageId: model.getLanguageId(),
+    });
+}
+
+export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEditorProps) {
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
     const registrationRef = useRef<(() => void) | undefined>(undefined);
+    const cursorSubscriptionRef = useRef<{ dispose(): void } | undefined>(undefined);
+    const statusKeyRef = useRef(statusKey);
     const language = resolveEditorLanguage(path);
     useEffect(() => applyEditorTheme(theme), [theme]);
     useEffect(() => {
@@ -43,6 +64,22 @@ export function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
             if (registrationRef.current === unregister) registrationRef.current = undefined;
         };
     }, [language, path]);
+    useEffect(() => {
+        statusKeyRef.current = statusKey;
+        const frame = window.requestAnimationFrame(() => {
+            if (editorRef.current) publishEditorStatus(editorRef.current, statusKey);
+        });
+        return () => {
+            window.cancelAnimationFrame(frame);
+            if (statusKey) useEditorStatusStore.getState().clearStatus(statusKey);
+        };
+    }, [path, statusKey]);
+    useEffect(
+        () => () => {
+            cursorSubscriptionRef.current?.dispose();
+        },
+        [],
+    );
     return (
         <Editor
             path={path}
@@ -56,8 +93,13 @@ export function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
             }}
             onMount={(editor) => {
                 editorRef.current = editor;
+                cursorSubscriptionRef.current?.dispose();
+                cursorSubscriptionRef.current = editor.onDidChangeCursorSelection(() =>
+                    publishEditorStatus(editor, statusKeyRef.current),
+                );
                 registrationRef.current?.();
                 registrationRef.current = registerEditorRevealTarget(path, editor);
+                publishEditorStatus(editor, statusKeyRef.current);
                 markEditorMounted();
             }}
             onChange={onChange}

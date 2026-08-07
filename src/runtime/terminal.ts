@@ -5,12 +5,18 @@ import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
-import type { TerminalKind, TerminalRecord, TerminalSnapshot } from '../shared/types';
+import type {
+    TerminalKind,
+    TerminalRecord,
+    TerminalResourceUsage,
+    TerminalSnapshot,
+} from '../shared/types';
 import { discoverExecutable } from './agents/discovery';
 import type { CaxriDatabase } from './db/repository';
 import type { ShutdownReason } from './session-policy';
 import { SingleFlight } from './single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
+import { sampleTerminalResources } from './terminal-resources';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
@@ -48,6 +54,7 @@ export interface TerminalManagerOptions {
     resolveExecutable?: (kind: TerminalKind) => Promise<string>;
     snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
+    sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
 }
 
 export class TerminalManager {
@@ -57,6 +64,7 @@ export class TerminalManager {
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
+    private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -67,6 +75,7 @@ export class TerminalManager {
         this.resolveExecutableOverride = options.resolveExecutable;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
+        this.sampleResources = options.sampleResources ?? sampleTerminalResources;
     }
 
     start(
@@ -374,6 +383,11 @@ export class TerminalManager {
 
     processId(terminalId: string): number | undefined {
         return this.terminals.get(terminalId)?.process.pid;
+    }
+
+    resources(terminalId: string): Promise<TerminalResourceUsage | null> {
+        const pid = this.processId(terminalId);
+        return pid === undefined ? Promise.resolve(null) : this.sampleResources(pid);
     }
 
     /**

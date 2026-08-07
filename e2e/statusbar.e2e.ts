@@ -33,7 +33,8 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
         { cwd: root },
     );
     await writeFile(join(root, 'tracked.txt'), 'before\n', 'utf8');
-    await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
+    await writeFile(join(root, 'source.ts'), 'const first = 1;\nconst second = 2;\n', 'utf8');
+    await execFileAsync('git', ['add', 'tracked.txt', 'source.ts'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     await execFileAsync('git', ['branch', 'feature/local-picker'], { cwd: root });
     await writeFile(join(root, 'tracked.txt'), 'after\nadded\n', 'utf8');
@@ -45,6 +46,10 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
     });
     try {
         await createProjectSession(running.page);
+        await expect(running.page.locator('.statusbar-count')).toHaveCount(0);
+        await expect(running.page.locator('.statusbar-toggle')).toHaveCount(0);
+        await expect(running.page.getByLabel(/^Terminal memory: [\d.]+ MB$/)).toBeVisible();
+        await expect(running.page.getByLabel(/^Terminal \d+ child processes?$/)).toBeVisible();
         const project = running.page.getByRole('button', {
             name: 'Open project files: status-project',
         });
@@ -93,7 +98,7 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
             })
             .toBe('feature/local-picker');
 
-        await running.page.getByRole('button', { name: 'Hide Inspector' }).click();
+        await running.page.keyboard.press('Meta+]');
         await project.click();
         await expect(running.page.locator('.inspector')).toBeVisible();
         await expect(running.page.getByRole('button', { name: 'Collapse Folders' })).toBeVisible();
@@ -107,6 +112,21 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
             }),
         ).toBeVisible();
         expect((await readFile(ghCalls, 'utf8')).trim().split('\n')).toHaveLength(2);
+
+        await project.click();
+        await running.page.getByRole('button', { name: 'source.ts', exact: true }).click();
+        await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
+        await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();
+        await expect(running.page.getByLabel(/^Git blame: Caxri E2E, .+, initial$/)).toBeVisible();
+        const editor = running.page.locator('.monaco-editor');
+        await editor.click({ position: { x: 80, y: 12 } });
+        await running.page.keyboard.press('Shift+ArrowRight');
+        await expect(running.page.getByLabel(/1 characters selected/)).toBeVisible();
+        await running.page.keyboard.type('x');
+        await running.page.keyboard.press('Meta+S');
+        await expect(
+            running.page.getByLabel('Git blame: uncommitted changes on line 1'),
+        ).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

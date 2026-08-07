@@ -1,14 +1,18 @@
 import {
+    Braces,
     FileDiff,
     GitBranch,
+    GitCommitHorizontal,
     GitPullRequest,
+    MemoryStick,
     Monitor,
-    PanelRight,
+    Workflow,
     type LucideIcon,
 } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { parseGitDiffTab } from '@shared/git-diff';
 import type { CaxriMethod } from '@shared/ipc';
 import type { BootstrapState } from '@shared/types';
 
@@ -24,13 +28,15 @@ import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
-import {
-    useSelectedProject,
-    useSelectedSession,
-    useSessionTerminals,
-} from '../../stores/selectors';
+import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
+import { useActiveWork } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { tryCommand } from '../../stores/toasts';
+import {
+    editorLanguageLabel,
+    editorStatusKey,
+    useEditorStatusStore,
+} from '../editor/editor-status';
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
@@ -41,6 +47,140 @@ const statusItemClassName =
     'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded-[3px] border-0 bg-transparent px-[5px] text-foreground no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
 
 const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]';
+const statusInfoClassName =
+    'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded-[3px] px-[5px] text-foreground [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
+
+const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+function relativeTime(timestamp: number): string {
+    const seconds = Math.round((timestamp - Date.now()) / 1_000);
+    const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+        ['year', 31_536_000],
+        ['month', 2_592_000],
+        ['day', 86_400],
+        ['hour', 3_600],
+        ['minute', 60],
+    ];
+    for (const [unit, size] of ranges) {
+        if (Math.abs(seconds) >= size)
+            return RELATIVE_TIME_FORMATTER.format(Math.round(seconds / size), unit);
+    }
+    return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebounced(value), delayMs);
+        return () => window.clearTimeout(timer);
+    }, [delayMs, value]);
+    return debounced;
+}
+
+function StatusInfo({
+    ariaLabel,
+    children,
+    className,
+    icon: Icon,
+    title,
+}: {
+    ariaLabel: string;
+    children: ReactNode;
+    className?: string;
+    icon?: LucideIcon;
+    title: string;
+}) {
+    return (
+        <span className={cn(statusInfoClassName, className)} aria-label={ariaLabel} title={title}>
+            {Icon && <Icon size={12} />}
+            <span>{children}</span>
+        </span>
+    );
+}
+
+function ActiveFileStatus({ sessionId, path }: { sessionId: string; path: string }) {
+    const key = editorStatusKey(sessionId, path);
+    const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
+    const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
+    const blame = useCaxriQuery(
+        'git.blame',
+        { sessionId, path, line },
+        { staleTime: 60_000, retry: false },
+    ).data;
+    const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext');
+    const cursor = editorStatus
+        ? `Ln ${editorStatus.line}, Col ${editorStatus.column}`
+        : 'Ln 1, Col 1';
+    const selection = editorStatus?.selectedCharacters ?? 0;
+    return (
+        <>
+            {blame && (
+                <StatusInfo
+                    ariaLabel={
+                        blame.uncommitted
+                            ? `Git blame: uncommitted changes on line ${line}`
+                            : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt)}, ${blame.subject}`
+                    }
+                    className="statusbar-blame max-w-[420px]"
+                    icon={GitCommitHorizontal}
+                    title={
+                        blame.uncommitted
+                            ? `Uncommitted changes · line ${line}`
+                            : `${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`
+                    }
+                >
+                    {blame.uncommitted
+                        ? 'Uncommitted changes'
+                        : `${blame.author}, ${relativeTime(blame.authoredAt)} · ${blame.subject}`}
+                </StatusInfo>
+            )}
+            <StatusInfo
+                ariaLabel={`Editor position: ${cursor}${selection > 0 ? `, ${selection} characters selected` : ''}`}
+                className="statusbar-selection"
+                title="Editor selection"
+            >
+                {selection > 0 && `${selection} selected · `}
+                {cursor}
+            </StatusInfo>
+            <StatusInfo
+                ariaLabel={`File type: ${language}`}
+                className="statusbar-language"
+                icon={Braces}
+                title="File type"
+            >
+                {language}
+            </StatusInfo>
+        </>
+    );
+}
+
+function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
+    const usage = useCaxriQuery(
+        'terminal.resources',
+        { terminalId },
+        { refetchInterval: 2_000, staleTime: 1_000, retry: false },
+    ).data;
+    if (!usage) return null;
+    const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
+    return (
+        <>
+            <StatusInfo
+                ariaLabel={`Terminal memory: ${usage.memoryMb} MB`}
+                icon={MemoryStick}
+                title="Terminal process tree memory"
+            >
+                {usage.memoryMb} MB
+            </StatusInfo>
+            <StatusInfo
+                ariaLabel={`Terminal ${childLabel}`}
+                icon={Workflow}
+                title="Child processes"
+            >
+                {childLabel}
+            </StatusInfo>
+        </>
+    );
+}
 
 /**
  * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it
@@ -148,8 +288,11 @@ const BRANCH_SWITCH_DEPENDENCIES = new Set<CaxriMethod>([
     'git.branches',
     'git.diff',
     'git.diffDocument',
+    'git.pullRequestChanges',
+    'git.pullRequestDiffDocument',
     'git.commits',
     'git.commitDetails',
+    'git.blame',
     'projectStatus.overview',
     'projectStatus.summary',
 ]);
@@ -248,11 +391,7 @@ export function StatusBar() {
     const repository = overview?.repository;
     const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = runtimeStatus ? DEGRADED_STATES[runtimeStatus] : undefined;
-    const runningCount = useSessionTerminals().filter(
-        (terminal) => terminal.lastProcessState === 'running',
-    ).length;
-    const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
-    const toggleLabel = inspectorVisible ? 'Hide Inspector' : 'Show Inspector';
+    const activeWork = useActiveWork();
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual
@@ -311,22 +450,14 @@ export function StatusBar() {
                         {degraded.label}
                     </span>
                 )}
-                <span className="statusbar-count flex-none">{runningCount} running</span>
-                <button
-                    type="button"
-                    className={cn(
-                        'statusbar-toggle',
-                        'grid flex-none size-4 place-items-center p-0 border-0 rounded bg-transparent text-muted cursor-pointer',
-                        'hover:text-foreground aria-pressed:text-foreground',
-                        'focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_45%,transparent)]',
+                {sessionId &&
+                    activeWork?.kind === 'editor' &&
+                    !parseGitDiffTab(activeWork.path) && (
+                        <ActiveFileStatus sessionId={sessionId} path={activeWork.path} />
                     )}
-                    aria-pressed={inspectorVisible}
-                    aria-label={toggleLabel}
-                    title={toggleLabel}
-                    onClick={() => executeCommand('inspector.toggle')}
-                >
-                    <PanelRight size={12} />
-                </button>
+                {activeWork?.kind === 'terminal' && (
+                    <ActiveTerminalStatus terminalId={activeWork.terminalId} />
+                )}
             </div>
         </footer>
     );

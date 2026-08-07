@@ -45,10 +45,12 @@ function DiffSurface({
     document,
     repositoryId,
     sessionId,
+    source,
 }: {
     document: GitDiffDocument;
     repositoryId: string;
     sessionId: string;
+    source: GitDiffTab['source'];
 }) {
     const theme = useTheme();
     const editorRef = useRef<MonacoDiffEditor | null>(null);
@@ -67,12 +69,13 @@ function DiffSurface({
         [],
     );
     if (!theme) return null;
+    const modelRepositoryId = `${source}:${repositoryId}`;
     if (document.format === 'patch')
         return (
             <Editor
                 className="git-patch-editor w-full h-full"
                 language="diff"
-                path={`${gitDiffModelPath(sessionId, repositoryId, document.path, 'modified')}.diff`}
+                path={`${gitDiffModelPath(sessionId, modelRepositoryId, document.path, 'modified')}.diff`}
                 value={document.modified}
                 theme="caxri-active"
                 beforeMount={() => applyEditorTheme(theme)}
@@ -92,11 +95,16 @@ function DiffSurface({
             modified={document.modified}
             originalModelPath={gitDiffModelPath(
                 sessionId,
-                repositoryId,
+                modelRepositoryId,
                 document.originalPath ?? document.path,
                 'original',
             )}
-            modifiedModelPath={gitDiffModelPath(sessionId, repositoryId, document.path, 'modified')}
+            modifiedModelPath={gitDiffModelPath(
+                sessionId,
+                modelRepositoryId,
+                document.path,
+                'modified',
+            )}
             theme="caxri-active"
             beforeMount={() => applyEditorTheme(theme)}
             onMount={(editor) => {
@@ -116,17 +124,19 @@ function DiffSurface({
     );
 }
 
-function FileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> }) {
-    const sessionId = useSelectedSession()?.id;
-    const {
-        data: document,
-        isError,
-        error,
-    } = useCaxriQuery(
-        'git.diffDocument',
-        { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
-        { enabled: Boolean(sessionId) },
-    );
+function FileDiffResult({
+    document,
+    error,
+    isError,
+    sessionId,
+    tab,
+}: {
+    document?: GitDiffDocument;
+    error: Error | null;
+    isError: boolean;
+    sessionId?: string;
+    tab: Extract<GitDiffTab, { kind: 'file' }>;
+}) {
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
     if (!sessionId) return null;
     if (isError)
@@ -142,20 +152,96 @@ function FileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> })
                 document={document}
                 repositoryId={tab.repositoryId}
                 sessionId={sessionId}
+                source={tab.source}
             />
         </div>
     );
 }
 
-function GitChangesDiffContent({
-    path,
+function WorkingFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> }) {
+    const sessionId = useSelectedSession()?.id;
+    const {
+        data: document,
+        isError,
+        error,
+    } = useCaxriQuery(
+        'git.diffDocument',
+        { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
+        { enabled: Boolean(sessionId) },
+    );
+    return (
+        <FileDiffResult
+            document={document}
+            error={error}
+            isError={isError}
+            sessionId={sessionId}
+            tab={tab}
+        />
+    );
+}
+
+function PullRequestFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> }) {
+    const sessionId = useSelectedSession()?.id;
+    const {
+        data: document,
+        isError,
+        error,
+    } = useCaxriQuery(
+        'git.pullRequestDiffDocument',
+        { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
+        { enabled: Boolean(sessionId) },
+    );
+    return (
+        <FileDiffResult
+            document={document}
+            error={error}
+            isError={isError}
+            sessionId={sessionId}
+            tab={tab}
+        />
+    );
+}
+
+function GitChangesDiffResult({
+    document,
+    error,
+    isError,
     repositoryId,
     sessionId,
+    source,
 }: {
+    document?: GitDiffDocument;
+    error: Error | null;
+    isError: boolean;
+    repositoryId: string;
+    sessionId: string;
+    source: GitDiffTab['source'];
+}) {
+    useToastOnQueryError(isError, error, 'Unable to open Git diff');
+    if (isError)
+        return (
+            <div className={gitMultiDiffErrorClassName}>
+                {describeFailure(error, 'Unable to open Git diff')}
+            </div>
+        );
+    if (!document) return <div className={gitMultiDiffPlaceholderClassName}>Loading diff…</div>;
+    return (
+        <DiffSurface
+            document={document}
+            repositoryId={repositoryId}
+            sessionId={sessionId}
+            source={source}
+        />
+    );
+}
+
+interface GitChangesDiffContentProps {
     path: string;
     repositoryId: string;
     sessionId: string;
-}) {
+}
+
+function WorkingChangesDiffContent({ path, repositoryId, sessionId }: GitChangesDiffContentProps) {
     const {
         data: document,
         isError,
@@ -165,28 +251,59 @@ function GitChangesDiffContent({
         repositoryId,
         path,
     });
-    useToastOnQueryError(isError, error, 'Unable to open Git diff');
-    if (isError)
-        return (
-            <div className={gitMultiDiffErrorClassName}>
-                {describeFailure(error, 'Unable to open Git diff')}
-            </div>
-        );
-    if (!document) return <div className={gitMultiDiffPlaceholderClassName}>Loading diff…</div>;
-    return <DiffSurface document={document} repositoryId={repositoryId} sessionId={sessionId} />;
+    return (
+        <GitChangesDiffResult
+            document={document}
+            error={error}
+            isError={isError}
+            repositoryId={repositoryId}
+            sessionId={sessionId}
+            source="working"
+        />
+    );
+}
+
+function PullRequestChangesDiffContent({
+    path,
+    repositoryId,
+    sessionId,
+}: GitChangesDiffContentProps) {
+    const {
+        data: document,
+        isError,
+        error,
+    } = useCaxriQuery('git.pullRequestDiffDocument', {
+        sessionId,
+        repositoryId,
+        path,
+    });
+    return (
+        <GitChangesDiffResult
+            document={document}
+            error={error}
+            isError={isError}
+            repositoryId={repositoryId}
+            sessionId={sessionId}
+            source="pull-request"
+        />
+    );
 }
 
 function GitChangesDiffItem({
     file,
     repositoryId,
     sessionId,
+    source,
 }: {
     file: GitFileStatus;
     repositoryId: string;
     sessionId: string;
+    source: GitDiffTab['source'];
 }) {
     const { active, containerRef } = useNearMultiDiffViewport();
     const label = file.originalPath ? `${file.originalPath} → ${file.path}` : file.path;
+    const Content =
+        source === 'pull-request' ? PullRequestChangesDiffContent : WorkingChangesDiffContent;
     return (
         <section ref={containerRef} className="git-multi-diff-item border-b border-border">
             <div
@@ -198,18 +315,43 @@ function GitChangesDiffItem({
             <div className="git-multi-diff-editor h-[360px]">
                 {!active && <div className={gitMultiDiffPlaceholderClassName} aria-hidden="true" />}
                 {active && (
-                    <GitChangesDiffContent
-                        path={file.path}
-                        repositoryId={repositoryId}
-                        sessionId={sessionId}
-                    />
+                    <Content path={file.path} repositoryId={repositoryId} sessionId={sessionId} />
                 )}
             </div>
         </section>
     );
 }
 
-function ChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes' }> }) {
+function ChangesDiffList({
+    emptyLabel,
+    files,
+    repositoryId,
+    sessionId,
+    source,
+}: {
+    emptyLabel: string;
+    files: GitFileStatus[];
+    repositoryId: string;
+    sessionId: string;
+    source: GitDiffTab['source'];
+}) {
+    if (files.length === 0) return <div className={emptyWorkClassName}>{emptyLabel}</div>;
+    return (
+        <div className="git-multi-diff absolute inset-0 overflow-auto bg-background">
+            {files.map((file) => (
+                <GitChangesDiffItem
+                    key={file.path}
+                    file={file}
+                    repositoryId={repositoryId}
+                    sessionId={sessionId}
+                    source={source}
+                />
+            ))}
+        </div>
+    );
+}
+
+function WorkingChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes' }> }) {
     const sessionId = useSelectedSession()?.id;
     const {
         data: summary,
@@ -234,22 +376,61 @@ function ChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes'
         : undefined;
     if (!repository)
         return <div className={emptyWorkClassName}>Git repository is no longer available</div>;
-    if (repository.files.length === 0)
-        return <div className={emptyWorkClassName}>Working tree clean.</div>;
     return (
-        <div className="git-multi-diff absolute inset-0 overflow-auto bg-background">
-            {repository.files.map((file) => (
-                <GitChangesDiffItem
-                    key={file.path}
-                    file={file}
-                    repositoryId={repository.id}
-                    sessionId={sessionId}
-                />
-            ))}
-        </div>
+        <ChangesDiffList
+            emptyLabel="Working tree clean."
+            files={repository.files}
+            repositoryId={repository.id}
+            sessionId={sessionId}
+            source="working"
+        />
+    );
+}
+
+function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes' }> }) {
+    const sessionId = useSelectedSession()?.id;
+    const {
+        data: pullRequest,
+        isError,
+        error,
+    } = useCaxriQuery(
+        'git.pullRequestChanges',
+        { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, refresh: 0 },
+        { enabled: Boolean(sessionId) },
+    );
+    useToastOnQueryError(isError, error, 'Unable to open pull request changes');
+    if (!sessionId) return null;
+    if (isError)
+        return (
+            <div className={emptyWorkClassName}>
+                {describeFailure(error, 'Unable to open pull request changes')}
+            </div>
+        );
+    if (pullRequest === undefined)
+        return <div className={emptyWorkClassName}>Loading pull request changes…</div>;
+    if (pullRequest === null)
+        return <div className={emptyWorkClassName}>No pull request for this branch.</div>;
+    return (
+        <ChangesDiffList
+            emptyLabel="Pull request has no file changes."
+            files={pullRequest.files}
+            repositoryId={pullRequest.repositoryId}
+            sessionId={sessionId}
+            source="pull-request"
+        />
     );
 }
 
 export function GitDiffEditor({ tab }: { tab: GitDiffTab }) {
-    return tab.kind === 'file' ? <FileDiffEditor tab={tab} /> : <ChangesDiffEditor tab={tab} />;
+    if (tab.kind === 'file')
+        return tab.source === 'pull-request' ? (
+            <PullRequestFileDiffEditor tab={tab} />
+        ) : (
+            <WorkingFileDiffEditor tab={tab} />
+        );
+    return tab.source === 'pull-request' ? (
+        <PullRequestChangesDiffEditor tab={tab} />
+    ) : (
+        <WorkingChangesDiffEditor tab={tab} />
+    );
 }

@@ -21,6 +21,9 @@ import type {
 } from '../shared/types';
 import type { RuntimeMethodParams } from '../shared/ipc/methods';
 import { assertInsideRoot, isOutsideRoot } from './path-security';
+import { toGitError } from './git-errors';
+import { GitPullRequestService } from './git-pull-request';
+import { GitBlameService } from './git-blame';
 import { SingleFlight } from './single-flight';
 import type { ProjectRootResolver } from './project-roots';
 
@@ -29,7 +32,6 @@ const MAX_CONCURRENT_GIT_COMMANDS = 8;
 const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
 const MAX_COMMIT_FILES = 500;
 const MAX_LOCAL_BRANCHES = 1_000;
-
 interface RepositoryStatus {
     branch: string;
     head?: string;
@@ -51,27 +53,7 @@ interface DiffTarget {
     relativePath: string;
     repository: GitRepositorySummary;
 }
-
-export function describeGitFailure(error: unknown): string {
-    const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
-    if (failure.code === 'ENOENT') return 'Git is not installed or is unavailable on PATH.';
-    if (failure.killed || failure.message?.toLowerCase().includes('timed out'))
-        return 'The Git operation timed out.';
-    if (
-        failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ||
-        failure.message?.includes('maxBuffer')
-    ) {
-        return 'Git output exceeded the safety limit.';
-    }
-    if (failure.stderr?.toLowerCase().includes('not a git repository'))
-        return 'The Project root is not a Git repository.';
-    return 'The Git operation failed. See Runtime logs for details.';
-}
-
-/** Wraps a raw `execFile` fault as a `GIT` error while keeping the already user-facing wording. */
-function toGitError(error: unknown): CaxriError {
-    return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error));
-}
+export { describeGitFailure } from './git-errors';
 
 function statusKind(code: string): GitFileStatus['kind'] {
     if (code.includes('U') || code === 'AA' || code === 'DD') return 'conflicted';
@@ -265,11 +247,24 @@ export class GitService {
     private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
     private readonly summaries = new SingleFlight<string, GitSummary>();
     private readonly histories = new SingleFlight<string, GitCommitPage>();
+    private readonly blameService: GitBlameService;
+    private readonly pullRequestService: GitPullRequestService;
 
     constructor(
         private readonly paths: ProjectRootResolver,
         private readonly logger: StructuredLogger,
-    ) {}
+    ) {
+        this.pullRequestService = new GitPullRequestService({
+            git: (cwd, args, options) => this.git(cwd, args, options),
+            ghPullRequestView: (cwd) => this.ghPullRequestView(cwd),
+            resolveRepository: (sessionId, repositoryId) =>
+                this.resolveRepository(sessionId, repositoryId),
+        });
+        this.blameService = new GitBlameService(this.paths, {
+            git: (cwd, args, options) => this.git(cwd, args, options),
+            summary: (sessionId) => this.summary(sessionId),
+        });
+    }
 
     private async git(
         cwd: string,
@@ -300,6 +295,49 @@ export class GitService {
                     },
                 });
                 throw toGitError(error);
+            }
+        });
+    }
+
+    /** Reads GitHub PR metadata through fixed `gh` argv without granting the Renderer CLI access. */
+    private async ghPullRequestView(cwd: string): Promise<string> {
+        const startedAt = performance.now();
+        return this.commands.run(async () => {
+            try {
+                const { stdout } = await execFileAsync(
+                    'gh',
+                    [
+                        'pr',
+                        'view',
+                        '--json',
+                        'number,title,url,baseRefName,headRefName,baseRefOid,headRefOid',
+                    ],
+                    {
+                        cwd,
+                        timeout: 10_000,
+                        maxBuffer: MAX_GIT_METADATA_BYTES,
+                        env: { ...safeProcessEnvironment(), LC_ALL: 'C' },
+                    },
+                );
+                this.logger.write('info', 'git.github_command', {
+                    durationMs: performance.now() - startedAt,
+                    fields: { operation: 'pr.view' },
+                });
+                return stdout;
+            } catch (error) {
+                const failure = error as NodeJS.ErrnoException & { stderr?: string };
+                const message = `${failure.message ?? ''}\n${failure.stderr ?? ''}`;
+                if (/no pull requests found|could not find pull request/i.test(message)) return '';
+                this.logger.write('warn', 'git.github_command_failed', {
+                    durationMs: performance.now() - startedAt,
+                    fields: { operation: 'pr.view', error: errorMessage(error, 'unknown') },
+                });
+                if (failure.code === 'ENOENT')
+                    throw new CaxriError('UNAVAILABLE', 'GitHub CLI is not available on PATH');
+                throw new CaxriError(
+                    'GIT',
+                    'Unable to load the pull request for the current branch',
+                );
             }
         });
     }
@@ -429,6 +467,14 @@ export class GitService {
         return null;
     }
 
+    pullRequestChanges(params: RuntimeMethodParams<'git.pullRequestChanges'>) {
+        return this.pullRequestService.changes(params);
+    }
+
+    pullRequestDiffDocument(params: RuntimeMethodParams<'git.pullRequestDiffDocument'>) {
+        return this.pullRequestService.diffDocument(params);
+    }
+
     private async resolveHistoryPath(
         repository: GitRepositorySummary,
         input?: string,
@@ -522,6 +568,10 @@ export class GitService {
             files: files.slice(0, MAX_COMMIT_FILES),
             filesTruncated: files.length > MAX_COMMIT_FILES,
         };
+    }
+
+    blame(params: RuntimeMethodParams<'git.blame'>) {
+        return this.blameService.blame(params);
     }
 
     private async resolveDiffTarget(

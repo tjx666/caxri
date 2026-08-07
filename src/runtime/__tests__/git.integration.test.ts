@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -21,6 +21,37 @@ afterEach(async () => {
 });
 
 describe('GitService', () => {
+    it('returns blame metadata for the selected file line', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-blame-'));
+        temporaryDirectories.push(directory);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: directory,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: directory });
+        const path = join(directory, 'source.ts');
+        await writeFile(path, 'const first = 1;\nconst second = 2;\n', 'utf8');
+        await execFileAsync('git', ['add', 'source.ts'], { cwd: directory });
+        await execFileAsync('git', ['commit', '-m', 'add source'], { cwd: directory });
+        const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const git = new GitService(
+            new ProjectRootResolver(database),
+            new StructuredLogger(join(directory, '.logs')),
+        );
+
+        await expect(git.blame({ sessionId: session.id, path, line: 2 })).resolves.toMatchObject({
+            author: 'Caxri Test',
+            line: 2,
+            subject: 'add source',
+            uncommitted: false,
+        });
+        database.close();
+    });
+
     it('reports read-only status and selected-file diff', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-git-'));
         temporaryDirectories.push(directory);
@@ -141,6 +172,139 @@ describe('GitService', () => {
             }),
         ).rejects.toMatchObject({ code: 'NOT_FOUND' });
         database.close();
+    });
+
+    it('loads current pull request changes from committed base and head objects only', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-pull-request-'));
+        temporaryDirectories.push(directory);
+        const repositoryRoot = join(directory, 'project');
+        const bin = join(directory, 'bin');
+        await execFileAsync('mkdir', ['-p', repositoryRoot, bin]);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: repositoryRoot });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: repositoryRoot,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
+            cwd: repositoryRoot,
+        });
+        await writeFile(join(repositoryRoot, 'tracked.txt'), 'before\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repositoryRoot });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repositoryRoot });
+        const baseOid = (
+            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot })
+        ).stdout.trim();
+        await execFileAsync('git', ['switch', '-c', 'feature/pull-request'], {
+            cwd: repositoryRoot,
+        });
+        await writeFile(join(repositoryRoot, 'tracked.txt'), 'after\n', 'utf8');
+        await writeFile(join(repositoryRoot, 'pr-only.txt'), 'pull request\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt', 'pr-only.txt'], {
+            cwd: repositoryRoot,
+        });
+        await execFileAsync('git', ['commit', '-m', 'pull request changes'], {
+            cwd: repositoryRoot,
+        });
+        const headOid = (
+            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot })
+        ).stdout.trim();
+        await writeFile(join(repositoryRoot, 'tracked.txt'), 'local only\n', 'utf8');
+        await writeFile(join(repositoryRoot, 'untracked-local.txt'), 'local only\n', 'utf8');
+        const gh = join(bin, 'gh');
+        await writeFile(
+            gh,
+            `#!/bin/sh\nprintf '%s' '${JSON.stringify({
+                baseRefName: 'main',
+                baseRefOid: baseOid,
+                headRefName: 'feature/pull-request',
+                headRefOid: headOid,
+                number: 42,
+                title: 'Committed pull request range',
+                url: 'https://github.com/tjx666/project/pull/42',
+            })}'\n`,
+            'utf8',
+        );
+        await chmod(gh, 0o755);
+
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(repositoryRoot).id,
+            'shell',
+        ).session;
+        const git = new GitService(
+            new ProjectRootResolver(database),
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const repository = (await git.summary(session.id)).repositories[0];
+        const previousPath = process.env.PATH;
+        process.env.PATH = `${bin}:${previousPath ?? ''}`;
+        try {
+            const pullRequest = await git.pullRequestChanges({
+                sessionId: session.id,
+                repositoryId: repository.id,
+                refresh: 0,
+            });
+
+            expect(pullRequest).toMatchObject({
+                additions: 2,
+                baseOid,
+                deletions: 1,
+                headOid,
+                number: 42,
+            });
+            expect(pullRequest?.files.map((file) => file.path).sort()).toEqual([
+                'pr-only.txt',
+                'tracked.txt',
+            ]);
+            await expect(
+                git.pullRequestDiffDocument({
+                    sessionId: session.id,
+                    repositoryId: repository.id,
+                    path: 'tracked.txt',
+                }),
+            ).resolves.toMatchObject({
+                format: 'contents',
+                modified: 'after\n',
+                original: 'before\n',
+                path: 'tracked.txt',
+            });
+
+            await execFileAsync('git', ['switch', '-c', 'feature/next-pull-request'], {
+                cwd: repositoryRoot,
+            });
+            await writeFile(join(repositoryRoot, 'next-pr.txt'), 'next pull request\n', 'utf8');
+            await execFileAsync('git', ['add', 'next-pr.txt'], { cwd: repositoryRoot });
+            await execFileAsync('git', ['commit', '-m', 'next pull request changes'], {
+                cwd: repositoryRoot,
+            });
+            const nextHeadOid = (
+                await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot })
+            ).stdout.trim();
+            await writeFile(
+                gh,
+                `#!/bin/sh\nprintf '%s' '${JSON.stringify({
+                    baseRefName: 'main',
+                    baseRefOid: baseOid,
+                    headRefName: 'feature/next-pull-request',
+                    headRefOid: nextHeadOid,
+                    number: 43,
+                    title: 'Next pull request range',
+                    url: 'https://github.com/tjx666/project/pull/43',
+                })}'\n`,
+                'utf8',
+            );
+
+            await expect(
+                git.pullRequestChanges({
+                    sessionId: session.id,
+                    repositoryId: repository.id,
+                    refresh: 0,
+                }),
+            ).resolves.toMatchObject({ headOid: nextHeadOid, number: 43 });
+        } finally {
+            if (previousPath === undefined) delete process.env.PATH;
+            else process.env.PATH = previousPath;
+            database.close();
+        }
     });
 
     it('recognizes an empty repository before its first commit', async () => {

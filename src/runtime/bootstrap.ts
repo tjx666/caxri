@@ -348,6 +348,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         },
         'terminal.snapshot': ({ terminalId }) => database.getSnapshot(terminalId) ?? null,
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
+        'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
         'terminal.terminateAll': () => {
             coordinator.close();
             terminals.shutdown('terminate');
@@ -363,8 +364,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'git.diff': ({ sessionId, repositoryId, path }) => git.diff(sessionId, repositoryId, path),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
+        'git.pullRequestChanges': (params) => git.pullRequestChanges(params),
+        'git.pullRequestDiffDocument': (params) => git.pullRequestDiffDocument(params),
         'git.commits': (params) => git.commits(params),
         'git.commitDetails': (params) => git.commitDetails(params),
+        'git.blame': (params) => git.blame(params),
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),

@@ -5,6 +5,7 @@ import {
     Folder,
     FolderOpen,
     GitBranch,
+    GitPullRequest,
     RefreshCw,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -13,16 +14,24 @@ import { parseGitDiffTab, type GitDiffTab } from '@shared/git-diff';
 import type { GitRepositorySummary } from '@shared/types';
 
 import { Button } from '../../../../components/ui/button';
+import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
 import { useActiveWork } from '../../../../stores/session-view';
-import { openGitChangesDiff, openGitFileDiff } from './git-diff-actions';
+import {
+    openGitChangesDiff,
+    openGitFileDiff,
+    openPullRequestChangesDiff,
+    openPullRequestFileDiff,
+} from './git-diff-actions';
 import { buildGitFileTree, type GitFileTreeNode } from './git-tree';
 import { CommitHistory } from './CommitHistory';
 
 const gitRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
+
+type GitPanelMode = 'pull-request' | 'working';
 
 function GitTreeItems({
     depth = 0,
@@ -115,18 +124,52 @@ function GitTreeDirectory({
 
 function GitRepositorySection({
     activeDiff,
+    mode,
+    pullRequestRefresh,
     repository,
     sessionId,
 }: {
     activeDiff?: GitDiffTab;
+    mode: GitPanelMode;
+    pullRequestRefresh: number;
     repository: GitRepositorySummary;
     sessionId: string;
 }) {
     const [expanded, setExpanded] = useState(true);
+    const pullRequestQuery = useCaxriQuery(
+        'git.pullRequestChanges',
+        {
+            sessionId,
+            repositoryId: repository.id,
+            refresh: pullRequestRefresh,
+        },
+        { enabled: mode === 'pull-request' },
+    );
+    useToastOnQueryError(
+        pullRequestQuery.isError,
+        pullRequestQuery.error,
+        'Pull request refresh failed',
+    );
+    const pullRequest = mode === 'pull-request' ? pullRequestQuery.data : undefined;
+    const files = mode === 'working' ? repository.files : (pullRequest?.files ?? []);
     const selectedPath =
-        activeDiff?.kind === 'file' && activeDiff.repositoryId === repository.id
+        activeDiff?.kind === 'file' &&
+        activeDiff.repositoryId === repository.id &&
+        activeDiff.source === mode
             ? activeDiff.path
             : undefined;
+    const openFile = mode === 'pull-request' ? openPullRequestFileDiff : openGitFileDiff;
+    const openChanges = mode === 'pull-request' ? openPullRequestChangesDiff : openGitChangesDiff;
+    const emptyMessage =
+        mode === 'working'
+            ? 'Working tree clean.'
+            : pullRequestQuery.isError
+              ? 'Unable to load pull request changes.'
+              : pullRequest === undefined
+                ? 'Loading pull request changes…'
+                : pullRequest === null
+                  ? 'No pull request for this branch.'
+                  : 'Pull request has no file changes.';
     return (
         <section className="git-repository-section border-b border-border">
             <button
@@ -137,7 +180,11 @@ function GitRepositorySection({
             >
                 <span className="git-repository-identity flex shrink-0 items-center gap-1">
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    <GitBranch size={12} />
+                    {mode === 'pull-request' ? (
+                        <GitPullRequest size={12} />
+                    ) : (
+                        <GitBranch size={12} />
+                    )}
                     <strong className="git-repository-name shrink-0 whitespace-nowrap font-semibold">
                         {repository.name}
                     </strong>
@@ -149,48 +196,69 @@ function GitRepositorySection({
                 </span>
                 <span
                     className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-muted text-[11px]"
-                    title={`${repository.ahead} ahead, ${repository.behind} behind`}
+                    title={
+                        pullRequest
+                            ? `Pull request #${pullRequest.number}: ${pullRequest.baseRefName} ← ${pullRequest.headRefName}`
+                            : `${repository.ahead} ahead, ${repository.behind} behind`
+                    }
                 >
                     <span className="git-repository-branch min-w-0 truncate">
-                        {repository.branch}
+                        {pullRequest
+                            ? `#${pullRequest.number} ${pullRequest.title}`
+                            : repository.branch}
                     </span>
                     <span className="git-repository-counts shrink-0 whitespace-nowrap">
-                        · ↑{repository.ahead} ↓{repository.behind} · {repository.files.length}
+                        {mode === 'working' && ` · ↑${repository.ahead} ↓${repository.behind}`}
+                        {' · '}
+                        {files.length}
                     </span>
                 </span>
             </button>
             {expanded && (
                 <div className="git-files overflow-visible">
                     <div className="git-changes-caption flex items-center justify-between py-1.5 px-2 text-muted text-[10px] font-bold tracking-[0.06em] uppercase">
-                        <span>Changes</span>
+                        <span>{pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}</span>
                         <span className="git-changes-actions flex items-center gap-1">
-                            <Button
-                                className="git-open-changes size-6"
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Open Changes"
-                                title="Open Changes"
-                                disabled={repository.files.length === 0}
-                                onClick={() => openGitChangesDiff(repository.id, repository.name)}
+                            <Tooltip
+                                content={
+                                    mode === 'pull-request'
+                                        ? 'Open Pull Request Changes'
+                                        : 'Open Working Tree Changes'
+                                }
                             >
-                                <Files size={13} />
-                            </Button>
-                            <span>{repository.files.length}</span>
+                                <Button
+                                    className="git-open-changes size-6"
+                                    size="icon"
+                                    variant="ghost"
+                                    aria-label={
+                                        mode === 'pull-request'
+                                            ? 'Open Pull Request Changes'
+                                            : 'Open Changes'
+                                    }
+                                    disabled={files.length === 0}
+                                    onClick={() => openChanges(repository.id, repository.name)}
+                                >
+                                    <Files size={13} />
+                                </Button>
+                            </Tooltip>
+                            <span>{files.length}</span>
                         </span>
                     </div>
-                    {repository.files.length === 0 && (
+                    {files.length === 0 && (
                         <div className="empty-panel py-4 px-3 text-muted text-center">
-                            Working tree clean.
+                            {emptyMessage}
                         </div>
                     )}
-                    {repository.files.length > 0 && (
+                    {files.length > 0 && (
                         <GitTreeItems
-                            nodes={buildGitFileTree(repository.files)}
+                            nodes={buildGitFileTree(files)}
                             selected={selectedPath}
-                            onSelect={(path) => openGitFileDiff(repository.id, path)}
+                            onSelect={(path) => openFile(repository.id, path)}
                         />
                     )}
-                    <CommitHistory repository={repository} sessionId={sessionId} />
+                    {mode === 'working' && (
+                        <CommitHistory repository={repository} sessionId={sessionId} />
+                    )}
                 </div>
             )}
         </section>
@@ -204,6 +272,8 @@ function GitRepositorySection({
 export function GitPanel() {
     const session = useSelectedSession();
     const activeWork = useActiveWork();
+    const [mode, setMode] = useState<GitPanelMode>('working');
+    const [pullRequestRefresh, setPullRequestRefresh] = useState(0);
     const sessionId = session?.id;
     const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
     /**
@@ -222,7 +292,10 @@ export function GitPanel() {
         { enabled: Boolean(sessionId) },
     );
     useToastOnQueryError(isError, error, 'Git refresh failed');
-    const refresh = (): void => void refetch();
+    const refresh = (): void => {
+        if (mode === 'working') void refetch();
+        else setPullRequestRefresh((value) => value + 1);
+    };
     if (!session)
         return (
             <div className="empty-panel py-4 px-3 text-muted text-center">
@@ -243,13 +316,54 @@ export function GitPanel() {
         );
     return (
         <div className="inspector-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="git-heading flex items-center justify-between p-2 border-b border-border">
+            <div className="git-heading flex items-center gap-2 p-2 border-b border-border">
                 <span className="flex items-center gap-2">
                     <GitBranch size={13} /> Source Control
                 </span>
-                <Button size="icon" variant="ghost" aria-label="Refresh Git" onClick={refresh}>
-                    <RefreshCw size={13} />
-                </Button>
+                <div
+                    className="git-mode-switch ml-auto flex h-7 items-center rounded-md bg-elevated p-0.5"
+                    role="group"
+                    aria-label="Source control mode"
+                >
+                    <Tooltip content="Working Tree Changes">
+                        <button
+                            type="button"
+                            className={cn(
+                                'grid size-6 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:text-foreground',
+                                mode === 'working' && 'bg-surface text-foreground',
+                            )}
+                            aria-label="Working Tree Changes"
+                            aria-pressed={mode === 'working'}
+                            onClick={() => setMode('working')}
+                        >
+                            <GitBranch size={13} />
+                        </button>
+                    </Tooltip>
+                    <Tooltip content="Pull Request Changes">
+                        <button
+                            type="button"
+                            className={cn(
+                                'grid size-6 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:text-foreground',
+                                mode === 'pull-request' && 'bg-surface text-foreground',
+                            )}
+                            aria-label="Pull Request Changes"
+                            aria-pressed={mode === 'pull-request'}
+                            onClick={() => setMode('pull-request')}
+                        >
+                            <GitPullRequest size={13} />
+                        </button>
+                    </Tooltip>
+                </div>
+                <Tooltip content={mode === 'working' ? 'Refresh Git' : 'Refresh Pull Request'}>
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={mode === 'working' ? 'Refresh Git' : 'Refresh Pull Request'}
+                        onClick={refresh}
+                    >
+                        <RefreshCw size={13} />
+                    </Button>
+                </Tooltip>
             </div>
             <div
                 className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border"
@@ -260,6 +374,8 @@ export function GitPanel() {
                         key={repository.id}
                         repository={repository}
                         activeDiff={activeDiff}
+                        mode={mode}
+                        pullRequestRefresh={pullRequestRefresh}
                         sessionId={session.id}
                     />
                 ))}

@@ -8,6 +8,7 @@ import { useDocument } from '../../stores/session-view';
 import { cacheDocument, changeDocument } from './document-actions';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import type { CodeEditorProps } from './CodeEditor';
+import { editorStatusKey } from './editor-status';
 
 const GitDiffEditor = lazy(async () => {
     const module = await import('./GitDiffEditor');
@@ -52,6 +53,7 @@ function FileEditorSurface({ path }: { path: string }) {
     return (
         <LoadedCodeEditor
             path={editorModelPath(sessionId, path)}
+            statusKey={editorStatusKey(sessionId, path)}
             value={document.content}
             theme={theme}
             onChange={(content) => changeDocument(path, content ?? '')}

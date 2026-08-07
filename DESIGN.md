@@ -67,11 +67,13 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 region (`-webkit-app-region: drag`, interactive children `no-drag`). Brand appears once:
 sidebar header only. Reclaim the ~28px title bar row.
 
-**Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. Shows:
-session root path (left), running-terminal count (right). Runtime state appears ONLY
-when degraded (`Reconnecting…` / `Backend stopped`) as a `--warning`/`--danger` chip;
-healthy state shows nothing. The chip is informational — recovery lives in the native
-Relaunch dialog, so the chip never fakes an action it cannot perform.
+**Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
+shows Project and Git context. The right side follows the active tab: a normal file shows current-line
+blame, selection, cursor position, and language; a Terminal shows its process-tree memory and child
+count. Diff tabs show neither file nor Terminal details. Runtime state appears ONLY when degraded
+(`Reconnecting…` / `Backend stopped`) as a `--warning`/`--danger` chip; healthy state shows nothing.
+The chip is informational — recovery lives in the native Relaunch dialog, so the chip never fakes
+an action it cannot perform.
 
 **Sidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows

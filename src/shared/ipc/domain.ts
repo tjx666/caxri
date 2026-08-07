@@ -272,6 +272,20 @@ const gitRepositorySummarySchema = z.object({
     files: z.array(gitFileStatusSchema),
 });
 
+export const gitPullRequestChangesSchema = z.object({
+    repositoryId: z.string(),
+    number: z.number().int().positive(),
+    title: z.string().max(4_096),
+    url: z.url(),
+    baseRefName: z.string().min(1).max(1_024),
+    headRefName: z.string().min(1).max(1_024),
+    baseOid: z.string().regex(/^[0-9a-f]{40}$/),
+    headOid: z.string().regex(/^[0-9a-f]{40}$/),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    files: z.array(gitFileStatusSchema).max(2_000),
+});
+
 const gitCommitSchema = z.object({
     sha: z.string().regex(/^[0-9a-f]{40}$/),
     shortSha: z.string().min(7).max(12),
@@ -305,6 +319,20 @@ export const gitCommitDetailsSchema = z.object({
     commit: gitCommitSchema,
     files: z.array(gitCommitFileSchema).max(500),
     filesTruncated: z.boolean(),
+});
+
+export const gitBlameSchema = z.object({
+    sha: z.string().regex(/^[0-9a-f]{40}$/),
+    author: z.string().min(1).max(1_024),
+    authoredAt: z.number().int().nonnegative(),
+    subject: z.string().max(4_096),
+    line: z.number().int().positive(),
+    uncommitted: z.boolean(),
+});
+
+export const terminalResourceUsageSchema = z.object({
+    memoryMb: z.number().nonnegative(),
+    childProcessCount: z.number().int().nonnegative(),
 });
 
 export const gitSummarySchema = z.object({
@@ -462,11 +490,14 @@ export type FileSearchMatch = z.infer<typeof fileSearchMatchSchema>;
 export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
 export type GitRepositorySummary = z.infer<typeof gitRepositorySummarySchema>;
 export type GitSummary = z.infer<typeof gitSummarySchema>;
+export type GitPullRequestChanges = z.infer<typeof gitPullRequestChangesSchema>;
 export type GitCommit = z.infer<typeof gitCommitSchema>;
 export type GitCommitPage = z.infer<typeof gitCommitPageSchema>;
 export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
+export type GitBlame = z.infer<typeof gitBlameSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
+export type TerminalResourceUsage = z.infer<typeof terminalResourceUsageSchema>;
 export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;

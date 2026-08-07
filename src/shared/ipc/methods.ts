@@ -8,7 +8,9 @@ import {
     fileSearchModeSchema,
     fileSearchResultSchema,
     gitCommitDetailsSchema,
+    gitBlameSchema,
     gitCommitPageSchema,
+    gitPullRequestChangesSchema,
     gitSummarySchema,
     gitDiffDocumentSchema,
     identifierSchema,
@@ -25,6 +27,7 @@ import {
     terminalKindSchema,
     terminalRecordSchema,
     terminalSnapshotSchema,
+    terminalResourceUsageSchema,
     themeTokensSchema,
 } from './domain';
 
@@ -180,6 +183,11 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema.optional() }).default({}),
         result: z.number(),
     },
+    'terminal.resources': {
+        owner: 'runtime',
+        params: z.object({ terminalId: identifierSchema }),
+        result: terminalResourceUsageSchema.nullable(),
+    },
     'files.list': {
         owner: 'runtime',
         params: z.object({ sessionId: identifierSchema, directory: pathSchema.optional() }),
@@ -253,6 +261,24 @@ export const methods = {
         }),
         result: gitDiffDocumentSchema,
     },
+    'git.pullRequestChanges': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            refresh: z.number().int().nonnegative().default(0),
+        }),
+        result: gitPullRequestChangesSchema.nullable(),
+    },
+    'git.pullRequestDiffDocument': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            path: pathSchema,
+        }),
+        result: gitDiffDocumentSchema,
+    },
     'git.commits': {
         owner: 'runtime',
         params: z.object({
@@ -273,6 +299,15 @@ export const methods = {
             path: pathSchema.optional(),
         }),
         result: gitCommitDetailsSchema,
+    },
+    'git.blame': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+            line: z.number().int().positive().max(10_000_000),
+        }),
+        result: gitBlameSchema.nullable(),
     },
     'projectStatus.summary': {
         owner: 'runtime',

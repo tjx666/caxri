@@ -5,6 +5,8 @@ import {
     gitDiffModelPath,
     gitDiffTabLabel,
     gitFileDiffTabPath,
+    gitPullRequestChangesDiffTabPath,
+    gitPullRequestFileDiffTabPath,
     isGitDiffTabPath,
     parseGitDiffTab,
 } from '../git-diff';
@@ -18,13 +20,34 @@ describe('Git diff tabs', () => {
             kind: 'file',
             path: 'src/a#b?c.ts',
             repositoryId: 'repo/1',
+            source: 'working',
         });
         expect(parseGitDiffTab(changes)).toEqual({
             kind: 'changes',
             repositoryId: 'repo/1',
             repositoryName: 'workspace/name',
+            source: 'working',
         });
         expect(isGitDiffTabPath('/project/src/a.ts')).toBe(false);
+    });
+
+    it('keeps pull request identities distinct from working-tree diffs', () => {
+        const file = parseGitDiffTab(gitPullRequestFileDiffTabPath('repo', 'src/file.ts'));
+        const changes = parseGitDiffTab(gitPullRequestChangesDiffTabPath('repo', 'workspace'));
+
+        expect(file).toEqual({
+            kind: 'file',
+            path: 'src/file.ts',
+            repositoryId: 'repo',
+            source: 'pull-request',
+        });
+        expect(changes).toEqual({
+            kind: 'changes',
+            repositoryId: 'repo',
+            repositoryName: 'workspace',
+            source: 'pull-request',
+        });
+        expect(gitDiffTabLabel(changes!)).toBe('PR Changes: workspace');
     });
 
     it('provides readable labels and distinct original and modified Monaco model URIs', () => {
