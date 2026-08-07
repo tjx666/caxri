@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { ThemeTokens } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { resolveEditorLanguage } from './editor-language';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
 
@@ -32,6 +33,7 @@ export function CodeEditor({ path, value, theme, onChange }: CodeEditorProps) {
     return (
         <Editor
             path={path}
+            language={resolveEditorLanguage(path)}
             saveViewState={false}
             value={value}
             theme="caxri-active"

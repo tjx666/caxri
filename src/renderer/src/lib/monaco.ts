@@ -6,6 +6,12 @@ import HtmlWorker from 'monaco-editor/language/html/html.worker?worker';
 import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
 import TypeScriptWorker from 'monaco-editor/language/typescript/ts.worker?worker';
 
+import {
+    IGNORE_LANGUAGE_FILENAMES,
+    IGNORE_LANGUAGE_ID,
+    RC_LANGUAGE_ID,
+} from '../features/editor/editor-language';
+
 declare global {
     interface Window {
         MonacoEnvironment?: {
@@ -50,6 +56,54 @@ if (!monaco.languages.getLanguages().some((language) => language.id === DOTENV_L
                 [/\b(?:true|false|null)\b/, 'keyword'],
                 [/\b\d+(?:\.\d+)?\b/, 'number'],
                 [/#.*$/, 'comment'],
+            ],
+        },
+    });
+}
+
+if (!monaco.languages.getLanguages().some((language) => language.id === IGNORE_LANGUAGE_ID)) {
+    monaco.languages.register({
+        id: IGNORE_LANGUAGE_ID,
+        aliases: ['Ignore patterns', 'ignore'],
+        filenames: [...IGNORE_LANGUAGE_FILENAMES],
+        filenamePatterns: ['*.ignore'],
+    });
+    monaco.languages.setMonarchTokensProvider(IGNORE_LANGUAGE_ID, {
+        tokenizer: {
+            root: [
+                [/^\s*#.*/, 'comment'],
+                [/^\s*!/, 'keyword'],
+                [/\\./, 'string.escape'],
+                [/\*\*/, 'keyword'],
+                [/[?*]/, 'keyword'],
+                [/\[[^\]]*\]/, 'regexp'],
+                [/\//, 'delimiter'],
+                [/[^\\*?[\]/]+/, 'string'],
+            ],
+        },
+    });
+}
+
+if (!monaco.languages.getLanguages().some((language) => language.id === RC_LANGUAGE_ID)) {
+    monaco.languages.register({
+        id: RC_LANGUAGE_ID,
+        aliases: ['RC configuration', 'rc'],
+        filenamePatterns: ['.*rc'],
+    });
+    monaco.languages.setMonarchTokensProvider(RC_LANGUAGE_ID, {
+        tokenizer: {
+            root: [
+                [/^\s*[#;].*$/, 'comment'],
+                [/^\s*\[[^\]]+\]/, 'metatag'],
+                [/"(?:\\.|[^"\\])*"(?=\s*:)/, 'key'],
+                [/[A-Za-z_][\w.-]*(?=\s*[:=])/, 'key'],
+                [/[=:]/, 'delimiter'],
+                [/"(?:\\.|[^"\\])*"/, 'string'],
+                [/'(?:\\.|[^'\\])*'/, 'string'],
+                [/\b(?:true|false|null)\b/, 'keyword'],
+                [/-?\b\d+(?:\.\d+)?\b/, 'number'],
+                [/[{}[\],]/, 'delimiter.bracket'],
+                [/[^\s#;=:{}[\],]+/, 'string'],
             ],
         },
     });
