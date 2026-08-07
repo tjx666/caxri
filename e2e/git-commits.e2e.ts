@@ -1,0 +1,85 @@
+import { execFile } from 'node:child_process';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import { expect, test } from '@playwright/test';
+
+import { createProjectSession, launchCaxri } from './helpers.ts';
+
+const execFileAsync = promisify(execFile);
+
+async function initializeRepository(path: string, branch = 'main'): Promise<void> {
+    await execFileAsync('mkdir', ['-p', path]);
+    await execFileAsync('git', ['init', '-b', branch], { cwd: path });
+    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: path });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: path });
+}
+
+async function commit(path: string, message: string): Promise<void> {
+    await execFileAsync('git', ['add', '.'], { cwd: path });
+    await execFileAsync('git', ['commit', '-m', message], { cwd: path });
+}
+
+test('Git repositories lazy-load pageable commits and subtree history', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-commits-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const nested = join(root, 'nested');
+    await initializeRepository(root);
+    await execFileAsync('mkdir', ['-p', join(root, 'scope')]);
+    for (let index = 1; index <= 7; index += 1) {
+        const directory = index === 1 || index === 7 ? 'scope' : '.';
+        await writeFile(join(root, directory, `commit-${index}.txt`), `${index}\n`, 'utf8');
+        await commit(root, index === 7 ? 'latest scoped commit' : `commit ${index}`);
+    }
+    await initializeRepository(nested, 'nested-main');
+    await writeFile(join(nested, 'nested.txt'), 'nested\n', 'utf8');
+    await commit(nested, 'nested commit');
+    const canonicalRoot = await realpath(root);
+    const canonicalNested = await realpath(nested);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        await running.page.getByTitle('Git', { exact: true }).click();
+        await expect(running.page.locator('.git-repository-section')).toHaveCount(2);
+        const primary = running.page.locator('.git-repository-section').filter({
+            has: running.page.locator(`.git-repository-row[title="${canonicalRoot}"]`),
+        });
+        const nestedSection = running.page.locator('.git-repository-section').filter({
+            has: running.page.locator(`.git-repository-row[title="${canonicalNested}"]`),
+        });
+
+        await primary.getByRole('button', { name: /Commits/ }).click();
+        await expect(primary.locator('.commit-row')).toHaveCount(5);
+        await expect(primary.locator('.commit-row').first()).toContainText('latest scoped commit');
+        await expect(primary.locator('.commit-row').first()).toContainText('Caxri Test');
+        await expect(primary.locator('.commit-row').first()).toContainText('HEAD -> main');
+        await expect(primary.getByRole('button', { name: 'Load more' })).toBeVisible();
+        await primary.getByRole('button', { name: 'Load more' }).click();
+        await expect(primary.locator('.commit-row')).toHaveCount(7);
+
+        await primary.locator('.commit-row').first().click();
+        await expect(primary.locator('.commit-details')).toContainText('Changed files · 1');
+        await expect(primary.locator('.commit-details')).toContainText('scope/commit-7.txt');
+
+        await primary
+            .getByRole('textbox', { name: `History path for ${root.split('/').at(-1)}` })
+            .fill('scope');
+        await expect(primary.locator('.commit-row')).toHaveCount(2);
+        await expect(
+            primary.locator('.commit-row').filter({ hasText: 'latest scoped commit' }),
+        ).toBeVisible();
+        await expect(primary.locator('.commit-row').filter({ hasText: 'commit 1' })).toBeVisible();
+
+        await nestedSection.getByRole('button', { name: /Commits/ }).click();
+        await expect(nestedSection.locator('.commit-row')).toHaveCount(1);
+        await expect(nestedSection.locator('.commit-row')).toContainText('nested commit');
+        await expect(primary.locator('.commit-row')).toHaveCount(2);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

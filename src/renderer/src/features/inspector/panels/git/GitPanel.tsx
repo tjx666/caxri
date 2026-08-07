@@ -19,6 +19,7 @@ import { useSelectedSession } from '../../../../stores/selectors';
 import { useActiveWork } from '../../../../stores/session-view';
 import { openGitChangesDiff, openGitFileDiff } from './git-diff-actions';
 import { buildGitFileTree, type GitFileTreeNode } from './git-tree';
+import { CommitHistory } from './CommitHistory';
 
 const gitRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
@@ -115,9 +116,11 @@ function GitTreeDirectory({
 function GitRepositorySection({
     activeDiff,
     repository,
+    sessionId,
 }: {
     activeDiff?: GitDiffTab;
     repository: GitRepositorySummary;
+    sessionId: string;
 }) {
     const [expanded, setExpanded] = useState(true);
     const selectedPath =
@@ -177,6 +180,7 @@ function GitRepositorySection({
                             onSelect={(path) => openGitFileDiff(repository.id, path)}
                         />
                     )}
+                    <CommitHistory repository={repository} sessionId={sessionId} />
                 </div>
             )}
         </section>
@@ -246,6 +250,7 @@ export function GitPanel() {
                         key={repository.id}
                         repository={repository}
                         activeDiff={activeDiff}
+                        sessionId={session.id}
                     />
                 ))}
             </div>
