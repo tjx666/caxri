@@ -49,6 +49,25 @@ describe('Agent adapter fallback', () => {
         await expect(discoverExecutable('codex')).resolves.toBeUndefined();
     });
 
+    it('ignores terminal control sequences around a login-shell executable path', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-discovery-'));
+        temporaryDirectories.push(directory);
+        const executable = join(directory, 'codex');
+        const shell = join(directory, 'login-shell');
+        await writeFile(executable, '#!/bin/sh\n', 'utf8');
+        await chmod(executable, 0o700);
+        await writeFile(
+            shell,
+            `#!/bin/sh\nprintf '\\033]1337;CurrentDir=/project\\007${executable}\\n'\n`,
+            'utf8',
+        );
+        await chmod(shell, 0o700);
+        vi.stubEnv('PATH', '');
+        vi.stubEnv('SHELL', shell);
+
+        await expect(discoverExecutable('codex')).resolves.toBe(executable);
+    });
+
     it('shares a concurrent provider probe', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-'));
         temporaryDirectories.push(directory);

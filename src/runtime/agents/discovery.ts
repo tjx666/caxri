@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
-import { promisify } from 'node:util';
+import { promisify, stripVTControlCharacters } from 'node:util';
 
 import { agentProviderCatalog, agentProviderIds, type AgentProvider } from '../../shared/agents';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
@@ -64,7 +64,8 @@ async function findExecutable(name: AgentProvider): Promise<string | undefined> 
         );
         const candidate = stdout
             .split(/\r?\n/)
-            .map((line) => line.trim())
+            /** Interactive login shells may emit OSC/CSI integration sequences beside the path. */
+            .map((line) => stripVTControlCharacters(line).trim())
             .filter(Boolean)
             .at(-1);
         if (!candidate || !isAbsolute(candidate) || !(await isExecutable(candidate)))

@@ -327,7 +327,11 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     await writeFile(join(nested, 'packages/nested.txt'), 'before\n', 'utf8');
     await writeFile(join(nested, 'assets/binary.bin'), Buffer.from([0, 1]));
-    await Promise.all(bulkPaths.map((path) => writeFile(path, 'before\n', 'utf8')));
+    await Promise.all(
+        bulkPaths.map((path, index) =>
+            writeFile(path, `export const value${index}: number = 1;\n`, 'utf8'),
+        ),
+    );
     await execFileAsync('git', ['add', '.'], { cwd: nested });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: nested });
     await writeFile(join(submoduleSource, 'lib/submodule.txt'), 'before\n', 'utf8');
@@ -343,7 +347,9 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
         writeFile(join(root, 'src/root.txt'), 'after\n', 'utf8'),
         writeFile(join(nested, 'packages/nested.txt'), 'after\n', 'utf8'),
         writeFile(join(nested, 'assets/binary.bin'), Buffer.from([0, 2])),
-        ...bulkPaths.map((path) => writeFile(path, 'after\n', 'utf8')),
+        ...bulkPaths.map((path, index) =>
+            writeFile(path, `export const value${index}: number = 2;\n`, 'utf8'),
+        ),
         writeFile(join(root, 'vendor/sub/lib/submodule.txt'), 'after\n', 'utf8'),
     ]);
 
@@ -395,6 +401,18 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
         await expect(
             running.page.locator('.git-multi-diff .monaco-diff-editor').first(),
         ).toBeVisible();
+        const typescriptDiff = running.page.locator('.git-multi-diff-item').filter({
+            has: running.page.getByText('packages/bulk-0.ts', { exact: true }),
+        });
+        await expect
+            .poll(() =>
+                typescriptDiff
+                    .locator('.view-lines span')
+                    .evaluateAll(
+                        (spans) => new Set(spans.map((span) => getComputedStyle(span).color)).size,
+                    ),
+            )
+            .toBeGreaterThan(1);
         expect(
             await running.page.locator('.git-multi-diff .monaco-diff-editor').count(),
         ).toBeLessThan(bulkPaths.length + 2);

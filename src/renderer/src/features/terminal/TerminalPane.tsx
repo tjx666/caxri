@@ -20,8 +20,17 @@ import {
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
+import {
+    CODEX_IMAGE_PASTE_INPUT,
+    clipboardContainsImage,
+    terminalKeyboardInput,
+} from './terminal-keyboard';
 import { TerminalReplayBuffer } from './terminal-replay';
-import { terminalSizeChanged, type TerminalSize } from './terminal-size';
+import {
+    terminalSizeChanged,
+    terminalSizeWithScrollbarGutter,
+    type TerminalSize,
+} from './terminal-size';
 
 interface TerminalPaneProps {
     active: boolean;
@@ -56,17 +65,32 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const fontSize = settings?.['terminal.fontSize'] ?? 13;
     const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
     const processState = terminal?.lastProcessState ?? 'starting';
+    const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
     const terminalTheme = theme?.terminal;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const attachedEpochRef = useRef(attachEpoch);
-    const latestRef = useRef({ active, fontSize, processState, scrollback, terminalTheme });
+    const latestRef = useRef({
+        active,
+        fontSize,
+        isCodex,
+        processState,
+        scrollback,
+        terminalTheme,
+    });
 
     useEffect(() => {
-        latestRef.current = { active, fontSize, processState, scrollback, terminalTheme };
-    }, [active, fontSize, processState, scrollback, terminalTheme]);
+        latestRef.current = {
+            active,
+            fontSize,
+            isCodex,
+            processState,
+            scrollback,
+            terminalTheme,
+        };
+    }, [active, fontSize, isCodex, processState, scrollback, terminalTheme]);
 
     useEffect(() => {
         let canceled = false;
@@ -102,6 +126,27 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
         xterm.open(container);
+        xterm.attachCustomKeyEventHandler((event) => {
+            const input = terminalKeyboardInput(event, latestRef.current.isCodex);
+            if (!input) return true;
+            event.preventDefault();
+            event.stopPropagation();
+            xterm.input(input);
+            return false;
+        });
+        const handlePaste = (event: ClipboardEvent): void => {
+            if (
+                !latestRef.current.isCodex ||
+                !event.clipboardData ||
+                !clipboardContainsImage(event.clipboardData)
+            )
+                return;
+            /** Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding. */
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            xterm.input(CODEX_IMAGE_PASTE_INPUT);
+        };
+        container.addEventListener('paste', handlePaste, true);
         xtermRef.current = xterm;
         const replay = new TerminalReplayBuffer(
             (value) => new Promise<void>((resolve) => xterm.write(value, resolve)),
@@ -109,11 +154,18 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         let disposed = false;
         let lastSentSize: TerminalSize | undefined;
 
+        const fitToPane = (): TerminalSize | undefined => {
+            const size = terminalSizeWithScrollbarGutter(fit.proposeDimensions());
+            if (!size) return undefined;
+            if (terminalSizeChanged({ cols: xterm.cols, rows: xterm.rows }, size))
+                xterm.resize(size.cols, size.rows);
+            return size;
+        };
+
         const fitAndResize = (): void => {
             try {
-                fit.fit();
-                if (latestRef.current.processState !== 'running') return;
-                const size = { cols: xterm.cols, rows: xterm.rows };
+                const size = fitToPane();
+                if (!size || latestRef.current.processState !== 'running') return;
                 if (!terminalSizeChanged(lastSentSize, size)) return;
                 lastSentSize = size;
                 void caxri.request('terminal.resize', { terminalId, ...size }).catch(() => {
@@ -143,7 +195,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         });
         const observer = new ResizeObserver(fitAndResize);
         /** Restore into the final visible grid instead of xterm's default 80x24 viewport. */
-        fit.fit();
+        fitToPane();
         const initialize = async (): Promise<void> => {
             let payload = '';
             try {
@@ -168,6 +220,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         return () => {
             disposed = true;
             observer.disconnect();
+            container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
             dataDisposable.dispose();
             xterm.dispose();

@@ -109,20 +109,28 @@ export interface PrimaryAgentSuccession {
 }
 
 /**
- * Picks the next primary Agent Terminal after the current one closes: prefer another Agent
- * Terminal in the Session, otherwise fall back to any remaining Terminal so the Session keeps a
- * title source, otherwise reset to an untitled idle Session.
+ * Picks the next primary Agent Terminal after the current one closes. Another Agent becomes the
+ * new title source; when only Shell Terminals remain, the last generated Agent title stays visible.
  */
 export function choosePrimaryAgentSuccessor(
     remainingTerminals: TerminalRecord[],
+    currentDisplayTitle: string,
 ): PrimaryAgentSuccession {
     const nextAgent = remainingTerminals.find((candidate) => candidate.provider);
-    const fallback = nextAgent ?? remainingTerminals[0];
     return {
         primaryAgentTerminalId: nextAgent?.id ?? null,
-        displayTitle: fallback?.title ?? 'Session',
+        displayTitle: nextAgent?.title ?? currentDisplayTitle,
         lastActivityState: nextAgent ? processActivityState(nextAgent.lastProcessState) : 'idle',
     };
+}
+
+/** Removes attachment-only prefixes that Codex includes in a thread title but users cannot act on. */
+function agentDisplayTitle(title: string | undefined, fallback: string): string {
+    const meaningfulTitle = title
+        ?.trim()
+        .replace(/^(?:\[image\s+#\d+\]\s*)+/i, '')
+        .trim();
+    return meaningfulTitle || fallback;
 }
 
 export interface AgentMetadataDecision {
@@ -143,7 +151,7 @@ export function decideAgentMetadataUpdate(
     snapshot: AgentSnapshot,
 ): AgentMetadataDecision | undefined {
     if (!terminal.provider || terminal.provider !== snapshot.provider) return undefined;
-    const displayTitle = snapshot.title?.trim() || session.displayTitle;
+    const displayTitle = agentDisplayTitle(snapshot.title, session.displayTitle);
     const agentSessionId = snapshot.sessionId?.trim() || undefined;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const noOp =

@@ -136,3 +136,35 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('Terminal text keeps a visible gutter before its vertical scrollbar', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+
+        for (const width of [1_160, 1_180, 1_200, 1_220, 1_240, 1_260, 1_280, 1_300]) {
+            await running.page.setViewportSize({ width, height: 800 });
+            await running.page.evaluate(
+                () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+            );
+            const gutter = await running.page.evaluate(() => {
+                const screen = document.querySelector('.xterm-screen')?.getBoundingClientRect();
+                const scrollbar = document
+                    .querySelector('.xterm-scrollable-element > .scrollbar.vertical')
+                    ?.getBoundingClientRect();
+                if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
+                return scrollbar.left - screen.right;
+            });
+
+            expect(gutter, `viewport width ${width}px`).toBeGreaterThanOrEqual(4);
+        }
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

@@ -372,7 +372,7 @@ export class CaxriDatabase {
             const session = this.db.sessions.get(terminal.sessionId);
             if (session?.primaryAgentTerminalId === id) {
                 const remaining = this.db.terminals.list(terminal.sessionId);
-                const succession = choosePrimaryAgentSuccessor(remaining);
+                const succession = choosePrimaryAgentSuccessor(remaining, session.displayTitle);
                 this.db.sessions.setPrimaryAgent(terminal.sessionId, succession);
             }
             const state = this.db.sessions.getState(terminal.sessionId);
