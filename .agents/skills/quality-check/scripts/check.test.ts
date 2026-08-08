@@ -63,4 +63,34 @@ describe('testCandidatesForFile', () => {
         expect(testCandidatesForFile('src/shared/global.d.ts')).toEqual([]);
         expect(testCandidatesForFile('README.md')).toEqual([]);
     });
+
+    it('discovers a same-stem integration suite alongside a source file', () => {
+        expect(testCandidatesForFile('src/runtime/git.ts')).toContain(
+            'src/runtime/__tests__/git.integration.test.ts',
+        );
+        expect(testCandidatesForFile('src/runtime/terminal.ts')).toContain(
+            'src/runtime/__tests__/terminal.integration.test.ts',
+        );
+    });
+
+    it('discovers a domain-named integration suite for a nested subdirectory', () => {
+        expect(testCandidatesForFile('src/runtime/db/connection.ts')).toContain(
+            'src/runtime/db/__tests__/db.integration.test.ts',
+        );
+        expect(testCandidatesForFile('src/runtime/db/repository.ts')).toContain(
+            'src/runtime/db/__tests__/repository.integration.test.ts',
+        );
+        expect(testCandidatesForFile('src/runtime/files/search.ts')).toEqual(
+            expect.arrayContaining([
+                'src/runtime/files/__tests__/search.integration.test.ts',
+                'src/runtime/files/__tests__/files.integration.test.ts',
+            ]),
+        );
+    });
+
+    it('does not treat a top-level runtime file as a domain integration suite', () => {
+        expect(testCandidatesForFile('src/runtime/bootstrap.ts')).not.toContain(
+            'src/runtime/__tests__/runtime.integration.test.ts',
+        );
+    });
 });

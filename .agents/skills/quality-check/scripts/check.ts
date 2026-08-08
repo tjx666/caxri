@@ -106,10 +106,32 @@ export function testCandidatesForFile(file: string): string[] {
 
     const directory = posix.dirname(normalized);
     const stem = posix.basename(normalized, extension);
-    return TEST_EXTENSIONS.flatMap((testExtension) => [
+    const candidates = TEST_EXTENSIONS.flatMap((testExtension) => [
         posix.join(directory, `${stem}.test${testExtension}`),
         posix.join(directory, '__tests__', `${stem}.test${testExtension}`),
+        posix.join(directory, `${stem}.integration.test${testExtension}`),
+        posix.join(directory, '__tests__', `${stem}.integration.test${testExtension}`),
     ]);
+
+    // Domain-level integration suites are named after their owning subdirectory rather than an
+    // individual source stem (e.g. `src/runtime/db/*.ts` -> `db.integration.test.ts`,
+    // `src/runtime/files/*.ts` -> `files.integration.test.ts`), because they exercise a whole
+    // module composed of several sibling files. Only generate this candidate for directories
+    // nested at least one level below a top-level domain directory (3+ path segments before the
+    // filename); applying it at the top level would match broad, expensive suites like
+    // `runtime.integration.test.ts` for nearly every file directly under `src/runtime/`.
+    const directorySegments = directory.split('/').filter(Boolean);
+    if (directorySegments.length >= 3) {
+        const domain = directorySegments[directorySegments.length - 1];
+        candidates.push(
+            ...TEST_EXTENSIONS.flatMap((testExtension) => [
+                posix.join(directory, `${domain}.integration.test${testExtension}`),
+                posix.join(directory, '__tests__', `${domain}.integration.test${testExtension}`),
+            ]),
+        );
+    }
+
+    return candidates;
 }
 
 async function runCapture(command: string, args: string[], cwd: string): Promise<string> {
