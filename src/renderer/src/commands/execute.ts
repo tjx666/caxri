@@ -1,5 +1,5 @@
 import { caxri } from '../lib/caxri';
-import { saveActiveEditor } from '../features/editor/document-actions';
+import { closeEditor, saveActiveEditor } from '../features/editor/document-actions';
 import {
     closeFileSearch,
     requestFileSearchFocus,
@@ -59,6 +59,13 @@ const commandContext: CommandContext = {
         closeActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) closeTerminal(terminalId);
+        },
+    },
+    workbench: {
+        closeActiveTab: () => {
+            const active = getResolvedActiveWork();
+            if (active?.kind === 'terminal') closeTerminal(active.terminalId);
+            else if (active?.kind === 'editor') closeEditor(active.path);
         },
     },
     editor: { saveActive: () => void saveActiveEditor() },

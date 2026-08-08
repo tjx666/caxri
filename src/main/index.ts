@@ -522,6 +522,7 @@ async function installMenu(): Promise<void> {
                     { role: 'reload' },
                     { role: 'toggleDevTools' },
                     { type: 'separator' },
+                    command('inspector.searchFiles', 'Search Files…'),
                     command('sidebar.toggle'),
                     command('inspector.toggle'),
                     { type: 'separator' },
@@ -530,7 +531,13 @@ async function installMenu(): Promise<void> {
             },
             {
                 label: 'Window',
-                submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }],
+                submenu: [
+                    command('workbench.closeActiveTab', 'Close Tab'),
+                    { type: 'separator' },
+                    { role: 'minimize' },
+                    { role: 'zoom' },
+                    { role: 'front' },
+                ],
             },
             {
                 label: 'Help',

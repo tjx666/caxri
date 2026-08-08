@@ -46,6 +46,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('terminal.clear', (ctx) => ctx.terminal.clearActive(), { allowInEditable: true }),
     fromCatalog('terminal.restart', (ctx) => ctx.terminal.restartActive()),
     fromCatalog('terminal.close', (ctx) => ctx.terminal.closeActive(), { allowInEditable: true }),
+    fromCatalog('workbench.closeActiveTab', (ctx) => ctx.workbench.closeActiveTab(), {
+        allowInEditable: true,
+    }),
     fromCatalog('editor.save', (ctx) => ctx.editor.saveActive(), { allowInEditable: true }),
     fromCatalog('inspector.showFiles', (ctx) => ctx.inspector.setMode('files')),
     fromCatalog('inspector.showGit', (ctx) => ctx.inspector.setMode('git')),

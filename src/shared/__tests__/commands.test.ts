@@ -19,7 +19,7 @@ describe('command registry', () => {
                 { key: 'cmd+,', command: 'settings.open' },
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+t', command: 'terminal.new' },
-                { key: 'cmd+w', command: 'terminal.close' },
+                { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
         );
     });

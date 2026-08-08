@@ -8,6 +8,7 @@ export interface CommandContext {
     project: { create(): void; removeSelected(): void };
     session: { create(): void; deleteSelected(): void; selectAdjacent(delta: 1 | -1): void };
     terminal: { create(): void; clearActive(): void; restartActive(): void; closeActive(): void };
+    workbench: { closeActiveTab(): void };
     editor: { saveActive(): void };
     inspector: { searchFiles(): void; setMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };

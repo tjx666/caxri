@@ -89,6 +89,11 @@ test('editor previews pin and expose the standard close actions', async () => {
         await running.page.getByRole('menuitem', { name: 'Close All' }).click();
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
+
+        await running.page.getByRole('button', { name: 'a.js', exact: true }).dblclick();
+        await running.page.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+W');
+        await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

@@ -260,6 +260,8 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
                 'command.inspector.toggle',
                 'command.settings.open',
                 'command.commandPalette.open',
+                'command.inspector.searchFiles',
+                'command.workbench.closeActiveTab',
             ].map((id) => {
                 const item = menu?.getMenuItemById(id);
                 return item ? { accelerator: item.accelerator, id: item.id } : undefined;
@@ -270,6 +272,8 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
             { accelerator: 'Command+]', id: 'command.inspector.toggle' },
             { accelerator: 'Command+,', id: 'command.settings.open' },
             { accelerator: 'Command+Shift+P', id: 'command.commandPalette.open' },
+            { accelerator: 'Command+Shift+F', id: 'command.inspector.searchFiles' },
+            { accelerator: 'Command+W', id: 'command.workbench.closeActiveTab' },
         ]);
     } finally {
         await running.app.close().catch(() => undefined);

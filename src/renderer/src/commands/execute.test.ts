@@ -27,6 +27,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 restartActive: record('terminal.restart'),
                 closeActive: record('terminal.close'),
             },
+            workbench: { closeActiveTab: record('workbench.closeActiveTab') },
             editor: { saveActive: record('editor.save') },
             inspector: {
                 searchFiles: record('inspector.searchFiles'),

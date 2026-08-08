@@ -70,6 +70,12 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Close the active Terminal',
     },
     {
+        id: 'workbench.closeActiveTab',
+        title: 'Close Active Tab',
+        category: 'View',
+        description: 'Close the active Terminal or file tab',
+    },
+    {
         id: 'editor.save',
         title: 'Save File',
         category: 'Editor',
@@ -156,7 +162,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+t', command: 'terminal.new' },
     { key: 'cmd+k', command: 'terminal.clear' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
-    { key: 'cmd+w', command: 'terminal.close' },
+    { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
     { key: 'cmd+1', command: 'inspector.showFiles' },
     { key: 'cmd+2', command: 'inspector.showGit' },

@@ -10,6 +10,11 @@ import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigurationService, findKeybindingConflicts } from '../configuration';
 
 const temporaryDirectories: string[] = [];
+const v002DefaultKeybindings = defaultKeybindings.map((binding) =>
+    binding.command === 'workbench.closeActiveTab'
+        ? { ...binding, command: 'terminal.close' }
+        : binding,
+);
 
 afterEach(async () => {
     await Promise.all(
@@ -18,6 +23,46 @@ afterEach(async () => {
 });
 
 describe('ConfigurationService', () => {
+    it('upgrades the original untouched defaults instead of preserving retired commands', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-original-defaults-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(
+                [
+                    { key: 'cmd+shift+p', command: 'commandPalette.open' },
+                    { key: 'cmd+n', command: 'session.create' },
+                    { key: 'cmd+t', command: 'terminal.new' },
+                    { key: 'cmd+shift+r', command: 'terminal.restart' },
+                    { key: 'cmd+w', command: 'terminal.close' },
+                    { key: 'cmd+s', command: 'editor.save' },
+                    { key: 'cmd+1', command: 'inspector.showFiles' },
+                    { key: 'cmd+2', command: 'inspector.showGit' },
+                    { key: 'cmd+3', command: 'inspector.showAgent' },
+                    { key: 'cmd+,', command: 'theme.openSettings' },
+                ],
+                null,
+                2,
+            )}\n`,
+            'utf8',
+        );
+        const service = new ConfigurationService(directory, () => undefined);
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toEqual(defaultKeybindings);
+        expect(service.getKeybindings().value).toContainEqual({
+            command: 'inspector.searchFiles',
+            key: 'cmd+shift+f',
+        });
+        expect(
+            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
+        ).toEqual(defaultKeybindings);
+        await service.close();
+    });
+
     it('adds newly shipped shortcuts to an untouched legacy default keybinding set', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-defaults-'));
         temporaryDirectories.push(directory);
@@ -26,7 +71,7 @@ describe('ConfigurationService', () => {
         await writeFile(
             join(configDirectory, 'keybindings.jsonc'),
             `${JSON.stringify(
-                defaultKeybindings.filter(
+                v002DefaultKeybindings.filter(
                     (binding) =>
                         !['inspector.searchFiles', 'inspector.toggle', 'sidebar.toggle'].includes(
                             binding.command,
@@ -68,7 +113,7 @@ describe('ConfigurationService', () => {
         await writeFile(
             join(configDirectory, 'keybindings.jsonc'),
             `${JSON.stringify(
-                defaultKeybindings.filter(
+                v002DefaultKeybindings.filter(
                     (binding) => !['inspector.toggle', 'sidebar.toggle'].includes(binding.command),
                 ),
                 null,

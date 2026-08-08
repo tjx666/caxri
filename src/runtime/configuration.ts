@@ -77,19 +77,40 @@ const settingsSchema = z.object({
 });
 
 const keybindingSchema = z.array(sharedKeybindingSchema);
+const originalDefaultKeybindings: Keybinding[] = [
+    { key: 'cmd+shift+p', command: 'commandPalette.open' },
+    { key: 'cmd+n', command: 'session.create' },
+    { key: 'cmd+t', command: 'terminal.new' },
+    { key: 'cmd+shift+r', command: 'terminal.restart' },
+    { key: 'cmd+w', command: 'terminal.close' },
+    { key: 'cmd+s', command: 'editor.save' },
+    { key: 'cmd+1', command: 'inspector.showFiles' },
+    { key: 'cmd+2', command: 'inspector.showGit' },
+    { key: 'cmd+3', command: 'inspector.showAgent' },
+    { key: 'cmd+,', command: 'theme.openSettings' },
+];
+const closeTerminalDefaultKeybindings = defaultKeybindings.map((binding) =>
+    binding.command === 'workbench.closeActiveTab'
+        ? { ...binding, command: 'terminal.close' }
+        : binding,
+);
 const newlyAddedDefaultCommands = new Set([
     'inspector.searchFiles',
     'inspector.toggle',
     'sidebar.toggle',
 ]);
 const previousDefaultKeybindingSets = [
-    defaultKeybindings.filter(
+    originalDefaultKeybindings,
+    closeTerminalDefaultKeybindings,
+    closeTerminalDefaultKeybindings.filter(
         (binding) => !['inspector.toggle', 'sidebar.toggle'].includes(binding.command),
     ),
-    defaultKeybindings.filter((binding) => !newlyAddedDefaultCommands.has(binding.command)),
+    closeTerminalDefaultKeybindings.filter(
+        (binding) => !newlyAddedDefaultCommands.has(binding.command),
+    ),
 ];
 
-/** Adds newly shipped defaults only when the file matches a prior untouched default set. */
+/** Upgrades known untouched historical defaults while preserving every customized keybinding file. */
 function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[] {
     const source = JSON.stringify(keybindings);
     return previousDefaultKeybindingSets.some((defaults) => source === JSON.stringify(defaults))
