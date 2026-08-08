@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { commandDefinitions, defaultKeybindings } from '../commands';
+import {
+    commandDefinitions,
+    defaultKeybindings,
+    getNativeMenuCommandGroups,
+    nativeMenuIds,
+} from '../commands';
 
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {
@@ -22,5 +27,32 @@ describe('command registry', () => {
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
         );
+    });
+
+    it('owns unique native-menu placements and returns them in presentation order', () => {
+        const placements = commandDefinitions.flatMap((command) =>
+            command.nativeMenu ? [{ command: command.id, ...command.nativeMenu }] : [],
+        );
+        const slots = placements.map(({ menu, group, order }) => `${menu}:${group}:${order}`);
+
+        expect(new Set(slots).size).toBe(slots.length);
+        expect(
+            placements.every(
+                ({ menu, group, order }) =>
+                    nativeMenuIds.includes(menu) &&
+                    Number.isInteger(group) &&
+                    group >= 0 &&
+                    Number.isInteger(order) &&
+                    order >= 0,
+            ),
+        ).toBe(true);
+        expect(
+            getNativeMenuCommandGroups('session').map((group) =>
+                group.map((command) => command.id),
+            ),
+        ).toEqual([
+            ['session.create', 'session.delete'],
+            ['session.selectPrevious', 'session.selectNext'],
+        ]);
     });
 });

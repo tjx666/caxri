@@ -11,7 +11,6 @@ import {
     type IpcMainInvokeEvent,
 } from 'electron';
 
-import { getCommandDefinition } from '../shared/commands';
 import { CaxriError, errorMessage, toWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { isMainRequest, type CaxriRequest, type MainRequest } from '../shared/ipc/methods';
@@ -28,6 +27,7 @@ import { resolveDevelopmentDockIconPath } from './app-icon';
 import { decideCrashRecovery } from './crash-policy';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
+import { buildApplicationMenuTemplate } from './menu';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
@@ -432,140 +432,23 @@ function installIpc(): void {
     });
 }
 
-function electronAccelerator(key: string | undefined): string | undefined {
-    if (!key) return undefined;
-    const names: Record<string, string> = {
-        cmd: 'Command',
-        command: 'Command',
-        ctrl: 'Control',
-        control: 'Control',
-        alt: 'Alt',
-        option: 'Alt',
-        shift: 'Shift',
-    };
-    return key
-        .split('+')
-        .map((part) => names[part.trim().toLowerCase()] ?? part.trim().toUpperCase())
-        .join('+');
-}
-
 async function installMenu(): Promise<void> {
     const keybindings = await supervisor
         .request('keybindings.get')
         .then((result) => result.value)
         .catch(() => []);
-    const accelerator = (id: string): string | undefined =>
-        electronAccelerator(keybindings.find((binding) => binding.command === id)?.key);
-    const command = (id: string, label?: string) => ({
-        id: `command.${id}`,
-        label: label ?? getCommandDefinition(id).title,
-        accelerator: accelerator(id),
-        /**
-         * `event.triggeredByAccelerator` tells the Renderer whether this click came from the menu's
-         * keyboard accelerator (which must honour the editable-focus shortcut policy, DESIGN.md:121-123,
-         * the same way `useCommandShortcuts` does) or an actual mouse/touch click on the menu item
-         * (a deliberate user action that must keep working even while a Terminal/editor has focus).
-         */
-        click: (
-            _menuItem: Electron.MenuItem,
-            _window: Electron.BaseWindow | undefined,
-            event: Electron.KeyboardEvent,
-        ) =>
-            sendEvent({
-                event: 'command.execute',
-                payload: { command: id, viaAccelerator: event.triggeredByAccelerator === true },
-            }),
-    });
     Menu.setApplicationMenu(
-        Menu.buildFromTemplate([
-            {
-                label: 'Caxri',
-                submenu: [
-                    { role: 'about' },
-                    { type: 'separator' },
-                    command('settings.open', 'Settings…'),
-                    { type: 'separator' },
-                    { id: 'app.hide', role: 'hide', accelerator: 'Command+H' },
-                    { role: 'hideOthers' },
-                    { role: 'unhide' },
-                    { type: 'separator' },
-                    { role: 'quit' },
-                ],
-            },
-            {
-                label: 'Project',
-                submenu: [
-                    command('project.create', 'Add Project…'),
-                    command('project.delete', 'Remove Project…'),
-                ],
-            },
-            {
-                label: 'Session',
-                submenu: [
-                    command('session.create', 'New Session'),
-                    command('session.delete', 'Remove Session…'),
-                    { type: 'separator' },
-                    command('session.selectPrevious', 'Previous Session'),
-                    command('session.selectNext', 'Next Session'),
-                ],
-            },
-            {
-                label: 'Terminal',
-                submenu: [
-                    command('terminal.new'),
-                    command('terminal.clear'),
-                    command('terminal.restart'),
-                    command('terminal.close'),
-                ],
-            },
-            {
-                label: 'Edit',
-                submenu: [
-                    { role: 'undo' },
-                    { role: 'redo' },
-                    { type: 'separator' },
-                    { role: 'cut' },
-                    { role: 'copy' },
-                    { role: 'paste' },
-                    { role: 'selectAll' },
-                ],
-            },
-            {
-                label: 'View',
-                submenu: [
-                    { role: 'reload' },
-                    { role: 'toggleDevTools' },
-                    { type: 'separator' },
-                    command('inspector.searchFiles', 'Search Files…'),
-                    command('sidebar.toggle'),
-                    command('inspector.toggle'),
-                    { type: 'separator' },
-                    command('commandPalette.open', 'Command Palette…'),
-                ],
-            },
-            {
-                label: 'Window',
-                submenu: [
-                    command('workbench.closeActiveTab', 'Close Tab'),
-                    { type: 'separator' },
-                    { role: 'minimize' },
-                    { role: 'zoom' },
-                    { role: 'front' },
-                ],
-            },
-            {
-                label: 'Help',
-                submenu: [
-                    {
-                        id: 'command.processExplorer.open',
-                        label: getCommandDefinition('processExplorer.open').title,
-                        click: () => processExplorer.open(),
-                    },
-                    { type: 'separator' },
-                    command('diagnostics.export'),
-                ],
-            },
-        ]),
+        Menu.buildFromTemplate(
+            buildApplicationMenuTemplate({
+                keybindings,
+                dispatchCommand: (command, viaAccelerator) =>
+                    sendEvent({
+                        event: 'command.execute',
+                        payload: { command, viaAccelerator },
+                    }),
+                openProcessExplorer: () => processExplorer.open(),
+            }),
+        ),
     );
 }
 

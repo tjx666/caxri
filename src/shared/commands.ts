@@ -5,7 +5,24 @@ export interface CommandDefinition {
     title: string;
     category: string;
     description: string;
+    nativeMenu?: {
+        menu: NativeMenuId;
+        group: number;
+        order: number;
+    };
 }
+
+export const nativeMenuIds = [
+    'application',
+    'project',
+    'session',
+    'terminal',
+    'view',
+    'window',
+    'help',
+] as const;
+
+export type NativeMenuId = (typeof nativeMenuIds)[number];
 
 /** One command catalog supplies the palette, shortcuts, native menus, and command-backed buttons. */
 export const commandDefinitions: CommandDefinition[] = [
@@ -14,66 +31,77 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Add Project',
         category: 'Project',
         description: 'Add a local folder as a Project',
+        nativeMenu: { menu: 'project', group: 0, order: 0 },
     },
     {
         id: 'project.delete',
         title: 'Remove Project',
         category: 'Project',
         description: 'Remove the selected Project from Caxri',
+        nativeMenu: { menu: 'project', group: 0, order: 1 },
     },
     {
         id: 'session.create',
         title: 'New Session',
         category: 'Session',
         description: 'Create a Session in the selected Project',
+        nativeMenu: { menu: 'session', group: 0, order: 0 },
     },
     {
         id: 'session.delete',
         title: 'Remove Session',
         category: 'Session',
         description: 'Remove the selected Session and its Terminals',
+        nativeMenu: { menu: 'session', group: 0, order: 1 },
     },
     {
         id: 'session.selectNext',
         title: 'Select Next Session',
         category: 'Session',
         description: 'Select the next active Session',
+        nativeMenu: { menu: 'session', group: 1, order: 1 },
     },
     {
         id: 'session.selectPrevious',
         title: 'Select Previous Session',
         category: 'Session',
         description: 'Select the previous active Session',
+        nativeMenu: { menu: 'session', group: 1, order: 0 },
     },
     {
         id: 'terminal.new',
         title: 'New Terminal',
         category: 'Terminal',
         description: 'Create a Terminal in the current Session',
+        nativeMenu: { menu: 'terminal', group: 0, order: 0 },
     },
     {
         id: 'terminal.clear',
         title: 'Clear Terminal',
         category: 'Terminal',
         description: 'Clear the active Terminal view',
+        nativeMenu: { menu: 'terminal', group: 0, order: 1 },
     },
     {
         id: 'terminal.restart',
         title: 'Restart Terminal',
         category: 'Terminal',
         description: 'Restart the active Terminal',
+        nativeMenu: { menu: 'terminal', group: 0, order: 2 },
     },
     {
         id: 'terminal.close',
         title: 'Close Terminal',
         category: 'Terminal',
         description: 'Close the active Terminal',
+        nativeMenu: { menu: 'terminal', group: 0, order: 3 },
     },
     {
         id: 'workbench.closeActiveTab',
         title: 'Close Active Tab',
         category: 'View',
         description: 'Close the active Terminal or file tab',
+        nativeMenu: { menu: 'window', group: 0, order: 0 },
     },
     {
         id: 'editor.save',
@@ -110,42 +138,49 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Search Files',
         category: 'Inspector',
         description: 'Search files in the selected Project',
+        nativeMenu: { menu: 'view', group: 0, order: 0 },
     },
     {
         id: 'inspector.toggle',
         title: 'Toggle Inspector',
         category: 'Inspector',
         description: 'Show or hide the Inspector',
+        nativeMenu: { menu: 'view', group: 0, order: 2 },
     },
     {
         id: 'sidebar.toggle',
         title: 'Toggle Primary Sidebar',
         category: 'View',
         description: 'Show or hide the Project Sidebar',
+        nativeMenu: { menu: 'view', group: 0, order: 1 },
     },
     {
         id: 'settings.open',
         title: 'Open Settings',
         category: 'Preferences',
         description: 'Open Caxri Settings',
+        nativeMenu: { menu: 'application', group: 0, order: 0 },
     },
     {
         id: 'commandPalette.open',
         title: 'Open Command Palette',
         category: 'View',
         description: 'Search and run Caxri commands',
+        nativeMenu: { menu: 'view', group: 1, order: 0 },
     },
     {
         id: 'processExplorer.open',
         title: 'Open Process Explorer',
         category: 'Help',
         description: 'Inspect Caxri process resource usage',
+        nativeMenu: { menu: 'help', group: 0, order: 0 },
     },
     {
         id: 'diagnostics.export',
         title: 'Export Diagnostics',
         category: 'Help',
         description: 'Export a privacy-safe diagnostics bundle',
+        nativeMenu: { menu: 'help', group: 1, order: 0 },
     },
 ];
 
@@ -153,6 +188,26 @@ export function getCommandDefinition(id: string): CommandDefinition {
     const definition = commandDefinitions.find((command) => command.id === id);
     if (!definition) throw new Error(`Unknown command: ${id}`);
     return definition;
+}
+
+/** Returns command-backed native-menu groups in their declared presentation order. */
+export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinition[][] {
+    const placed = commandDefinitions
+        .filter((command) => command.nativeMenu?.menu === menu)
+        .sort((a, b) => {
+            const aPlacement = a.nativeMenu;
+            const bPlacement = b.nativeMenu;
+            if (!aPlacement || !bPlacement) return 0;
+            return aPlacement.group - bPlacement.group || aPlacement.order - bPlacement.order;
+        });
+    const groups: CommandDefinition[][] = [];
+    for (const command of placed) {
+        const group = command.nativeMenu?.group;
+        const previous = groups.at(-1);
+        if (previous && previous[0]?.nativeMenu?.group === group) previous.push(command);
+        else groups.push([command]);
+    }
+    return groups;
 }
 
 /** Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run. */
