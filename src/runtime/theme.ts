@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { stat, readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 import { parse as parsePlist } from 'plist';
@@ -6,11 +6,21 @@ import YAML from 'yaml';
 
 /** The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it. */
 import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
+import { CaxriError } from '../shared/ipc/errors';
 import { parseJsonc } from '../shared/node/jsonc';
 import { themeImportFormats } from '../shared/theme-import';
 import type { ThemeTokens } from '../shared/types';
 
 type ThemeImportFormat = (typeof themeImportFormats)[number];
+
+/**
+ * Ceiling for a theme file selected for import. Theme files (VS Code color themes, iTerm2
+ * plists, Warp YAML, Caxri JSON) are small hand-authored documents; 1 MiB is generous while still
+ * bounding the amount of untrusted content handed to the plist/YAML/JSONC parsers, mirroring the
+ * size cap other untrusted-file reads apply (see `files/documents.ts` and
+ * `MAX_CONFIGURABLE_FILE_BYTES` in `shared/ipc/domain.ts`).
+ */
+export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
 
 /** Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers. */
 export const draculaTheme: ThemeTokens = {
@@ -283,6 +293,12 @@ function resolveThemeImportFormat(extension: string, source: string): ThemeImpor
 }
 
 export async function importTheme(path: string, current: ThemeTokens): Promise<ThemeTokens> {
+    const { size } = await stat(path);
+    if (size > MAX_THEME_IMPORT_FILE_BYTES)
+        throw new CaxriError(
+            'CAPACITY',
+            `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
+        );
     const source = await readFile(path, 'utf8');
     const name =
         path
