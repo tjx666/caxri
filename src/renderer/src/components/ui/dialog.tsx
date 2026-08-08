@@ -1,11 +1,31 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
+import { useEffect, useId } from 'react';
 import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/utils';
+import { useDialogStore } from '@/stores/dialogs';
 
-export function Dialog(props: DialogPrimitive.Root.Props) {
-    return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+/**
+ * Registers this Dialog instance with the shared modal-open registry while `open` is
+ * true, and unregisters on close or unmount. Every consumer of the shared `Dialog`
+ * primitive gets this for free, so `useDialogStore.isModalOpen()` (which gates
+ * app-wide shortcuts in `commands/execute.ts`) stays correct as new dialogs are added
+ * without anyone having to remember to OR in another boolean field. A `Set` of
+ * `useId()`-derived ids keeps React StrictMode's double-invoked effects idempotent.
+ */
+function useModalRegistration(open: boolean | undefined): void {
+    const id = useId();
+    useEffect(() => {
+        if (!open) return;
+        useDialogStore.getState().registerModal(id);
+        return () => useDialogStore.getState().unregisterModal(id);
+    }, [open, id]);
+}
+
+export function Dialog({ open, ...props }: DialogPrimitive.Root.Props) {
+    useModalRegistration(open);
+    return <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />;
 }
 
 function DialogPortal(props: DialogPrimitive.Portal.Props) {

@@ -1,0 +1,74 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { useDialogStore } from './dialogs';
+
+describe('modal registration', () => {
+    beforeEach(() => {
+        useDialogStore.setState({
+            settingsOpen: false,
+            paletteOpen: false,
+            pendingRoot: undefined,
+            pendingProjectId: undefined,
+            openModalIds: new Set(),
+        });
+    });
+
+    it('reports no modal open when the registry is empty', () => {
+        expect(useDialogStore.getState().isModalOpen()).toBe(false);
+    });
+
+    it('reports a modal open once an id is registered', () => {
+        useDialogStore.getState().registerModal('settings-1');
+
+        expect(useDialogStore.getState().isModalOpen()).toBe(true);
+        expect(useDialogStore.getState().openModalIds.has('settings-1')).toBe(true);
+    });
+
+    it('reports no modal open again once the only registered id is unregistered', () => {
+        const store = useDialogStore.getState();
+        store.registerModal('settings-1');
+        store.unregisterModal('settings-1');
+
+        expect(useDialogStore.getState().isModalOpen()).toBe(false);
+    });
+
+    it('keeps a modal open while at least one other id remains registered', () => {
+        const store = useDialogStore.getState();
+        store.registerModal('settings-1');
+        store.registerModal('palette-1');
+        store.unregisterModal('settings-1');
+
+        expect(useDialogStore.getState().isModalOpen()).toBe(true);
+        expect(useDialogStore.getState().openModalIds.has('palette-1')).toBe(true);
+    });
+
+    it('is idempotent when the same id is registered twice, as React StrictMode does', () => {
+        const store = useDialogStore.getState();
+        store.registerModal('settings-1');
+        const afterFirst = useDialogStore.getState().openModalIds;
+        store.registerModal('settings-1');
+        const afterSecond = useDialogStore.getState().openModalIds;
+
+        expect(afterSecond.size).toBe(1);
+        // Re-registering an already-registered id must be a no-op state update, not a
+        // new Set, so unrelated subscribers do not re-render.
+        expect(afterSecond).toBe(afterFirst);
+    });
+
+    it('is a no-op to unregister an id that was never registered', () => {
+        const store = useDialogStore.getState();
+        store.unregisterModal('never-registered');
+
+        expect(useDialogStore.getState().openModalIds.size).toBe(0);
+    });
+
+    it('survives a StrictMode-style unregister/register churn for the same id', () => {
+        const store = useDialogStore.getState();
+        store.registerModal('settings-1');
+        store.unregisterModal('settings-1');
+        store.registerModal('settings-1');
+
+        expect(useDialogStore.getState().openModalIds.size).toBe(1);
+        expect(useDialogStore.getState().isModalOpen()).toBe(true);
+    });
+});
