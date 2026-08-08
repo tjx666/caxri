@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aggregateTerminalResources, parseProcessResourceEntries } from '../terminal-resources';
+import { aggregateTerminalResources, parseProcessResourceEntries } from '../resources';
 
 describe('Terminal resource sampling', () => {
     it('sums the PTY process tree and excludes the root from the child count', () => {

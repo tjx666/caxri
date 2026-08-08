@@ -1,22 +1,24 @@
 import * as pty from 'node-pty';
 
-import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { StructuredLogger } from '../shared/node/logger';
-import { safeProcessEnvironment } from '../shared/node/process-environment';
+import { agentProviderCatalog } from '../../shared/agents';
+import { CaxriError, errorMessage } from '../../shared/ipc/errors';
+import type { RuntimeEvent } from '../../shared/ipc/events';
+import type { StructuredLogger } from '../../shared/node/logger';
+import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     TerminalKind,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
-} from '../shared/types';
-import { discoverExecutable } from './agents/discovery';
-import type { CaxriDatabase } from './db/repository';
-import type { ShutdownReason } from './session-policy';
-import { SingleFlight } from './single-flight';
-import { TerminalOutputQueue, TerminalSnapshotBuffer } from './terminal-buffer';
-import { sampleTerminalResources } from './terminal-resources';
+} from '../../shared/types';
+import { discoverExecutable } from '../agents/discovery';
+import type { CaxriDatabase } from '../db/repository';
+import type { ShutdownReason } from '../session-policy';
+import { SingleFlight } from '../single-flight';
+import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
+import { sampleTerminalResources } from './resources';
+
+export { TerminalRestoreSupervisor } from './restore-supervisor';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;

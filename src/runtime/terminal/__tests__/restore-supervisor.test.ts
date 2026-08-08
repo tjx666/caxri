@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { TerminalRestoreSupervisor } from '../terminal-restore-supervisor';
+import { TerminalRestoreSupervisor } from '../restore-supervisor';
 
 describe('TerminalRestoreSupervisor', () => {
     it('bounds active restores and skips queued work from stale Session generations', async () => {

@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { basename, relative, resolve, sep } from 'node:path';
 
-import { CaxriError } from '../shared/ipc/errors';
-import { mapWithConcurrency } from '../shared/node/concurrency';
-import type { GitFileStatus, GitRepositorySummary, GitSummary } from '../shared/types';
-import { isOutsideRoot } from './path-security';
-import { toGitError } from './git-errors';
-import type { ProjectRootResolver } from './project-roots';
-import { SingleFlight } from './single-flight';
+import { CaxriError } from '../../shared/ipc/errors';
+import { mapWithConcurrency } from '../../shared/node/concurrency';
+import type { GitFileStatus, GitRepositorySummary, GitSummary } from '../../shared/types';
+import { isOutsideRoot } from '../path-security';
+import type { ProjectRootResolver } from '../project-roots';
+import { SingleFlight } from '../single-flight';
+import { toGitError } from './errors';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
 

@@ -64,12 +64,12 @@ describe('testCandidatesForFile', () => {
         expect(testCandidatesForFile('README.md')).toEqual([]);
     });
 
-    it('discovers a same-stem integration suite alongside a source file', () => {
-        expect(testCandidatesForFile('src/runtime/git.ts')).toContain(
-            'src/runtime/__tests__/git.integration.test.ts',
+    it('discovers domain integration suites from nested index entries', () => {
+        expect(testCandidatesForFile('src/runtime/git/index.ts')).toContain(
+            'src/runtime/git/__tests__/git.integration.test.ts',
         );
-        expect(testCandidatesForFile('src/runtime/terminal.ts')).toContain(
-            'src/runtime/__tests__/terminal.integration.test.ts',
+        expect(testCandidatesForFile('src/runtime/terminal/index.ts')).toContain(
+            'src/runtime/terminal/__tests__/terminal.integration.test.ts',
         );
     });
 

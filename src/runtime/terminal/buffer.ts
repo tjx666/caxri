@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 
-import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from './snapshot';
+import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapshot';
 
 type BoundedSnapshot = ReturnType<typeof boundSnapshot>;
 const SNAPSHOT_TRIM_BATCH_BYTES = 64 * 1024;

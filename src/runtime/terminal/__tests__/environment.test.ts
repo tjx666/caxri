@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { terminalEnvironment } from '../terminal';
+import { terminalEnvironment } from '..';
 
 describe('terminalEnvironment', () => {
     it('passes required shell context without leaking app or credential variables', () => {

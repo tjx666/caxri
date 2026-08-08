@@ -22,8 +22,11 @@ import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files/service';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
-import { TerminalManager, type TerminalManagerOptions } from './terminal';
-import { TerminalRestoreSupervisor } from './terminal-restore-supervisor';
+import {
+    TerminalManager,
+    type TerminalManagerOptions,
+    TerminalRestoreSupervisor,
+} from './terminal';
 import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };

@@ -59,6 +59,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 - Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state.
 - Let the first Agent Terminal own the Session title, and keep the Info inspector scoped to Terminals actually started in that Session.
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
+- Keep a Runtime domain flat only while its implementation has at most two production modules. At three or more cohesive modules, move it under `src/runtime/<domain>/` with an `index.ts` boundary and a domain-local `__tests__/` directory; Runtime imports remain relative.
 - Keep unit and integration tests with their source domain: Renderer code keeps tests beside their source files; Main, Runtime, and shared code use a `__tests__/` directory per domain. Reserve `e2e/` for full Electron workflows.
 - Keep every JavaScript and TypeScript code file at or below 800 physical lines; split cohesive modules before they exceed the ESLint `max-lines` gate.
 - Keep root `DESIGN.md` focused on frontend and UI design. Update the `project-architecture` skill references, tests, and these commands when an architecture or toolchain contract changes.

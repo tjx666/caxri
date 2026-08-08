@@ -1,13 +1,13 @@
-import { CaxriError } from '../shared/ipc/errors';
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../shared/ipc/domain';
-import type { RuntimeMethodParams } from '../shared/ipc/methods';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
+import { CaxriError } from '../../shared/ipc/errors';
+import type { RuntimeMethodParams } from '../../shared/ipc/methods';
 import type {
     GitDiffDocument,
     GitFileStatus,
     GitPullRequestChanges,
     GitRepositorySummary,
-} from '../shared/types';
-import { SingleFlight } from './single-flight';
+} from '../../shared/types';
+import { SingleFlight } from '../single-flight';
 
 const PULL_REQUEST_CACHE_MS = 30_000;
 const MAX_PULL_REQUEST_FILES = 2_000;

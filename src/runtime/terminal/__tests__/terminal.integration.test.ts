@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../shared/ipc';
-import { StructuredLogger } from '../../shared/node/logger';
-import { CaxriDatabase } from '../db/repository';
-import { TerminalManager } from '../terminal';
+import type { RuntimeEvent } from '../../../shared/ipc';
+import { StructuredLogger } from '../../../shared/node/logger';
+import { CaxriDatabase } from '../../db/repository';
+import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { boundSnapshot, MAX_SNAPSHOT_BYTES } from '../snapshot';
-import { TerminalOutputQueue, TerminalSnapshotBuffer } from '../terminal-buffer';
+import { boundSnapshot, MAX_SNAPSHOT_BYTES } from '../../snapshot';
+import { TerminalOutputQueue, TerminalSnapshotBuffer } from '../buffer';
 
 describe('Terminal buffers', () => {
     it('appends small PTY chunks without rescanning a saturated snapshot', () => {

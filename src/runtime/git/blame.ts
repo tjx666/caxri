@@ -1,10 +1,10 @@
 import { relative } from 'node:path';
 
-import type { GitBlame, GitSummary } from '../shared/types';
-import type { RuntimeMethodParams } from '../shared/ipc/methods';
-import { isOutsideRoot } from './path-security';
-import type { ProjectRootResolver } from './project-roots';
-import { SingleFlight } from './single-flight';
+import type { RuntimeMethodParams } from '../../shared/ipc/methods';
+import type { GitBlame, GitSummary } from '../../shared/types';
+import { isOutsideRoot } from '../path-security';
+import type { ProjectRootResolver } from '../project-roots';
+import { SingleFlight } from '../single-flight';
 
 interface GitBlameServiceOptions {
     git: (

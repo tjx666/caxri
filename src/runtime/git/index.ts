@@ -3,11 +3,11 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../shared/ipc/domain';
-import { CaxriError, errorMessage, isCaxriError } from '../shared/ipc/errors';
-import { AsyncSemaphore } from '../shared/node/concurrency';
-import type { StructuredLogger } from '../shared/node/logger';
-import { safeProcessEnvironment } from '../shared/node/process-environment';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
+import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
+import { AsyncSemaphore } from '../../shared/node/concurrency';
+import type { StructuredLogger } from '../../shared/node/logger';
+import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     GitCommit,
     GitCommitDetails,
@@ -17,15 +17,15 @@ import type {
     GitFileStatus,
     GitRepositorySummary,
     GitSummary,
-} from '../shared/types';
-import type { RuntimeMethodParams } from '../shared/ipc/methods';
-import { assertInsideRoot } from './path-security';
-import { toGitError } from './git-errors';
-import { GitPullRequestService } from './git-pull-request';
-import { GitBlameService } from './git-blame';
-import { GitRepositoryService } from './git-repository';
-import { SingleFlight } from './single-flight';
-import type { ProjectRootResolver } from './project-roots';
+} from '../../shared/types';
+import type { RuntimeMethodParams } from '../../shared/ipc/methods';
+import { assertInsideRoot } from '../path-security';
+import { SingleFlight } from '../single-flight';
+import type { ProjectRootResolver } from '../project-roots';
+import { GitBlameService } from './blame';
+import { toGitError } from './errors';
+import { GitPullRequestService } from './pull-request';
+import { GitRepositoryService } from './repository';
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -39,7 +39,7 @@ interface DiffTarget {
     relativePath: string;
     repository: GitRepositorySummary;
 }
-export { describeGitFailure } from './git-errors';
+export { describeGitFailure } from './errors';
 
 const COMMIT_FORMAT = '%H%x00%an%x00%at%x00%P%x00%D%x00%s%x00';
 

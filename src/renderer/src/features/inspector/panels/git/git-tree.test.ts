@@ -12,7 +12,7 @@ describe('buildGitFileTree', () => {
     it('groups changed files by directory while preserving their full Git paths', () => {
         expect(
             buildGitFileTree([
-                modified('src/runtime/git.ts'),
+                modified('src/runtime/git/index.ts'),
                 modified('README.md'),
                 modified('src/renderer/App.tsx'),
             ]),
@@ -35,10 +35,17 @@ describe('buildGitFileTree', () => {
                     {
                         children: [
                             {
-                                file: modified('src/runtime/git.ts'),
-                                kind: 'file',
-                                name: 'git.ts',
-                                path: 'src/runtime/git.ts',
+                                children: [
+                                    {
+                                        file: modified('src/runtime/git/index.ts'),
+                                        kind: 'file',
+                                        name: 'index.ts',
+                                        path: 'src/runtime/git/index.ts',
+                                    },
+                                ],
+                                kind: 'directory',
+                                name: 'git',
+                                path: 'src/runtime/git',
                             },
                         ],
                         kind: 'directory',

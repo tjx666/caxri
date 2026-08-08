@@ -1,4 +1,4 @@
-import { AsyncSemaphore } from '../shared/node/concurrency';
+import { AsyncSemaphore } from '../../shared/node/concurrency';
 
 const MAX_CONCURRENT_TERMINAL_RESTORES = 4;
 

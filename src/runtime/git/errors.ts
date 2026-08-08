@@ -1,4 +1,4 @@
-import { CaxriError, isCaxriError } from '../shared/ipc/errors';
+import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
 
 export function describeGitFailure(error: unknown): string {
     const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
