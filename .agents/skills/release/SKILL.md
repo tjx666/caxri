@@ -1,16 +1,16 @@
 ---
 name: release
-description: Prepare and verify a local unsigned Caxri macOS artifact without publishing it. Use when creating a development package, performing a release-readiness check, or validating packaged native modules and startup.
+description: Prepare Caxri releases and optional local unsigned macOS artifacts. Use when creating a development package, performing a release-readiness check, or publishing and verifying a GitHub Release.
 ---
 
-# Release Caxri Locally
+# Release Caxri
 
 1. Confirm the requested scope. Never push, publish, notarize, upload, or create a remote release without explicit authorization.
-2. Run `bun run lint`, `bun run typecheck`, `bun run test`, and `bun run test:e2e`.
-3. Run `bun run package` for the unsigned development application. Use `bun run package:dmg` only when a DMG was explicitly requested.
-4. Launch the packaged app with an isolated user-data directory and verify the window, Runtime, PTY, and SQLite native binding.
-5. Run the startup performance test against the packaged executable and a representative large repository by setting `CAXRI_BENCHMARK_EXECUTABLE` and `CAXRI_BENCHMARK_PROJECT_ROOT`.
-6. Report the local artifact path, architecture, validation commands, benchmark timings, and any signing/notarization limits.
+2. Run non-GUI local gates such as `bun run lint`, `bun run typecheck`, and `bun run test` as needed for release readiness.
+3. Never run `bun run test:e2e` or an unscoped Playwright suite locally. GitHub Actions owns full E2E and release-level packaged-app validation so the developer's desktop remains usable.
+4. Run `bun run package` only when an unsigned local development application was explicitly requested. Use `bun run package:dmg` only when a local DMG was explicitly requested.
+5. Do not launch or benchmark a packaged app locally during a GitHub release. Run focused local Electron coverage only when the changed behavior requires it, and scope Playwright to the smallest relevant file or test name.
+6. Report the performed local checks, any requested local artifact path and architecture, remote workflow results, and signing/notarization limits.
 
 Do not include logs, diagnostics, user roots, terminal output, or credentials in release artifacts beyond the packaged application itself.
 

@@ -7,7 +7,7 @@
 - Format: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
 - Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]`
-- Validate: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run test:e2e`
+- Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
@@ -66,14 +66,15 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 
 ## Testing workflow
 
-- During implementation, run only tests affected by the changed source files. Do not run `bun run test` or `bun run test:e2e` as a routine iteration step.
+- During implementation, run only tests affected by the changed source files. Do not run `bun run test` as a routine iteration step.
 - Prefer `bun run check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
-- Run focused Electron coverage with `bunx playwright test <e2e-file> --reporter=line`; use `-g '<test name>'` when only one workflow changed.
+- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`); it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions.
+- Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
 - Do not unit-test React components by default. When component logic needs coverage, extract it into a hook or pure function and test that; rendering and interaction belong to the smallest relevant E2E workflow.
 - Prefer observable output and integration boundaries over internal call assertions. Mock Electron IPC or native boundaries for unit tests; reserve a real Electron launch for the smallest relevant E2E workflow.
-- Run the full unit or E2E suite only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient. This applies doubly to implementation subagents: an orchestrator must scope each subagent to the specs covering its change (`bunx playwright test <file> [-g '<name>']`) instead of handing every task the full `bun run test:e2e` gate.
+- Run the full unit suite locally only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient. Implementation subagents must stay scoped to the specs covering their change (`bunx playwright test <file> [-g '<name>']`) and must never receive the full `bun run test:e2e` gate.
 
 ### Scripted repro
 
