@@ -265,7 +265,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             projectId: project.id,
             defaultAgent: 'shell',
         });
-        await runtimeA.handlers['terminal.create']({
+        const second = await runtimeA.handlers['terminal.create']({
             sessionId: created.session.id,
             kind: 'shell',
         });
@@ -280,16 +280,34 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             return '/bin/zsh';
         });
         const spawnSpy = vi.fn(() => createFakePty());
+        const events: RuntimeEvent[] = [];
         const runtimeB = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: () => undefined,
+            send: (event) => events.push(event),
             terminal: { resolveExecutable, spawn: spawnSpy },
         });
         try {
             await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledTimes(2));
             releaseDiscovery();
             await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalledTimes(2));
+            await vi.waitFor(() => {
+                const restored = events.find(
+                    (event) =>
+                        event.event === 'state.changed' &&
+                        event.payload.kind === 'records' &&
+                        event.payload.terminalIds.length === 2,
+                );
+                if (
+                    !restored ||
+                    restored.event !== 'state.changed' ||
+                    restored.payload.kind !== 'records'
+                )
+                    throw new Error('Missing scoped restore event');
+                expect(new Set(restored.payload.terminalIds)).toEqual(
+                    new Set([created.terminal.id, second.id]),
+                );
+            });
         } finally {
             releaseDiscovery();
             await runtimeB.close();

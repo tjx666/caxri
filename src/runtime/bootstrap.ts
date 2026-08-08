@@ -218,9 +218,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 return true;
             }),
         );
-        const restoredTerminalIds = interrupted
-            .filter((_, index) => restored[index])
-            .map((terminal) => terminal.id);
+        const restoredTerminalIds: string[] = [];
+        for (const [index, terminal] of interrupted.entries())
+            if (restored[index]) restoredTerminalIds.push(terminal.id);
         if (restoredTerminalIds.length > 0)
             send({
                 event: 'state.changed',
