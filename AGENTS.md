@@ -69,7 +69,7 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 - During implementation, run only tests affected by the changed source files. Do not run `bun run test` as a routine iteration step.
 - Prefer `bun run check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
-- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`); it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions.
+- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`); it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
 - Do not unit-test React components by default. When component logic needs coverage, extract it into a hook or pure function and test that; rendering and interaction belong to the smallest relevant E2E workflow.
