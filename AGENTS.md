@@ -15,7 +15,8 @@
 - Common editor highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
 - Build/package: `bun run build`, `bun run package`, `bun run package:dmg`
 - GitHub Release: follow `RELEASING.md`; only a pushed `main` commit whose subject exactly matches
-  `release: v<package-version>` triggers the remote macOS release workflow.
+  `release: v<package-version>` enters release CI, and the macOS release workflow runs only after
+  that commit's CI checks and full E2E suite succeed.
 - Native probes: `bun run spike:native`, `bun run spike:pty`, `bun run spike:agents`
 - Issue tracking lives in GitHub issues (`gh issue`); this project does not use Linear.
 
@@ -70,6 +71,8 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 - Prefer `bun run check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
 - Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`); it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
+- Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
+  requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
 - Do not unit-test React components by default. When component logic needs coverage, extract it into a hook or pure function and test that; rendering and interaction belong to the smallest relevant E2E workflow.

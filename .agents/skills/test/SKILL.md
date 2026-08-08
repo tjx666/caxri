@@ -23,6 +23,8 @@ Use this workflow only when focused E2E coverage is insufficient:
 2. Finish the implementation and focused local validation. Do not run the full Electron suite locally.
 3. Commit the change with an English subject. Before the first remote mutation, confirm that the user authorized PR delivery or explicitly ask for permission to push the branch and create a draft PR.
 4. Push the current branch with `git push -u origin HEAD`, then create a draft PR with `gh pr create --draft --base main --fill`. A draft PR is sufficient to trigger `.github/workflows/ci.yml` through its `pull_request` event.
-5. Wait for the remote checks with `gh pr checks --watch --fail-fast`. The `e2e` job runs `bun run test:e2e` after the non-GUI `checks` job succeeds.
+5. Wait for the remote checks with `gh pr checks --watch --fail-fast`. The Ubuntu `checks` job
+   owns platform-neutral gates; the macOS `e2e` job runs `bun run test:e2e` only after those checks
+   succeed.
 6. If CI fails, inspect the failing job with `gh run view <run-id> --log-failed`, fix the same branch, push again, and wait for the replacement checks. Never weaken or skip the suite to obtain a pass.
 7. Report the PR and workflow links plus the final checks and E2E conclusions. Do not merge or close the PR unless the user authorized that action.

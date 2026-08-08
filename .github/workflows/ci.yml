@@ -11,7 +11,9 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: macos-latest
+    # Platform-neutral gates stay on Linux so private-repository macOS minutes are reserved for
+    # Electron behavior and release validation that actually depend on macOS.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,6 +38,9 @@ jobs:
 
   e2e:
     needs: checks
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
