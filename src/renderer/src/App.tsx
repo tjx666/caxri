@@ -42,7 +42,10 @@ import {
 function useRuntimeAttachment(): void {
     useEffect(() => {
         void initializeWorkbench();
-        return subscribeWorkbenchEvents({ onCommand: runCommand });
+        return subscribeWorkbenchEvents({
+            onCommand: (command, viaAccelerator) =>
+                runCommand(command, undefined, { viaAccelerator }),
+        });
     }, []);
 }
 

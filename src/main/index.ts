@@ -460,7 +460,21 @@ async function installMenu(): Promise<void> {
         id: `command.${id}`,
         label: label ?? getCommandDefinition(id).title,
         accelerator: accelerator(id),
-        click: () => sendEvent({ event: 'command.execute', payload: { command: id } }),
+        /**
+         * `event.triggeredByAccelerator` tells the Renderer whether this click came from the menu's
+         * keyboard accelerator (which must honour the editable-focus shortcut policy, DESIGN.md:121-123,
+         * the same way `useCommandShortcuts` does) or an actual mouse/touch click on the menu item
+         * (a deliberate user action that must keep working even while a Terminal/editor has focus).
+         */
+        click: (
+            _menuItem: Electron.MenuItem,
+            _window: Electron.BaseWindow | undefined,
+            event: Electron.KeyboardEvent,
+        ) =>
+            sendEvent({
+                event: 'command.execute',
+                payload: { command: id, viaAccelerator: event.triggeredByAccelerator === true },
+            }),
     });
     Menu.setApplicationMenu(
         Menu.buildFromTemplate([

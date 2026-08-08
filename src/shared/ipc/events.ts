@@ -32,7 +32,12 @@ export const runtimeEventPayloads = {
     'settings.changed': configurationChangedSchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,
-    'command.execute': z.object({ command: z.string() }),
+    /**
+     * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one
+     * fired by an actual mouse/touch click, so the Renderer can apply the editable-focus shortcut
+     * policy only to the accelerator path (see `commands/execute.ts#runCommand`).
+     */
+    'command.execute': z.object({ command: z.string(), viaAccelerator: z.boolean().optional() }),
 } as const;
 
 type CaxriEventName = keyof typeof runtimeEventPayloads;

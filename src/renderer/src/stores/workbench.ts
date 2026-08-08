@@ -142,8 +142,12 @@ export function patchSessionState(next: SessionState, failureLabel?: string): vo
 }
 
 export interface WorkbenchEventHandlers {
-    /** Runs a command id pushed by the native menu, honouring the modal guard. */
-    onCommand(command: string): void;
+    /**
+     * Runs a command id pushed by the native menu, honouring the modal guard. `viaAccelerator`
+     * forwards whether the menu item fired from its keyboard accelerator rather than a mouse/touch
+     * click, so the caller can apply the editable-focus shortcut policy only to the accelerator path.
+     */
+    onCommand(command: string, viaAccelerator: boolean): void;
 }
 
 /**
@@ -173,6 +177,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             if (event.payload.error) pushToast('error', event.payload.error);
             else void refreshWorkbench();
         }
-        if (event.event === 'command.execute') handlers.onCommand(event.payload.command);
+        if (event.event === 'command.execute')
+            handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
     });
 }

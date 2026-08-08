@@ -1,9 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
 
+import { isEditableEventTarget } from '../lib/keybindings';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
-import { executeCommand, type CommandContext } from './execute';
+import { executeCommand, runCommand, type CommandContext } from './execute';
+import { registerCommand } from './registry';
+
+/**
+ * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so `Element`
+ * and a real `document` do not exist; `isEditableEventTarget` itself is exercised elsewhere by the
+ * keyboard-shortcut listener it backs. Here it is mocked so `runCommand`'s gate can be driven by a
+ * plain boolean instead of a real DOM focus target.
+ */
+vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
+const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
 
 function recordingContext(): { calls: string[]; context: CommandContext } {
     const calls: string[] = [];
@@ -103,5 +114,87 @@ describe('executeCommand', () => {
 
         expect(() => executeCommand('does.notExist', undefined, context)).not.toThrow();
         expect(calls).toEqual([]);
+    });
+});
+
+/**
+ * Regression coverage for the DESIGN.md:121-123 editable-focus shortcut policy on the native menu
+ * path (see `runCommand`'s JSDoc). `useCommandShortcuts` already covers the DOM keydown path by
+ * gating before it ever calls `runCommand`; these tests cover the other caller — the native menu,
+ * whose accelerator bypasses that DOM listener entirely.
+ */
+describe('runCommand editable-focus gate', () => {
+    beforeEach(() => {
+        /** `runCommand` reads `document.activeElement`; a minimal stub is enough since
+         *  `isEditableEventTarget` itself is mocked above and never inspects it. */
+        vi.stubGlobal('document', { activeElement: null });
+        mockedIsEditableEventTarget.mockReset();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('blocks a non-allowInEditable command fired by the menu accelerator while focus is editable', () => {
+        const run = vi.fn();
+        registerCommand({ id: 'test.gate.default', title: 'Gated', category: 'Test', run });
+        mockedIsEditableEventTarget.mockReturnValue(true);
+
+        runCommand('test.gate.default', undefined, { viaAccelerator: true });
+
+        expect(run).not.toHaveBeenCalled();
+    });
+
+    it('still runs an allowInEditable command fired by the menu accelerator while focus is editable', () => {
+        const run = vi.fn();
+        registerCommand({
+            id: 'test.gate.allowed',
+            title: 'Allowed',
+            category: 'Test',
+            run,
+            allowInEditable: true,
+        });
+        mockedIsEditableEventTarget.mockReturnValue(true);
+
+        runCommand('test.gate.allowed', undefined, { viaAccelerator: true });
+
+        expect(run).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs a non-allowInEditable command clicked on the menu (no accelerator) while focus is editable', () => {
+        const run = vi.fn();
+        registerCommand({ id: 'test.gate.clicked', title: 'Clicked', category: 'Test', run });
+        mockedIsEditableEventTarget.mockReturnValue(true);
+
+        runCommand('test.gate.clicked', undefined, { viaAccelerator: false });
+
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(mockedIsEditableEventTarget).not.toHaveBeenCalled();
+    });
+
+    it('runs a non-allowInEditable command fired by a keyboard shortcut (no menu involvement) regardless of focus', () => {
+        const run = vi.fn();
+        registerCommand({ id: 'test.gate.shortcut', title: 'Shortcut', category: 'Test', run });
+        mockedIsEditableEventTarget.mockReturnValue(true);
+
+        runCommand('test.gate.shortcut');
+
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(mockedIsEditableEventTarget).not.toHaveBeenCalled();
+    });
+
+    it('runs a non-allowInEditable command fired by the menu accelerator while focus is not editable', () => {
+        const run = vi.fn();
+        registerCommand({
+            id: 'test.gate.notEditable',
+            title: 'Not editable',
+            category: 'Test',
+            run,
+        });
+        mockedIsEditableEventTarget.mockReturnValue(false);
+
+        runCommand('test.gate.notEditable', undefined, { viaAccelerator: true });
+
+        expect(run).toHaveBeenCalledTimes(1);
     });
 });
