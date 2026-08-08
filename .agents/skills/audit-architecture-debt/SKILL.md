@@ -18,9 +18,16 @@ Perform an evidence-first, read-only audit of the current repository. Treat past
 ## Preserve the investigation boundary
 
 - Keep an audit read-only unless the user explicitly asks for fixes.
-- Inspect `git status` first. Preserve user-owned changes and do not format, install dependencies, generate builds, or create repository artifacts during a read-only audit.
-- If fixes are authorized after the audit, separate confirmed findings from implementation work and add a behavior-level regression for each bug.
+- Inspect `git status` first. Preserve user-owned changes and do not format, install dependencies, generate builds, or create repository artifacts during a read-only audit. The worktree may keep changing while the audit runs; judge code as it exists on disk, and revalidate cited line numbers against the current tree instead of treating drift as an anomaly.
 - Exclude generated dependencies, bundles, release artifacts, logs, and lockfile internals unless the question specifically concerns them.
+
+### When fixes are authorized
+
+- Separate confirmed findings from implementation work and add a behavior-level regression for each bug.
+- Dispatch implementation subagents in waves of file-disjoint tasks; never let two concurrent tasks edit the same file. Sequence a task that depends on another task's output after that task completes.
+- Give every implementation subagent the same hard rules: never run `git checkout/restore/stash/commit`; make surgical, additive edits in any file carrying unrelated uncommitted changes; validate with focused commands only (`bun run check <files>`, focused Vitest), never a full suite.
+- The root agent reviews each wave's diff before dispatching the next wave, and runs `knip` once at the end when renderer or shared-contract files changed.
+- Keep large refactors that need their own design (event-model changes, migration frameworks, dependency swaps) out of the batch; report them as scoped follow-ups instead of improvising them mid-fix.
 
 Do not substitute this skill for `deep-review`. Use `deep-review` for a diff, commit, branch, or PR and its merge/release readiness. Use this skill for the current system's structural sustainability, including legacy debt, contract drift, modernization opportunities, intentional tradeoffs, and historical revalidation.
 
@@ -38,6 +45,8 @@ Record the current commit, branch, worktree state, and requested scope. Distingu
 Read `AGENTS.md`, `DESIGN.md`, the relevant architecture references, the owning source, and nearby tests. Use `git ls-files`, `rg --files`, and a shallow directory map to inventory the repository before drawing conclusions.
 
 When the user asks for historical context, inspect the project records under `~/.claude/projects/-Users-tj-code-caxri/` and `~/.grok/sessions/%2FUsers%2Ftj%2Fcode%2Fcaxri/`. Include detached or temporary review sessions only when their prompt or metadata identifies Caxri. Extract prompts and final results selectively; do not load whole transcripts. Recheck every historical claim against the current tree.
+
+When the user supplies an audit report produced outside this session (another agent, another CLI, or an older report), treat every item in it as an unverified lead, exactly like a historical claim: re-verify its cited paths and line numbers against the current tree before accepting it, and do not inherit its category or severity labels — an external "confirmed defect" that fails re-verification is reclassified, not repeated. Spot-check its highest-severity claims first, then merge surviving items with this audit's own findings and deduplicate by root cause before reporting or fixing anything.
 
 ### 2. Choose the execution mode
 
