@@ -443,6 +443,43 @@ export const gitDiffDocumentSchema = z.object({
 
 export const runtimeStatusSchema = z.enum(['starting', 'ready', 'restarting', 'failed']);
 
+const updateVersionFields = {
+    currentVersion: z.string().min(1).max(64),
+    version: z.string().min(1).max(64),
+    fileName: z.string().min(1).max(255),
+};
+
+/** Main-owned update state exposed to the Renderer without leaking download paths or URLs. */
+export const updateStateSchema = z.discriminatedUnion('status', [
+    z.object({ status: z.literal('idle'), currentVersion: updateVersionFields.currentVersion }),
+    z.object({ status: z.literal('checking'), currentVersion: updateVersionFields.currentVersion }),
+    z.object({
+        status: z.literal('unavailable'),
+        currentVersion: updateVersionFields.currentVersion,
+        reason: z.string().min(1).max(1_024),
+    }),
+    z.object({
+        status: z.literal('up-to-date'),
+        currentVersion: updateVersionFields.currentVersion,
+    }),
+    z.object({ status: z.literal('available'), ...updateVersionFields }),
+    z.object({
+        status: z.literal('downloading'),
+        ...updateVersionFields,
+        receivedBytes: z.number().int().nonnegative(),
+        totalBytes: z.number().int().positive().optional(),
+    }),
+    z.object({ status: z.literal('ready'), ...updateVersionFields }),
+    z.object({
+        status: z.literal('error'),
+        currentVersion: updateVersionFields.currentVersion,
+        action: z.enum(['check', 'download', 'open']),
+        message: z.string().min(1).max(2_048),
+        version: updateVersionFields.version.optional(),
+        fileName: updateVersionFields.fileName.optional(),
+    }),
+]);
+
 export const bootstrapStateSchema = z.object({
     projects: z.array(projectRecordSchema),
     sessions: z.array(sessionRecordSchema),
@@ -507,3 +544,4 @@ export type ProjectStatusRepository = z.infer<typeof projectStatusRepositorySche
 export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;
 export type ProjectStatusOverview = z.infer<typeof projectStatusOverviewSchema>;
 export type BootstrapState = z.infer<typeof bootstrapStateSchema>;
+export type UpdateState = z.infer<typeof updateStateSchema>;

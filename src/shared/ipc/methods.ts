@@ -29,6 +29,7 @@ import {
     terminalSnapshotSchema,
     terminalResourceUsageSchema,
     themeTokensSchema,
+    updateStateSchema,
 } from './domain';
 
 export interface MethodSpec {
@@ -100,6 +101,11 @@ export const methods = {
         params: noParams,
         result: exportedFile.nullable(),
     },
+    'updates.getState': { owner: 'main', params: noParams, result: updateStateSchema },
+    'updates.check': { owner: 'main', params: noParams, result: updateStateSchema },
+    'updates.download': { owner: 'main', params: noParams, result: updateStateSchema },
+    'updates.cancel': { owner: 'main', params: noParams, result: updateStateSchema },
+    'updates.open': { owner: 'main', params: noParams, result: updateStateSchema },
     'project.create': {
         owner: 'main',
         params: z.object({ rootPath: pathSchema }),

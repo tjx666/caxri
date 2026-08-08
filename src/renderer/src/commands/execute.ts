@@ -17,6 +17,7 @@ import {
     createTerminal,
     restartActiveTerminal,
 } from '../features/terminal/terminal-actions';
+import { checkForUpdates } from '../features/updates/update-actions';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { useDialogStore } from '../stores/dialogs';
 import { usePanelLayoutStore } from '../stores/panel-layout';
@@ -105,6 +106,7 @@ const commandContext: CommandContext = {
             });
         },
     },
+    updates: { check: checkForUpdates },
 };
 
 /**

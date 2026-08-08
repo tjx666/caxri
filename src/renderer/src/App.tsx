@@ -11,6 +11,7 @@ import { SettingsDialog } from './features/settings/SettingsDialog';
 import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
 import { StatusBar } from './features/status-bar/StatusBar';
 import { ToastOutlet } from './features/toasts/ToastOutlet';
+import { UpdateDialog } from './features/updates/UpdateDialog';
 import { LoadingScreen } from './features/workbench/LoadingScreen';
 import { PanelDivider } from './features/workbench/PanelDivider';
 import { Workbench } from './features/workbench/Workbench';
@@ -140,6 +141,7 @@ export function App() {
                 <StatusBar />
                 <CreateSessionDialog />
                 <SettingsDialog />
+                <UpdateDialog />
                 <CommandPalette />
                 <ToastOutlet />
             </main>

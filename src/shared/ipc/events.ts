@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { fileChangeSchema, identifierSchema, runtimeStatusSchema } from './domain';
+import {
+    fileChangeSchema,
+    identifierSchema,
+    runtimeStatusSchema,
+    updateStateSchema,
+} from './domain';
 
 const configurationChangedSchema = z.object({
     source: z.string(),
@@ -68,6 +73,7 @@ export const runtimeEventPayloads = {
     'settings.changed': configurationChangedSchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,
+    'updates.state': updateStateSchema,
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one
      * fired by an actual mouse/touch click, so the Renderer can apply the editable-focus shortcut

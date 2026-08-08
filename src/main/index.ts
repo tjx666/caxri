@@ -33,6 +33,7 @@ import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
 import { resolveTestRootPath } from './test-root';
+import { UpdateService } from './updates';
 import { createWindowCloseHandler } from './window-close';
 
 const bootStartedAt = performance.now();
@@ -42,8 +43,8 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
  * every log record and the forked Runtime's environment can be correlated to this build. See
  * src/main/global.d.ts and electron.vite.config.ts for where the constants come from.
  */
-process.env.CAXRI_APP_VERSION =
-    typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
+const caxriVersion = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
+process.env.CAXRI_APP_VERSION = caxriVersion;
 process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
 /**
  * Work around macOS deriving the native application-menu name from Electron's development process
@@ -57,8 +58,10 @@ let mainWindow: BrowserWindow | undefined;
 let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
 let processExplorer: ProcessExplorerWindowController;
+let updateService: UpdateService;
 let forceWindowClose = false;
 let quitStarted = false;
+let automaticUpdateCheckStarted = false;
 const grantedRoots = new ProjectRootGrants();
 
 function sendEvent(event: RuntimeEvent): void {
@@ -142,6 +145,11 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             durationMs: performance.now() - bootStartedAt,
         });
         window.show();
+        if (app.isPackaged && !automaticUpdateCheckStarted) {
+            automaticUpdateCheckStarted = true;
+            /** Update discovery stays off the awaited startup path and never delays the first window. */
+            void updateService.check();
+        }
     });
     window.webContents.setWindowOpenHandler(({ url }) => {
         void confirmExternalUrl(url);
@@ -402,6 +410,16 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
                 60_000,
             );
         }
+        case 'updates.getState':
+            return updateService.getState();
+        case 'updates.check':
+            return updateService.check();
+        case 'updates.download':
+            return updateService.download();
+        case 'updates.cancel':
+            return updateService.cancel();
+        case 'updates.open':
+            return updateService.open();
     }
     return assertNever(request);
 }
@@ -467,6 +485,22 @@ void app.whenReady().then(async () => {
     const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
     mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
+    updateService = new UpdateService({
+        currentVersion: caxriVersion,
+        downloadDirectory: join(userDataPath, 'updates'),
+        enabled: app.isPackaged,
+        openPath: (path) => shell.openPath(path),
+        onState: (state) => {
+            if (state.status !== 'downloading')
+                mainLogger?.write(state.status === 'error' ? 'error' : 'info', 'updates.state', {
+                    fields: {
+                        status: state.status,
+                        ...('version' in state ? { version: state.version ?? null } : {}),
+                    },
+                });
+            sendEvent({ event: 'updates.state', payload: state });
+        },
+    });
     supervisor = new RuntimeSupervisor(
         currentDirectory,
         userDataPath,

@@ -269,6 +269,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
+        'updates.getState': () => mainOwned('updates.getState'),
+        'updates.check': () => mainOwned('updates.check'),
+        'updates.download': () => mainOwned('updates.download'),
+        'updates.cancel': () => mainOwned('updates.cancel'),
+        'updates.open': () => mainOwned('updates.open'),
         'theme.import': () => mainOwned('theme.import'),
         'project.create': async ({ rootPath }) => {
             const project = database.createProject(await realpath(rootPath));

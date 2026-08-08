@@ -145,6 +145,13 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'application', group: 0, order: 0 },
     },
     {
+        id: 'updates.check',
+        title: 'Check for Updates',
+        category: 'Preferences',
+        description: 'Check for a newer Caxri release',
+        nativeMenu: { menu: 'application', group: 0, order: 1 },
+    },
+    {
         id: 'commandPalette.open',
         title: 'Open Command Palette',
         category: 'View',

@@ -15,6 +15,7 @@ export interface CommandContext {
     dialogs: { openSettings(): void; openPalette(): void };
     windows: { openProcessExplorer(): void };
     diagnostics: { export(): void };
+    updates: { check(): void };
 }
 
 export interface CommandDefinition {

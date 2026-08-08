@@ -53,6 +53,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             windows: { openProcessExplorer: record('windows.openProcessExplorer') },
             diagnostics: { export: record('diagnostics.export') },
+            updates: { check: record('updates.check') },
         },
     };
 }

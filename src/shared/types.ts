@@ -47,6 +47,7 @@ export {
     type TerminalResourceUsage,
     type TerminalSnapshot,
     type ThemeTokens,
+    type UpdateState,
 } from './ipc/domain';
 
 export type {
