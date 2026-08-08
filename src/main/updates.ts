@@ -22,7 +22,7 @@ const releaseSchema = z.object({
         z.object({
             name: z.string(),
             size: z.number().int().nonnegative(),
-            browser_download_url: z.string().url(),
+            browser_download_url: z.url(),
         }),
     ),
 });
