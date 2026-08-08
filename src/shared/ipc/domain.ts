@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentProviderIds, type AgentProvider } from '../agents';
+import { inspectorModeSchema } from '../inspector';
 import { workItemSchema } from '../work-item';
 import { terminalLayoutSchema } from './layout';
 
@@ -27,13 +28,12 @@ const processStateSchema = z.enum([
     'failed',
     'interrupted',
 ]);
-const inspectorModeSchema = z.enum(['files', 'git', 'status', 'info']);
 
 export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
-export type InspectorMode = z.infer<typeof inspectorModeSchema>;
+export type { InspectorMode } from '../inspector';
 
 export const projectRecordSchema = z.object({
     id: z.string(),

@@ -6,6 +6,7 @@ import {
     getNativeMenuCommandGroups,
     nativeMenuIds,
 } from '../commands';
+import { inspectorModeRegistrations } from '../inspector';
 
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {
@@ -54,5 +55,21 @@ describe('command registry', () => {
             ['session.create', 'session.delete'],
             ['session.selectPrevious', 'session.selectNext'],
         ]);
+    });
+
+    it('derives every Inspector command and default binding from its mode registration', () => {
+        for (const registration of inspectorModeRegistrations) {
+            expect(commandDefinitions).toContainEqual(
+                expect.objectContaining({
+                    id: registration.commandId,
+                    title: registration.commandTitle,
+                    description: registration.commandDescription,
+                }),
+            );
+            expect(defaultKeybindings).toContainEqual({
+                key: registration.defaultKeybinding,
+                command: registration.commandId,
+            });
+        }
     });
 });

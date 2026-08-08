@@ -1,4 +1,5 @@
 import { getCommandDefinition } from '@shared/commands';
+import { inspectorModeRegistrations } from '@shared/inspector';
 
 import {
     defineCommand,
@@ -50,10 +51,9 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('editor.save', (ctx) => ctx.editor.saveActive(), { allowInEditable: true }),
-    fromCatalog('inspector.showFiles', (ctx) => ctx.inspector.setMode('files')),
-    fromCatalog('inspector.showGit', (ctx) => ctx.inspector.setMode('git')),
-    fromCatalog('inspector.showStatus', (ctx) => ctx.inspector.setMode('status')),
-    fromCatalog('inspector.showInfo', (ctx) => ctx.inspector.setMode('info')),
+    ...inspectorModeRegistrations.map(({ commandId, mode }) =>
+        fromCatalog(commandId, (ctx) => ctx.inspector.setMode(mode)),
+    ),
     fromCatalog('inspector.searchFiles', (ctx) => ctx.inspector.searchFiles(), {
         allowInEditable: true,
     }),

@@ -1,4 +1,5 @@
 import type { Keybinding } from './types';
+import { inspectorModeRegistrations } from './inspector';
 
 export interface CommandDefinition {
     id: string;
@@ -109,30 +110,12 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Editor',
         description: 'Save the active file',
     },
-    {
-        id: 'inspector.showFiles',
-        title: 'Show Files',
+    ...inspectorModeRegistrations.map(({ commandDescription, commandId, commandTitle }) => ({
+        id: commandId,
+        title: commandTitle,
         category: 'Inspector',
-        description: 'Show Files in the Inspector',
-    },
-    {
-        id: 'inspector.showGit',
-        title: 'Show Git',
-        category: 'Inspector',
-        description: 'Show Source Control in the Inspector',
-    },
-    {
-        id: 'inspector.showStatus',
-        title: 'Show Project Status',
-        category: 'Inspector',
-        description: 'Show Project Status in the Inspector',
-    },
-    {
-        id: 'inspector.showInfo',
-        title: 'Show Terminal Info',
-        category: 'Inspector',
-        description: 'Show Terminal information in the Inspector',
-    },
+        description: commandDescription,
+    })),
     {
         id: 'inspector.searchFiles',
         title: 'Search Files',
@@ -219,10 +202,10 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
-    { key: 'cmd+1', command: 'inspector.showFiles' },
-    { key: 'cmd+2', command: 'inspector.showGit' },
-    { key: 'cmd+3', command: 'inspector.showStatus' },
-    { key: 'cmd+4', command: 'inspector.showInfo' },
+    ...inspectorModeRegistrations.map(({ commandId, defaultKeybinding }) => ({
+        key: defaultKeybinding,
+        command: commandId,
+    })),
     { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
     { key: 'cmd+[', command: 'sidebar.toggle' },
     { key: 'cmd+]', command: 'inspector.toggle' },

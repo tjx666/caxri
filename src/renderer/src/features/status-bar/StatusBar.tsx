@@ -13,6 +13,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { parseGitDiffTab } from '@shared/git-diff';
+import type { InspectorCommandId } from '@shared/inspector';
 import type { CaxriMethod } from '@shared/ipc';
 import type { BootstrapState } from '@shared/types';
 
@@ -379,7 +380,7 @@ function BranchPicker({
     );
 }
 
-function showInspector(command: 'inspector.showFiles' | 'inspector.showGit'): void {
+function showInspector(command: InspectorCommandId): void {
     usePanelLayoutStore.getState().setInspectorVisible(true);
     executeCommand(command);
 }

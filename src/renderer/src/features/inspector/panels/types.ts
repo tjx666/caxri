@@ -1,23 +1,15 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ComponentType } from 'react';
 
-import type { InspectorMode } from '@shared/types';
-
-/**
- * Ids of the `inspector.showX` commands from the shared command catalog (`src/shared/commands.ts`).
- * Kept as a local literal union rather than importing a catalog-wide `CommandId` type, since the
- * catalog only types command ids as `string`.
- */
-type InspectorCommandId =
-    'inspector.showFiles' | 'inspector.showGit' | 'inspector.showStatus' | 'inspector.showInfo';
+import type { InspectorCommandIdFor, InspectorMode } from '@shared/inspector';
 
 /** One entry in the Inspector's panel registry, covering both the tab bar and the panel content. */
-export interface InspectorPanelDefinition {
-    id: InspectorMode;
+export interface InspectorPanelDefinition<Mode extends InspectorMode> {
+    id: Mode;
     title: string;
     icon: LucideIcon;
     Component: ComponentType;
-    commandId: InspectorCommandId;
+    commandId: InspectorCommandIdFor<Mode>;
     /**
      * When true, the panel is mounted with `key={sessionId}` so it fully remounts whenever the
      * selected Session changes, per AGENTS.md's session-isolation rule ("Key or reset
@@ -27,3 +19,7 @@ export interface InspectorPanelDefinition {
      */
     resetOnSessionChange: boolean;
 }
+
+export type AnyInspectorPanelDefinition = {
+    [Mode in InspectorMode]: InspectorPanelDefinition<Mode>;
+}[InspectorMode];

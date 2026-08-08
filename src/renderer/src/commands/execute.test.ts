@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
+import { inspectorModeRegistrations } from '@shared/inspector';
 
 import { isEditableEventTarget } from '../lib/keybindings';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
@@ -96,17 +97,12 @@ describe('executeCommand', () => {
 
     it('maps each Inspector command to its mode', () => {
         const { calls, context } = recordingContext();
-        executeCommand('inspector.showFiles', undefined, context);
-        executeCommand('inspector.showGit', undefined, context);
-        executeCommand('inspector.showStatus', undefined, context);
-        executeCommand('inspector.showInfo', undefined, context);
+        for (const { commandId } of inspectorModeRegistrations)
+            executeCommand(commandId, undefined, context);
 
-        expect(calls).toEqual([
-            'inspector.setMode(files)',
-            'inspector.setMode(git)',
-            'inspector.setMode(status)',
-            'inspector.setMode(info)',
-        ]);
+        expect(calls).toEqual(
+            inspectorModeRegistrations.map(({ mode }) => `inspector.setMode(${mode})`),
+        );
     });
 
     it('shows exactly one error toast for an unknown command instead of throwing', () => {

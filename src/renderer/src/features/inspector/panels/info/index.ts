@@ -3,7 +3,7 @@ import { Info } from 'lucide-react';
 import type { InspectorPanelDefinition } from '../types';
 import { TerminalInfoPanel } from './TerminalInfoPanel';
 
-export const infoPanel: InspectorPanelDefinition = {
+export const infoPanel: InspectorPanelDefinition<'info'> = {
     id: 'info',
     title: 'Info',
     icon: Info,
