@@ -248,10 +248,18 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
         await expect(running.page.getByRole('dialog')).toContainText('Settings');
         await running.page.keyboard.press('Escape');
         await running.page.keyboard.press('Meta+Shift+P');
-        await expect(
-            running.page.getByPlaceholder('Search projects, sessions, and commands…'),
-        ).toBeVisible();
+        const palette = running.page.getByRole('dialog');
+        const paletteSearch = running.page.getByPlaceholder(
+            'Search projects, sessions, and commands…',
+        );
+        await expect(paletteSearch).toBeFocused();
+        await expect(palette.getByRole('button', { name: 'Close' })).toHaveCount(0);
+        await paletteSearch.fill('new terminal');
+        const terminalCommand = palette.getByRole('option').filter({ hasText: 'New Terminal' });
+        await expect(terminalCommand).toBeVisible();
+        await expect(terminalCommand.locator('kbd')).toHaveText('⌘T');
         await running.page.keyboard.press('Escape');
+        await expect(palette).toHaveCount(0);
 
         const menuItems = await running.app.evaluate(({ Menu }) => {
             const menu = Menu.getApplicationMenu();

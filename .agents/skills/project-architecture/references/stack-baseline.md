@@ -34,6 +34,13 @@ Only official project documentation, official repositories, and the npm registry
 | Claude Code CLI         | https://docs.anthropic.com/en/docs/claude-code/cli-usage                                                      | Local CLI help confirms interactive launch plus `--resume`/`--continue`. Discovery and state reads are capability-based and read-only.                                                                                                            |
 | Codex CLI               | Local `codex --help` plus https://developers.openai.com/codex/cli/reference                                   | Local CLI help is the launch-time authority; interactive launch is `codex` and resume is a structured subcommand. No internal storage write is permitted.                                                                                         |
 
+## Accepted primitive exception: cmdk command list
+
+- Decision: keep `cmdk` only as the Command Palette's inner filtering, grouping, and keyboard-selection engine. The modal, backdrop, focus trap, dismissal, and modal-open registration remain the shared Base UI `Dialog`; no other Renderer surface may import `cmdk` or Radix primitives.
+- Bundle evidence (2026-08-08 production Renderer build with source maps): the main Renderer entry was 1,526,761 B minified and 350,951 B gzip. Generated ranges attributed to `cmdk` were 15,033 B and its Radix-only transitive sources were 50,052 B, totaling 65,085 B (4.26%). Those attributed fragments gzip independently to about 15,455 B (4.40% of the entry gzip size; an attribution estimate, not a standalone chunk).
+- Rationale: this bounded local-desktop cost is acceptable for a mature accessible command-list implementation. Rebuilding filtering and keyboard selection on another primitive would add interaction risk without removing the Base UI modal, which already owns focus and dismiss semantics.
+- Guardrail: re-evaluate this exception if another workbench surface needs cmdk/Radix, if focus or dismissal diverges from the shared Dialog, or if bundle analysis shows material growth. Palette E2E must continue covering autofocus, Escape dismissal, filtering/groups, shortcut hints, and the intentional absence of a close button.
+
 ## Local compatibility target
 
 The baseline machine provides Node 24, Bun 1.3, Xcode Command Line Tools, current Claude Code, and current Codex. Install/rebuild probes must still execute through the installed Electron binary because host Node success does not prove Electron ABI compatibility.
