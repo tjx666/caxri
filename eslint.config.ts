@@ -57,7 +57,11 @@ export default defineConfig(
     {
         files: ['src/renderer/**/*.ts', 'src/renderer/**/*.tsx'],
         rules: {
-            /** src/shared/node holds Node-only utilities for main and runtime; the renderer must never import Node.js APIs. */
+            /**
+             * The renderer must never reach Node.js, Electron, PTY, Git, or filesystem APIs directly;
+             * it may only use the typed `window.caxri` bridge exposed by preload. See AGENTS.md
+             * "Architecture boundaries".
+             */
             'no-restricted-imports': [
                 'error',
                 {
@@ -66,6 +70,26 @@ export default defineConfig(
                             group: ['**/shared/node/**', '@shared/node*', '@shared/node/**'],
                             message:
                                 'src/shared/node is Node-only (main/runtime); the renderer must never import it.',
+                        },
+                        {
+                            group: ['electron', 'electron/*'],
+                            message:
+                                'The renderer must never import Electron APIs directly; use the typed window.caxri bridge.',
+                        },
+                        {
+                            group: ['node:*'],
+                            message:
+                                'The renderer must never import Node.js builtins directly; use the typed window.caxri bridge.',
+                        },
+                        {
+                            group: ['fs', 'path', 'child_process', 'os'],
+                            message:
+                                'The renderer must never import Node.js builtins directly; use the typed window.caxri bridge.',
+                        },
+                        {
+                            group: ['node-pty', 'better-sqlite3'],
+                            message:
+                                'The renderer must never import native modules directly; use the typed window.caxri bridge.',
                         },
                     ],
                 },
