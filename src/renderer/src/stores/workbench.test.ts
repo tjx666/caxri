@@ -87,4 +87,104 @@ describe('workbench Session state', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
         updateRequest.resolve(statusState);
     });
+
+    it('keeps the optimistic state when session.updateState resolves', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+
+        const updateRequest = Promise.withResolvers<SessionState>();
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'session.updateState') return updateRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+
+        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        patchSessionState(statusState);
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
+
+        updateRequest.resolve(statusState);
+        await updateRequest.promise;
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
+    });
+
+    it('restores the previous confirmed state when session.updateState fails', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+
+        const updateRequest = Promise.withResolvers<SessionState>();
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'session.updateState') return updateRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+
+        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        patchSessionState(statusState);
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
+
+        updateRequest.reject(new Error('rejected by Runtime'));
+        await updateRequest.promise.catch(() => undefined);
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
+    });
+
+    it('does not let a stale, failed patch clobber a newer confirmed patch', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+
+        const updateRequests: ReturnType<typeof Promise.withResolvers<SessionState>>[] = [];
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'session.updateState') {
+                const deferred = Promise.withResolvers<SessionState>();
+                updateRequests.push(deferred);
+                return deferred.promise;
+            }
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+
+        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        patchSessionState(statusState);
+        const agentsState = { ...filesState, inspectorMode: 'git' as const };
+        patchSessionState(agentsState);
+        expect(updateRequests).toHaveLength(2);
+
+        // The newer patch (revision for `agentsState`) confirms first.
+        updateRequests[1].resolve(agentsState);
+        await updateRequests[1].promise;
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
+
+        // The older, now-superseded patch (`statusState`) fails afterwards; it must not roll
+        // the Session back over the confirmed newer state.
+        updateRequests[0].reject(new Error('stale failure'));
+        await updateRequests[0].promise.catch(() => undefined);
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
+    });
 });

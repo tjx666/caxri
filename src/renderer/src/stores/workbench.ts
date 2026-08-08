@@ -92,6 +92,9 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     patchSessionState(next, failureLabel = 'Session layout could not be saved') {
         const bootstrap = get().bootstrap;
         if (!bootstrap) return;
+        const previous = bootstrap.sessionStates.find(
+            (state) => state.sessionId === next.sessionId,
+        );
         const revision = ++nextSessionPatchRevision;
         pendingSessionPatches.set(next.sessionId, { revision, state: next });
         set({
@@ -110,7 +113,25 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
             .request('session.updateState', next)
             .then(finish)
             .catch((error: unknown) => {
+                // Only the latest pending revision for this Session may roll back: an older
+                // request's failure must not clobber a newer optimistic write (or the newer
+                // write's own later success/failure) that has since superseded it.
+                const isLatestRevision =
+                    pendingSessionPatches.get(next.sessionId)?.revision === revision;
                 finish();
+                if (isLatestRevision && previous) {
+                    set((current) => {
+                        if (!current.bootstrap) return current;
+                        return {
+                            bootstrap: {
+                                ...current.bootstrap,
+                                sessionStates: current.bootstrap.sessionStates.map((state) =>
+                                    state.sessionId === next.sessionId ? previous : state,
+                                ),
+                            },
+                        };
+                    });
+                }
                 pushToast('error', describeFailure(error, failureLabel));
             });
     },
