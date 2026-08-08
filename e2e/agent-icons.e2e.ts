@@ -1,12 +1,25 @@
+import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
 import { launchCaxri, pageRequest, selectedSessionId } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
+const execFileAsync = promisify(execFile);
+
+test('production Dock assets are opaque so macOS does not add a white compatibility plate', async () => {
+    for (const path of [
+        join(projectRoot, 'build', 'icon.png'),
+        join(projectRoot, 'build', 'icon.icns'),
+    ]) {
+        const { stdout } = await execFileAsync('sips', ['-g', 'hasAlpha', path]);
+        expect(stdout).toContain('hasAlpha: no');
+    }
+});
 
 test('Agent identities stay consistent across every shared surface', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-icons-e2e-'));
