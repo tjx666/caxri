@@ -122,6 +122,35 @@ describe('TerminalManager', () => {
         }
     });
 
+    it('abandons a stale restore after executable discovery and before PTY spawn', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-stale-restore-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const executable = Promise.withResolvers<string>();
+        const spawn = vi.fn(() => createFakePty().process);
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => executable.promise, spawn },
+        );
+        let isCurrent = true;
+
+        const starting = manager.start(created.terminal, { shouldStart: () => isCurrent });
+        isCurrent = false;
+        executable.resolve('/bin/zsh');
+
+        try {
+            await expect(starting).resolves.toMatchObject({ lastProcessState: 'interrupted' });
+            expect(spawn).not.toHaveBeenCalled();
+            expect(manager.runningCount()).toBe(0);
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
     it('does not replay queued live output after returning it in an attachment snapshot', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-attach-replay-'));
         temporaryDirectories.push(directory);

@@ -57,6 +57,12 @@ export interface TerminalManagerOptions {
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
 }
 
+interface TerminalStartOptions {
+    resumeAgentSessionId?: string;
+    /** Restore generations use this to abandon stale discovery before it spawns a process. */
+    shouldStart?: () => boolean;
+}
+
 export class TerminalManager {
     private readonly terminals = new Map<string, LiveTerminal>();
     private readonly attached = new Set<string>();
@@ -78,10 +84,7 @@ export class TerminalManager {
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
     }
 
-    start(
-        record: TerminalRecord,
-        options?: { resumeAgentSessionId?: string },
-    ): Promise<TerminalRecord> {
+    start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
         if (this.terminals.has(record.id))
             return Promise.resolve(this.database.getTerminal(record.id)!);
         return this.starts.run(record.id, () => this.spawn(record, options));
@@ -89,7 +92,7 @@ export class TerminalManager {
 
     private async spawn(
         record: TerminalRecord,
-        options?: { resumeAgentSessionId?: string },
+        options?: TerminalStartOptions,
     ): Promise<TerminalRecord> {
         const startedAt = performance.now();
         try {
@@ -102,6 +105,12 @@ export class TerminalManager {
                             options.resumeAgentSessionId,
                         )
                       : [];
+            if (options?.shouldStart && !options.shouldStart()) {
+                if (!this.database.getTerminal(record.id))
+                    throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
+                this.database.updateTerminalState(record.id, 'interrupted');
+                return this.database.getTerminal(record.id)!;
+            }
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -305,10 +314,7 @@ export class TerminalManager {
         for (const terminalId of [...this.attached]) this.detachView(terminalId);
     }
 
-    async restart(
-        terminalId: string,
-        options?: { resumeAgentSessionId?: string },
-    ): Promise<TerminalRecord> {
+    async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         const live = this.terminals.get(terminalId);

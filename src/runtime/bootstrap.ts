@@ -23,6 +23,7 @@ import { FileService } from './files/service';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
 import { TerminalManager, type TerminalManagerOptions } from './terminal';
+import { TerminalRestoreSupervisor } from './terminal-restore-supervisor';
 import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
@@ -107,6 +108,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         logger,
         deps.terminal,
     );
+    const terminalRestores = new TerminalRestoreSupervisor();
     const git = new GitService(new ProjectRootResolver(database), logger);
     const projectStatus = new ProjectStatusService(git, logger);
     const diagnostics = new DiagnosticsService(
@@ -166,24 +168,26 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
      * is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation
      * (a shell, or an Agent Terminal that never reached a capability-detected session id) gets a
      * fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
-     * Each Terminal owns an independent PTY and durable ID, so restore them concurrently to keep
-     * Session recovery bounded by the slowest executable discovery rather than their sum.
+     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued
+     * work, and the generation is checked again after executable discovery immediately before spawn.
      */
     async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
         const interrupted = database
             .listTerminals(sessionId)
             .filter((terminal) => terminal.lastProcessState === 'interrupted');
-        const restored = await Promise.all(
-            interrupted.map(async (terminal) => {
+        const restored = await terminalRestores.restore(
+            sessionId,
+            interrupted.map((terminal) => async (isCurrent) => {
                 const resumeAgentSessionId = terminal.provider
                     ? terminal.agentSessionId
                     : undefined;
                 if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
                 try {
-                    await terminals.restart(
-                        terminal.id,
-                        resumeAgentSessionId ? { resumeAgentSessionId } : undefined,
-                    );
+                    const restarted = await terminals.restart(terminal.id, {
+                        resumeAgentSessionId,
+                        shouldStart: isCurrent,
+                    });
+                    if (restarted.lastProcessState !== 'running') return false;
                 } catch {
                     return false;
                 }
@@ -199,6 +203,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     async function close(): Promise<void> {
         if (closed) return;
         closed = true;
+        terminalRestores.close();
         coordinator.close();
         terminals.shutdown('orderly');
         await files.close();
@@ -248,6 +253,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         },
         'project.delete': ({ projectId }) => {
             for (const session of database.listSessions(projectId)) {
+                terminalRestores.cancel(session.id);
                 coordinator.forgetSession(session.id);
                 terminals.terminateSession(session.id);
             }
@@ -279,10 +285,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             /** Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay
                 the Session-select response, so it runs fire-and-forget like `files.watchSession`. */
             void restoreInterruptedTerminals(sessionId);
+            coordinator.probeSessionPrimaryAgent(sessionId);
             send({ event: 'state.changed', payload: { reason: 'session.select' } });
             return database.getSession(sessionId)!;
         },
         'session.archive': ({ sessionId }) => {
+            terminalRestores.cancel(sessionId);
             const session = database.archiveSession(sessionId);
             void files.watchSession(selectedSessionId());
             send({ event: 'state.changed', payload: { reason: 'session.archive' } });
@@ -294,6 +302,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return session;
         },
         'session.delete': ({ sessionId }) => {
+            terminalRestores.cancel(sessionId);
             coordinator.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
             database.deleteSession(sessionId);
@@ -350,6 +359,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
         'terminal.terminateAll': () => {
+            terminalRestores.close();
             coordinator.close();
             terminals.shutdown('terminate');
             return null;
@@ -409,8 +419,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     /** Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected
         Session's interrupted Terminals must never delay Runtime startup past the 3s large-Project gate. */
     const initialSessionId = selectedSessionId();
-    if (initialSessionId) void restoreInterruptedTerminals(initialSessionId);
-    for (const session of database.listSessions()) coordinator.probeSessionPrimaryAgent(session.id);
+    if (initialSessionId) {
+        void restoreInterruptedTerminals(initialSessionId);
+        coordinator.probeSessionPrimaryAgent(initialSessionId);
+    }
 
     return { handlers, close };
 }

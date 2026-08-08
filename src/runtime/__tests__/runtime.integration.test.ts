@@ -341,3 +341,66 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         }
     });
 });
+
+describe('selected Session Agent probes', () => {
+    it('probes only the selected Session at boot and defers another Session until selection', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-selected-probes-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/usr/local/bin/claude'),
+                spawn: () => createFakePty(),
+            },
+            agentAdapters: fakeAgentAdapters(),
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const first = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'claude',
+        });
+        const selected = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'claude',
+        });
+        await runtimeA.handlers['terminal.terminateAll']({});
+        await runtimeA.close();
+
+        const snapshot = vi.fn((context: { correlationId?: string }) =>
+            Promise.resolve({
+                provider: 'claude' as const,
+                status: 'completed' as const,
+                observedAt: Date.now(),
+                available: true,
+                sessionId: context.correlationId,
+            }),
+        );
+        const pending = new Promise<never>(() => undefined);
+        const runtimeB = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-b')),
+            send: () => undefined,
+            agentAdapters: {
+                claude: { provider: 'claude', snapshot },
+                codex: { provider: 'codex', snapshot: () => pending },
+            },
+        });
+
+        try {
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(1));
+            expect(snapshot.mock.calls[0]?.[0].correlationId).toBe(selected.terminal.id);
+
+            await runtimeB.handlers['session.select']({ sessionId: first.session.id });
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
+            expect(snapshot.mock.calls[1]?.[0].correlationId).toBe(first.terminal.id);
+        } finally {
+            await runtimeB.close();
+        }
+    });
+});
