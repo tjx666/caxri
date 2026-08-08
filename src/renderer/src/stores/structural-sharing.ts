@@ -3,9 +3,9 @@
  *
  * `app.bootstrap` crosses the IPC boundary as freshly structured-cloned JSON, so every refresh hands
  * the Renderer brand new object identities even when nothing changed. Without this merge a single
- * `state.changed` event would invalidate every `useStore` selector and rerender the whole tree.
- * Merging the incoming snapshot against the previous one keeps the identity of every deep-equal
- * branch, so a Terminal title change only rerenders the consumers of that Terminal.
+ * full-convergence refresh would invalidate every `useStore` selector and rerender the whole tree.
+ * Merging both full and scoped snapshots against the previous state keeps the identity of every
+ * deep-equal branch, so a Terminal title change only rerenders the consumers of that Terminal.
  */
 
 type PlainObject = Record<string, unknown>;

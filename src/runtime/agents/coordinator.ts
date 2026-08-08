@@ -83,6 +83,19 @@ export class AgentCoordinator {
         );
     }
 
+    private emitAgentMetadataChange(terminalId: string): void {
+        const terminal = this.database.getTerminal(terminalId);
+        if (!terminal) return;
+        this.emit({
+            event: 'state.changed',
+            payload: {
+                kind: 'records',
+                sessionIds: [terminal.sessionId],
+                terminalIds: [terminal.id],
+            },
+        });
+    }
+
     /**
      * Tracks only the current unpublished Shell input line and never logs or persists it. Detection
      * is intentionally conservative: a direct `claude` or `codex` command creates a short-lived
@@ -251,7 +264,7 @@ export class AgentCoordinator {
                 this.shellInputs.delete(terminalId);
                 this.shellPromotionCandidates.delete(terminalId);
                 this.startedAtByTerminal.set(terminalId, candidate.startedAt);
-                this.emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
+                this.emitAgentMetadataChange(terminalId);
                 this.refreshes.schedule(terminalId);
             })
             .catch((error: unknown) => {
@@ -296,7 +309,7 @@ export class AgentCoordinator {
                 return;
             }
             if (this.database.updateAgentMetadata(terminal.id, snapshot))
-                this.emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
+                this.emitAgentMetadataChange(terminal.id);
         } catch (error) {
             /** A failed probe degrades Agent metadata to unknown; it never interrupts the Runtime. */
             this.logger.write('warn', 'agent.probe_failed', {
@@ -350,6 +363,6 @@ export class AgentCoordinator {
         this.shellInputs.delete(terminal.id);
         this.shellPromotionCandidates.delete(terminal.id);
         this.startedAtByTerminal.set(terminal.id, candidate.startedAt);
-        this.emit({ event: 'state.changed', payload: { reason: 'agent.metadata' } });
+        this.emitAgentMetadataChange(terminal.id);
     }
 }

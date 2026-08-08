@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
-import type { BootstrapState, SessionState } from '@shared/types';
+import type { RuntimeEvent } from '@shared/ipc/events';
+import type { BootstrapState, SessionRecord, SessionState, TerminalRecord } from '@shared/types';
 
 import { caxri } from '../lib/caxri';
 import { mergeStructurally } from './structural-sharing';
@@ -25,6 +26,9 @@ interface WorkbenchState {
 
 let inFlight: Promise<void> | undefined;
 let queued: Promise<void> | undefined;
+let recordRefreshInFlight: Promise<void> | undefined;
+const pendingSessionRecordIds = new Set<string>();
+const pendingTerminalRecordIds = new Set<string>();
 let configurationErrorsReported = false;
 let nextSessionPatchRevision = 0;
 const pendingSessionPatches = new Map<string, { revision: number; state: SessionState }>();
@@ -50,6 +54,78 @@ function applySnapshot(state: BootstrapState): void {
     if (configurationErrorsReported) return;
     configurationErrorsReported = true;
     if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
+}
+
+function replaceRequestedRecords<Record extends { id: string }>(
+    current: readonly Record[],
+    requestedIds: ReadonlySet<string>,
+    updates: readonly Record[],
+): Record[] {
+    const updatesById = new Map(updates.map((record) => [record.id, record]));
+    const currentIds = new Set(current.map((record) => record.id));
+    return [
+        ...current.flatMap((record) => {
+            if (!requestedIds.has(record.id)) return [record];
+            const update = updatesById.get(record.id);
+            return update ? [update] : [];
+        }),
+        ...updates.filter((record) => !currentIds.has(record.id)),
+    ];
+}
+
+function applyRecordSnapshot(
+    sessionIds: ReadonlySet<string>,
+    terminalIds: ReadonlySet<string>,
+    records: { sessions: SessionRecord[]; terminals: TerminalRecord[] },
+): void {
+    useWorkbenchStore.setState((current) => {
+        if (!current.bootstrap) return current;
+        const next = {
+            ...current.bootstrap,
+            sessions: replaceRequestedRecords(
+                current.bootstrap.sessions,
+                sessionIds,
+                records.sessions,
+            ),
+            terminals: replaceRequestedRecords(
+                current.bootstrap.terminals,
+                terminalIds,
+                records.terminals,
+            ),
+        };
+        return { bootstrap: mergeStructurally(current.bootstrap, next) };
+    });
+}
+
+function scheduleRecordRefresh(): Promise<void> {
+    if (recordRefreshInFlight) return recordRefreshInFlight;
+    if (!useWorkbenchStore.getState().bootstrap) return refreshWorkbench();
+    const sessionIds = new Set(pendingSessionRecordIds);
+    const terminalIds = new Set(pendingTerminalRecordIds);
+    pendingSessionRecordIds.clear();
+    pendingTerminalRecordIds.clear();
+    recordRefreshInFlight = caxri
+        .request('app.records', {
+            sessionIds: [...sessionIds],
+            terminalIds: [...terminalIds],
+        })
+        .then((records) => applyRecordSnapshot(sessionIds, terminalIds, records))
+        .catch(() => refreshWorkbench())
+        .finally(() => {
+            recordRefreshInFlight = undefined;
+            if (pendingSessionRecordIds.size > 0 || pendingTerminalRecordIds.size > 0)
+                void scheduleRecordRefresh();
+        });
+    return recordRefreshInFlight;
+}
+
+function applyStateChange(
+    payload: Extract<RuntimeEvent, { event: 'state.changed' }>['payload'],
+): Promise<void> {
+    if (payload.kind === 'full') return refreshWorkbench();
+    for (const sessionId of payload.sessionIds) pendingSessionRecordIds.add(sessionId);
+    for (const terminalId of payload.terminalIds) pendingTerminalRecordIds.add(terminalId);
+    return scheduleRecordRefresh();
 }
 
 function loadBootstrap(): Promise<void> {
@@ -156,7 +232,7 @@ export interface WorkbenchEventHandlers {
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
-        if (event.event === 'state.changed') void refreshWorkbench();
+        if (event.event === 'state.changed') void applyStateChange(event.payload);
         if (event.event === 'runtime.status') {
             const payload = event.payload;
             useWorkbenchStore.setState((current) =>

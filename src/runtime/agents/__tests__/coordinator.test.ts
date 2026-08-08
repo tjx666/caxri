@@ -325,7 +325,14 @@ describe('AgentCoordinator', () => {
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
             /** The first Agent Terminal owns the Session title, so its metadata reaches the Renderer. */
             expect(events).toEqual([
-                { event: 'state.changed', payload: { reason: 'agent.metadata' } },
+                {
+                    event: 'state.changed',
+                    payload: {
+                        kind: 'records',
+                        sessionIds: [created.session.id],
+                        terminalIds: [created.terminal.id],
+                    },
+                },
             ]);
             expect(database.getSession(created.session.id)?.displayTitle).toBe(
                 'Repair terminal lifecycle',

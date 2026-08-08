@@ -258,7 +258,10 @@ export class TerminalManager {
             event: 'terminal.exit',
             payload: { terminalId: live.record.id, exitCode, signal },
         });
-        this.emit({ event: 'state.changed', payload: { reason: 'terminal.exit' } });
+        this.emit({
+            event: 'state.changed',
+            payload: { kind: 'records', sessionIds: [], terminalIds: [live.record.id] },
+        });
         this.logger.write('info', 'pty.exited', {
             fields: { terminalId: live.record.id, exitCode, signal: signal ?? null },
         });

@@ -94,6 +94,15 @@ describe('Runtime composition root', () => {
                 processId: 4242,
             });
             expect(await handlers['terminal.runningCount']({})).toBe(1);
+            expect(
+                await handlers['app.records']({
+                    sessionIds: [created.session.id],
+                    terminalIds: [created.terminal.id],
+                }),
+            ).toMatchObject({
+                sessions: [{ id: created.session.id }],
+                terminals: [{ id: created.terminal.id, processId: 4242 }],
+            });
 
             const remaining = await handlers['session.delete']({ sessionId: created.session.id });
             /** Session deletion removes Session metadata only; the Project keeps its durable root. */
@@ -107,8 +116,17 @@ describe('Runtime composition root', () => {
             expect(
                 events
                     .filter((event) => event.event === 'state.changed')
-                    .map((event) => event.payload.reason),
+                    .map((event) =>
+                        event.payload.kind === 'full' ? event.payload.reason : event.payload.kind,
+                    ),
             ).toEqual(['project.create', 'session.create', 'session.delete']);
+
+            expect(
+                await handlers['app.records']({
+                    sessionIds: [created.session.id, 'missing-session'],
+                    terminalIds: [created.terminal.id, 'missing-terminal'],
+                }),
+            ).toEqual({ sessions: [], terminals: [] });
         } finally {
             await runtime.close();
         }

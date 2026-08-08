@@ -63,6 +63,17 @@ const canceled = z.object({ canceled: z.literal(true) });
  */
 export const methods = {
     'app.bootstrap': { owner: 'runtime', params: noParams, result: bootstrapStateSchema },
+    'app.records': {
+        owner: 'runtime',
+        params: z.object({
+            sessionIds: z.array(identifierSchema).max(64).default([]),
+            terminalIds: z.array(identifierSchema).max(64).default([]),
+        }),
+        result: z.object({
+            sessions: z.array(sessionRecordSchema),
+            terminals: z.array(terminalRecordSchema),
+        }),
+    },
     'app.health': {
         owner: 'runtime',
         params: noParams,

@@ -1,11 +1,47 @@
 import { z } from 'zod';
 
-import { fileChangeSchema, runtimeStatusSchema } from './domain';
+import { fileChangeSchema, identifierSchema, runtimeStatusSchema } from './domain';
 
 const configurationChangedSchema = z.object({
     source: z.string(),
     error: z.string().optional(),
 });
+
+const fullStateChangeReasonSchema = z.enum([
+    'project.create',
+    'project.delete',
+    'session.create',
+    'session.select',
+    'session.archive',
+    'session.unarchive',
+    'session.delete',
+    'terminal.create',
+    'terminal.close',
+    'unknown',
+]);
+
+const stateChangedPayloadSchema = z.preprocess(
+    (value) => {
+        if (
+            typeof value === 'object' &&
+            value !== null &&
+            'kind' in value &&
+            (value.kind === 'full' || value.kind === 'records')
+        ) {
+            return value;
+        }
+        /** Future event scopes must converge safely until this client knows how to patch them. */
+        return { kind: 'full', reason: 'unknown' };
+    },
+    z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('full'), reason: fullStateChangeReasonSchema }),
+        z.object({
+            kind: z.literal('records'),
+            sessionIds: z.array(identifierSchema).max(64).default([]),
+            terminalIds: z.array(identifierSchema).max(64).default([]),
+        }),
+    ]),
+);
 
 /** Every payload the Runtime may push to Main and the Renderer, keyed by its wire event name. */
 export const runtimeEventPayloads = {
@@ -13,7 +49,7 @@ export const runtimeEventPayloads = {
         status: runtimeStatusSchema.exclude(['starting']),
         restartCount: z.number(),
     }),
-    'state.changed': z.object({ reason: z.string() }),
+    'state.changed': stateChangedPayloadSchema,
     'terminal.output': z.object({
         terminalId: z.string(),
         data: z.string(),

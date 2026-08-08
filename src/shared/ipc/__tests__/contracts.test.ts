@@ -143,6 +143,18 @@ describe('runtime events', () => {
         expect(runtimeEventSchema.safeParse({ event: 'nope', payload: {} }).success).toBe(false);
     });
 
+    it('normalizes an unknown state-change scope to the full convergence path', () => {
+        expect(
+            runtimeEventSchema.parse({
+                event: 'state.changed',
+                payload: { kind: 'future-scope', resourceId: 'future-1' },
+            }),
+        ).toEqual({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'unknown' },
+        });
+    });
+
     it('rejects malformed utility-process messages before they reach Main listeners', () => {
         expect(() =>
             parseRuntimeMessage({

@@ -143,6 +143,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         };
     }
 
+    function recordState(sessionIds: readonly string[], terminalIds: readonly string[]) {
+        return {
+            sessions: [...new Set(sessionIds)].flatMap((sessionId) => {
+                const session = database.getSession(sessionId);
+                return session ? [session] : [];
+            }),
+            terminals: [...new Set(terminalIds)].flatMap((terminalId) => {
+                const terminal = database.getTerminal(terminalId);
+                return terminal
+                    ? [{ ...terminal, processId: terminals.processId(terminalId) }]
+                    : [];
+            }),
+        };
+    }
+
     function selectedSessionId(): string | undefined {
         return database.getAppState<string | null>('lastSelectedSessionId') ?? undefined;
     }
@@ -195,8 +210,14 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 return true;
             }),
         );
-        if (restored.some(Boolean))
-            send({ event: 'state.changed', payload: { reason: 'session.restore' } });
+        const restoredTerminalIds = interrupted
+            .filter((_, index) => restored[index])
+            .map((terminal) => terminal.id);
+        if (restoredTerminalIds.length > 0)
+            send({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: restoredTerminalIds },
+            });
     }
 
     let closed = false;
@@ -213,6 +234,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
 
     const handlers: RuntimeHandlers = {
         'app.bootstrap': () => bootstrapState(),
+        'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
             pid,
@@ -242,7 +264,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'theme.import': () => mainOwned('theme.import'),
         'project.create': async ({ rootPath }) => {
             const project = database.createProject(await realpath(rootPath));
-            send({ event: 'state.changed', payload: { reason: 'project.create' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
             return project;
         },
         'project.cancelCreate': () => {
@@ -259,7 +281,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             }
             database.deleteProject(projectId);
             void files.watchSession(selectedSessionId());
-            send({ event: 'state.changed', payload: { reason: 'project.delete' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
         'session.create': async ({ projectId, defaultAgent }) => {
@@ -273,7 +295,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             database.selectSession(created.session.id);
             void files.watchSession(created.session.id);
             if (created.terminal.provider) coordinator.probeTerminal(created.terminal.id);
-            send({ event: 'state.changed', payload: { reason: 'session.create' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } });
             return {
                 session: database.getSession(created.session.id)!,
                 terminal: database.getTerminal(created.terminal.id)!,
@@ -286,19 +308,22 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 the Session-select response, so it runs fire-and-forget like `files.watchSession`. */
             void restoreInterruptedTerminals(sessionId);
             coordinator.probeSessionPrimaryAgent(sessionId);
-            send({ event: 'state.changed', payload: { reason: 'session.select' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
             return database.getSession(sessionId)!;
         },
         'session.archive': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
             const session = database.archiveSession(sessionId);
             void files.watchSession(selectedSessionId());
-            send({ event: 'state.changed', payload: { reason: 'session.archive' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
             return session;
         },
         'session.unarchive': ({ sessionId }) => {
             const session = database.unarchiveSession(sessionId);
-            send({ event: 'state.changed', payload: { reason: 'session.unarchive' } });
+            send({
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'session.unarchive' },
+            });
             return session;
         },
         'session.delete': ({ sessionId }) => {
@@ -307,7 +332,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals.terminateSession(sessionId);
             database.deleteSession(sessionId);
             void files.watchSession(selectedSessionId());
-            send({ event: 'state.changed', payload: { reason: 'session.delete' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
             return bootstrapState();
         },
         'session.updateState': (state) => {
@@ -317,7 +342,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'terminal.create': async ({ sessionId, kind }) => {
             const terminal = await createAndStartTerminal(sessionId, kind);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
-            send({ event: 'state.changed', payload: { reason: 'terminal.create' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.create' } });
             return terminal;
         },
         'terminal.input': ({ terminalId, data }) => {
@@ -336,7 +361,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals.close(terminalId);
             /** Closing the primary Agent Terminal promotes another one, whose metadata must catch up. */
             if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
-            send({ event: 'state.changed', payload: { reason: 'terminal.close' } });
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.close' } });
             return null;
         },
         'terminal.attach': ({ terminalId }) => terminals.attach(terminalId),
@@ -352,7 +377,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             coordinator.prepareTerminalStart(terminalId);
             const terminal = await terminals.restart(terminalId);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
-            send({ event: 'state.changed', payload: { reason: 'terminal.restart' } });
+            send({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
+            });
             return terminal;
         },
         'terminal.snapshot': ({ terminalId }) => database.getSnapshot(terminalId) ?? null,

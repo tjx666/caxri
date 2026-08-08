@@ -1,6 +1,6 @@
 import { AsyncSemaphore } from '../shared/node/concurrency';
 
-export const MAX_CONCURRENT_TERMINAL_RESTORES = 4;
+const MAX_CONCURRENT_TERMINAL_RESTORES = 4;
 
 export type TerminalRestoreOperation = (isCurrent: () => boolean) => Promise<boolean>;
 
