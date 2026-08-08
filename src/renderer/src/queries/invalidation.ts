@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
@@ -34,6 +35,28 @@ function invalidateFileDependentQueries(
                 { sessionId?: string } | undefined,
             ];
             return sessionScoped.has(method) && params?.sessionId === sessionId;
+        },
+    });
+}
+
+/**
+ * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a
+ * Session (or, with every Session of a Project, a Project) is deleted — otherwise the cached reads
+ * (Git status, diffs, blame, file listings, ...) linger under the removed sessionId until the
+ * default garbage collector reclaims them, even though the Session can never be selected again.
+ * Unlike {@link invalidateFileDependentQueries}, this matches any method: a deleted Session's data
+ * should never resurface, not just the file-dependent subset.
+ */
+export function removeSessionQueries(
+    queryClient: QueryClient,
+    sessionIds: readonly string[],
+): void {
+    if (sessionIds.length === 0) return;
+    const removedSessionIds = new Set(sessionIds);
+    queryClient.removeQueries({
+        predicate: (query) => {
+            const [, params] = query.queryKey as [CaxriMethod, { sessionId?: string } | undefined];
+            return params?.sessionId !== undefined && removedSessionIds.has(params.sessionId);
         },
     });
 }

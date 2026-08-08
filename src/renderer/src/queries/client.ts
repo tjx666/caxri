@@ -1,10 +1,39 @@
-import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
+import {
+    QueryClient,
+    useQuery,
+    type UseQueryOptions,
+    type UseQueryResult,
+} from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import type { CaxriMethod, MethodResult, ParamsArg } from '@shared/ipc';
 
 import { caxri } from '../lib/caxri';
 import { describeFailure, pushToast } from '../stores/toasts';
+
+/**
+ * Module-scoped singleton so non-component code (e.g. `features/session/session-actions.ts`) can
+ * reach the same cache `QueryClientProvider` renders with in `main.tsx`, instead of only being
+ * reachable through the `useQueryClient` hook inside a component.
+ *
+ * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other
+ * client to race with over `window.caxri`, so a background window-focus refetch only doubles
+ * Runtime work, and an IPC rejection is a real failure (a bad path, a closed Session) rather than a
+ * transient network blip worth retrying. Individual queries override `staleTime` where a shorter or
+ * longer window makes sense (see the `useCaxriQuery` call sites below).
+ */
+export const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            retry: 0,
+            staleTime: 10_000,
+        },
+        mutations: {
+            retry: 0,
+        },
+    },
+});
 
 /** The single params argument a Caxri method accepts, or `undefined` for a no-params method. */
 type MethodParams<M extends CaxriMethod> = ParamsArg<M>[0];

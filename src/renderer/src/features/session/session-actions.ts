@@ -1,6 +1,8 @@
 import type { TerminalKind } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
+import { queryClient } from '../../queries/client';
+import { removeSessionQueries } from '../../queries/invalidation';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
@@ -103,6 +105,7 @@ export function deleteSelectedProject(): void {
         for (const session of bootstrap.sessions)
             if (session.projectId === project.id) removedSessionIds.push(session.id);
         useSessionViewStore.getState().dropSessions(removedSessionIds);
+        removeSessionQueries(queryClient, removedSessionIds);
         await refreshWorkbench();
     });
 }
@@ -114,6 +117,7 @@ export function deleteSelectedSession(): void {
         const result = await caxri.request('session.delete', { sessionId: session.id });
         if ('canceled' in result) return;
         useSessionViewStore.getState().dropSessions([session.id]);
+        removeSessionQueries(queryClient, [session.id]);
         await refreshWorkbench();
     });
 }
