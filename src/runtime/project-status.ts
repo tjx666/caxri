@@ -21,6 +21,8 @@ import { SingleFlight } from './single-flight';
 const execFileAsync = promisify(execFile);
 const CLI_TIMEOUT_MS = 8_000;
 const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+/** Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded. */
+const VERCEL_LINK_CACHE_LIMIT = 256;
 
 type ProjectStatusCommand = 'gh' | 'git' | 'linear' | 'vc';
 type CliFailureKind =
@@ -73,7 +75,7 @@ interface VercelDeployment {
     url?: string;
 }
 
-interface VercelLink {
+export interface VercelLink {
     project: string;
     team: string;
 }
@@ -313,6 +315,27 @@ function mapDeployment(
     };
 }
 
+/**
+ * Inserts into the LRU-bounded `vercelLinks` cache, evicting the oldest entry once over capacity.
+ * Mirrors the eviction pattern used by `files/watcher.ts`'s `rememberPolledDirectory`/
+ * `rememberChangeFingerprint`: re-inserting a key refreshes its recency, and eviction removes the
+ * least-recently-used entry (the `Map` iteration order's first key).
+ */
+export function rememberVercelLink(
+    links: Map<string, VercelLink>,
+    key: string,
+    value: VercelLink,
+    maximum: number,
+): void {
+    links.delete(key);
+    links.set(key, value);
+    while (links.size > Math.max(1, maximum)) {
+        const oldest = links.keys().next().value;
+        if (!oldest) break;
+        links.delete(oldest);
+    }
+}
+
 function parseVercelList(value: string): VercelDeployment[] {
     const parsed = parseJson<VercelDeployment[] | { deployments?: VercelDeployment[] }>(value, []);
     const deployments = Array.isArray(parsed) ? parsed : (parsed.deployments ?? []);
@@ -322,6 +345,7 @@ function parseVercelList(value: string): VercelDeployment[] {
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
     private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
+    /** LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded. */
     private readonly vercelLinks = new Map<string, VercelLink>();
 
     constructor(
@@ -566,7 +590,10 @@ export class ProjectStatusService {
     private async findVercelLink(owner: string, repo: string): Promise<VercelLink | undefined> {
         const key = `${owner}/${repo}`;
         const cached = this.vercelLinks.get(key);
-        if (cached) return cached;
+        if (cached) {
+            rememberVercelLink(this.vercelLinks, key, cached, VERCEL_LINK_CACHE_LIMIT);
+            return cached;
+        }
         const teamsJson = await this.runner('vc', ['teams', 'ls', '--format', 'json'], homedir());
         const parsed = parseJson<Array<{ slug?: string }> | { teams?: Array<{ slug?: string }> }>(
             teamsJson,
@@ -587,7 +614,7 @@ export class ProjectStatusService {
             }),
         );
         const link = links.find((candidate): candidate is VercelLink => Boolean(candidate));
-        if (link) this.vercelLinks.set(key, link);
+        if (link) rememberVercelLink(this.vercelLinks, key, link, VERCEL_LINK_CACHE_LIMIT);
         return link;
     }
 

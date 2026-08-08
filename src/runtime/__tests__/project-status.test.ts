@@ -11,7 +11,9 @@ import {
     parseGitHubPullRequest,
     parseGitHubRemote,
     ProjectStatusService,
+    rememberVercelLink,
     type ProjectStatusRunner,
+    type VercelLink,
 } from '../project-status';
 
 const temporaryDirectories: string[] = [];
@@ -285,6 +287,24 @@ describe('Project Status parsers', () => {
             { identifier: 'LOBE-2', workspace: undefined },
             { identifier: 'LOBE-3', workspace: undefined },
         ]);
+    });
+
+    it('bounds the vercelLinks cache under many distinct keys, evicting least-recently-used entries', () => {
+        const links = new Map<string, VercelLink>();
+        const maximum = 256;
+        for (let index = 0; index < maximum + 50; index += 1) {
+            rememberVercelLink(
+                links,
+                `owner/repo-${index}`,
+                { team: 'team', project: `project-${index}` },
+                maximum,
+            );
+        }
+        expect(links.size).toBe(maximum);
+        // The earliest-inserted keys should have been evicted first.
+        expect(links.has('owner/repo-0')).toBe(false);
+        expect(links.has('owner/repo-49')).toBe(false);
+        expect(links.has(`owner/repo-${maximum + 49}`)).toBe(true);
     });
 
     it('maps failed checks ahead of successful checks', () => {
