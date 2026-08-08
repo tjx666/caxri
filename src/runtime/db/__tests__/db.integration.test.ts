@@ -162,6 +162,48 @@ describe('CaxriDb', () => {
         rebuilt.close();
     });
 
+    it('migrates the previous preserved schema without losing metadata or snapshots', async () => {
+        const directory = await tempDir('caxri-db-preserved-upgrade-');
+        const databasePath = join(directory, 'state.db');
+        const previous = new CaxriDb(databasePath);
+        const project = previous.projects.create(directory);
+        const session = previous.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = previous.terminals.insert({
+            sessionId: session.id,
+            kind: 'shell',
+            cwd: directory,
+            title: 'Shell',
+        });
+        previous.sessions.insertInitialState(session.id, terminal.id);
+        previous.snapshots.save({
+            terminalId: terminal.id,
+            encodingVersion: 1,
+            lineCount: 1,
+            byteCount: 8,
+            payload: 'restored',
+            updatedAt: 123,
+        });
+        const columns = previous.database.pragma('table_info(session_state)') as Array<{
+            name: string;
+        }>;
+        if (columns.some((column) => column.name === 'state_version'))
+            previous.database.exec('ALTER TABLE session_state DROP COLUMN state_version');
+        previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        previous.close();
+
+        const upgraded = new CaxriDb(databasePath);
+
+        expect(upgraded.projects.get(project.id)).toMatchObject({ id: project.id });
+        expect(upgraded.sessions.get(session.id)).toMatchObject({ id: session.id });
+        expect(upgraded.terminals.get(terminal.id)).toMatchObject({ id: terminal.id });
+        expect(upgraded.snapshots.get(terminal.id)).toMatchObject({
+            terminalId: terminal.id,
+            payload: 'restored',
+        });
+        expect(upgraded.sessions.getState(session.id).layout).not.toEqual({});
+        upgraded.close();
+    });
+
     it('restricts the database and WAL sidecar files to the current user', async () => {
         const directory = await tempDir('caxri-db-permissions-');
         const databasePath = join(directory, 'state.db');
@@ -241,7 +283,7 @@ describe('CaxriDb', () => {
         db.close();
     });
 
-    it('treats session_state.active_tab_json as an opaque round-tripped blob', async () => {
+    it('round-trips a valid structured active WorkItem', async () => {
         const directory = await tempDir('caxri-db-active-tab-');
         const databasePath = join(directory, 'state.db');
         const db = new CaxriDb(databasePath);
@@ -254,11 +296,7 @@ describe('CaxriDb', () => {
             title: 'Shell',
         });
         db.sessions.insertInitialState(session.id, terminal.id);
-        /** The shape here is opaque to the db: a legacy path string round-trips exactly like an
-            arbitrary structured object would. */
-        const structuredActiveTab = { kind: 'file', path: '/a.ts' } as unknown as ReturnType<
-            typeof db.sessions.getState
-        >['activeTab'];
+        const structuredActiveTab = { kind: 'editor', path: '/a.ts' } as const;
 
         db.sessions.updateState({
             ...db.sessions.getState(session.id),

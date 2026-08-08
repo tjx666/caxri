@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,6 +6,7 @@ import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
+import { listLayoutTerminalIds } from '../../shared/terminal-layout';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
@@ -417,6 +418,65 @@ describe('selected Session Agent probes', () => {
             await runtimeB.handlers['session.select']({ sessionId: first.session.id });
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
             expect(snapshot.mock.calls[1]?.[0].correlationId).toBe(first.terminal.id);
+        } finally {
+            await runtimeB.close();
+        }
+    });
+});
+
+describe('Session state recovery', () => {
+    it('repairs corrupt Session JSON, logs the reason, and keeps bootstrap available', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-state-repair-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: () => createFakePty(),
+            },
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'shell',
+        });
+        await runtimeA.close();
+
+        const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+        direct.database
+            .prepare('UPDATE session_state SET layout_json = ? WHERE session_id = ?')
+            .run('{', created.session.id);
+        direct.close();
+
+        const logger = new StructuredLogger(join(directory, 'logs-b'));
+        const runtimeB = await createRuntime({ userDataPath, logger, send: () => undefined });
+        try {
+            const bootstrap = await runtimeB.handlers['app.bootstrap']({});
+            const repaired = bootstrap.sessionStates.find(
+                (state) => state.sessionId === created.session.id,
+            );
+            expect(repaired).toMatchObject({ openTabs: [], inspectorMode: 'files' });
+            expect(listLayoutTerminalIds(repaired?.layout ?? {})).toEqual([created.terminal.id]);
+
+            const records = (await readFile(logger.path, 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as unknown as Record<string, unknown>);
+            const repairRecord = records.find(
+                (record) => record.event === 'db.session_state_repaired',
+            );
+            expect(repairRecord).toMatchObject({ level: 'warn' });
+            expect(repairRecord?.fields).toEqual(
+                expect.objectContaining({
+                    sessionId: created.session.id,
+                    reason: 'invalid_json',
+                }),
+            );
         } finally {
             await runtimeB.close();
         }

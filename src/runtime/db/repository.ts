@@ -22,7 +22,12 @@ import {
     type ShutdownReason,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
-import { CaxriDb, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './index';
+import {
+    CaxriDb,
+    type CaxriDbOptions,
+    MAX_TERMINALS_GLOBAL,
+    MAX_TERMINALS_PER_SESSION,
+} from './index';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager,
@@ -33,8 +38,8 @@ import { CaxriDb, MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './inde
 export class CaxriDatabase {
     private readonly db: CaxriDb;
 
-    constructor(path: string) {
-        this.db = new CaxriDb(path);
+    constructor(path: string, options?: CaxriDbOptions) {
+        this.db = new CaxriDb(path, options);
     }
 
     /** Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly. */

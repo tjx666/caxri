@@ -11,17 +11,21 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 // hand-editing migration files.
 import baselineMigrationSql from './migrations/0000_silly_groot.sql?raw';
 import sessionArchiveMigrationSql from './migrations/0001_slim_marvel_boy.sql?raw';
+import sessionStateVersionMigrationSql from './migrations/0002_complex_ironclad.sql?raw';
 import * as schema from './schema';
 import { sessions, terminals } from './schema';
 import { shutdownOutcome, type ShutdownReason } from '../session-policy';
 
 /**
- * Single source of truth for the schema version. Bumped whenever the DDL below changes shape;
- * pre-release databases are dropped and rebuilt fresh (see {@link initializeSchema}). Recorded in
+ * Single source of truth for the schema version. Bumped whenever the generated DDL changes shape.
+ * Schema 7 is the preservation floor: older pre-release databases may still be rebuilt, while 7+
+ * must advance through the incremental migration list below without losing metadata. Recorded in
  * two places that must stay in sync: the SQLite `user_version`
  * pragma (managed below) and the `schemaVersion` app-state row (written by `bootstrap.ts`).
  */
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
+
+const PRESERVED_SCHEMA_VERSION = 7;
 
 export { DEFAULT_LAYOUT_VERSION } from './schema';
 
@@ -35,14 +39,24 @@ function restrictPath(path: string, mode: number): void {
     }
 }
 
-/** Splits the drizzle-kit-generated migration file on its statement-breakpoint markers so
-    `better-sqlite3`'s single-string `exec` runs every `CREATE TABLE`/`CREATE INDEX` statement. */
-function runMigration(database: Database.Database): void {
-    database.exec(
-        [baselineMigrationSql, sessionArchiveMigrationSql]
-            .join('\n')
-            .replaceAll('--> statement-breakpoint', ''),
-    );
+function runGeneratedSql(database: Database.Database, sql: string): void {
+    database.exec(sql.replaceAll('--> statement-breakpoint', ''));
+}
+
+function installCurrentSchema(database: Database.Database): void {
+    for (const sql of [
+        baselineMigrationSql,
+        sessionArchiveMigrationSql,
+        sessionStateVersionMigrationSql,
+    ])
+        runGeneratedSql(database, sql);
+}
+
+const preservingMigrations = [{ version: 8, sql: sessionStateVersionMigrationSql }] as const;
+
+function migratePreservingData(database: Database.Database, version: number): void {
+    for (const migration of preservingMigrations)
+        if (migration.version > version) runGeneratedSql(database, migration.sql);
 }
 
 function initializeSchema(database: Database.Database): void {
@@ -53,7 +67,7 @@ function initializeSchema(database: Database.Database): void {
         );
     }
     database.transaction(() => {
-        if (version > 0 && version < CURRENT_SCHEMA_VERSION) {
+        if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
             /** Pre-release metadata can be rebuilt; Project directories and user files are never touched. */
             database.exec(`
                 DROP TABLE IF EXISTS terminal_snapshots;
@@ -64,9 +78,9 @@ function initializeSchema(database: Database.Database): void {
                 DROP TABLE IF EXISTS app_state;
             `);
         }
-        if (version < CURRENT_SCHEMA_VERSION) {
-            runMigration(database);
-        }
+        if (version === 0 || (version > 0 && version < PRESERVED_SCHEMA_VERSION))
+            installCurrentSchema(database);
+        else if (version < CURRENT_SCHEMA_VERSION) migratePreservingData(database, version);
         database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
     })();
 }

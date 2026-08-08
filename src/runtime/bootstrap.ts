@@ -72,7 +72,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const startedAt = deps.startedAt ?? Date.now();
     const pid = deps.pid ?? process.pid;
 
-    const database = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+    const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {
+        onSessionStateRepair: ({ reason, sessionId, stateVersion }) =>
+            logger.write('warn', 'db.session_state_repaired', {
+                fields: { reason, sessionId, stateVersion },
+            }),
+    });
     const configuration = new ConfigurationService(userDataPath, send, logger);
     await configuration.initialize();
     database.setAppState('schemaVersion', CURRENT_SCHEMA_VERSION);

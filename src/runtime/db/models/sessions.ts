@@ -2,9 +2,16 @@ import { randomUUID } from 'node:crypto';
 
 import { asc, eq } from 'drizzle-orm';
 
+import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
 import type { AgentActivityState, SessionRecord, SessionState } from '../../../shared/types';
-import { projects, sessionState as sessionStateTable, sessions } from '../schema';
+import {
+    CURRENT_SESSION_STATE_VERSION,
+    projects,
+    sessionState as sessionStateTable,
+    sessions,
+    terminals,
+} from '../schema';
 import { DEFAULT_LAYOUT_VERSION, type CaxriDrizzleDatabase } from '../connection';
 
 const sessionSelection = {
@@ -55,32 +62,79 @@ export interface NewSessionInput {
 
 interface SessionStateRow {
     sessionId: string;
+    stateVersion: number;
     openTabsJson: string;
     activeTabJson: string | null;
     inspectorMode: string;
     layoutJson: string;
 }
 
-function mapSessionState(row: SessionStateRow): SessionState {
-    return {
-        sessionId: row.sessionId,
-        openTabs: JSON.parse(row.openTabsJson) as SessionState['openTabs'],
-        activeTab: row.activeTabJson
-            ? (JSON.parse(row.activeTabJson) as SessionState['activeTab'])
-            : undefined,
-        inspectorMode: row.inspectorMode as SessionState['inspectorMode'],
-        layout: JSON.parse(row.layoutJson) as SessionState['layout'],
-    };
+export interface SessionStateRepair {
+    reason: 'invalid_json' | 'invalid_shape' | 'unsupported_version';
+    sessionId: string;
+    stateVersion: number;
+}
+
+function parseSessionState(
+    row: SessionStateRow,
+): { state: SessionState } | { reason: SessionStateRepair['reason'] } {
+    if (row.stateVersion !== CURRENT_SESSION_STATE_VERSION)
+        return { reason: 'unsupported_version' };
+    let candidate: unknown;
+    try {
+        candidate = {
+            sessionId: row.sessionId,
+            openTabs: JSON.parse(row.openTabsJson) as unknown,
+            activeTab: row.activeTabJson ? (JSON.parse(row.activeTabJson) as unknown) : undefined,
+            inspectorMode: row.inspectorMode,
+            layout: JSON.parse(row.layoutJson) as unknown,
+        };
+    } catch {
+        return { reason: 'invalid_json' };
+    }
+    const parsed = sessionStateSchema.safeParse(candidate);
+    return parsed.success ? { state: parsed.data } : { reason: 'invalid_shape' };
 }
 
 /**
  * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession,
  * default titles, and deletion-fallback selection are decided in `../../session-policy.ts` and applied
- * here through plain setters; `session_state.active_tab_json` is opaque JSON serialized/deserialized
- * without ever being interpreted.
+ * here through plain setters. Session JSON is versioned and schema-validated at this boundary so a
+ * corrupt or future row can be repaired without failing the full Runtime bootstrap.
  */
 export class SessionsModel {
-    constructor(private readonly db: CaxriDrizzleDatabase) {}
+    constructor(
+        private readonly db: CaxriDrizzleDatabase,
+        private readonly onStateRepair?: (repair: SessionStateRepair) => void,
+    ) {}
+
+    private defaultState(sessionId: string): SessionState {
+        const firstTerminal = this.db
+            .select({ id: terminals.id })
+            .from(terminals)
+            .where(eq(terminals.sessionId, sessionId))
+            .orderBy(asc(terminals.orderIndex), asc(terminals.id))
+            .get();
+        return {
+            sessionId,
+            openTabs: [],
+            inspectorMode: 'files',
+            layout: firstTerminal ? createTerminalLayout(firstTerminal.id) : {},
+        };
+    }
+
+    private readState(row: SessionStateRow): SessionState {
+        const parsed = parseSessionState(row);
+        if ('state' in parsed) return parsed.state;
+        const repaired = this.defaultState(row.sessionId);
+        this.updateState(repaired);
+        this.onStateRepair?.({
+            sessionId: row.sessionId,
+            stateVersion: row.stateVersion,
+            reason: parsed.reason,
+        });
+        return repaired;
+    }
 
     list(projectId?: string): SessionRecord[] {
         const rows = projectId
@@ -198,8 +252,8 @@ export class SessionsModel {
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, sessionId))
             .get();
-        if (!row) return { sessionId, openTabs: [], inspectorMode: 'files', layout: {} };
-        return mapSessionState(row);
+        if (!row) return this.defaultState(sessionId);
+        return this.readState(row);
     }
 
     /** Loads every 1:1 Session state row in the same stable order as {@link list}. */
@@ -207,6 +261,7 @@ export class SessionsModel {
         const rows = this.db
             .select({
                 sessionId: sessionStateTable.sessionId,
+                stateVersion: sessionStateTable.stateVersion,
                 openTabsJson: sessionStateTable.openTabsJson,
                 activeTabJson: sessionStateTable.activeTabJson,
                 inspectorMode: sessionStateTable.inspectorMode,
@@ -216,7 +271,7 @@ export class SessionsModel {
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
             .orderBy(asc(sessions.createdAt), asc(sessions.id))
             .all();
-        return rows.map(mapSessionState);
+        return rows.map((row) => this.readState(row));
     }
 
     insertInitialState(sessionId: string, terminalId: string): void {
@@ -224,6 +279,7 @@ export class SessionsModel {
             .insert(sessionStateTable)
             .values({
                 sessionId,
+                stateVersion: CURRENT_SESSION_STATE_VERSION,
                 openTabsJson: '[]',
                 activeTabJson: null,
                 inspectorMode: 'files',
@@ -235,6 +291,7 @@ export class SessionsModel {
     updateState(state: SessionState): void {
         const values = {
             sessionId: state.sessionId,
+            stateVersion: CURRENT_SESSION_STATE_VERSION,
             openTabsJson: JSON.stringify(state.openTabs),
             activeTabJson: state.activeTab === undefined ? null : JSON.stringify(state.activeTab),
             inspectorMode: state.inspectorMode,
@@ -247,6 +304,7 @@ export class SessionsModel {
                 target: sessionStateTable.sessionId,
                 set: {
                     openTabsJson: values.openTabsJson,
+                    stateVersion: values.stateVersion,
                     activeTabJson: values.activeTabJson,
                     inspectorMode: values.inspectorMode,
                     layoutJson: values.layoutJson,

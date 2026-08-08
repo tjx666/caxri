@@ -8,12 +8,16 @@ import {
 } from './connection';
 import { AppStateModel } from './models/app-state';
 import { ProjectsModel } from './models/projects';
-import { SessionsModel } from './models/sessions';
+import { SessionsModel, type SessionStateRepair } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
 import { TerminalsModel } from './models/terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
 export { CURRENT_SCHEMA_VERSION } from './connection';
+
+export interface CaxriDbOptions {
+    onSessionStateRepair?: (repair: SessionStateRepair) => void;
+}
 
 /**
  * Owns the SQLite connection and composes one pure CRUD module per table family. No domain
@@ -32,12 +36,12 @@ export class CaxriDb {
     readonly snapshots: SnapshotsModel;
     readonly appState: AppStateModel;
 
-    constructor(path: string) {
+    constructor(path: string, options: CaxriDbOptions = {}) {
         const opened = openDatabase(path);
         this.database = opened.database;
         this.db = opened.db;
         this.projects = new ProjectsModel(this.db);
-        this.sessions = new SessionsModel(this.db);
+        this.sessions = new SessionsModel(this.db, options.onSessionStateRepair);
         this.terminals = new TerminalsModel(this.db);
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);

@@ -3,6 +3,7 @@ import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-co
 
 /** Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart. */
 export const DEFAULT_LAYOUT_VERSION = 2;
+export const CURRENT_SESSION_STATE_VERSION = 1;
 
 export const projects = sqliteTable(
     'projects',
@@ -73,13 +74,13 @@ export const terminalSnapshots = sqliteTable('terminal_snapshots', {
     updatedAt: integer('updated_at').notNull(),
 });
 
-/** active_tab_json mirrors open_tabs_json/layout_json: an opaque JSON blob owned by
-    the Renderer/shared layer. The store only serializes and deserializes it and
-    never interprets its shape. */
+/** Renderer-owned JSON is validated through the shared Session-state schema on every read.
+    `state_version` selects the reader/repair path before any blob is decoded. */
 export const sessionState = sqliteTable('session_state', {
     sessionId: text('session_id')
         .primaryKey()
         .references(() => sessions.id, { onDelete: 'cascade' }),
+    stateVersion: integer('state_version').notNull().default(CURRENT_SESSION_STATE_VERSION),
     openTabsJson: text('open_tabs_json').notNull(),
     activeTabJson: text('active_tab_json'),
     inspectorMode: text('inspector_mode').notNull(),
