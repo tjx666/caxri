@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clearExecutableCache } from '../../discovery';
-import { AgentService, createLocalAgentAdapters } from '../../service';
+import { clearExecutableCache } from '../../../discovery';
+import { AgentService, createLocalAgentAdapters } from '../../../service';
 
 const temporaryDirectories: string[] = [];
 
