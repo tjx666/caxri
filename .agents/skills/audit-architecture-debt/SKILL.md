@@ -12,13 +12,14 @@ Perform an evidence-first, read-only audit of the current repository. Treat past
 - Read [references/audit-dimensions.md](references/audit-dimensions.md) before every repository-wide audit or request to find similar problems.
 - Read [references/subagent-workflow.md](references/subagent-workflow.md) for every broad audit, every explicit subagent request, and every focused audit that uses independent reviewers.
 - Read [references/report-format.md](references/report-format.md) before producing the final report.
+- Read [references/debt-ledger.md](references/debt-ledger.md) whenever `docs/architecture-debt.md` exists or the user asks to persist findings across runs.
 - Read the relevant `project-architecture` reference before judging an implementation boundary. That skill describes intended architecture; this skill tests whether the current implementation honors it and whether the intent itself creates debt.
 - Use `performance` for measurements, `debug` for a concrete failure path, `competitors` for a design problem already solved by peer products, and `quality-check` only after an explicitly authorized implementation.
 
 ## Preserve the investigation boundary
 
 - Keep an audit read-only unless the user explicitly asks for fixes.
-- Inspect `git status` first. Preserve user-owned changes and do not format, install dependencies, generate builds, or create repository artifacts during a read-only audit. The worktree may keep changing while the audit runs; judge code as it exists on disk, and revalidate cited line numbers against the current tree instead of treating drift as an anomaly.
+- Inspect `git status` first. Preserve user-owned changes and do not format, install dependencies, generate builds, or create repository artifacts during a read-only audit. Sole exception: when the user explicitly asks to persist findings, write only the debt ledger per `references/debt-ledger.md`. The worktree may keep changing while the audit runs; judge code as it exists on disk, and revalidate cited line numbers against the current tree instead of treating drift as an anomaly.
 - Exclude generated dependencies, bundles, release artifacts, logs, and lockfile internals unless the question specifically concerns them.
 
 ### When fixes are authorized
@@ -45,6 +46,8 @@ Record the current commit, branch, worktree state, and requested scope. Distingu
 Read `AGENTS.md`, `DESIGN.md`, the relevant architecture references, the owning source, and nearby tests. Use `git ls-files`, `rg --files`, and a shallow directory map to inventory the repository before drawing conclusions.
 
 When the user asks for historical context, inspect the project records under `~/.claude/projects/-Users-tj-code-caxri/` and `~/.grok/sessions/%2FUsers%2Ftj%2Fcode%2Fcaxri/`. Include detached or temporary review sessions only when their prompt or metadata identifies Caxri. Extract prompts and final results selectively; do not load whole transcripts. Recheck every historical claim against the current tree.
+
+When `docs/architecture-debt.md` exists, follow the repeat-run workflow in `references/debt-ledger.md`: revalidate its entries as unverified leads before the new-debt sweep, and report still-present, resolved, and new findings as separate groups.
 
 When the user supplies an audit report produced outside this session (another agent, another CLI, or an older report), treat every item in it as an unverified lead, exactly like a historical claim: re-verify its cited paths and line numbers against the current tree before accepting it, and do not inherit its category or severity labels — an external "confirmed defect" that fails re-verification is reclassified, not repeated. Spot-check its highest-severity claims first, then merge surviving items with this audit's own findings and deduplicate by root cause before reporting or fixing anything.
 

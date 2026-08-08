@@ -85,6 +85,11 @@ contracts, not docs-only changes.
    threads, and operational release readiness. Give a direct merge recommendation when asked.
 6. Report no findings when the evidence is clean. Do not invent suggestions to fill dimensions.
 
+When this session implemented the change under review, do not run the checklist inline over your
+own implementation context: dispatch one clean-context subagent with the light-mode instructions
+and scope, then apply its findings with your own judgment. This guards against self-review bias
+and is not an escalation to deep mode.
+
 ## Deep mode
 
 Follow [deep-workflow.md](references/deep-workflow.md) end to end. If independent subagents are

@@ -11,7 +11,7 @@ State whether the architecture is sound, needs targeted repair, or warrants a br
 Order findings by severity and leverage. Use this shape:
 
 ```markdown
-### F1 — [Severity · Category] User-visible consequence
+### F1 — [Severity · Category · Effort S/M/L] User-visible consequence
 
 - **Context:** Why this file or boundary matters.
 - **Evidence:** `path/to/file.ts:42` and the relevant consumer/test.
@@ -22,9 +22,24 @@ Order findings by severity and leverage. Use this shape:
 - **Acceptance:** Focused regression, benchmark, log assertion, or observable behavior that proves the debt is removed.
 ```
 
+Effort is a coarse remediation estimate: **S** fits one focused change with its regression test,
+**M** spans several files or one boundary, **L** needs its own design or migration plan.
+
 If evidence is incomplete, move the item to **Open hypotheses** and name the missing proof. Never inflate a coverage gap into a bug.
 
+When a debt ledger is in play (`references/debt-ledger.md`), group findings as still present,
+resolved, and new before the per-finding detail.
+
 For a subagent-backed audit, include only findings with an independent disposition. The root agent must still recheck the final causal path and current line numbers.
+
+## Top priorities and quick wins
+
+Close the findings section with two fixed lists so the report converts into work:
+
+- **Top priorities** — at most five finding IDs, ordered by the skill's consequence-and-leverage
+  ranking, each with a one-line reason.
+- **Quick wins** — S-effort findings worth doing regardless of ranking. Omit the list only when no
+  S-effort finding exists, and say so.
 
 ## Coverage matrix
 

@@ -60,6 +60,10 @@ verification, write `No confirmed findings.` under Findings and still report cov
 ## Finding rules
 
 - Put `path:line` before implementation detail so the reader has context.
+- Write each finding self-contained so it converts directly into a `file-issue` invocation: the
+  title, scenario, evidence, and fix direction map onto that skill's Problem, Diagnosis, and
+  Proposed fix sections without needing this conversation. Offer follow-up filing for confirmed
+  deferrable findings; never create issues during the review itself.
 - Render only confirmed findings. Workflow facts are unverified by design and stay outside severity
   counts.
 - Apply verifier overrides before rendering and merge same-root entries once.

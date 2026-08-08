@@ -14,6 +14,9 @@ Review observable states against Caxri's workbench behavior and `DESIGN.md`, not
   where semantic foreground/background tokens should carry the design
 - Literal/default-palette color utilities bypass runtime theme tokens; imported themes or contrast
   break
+- Decorative motion, gradients, or emoji standing in for real icons carry no state meaning and pull
+  attention from the Terminal — typical agent-generated styling filler
+- Continuous or looping animation ignores `prefers-reduced-motion`
 - UI exposes implementation terms such as Runtime, hot reload, snapshot bytes, or internal error
   codes instead of a user action and outcome
 - Focus, hover, disabled, loading, empty, success, error, exited, reconnecting, or recovery state is
