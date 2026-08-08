@@ -1,4 +1,4 @@
-# Deep Review in Codex
+# Deep Review workflow
 
 Run this workflow only for explicit deep mode. Review stays read-only throughout.
 
@@ -10,7 +10,7 @@ unless the user or runtime instructions require it. With Caxri's normal four-slo
 agent has three active subagent slots.
 
 If spawning or context isolation is unavailable, stop and offer light mode. Completion releases an
-active slot in Codex; no explicit close operation is required.
+active slot; no explicit close operation is required.
 
 ## Review groups
 

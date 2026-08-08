@@ -87,8 +87,8 @@ contracts, not docs-only changes.
 
 ## Deep mode
 
-Follow [codex.md](references/codex.md) end to end. If independent subagents are unavailable, say so
-and offer light mode; never substitute a single-agent "deep" review.
+Follow [deep-workflow.md](references/deep-workflow.md) end to end. If independent subagents are
+unavailable, say so and offer light mode; never substitute a single-agent "deep" review.
 
 ## Sources of truth
 
@@ -97,6 +97,8 @@ and offer light mode; never substitute a single-agent "deep" review.
   persistence, security, recovery, and performance contracts
 - [Electron toolchain ADR](../project-architecture/references/electron-toolchain.md) for build,
   native-module, and release decisions
+- [stack baseline](../project-architecture/references/stack-baseline.md) for dependency and
+  primitive-layer choices when a change adds or swaps a library
 - `DESIGN.md` for frontend and interaction rules
 - The focused `build`, `debug`, `performance`, `quality-check`, `release`, and `test` skills when a
   changed surface routes to them
