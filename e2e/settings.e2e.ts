@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
 
 test('Settings keeps actions visible and provides highlighted editors and live Theme preview', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-e2e-'));
@@ -28,11 +28,56 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             ]);
         expect(tokenColors.length).toBeGreaterThan(1);
         await expect(dialog.locator('[data-slot="input"]')).toHaveCount(6);
-        await expect(dialog.locator('[data-slot="select-trigger"]')).toContainText('Ask each time');
+        await expect(dialog.locator('[data-slot="textarea"]')).toHaveCount(2);
+        const defaultAgent = dialog.locator('[data-slot="select-trigger"]');
+        await expect(defaultAgent).toContainText('Ask each time');
+        await expect(defaultAgent.locator('[data-agent-icon="unknown"]')).toBeVisible();
+        await defaultAgent.click();
+        for (const [name, icon] of [
+            ['Claude Code', 'claude'],
+            ['Codex', 'codex'],
+            ['Shell', 'shell'],
+        ] as const) {
+            await expect(
+                running.page
+                    .getByRole('option', { name, exact: true })
+                    .locator(`[data-agent-icon="${icon}"]`),
+            ).toBeVisible();
+        }
+        await running.page.keyboard.press('Escape');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
         await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
         await expect(dialog.getByLabel('New Terminal working directory')).toHaveValue('');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
+        for (const provider of ['claude', 'codex']) {
+            await expect(
+                dialog.locator(
+                    `[data-agent-provider="${provider}"] [data-agent-icon="${provider}"]`,
+                ),
+            ).toBeVisible();
+        }
+        await expect(dialog.locator('input[type="number"]').first()).toHaveCSS(
+            'appearance',
+            'none',
+        );
+        const workingDirectoryWidth = await dialog
+            .getByLabel('New Terminal working directory')
+            .evaluate((element) => element.getBoundingClientRect().width);
+        const scalarWidth = await dialog
+            .getByLabel('Terminal font size')
+            .evaluate((element) => element.getBoundingClientRect().width);
+        expect(workingDirectoryWidth).toBeGreaterThan(scalarWidth + 100);
+
+        await dialog.getByLabel('Terminal font size').fill('14');
+        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+        await expect
+            .poll(async () => {
+                const settings = await pageRequest<{
+                    value: { 'terminal.fontSize': number };
+                }>(running.page, 'settings.get');
+                return settings.value['terminal.fontSize'];
+            })
+            .toBe(14);
 
         const actions = dialog.locator('.dialog-actions');
         const dialogBox = await dialog.boundingBox();

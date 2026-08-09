@@ -118,7 +118,10 @@ from live keybindings, `badge` size, `--elevated` chips). Group headings stay. W
 **Settings** — copy rewrite: dialog description becomes "Changes apply immediately and
 are stored as editable files." Field labels in plain language; byte values rendered as
 human units (`2 MB`) with unit-aware input. Every tab keeps a dirty marker; Apply saves
-all dirty tabs.
+all dirty tabs. Compact scalar controls keep labels left and show their unit inside the field;
+path controls occupy a full row. Provider launch groups use quiet `--elevated` sections headed by
+the shared Agent identity icon, and every multiline value uses the same themed field/focus redline
+as single-line input.
 
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status
 color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a
