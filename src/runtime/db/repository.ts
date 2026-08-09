@@ -15,6 +15,7 @@ import type {
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
+    DEFAULT_SESSION_TITLE,
     decideAgentMetadataUpdate,
     defaultTerminalTitle,
     processActivityState,
@@ -239,9 +240,7 @@ export class CaxriDatabase {
             if (session?.primaryAgentTerminalId === terminalId) {
                 this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
-                    session.titleMode === 'manual'
-                        ? session.displayTitle
-                        : defaultTerminalTitle(terminal.kind),
+                    session.displayTitle,
                     'running',
                 );
             }
@@ -257,13 +256,16 @@ export class CaxriDatabase {
             this.assertTerminalCapacity();
             const project = this.db.projects.get(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            const displayTitle = defaultTerminalTitle(kind);
-            const session = this.db.sessions.insert({ projectId, displayTitle });
+            const terminalTitle = defaultTerminalTitle(kind);
+            const session = this.db.sessions.insert({
+                projectId,
+                displayTitle: DEFAULT_SESSION_TITLE,
+            });
             const terminal = this.db.terminals.insert({
                 sessionId: session.id,
                 kind,
                 cwd: cwd ?? project.rootPath,
-                title: displayTitle,
+                title: terminalTitle,
             });
             const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
             if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
