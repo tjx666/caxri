@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     createInitialState,
+    createResumeCheckpoint,
+    formatResumeCheckpoint,
     recordAcceptance,
     recordNote,
     recordPullRequest,
@@ -94,10 +96,13 @@ describe('Go state ledger', () => {
         transitionState(state, 'deep_review');
         transitionState(state, 'delivery');
         recordPullRequest(state, {
+            headSha: 'pr-head-123',
             number: 123,
-            status: 'ready',
+            status: 'checks_blocked',
             url: 'https://github.com/example/repo/pull/123',
         });
+        expect(state.pullRequest.status).toBe('checks_blocked');
+        recordPullRequest(state, { status: 'ready' });
         transitionState(state, 'acceptance');
         recordAcceptance(state, {
             id: 'acc_test',
@@ -110,6 +115,21 @@ describe('Go state ledger', () => {
         recordNote(state, { kind: 'workflow', text: 'Capture evidence after aggregate review' });
 
         expect(state.notes.workflow).toHaveLength(1);
+        expect(createResumeCheckpoint(state)).toMatchObject({
+            acceptance: { status: 'pending' },
+            blockers: [],
+            currentIssue: null,
+            nextAction: 'Yield to the user and query Acceptance once on the next continuation',
+            phase: 'waiting_acceptance',
+            pullRequest: { number: 123, status: 'ready' },
+            remainingIssues: [],
+        });
+        expect(formatResumeCheckpoint(createResumeCheckpoint(state))).toContain(
+            'acceptance: pending round 1\n',
+        );
+        expect(formatResumeCheckpoint(createResumeCheckpoint(state))).not.toContain(
+            'acceptance: pending round 1 @ pr-head-123',
+        );
         expect(validateState(state)).toEqual(state);
         expect(() => transitionState(state, 'complete')).toThrow('Invalid phase transition');
     });
@@ -153,6 +173,26 @@ describe('Go state ledger', () => {
 
         recordAcceptance(state, { acceptedHeadSha: 'abc123', status: 'accepted' });
         expect(validateState(state).phase).toBe('merge');
+    });
+
+    it('summarizes only actionable resume state', () => {
+        const state = createInitialState({ objective: 'Resume compactly', runId: 'resume-test' });
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        upsertIssue(state, { number: 45, status: 'complete', title: 'Finished issue' });
+        upsertIssue(state, { number: 46, status: 'progressing', title: 'Current issue' });
+
+        const checkpoint = createResumeCheckpoint(state);
+
+        expect(checkpoint.currentIssue).toEqual({
+            number: 46,
+            status: 'progressing',
+            title: 'Current issue',
+        });
+        expect(checkpoint.nextAction).toBe('Continue issue #46: Current issue');
+        expect(checkpoint.remainingIssues).toHaveLength(1);
+        expect(checkpoint).not.toHaveProperty('events');
+        expect(checkpoint).not.toHaveProperty('notes');
     });
 
     it('does not overwrite an existing run ledger', async () => {

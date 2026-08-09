@@ -39,7 +39,8 @@ Store the printed path and update it after every phase, issue, PR, Acceptance,
 or durable observation. Read [references/state.md](references/state.md) before
 using the state script. Treat GitHub and LobeHub as authoritative remote state;
 the ledger is the compact resume index that prevents repeated discovery after
-context compaction.
+context compaction. Resume with the ledger's compact `resume --json` command;
+do not reload the full event history unless an audit needs it.
 
 ## Phase 0: admit work before starting the Goal
 
@@ -97,9 +98,14 @@ After all issue commits:
    whenever a repair crosses issue or architectural boundaries.
 3. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
-4. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
-5. Route every failure through repair, focused validation, light review, commit,
-   and push. Repeat deep review when the repair changes cross-issue behavior.
+4. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
+   Acceptance matrix. A narrow Acceptance must never certify a broader PR.
+5. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
+6. Route code failures through repair, focused validation, light review, commit,
+   and push. Classify a zero-step hosted-runner billing or platform outage as
+   external infrastructure, not a code failure: record it, run the documented
+   local parity gate once, never call the check green, and proceed only when
+   repository merge policy permits.
 
 Read [references/workflow.md](references/workflow.md) for the transition table
 and repair routing.
@@ -123,8 +129,10 @@ do not add another routine confirmation gate.
 - File unrelated discoveries as follow-up issues and continue only when they do
   not weaken the accepted business requirement.
 - After a passing round, transition to `waiting_acceptance` while keeping the
-  Goal active. Query status once per continuation or use the available wait
-  mechanism; never rerun code or tests merely because review is pending.
+  Goal active. Present the stable Acceptance URL and yield control to the user.
+  Do not start a same-turn polling loop or emit periodic pending updates. Query
+  status once only after a later user or automatic continuation; never rerun
+  code or tests merely because review is pending.
 - Never accept or reject the builder's own delivery.
 
 On human rejection, fetch actionable feedback, reuse stable check ids, omit

@@ -10,11 +10,13 @@ Electron desktop.
    isolated-profile commands.
 2. Confirm LobeHub CLI authentication.
 3. Reuse the stable check ids frozen during Go intake.
-4. Write `plan[]` before executing cases.
-5. Create a fresh round directory under the current Go ledger directory.
+4. Write the frozen plan before executing cases.
+5. Use the Acceptance report scaffold to initialize a fresh round directory
+   under the current Go ledger directory.
 
 The first requirement is one immutable sentence describing the whole business
-goal, not the current repair.
+goal, not the current repair. Write the requirement and all human-facing report
+content in Simplified Chinese as required by the Acceptance report reference.
 
 ## Evidence policy
 
@@ -51,9 +53,14 @@ After a passing round:
 1. Store the acceptance id, URL, round index, and `pending` state in the ledger.
 2. Transition the local workflow to `waiting_acceptance`; keep the Codex Goal
    active.
-3. Query the current state once per continuation using the command in the
-   Acceptance report reference, or wait by event when supported.
-4. Never call `lobehub acceptance accept` or `reject` as the builder.
+3. Give the user the stable Acceptance URL and end the current turn. Do not keep
+   a shell poller running, short-poll from the agent loop, or narrate unchanged
+   pending state.
+4. On a later user or automatic continuation, query the filtered `status` and
+   `userDecision` fields once using the Acceptance report reference. Treat an
+   explicit `userDecision` as authoritative even if an auxiliary review flag is
+   stale, or wait by event when supported.
+5. Never call `lobehub acceptance accept` or `reject` as the builder.
 
 On rejection:
 

@@ -9,6 +9,13 @@ Inspect the current branch and worktree, repository remotes, open issues, relate
 pull requests, and available authentication. Separate live facts from user prose
 or stale local memory. Preserve unrelated changes.
 
+Compare `origin/main...HEAD` with the candidate Goal before reusing the current
+branch or PR. Record the delivery base, commits, files, and issue ownership. If
+the branch contains changes outside the frozen Goal that do not already have
+their own complete review and Acceptance coverage, create a clean branch or
+worktree for the new Goal. Never append a narrow requirement to a broad PR and
+then validate only the narrow requirement.
+
 For each apparent issue, search open and closed issue titles and bodies, related
 PRs, and current source behavior. Record the reused owner or one sentence of
 evidence for why the work is new; title similarity alone is not enough.
@@ -93,7 +100,9 @@ Output one compact plan containing:
 3. dependencies and risk hotspots;
 4. validation and Acceptance matrix;
 5. remote mutations authorized by the explicit `$go` invocation;
-6. any remaining external blocker.
+6. the exact delivery base and confirmation that the branch/PR scope matches the
+   Acceptance matrix;
+7. any remaining external blocker.
 
 Once material boundaries are settled, create the durable ledger, call
 `create_goal` when available, and begin. In a compatible client without that

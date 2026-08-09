@@ -37,10 +37,14 @@ substitutes for the real desktop path when the claim is user-visible.
    stop, CDP, and logging commands. Fix adapter drift when observed.
 2. Confirm LobeHub CLI authentication with the adapter command.
 3. Resolve the immutable one-sentence business requirement for the whole
-   acceptance.
+   acceptance. Write it in Simplified Chinese. The scaffold freezes it in the
+   acceptance root so every later round must reuse the exact same requirement.
 4. Author `plan[]` before testing. Give each check a stable id tied to the owning
-   GitHub issue and declare its expected behavior and required evidence.
-5. Create a fresh round directory containing `result.json`, `report.md`, and
+   GitHub issue and declare its expected behavior and required evidence. Write
+   all human-facing report prose in Simplified Chinese; keep machine ids, code
+   identifiers, branches, commits, commands, and artifact paths in English.
+5. Run the report scaffold's `init` command with the frozen plan. It creates a
+   fresh round directory containing case placeholders, `report.md`, and
    `assets/`. Inside Go use
    `.records/go/<run-id>/acceptance/round-<n>/`; for standalone verification use
    `.records/acceptance/<timestamp>/round-<n>/`.
@@ -59,8 +63,9 @@ Read [references/report.md](references/report.md) before authoring the report an
    - behavior over time: GIF or video following
      [references/recording-cdp.md](references/recording-cdp.md);
    - non-visual behavior: separate reasoning and execution text artifacts.
-4. Fill `cases[]` as observations are made. Every planned check with no case must
-   remain visibly unexecuted; never silently remove it.
+4. Replace each generated `cases[]` placeholder as observations are made. Every
+   planned check remains visible; never delete one to make coverage look
+   complete.
 5. Report failures honestly. Once round execution starts, a product failure,
    blocked environment, invalid screenshot, or missing evidence is part of that
    round's observed result.
@@ -71,6 +76,9 @@ Follow [references/report.md](references/report.md) for the authoritative ingest
 commands and result schema. Preserve the returned Acceptance id, URL, and round
 index. Never overwrite a published round. If post-publication readback indicates
 declared evidence is missing, preserve that history and publish a corrected round.
+Run the report scaffold's `finalize` command before every ingest. It computes the
+summary and fails locally on plan/case drift, missing evidence, required-medium
+gaps, or English-only human-facing content.
 
 ## Repair loop
 

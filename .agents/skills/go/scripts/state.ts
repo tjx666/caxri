@@ -38,6 +38,7 @@ const PR_STATUSES = [
     'draft',
     'open',
     'checks_pending',
+    'checks_blocked',
     'ready',
     'merged',
     'closed',
@@ -185,6 +186,118 @@ function statusForPhase(phase: Phase): GoState['status'] {
     if (phase === 'waiting_acceptance') return 'waiting_acceptance';
     if (phase === 'intake' || phase === 'planning') return 'planning';
     return 'active';
+}
+
+function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] | null): string {
+    switch (state.phase) {
+        case 'intake':
+            return 'Classify requirements and resolve material decisions';
+        case 'planning':
+            return 'Freeze the issue queue and Acceptance matrix, then create the Goal';
+        case 'issue_execution':
+            return currentIssue
+                ? `Continue issue #${currentIssue.number}: ${currentIssue.title}`
+                : 'Transition to deep_review';
+        case 'deep_review':
+            return 'Complete the Goal-range deep review and repair valid findings';
+        case 'delivery':
+            if (state.pullRequest.status === 'checks_pending')
+                return 'Wait for or repair the required PR checks';
+            if (state.pullRequest.status === 'checks_blocked')
+                return 'Record the external CI limitation and run local parity once';
+            if (state.pullRequest.status === 'ready') return 'Transition to acceptance';
+            return 'Finish PR delivery and required review';
+        case 'acceptance':
+            return 'Execute and publish the next immutable Acceptance round';
+        case 'waiting_acceptance':
+            if (state.acceptance.status === 'accepted') return 'Transition to merge';
+            if (state.acceptance.status === 'rejected')
+                return 'Fetch actionable feedback and start a new Acceptance round';
+            return 'Yield to the user and query Acceptance once on the next continuation';
+        case 'merge':
+            return state.pullRequest.status === 'merged'
+                ? 'Verify intended issue closure and remote project state'
+                : 'Merge the exact accepted PR head';
+        case 'self_improvement':
+            return 'Classify technical debt and workflow findings';
+        case 'reporting':
+            return 'Refresh remote state and deliver the final report';
+        case 'complete':
+            return 'No remaining action';
+    }
+}
+
+export function createResumeCheckpoint(state: GoState) {
+    const remainingIssues = state.issues.filter(
+        (issue) => !['committed', 'complete', 'deferred'].includes(issue.status),
+    );
+    const currentIssue =
+        remainingIssues.find((issue) => ['progressing', 'reviewing'].includes(issue.status)) ??
+        remainingIssues.find((issue) => issue.status === 'queued') ??
+        null;
+    const blockers = [
+        ...(state.pullRequest.status === 'checks_blocked'
+            ? ['Required hosted CI could not start']
+            : []),
+        ...(state.acceptance.status === 'blocked' ? ['Acceptance is blocked'] : []),
+    ];
+    const lastTransition = state.events.findLast((event) => event.type === 'phase') ?? null;
+
+    return {
+        acceptance: state.acceptance,
+        blockers,
+        branch: state.branch,
+        currentIssue: currentIssue
+            ? {
+                  number: currentIssue.number,
+                  status: currentIssue.status,
+                  title: currentIssue.title,
+              }
+            : null,
+        lastTransition,
+        nextAction: nextActionFor(state, currentIssue),
+        objective: state.objective,
+        phase: state.phase,
+        pullRequest: state.pullRequest,
+        remainingIssues: remainingIssues.map(({ number, status, title }) => ({
+            number,
+            status,
+            title,
+        })),
+        status: state.status,
+        updatedAt: state.updatedAt,
+    };
+}
+
+export function formatResumeCheckpoint(
+    checkpoint: ReturnType<typeof createResumeCheckpoint>,
+): string {
+    const lines = [
+        `phase: ${checkpoint.phase} (${checkpoint.status})`,
+        `next: ${checkpoint.nextAction}`,
+    ];
+    if (checkpoint.currentIssue) {
+        lines.push(
+            `issue: #${checkpoint.currentIssue.number} ${checkpoint.currentIssue.status} — ${checkpoint.currentIssue.title}`,
+        );
+    }
+    if (checkpoint.pullRequest.number) {
+        lines.push(
+            `pr: #${checkpoint.pullRequest.number} ${checkpoint.pullRequest.status} @ ${checkpoint.pullRequest.headSha ?? 'unknown'}`,
+        );
+    }
+    if (checkpoint.acceptance.id) {
+        lines.push(
+            `acceptance: ${checkpoint.acceptance.status} round ${checkpoint.acceptance.round}${checkpoint.acceptance.acceptedHeadSha ? ` @ ${checkpoint.acceptance.acceptedHeadSha}` : ''}`,
+        );
+    }
+    if (checkpoint.blockers.length > 0) lines.push(`blockers: ${checkpoint.blockers.join('; ')}`);
+    lines.push(`updated: ${checkpoint.updatedAt}`);
+    return lines.join('\n');
+}
+
+function printResumeCheckpoint(checkpoint: ReturnType<typeof createResumeCheckpoint>): void {
+    console.log(formatResumeCheckpoint(checkpoint));
 }
 
 function addEvent(state: GoState, type: string, detail: string): void {
@@ -560,6 +673,7 @@ Commands:
   acceptance --state PATH [--id ID] [--url URL] [--round N] [--status STATUS]
              [--accepted-head-sha SHA]
   note --state PATH --kind technical_debt|workflow|token_waste --text TEXT
+  resume --state PATH [--json]
   show --state PATH
   validate --state PATH`;
 }
@@ -590,6 +704,12 @@ async function main(argv: string[]): Promise<void> {
     const path = await statePathFrom(options);
     const state = await readState(path);
 
+    if (command === 'resume') {
+        const checkpoint = createResumeCheckpoint(state);
+        if (options.json) console.log(JSON.stringify(checkpoint, null, 2));
+        else printResumeCheckpoint(checkpoint);
+        return;
+    }
     if (command === 'show') {
         console.log(JSON.stringify(state, null, 2));
         return;
