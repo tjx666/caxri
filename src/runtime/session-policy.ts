@@ -112,20 +112,18 @@ export interface PrimaryAgentSuccession {
 }
 
 /**
- * Picks the next primary Agent Terminal after the current one closes. Another Agent becomes the
- * new title source; when only Shell Terminals remain, the last generated Agent title stays visible.
+ * Picks the next primary Agent Terminal after the current one closes. The visible title stays
+ * stable until useful metadata from the successor arrives; when only Shell Terminals remain, the
+ * last generated Agent title stays visible.
  */
 export function choosePrimaryAgentSuccessor(
     remainingTerminals: TerminalRecord[],
-    session: Pick<SessionRecord, 'displayTitle' | 'titleMode'>,
+    session: Pick<SessionRecord, 'displayTitle'>,
 ): PrimaryAgentSuccession {
     const nextAgent = remainingTerminals.find((candidate) => candidate.provider);
     return {
         primaryAgentTerminalId: nextAgent?.id ?? null,
-        displayTitle:
-            session.titleMode === 'manual'
-                ? session.displayTitle
-                : (nextAgent?.title ?? session.displayTitle),
+        displayTitle: session.displayTitle,
         lastActivityState: nextAgent ? processActivityState(nextAgent.lastProcessState) : 'idle',
     };
 }

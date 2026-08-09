@@ -333,6 +333,21 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('keeps Untitled while promoting an Agent Terminal before metadata arrives', async () => {
+        const directory = await tempDir('caxri-db-primary-agent-succession-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const claude = database.createTerminal(created.session.id, 'claude');
+
+        database.closeTerminal(created.terminal.id);
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Untitled',
+            primaryAgentTerminalId: claude.id,
+        });
+        database.close();
+    });
+
     it('marks Terminals that claimed to be running as interrupted after Runtime reopen', async () => {
         const directory = await tempDir('caxri-db-recovery-');
         const databasePath = join(directory, 'state.db');

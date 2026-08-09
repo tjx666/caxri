@@ -158,7 +158,7 @@ describe('choosePrimaryAgentSuccessor', () => {
             ),
         ).toEqual({
             primaryAgentTerminalId: 'claude-1',
-            displayTitle: 'Claude Code',
+            displayTitle: 'Existing',
             lastActivityState: 'running',
         });
     });
