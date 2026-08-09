@@ -41,7 +41,7 @@ interface TerminalPaneProps {
 const onError = (message: string): void => pushToast('error', message);
 
 const terminalPaneClassName =
-    'terminal-pane relative flex h-full w-full min-h-0 min-w-0 flex-col bg-background';
+    'terminal-pane relative flex h-full w-full min-h-0 min-w-0 flex-col pt-2 pl-2 bg-background';
 
 const terminalRecoveryToneClassName = {
     danger: 'text-danger',
@@ -278,17 +278,15 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             className={terminalPaneClassName}
             data-terminal-id={terminalId}
             onFocus={() => activateTerminal(terminalId)}
+            style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
-            <div
-                ref={containerRef}
-                className="terminal-surface min-h-0 w-full flex-1 [&_.xterm]:pt-2 [&_.xterm]:pl-2"
-            />
+            <div ref={containerRef} className="terminal-surface min-h-0 w-full flex-1" />
             {exitPresentation && (
                 <div
                     aria-live="polite"
                     className={cn(
                         `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
-                        'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 pt-0 pr-1 pb-0 pl-2 border-t border-border text-[11px]',
+                        'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 -ml-2 pt-0 pr-1 pb-0 pl-2 border-t border-border text-[11px]',
                         'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
                         terminalRecoveryToneClassName[exitPresentation.tone],
                     )}

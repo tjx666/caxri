@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
+import type { ThemeTokens } from '../src/shared/types.ts';
+
 import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -137,7 +139,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
     }
 });
 
-test('Terminal scrollbar is flush with each pane while text keeps a visible gutter', async () => {
+test('Terminal scrollbar is flush while the terminal-colored inset keeps text clear', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -146,6 +148,28 @@ test('Terminal scrollbar is flush with each pane while text keeps a visible gutt
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
+        const activeTheme = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
+        const contrastingTheme = structuredClone(activeTheme.value);
+        contrastingTheme.colors.background = '#101820';
+        contrastingTheme.terminal.background = '#304050';
+        await pageRequest(running.page, 'theme.update', {
+            source: JSON.stringify(contrastingTheme),
+        });
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.terminal-pane')
+                    .first()
+                    .evaluate((pane) => {
+                        const viewport = pane.querySelector('.xterm-scrollable-element');
+                        if (!viewport) throw new Error('Terminal viewport is unavailable');
+                        return {
+                            inset: getComputedStyle(pane).backgroundColor,
+                            viewport: getComputedStyle(viewport).backgroundColor,
+                        };
+                    }),
+            )
+            .toEqual({ inset: 'rgb(48, 64, 80)', viewport: 'rgb(48, 64, 80)' });
 
         const terminalIds = (
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
