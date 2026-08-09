@@ -8,7 +8,7 @@ description: Run Caxri's compact changed-file validation entry point. Use after 
 Use the repository-owned checker instead of loading every validation command into context:
 
 ```bash
-bun run check [files...] [--lint] [--test] [--type] [--staged]
+bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]
 ```
 
 ## Selection
@@ -19,7 +19,11 @@ bun run check [files...] [--lint] [--test] [--type] [--staged]
 - `--lint` applies ESLint and Prettier fixes to supported files. Always inspect the resulting diff.
 - `--test` runs changed test files and colocated tests named `foo.test.*` or `__tests__/foo.test.*`.
 - `--type` runs the repository-wide TypeScript check because TypeScript cannot safely validate one file in isolation.
+- `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract changes.
 
 Pass a test path explicitly when a source file has a nonstandard integration test. The checker never launches full Electron E2E, packaging, or performance gates automatically; use the focused commands in `AGENTS.md` when the change crosses those boundaries.
+
+An E2E path passed with `--test` may report zero tests because Vitest does not own Playwright files.
+That is selection feedback, not a passing E2E result; run the focused Playwright command separately.
 
 Successful output is intentionally compact. Failures include the underlying tool output needed to act.

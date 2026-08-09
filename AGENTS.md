@@ -4,7 +4,9 @@
 
 - Install dependencies: `ni`
 - Start the Electron app: `bun run dev`
-- Format: `bun run format`; verify formatting: `bun run format:check`
+- Format the whole repository: `bun run format`; verify formatting: `bun run format:check`. Appending
+  file paths does not narrow `bun run format`; use `bunx --bun prettier --write <files...>` for a
+  focused formatting pass.
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
 - Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]`
 - Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions.
@@ -31,7 +33,28 @@
 
 ## Skills
 
-Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`, `performance`, `project-architecture`, `quality-check`, `release`, `test`). `.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for step-by-step workflows beyond this summary.
+Detailed playbooks live under `.agents/skills/`; their descriptions define when to use them.
+`.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for
+step-by-step workflows beyond this summary.
+
+- Treat "quick deep review" and "快速 deep-review" as quick mode: use one clean-context reviewer
+  and root-agent synthesis. Run the full multi-agent workflow only for an explicit `$deep-review`,
+  "full deep review", or "full multi-agent review" request.
+- When an authorized implementation exposes an obvious, narrow workflow defect in `AGENTS.md` or a
+  repository skill, fix it directly in the same change instead of stopping for another approval.
+  This does not authorize pushing, publishing, posting, closing issues, or other remote mutations.
+
+## Batch execution workflow
+
+- For a multi-issue goal, freeze the live issue set and record an acceptance matrix before editing.
+  Separate already-fixed items, decision-only items, and implementation work.
+- Group implementation and validation by owning layer or shared root cause. Keep issue-specific
+  acceptance checks visible even when several issues share one change.
+- Prefer cohesive commits with independently verifiable behavior. Follow an explicit user request
+  for a single commit, but do not create a large mixed commit merely because the work arrived as one
+  goal.
+- Refresh issue or PR state before the final report. Do not push, close issues, or mutate remote state
+  unless the user explicitly authorized it.
 
 ## Architecture boundaries
 
@@ -69,6 +92,9 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 
 - During implementation, run only tests affected by the changed source files. Do not run `bun run test` as a routine iteration step.
 - Prefer `bun run check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
+- Use a validation ladder: iterate with the narrowest test, then run one changed-file check after the
+  source batch is complete. Re-run only gates invalidated by later edits. Rebuild before focused
+  Electron E2E whenever relevant `src/` files changed after the previous build.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
 - Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`); it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
@@ -77,7 +103,14 @@ Detailed playbooks live under `.agents/skills/` (`build`, `competitors`, `debug`
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
 - Do not unit-test React components by default. When component logic needs coverage, extract it into a hook or pure function and test that; rendering and interaction belong to the smallest relevant E2E workflow.
 - Prefer observable output and integration boundaries over internal call assertions. Mock Electron IPC or native boundaries for unit tests; reserve a real Electron launch for the smallest relevant E2E workflow.
+- A visual regression must make the failure observable, not merely assert that an element exists. For
+  Terminal inset or background bugs, deliberately use contrasting application and Terminal theme
+  colors so uncovered pixels cannot pass unnoticed.
 - Run the full unit suite locally only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient. Implementation subagents must stay scoped to the specs covering their change (`bunx playwright test <file> [-g '<name>']`) and must never receive the full `bun run test:e2e` gate.
+
+Keep successful validation output compact. Preserve complete logs in a task-scoped file when useful,
+surface the actionable summary, and expand the underlying tool output only on failure or when the
+user asks for it.
 
 ### Scripted repro
 

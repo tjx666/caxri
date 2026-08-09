@@ -11,7 +11,7 @@ description: Validate Caxri changes with focused Vitest coverage, real PTY integ
 4. Do not unit-test React components by default. When component logic is worth testing, extract it into a hook or pure function and test that; leave rendering and interaction to the smallest relevant E2E workflow.
 5. Every bug fix must land with a behavior-level regression test that fails before the fix and passes after it.
 6. Run focused Playwright Electron coverage when window lifecycle, IPC, Renderer attach, PTY continuity, recovery, or packaging-facing behavior changes.
-7. Run `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup` after startup, watcher, Terminal, file, Git, Agent, logging, or Renderer-bundle changes.
+7. Run `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup` after performance-sensitive initialization, watcher, PTY, file, Git, Agent, logging, or Renderer entry/lazy-loading changes. Skip it for pure style, copy, theme-token, or layout changes unless they alter startup measurement or Terminal fitting behavior.
 8. Preserve privacy in fixtures: never place real tokens, user code, transcripts, or production paths in test artifacts.
 9. Never run the full E2E suite locally. When development requires full-suite coverage, follow the remote pull-request workflow below. Run the full unit suite locally only when explicitly requested or when a shared cross-cutting contract makes focused coverage insufficient. Report exact commands, pass/fail counts, and benchmark timings. Do not weaken assertions or disable tests to manufacture a pass.
 

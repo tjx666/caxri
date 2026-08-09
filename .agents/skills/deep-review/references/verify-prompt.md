@@ -45,6 +45,10 @@ invent ids.
 - False positive: `id`, `verdict`, `reason`.
 - Need more context: `id`, `verdict`, `missing`.
 
+The variants are strict. Confirmed items must not contain `reason`, `status`, or `severity`;
+false-positive items must not contain confirmation fields; need-more-context items must not contain
+either set. Put explanations in the field assigned to that verdict.
+
 ```json
 {
   "verifications": [
