@@ -1,13 +1,14 @@
 #!/usr/bin/env bun
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
-const STATE_ROOT = join(PROJECT_ROOT, '.records', 'go');
+const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
+const STATE_ROOT = join(RECORDS_ROOT, 'go');
 const SCHEMA_VERSION = 2;
 const MAX_EVENTS = 120;
 
@@ -414,12 +415,82 @@ function integer(options: Options, key: string, required = false): number | unde
     return parsed;
 }
 
-function statePathFrom(options: Options): string {
+function ensureStatePath(path: string): string {
+    const absolutePath = resolve(path);
+    const relativePath = relative(resolve(STATE_ROOT), absolutePath);
+    if (
+        relativePath === '' ||
+        relativePath === '..' ||
+        relativePath.startsWith(`..${sep}`) ||
+        isAbsolute(relativePath)
+    ) {
+        throw new Error(`State path must stay under ${relative(PROJECT_ROOT, STATE_ROOT)}`);
+    }
+    return absolutePath;
+}
+
+async function ensureDirectDirectory(path: string): Promise<void> {
+    try {
+        const metadata = await lstat(path);
+        if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+            throw new Error(
+                `Go state directory must not contain symbolic links: ${relative(PROJECT_ROOT, path)}`,
+            );
+        }
+    } catch (error: unknown) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+        await mkdir(path);
+    }
+}
+
+async function validateStateRoot(): Promise<string> {
+    for (const path of [RECORDS_ROOT, STATE_ROOT]) {
+        const metadata = await lstat(path);
+        if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+            throw new Error(
+                `Go state directory must not contain symbolic links: ${relative(PROJECT_ROOT, path)}`,
+            );
+        }
+    }
+    const [canonicalProjectRoot, canonicalStateRoot] = await Promise.all([
+        realpath(PROJECT_ROOT),
+        realpath(STATE_ROOT),
+    ]);
+    const expectedStateRoot = join(canonicalProjectRoot, '.records', 'go');
+    if (canonicalStateRoot !== expectedStateRoot) {
+        throw new Error('Go state directory must stay inside the project');
+    }
+    return canonicalStateRoot;
+}
+
+/** Verifies each writable ledger ancestor before a run directory is created. */
+async function ensureStateRoot(): Promise<string> {
+    await ensureDirectDirectory(RECORDS_ROOT);
+    await ensureDirectDirectory(STATE_ROOT);
+    return validateStateRoot();
+}
+
+/** Keeps user-controlled run IDs inside one direct child of the Go ledger directory. */
+export function statePathForRunId(runId: string): string {
+    if (!runId || runId === '.' || runId === '..' || runId.includes('/') || runId.includes('\\')) {
+        throw new Error('Go run ID must be a single path segment');
+    }
+    return ensureStatePath(resolve(STATE_ROOT, runId, 'state.json'));
+}
+
+async function statePathFrom(options: Options): Promise<string> {
     const supplied = one(options, 'state', true);
     if (!supplied) throw new Error('Missing --state');
-    const path = resolve(PROJECT_ROOT, supplied);
-    const rootPrefix = `${resolve(STATE_ROOT)}${sep}`;
-    if (!path.startsWith(rootPrefix)) {
+    const path = ensureStatePath(resolve(PROJECT_ROOT, supplied));
+    const canonicalStateRoot = await validateStateRoot();
+    const canonicalPath = await realpath(path);
+    const relativePath = relative(canonicalStateRoot, canonicalPath);
+    if (
+        relativePath === '' ||
+        relativePath === '..' ||
+        relativePath.startsWith(`..${sep}`) ||
+        isAbsolute(relativePath)
+    ) {
         throw new Error(`State path must stay under ${relative(PROJECT_ROOT, STATE_ROOT)}`);
     }
     return path;
@@ -442,7 +513,6 @@ async function writeState(path: string, state: GoState): Promise<void> {
 export async function writeInitialState(path: string, state: GoState): Promise<void> {
     state.updatedAt = now();
     validateState(state);
-    await mkdir(dirname(path), { recursive: true });
     await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, {
         encoding: 'utf8',
         flag: 'wx',
@@ -452,6 +522,28 @@ export async function writeInitialState(path: string, state: GoState): Promise<v
         }
         throw error;
     });
+}
+
+async function prepareRunDirectory(path: string): Promise<void> {
+    const canonicalStateRoot = await ensureStateRoot();
+    const runDirectory = dirname(path);
+    try {
+        await mkdir(runDirectory);
+    } catch (error: unknown) {
+        if (errorCode(error) !== 'EEXIST') throw error;
+        const metadata = await lstat(runDirectory);
+        if (metadata.isSymbolicLink()) {
+            throw new Error('Go run directory must not be a symbolic link', { cause: error });
+        }
+        throw new Error(`Go run already exists: ${relative(PROJECT_ROOT, path)}`, {
+            cause: error,
+        });
+    }
+
+    const canonicalRunDirectory = await realpath(runDirectory);
+    if (dirname(canonicalRunDirectory) !== canonicalStateRoot) {
+        throw new Error('Go run directory must stay directly under the Go state directory');
+    }
 }
 
 function help(): string {
@@ -483,18 +575,19 @@ async function main(argv: string[]): Promise<void> {
         const objective = one(options, 'objective', true);
         if (!objective) throw new Error('Missing --objective');
         const runId = one(options, 'run-id') ?? defaultRunId(objective);
-        const path = join(STATE_ROOT, runId, 'state.json');
+        const path = statePathForRunId(runId);
         const state = createInitialState({
             branch: one(options, 'branch') ?? null,
             objective,
             runId,
         });
+        await prepareRunDirectory(path);
         await writeInitialState(path, state);
         console.log(path);
         return;
     }
 
-    const path = statePathFrom(options);
+    const path = await statePathFrom(options);
     const state = await readState(path);
 
     if (command === 'show') {

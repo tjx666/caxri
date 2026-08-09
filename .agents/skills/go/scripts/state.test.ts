@@ -1,6 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { access, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +9,7 @@ import {
     recordAcceptance,
     recordNote,
     recordPullRequest,
+    statePathForRunId,
     transitionState,
     upsertIssue,
     validateState,
@@ -15,6 +17,49 @@ import {
 } from './state';
 
 describe('Go state ledger', () => {
+    it('rejects path-like run IDs before resolving the ledger path', () => {
+        expect(() => statePathForRunId('../../../../tmp/untrusted-run')).toThrow(
+            'Go run ID must be a single path segment',
+        );
+        expect(statePathForRunId('valid-run')).toMatch(/\.records\/go\/valid-run\/state\.json$/);
+    });
+
+    it('does not follow a symlinked run directory during CLI initialization', async () => {
+        const outsideDirectory = await mkdtemp(join(tmpdir(), 'caxri-go-symlink-'));
+        const runId = `symlink-${outsideDirectory.split('/').at(-1)}`;
+        const statePath = statePathForRunId(runId);
+        const runDirectory = dirname(statePath);
+
+        try {
+            await mkdir(dirname(runDirectory), { recursive: true });
+            await symlink(outsideDirectory, runDirectory, 'dir');
+
+            const child = spawn(
+                'bun',
+                [
+                    'run',
+                    '.agents/skills/go/scripts/state.ts',
+                    'init',
+                    '--objective',
+                    'Reject symlink traversal',
+                    '--run-id',
+                    runId,
+                ],
+                { cwd: process.cwd(), stdio: 'pipe' },
+            );
+            const exitCode = await new Promise<number | null>((resolve, reject) => {
+                child.once('error', reject);
+                child.once('close', resolve);
+            });
+
+            expect(exitCode).toBe(1);
+            await expect(access(join(outsideDirectory, 'state.json'))).rejects.toThrow();
+        } finally {
+            await rm(runDirectory, { force: true });
+            await rm(outsideDirectory, { force: true, recursive: true });
+        }
+    });
+
     it('tracks delivery state and rejects invalid transitions', () => {
         const state = createInitialState({
             branch: 'feat/go',
