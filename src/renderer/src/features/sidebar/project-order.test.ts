@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     adjacentProjectOrder,
     createLatestProjectOrderQueue,
+    createProjectOrderIntentTracker,
     projectDropTargetsEqual,
     projectOrderAfterDrop,
 } from './project-order';
@@ -63,5 +64,47 @@ describe('Project ordering', () => {
             ['a', 'b', 'c'],
             ['b', 'c', 'a'],
         ]);
+    });
+
+    it('retains an acknowledged keyboard order until the matching snapshot arrives', () => {
+        const tracker = createProjectOrderIntentTracker();
+        const firstIntent = {
+            displayTitle: 'Alpha',
+            movedProjectId: 'a',
+            projectIds: ['b', 'a', 'c'],
+        };
+
+        tracker.set(firstIntent);
+        tracker.settle(firstIntent.projectIds, true);
+
+        const secondOrder = adjacentProjectOrder(
+            tracker.get()?.projectIds ?? ['a', 'b', 'c'],
+            'a',
+            1,
+        );
+        expect(secondOrder).toEqual(['b', 'c', 'a']);
+
+        const secondIntent = { ...firstIntent, projectIds: secondOrder! };
+        tracker.set(secondIntent);
+        expect(tracker.reconcile(firstIntent.projectIds)).toBeUndefined();
+        expect(tracker.get()).toBe(secondIntent);
+        expect(tracker.reconcile(secondIntent.projectIds)).toBe(secondIntent);
+        expect(tracker.get()).toBeUndefined();
+    });
+
+    it('abandons an intent rejected by persistence or invalidated by membership changes', () => {
+        const tracker = createProjectOrderIntentTracker();
+        const rejected = {
+            displayTitle: 'Alpha',
+            movedProjectId: 'a',
+            projectIds: ['b', 'a'],
+        };
+        tracker.set(rejected);
+        tracker.settle(rejected.projectIds, false);
+        expect(tracker.get()).toBeUndefined();
+
+        tracker.set(rejected);
+        expect(tracker.reconcile(['a', 'b', 'c'])).toBeUndefined();
+        expect(tracker.get()).toBeUndefined();
     });
 });

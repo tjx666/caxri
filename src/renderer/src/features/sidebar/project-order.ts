@@ -11,6 +11,49 @@ export interface LatestProjectOrderQueue {
     enqueue(projectIds: string[]): Promise<void>;
 }
 
+interface ProjectOrderIntent {
+    displayTitle: string;
+    movedProjectId: string;
+    projectIds: string[];
+}
+
+export interface ProjectOrderIntentTracker {
+    get(): ProjectOrderIntent | undefined;
+    reconcile(projectIds: readonly string[]): ProjectOrderIntent | undefined;
+    set(intent: ProjectOrderIntent): void;
+    settle(projectIds: string[], succeeded: boolean): void;
+}
+
+/** Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent. */
+export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
+    let current: ProjectOrderIntent | undefined;
+
+    return {
+        get: () => current,
+        reconcile(projectIds) {
+            if (!current) return undefined;
+            const membershipMatches =
+                current.projectIds.length === projectIds.length &&
+                current.projectIds.every((projectId) => projectIds.includes(projectId));
+            if (!membershipMatches) {
+                current = undefined;
+                return undefined;
+            }
+            if (current.projectIds.some((projectId, index) => projectId !== projectIds[index]))
+                return undefined;
+            const confirmed = current;
+            current = undefined;
+            return confirmed;
+        },
+        set(intent) {
+            current = intent;
+        },
+        settle(projectIds, succeeded) {
+            if (!succeeded && current?.projectIds === projectIds) current = undefined;
+        },
+    };
+}
+
 /** Persists one in-flight order and replaces queued intermediate orders with the latest intent. */
 export function createLatestProjectOrderQueue(
     persist: (projectIds: string[]) => Promise<void>,
