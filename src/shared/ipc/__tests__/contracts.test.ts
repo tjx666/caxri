@@ -211,7 +211,7 @@ describe('Project and Session contracts', () => {
         ).toBe(false);
     });
 
-    it('bounds Project reorder requests to structured Project ids', () => {
+    it('accepts complete Project permutations while validating every id', () => {
         expect(
             methods['project.reorder'].params.safeParse({
                 projectIds: ['project-1', 'project-2'],
@@ -221,7 +221,7 @@ describe('Project and Session contracts', () => {
             methods['project.reorder'].params.safeParse({
                 projectIds: Array.from({ length: 129 }, (_, index) => `project-${index}`),
             }).success,
-        ).toBe(false);
+        ).toBe(true);
         expect(methods['project.reorder'].params.safeParse({ projectIds: [''] }).success).toBe(
             false,
         );
