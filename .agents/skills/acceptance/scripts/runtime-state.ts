@@ -16,6 +16,7 @@ export const runtimeStateSchema = z.object({
     port: z.number().int().min(1024).max(65_535),
     startedAt: z.string(),
     testRootPath: z.string(),
+    testRootPaths: z.array(z.string()).min(1).optional(),
     userDataDir: z.string(),
 });
 
