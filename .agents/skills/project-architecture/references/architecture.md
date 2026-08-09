@@ -2,7 +2,7 @@
 
 ## Product model
 
-A `Project` is a user-selected local folder and the durable owner of its `rootPath`, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. Archiving a Session hides it from active navigation without stopping or deleting its Terminals, and restore only clears that metadata. The first Agent Terminal in a Session is its automatic title source; a user rename switches the title to manual ownership so later Agent metadata cannot replace it. Shell-only Sessions keep their Shell title. Multiple Sessions can share one Project without duplicating its directory identity.
+A `Project` is a user-selected local folder and the durable owner of its `rootPath`, explicit Sidebar order, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. Archiving a Session hides it from active navigation without stopping or deleting its Terminals, and restore only clears that metadata. The first Agent Terminal in a Session is its automatic title source; a user rename switches the title to manual ownership so later Agent metadata cannot replace it. Shell-only Sessions keep their Shell title. Multiple Sessions can share one Project without duplicating its directory identity.
 
 ## Process model
 
@@ -45,7 +45,7 @@ The preload exposes one `request` method backed by a fixed method union plus `on
 
 SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and busy timeout. Table definitions live declaratively in `src/runtime/db/schema.ts` (Drizzle ORM); `bunx drizzle-kit generate` emits the checked-in SQL under `src/runtime/db/migrations/`, which the Runtime bundles via `?raw` imports so packaged builds never read migration files from disk. After any schema change, regenerate with drizzle-kit — never hand-edit the migrations directory. `user_version` is currently 9. Schema 7 is the incremental-migration preservation floor: older experimental databases may still be rebuilt, but schema 7 and every later version advance transactionally without deleting Projects, Sessions, Terminals, snapshots, selection, or layout state. Caxri's public data-compatibility commitment begins with v1.0.0, backed by that preserved chain; adding a schema version requires both generated SQL and an N-1 upgrade test. Query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
 
-- `projects`: identity, unique root, display title, and timestamps
+- `projects`: identity, unique root, display title, explicit Sidebar order, and timestamps
 - `sessions`: Project ownership, identity, timestamps, reversible archive time, primary Agent Terminal, last activity, layout version, and automatic/manual title ownership
 - `terminals`: durable identity/position/cwd/title/icon/provider and last process state
 - `terminal_snapshots`: versioned bounded VT/text payload with line and byte counts

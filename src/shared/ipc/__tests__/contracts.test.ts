@@ -210,6 +210,22 @@ describe('Project and Session contracts', () => {
             }).success,
         ).toBe(false);
     });
+
+    it('bounds Project reorder requests to structured Project ids', () => {
+        expect(
+            methods['project.reorder'].params.safeParse({
+                projectIds: ['project-1', 'project-2'],
+            }).success,
+        ).toBe(true);
+        expect(
+            methods['project.reorder'].params.safeParse({
+                projectIds: Array.from({ length: 129 }, (_, index) => `project-${index}`),
+            }).success,
+        ).toBe(false);
+        expect(methods['project.reorder'].params.safeParse({ projectIds: [''] }).success).toBe(
+            false,
+        );
+    });
 });
 
 describe('Terminal layout contract', () => {

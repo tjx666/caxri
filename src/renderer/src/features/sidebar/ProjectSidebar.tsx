@@ -8,7 +8,7 @@ import {
     FolderOpen,
     Plus,
 } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AgentActivityState, SessionRecord, TerminalRecord } from '@shared/types';
@@ -29,10 +29,17 @@ import {
     archiveSession,
     beginSessionCreation,
     renameSession,
+    reorderProjects,
     selectProject,
     selectSession,
     unarchiveSession,
 } from '../session/session-actions';
+import {
+    adjacentProjectOrder,
+    PROJECT_DRAG_TYPE,
+    projectOrderAfterDrop,
+    type ProjectDropEdge,
+} from './project-order';
 
 const NO_RECORDS: never[] = [];
 /** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
@@ -46,6 +53,11 @@ const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
 };
 const onAddProject = (): void => executeCommand('project.create');
 const onSelectSession = (sessionId: string): void => void selectSession(sessionId);
+
+interface ProjectDropTarget {
+    edge: ProjectDropEdge;
+    projectId: string;
+}
 
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
@@ -235,8 +247,53 @@ export function ProjectSidebar() {
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
+    const [draggedProjectId, setDraggedProjectId] = useState<string>();
+    const [projectDropTarget, setProjectDropTarget] = useState<ProjectDropTarget>();
+    const [projectOrderAnnouncement, setProjectOrderAnnouncement] = useState('');
     const renamingSessionIdRef = useRef<string | undefined>(undefined);
     const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
+
+    const commitProjectOrder = (
+        projectIds: string[],
+        movedProjectId: string,
+        displayTitle: string,
+    ): void => {
+        const currentIds = projects.map((project) => project.id);
+        if (projectIds.every((projectId, index) => projectId === currentIds[index])) return;
+        void reorderProjects(projectIds).then((reordered) => {
+            if (!reordered) return;
+            setProjectOrderAnnouncement(
+                `Moved ${displayTitle} to position ${projectIds.indexOf(movedProjectId) + 1} of ${projectIds.length}`,
+            );
+        });
+    };
+
+    const moveProject = (projectId: string, displayTitle: string, delta: -1 | 1): void => {
+        const projectIds = projects.map((project) => project.id);
+        const reordered = adjacentProjectOrder(projectIds, projectId, delta);
+        if (!reordered) return;
+        void reorderProjects(reordered).then((moved) => {
+            if (!moved) return;
+            setProjectOrderAnnouncement(
+                `Moved ${displayTitle} to position ${reordered.indexOf(projectId) + 1} of ${reordered.length}`,
+            );
+        });
+    };
+
+    const projectDropEdge = (
+        event: DragEvent<HTMLElement>,
+        projectId: string,
+    ): ProjectDropTarget | undefined => {
+        const draggedId = event.dataTransfer.getData(PROJECT_DRAG_TYPE) || draggedProjectId;
+        if (!draggedId || draggedId === projectId) return undefined;
+        const heading = event.currentTarget.querySelector<HTMLElement>('.project-heading');
+        if (!heading) return undefined;
+        const bounds = heading.getBoundingClientRect();
+        return {
+            edge: event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after',
+            projectId,
+        };
+    };
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
         element?.focus();
@@ -352,12 +409,81 @@ export function ProjectSidebar() {
                     return (
                         <section
                             key={project.id}
-                            className={cn('project-group', 'mb-2', active && 'active')}
+                            data-project-id={project.id}
+                            className={cn(
+                                'project-group relative mb-2',
+                                active && 'active',
+                                draggedProjectId === project.id && 'opacity-40',
+                            )}
+                            onDragOver={(event) => {
+                                if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE)) return;
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = 'move';
+                                setProjectDropTarget(projectDropEdge(event, project.id));
+                            }}
+                            onDrop={(event) => {
+                                if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE)) return;
+                                event.preventDefault();
+                                const draggedId =
+                                    event.dataTransfer.getData(PROJECT_DRAG_TYPE) ||
+                                    draggedProjectId;
+                                const target = projectDropEdge(event, project.id);
+                                setDraggedProjectId(undefined);
+                                setProjectDropTarget(undefined);
+                                if (!draggedId || !target) return;
+                                const reordered = projectOrderAfterDrop(
+                                    projects.map((item) => item.id),
+                                    draggedId,
+                                    target.projectId,
+                                    target.edge,
+                                );
+                                const draggedProject = projects.find(
+                                    (item) => item.id === draggedId,
+                                );
+                                if (draggedProject)
+                                    commitProjectOrder(
+                                        reordered,
+                                        draggedProject.id,
+                                        draggedProject.displayTitle,
+                                    );
+                            }}
                         >
+                            {projectDropTarget?.projectId === project.id && (
+                                <div
+                                    className={cn(
+                                        'project-drop-marker pointer-events-none absolute right-1 left-1 z-10 h-0.5 bg-accent',
+                                        projectDropTarget.edge === 'before'
+                                            ? '-top-1'
+                                            : '-bottom-1',
+                                    )}
+                                    data-drop-edge={projectDropTarget.edge}
+                                >
+                                    <span className="absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full bg-accent" />
+                                </div>
+                            )}
                             <div
                                 className={cn(
-                                    'project-heading group/project-heading flex min-h-7 items-center gap-1 text-foreground',
+                                    'project-heading group/project-heading flex min-h-7 items-center gap-1 text-foreground cursor-grab active:cursor-grabbing',
                                 )}
+                                data-project-id={project.id}
+                                draggable
+                                onDragStart={(event) => {
+                                    event.dataTransfer.effectAllowed = 'move';
+                                    event.dataTransfer.setData(PROJECT_DRAG_TYPE, project.id);
+                                    event.dataTransfer.setData('text/plain', project.id);
+                                    const preview =
+                                        event.currentTarget.parentElement?.querySelector(
+                                            '.project-drag-preview',
+                                        );
+                                    if (preview instanceof HTMLElement)
+                                        event.dataTransfer.setDragImage(preview, 14, 14);
+                                    setDraggedProjectId(project.id);
+                                    setProjectDropTarget(undefined);
+                                }}
+                                onDragEnd={() => {
+                                    setDraggedProjectId(undefined);
+                                    setProjectDropTarget(undefined);
+                                }}
                             >
                                 <Tooltip
                                     content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
@@ -386,9 +512,21 @@ export function ProjectSidebar() {
                                 </Tooltip>
                                 <button
                                     className="project-select flex min-h-7 min-w-0 flex-1 items-center px-1 text-inherit text-left border-0 bg-transparent cursor-pointer"
+                                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                                     onClick={() => {
                                         if (!active) onSelectProject(project.id);
                                         toggleProject(project.id);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (!event.altKey) return;
+                                        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                                            event.preventDefault();
+                                            moveProject(
+                                                project.id,
+                                                project.displayTitle,
+                                                event.key === 'ArrowUp' ? -1 : 1,
+                                            );
+                                        }
                                     }}
                                     title={project.rootPath}
                                 >
@@ -408,7 +546,16 @@ export function ProjectSidebar() {
                                     </Button>
                                 </CommandTooltip>
                             </div>
-                            {expanded && (
+                            <div
+                                aria-hidden="true"
+                                className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
+                            >
+                                <FolderClosed aria-hidden="true" size={15} strokeWidth={1.7} />
+                                <span className="max-w-48 truncate text-[12px] font-medium">
+                                    {project.displayTitle}
+                                </span>
+                            </div>
+                            {expanded && draggedProjectId !== project.id && (
                                 <div className="session-list pb-1 pl-4">
                                     {activeSessions.map((session) => {
                                         const sessionTerminals = terminals.filter(
@@ -471,6 +618,9 @@ export function ProjectSidebar() {
                         <Plus size={16} /> Add your first Project
                     </button>
                 )}
+                <div className="project-order-announcement sr-only" aria-live="polite">
+                    {projectOrderAnnouncement}
+                </div>
             </div>
         </aside>
     );
