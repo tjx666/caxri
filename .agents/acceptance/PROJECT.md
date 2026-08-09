@@ -26,6 +26,10 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   Add Project flow without opening the native directory picker, and writes ownership state to
   `.records/acceptance/runtime.json`.
 
+- **Multiple Projects:** repeat `--test-root PATH` to queue deterministic directory-picker results.
+  The final root remains selected after the queue is exhausted, so Acceptance never falls through
+  to a native dialog.
+
 - **Stop:** `bun run .agents/skills/acceptance/scripts/stop-electron.ts`. Stop only the
   process recorded in the runtime file.
 - **Already-running detection:** the adapter compares the recorded launcher PID
@@ -66,9 +70,9 @@ lobehub acceptance run list --json
   `.records/acceptance/runtime.json` owns packaged/test logs. Development logs
   may also appear under `logs/`. Copy any cited excerpt into the current round's
   `assets/` directory before stopping the isolated app.
-- **Project fixture:** pass a purpose-built fixture directory through
-  `--test-root`; defaulting to the repository root is appropriate only when the
-  acceptance case needs a real large Project.
+- **Project fixture:** pass purpose-built fixture directories through one or more `--test-root`
+  options; defaulting to the repository root is appropriate only when the acceptance case needs a
+  real large Project.
 - **Quick navigation:** no hidden app-state mutation contract exists. Prefer the
   shortest user-visible path or a committed E2E fixture helper.
 

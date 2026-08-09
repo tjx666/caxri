@@ -24,6 +24,7 @@ describe('Acceptance runtime ownership', () => {
                 port: 9222,
                 startedAt: '2026-08-09T00:00:00.000Z',
                 testRootPath: '/tmp/project',
+                testRootPaths: ['/tmp/project', '/tmp/project-two'],
                 userDataDir: '/tmp/caxri-acceptance-user-test',
             }).launcherIdentity,
         ).toBe('started-at command');
