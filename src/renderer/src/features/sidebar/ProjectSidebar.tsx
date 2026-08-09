@@ -29,7 +29,7 @@ import {
     archiveSession,
     beginSessionCreation,
     renameSession,
-    reorderProjects,
+    reorderProject,
     selectProject,
     selectSession,
     unarchiveSession,
@@ -211,30 +211,35 @@ function ArchivedSessions({
                 <span>{sessions.length}</span>
             </button>
             <DisclosureMotion animate={animate} expanded={expanded} kind="archive">
-                {sessions.map((session) => {
-                    const terminal = terminals.find(
-                        (item) =>
-                            item.sessionId === session.id &&
-                            (item.id === session.primaryAgentTerminalId ||
-                                session.primaryAgentTerminalId === undefined),
-                    );
-                    return (
-                        <Tooltip key={session.id} content="Restore Session">
-                            <button
-                                type="button"
-                                className="archived-session flex h-7 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                                aria-label={`Restore ${session.displayTitle}`}
-                                onClick={() => unarchiveSession(session.id)}
-                            >
-                                <ArchiveRestore size={12} />
-                                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
-                                <span className="min-w-0 flex-1 truncate">
-                                    {session.displayTitle}
-                                </span>
-                            </button>
-                        </Tooltip>
-                    );
-                })}
+                {() =>
+                    sessions.map((session) => {
+                        const terminal = terminals.find(
+                            (item) =>
+                                item.sessionId === session.id &&
+                                (item.id === session.primaryAgentTerminalId ||
+                                    session.primaryAgentTerminalId === undefined),
+                        );
+                        return (
+                            <Tooltip key={session.id} content="Restore Session">
+                                <button
+                                    type="button"
+                                    className="archived-session flex h-7 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
+                                    aria-label={`Restore ${session.displayTitle}`}
+                                    onClick={() => unarchiveSession(session.id)}
+                                >
+                                    <ArchiveRestore size={12} />
+                                    <AgentIdentityIcon
+                                        identity={terminal?.kind ?? 'shell'}
+                                        size={13}
+                                    />
+                                    <span className="min-w-0 flex-1 truncate">
+                                        {session.displayTitle}
+                                    </span>
+                                </button>
+                            </Tooltip>
+                        );
+                    })
+                }
             </DisclosureMotion>
         </div>
     );
@@ -270,10 +275,14 @@ export function ProjectSidebar() {
 
     useEffect(() => {
         projectOrderQueueRef.current = createLatestProjectOrderQueue(async (projectIds) => {
-            const reordered = await reorderProjects(projectIds);
-            if (pendingProjectOrderRef.current !== projectIds) return;
             const announcement = pendingProjectAnnouncementRef.current;
-            if (reordered && announcement?.projectIds === projectIds) {
+            if (announcement?.projectIds !== projectIds) return;
+            const reordered = await reorderProject(
+                announcement.movedProjectId,
+                projectIds.indexOf(announcement.movedProjectId),
+            );
+            if (pendingProjectOrderRef.current !== projectIds) return;
+            if (reordered) {
                 setProjectOrderAnnouncement(
                     `Moved ${announcement.displayTitle} to position ${projectIds.indexOf(announcement.movedProjectId) + 1} of ${projectIds.length}`,
                 );
@@ -616,57 +625,62 @@ export function ProjectSidebar() {
                                 id={projectDisclosureId}
                                 kind="project"
                             >
-                                <div className="session-list pb-1 pl-4">
-                                    {activeSessions.map((session) => {
-                                        const sessionTerminals = terminals.filter(
-                                            (item) => item.sessionId === session.id,
-                                        );
-                                        const terminal =
-                                            sessionTerminals.find(
-                                                (item) =>
-                                                    item.id === session.primaryAgentTerminalId,
-                                            ) ?? sessionTerminals[0];
-                                        return (
-                                            <ActiveSessionRow
-                                                key={session.id}
-                                                focusRenameInput={focusRenameInput}
-                                                onBeginRename={() =>
-                                                    beginRename(session.id, session.displayTitle)
-                                                }
-                                                onBlurRename={blurRename}
-                                                onCancelRename={cancelRename}
-                                                onCommitRename={commitRename}
-                                                onRenameValueChange={(value) => {
-                                                    setRenameValue(value);
-                                                    setRenameError(undefined);
-                                                }}
-                                                renameError={renameError}
-                                                renameValue={renameValue}
-                                                renaming={session.id === renamingSessionId}
-                                                selected={session.id === selectedSessionId}
-                                                session={session}
-                                                terminal={terminal}
+                                {() => (
+                                    <div className="session-list pb-1 pl-4">
+                                        {activeSessions.map((session) => {
+                                            const sessionTerminals = terminals.filter(
+                                                (item) => item.sessionId === session.id,
+                                            );
+                                            const terminal =
+                                                sessionTerminals.find(
+                                                    (item) =>
+                                                        item.id === session.primaryAgentTerminalId,
+                                                ) ?? sessionTerminals[0];
+                                            return (
+                                                <ActiveSessionRow
+                                                    key={session.id}
+                                                    focusRenameInput={focusRenameInput}
+                                                    onBeginRename={() =>
+                                                        beginRename(
+                                                            session.id,
+                                                            session.displayTitle,
+                                                        )
+                                                    }
+                                                    onBlurRename={blurRename}
+                                                    onCancelRename={cancelRename}
+                                                    onCommitRename={commitRename}
+                                                    onRenameValueChange={(value) => {
+                                                        setRenameValue(value);
+                                                        setRenameError(undefined);
+                                                    }}
+                                                    renameError={renameError}
+                                                    renameValue={renameValue}
+                                                    renaming={session.id === renamingSessionId}
+                                                    selected={session.id === selectedSessionId}
+                                                    session={session}
+                                                    terminal={terminal}
+                                                />
+                                            );
+                                        })}
+                                        {activeSessions.length === 0 && (
+                                            <button
+                                                className="empty-project flex h-7 w-full items-center gap-2 px-2 border-0 rounded-md text-muted bg-transparent cursor-pointer hover:text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
+                                                onClick={() => onCreateSession(project.id)}
+                                            >
+                                                <Plus size={13} /> New Session
+                                            </button>
+                                        )}
+                                        {archivedSessions.length > 0 && (
+                                            <ArchivedSessions
+                                                animate={animatedArchiveIds.has(project.id)}
+                                                expanded={archiveExpanded}
+                                                onToggle={() => toggleArchive(project.id)}
+                                                sessions={archivedSessions}
+                                                terminals={terminals}
                                             />
-                                        );
-                                    })}
-                                    {activeSessions.length === 0 && (
-                                        <button
-                                            className="empty-project flex h-7 w-full items-center gap-2 px-2 border-0 rounded-md text-muted bg-transparent cursor-pointer hover:text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
-                                            onClick={() => onCreateSession(project.id)}
-                                        >
-                                            <Plus size={13} /> New Session
-                                        </button>
-                                    )}
-                                    {archivedSessions.length > 0 && (
-                                        <ArchivedSessions
-                                            animate={animatedArchiveIds.has(project.id)}
-                                            expanded={archiveExpanded}
-                                            onToggle={() => toggleArchive(project.id)}
-                                            sessions={archivedSessions}
-                                            terminals={terminals}
-                                        />
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </DisclosureMotion>
                         </section>
                     );

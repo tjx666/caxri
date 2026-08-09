@@ -211,20 +211,30 @@ describe('Project and Session contracts', () => {
         ).toBe(false);
     });
 
-    it('accepts complete Project permutations while validating every id', () => {
+    it('keeps Project reorder requests scalar and validates their target', () => {
         expect(
             methods['project.reorder'].params.safeParse({
-                projectIds: ['project-1', 'project-2'],
+                projectId: 'project-1',
+                targetIndex: 1,
             }).success,
         ).toBe(true);
         expect(
             methods['project.reorder'].params.safeParse({
                 projectIds: Array.from({ length: 129 }, (_, index) => `project-${index}`),
             }).success,
-        ).toBe(true);
-        expect(methods['project.reorder'].params.safeParse({ projectIds: [''] }).success).toBe(
-            false,
-        );
+        ).toBe(false);
+        expect(
+            methods['project.reorder'].params.safeParse({
+                projectId: '',
+                targetIndex: 0,
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['project.reorder'].params.safeParse({
+                projectId: 'project-1',
+                targetIndex: -1,
+            }).success,
+        ).toBe(false);
     });
 });
 

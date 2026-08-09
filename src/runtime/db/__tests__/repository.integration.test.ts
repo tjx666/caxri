@@ -139,7 +139,7 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
-    it('persists an exact Project permutation and rejects stale or malformed orders', async () => {
+    it('persists bounded Project moves and rejects stale or malformed targets', async () => {
         const directory = await tempDir('caxri-db-project-reorder-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
@@ -147,16 +147,18 @@ describe('CaxriDatabase', () => {
         const second = database.createProject(join(directory, 'second'));
         const third = database.createProject(join(directory, 'third'));
 
-        expect(
-            database.reorderProjects([third.id, first.id, second.id]).map(({ id }) => id),
-        ).toEqual([third.id, first.id, second.id]);
-        for (const invalidOrder of [
-            [third.id, first.id],
-            [third.id, first.id, first.id],
-            [third.id, first.id, 'unknown-project'],
-        ]) {
-            expect(() => database.reorderProjects(invalidOrder)).toThrow(
-                /every current Project exactly once/,
+        expect(database.reorderProject(third.id, 0).map(({ id }) => id)).toEqual([
+            third.id,
+            first.id,
+            second.id,
+        ]);
+        for (const [projectId, targetIndex] of [
+            ['unknown-project', 0],
+            [first.id, -1],
+            [first.id, 3],
+        ] as const) {
+            expect(() => database.reorderProject(projectId, targetIndex)).toThrow(
+                /current Project and valid position/,
             );
             expect(database.listProjects().map(({ id }) => id)).toEqual([
                 third.id,

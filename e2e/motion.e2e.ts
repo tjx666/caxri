@@ -129,8 +129,10 @@ test('Project disclosures and work tabs use restrained, reduced-motion-aware tim
             kind: 'project',
             phase: 'collapse',
         });
+        await expect(projectDisclosure.locator('.session-card')).toHaveCount(0);
         await projectDisclosureButton.click();
         await expect(projectDisclosureButton).toHaveAttribute('aria-expanded', 'true');
+        await expect(projectDisclosure.locator('.session-card')).toHaveCount(1);
         await expectMotion(running.page, {
             duration: '0.18s',
             easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
