@@ -62,9 +62,20 @@ const preservingMigrations = [
     { version: 10, sql: projectOrderMigrationSql },
 ] as const;
 
+/** Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes. */
+function backfillProjectOrder(database: Database.Database): void {
+    const legacyProjects = database
+        .prepare('SELECT id FROM projects ORDER BY created_at, id')
+        .all() as Array<{ id: string }>;
+    const updateOrder = database.prepare('UPDATE projects SET order_index = ? WHERE id = ?');
+    for (const [orderIndex, project] of legacyProjects.entries())
+        updateOrder.run(orderIndex, project.id);
+}
+
 function migratePreservingData(database: Database.Database, version: number): void {
     for (const migration of preservingMigrations)
         if (migration.version > version) runGeneratedSql(database, migration.sql);
+    if (version < 10) backfillProjectOrder(database);
 }
 
 function initializeSchema(database: Database.Database): void {
