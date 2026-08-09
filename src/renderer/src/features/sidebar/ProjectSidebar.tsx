@@ -36,6 +36,7 @@ import {
 } from '../session/session-actions';
 import {
     adjacentProjectOrder,
+    createLatestProjectOrderQueue,
     PROJECT_DRAG_TYPE,
     projectDropTargetsEqual,
     projectOrderAfterDrop,
@@ -260,28 +261,40 @@ export function ProjectSidebar() {
     const renamingSessionIdRef = useRef<string | undefined>(undefined);
     const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
     const pendingProjectOrderRef = useRef<string[] | undefined>(undefined);
-    const projectOrderQueueRef = useRef(Promise.resolve());
+    const pendingProjectAnnouncementRef = useRef<
+        { displayTitle: string; movedProjectId: string; projectIds: string[] } | undefined
+    >(undefined);
+    const projectOrderQueueRef = useRef<
+        ReturnType<typeof createLatestProjectOrderQueue> | undefined
+    >(undefined);
 
-    /** Serializes reorder writes while retaining the latest keyboard intent between snapshots. */
+    useEffect(() => {
+        projectOrderQueueRef.current = createLatestProjectOrderQueue(async (projectIds) => {
+            const reordered = await reorderProjects(projectIds);
+            if (pendingProjectOrderRef.current !== projectIds) return;
+            const announcement = pendingProjectAnnouncementRef.current;
+            if (reordered && announcement?.projectIds === projectIds) {
+                setProjectOrderAnnouncement(
+                    `Moved ${announcement.displayTitle} to position ${projectIds.indexOf(announcement.movedProjectId) + 1} of ${projectIds.length}`,
+                );
+            }
+            pendingProjectOrderRef.current = undefined;
+            pendingProjectAnnouncementRef.current = undefined;
+        });
+        return () => {
+            projectOrderQueueRef.current = undefined;
+        };
+    }, []);
+
+    /** Retains the latest keyboard intent while coalescing intermediate persistence writes. */
     const enqueueProjectOrder = (
         projectIds: string[],
         movedProjectId: string,
         displayTitle: string,
     ): void => {
         pendingProjectOrderRef.current = projectIds;
-        const persist = async (): Promise<void> => {
-            try {
-                const reordered = await reorderProjects(projectIds);
-                if (!reordered) return;
-                setProjectOrderAnnouncement(
-                    `Moved ${displayTitle} to position ${projectIds.indexOf(movedProjectId) + 1} of ${projectIds.length}`,
-                );
-            } finally {
-                if (pendingProjectOrderRef.current === projectIds)
-                    pendingProjectOrderRef.current = undefined;
-            }
-        };
-        projectOrderQueueRef.current = projectOrderQueueRef.current.then(persist, persist);
+        pendingProjectAnnouncementRef.current = { displayTitle, movedProjectId, projectIds };
+        void projectOrderQueueRef.current?.enqueue(projectIds);
     };
 
     const commitProjectOrder = (
@@ -435,6 +448,7 @@ export function ProjectSidebar() {
                     const archiveExpanded = expandedArchives.has(project.id);
                     const expanded = !collapsedProjects.has(project.id);
                     const active = project.id === selectedProjectId;
+                    const projectDisclosureId = `project-sessions-${project.id}`;
                     return (
                         <section
                             key={project.id}
@@ -527,6 +541,8 @@ export function ProjectSidebar() {
                                 >
                                     <button
                                         className="project-disclosure grid h-7 w-6 flex-none place-items-center border-0 bg-transparent p-0 text-inherit cursor-pointer"
+                                        aria-controls={projectDisclosureId}
+                                        aria-expanded={expanded}
                                         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                                         onClick={() => toggleProject(project.id)}
                                     >
@@ -597,6 +613,7 @@ export function ProjectSidebar() {
                                 className="project-session-disclosure"
                                 expanded={expanded}
                                 hidden={draggedProjectId === project.id}
+                                id={projectDisclosureId}
                                 kind="project"
                             >
                                 <div className="session-list pb-1 pl-4">

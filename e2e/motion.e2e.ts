@@ -109,21 +109,28 @@ test('Project disclosures and work tabs use restrained, reduced-motion-aware tim
     try {
         await createProjectSession(running.page);
         const projectDisclosure = running.page.locator('.project-session-disclosure');
+        const projectDisclosureButton = running.page.locator('.project-disclosure');
         const initialTab = running.page.locator('.work-tab[data-terminal-id]').first();
         await expect(projectDisclosure).toHaveAttribute('data-expanded', 'true');
+        await expect(projectDisclosureButton).toHaveAttribute('aria-expanded', 'true');
+        const controlledDisclosureId = await projectDisclosureButton.getAttribute('aria-controls');
+        expect(controlledDisclosureId).toBeTruthy();
+        await expect(projectDisclosure).toHaveAttribute('id', controlledDisclosureId!);
         await expect(projectDisclosure).not.toHaveAttribute('data-motion');
         await expect(initialTab).not.toHaveAttribute('data-motion');
 
         await startMotionCapture(running.page);
-        await running.page.locator('.project-disclosure').click();
+        await projectDisclosureButton.click();
         await expect(projectDisclosure).toHaveAttribute('data-expanded', 'false');
+        await expect(projectDisclosureButton).toHaveAttribute('aria-expanded', 'false');
         await expectMotion(running.page, {
             duration: '0.13s',
             easing: 'ease-in',
             kind: 'project',
             phase: 'collapse',
         });
-        await running.page.locator('.project-disclosure').click();
+        await projectDisclosureButton.click();
+        await expect(projectDisclosureButton).toHaveAttribute('aria-expanded', 'true');
         await expectMotion(running.page, {
             duration: '0.18s',
             easing: 'cubic-bezier(0.25, 1, 0.5, 1)',

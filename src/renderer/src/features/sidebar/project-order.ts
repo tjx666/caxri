@@ -7,6 +7,36 @@ export interface ProjectDropTarget {
     projectId: string;
 }
 
+export interface LatestProjectOrderQueue {
+    enqueue(projectIds: string[]): Promise<void>;
+}
+
+/** Persists one in-flight order and replaces queued intermediate orders with the latest intent. */
+export function createLatestProjectOrderQueue(
+    persist: (projectIds: string[]) => Promise<void>,
+): LatestProjectOrderQueue {
+    let latest: string[] | undefined;
+    let worker: Promise<void> | undefined;
+
+    const drain = async (): Promise<void> => {
+        while (latest) {
+            const projectIds = latest;
+            latest = undefined;
+            await persist(projectIds);
+        }
+    };
+
+    return {
+        enqueue(projectIds) {
+            latest = projectIds;
+            worker ??= drain().finally(() => {
+                worker = undefined;
+            });
+            return worker;
+        },
+    };
+}
+
 /** Lets high-frequency dragover events retain React state when the visible insertion point is unchanged. */
 export function projectDropTargetsEqual(
     first: ProjectDropTarget | undefined,
