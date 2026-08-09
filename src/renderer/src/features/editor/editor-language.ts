@@ -60,13 +60,19 @@ export function resolveRegisteredEditorLanguage(
         registration.filenames?.some((candidate) => candidate.toLowerCase() === filename),
     );
     if (filenameMatch) return filenameMatch.id;
-    return registrations
-        .flatMap((registration) =>
-            (registration.extensions ?? []).map((extension) => ({
-                extension: extension.toLowerCase(),
-                language: registration.id,
-            })),
-        )
-        .filter(({ extension }) => filename.endsWith(extension))
-        .sort((left, right) => right.extension.length - left.extension.length)[0]?.language;
+    let matchedLanguage: string | undefined;
+    let matchedExtensionLength = -1;
+    for (const registration of registrations) {
+        for (const extension of registration.extensions ?? []) {
+            const normalizedExtension = extension.toLowerCase();
+            if (
+                filename.endsWith(normalizedExtension) &&
+                normalizedExtension.length > matchedExtensionLength
+            ) {
+                matchedLanguage = registration.id;
+                matchedExtensionLength = normalizedExtension.length;
+            }
+        }
+    }
+    return matchedLanguage;
 }
