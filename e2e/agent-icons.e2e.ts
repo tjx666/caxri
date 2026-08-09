@@ -68,7 +68,9 @@ test('Agent identities stay consistent across every shared surface', async () =>
         await expect(settingsDialog.locator('[data-agent-icon="unknown"]')).toBeVisible();
         await settingsDialog.getByLabel('Default Agent').click();
         await running.page.getByRole('option', { name: 'Codex', exact: true }).click();
-        await expect(settingsDialog.locator('[data-agent-icon="codex"]')).toBeVisible();
+        await expect(
+            settingsDialog.locator('[data-slot="select-trigger"] [data-agent-icon="codex"]'),
+        ).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
