@@ -4,6 +4,8 @@ import {
     adjacentProjectOrder,
     createLatestProjectOrderQueue,
     createProjectOrderIntentTracker,
+    hasProjectDragType,
+    PROJECT_DRAG_TYPE,
     projectDropTargetsEqual,
     projectOrderAfterDrop,
 } from './project-order';
@@ -40,6 +42,11 @@ describe('Project ordering', () => {
             ),
         ).toBe(false);
         expect(projectDropTargetsEqual(undefined, undefined)).toBe(true);
+    });
+
+    it('recognizes only the structured Project drag payload', () => {
+        expect(hasProjectDragType(['text/plain', PROJECT_DRAG_TYPE])).toBe(true);
+        expect(hasProjectDragType(['text/plain'])).toBe(false);
     });
 
     it('coalesces queued Project permutations to the latest intent', async () => {

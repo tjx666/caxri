@@ -19,6 +19,7 @@ export function reconcileWorkTabMotion<Item extends { motionKey: string }>(
 
     const currentByKey = new Map(current.map((entry) => [entry.item.motionKey, entry]));
     const nextKeys = new Set(next.map((item) => item.motionKey));
+    const resultKeys = new Set(nextKeys);
     const result = next.map((item): WorkTabMotionItem<Item> => {
         const previous = currentByKey.get(item.motionKey);
         return {
@@ -28,31 +29,32 @@ export function reconcileWorkTabMotion<Item extends { motionKey: string }>(
     });
 
     for (const [currentIndex, entry] of current.entries()) {
-        if (nextKeys.has(entry.item.motionKey)) continue;
+        const motionKey = entry.item.motionKey;
+        if (nextKeys.has(motionKey)) continue;
         const exiting = { ...entry, phase: 'exit' as const };
         const followingKey = current
             .slice(currentIndex + 1)
-            .find((candidate) =>
-                result.some((item) => item.item.motionKey === candidate.item.motionKey),
-            )?.item.motionKey;
+            .map((candidate) => candidate.item.motionKey)
+            .find((motionKey) => resultKeys.has(motionKey));
         if (followingKey) {
             result.splice(
                 result.findIndex((item) => item.item.motionKey === followingKey),
                 0,
                 exiting,
             );
+            resultKeys.add(motionKey);
             continue;
         }
         const precedingKey = current
             .slice(0, currentIndex)
             .toReversed()
-            .find((candidate) =>
-                result.some((item) => item.item.motionKey === candidate.item.motionKey),
-            )?.item.motionKey;
+            .map((candidate) => candidate.item.motionKey)
+            .find((motionKey) => resultKeys.has(motionKey));
         const precedingIndex = precedingKey
             ? result.findIndex((item) => item.item.motionKey === precedingKey)
             : -1;
         result.splice(precedingIndex + 1, 0, exiting);
+        resultKeys.add(motionKey);
     }
     return result;
 }

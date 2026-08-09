@@ -24,6 +24,10 @@ export interface ProjectOrderIntentTracker {
     settle(projectIds: string[], succeeded: boolean): void;
 }
 
+export function hasProjectDragType(types: readonly string[]): boolean {
+    return types.includes(PROJECT_DRAG_TYPE);
+}
+
 /** Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent. */
 export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
     let current: ProjectOrderIntent | undefined;
@@ -32,9 +36,10 @@ export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
         get: () => current,
         reconcile(projectIds) {
             if (!current) return undefined;
+            const projectIdSet = new Set(projectIds);
             const membershipMatches =
                 current.projectIds.length === projectIds.length &&
-                current.projectIds.every((projectId) => projectIds.includes(projectId));
+                current.projectIds.every((projectId) => projectIdSet.has(projectId));
             if (!membershipMatches) {
                 current = undefined;
                 return undefined;
