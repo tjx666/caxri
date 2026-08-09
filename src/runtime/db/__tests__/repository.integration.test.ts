@@ -119,6 +119,42 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('persists an exact Project permutation and rejects stale or malformed orders', async () => {
+        const directory = await tempDir('caxri-db-project-reorder-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const first = database.createProject(join(directory, 'first'));
+        const second = database.createProject(join(directory, 'second'));
+        const third = database.createProject(join(directory, 'third'));
+
+        expect(
+            database.reorderProjects([third.id, first.id, second.id]).map(({ id }) => id),
+        ).toEqual([third.id, first.id, second.id]);
+        for (const invalidOrder of [
+            [third.id, first.id],
+            [third.id, first.id, first.id],
+            [third.id, first.id, 'unknown-project'],
+        ]) {
+            expect(() => database.reorderProjects(invalidOrder)).toThrow(
+                /every current Project exactly once/,
+            );
+            expect(database.listProjects().map(({ id }) => id)).toEqual([
+                third.id,
+                first.id,
+                second.id,
+            ]);
+        }
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        expect(reopened.listProjects().map(({ id }) => id)).toEqual([
+            third.id,
+            first.id,
+            second.id,
+        ]);
+        reopened.close();
+    });
+
     it('never removes the Project directory or user files when deleting metadata', async () => {
         const directory = await tempDir('caxri-db-project-delete-');
         const root = join(directory, 'project');

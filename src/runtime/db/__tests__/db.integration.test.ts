@@ -34,6 +34,11 @@ describe('CaxriDb', () => {
                 (column) => column.name,
             ),
         ).toContain('archived_at');
+        expect(
+            (db.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
+                (column) => column.name,
+            ),
+        ).toContain('order_index');
         db.close();
     });
 
@@ -47,6 +52,26 @@ describe('CaxriDb', () => {
 
         expect(db.projects.create(root)).toMatchObject({ id: project.id, rootPath: root });
         expect(db.projects.list()).toEqual([expect.objectContaining({ id: project.id })]);
+        db.close();
+    });
+
+    it('assigns increasing Project order and rewrites a complete permutation', async () => {
+        const directory = await tempDir('caxri-db-project-order-');
+        const db = new CaxriDb(join(directory, 'state.db'));
+        const first = db.projects.create(join(directory, 'first'));
+        const second = db.projects.create(join(directory, 'second'));
+        const third = db.projects.create(join(directory, 'third'));
+
+        expect(db.projects.list().map((project) => project.orderIndex)).toEqual([0, 1, 2]);
+
+        db.projects.reorder([third.id, first.id, second.id]);
+
+        expect(db.projects.list().map((project) => project.id)).toEqual([
+            third.id,
+            first.id,
+            second.id,
+        ]);
+        expect(db.projects.list().map((project) => project.orderIndex)).toEqual([0, 1, 2]);
         db.close();
     });
 
@@ -183,17 +208,19 @@ describe('CaxriDb', () => {
             payload: 'restored',
             updatedAt: 123,
         });
-        const columns = previous.database.pragma('table_info(sessions)') as Array<{
+        const columns = previous.database.pragma('table_info(projects)') as Array<{
             name: string;
         }>;
-        if (columns.some((column) => column.name === 'title_mode'))
-            previous.database.exec('ALTER TABLE sessions DROP COLUMN title_mode');
+        if (columns.some((column) => column.name === 'order_index'))
+            previous.database.exec(
+                'DROP INDEX IF EXISTS projects_order; ALTER TABLE projects DROP COLUMN order_index',
+            );
         previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
         const upgraded = new CaxriDb(databasePath);
 
-        expect(upgraded.projects.get(project.id)).toMatchObject({ id: project.id });
+        expect(upgraded.projects.get(project.id)).toMatchObject({ id: project.id, orderIndex: 0 });
         expect(upgraded.sessions.get(session.id)).toMatchObject({
             id: session.id,
             displayTitle: 'Shell',

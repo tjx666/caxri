@@ -11,10 +11,14 @@ export const projects = sqliteTable(
         id: text('id').primaryKey(),
         rootPath: text('root_path').notNull(),
         displayTitle: text('display_title').notNull(),
+        orderIndex: integer('order_index').notNull().default(0),
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),
     },
-    (table) => [unique().on(table.rootPath)],
+    (table) => [
+        unique().on(table.rootPath),
+        index('projects_order').on(table.orderIndex, table.createdAt, table.id),
+    ],
 );
 
 export const sessions = sqliteTable(

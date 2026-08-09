@@ -62,6 +62,15 @@ export function selectProject(projectId: string): void {
     else beginSessionCreation(projectId);
 }
 
+export async function reorderProjects(projectIds: string[]): Promise<boolean> {
+    const reordered = await tryCommand(
+        'Project reordering failed',
+        () => caxri.request('project.reorder', { projectIds }),
+        { refresh: true },
+    );
+    return reordered !== undefined;
+}
+
 export function archiveSession(sessionId: string): void {
     void tryCommand(
         'Session archive failed',

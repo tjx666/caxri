@@ -338,6 +338,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
+        'project.reorder': ({ projectIds }) => {
+            const reordered = database.reorderProjects(projectIds);
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
+            return reordered;
+        },
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');

@@ -86,6 +86,10 @@ sidebar stays entirely neutral so the focused pane keeps the screen's one accent
 Activity dots keep color + gain `title`/`aria-label` text.
 All non-archived Project and Session names and navigation icons use `--foreground`, including
 inactive rows; the `--elevated` selected fill, not dimmed neighbors, communicates selection.
+Project ordering uses the whole Project heading as its drag source. While dragging, dim only the
+source group and show a 2px `--accent` insertion line with a circular leading cap between Project
+groups; Session rows are never drop targets. `Option+Up` / `Option+Down` on a focused Project name
+provides the keyboard-equivalent reorder and announces the resulting position.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
