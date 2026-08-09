@@ -23,6 +23,61 @@ afterEach(async () => {
 });
 
 describe('ConfigurationService', () => {
+    it('fills provider launch and Terminal cwd defaults without rewriting an older settings file', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-agent-defaults-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const original = '{"terminal.fontSize":15}';
+        await writeFile(join(configDirectory, 'settings.jsonc'), original, 'utf8');
+        const service = new ConfigurationService(directory, () => undefined);
+
+        await service.initialize();
+
+        expect(service.getSettings().value).toMatchObject({
+            'agents.providers': {
+                claude: { launch: { executable: 'claude', args: [] } },
+                codex: { launch: { executable: 'codex', args: [] } },
+            },
+            'terminal.defaultWorkingDirectory': null,
+            'terminal.fontSize': 15,
+        });
+        expect(await readFile(service.settingsPath, 'utf8')).toBe(original);
+        await service.close();
+    });
+
+    it('accepts independent provider argv and retains the previous settings after invalid input', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-agent-launch-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigurationService(directory, () => undefined);
+        await service.initialize();
+        const customized = {
+            ...service.getSettings().value,
+            'agents.providers': {
+                claude: { launch: { executable: '/opt/bin/claude', args: ['--model', 'opus'] } },
+                codex: { launch: { executable: 'codex-custom', args: ['--search'] } },
+            },
+            'terminal.defaultWorkingDirectory': '~/play',
+        };
+
+        await service.updateSettings(JSON.stringify(customized));
+        expect(service.getSettings().value).toMatchObject(customized);
+        const before = service.getSettings();
+        await expect(
+            service.updateSettings(
+                JSON.stringify({
+                    ...customized,
+                    'agents.providers': {
+                        ...customized['agents.providers'],
+                        codex: { launch: { executable: '', args: [] } },
+                    },
+                }),
+            ),
+        ).rejects.toThrow();
+        expect(service.getSettings()).toEqual(before);
+        await service.close();
+    });
+
     it('upgrades the original untouched defaults instead of preserving retired commands', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-original-defaults-'));
         temporaryDirectories.push(directory);

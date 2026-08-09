@@ -10,6 +10,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    openAddProjectDialog,
     pageReply,
     selectedSessionId,
     sessionCard,
@@ -198,7 +199,7 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
         await running.app.evaluate((_, root) => {
             process.env.CAXRI_TEST_ROOT_PATH = root;
         }, secondRoot);
-        await running.page.getByRole('button', { name: 'Add Project' }).first().click();
+        await openAddProjectDialog(running.page);
         await running.page
             .getByRole('dialog')
             .getByRole('button', { name: 'Shell', exact: true })
@@ -240,7 +241,7 @@ test('Info inspector lists only the current Session Terminals', async () => {
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(running.page);
         await expect(
             running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
         ).toBeVisible();
@@ -273,7 +274,7 @@ test('Project Status inspector renders and refreshes the current repository tree
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(running.page);
         await running.page
             .getByRole('dialog')
             .getByRole('button', { name: 'Shell', exact: true })
@@ -486,7 +487,7 @@ test('canceling the Agent choice revokes the selected Project root grant', async
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(running.page);
         await expect(
             running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
         ).toBeVisible();
@@ -572,7 +573,7 @@ test('switching Sessions discards expanded file-tree state from the previous roo
         await running.app.evaluate((_, root) => {
             process.env.CAXRI_TEST_ROOT_PATH = root;
         }, secondRoot);
-        await running.page.getByRole('button', { name: 'Add Project' }).first().click();
+        await openAddProjectDialog(running.page);
         await running.page
             .getByRole('dialog')
             .getByRole('button', { name: 'Shell', exact: true })

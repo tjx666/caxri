@@ -136,6 +136,14 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema }),
         result: sessionRecordSchema,
     },
+    'session.rename': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            displayTitle: z.string().trim().min(1).max(200),
+        }),
+        result: sessionRecordSchema,
+    },
     'session.archive': {
         owner: 'runtime',
         params: z.object({ sessionId: identifierSchema }),

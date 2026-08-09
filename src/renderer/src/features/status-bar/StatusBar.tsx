@@ -173,11 +173,11 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                 {usage.memoryMb} MB
             </StatusInfo>
             <StatusInfo
-                ariaLabel={`Terminal ${childLabel}`}
+                ariaLabel={`Terminal: ${childLabel}`}
                 icon={Workflow}
-                title="Child processes"
+                title={`Terminal: ${childLabel}`}
             >
-                {childLabel}
+                {usage.childProcessCount}
             </StatusInfo>
         </>
     );

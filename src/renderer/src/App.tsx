@@ -106,7 +106,7 @@ export function App() {
                 {!sidebarVisible && (
                     <div
                         aria-hidden="true"
-                        className="collapsed-sidebar-titlebar fixed top-0 left-0 z-20 h-9 w-[78px] [-webkit-app-region:drag]"
+                        className="collapsed-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"
                     />
                 )}
                 {sidebarVisible && <ProjectSidebar />}

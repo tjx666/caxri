@@ -1,6 +1,10 @@
 import * as pty from 'node-pty';
 
-import { agentProviderCatalog } from '../../shared/agents';
+import {
+    agentProviderCatalog,
+    type AgentLaunchSettings,
+    type AgentProvider,
+} from '../../shared/agents';
 import { CaxriError, errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
@@ -12,6 +16,7 @@ import type {
     TerminalSnapshot,
 } from '../../shared/types';
 import { discoverExecutable } from '../agents/discovery';
+import { runtimeProcessEnvironment } from '../executables';
 import type { CaxriDatabase } from '../db/repository';
 import type { ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
@@ -53,7 +58,12 @@ interface LiveTerminal {
 }
 
 export interface TerminalManagerOptions {
-    resolveExecutable?: (kind: TerminalKind) => Promise<string>;
+    resolveExecutable?: (
+        kind: TerminalKind,
+        launchSettings?: AgentLaunchSettings,
+    ) => Promise<string>;
+    agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
+    agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -70,6 +80,8 @@ export class TerminalManager {
     private readonly attached = new Set<string>();
     private readonly starts = new SingleFlight<string, TerminalRecord>();
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
+    private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
+    private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -81,6 +93,8 @@ export class TerminalManager {
         options: TerminalManagerOptions = {},
     ) {
         this.resolveExecutableOverride = options.resolveExecutable;
+        this.agentLaunchSettings = options.agentLaunchSettings;
+        this.agentEnvironment = options.agentEnvironment ?? runtimeProcessEnvironment;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
@@ -98,15 +112,30 @@ export class TerminalManager {
     ): Promise<TerminalRecord> {
         const startedAt = performance.now();
         try {
-            const executable = await this.resolveExecutable(record.kind);
-            const args =
+            const launch =
                 record.kind === 'shell'
-                    ? ['-l']
-                    : options?.resumeAgentSessionId
-                      ? agentProviderCatalog[record.kind].resumeArguments(
-                            options.resumeAgentSessionId,
-                        )
-                      : [];
+                    ? undefined
+                    : (this.agentLaunchSettings?.(record.kind) ?? {
+                          executable: agentProviderCatalog[record.kind].executableName,
+                          args: [],
+                      });
+            const executable = await this.resolveExecutable(record.kind, launch);
+            const args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
+            if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
+                args.push(
+                    ...agentProviderCatalog[record.kind].resumeArguments(
+                        options.resumeAgentSessionId,
+                    ),
+                );
+            }
+            const env =
+                record.kind === 'shell'
+                    ? terminalEnvironment()
+                    : {
+                          ...(await this.agentEnvironment()),
+                          TERM: 'xterm-256color',
+                          COLORTERM: 'truecolor',
+                      };
             if (options?.shouldStart && !options.shouldStart()) {
                 if (!this.database.getTerminal(record.id))
                     throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
@@ -119,7 +148,7 @@ export class TerminalManager {
                 cols: 100,
                 rows: 30,
                 cwd: record.cwd,
-                env: terminalEnvironment(),
+                env,
             });
             /** A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell. */
             if (!this.database.getTerminal(record.id)) {
@@ -160,10 +189,14 @@ export class TerminalManager {
         }
     }
 
-    private async resolveExecutable(kind: TerminalKind): Promise<string> {
-        if (this.resolveExecutableOverride) return this.resolveExecutableOverride(kind);
+    private async resolveExecutable(
+        kind: TerminalKind,
+        launchSettings?: AgentLaunchSettings,
+    ): Promise<string> {
+        if (this.resolveExecutableOverride)
+            return this.resolveExecutableOverride(kind, launchSettings);
         if (kind === 'shell') return process.env.SHELL || '/bin/zsh';
-        const executable = await discoverExecutable(kind);
+        const executable = await discoverExecutable(kind, launchSettings?.executable);
         if (!executable)
             throw new CaxriError(
                 'UNAVAILABLE',

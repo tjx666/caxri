@@ -5,7 +5,12 @@ import { basename, dirname, join, relative } from 'node:path';
 import parcelWatcher from '@parcel/watcher';
 import { z } from 'zod';
 
-import { agentProviderIds } from '../shared/agents';
+import {
+    agentProviderIds,
+    defaultAgentProviderSettings,
+    type AgentProvider,
+    type AgentProviderSettings,
+} from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
 import { errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
@@ -46,6 +51,29 @@ const filesExcludeSchema = z
     .default({})
     .transform((value) => ({ ...DEFAULT_FILES_EXCLUDE, ...value }));
 
+const agentLaunchSettingsSchema = z.object({
+    executable: z.string().trim().min(1).max(4_096),
+    args: z.array(z.string().max(4_096)).max(64),
+});
+
+const agentProviderSettingsSchema = z
+    .partialRecord(
+        z.enum(agentProviderIds),
+        z.object({
+            launch: agentLaunchSettingsSchema,
+        }),
+    )
+    .default({})
+    .transform(
+        (value) =>
+            Object.fromEntries(
+                agentProviderIds.map((provider) => [
+                    provider,
+                    value[provider] ?? structuredClone(defaultAgentProviderSettings[provider]),
+                ]),
+            ) as unknown as Record<AgentProvider, AgentProviderSettings>,
+    );
+
 /**
  * Bounds and defaults come from `SETTINGS_BOUNDS` in `src/shared/ipc/domain.ts`, keeping the strict
  * Runtime validation here linked to the wire-shape `appSettingsSchema` it validates against.
@@ -53,6 +81,14 @@ const filesExcludeSchema = z
 const settingsSchema = z.object({
     'session.defaultAgent': z
         .enum([...agentProviderIds, 'shell'])
+        .nullable()
+        .default(null),
+    'agents.providers': agentProviderSettingsSchema,
+    'terminal.defaultWorkingDirectory': z
+        .string()
+        .trim()
+        .min(1)
+        .max(16_384)
         .nullable()
         .default(null),
     'terminal.fontSize': z
@@ -120,6 +156,8 @@ function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[
 
 const defaultSettings: AppSettings = {
     'session.defaultAgent': null,
+    'agents.providers': structuredClone(defaultAgentProviderSettings),
+    'terminal.defaultWorkingDirectory': null,
     'terminal.fontSize': SETTINGS_BOUNDS['terminal.fontSize'].default,
     'terminal.scrollback': SETTINGS_BOUNDS['terminal.scrollback'].default,
     'files.exclude': { ...DEFAULT_FILES_EXCLUDE },

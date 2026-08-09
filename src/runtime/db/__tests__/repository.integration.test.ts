@@ -30,6 +30,31 @@ async function tempDir(prefix: string): Promise<string> {
  * pure-decision behavior lives in `../../session-policy.test.ts`.
  */
 describe('CaxriDatabase', () => {
+    it('persists manual Session title ownership across metadata resets and reopen', async () => {
+        const directory = await tempDir('caxri-db-session-rename-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+
+        expect(database.renameSession(created.session.id, '  Manual name  ')).toMatchObject({
+            displayTitle: 'Manual name',
+            titleMode: 'manual',
+        });
+        database.resetAgentMetadataForStart(created.terminal.id);
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Manual name',
+            titleMode: 'manual',
+        });
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        expect(reopened.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Manual name',
+            titleMode: 'manual',
+        });
+        reopened.close();
+    });
+
     it('groups Sessions with the same root under one Project', async () => {
         const directory = await tempDir('caxri-db-project-grouping-');
         const root = join(directory, 'project');

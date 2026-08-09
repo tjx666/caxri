@@ -91,13 +91,16 @@ export interface PrimaryAgentAssignment {
  * Agent Terminal both flow through this same rule.
  */
 export function choosePrimaryAgentForNewTerminal(
-    session: Pick<SessionRecord, 'primaryAgentTerminalId'>,
+    session: Pick<SessionRecord, 'displayTitle' | 'primaryAgentTerminalId' | 'titleMode'>,
     terminal: Pick<TerminalRecord, 'id' | 'kind'>,
 ): PrimaryAgentAssignment | undefined {
     if (terminal.kind === 'shell' || session.primaryAgentTerminalId) return undefined;
     return {
         primaryAgentTerminalId: terminal.id,
-        displayTitle: defaultTerminalTitle(terminal.kind),
+        displayTitle:
+            session.titleMode === 'manual'
+                ? session.displayTitle
+                : defaultTerminalTitle(terminal.kind),
         lastActivityState: 'idle',
     };
 }
@@ -114,12 +117,15 @@ export interface PrimaryAgentSuccession {
  */
 export function choosePrimaryAgentSuccessor(
     remainingTerminals: TerminalRecord[],
-    currentDisplayTitle: string,
+    session: Pick<SessionRecord, 'displayTitle' | 'titleMode'>,
 ): PrimaryAgentSuccession {
     const nextAgent = remainingTerminals.find((candidate) => candidate.provider);
     return {
         primaryAgentTerminalId: nextAgent?.id ?? null,
-        displayTitle: nextAgent?.title ?? currentDisplayTitle,
+        displayTitle:
+            session.titleMode === 'manual'
+                ? session.displayTitle
+                : (nextAgent?.title ?? session.displayTitle),
         lastActivityState: nextAgent ? processActivityState(nextAgent.lastProcessState) : 'idle',
     };
 }
@@ -147,11 +153,17 @@ export interface AgentMetadataDecision {
  */
 export function decideAgentMetadataUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider' | 'agentSessionId'>,
-    session: Pick<SessionRecord, 'displayTitle' | 'lastActivityState' | 'primaryAgentTerminalId'>,
+    session: Pick<
+        SessionRecord,
+        'displayTitle' | 'lastActivityState' | 'primaryAgentTerminalId' | 'titleMode'
+    >,
     snapshot: AgentSnapshot,
 ): AgentMetadataDecision | undefined {
     if (!terminal.provider || terminal.provider !== snapshot.provider) return undefined;
-    const displayTitle = agentDisplayTitle(snapshot.title, session.displayTitle);
+    const displayTitle =
+        session.titleMode === 'manual'
+            ? session.displayTitle
+            : agentDisplayTitle(snapshot.title, session.displayTitle);
     const agentSessionId = snapshot.sessionId?.trim() || undefined;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const noOp =

@@ -115,6 +115,25 @@ export function SettingsForm({
                 </label>
                 <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
                     <span>
+                        New Terminal working directory
+                        <span className="block text-[11px] text-muted">
+                            Leave empty to use the Project root
+                        </span>
+                    </span>
+                    <Input
+                        className="w-40 flex-none"
+                        placeholder="Project root"
+                        value={settings['terminal.defaultWorkingDirectory'] ?? ''}
+                        onChange={(event) =>
+                            onFieldChange(
+                                'terminal.defaultWorkingDirectory',
+                                event.target.value || null,
+                            )
+                        }
+                    />
+                </label>
+                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
+                    <span>
                         Maximum editable file size
                         <span className="block text-[11px] text-muted">
                             {formatByteHint(settings['files.maxFileBytes'])}
@@ -135,6 +154,49 @@ export function SettingsForm({
                         }
                     />
                 </label>
+                {agentProviderIds.map((provider) => {
+                    const launch = settings['agents.providers'][provider].launch;
+                    const updateLaunch = (
+                        next: Partial<AppSettings['agents.providers'][typeof provider]['launch']>,
+                    ): void =>
+                        onFieldChange('agents.providers', {
+                            ...settings['agents.providers'],
+                            [provider]: { launch: { ...launch, ...next } },
+                        });
+                    return (
+                        <fieldset key={provider} className="mb-3 rounded border border-border p-2">
+                            <legend className="px-1 font-medium text-foreground">
+                                {agentProviderCatalog[provider].displayName}
+                            </legend>
+                            <label className="mb-2 block text-[11px] text-muted">
+                                Executable
+                                <Input
+                                    className="mt-1"
+                                    aria-label={`${agentProviderCatalog[provider].displayName} executable`}
+                                    value={launch.executable}
+                                    onChange={(event) =>
+                                        updateLaunch({ executable: event.target.value })
+                                    }
+                                />
+                            </label>
+                            <label className="block text-[11px] text-muted">
+                                Initial arguments, one per line
+                                <textarea
+                                    className="mt-1 block min-h-[72px] w-full resize-y rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] p-2 text-[13px] text-foreground outline-none focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]"
+                                    aria-label={`${agentProviderCatalog[provider].displayName} initial arguments`}
+                                    value={launch.args.join('\n')}
+                                    onChange={(event) =>
+                                        updateLaunch({
+                                            args: event.target.value
+                                                .split('\n')
+                                                .filter((argument) => argument.length > 0),
+                                        })
+                                    }
+                                />
+                            </label>
+                        </fieldset>
+                    );
+                })}
             </div>
             <Suspense fallback={<div className={configurationEditorLoadingClassName} />}>
                 <ConfigurationEditor

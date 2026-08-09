@@ -63,9 +63,11 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 
 ## Component redlines
 
-**Window chrome** — `titleBarStyle: 'hiddenInset'`; sidebar header becomes the drag
-region (`-webkit-app-region: drag`, interactive children `no-drag`). Brand appears once:
-sidebar header only. Reclaim the ~28px title bar row.
+**Window chrome** — `titleBarStyle: 'hiddenInset'`; the 44px Sidebar, workbench, and Inspector
+top rails share one bottom edge while their interactive tabs remain 36px high. The logo-free Sidebar
+header is the drag region (`-webkit-app-region: drag`, interactive children `no-drag`); Add Project
+is hidden at rest and revealed by header hover or keyboard focus. The collapsed Sidebar preserves
+the same 44px traffic-light drag clearance.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows current-line
@@ -74,12 +76,16 @@ count. Diff tabs show neither file nor Terminal details. Runtime state appears O
 (`Reconnecting…` / `Backend stopped`) as a `--warning`/`--danger` chip; healthy state shows nothing.
 The chip is informational — recovery lives in the native Relaunch dialog, so the chip never fakes
 an action it cannot perform.
+Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
+accessible names and hover tooltips.
 
 **Sidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows
 indented 16px. Selection = `--elevated` fill (radius 6), no border and no accent — the
 sidebar stays entirely neutral so the focused pane keeps the screen's one accent.
 Activity dots keep color + gain `title`/`aria-label` text.
+All non-archived Project and Session names and navigation icons use `--foreground`, including
+inactive rows; the `--elevated` selected fill, not dimmed neighbors, communicates selection.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
@@ -93,7 +99,9 @@ the center pane; the Inspector never embeds a patch preview. Each `Changes` head
 The multi-file surface mounts Monaco only near the visible viewport and keeps an unreadable
 or binary change isolated to its own row.
 
-**Terminal panes** — focused pane keeps the accent inset ring (this IS the one accent).
+**Terminal panes** — focused pane keeps the accent inset ring (this IS the one accent). The xterm
+viewport and scrollbar are full-bleed at the right edge; top/left text padding belongs to xterm's
+content box so it never creates an outer scrollbar gutter.
 Exit banner: keep current design; `--danger` text only for failures, `--muted` for clean
 exits.
 

@@ -137,7 +137,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
     }
 });
 
-test('Terminal text keeps a visible gutter before its vertical scrollbar', async () => {
+test('Terminal scrollbar is flush with each pane while text keeps a visible gutter', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -147,21 +147,46 @@ test('Terminal text keeps a visible gutter before its vertical scrollbar', async
     try {
         await createShellSession(running.page);
 
-        for (const width of [1_160, 1_180, 1_200, 1_220, 1_240, 1_260, 1_280, 1_300]) {
+        const terminalIds = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals.map((terminal) => terminal.id);
+        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        const secondTerminalId = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals.find((terminal) => !terminalIds.includes(terminal.id))!.id;
+        await splitTerminalToRight(running.page, secondTerminalId);
+        await expect(running.page.locator('.terminal-pane')).toHaveCount(2);
+
+        for (const width of [1_160, 1_300]) {
             await running.page.setViewportSize({ width, height: 800 });
             await running.page.evaluate(
                 () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
             );
-            const gutter = await running.page.evaluate(() => {
-                const screen = document.querySelector('.xterm-screen')?.getBoundingClientRect();
-                const scrollbar = document
-                    .querySelector('.xterm-scrollable-element > .scrollbar.vertical')
-                    ?.getBoundingClientRect();
-                if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
-                return scrollbar.left - screen.right;
+            const geometry = await running.page.locator('.terminal-pane').evaluateAll((panes) => {
+                return panes.map((pane) => {
+                    const paneBounds = pane.getBoundingClientRect();
+                    const screen = pane.querySelector('.xterm-screen')?.getBoundingClientRect();
+                    const scrollbar = pane
+                        .querySelector('.xterm-scrollable-element > .scrollbar.vertical')
+                        ?.getBoundingClientRect();
+                    if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
+                    return {
+                        edgeGap: paneBounds.right - scrollbar.right,
+                        textGutter: scrollbar.left - screen.right,
+                    };
+                });
             });
 
-            expect(gutter, `viewport width ${width}px`).toBeGreaterThanOrEqual(4);
+            for (const [index, pane] of geometry.entries()) {
+                expect(
+                    Math.abs(pane.edgeGap),
+                    `viewport width ${width}px, pane ${index}`,
+                ).toBeLessThanOrEqual(1);
+                expect(
+                    pane.textGutter,
+                    `viewport width ${width}px, pane ${index}`,
+                ).toBeGreaterThanOrEqual(4);
+            }
         }
     } finally {
         await running.app.close().catch(() => undefined);

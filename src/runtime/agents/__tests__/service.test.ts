@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -35,11 +35,17 @@ describe('Agent adapter fallback', () => {
     it('validates the final executable path from login-shell output and invalidates stale cache', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-discovery-'));
         temporaryDirectories.push(directory);
-        const executable = join(directory, 'codex');
+        const bin = join(directory, 'bin');
+        await mkdir(bin);
+        const executable = join(bin, 'codex');
         const shell = join(directory, 'login-shell');
         await writeFile(executable, '#!/bin/sh\n', 'utf8');
         await chmod(executable, 0o700);
-        await writeFile(shell, `#!/bin/sh\nprintf 'shell banner\\n${executable}\\n'\n`, 'utf8');
+        await writeFile(
+            shell,
+            `#!/bin/sh\nprintf 'shell banner\\n__CAXRI_LOGIN_PATH__${bin}\\n'\n`,
+            'utf8',
+        );
         await chmod(shell, 0o700);
         vi.stubEnv('PATH', '');
         vi.stubEnv('SHELL', shell);
@@ -52,13 +58,15 @@ describe('Agent adapter fallback', () => {
     it('ignores terminal control sequences around a login-shell executable path', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-discovery-'));
         temporaryDirectories.push(directory);
-        const executable = join(directory, 'codex');
+        const bin = join(directory, 'bin');
+        await mkdir(bin);
+        const executable = join(bin, 'codex');
         const shell = join(directory, 'login-shell');
         await writeFile(executable, '#!/bin/sh\n', 'utf8');
         await chmod(executable, 0o700);
         await writeFile(
             shell,
-            `#!/bin/sh\nprintf '\\033]1337;CurrentDir=/project\\007${executable}\\n'\n`,
+            `#!/bin/sh\nprintf '\\033]1337;CurrentDir=/project\\007__CAXRI_LOGIN_PATH__${bin}\\n'\n`,
             'utf8',
         );
         await chmod(shell, 0o700);

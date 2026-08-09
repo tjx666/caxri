@@ -9,11 +9,10 @@ import {
     Plus,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AgentActivityState } from '@shared/types';
+import type { AgentActivityState, SessionRecord, TerminalRecord } from '@shared/types';
 
-import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Button } from '../../components/ui/button';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
@@ -29,15 +28,13 @@ import {
 import {
     archiveSession,
     beginSessionCreation,
+    renameSession,
     selectProject,
     selectSession,
     unarchiveSession,
 } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
-/** Vite serves this repo-only asset in development without bundling it into production. */
-const sidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
-
 /** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
 const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
     completed: 'Finished',
@@ -51,7 +48,176 @@ const onAddProject = (): void => executeCommand('project.create');
 const onSelectSession = (sessionId: string): void => void selectSession(sessionId);
 
 const sessionCardClassName =
-    'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-muted text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground';
+    'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
+
+interface ActiveSessionRowProps {
+    focusRenameInput: (element: HTMLInputElement | null) => void;
+    onBeginRename: () => void;
+    onCancelRename: () => void;
+    onCommitRename: () => Promise<void>;
+    onRenameValueChange: (value: string) => void;
+    renameError?: string;
+    renameValue: string;
+    renaming: boolean;
+    selected: boolean;
+    session: SessionRecord;
+    terminal?: TerminalRecord;
+}
+
+function ActiveSessionRow({
+    focusRenameInput,
+    onBeginRename,
+    onCancelRename,
+    onCommitRename,
+    onRenameValueChange,
+    renameError,
+    renameValue,
+    renaming,
+    selected,
+    session,
+    terminal,
+}: ActiveSessionRowProps) {
+    const activityLabel = ACTIVITY_LABELS[session.lastActivityState];
+    const renameErrorId = `session-rename-error-${session.id}`;
+    return (
+        <div className="session-row group/session-row relative">
+            <div
+                data-session-id={session.id}
+                className={cn(
+                    sessionCardClassName,
+                    'pr-8',
+                    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground',
+                    selected && 'active bg-elevated',
+                    renaming && 'cursor-text',
+                )}
+                role={renaming ? undefined : 'button'}
+                tabIndex={renaming ? undefined : 0}
+                onClick={() => {
+                    if (!renaming && !selected) onSelectSession(session.id);
+                }}
+                onDoubleClick={onBeginRename}
+                onKeyDown={(event) => {
+                    if (!renaming && event.key === 'Enter') {
+                        event.preventDefault();
+                        onBeginRename();
+                    } else if (!renaming && event.key === ' ') {
+                        event.preventDefault();
+                        if (!selected) onSelectSession(session.id);
+                    }
+                }}
+            >
+                <span
+                    role="img"
+                    aria-label={activityLabel}
+                    title={activityLabel}
+                    className={cn(
+                        `activity activity-${session.lastActivityState}`,
+                        'flex flex-none items-center text-muted',
+                        session.lastActivityState === 'running' && 'text-success',
+                        session.lastActivityState === 'waiting' && 'text-warning',
+                        session.lastActivityState === 'failed' && 'text-danger',
+                    )}
+                >
+                    <Circle size={7} fill="currentColor" />
+                </span>
+                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
+                {renaming ? (
+                    <>
+                        <input
+                            ref={focusRenameInput}
+                            className="session-rename min-w-0 flex-1 rounded border border-border bg-background px-1 text-foreground outline-none focus:border-accent"
+                            aria-label={`Rename ${session.displayTitle}`}
+                            aria-invalid={Boolean(renameError)}
+                            aria-describedby={renameError ? renameErrorId : undefined}
+                            value={renameValue}
+                            onChange={(event) => onRenameValueChange(event.target.value)}
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    void onCommitRename();
+                                } else if (event.key === 'Escape') {
+                                    event.preventDefault();
+                                    onCancelRename();
+                                }
+                            }}
+                        />
+                        {renameError && (
+                            <span id={renameErrorId} role="alert" className="sr-only">
+                                {renameError}
+                            </span>
+                        )}
+                    </>
+                ) : (
+                    <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                        <strong className="font-medium">{session.displayTitle}</strong>
+                    </span>
+                )}
+            </div>
+            <Tooltip content="Archive Session">
+                <button
+                    type="button"
+                    className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 pointer-events-none cursor-pointer hover:text-foreground group-hover/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto"
+                    aria-label={`Archive ${session.displayTitle}`}
+                    onClick={() => archiveSession(session.id)}
+                >
+                    <Archive size={12} />
+                </button>
+            </Tooltip>
+        </div>
+    );
+}
+
+interface ArchivedSessionsProps {
+    expanded: boolean;
+    onToggle: () => void;
+    sessions: SessionRecord[];
+    terminals: TerminalRecord[];
+}
+
+function ArchivedSessions({ expanded, onToggle, sessions, terminals }: ArchivedSessionsProps) {
+    return (
+        <div className="archived-sessions mt-1">
+            <button
+                type="button"
+                className="archived-sessions-toggle flex h-7 w-full items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-left text-[11px] text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
+                aria-expanded={expanded}
+                onClick={onToggle}
+            >
+                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <Archive size={12} />
+                <span className="flex-1">Archived</span>
+                <span>{sessions.length}</span>
+            </button>
+            {expanded &&
+                sessions.map((session) => {
+                    const terminal = terminals.find(
+                        (item) =>
+                            item.sessionId === session.id &&
+                            (item.id === session.primaryAgentTerminalId ||
+                                session.primaryAgentTerminalId === undefined),
+                    );
+                    return (
+                        <Tooltip key={session.id} content="Restore Session">
+                            <button
+                                type="button"
+                                className="archived-session flex h-7 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
+                                aria-label={`Restore ${session.displayTitle}`}
+                                onClick={() => unarchiveSession(session.id)}
+                            >
+                                <ArchiveRestore size={12} />
+                                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
+                                <span className="min-w-0 flex-1 truncate">
+                                    {session.displayTitle}
+                                </span>
+                            </button>
+                        </Tooltip>
+                    );
+                })}
+        </div>
+    );
+}
 
 export function ProjectSidebar() {
     const projects = useProjects() ?? NO_RECORDS;
@@ -63,6 +229,46 @@ export function ProjectSidebar() {
     const onSelectProject = selectProject;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [expandedArchives, setExpandedArchives] = useState<Set<string>>(() => new Set());
+    const [renamingSessionId, setRenamingSessionId] = useState<string>();
+    const [renameValue, setRenameValue] = useState('');
+    const [renameError, setRenameError] = useState<string>();
+    const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
+
+    const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
+        element?.focus();
+        element?.select();
+    }, []);
+
+    useEffect(() => {
+        if (renamingSessionId) return;
+        const sessionId = restoreFocusSessionIdRef.current;
+        if (!sessionId) return;
+        document.querySelector<HTMLElement>(`[data-session-id="${sessionId}"]`)?.focus();
+        restoreFocusSessionIdRef.current = undefined;
+    }, [renamingSessionId, sessions]);
+
+    const beginRename = (sessionId: string, displayTitle: string): void => {
+        setRenamingSessionId(sessionId);
+        setRenameValue(displayTitle);
+        setRenameError(undefined);
+    };
+
+    const cancelRename = (): void => {
+        const sessionId = renamingSessionId;
+        restoreFocusSessionIdRef.current = sessionId;
+        setRenamingSessionId(undefined);
+        setRenameError(undefined);
+    };
+
+    const commitRename = async (): Promise<void> => {
+        if (!renamingSessionId) return;
+        const displayTitle = renameValue.trim();
+        if (!displayTitle) {
+            setRenameError('Session name is required');
+            return;
+        }
+        if (await renameSession(renamingSessionId, displayTitle)) cancelRename();
+    };
 
     const toggleProject = (projectId: string): void => {
         setCollapsedProjects((current) => {
@@ -85,17 +291,12 @@ export function ProjectSidebar() {
     return (
         <aside className="session-sidebar group flex min-w-0 flex-col bg-surface">
             <div
-                className="sidebar-title flex min-h-11 items-center justify-between border-b border-border py-0 pr-2 pl-[84px] font-semibold"
+                className="sidebar-title group/sidebar-title flex h-11 items-center justify-end border-b border-border py-0 pr-2 pl-[84px] font-semibold"
                 style={{ WebkitAppRegion: 'drag' } as CSSProperties}
             >
-                <img
-                    src={sidebarLogoUrl}
-                    alt="Caxri"
-                    className="h-7 w-7 object-contain"
-                    data-caxri-logo
-                />
                 <CommandTooltip commandId="project.create">
                     <Button
+                        className="pointer-events-none opacity-0 transition-opacity group-hover/sidebar-title:pointer-events-auto group-hover/sidebar-title:opacity-100 group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100"
                         size="icon"
                         variant="ghost"
                         aria-label="Add Project"
@@ -127,8 +328,7 @@ export function ProjectSidebar() {
                         >
                             <div
                                 className={cn(
-                                    'project-heading group/project-heading flex min-h-7 items-center gap-1 text-muted',
-                                    active && 'text-foreground',
+                                    'project-heading group/project-heading flex min-h-7 items-center gap-1 text-foreground',
                                 )}
                             >
                                 <Tooltip
@@ -191,62 +391,26 @@ export function ProjectSidebar() {
                                                 (item) =>
                                                     item.id === session.primaryAgentTerminalId,
                                             ) ?? sessionTerminals[0];
-                                        const activityLabel =
-                                            ACTIVITY_LABELS[session.lastActivityState];
-                                        const sessionActive = session.id === selectedSessionId;
                                         return (
-                                            <div
+                                            <ActiveSessionRow
                                                 key={session.id}
-                                                className="session-row group/session-row relative"
-                                            >
-                                                <button
-                                                    data-session-id={session.id}
-                                                    className={cn(
-                                                        sessionCardClassName,
-                                                        'pr-8',
-                                                        sessionActive &&
-                                                            'active bg-elevated text-foreground',
-                                                    )}
-                                                    onClick={() => onSelectSession(session.id)}
-                                                >
-                                                    <span
-                                                        role="img"
-                                                        aria-label={activityLabel}
-                                                        title={activityLabel}
-                                                        className={cn(
-                                                            `activity activity-${session.lastActivityState}`,
-                                                            'flex flex-none items-center text-muted',
-                                                            session.lastActivityState ===
-                                                                'running' && 'text-success',
-                                                            session.lastActivityState ===
-                                                                'waiting' && 'text-warning',
-                                                            session.lastActivityState ===
-                                                                'failed' && 'text-danger',
-                                                        )}
-                                                    >
-                                                        <Circle size={7} fill="currentColor" />
-                                                    </span>
-                                                    <AgentIdentityIcon
-                                                        identity={terminal?.kind ?? 'shell'}
-                                                        size={14}
-                                                    />
-                                                    <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                                                        <strong className="font-medium">
-                                                            {session.displayTitle}
-                                                        </strong>
-                                                    </span>
-                                                </button>
-                                                <Tooltip content="Archive Session">
-                                                    <button
-                                                        type="button"
-                                                        className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 pointer-events-none cursor-pointer hover:text-foreground group-hover/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto"
-                                                        aria-label={`Archive ${session.displayTitle}`}
-                                                        onClick={() => archiveSession(session.id)}
-                                                    >
-                                                        <Archive size={12} />
-                                                    </button>
-                                                </Tooltip>
-                                            </div>
+                                                focusRenameInput={focusRenameInput}
+                                                onBeginRename={() =>
+                                                    beginRename(session.id, session.displayTitle)
+                                                }
+                                                onCancelRename={cancelRename}
+                                                onCommitRename={commitRename}
+                                                onRenameValueChange={(value) => {
+                                                    setRenameValue(value);
+                                                    setRenameError(undefined);
+                                                }}
+                                                renameError={renameError}
+                                                renameValue={renameValue}
+                                                renaming={session.id === renamingSessionId}
+                                                selected={session.id === selectedSessionId}
+                                                session={session}
+                                                terminal={terminal}
+                                            />
                                         );
                                     })}
                                     {activeSessions.length === 0 && (
@@ -258,60 +422,12 @@ export function ProjectSidebar() {
                                         </button>
                                     )}
                                     {archivedSessions.length > 0 && (
-                                        <div className="archived-sessions mt-1">
-                                            <button
-                                                type="button"
-                                                className="archived-sessions-toggle flex h-7 w-full items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-left text-[11px] text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                                                aria-expanded={archiveExpanded}
-                                                onClick={() => toggleArchive(project.id)}
-                                            >
-                                                {archiveExpanded ? (
-                                                    <ChevronDown size={12} />
-                                                ) : (
-                                                    <ChevronRight size={12} />
-                                                )}
-                                                <Archive size={12} />
-                                                <span className="flex-1">Archived</span>
-                                                <span>{archivedSessions.length}</span>
-                                            </button>
-                                            {archiveExpanded &&
-                                                archivedSessions.map((session) => {
-                                                    const terminal = terminals.find(
-                                                        (item) =>
-                                                            item.sessionId === session.id &&
-                                                            (item.id ===
-                                                                session.primaryAgentTerminalId ||
-                                                                session.primaryAgentTerminalId ===
-                                                                    undefined),
-                                                    );
-                                                    return (
-                                                        <Tooltip
-                                                            key={session.id}
-                                                            content="Restore Session"
-                                                        >
-                                                            <button
-                                                                type="button"
-                                                                className="archived-session flex h-7 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                                                                aria-label={`Restore ${session.displayTitle}`}
-                                                                onClick={() =>
-                                                                    unarchiveSession(session.id)
-                                                                }
-                                                            >
-                                                                <ArchiveRestore size={12} />
-                                                                <AgentIdentityIcon
-                                                                    identity={
-                                                                        terminal?.kind ?? 'shell'
-                                                                    }
-                                                                    size={13}
-                                                                />
-                                                                <span className="min-w-0 flex-1 truncate">
-                                                                    {session.displayTitle}
-                                                                </span>
-                                                            </button>
-                                                        </Tooltip>
-                                                    );
-                                                })}
-                                        </div>
+                                        <ArchivedSessions
+                                            expanded={archiveExpanded}
+                                            onToggle={() => toggleArchive(project.id)}
+                                            sessions={archivedSessions}
+                                            terminals={terminals}
+                                        />
                                     )}
                                 </div>
                             )}

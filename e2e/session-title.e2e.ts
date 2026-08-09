@@ -6,7 +6,13 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    openAddProjectDialog,
+    pageRequest,
+    typeTerminal,
+} from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -72,7 +78,7 @@ done
         },
     });
     try {
-        await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(page);
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(page.locator('.session-card strong')).toHaveText('Codex');
 

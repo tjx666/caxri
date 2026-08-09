@@ -43,6 +43,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         lastActivityState: 'idle',
         layoutVersion: 2,
         displayTitle: 'Shell',
+        titleMode: 'automatic',
         ...overrides,
     };
 }
@@ -121,6 +122,19 @@ describe('choosePrimaryAgentForNewTerminal', () => {
             ),
         ).toBeUndefined();
     });
+
+    it('promotes the first Agent without replacing a manual Session title', () => {
+        expect(
+            choosePrimaryAgentForNewTerminal(
+                session({
+                    displayTitle: 'My investigation',
+                    primaryAgentTerminalId: undefined,
+                    titleMode: 'manual',
+                }),
+                terminal({ id: 'codex-1', kind: 'codex' }),
+            ),
+        ).toMatchObject({ displayTitle: 'My investigation' });
+    });
 });
 
 describe('choosePrimaryAgentSuccessor', () => {
@@ -133,7 +147,10 @@ describe('choosePrimaryAgentSuccessor', () => {
             lastProcessState: 'running',
         });
         expect(
-            choosePrimaryAgentSuccessor([terminal({ id: 'shell-1' }), claude], 'Existing'),
+            choosePrimaryAgentSuccessor(
+                [terminal({ id: 'shell-1' }), claude],
+                session({ displayTitle: 'Existing' }),
+            ),
         ).toEqual({
             primaryAgentTerminalId: 'claude-1',
             displayTitle: 'Claude Code',
@@ -143,19 +160,38 @@ describe('choosePrimaryAgentSuccessor', () => {
 
     it('keeps the generated Session title when only Shell Terminals remain', () => {
         const shell = terminal({ id: 'shell-1', title: 'Shell' });
-        expect(choosePrimaryAgentSuccessor([shell], 'Existing')).toEqual({
-            primaryAgentTerminalId: null,
-            displayTitle: 'Existing',
-            lastActivityState: 'idle',
-        });
+        expect(choosePrimaryAgentSuccessor([shell], session({ displayTitle: 'Existing' }))).toEqual(
+            {
+                primaryAgentTerminalId: null,
+                displayTitle: 'Existing',
+                lastActivityState: 'idle',
+            },
+        );
     });
 
     it('keeps the generated Session title when no Terminal remains', () => {
-        expect(choosePrimaryAgentSuccessor([], 'Keep this title')).toEqual({
+        expect(
+            choosePrimaryAgentSuccessor([], session({ displayTitle: 'Keep this title' })),
+        ).toEqual({
             primaryAgentTerminalId: null,
             displayTitle: 'Keep this title',
             lastActivityState: 'idle',
         });
+    });
+
+    it('preserves a manual title while promoting another primary Agent', () => {
+        const claude = terminal({
+            id: 'claude-1',
+            kind: 'claude',
+            provider: 'claude',
+            title: 'Claude Code',
+        });
+        expect(
+            choosePrimaryAgentSuccessor(
+                [claude],
+                session({ displayTitle: 'Keep me', titleMode: 'manual' }),
+            ),
+        ).toMatchObject({ displayTitle: 'Keep me', primaryAgentTerminalId: 'claude-1' });
     });
 });
 
@@ -264,6 +300,31 @@ describe('decideAgentMetadataUpdate', () => {
             },
         );
         expect(decision).toEqual({ agentSessionId: 'claude-session-1', sessionPatch: undefined });
+    });
+
+    it('updates activity and Agent identity without overwriting a manual title', () => {
+        const decision = decideAgentMetadataUpdate(
+            terminal({ id: 'codex-1', provider: 'codex' }),
+            session({
+                displayTitle: 'Manual name',
+                lastActivityState: 'idle',
+                primaryAgentTerminalId: 'codex-1',
+                titleMode: 'manual',
+            }),
+            {
+                provider: 'codex',
+                available: true,
+                observedAt: 0,
+                status: 'waiting',
+                sessionId: 'agent-session-2',
+                title: 'Agent replacement title',
+            },
+        );
+
+        expect(decision).toEqual({
+            agentSessionId: 'agent-session-2',
+            sessionPatch: { displayTitle: 'Manual name', lastActivityState: 'waiting' },
+        });
     });
 
     it('is a no-op when the snapshot changes nothing observable', () => {

@@ -27,8 +27,12 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 ...new Set(spans.map((span) => getComputedStyle(span).color)),
             ]);
         expect(tokenColors.length).toBeGreaterThan(1);
-        await expect(dialog.locator('[data-slot="input"]')).toHaveCount(3);
+        await expect(dialog.locator('[data-slot="input"]')).toHaveCount(6);
         await expect(dialog.locator('[data-slot="select-trigger"]')).toContainText('Ask each time');
+        await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
+        await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
+        await expect(dialog.getByLabel('New Terminal working directory')).toHaveValue('');
+        await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
 
         const actions = dialog.locator('.dialog-actions');
         const dialogBox = await dialog.boundingBox();

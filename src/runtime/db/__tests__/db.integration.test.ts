@@ -183,18 +183,22 @@ describe('CaxriDb', () => {
             payload: 'restored',
             updatedAt: 123,
         });
-        const columns = previous.database.pragma('table_info(session_state)') as Array<{
+        const columns = previous.database.pragma('table_info(sessions)') as Array<{
             name: string;
         }>;
-        if (columns.some((column) => column.name === 'state_version'))
-            previous.database.exec('ALTER TABLE session_state DROP COLUMN state_version');
+        if (columns.some((column) => column.name === 'title_mode'))
+            previous.database.exec('ALTER TABLE sessions DROP COLUMN title_mode');
         previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
         const upgraded = new CaxriDb(databasePath);
 
         expect(upgraded.projects.get(project.id)).toMatchObject({ id: project.id });
-        expect(upgraded.sessions.get(session.id)).toMatchObject({ id: session.id });
+        expect(upgraded.sessions.get(session.id)).toMatchObject({
+            id: session.id,
+            displayTitle: 'Shell',
+            titleMode: 'automatic',
+        });
         expect(upgraded.terminals.get(terminal.id)).toMatchObject({ id: terminal.id });
         expect(upgraded.snapshots.get(terminal.id)).toMatchObject({
             terminalId: terminal.id,

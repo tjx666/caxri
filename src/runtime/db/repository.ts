@@ -87,6 +87,14 @@ export class CaxriDatabase {
         return this.db.sessions.get(id);
     }
 
+    renameSession(sessionId: string, displayTitle: string): SessionRecord {
+        const normalizedTitle = displayTitle.trim();
+        if (!normalizedTitle) throw new CaxriError('VALIDATION', 'Session name is required');
+        if (!this.db.sessions.rename(sessionId, normalizedTitle))
+            throw new CaxriError('NOT_FOUND', 'Session not found');
+        return this.db.sessions.get(sessionId)!;
+    }
+
     updateAgentMetadata(terminalId: string, snapshot: AgentSnapshot): boolean {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
@@ -208,7 +216,9 @@ export class CaxriDatabase {
             if (session?.primaryAgentTerminalId === terminalId) {
                 this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
-                    defaultTerminalTitle(terminal.kind),
+                    session.titleMode === 'manual'
+                        ? session.displayTitle
+                        : defaultTerminalTitle(terminal.kind),
                     'running',
                 );
             }
@@ -218,6 +228,7 @@ export class CaxriDatabase {
     createSession(
         projectId: string,
         kind: TerminalKind,
+        cwd?: string,
     ): { session: SessionRecord; terminal: TerminalRecord } {
         return this.db.transaction(() => {
             this.assertTerminalCapacity();
@@ -228,7 +239,7 @@ export class CaxriDatabase {
             const terminal = this.db.terminals.insert({
                 sessionId: session.id,
                 kind,
-                cwd: project.rootPath,
+                cwd: cwd ?? project.rootPath,
                 title: displayTitle,
             });
             const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
@@ -320,7 +331,7 @@ export class CaxriDatabase {
         return this.db.terminals.get(id);
     }
 
-    createTerminal(sessionId: string, kind: TerminalKind): TerminalRecord {
+    createTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
         return this.db.transaction(() => {
             const session = this.db.sessions.get(sessionId);
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -328,7 +339,7 @@ export class CaxriDatabase {
             const terminal = this.db.terminals.insert({
                 sessionId,
                 kind,
-                cwd: session.rootPath,
+                cwd: cwd ?? session.rootPath,
                 title: defaultTerminalTitle(kind),
             });
             const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
@@ -372,7 +383,7 @@ export class CaxriDatabase {
             const session = this.db.sessions.get(terminal.sessionId);
             if (session?.primaryAgentTerminalId === id) {
                 const remaining = this.db.terminals.list(terminal.sessionId);
-                const succession = choosePrimaryAgentSuccessor(remaining, session.displayTitle);
+                const succession = choosePrimaryAgentSuccessor(remaining, session);
                 this.db.sessions.setPrimaryAgent(terminal.sessionId, succession);
             }
             const state = this.db.sessions.getState(terminal.sessionId);

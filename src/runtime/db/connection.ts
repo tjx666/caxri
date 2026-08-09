@@ -12,6 +12,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import baselineMigrationSql from './migrations/0000_silly_groot.sql?raw';
 import sessionArchiveMigrationSql from './migrations/0001_slim_marvel_boy.sql?raw';
 import sessionStateVersionMigrationSql from './migrations/0002_complex_ironclad.sql?raw';
+import sessionTitleModeMigrationSql from './migrations/0003_pretty_ezekiel.sql?raw';
 import * as schema from './schema';
 import { sessions, terminals } from './schema';
 import { shutdownOutcome, type ShutdownReason } from '../session-policy';
@@ -23,7 +24,7 @@ import { shutdownOutcome, type ShutdownReason } from '../session-policy';
  * two places that must stay in sync: the SQLite `user_version`
  * pragma (managed below) and the `schemaVersion` app-state row (written by `bootstrap.ts`).
  */
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 const PRESERVED_SCHEMA_VERSION = 7;
 
@@ -48,11 +49,15 @@ function installCurrentSchema(database: Database.Database): void {
         baselineMigrationSql,
         sessionArchiveMigrationSql,
         sessionStateVersionMigrationSql,
+        sessionTitleModeMigrationSql,
     ])
         runGeneratedSql(database, sql);
 }
 
-const preservingMigrations = [{ version: 8, sql: sessionStateVersionMigrationSql }] as const;
+const preservingMigrations = [
+    { version: 8, sql: sessionStateVersionMigrationSql },
+    { version: 9, sql: sessionTitleModeMigrationSql },
+] as const;
 
 function migratePreservingData(database: Database.Database, version: number): void {
     for (const migration of preservingMigrations)

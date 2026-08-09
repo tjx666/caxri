@@ -2,11 +2,13 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { IPty } from 'node-pty';
+import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
+import type { AgentLaunchSettings } from '../../../shared/agents';
+import type { TerminalKind } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';
 
@@ -57,6 +59,137 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
+    it('composes configured Agent argv with resume args and uses the filtered login environment', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-launch-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const spawned: ReturnType<typeof createFakePty>[] = [];
+        const spawn = vi.fn<typeof spawnPty>(() => {
+            const fake = createFakePty();
+            spawned.push(fake);
+            return fake.process;
+        });
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                agentLaunchSettings: () => ({
+                    executable: '/bin/echo',
+                    args: ['--profile', 'focused'],
+                }),
+                agentEnvironment: () =>
+                    Promise.resolve({ HOME: directory, PATH: '/login/bin:/usr/bin' }),
+                spawn,
+            },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/echo');
+            expect(spawn.mock.calls[0]?.[1]).toEqual(['--profile', 'focused']);
+            expect(spawn.mock.calls[0]?.[2]).toMatchObject({
+                cwd: directory,
+                env: {
+                    COLORTERM: 'truecolor',
+                    HOME: directory,
+                    PATH: '/login/bin:/usr/bin',
+                    TERM: 'xterm-256color',
+                },
+            });
+
+            await manager.restart(created.terminal.id, {
+                resumeAgentSessionId: 'conversation-1',
+            });
+            expect(spawn).toHaveBeenNthCalledWith(
+                2,
+                '/bin/echo',
+                ['--profile', 'focused', 'resume', 'conversation-1'],
+                expect.any(Object),
+            );
+        } finally {
+            for (const fake of spawned) fake.kill();
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('uses one Agent launch settings snapshot while executable resolution is pending', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-settings-race-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const fake = createFakePty();
+        const spawn = vi.fn<typeof spawnPty>(() => fake.process);
+        let launch = { executable: '/old/codex', args: ['--old-profile'] };
+        let finishResolution: (() => void) | undefined;
+        const resolutionPending = new Promise<void>((resolve) => {
+            finishResolution = resolve;
+        });
+        const resolveExecutable = vi.fn(
+            async (_kind: TerminalKind, settings?: AgentLaunchSettings) => {
+                await resolutionPending;
+                if (!settings) throw new Error('Agent launch settings are required');
+                return settings.executable;
+            },
+        );
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
+                agentLaunchSettings: () => launch,
+                resolveExecutable,
+                spawn,
+            },
+        );
+
+        try {
+            const starting = manager.start(created.terminal);
+            await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledOnce());
+            launch = { executable: '/new/codex', args: ['--new-profile'] };
+            finishResolution!();
+            await starting;
+
+            expect(resolveExecutable).toHaveBeenCalledWith('codex', {
+                executable: '/old/codex',
+                args: ['--old-profile'],
+            });
+            expect(spawn).toHaveBeenCalledWith('/old/codex', ['--old-profile'], expect.any(Object));
+        } finally {
+            fake.kill();
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('contains an immediately failing Agent child to its durable Terminal', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-fast-failure-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const failed = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                resolveExecutable: () => Promise.resolve('/bin/echo'),
+                spawn: () => failed.process,
+            },
+        );
+
+        await manager.start(created.terminal);
+        failed.emitExit({ exitCode: 127 });
+
+        expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('dead');
+        expect(manager.runningCount()).toBe(0);
+        expect(database.listProjects()).toHaveLength(1);
+        database.close();
+    });
+
     it('coalesces continuous output into one snapshot write per persistence interval', async () => {
         vi.useFakeTimers();
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-snapshot-rate-'));
