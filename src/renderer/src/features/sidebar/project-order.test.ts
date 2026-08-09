@@ -73,6 +73,42 @@ describe('Project ordering', () => {
         ]);
     });
 
+    it('abandons queued optimistic orders when an earlier persistence attempt fails', async () => {
+        let releaseFirst!: () => void;
+        const firstPending = new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+        });
+        const firstProjectIds = ['b', 'c', 'a'];
+        const secondProjectIds = ['c', 'b', 'a'];
+        const tracker = createProjectOrderIntentTracker();
+        const persisted: string[][] = [];
+        const queue = createLatestProjectOrderQueue(async (projectIds) => {
+            const intent = tracker.get();
+            if (intent?.projectIds !== projectIds) return;
+            persisted.push([...projectIds]);
+            if (projectIds === firstProjectIds) await firstPending;
+            tracker.settle(projectIds !== firstProjectIds);
+        });
+
+        tracker.set({
+            displayTitle: 'Alpha',
+            movedProjectId: 'a',
+            projectIds: firstProjectIds,
+        });
+        const settled = queue.enqueue(firstProjectIds);
+        tracker.set({
+            displayTitle: 'Beta',
+            movedProjectId: 'b',
+            projectIds: secondProjectIds,
+        });
+        void queue.enqueue(secondProjectIds);
+
+        releaseFirst();
+        await settled;
+        expect(persisted).toEqual([firstProjectIds]);
+        expect(tracker.get()).toBeUndefined();
+    });
+
     it('retains an acknowledged keyboard order until the matching snapshot arrives', () => {
         const tracker = createProjectOrderIntentTracker();
         const firstIntent = {
@@ -82,7 +118,7 @@ describe('Project ordering', () => {
         };
 
         tracker.set(firstIntent);
-        tracker.settle(firstIntent.projectIds, true);
+        tracker.settle(true);
 
         const secondOrder = adjacentProjectOrder(
             tracker.get()?.projectIds ?? ['a', 'b', 'c'],
@@ -107,7 +143,7 @@ describe('Project ordering', () => {
             projectIds: ['b', 'a'],
         };
         tracker.set(rejected);
-        tracker.settle(rejected.projectIds, false);
+        tracker.settle(false);
         expect(tracker.get()).toBeUndefined();
 
         tracker.set(rejected);

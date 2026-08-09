@@ -46,7 +46,7 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
                 intent.movedProjectId,
                 projectIds.indexOf(intent.movedProjectId),
             );
-            intentTrackerRef.current?.settle(projectIds, reordered);
+            intentTrackerRef.current?.settle(reordered);
         });
         return () => {
             queueRef.current = undefined;
