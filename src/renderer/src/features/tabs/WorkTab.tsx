@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { DragEvent, ReactElement, ReactNode } from 'react';
+import type { AnimationEvent, DragEvent, ReactElement, ReactNode } from 'react';
 
 import type { ProcessState } from '@shared/types';
 
@@ -9,6 +9,7 @@ import { FileTypeIcon } from '../../icons/files/FileTypeIcon';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utils';
+import type { WorkTabMotionPhase } from './work-tab-motion';
 
 const processIndicatorClassName =
     'process-indicator w-1.5 h-1.5 flex-none m-0 rounded-full bg-muted';
@@ -20,6 +21,7 @@ interface WorkTabProps {
     fileIconName?: string;
     icon: 'file' | AgentIconIdentity;
     label: string;
+    motionPhase?: WorkTabMotionPhase;
     preview?: boolean;
     status?: ProcessState;
     terminalId?: string;
@@ -27,6 +29,7 @@ interface WorkTabProps {
     onClose: () => void;
     onDoubleClick?: () => void;
     onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
+    onMotionEnd?: () => void;
     onSelect: () => void;
 }
 
@@ -37,6 +40,7 @@ export function WorkTab({
     fileIconName,
     icon,
     label,
+    motionPhase = 'stable',
     preview = false,
     status,
     terminalId,
@@ -44,20 +48,28 @@ export function WorkTab({
     onClose,
     onDoubleClick,
     onDragStart,
+    onMotionEnd,
     onSelect,
 }: WorkTabProps) {
     const tab = (
         <div
             className={cn(
                 'work-tab group relative flex max-w-[180px] items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground [-webkit-app-region:no-drag]',
+                motionPhase === 'exit' && 'pointer-events-none',
                 active &&
                     "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
             )}
             data-terminal-id={terminalId}
             data-preview={preview || undefined}
+            data-motion={motionPhase === 'stable' ? undefined : motionPhase}
+            aria-hidden={motionPhase === 'exit' || undefined}
+            inert={motionPhase === 'exit' ? true : undefined}
             draggable={Boolean(onDragStart)}
             onDragStart={onDragStart}
             onDoubleClick={onDoubleClick}
+            onAnimationEnd={(event: AnimationEvent<HTMLDivElement>) => {
+                if (event.currentTarget === event.target) onMotionEnd?.();
+            }}
         >
             <button
                 type="button"

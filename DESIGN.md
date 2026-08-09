@@ -96,6 +96,15 @@ provides the keyboard-equivalent reorder and announces the resulting position.
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
 the pattern — keep). Tab height 36px.
 
+**Motion** — motion explains structure; it never decorates state. User-triggered Project and
+Archived Session disclosures expand over 180ms with opacity plus intrinsic-height reveal using
+`cubic-bezier(0.25, 1, 0.5, 1)`, and collapse over 130ms with `ease-in`. Work tabs enter over 140ms
+with `ease-out` and confirmed removals exit over 110ms with `ease-in`, using opacity plus width
+reveal. Initial bootstrap/restore, tab activation, Agent activity, Project drag settlement, folder
+glyph changes, and Terminal panes remain instantaneous. Do not stagger rows or neighboring tabs.
+`prefers-reduced-motion: reduce` makes every spatial transition instantaneous without changing
+focus, selection, close confirmation, or PTY behavior.
+
 **Git inspector** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in
 the center pane; the Inspector never embeds a patch preview. Each `Changes` heading exposes

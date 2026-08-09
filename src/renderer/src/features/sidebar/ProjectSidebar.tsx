@@ -40,6 +40,7 @@ import {
     projectOrderAfterDrop,
     type ProjectDropEdge,
 } from './project-order';
+import { DisclosureMotion } from './DisclosureMotion';
 
 const NO_RECORDS: never[] = [];
 /** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
@@ -185,13 +186,20 @@ function ActiveSessionRow({
 }
 
 interface ArchivedSessionsProps {
+    animate: boolean;
     expanded: boolean;
     onToggle: () => void;
     sessions: SessionRecord[];
     terminals: TerminalRecord[];
 }
 
-function ArchivedSessions({ expanded, onToggle, sessions, terminals }: ArchivedSessionsProps) {
+function ArchivedSessions({
+    animate,
+    expanded,
+    onToggle,
+    sessions,
+    terminals,
+}: ArchivedSessionsProps) {
     return (
         <div className="archived-sessions mt-1">
             <button
@@ -205,8 +213,8 @@ function ArchivedSessions({ expanded, onToggle, sessions, terminals }: ArchivedS
                 <span className="flex-1">Archived</span>
                 <span>{sessions.length}</span>
             </button>
-            {expanded &&
-                sessions.map((session) => {
+            <DisclosureMotion animate={animate} expanded={expanded} kind="archive">
+                {sessions.map((session) => {
                     const terminal = terminals.find(
                         (item) =>
                             item.sessionId === session.id &&
@@ -230,6 +238,7 @@ function ArchivedSessions({ expanded, onToggle, sessions, terminals }: ArchivedS
                         </Tooltip>
                     );
                 })}
+            </DisclosureMotion>
         </div>
     );
 }
@@ -244,6 +253,8 @@ export function ProjectSidebar() {
     const onSelectProject = selectProject;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [expandedArchives, setExpandedArchives] = useState<Set<string>>(() => new Set());
+    const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
+    const [animatedArchiveIds, setAnimatedArchiveIds] = useState<Set<string>>(() => new Set());
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
@@ -356,6 +367,7 @@ export function ProjectSidebar() {
     };
 
     const toggleProject = (projectId: string): void => {
+        setAnimatedProjectIds((current) => new Set(current).add(projectId));
         setCollapsedProjects((current) => {
             const next = new Set(current);
             if (next.has(projectId)) next.delete(projectId);
@@ -365,6 +377,7 @@ export function ProjectSidebar() {
     };
 
     const toggleArchive = (projectId: string): void => {
+        setAnimatedArchiveIds((current) => new Set(current).add(projectId));
         setExpandedArchives((current) => {
             const next = new Set(current);
             if (next.has(projectId)) next.delete(projectId);
@@ -555,7 +568,13 @@ export function ProjectSidebar() {
                                     {project.displayTitle}
                                 </span>
                             </div>
-                            {expanded && draggedProjectId !== project.id && (
+                            <DisclosureMotion
+                                animate={animatedProjectIds.has(project.id)}
+                                className="project-session-disclosure"
+                                expanded={expanded}
+                                hidden={draggedProjectId === project.id}
+                                kind="project"
+                            >
                                 <div className="session-list pb-1 pl-4">
                                     {activeSessions.map((session) => {
                                         const sessionTerminals = terminals.filter(
@@ -599,6 +618,7 @@ export function ProjectSidebar() {
                                     )}
                                     {archivedSessions.length > 0 && (
                                         <ArchivedSessions
+                                            animate={animatedArchiveIds.has(project.id)}
                                             expanded={archiveExpanded}
                                             onToggle={() => toggleArchive(project.id)}
                                             sessions={archivedSessions}
@@ -606,7 +626,7 @@ export function ProjectSidebar() {
                                         />
                                     )}
                                 </div>
-                            )}
+                            </DisclosureMotion>
                         </section>
                     );
                 })}
