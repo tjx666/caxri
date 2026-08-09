@@ -21,7 +21,7 @@ export interface ProjectOrderIntentTracker {
     get(): ProjectOrderIntent | undefined;
     reconcile(projectIds: readonly string[]): ProjectOrderIntent | undefined;
     set(intent: ProjectOrderIntent): void;
-    settle(projectIds: string[], succeeded: boolean): void;
+    settle(succeeded: boolean): void;
 }
 
 export function hasProjectDragType(types: readonly string[]): boolean {
@@ -53,8 +53,13 @@ export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
         set(intent) {
             current = intent;
         },
-        settle(projectIds, succeeded) {
-            if (!succeeded && current?.projectIds === projectIds) current = undefined;
+        /**
+         * A newer queued intent still depends on the failed optimistic order, so it must be
+         * discarded along with the rejected request instead of being persisted against stale
+         * Runtime state.
+         */
+        settle(succeeded) {
+            if (!succeeded) current = undefined;
         },
     };
 }
