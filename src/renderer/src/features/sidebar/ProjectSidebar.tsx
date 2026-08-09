@@ -289,14 +289,14 @@ export function ProjectSidebar() {
     };
 
     return (
-        <aside className="session-sidebar group flex min-w-0 flex-col bg-surface">
+        <aside className="session-sidebar group/sidebar flex min-w-0 flex-col bg-surface">
             <div
                 className="sidebar-title group/sidebar-title flex h-11 items-center justify-end border-b border-border py-0 pr-2 pl-[84px] font-semibold"
                 style={{ WebkitAppRegion: 'drag' } as CSSProperties}
             >
                 <CommandTooltip commandId="project.create">
                     <Button
-                        className="pointer-events-none opacity-0 transition-opacity group-hover/sidebar-title:pointer-events-auto group-hover/sidebar-title:opacity-100 group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100"
+                        className="pointer-events-none opacity-0 transition-opacity group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100"
                         size="icon"
                         variant="ghost"
                         aria-label="Add Project"

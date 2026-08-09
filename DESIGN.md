@@ -66,8 +66,8 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 **Window chrome** — `titleBarStyle: 'hiddenInset'`; the 44px Sidebar, workbench, and Inspector
 top rails share one bottom edge while their interactive tabs remain 36px high. The logo-free Sidebar
 header is the drag region (`-webkit-app-region: drag`, interactive children `no-drag`); Add Project
-is hidden at rest and revealed by header hover or keyboard focus. The collapsed Sidebar preserves
-the same 44px traffic-light drag clearance.
+is hidden at rest and revealed by hovering anywhere in the expanded Sidebar or by keyboard focus.
+The collapsed Sidebar preserves the same 44px traffic-light drag clearance.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows current-line

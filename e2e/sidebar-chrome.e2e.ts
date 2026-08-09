@@ -18,7 +18,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-test('sidebar titlebar is logo-free and reveals Add Project on hover or focus', async () => {
+test('sidebar is logo-free and reveals Add Project on hover or focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -39,6 +39,14 @@ test('sidebar titlebar is logo-free and reveals Add Project on hover or focus', 
             };
         });
         expect(titlebarMetrics).toMatchObject({ appRegion: 'drag', height: 44 });
+
+        await running.page.locator('.project-list').hover({ position: { x: 20, y: 100 } });
+        await expect(addProject).toHaveCSS('opacity', '1');
+        await expect(addProject).toHaveCSS('pointer-events', 'auto');
+        await running.page.mouse.move(500, 300);
+        await expect(addProject).toHaveCSS('opacity', '0');
+        await expect(addProject).toHaveCSS('pointer-events', 'none');
+
         await titlebar.hover({ position: { x: 90, y: 22 } });
         await expect(addProject).toHaveCSS('opacity', '1');
         await expect(addProject).toHaveCSS('pointer-events', 'auto');
