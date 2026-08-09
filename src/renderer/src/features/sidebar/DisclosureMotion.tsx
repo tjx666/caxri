@@ -8,6 +8,7 @@ interface DisclosureMotionProps {
     className?: string;
     expanded: boolean;
     hidden?: boolean;
+    id?: string;
     kind: 'archive' | 'project';
 }
 
@@ -21,11 +22,13 @@ export function DisclosureMotion({
     className,
     expanded,
     hidden = false,
+    id,
     kind,
 }: DisclosureMotionProps) {
     const interactive = expanded && !hidden;
     return (
         <div
+            id={id}
             className={cn('disclosure-motion grid', hidden && 'hidden', className)}
             data-disclosure={kind}
             data-expanded={expanded}

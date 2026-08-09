@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     adjacentProjectOrder,
+    createLatestProjectOrderQueue,
     projectDropTargetsEqual,
     projectOrderAfterDrop,
 } from './project-order';
@@ -38,5 +39,29 @@ describe('Project ordering', () => {
             ),
         ).toBe(false);
         expect(projectDropTargetsEqual(undefined, undefined)).toBe(true);
+    });
+
+    it('coalesces queued Project permutations to the latest intent', async () => {
+        let releaseFirst!: () => void;
+        const firstPending = new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+        });
+        const persisted: string[][] = [];
+        const queue = createLatestProjectOrderQueue(async (projectIds) => {
+            persisted.push([...projectIds]);
+            if (persisted.length === 1) await firstPending;
+        });
+
+        const settled = queue.enqueue(['a', 'b', 'c']);
+        void queue.enqueue(['b', 'a', 'c']);
+        void queue.enqueue(['b', 'c', 'a']);
+        expect(persisted).toEqual([['a', 'b', 'c']]);
+
+        releaseFirst();
+        await settled;
+        expect(persisted).toEqual([
+            ['a', 'b', 'c'],
+            ['b', 'c', 'a'],
+        ]);
     });
 });
