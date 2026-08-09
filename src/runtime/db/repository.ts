@@ -60,25 +60,24 @@ export class CaxriDatabase {
         return this.db.projects.create(rootPath);
     }
 
-    /**
-     * Reorders the complete Project set atomically. Requiring an exact permutation prevents a stale
-     * Renderer from silently dropping a Project added by another window or Runtime request.
-     */
-    reorderProjects(projectIds: readonly string[]): ProjectRecord[] {
+    /** Moves one current Project atomically so Renderer input stays scalar and cannot omit rows. */
+    reorderProject(projectId: string, targetIndex: number): ProjectRecord[] {
         return this.db.transaction(() => {
             const currentIds = this.db.projects.list().map((project) => project.id);
-            const submittedIds = new Set(projectIds);
             if (
-                projectIds.length !== currentIds.length ||
-                submittedIds.size !== projectIds.length ||
-                currentIds.some((projectId) => !submittedIds.has(projectId))
+                !currentIds.includes(projectId) ||
+                !Number.isInteger(targetIndex) ||
+                targetIndex < 0 ||
+                targetIndex >= currentIds.length
             ) {
                 throw new CaxriError(
                     'VALIDATION',
-                    'Project order must contain every current Project exactly once',
+                    'Project reorder must reference a current Project and valid position',
                 );
             }
-            this.db.projects.reorder(projectIds);
+            const reordered = currentIds.filter((currentId) => currentId !== projectId);
+            reordered.splice(targetIndex, 0, projectId);
+            this.db.projects.reorder(reordered);
             return this.db.projects.list();
         });
     }

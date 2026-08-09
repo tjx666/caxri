@@ -338,8 +338,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
-        'project.reorder': ({ projectIds }) => {
-            const reordered = database.reorderProjects(projectIds);
+        'project.reorder': ({ projectId, targetIndex }) => {
+            const reordered = database.reorderProject(projectId, targetIndex);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
             return reordered;
         },
