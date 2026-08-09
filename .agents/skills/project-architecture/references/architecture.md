@@ -2,7 +2,7 @@
 
 ## Product model
 
-A `Project` is a user-selected local folder and the durable owner of its `rootPath`, explicit Sidebar order, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. Archiving a Session hides it from active navigation without stopping or deleting its Terminals, and restore only clears that metadata. The first Agent Terminal in a Session is its automatic title source; a user rename switches the title to manual ownership so later Agent metadata cannot replace it. Shell-only Sessions keep their Shell title. Multiple Sessions can share one Project without duplicating its directory identity.
+A `Project` is a user-selected local folder and the durable owner of its `rootPath`, explicit Sidebar order, file tree, Git context, and path-security grant. A `Session` belongs to one Project and owns permanent Terminal records, editor/layout state, and optional Agent metadata. Archiving a Session hides it from active navigation without stopping or deleting its Terminals, and restore only clears that metadata. Every new Session starts with the automatic title `Untitled`, while its initial Terminal keeps the provider-specific title. The first Agent Terminal becomes the source of later automatic title promotion from useful metadata; a user rename switches the title to manual ownership so later Agent metadata cannot replace it. Multiple Sessions can share one Project without duplicating its directory identity.
 
 ## Process model
 

@@ -37,8 +37,9 @@ import {
 import {
     adjacentProjectOrder,
     PROJECT_DRAG_TYPE,
+    projectDropTargetsEqual,
     projectOrderAfterDrop,
-    type ProjectDropEdge,
+    type ProjectDropTarget,
 } from './project-order';
 import { DisclosureMotion } from './DisclosureMotion';
 
@@ -54,11 +55,6 @@ const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
 };
 const onAddProject = (): void => executeCommand('project.create');
 const onSelectSession = (sessionId: string): void => void selectSession(sessionId);
-
-interface ProjectDropTarget {
-    edge: ProjectDropEdge;
-    projectId: string;
-}
 
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
@@ -297,9 +293,7 @@ export function ProjectSidebar() {
     ): ProjectDropTarget | undefined => {
         const draggedId = event.dataTransfer.getData(PROJECT_DRAG_TYPE) || draggedProjectId;
         if (!draggedId || draggedId === projectId) return undefined;
-        const heading = event.currentTarget.querySelector<HTMLElement>('.project-heading');
-        if (!heading) return undefined;
-        const bounds = heading.getBoundingClientRect();
+        const bounds = event.currentTarget.getBoundingClientRect();
         return {
             edge: event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after',
             projectId,
@@ -428,38 +422,6 @@ export function ProjectSidebar() {
                                 active && 'active',
                                 draggedProjectId === project.id && 'opacity-40',
                             )}
-                            onDragOver={(event) => {
-                                if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE)) return;
-                                event.preventDefault();
-                                event.dataTransfer.dropEffect = 'move';
-                                setProjectDropTarget(projectDropEdge(event, project.id));
-                            }}
-                            onDrop={(event) => {
-                                if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE)) return;
-                                event.preventDefault();
-                                const draggedId =
-                                    event.dataTransfer.getData(PROJECT_DRAG_TYPE) ||
-                                    draggedProjectId;
-                                const target = projectDropEdge(event, project.id);
-                                setDraggedProjectId(undefined);
-                                setProjectDropTarget(undefined);
-                                if (!draggedId || !target) return;
-                                const reordered = projectOrderAfterDrop(
-                                    projects.map((item) => item.id),
-                                    draggedId,
-                                    target.projectId,
-                                    target.edge,
-                                );
-                                const draggedProject = projects.find(
-                                    (item) => item.id === draggedId,
-                                );
-                                if (draggedProject)
-                                    commitProjectOrder(
-                                        reordered,
-                                        draggedProject.id,
-                                        draggedProject.displayTitle,
-                                    );
-                            }}
                         >
                             {projectDropTarget?.projectId === project.id && (
                                 <div
@@ -480,6 +442,43 @@ export function ProjectSidebar() {
                                 )}
                                 data-project-id={project.id}
                                 draggable
+                                onDragOver={(event) => {
+                                    if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE))
+                                        return;
+                                    event.preventDefault();
+                                    event.dataTransfer.dropEffect = 'move';
+                                    const target = projectDropEdge(event, project.id);
+                                    setProjectDropTarget((current) =>
+                                        projectDropTargetsEqual(current, target) ? current : target,
+                                    );
+                                }}
+                                onDrop={(event) => {
+                                    if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE))
+                                        return;
+                                    event.preventDefault();
+                                    const draggedId =
+                                        event.dataTransfer.getData(PROJECT_DRAG_TYPE) ||
+                                        draggedProjectId;
+                                    const target = projectDropEdge(event, project.id);
+                                    setDraggedProjectId(undefined);
+                                    setProjectDropTarget(undefined);
+                                    if (!draggedId || !target) return;
+                                    const reordered = projectOrderAfterDrop(
+                                        projects.map((item) => item.id),
+                                        draggedId,
+                                        target.projectId,
+                                        target.edge,
+                                    );
+                                    const draggedProject = projects.find(
+                                        (item) => item.id === draggedId,
+                                    );
+                                    if (draggedProject)
+                                        commitProjectOrder(
+                                            reordered,
+                                            draggedProject.id,
+                                            draggedProject.displayTitle,
+                                        );
+                                }}
                                 onDragStart={(event) => {
                                     event.dataTransfer.effectAllowed = 'move';
                                     event.dataTransfer.setData(PROJECT_DRAG_TYPE, project.id);

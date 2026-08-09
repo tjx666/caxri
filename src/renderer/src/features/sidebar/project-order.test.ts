@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { adjacentProjectOrder, projectOrderAfterDrop } from './project-order';
+import {
+    adjacentProjectOrder,
+    projectDropTargetsEqual,
+    projectOrderAfterDrop,
+} from './project-order';
 
 describe('Project ordering', () => {
     it('inserts a dragged Project before or after the target without dropping ids', () => {
@@ -18,5 +22,21 @@ describe('Project ordering', () => {
         expect(adjacentProjectOrder(['a', 'b', 'c'], 'b', 1)).toEqual(['a', 'c', 'b']);
         expect(adjacentProjectOrder(['a', 'b'], 'a', -1)).toBeUndefined();
         expect(adjacentProjectOrder(['a', 'b'], 'b', 1)).toBeUndefined();
+    });
+
+    it('treats repeated dragover positions as the same target', () => {
+        expect(
+            projectDropTargetsEqual(
+                { edge: 'before', projectId: 'a' },
+                { edge: 'before', projectId: 'a' },
+            ),
+        ).toBe(true);
+        expect(
+            projectDropTargetsEqual(
+                { edge: 'before', projectId: 'a' },
+                { edge: 'after', projectId: 'a' },
+            ),
+        ).toBe(false);
+        expect(projectDropTargetsEqual(undefined, undefined)).toBe(true);
     });
 });

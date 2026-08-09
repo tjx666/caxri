@@ -34,6 +34,13 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
         const title = root.split('/').at(-1)!;
         insert.run(`project-${orderIndex}`, root, title, orderIndex, orderIndex, orderIndex);
     });
+    database
+        .prepare(
+            `INSERT INTO sessions
+             (id, project_id, created_at, last_opened_at, display_title)
+             VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run('session-0', 'project-0', 0, 0, 'Alpha Session');
     database.pragma('user_version = 10');
     database.close();
 }
@@ -70,8 +77,30 @@ test('Project drag ordering shows feedback and persists across reload', async ()
                     dataTransfer: transfer,
                 }),
             );
+            const session = target.querySelector<HTMLElement>('[data-session-id="session-0"]');
+            if (!session) throw new Error('Project Session drag fixture not found');
+            const bounds = session.getBoundingClientRect();
+            session.dispatchEvent(
+                new DragEvent('dragover', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientY: bounds.top + bounds.height / 2,
+                    dataTransfer: transfer,
+                }),
+            );
+        });
+
+        await expect(running.page.locator('.project-drop-marker')).toHaveCount(0);
+
+        await running.page.evaluate(() => {
+            const targetHeading = document.querySelector<HTMLElement>(
+                '.project-heading[data-project-id="project-0"]',
+            );
+            const transfer = (window as unknown as { projectDragTransfer?: DataTransfer })
+                .projectDragTransfer;
+            if (!targetHeading || !transfer) throw new Error('Project drag target not found');
             const bounds = targetHeading.getBoundingClientRect();
-            target.dispatchEvent(
+            targetHeading.dispatchEvent(
                 new DragEvent('dragover', {
                     bubbles: true,
                     cancelable: true,
@@ -92,16 +121,14 @@ test('Project drag ordering shows feedback and persists across reload', async ()
         );
 
         await running.page.evaluate(() => {
-            const target = document.querySelector<HTMLElement>(
-                '.project-group[data-project-id="project-0"]',
+            const targetHeading = document.querySelector<HTMLElement>(
+                '.project-heading[data-project-id="project-0"]',
             );
-            const targetHeading = target?.querySelector<HTMLElement>('.project-heading');
             const transfer = (window as unknown as { projectDragTransfer?: DataTransfer })
                 .projectDragTransfer;
-            if (!target || !targetHeading || !transfer)
-                throw new Error('Project drop fixtures not found');
+            if (!targetHeading || !transfer) throw new Error('Project drop fixtures not found');
             const bounds = targetHeading.getBoundingClientRect();
-            target.dispatchEvent(
+            targetHeading.dispatchEvent(
                 new DragEvent('drop', {
                     bubbles: true,
                     cancelable: true,
