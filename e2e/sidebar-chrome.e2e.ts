@@ -130,9 +130,30 @@ test('Session inline rename validates input and survives Renderer reload', async
         await expect(card.locator('strong')).toHaveText('Shell');
         await expect(card).toBeFocused();
 
+        await card.dblclick();
+        const blurInput = card.getByRole('textbox', { name: 'Rename Shell' });
+        await blurInput.fill('Blurred investigation');
+        const filesTab = running.page.getByRole('button', { name: 'Files', exact: true });
+        await filesTab.click();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
+        await expect(filesTab).toBeFocused();
+
+        await card.dblclick();
+        const emptyBlurInput = card.getByRole('textbox', {
+            name: 'Rename Blurred investigation',
+        });
+        await emptyBlurInput.fill('   ');
+        await filesTab.click();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
+        await expect(filesTab).toBeFocused();
+
         await card.focus();
         await card.press('Enter');
-        const keyboardInput = card.getByRole('textbox', { name: 'Rename Shell' });
+        const keyboardInput = card.getByRole('textbox', {
+            name: 'Rename Blurred investigation',
+        });
         await keyboardInput.fill('Manual investigation');
         await keyboardInput.press('Enter');
         await expect(card.locator('strong')).toHaveText('Manual investigation');

@@ -53,8 +53,9 @@ const sessionCardClassName =
 interface ActiveSessionRowProps {
     focusRenameInput: (element: HTMLInputElement | null) => void;
     onBeginRename: () => void;
+    onBlurRename: () => void;
     onCancelRename: () => void;
-    onCommitRename: () => Promise<void>;
+    onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
     renameError?: string;
     renameValue: string;
@@ -67,6 +68,7 @@ interface ActiveSessionRowProps {
 function ActiveSessionRow({
     focusRenameInput,
     onBeginRename,
+    onBlurRename,
     onCancelRename,
     onCommitRename,
     onRenameValueChange,
@@ -130,13 +132,14 @@ function ActiveSessionRow({
                             aria-invalid={Boolean(renameError)}
                             aria-describedby={renameError ? renameErrorId : undefined}
                             value={renameValue}
+                            onBlur={onBlurRename}
                             onChange={(event) => onRenameValueChange(event.target.value)}
                             onClick={(event) => event.stopPropagation()}
                             onDoubleClick={(event) => event.stopPropagation()}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter') {
                                     event.preventDefault();
-                                    void onCommitRename();
+                                    onCommitRename();
                                 } else if (event.key === 'Escape') {
                                     event.preventDefault();
                                     onCancelRename();
@@ -232,6 +235,7 @@ export function ProjectSidebar() {
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
+    const renamingSessionIdRef = useRef<string | undefined>(undefined);
     const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
@@ -248,26 +252,50 @@ export function ProjectSidebar() {
     }, [renamingSessionId, sessions]);
 
     const beginRename = (sessionId: string, displayTitle: string): void => {
+        renamingSessionIdRef.current = sessionId;
         setRenamingSessionId(sessionId);
         setRenameValue(displayTitle);
         setRenameError(undefined);
     };
 
-    const cancelRename = (): void => {
-        const sessionId = renamingSessionId;
-        restoreFocusSessionIdRef.current = sessionId;
-        setRenamingSessionId(undefined);
+    /**
+     * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately
+     * skips focus restoration so the control the user clicked keeps focus.
+     */
+    const finishRename = (sessionId: string, restoreFocus: boolean): void => {
+        if (renamingSessionIdRef.current !== sessionId) return;
+        renamingSessionIdRef.current = undefined;
+        if (restoreFocus) restoreFocusSessionIdRef.current = sessionId;
+        setRenamingSessionId((current) => (current === sessionId ? undefined : current));
         setRenameError(undefined);
     };
 
-    const commitRename = async (): Promise<void> => {
-        if (!renamingSessionId) return;
+    const cancelRename = (): void => {
+        const sessionId = renamingSessionIdRef.current;
+        if (sessionId) finishRename(sessionId, true);
+    };
+
+    const commitRename = (): void => {
+        const sessionId = renamingSessionIdRef.current;
+        if (!sessionId) return;
         const displayTitle = renameValue.trim();
         if (!displayTitle) {
             setRenameError('Session name is required');
             return;
         }
-        if (await renameSession(renamingSessionId, displayTitle)) cancelRename();
+        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
+        finishRename(sessionId, true);
+        if (displayTitle !== currentTitle) void renameSession(sessionId, displayTitle);
+    };
+
+    const blurRename = (): void => {
+        const sessionId = renamingSessionIdRef.current;
+        if (!sessionId) return;
+        const displayTitle = renameValue.trim();
+        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
+        finishRename(sessionId, false);
+        if (displayTitle && displayTitle !== currentTitle)
+            void renameSession(sessionId, displayTitle);
     };
 
     const toggleProject = (projectId: string): void => {
@@ -398,6 +426,7 @@ export function ProjectSidebar() {
                                                 onBeginRename={() =>
                                                     beginRename(session.id, session.displayTitle)
                                                 }
+                                                onBlurRename={blurRename}
                                                 onCancelRename={cancelRename}
                                                 onCommitRename={commitRename}
                                                 onRenameValueChange={(value) => {
