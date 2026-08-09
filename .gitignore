@@ -8,6 +8,7 @@ dist/
 test-results/
 playwright-report/
 coverage/
+.records/
 *.tsbuildinfo
 *.log
 .DS_Store

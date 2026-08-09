@@ -37,9 +37,17 @@ Detailed playbooks live under `.agents/skills/`; their descriptions define when 
 `.claude/skills` is a compatibility symlink to the same canonical directory. Use the skills for
 step-by-step workflows beyond this summary.
 
+- Treat `$go` as an explicit, manual authorization for the project-local long-running delivery
+  workflow. It may create or update in-scope GitHub issues, commit and push the working branch,
+  create and update a PR, publish LobeHub Acceptance rounds, merge the accepted PR, and close its
+  issues. It does not authorize destructive data operations, releases, secrets, account changes,
+  or unrelated work.
+- Caxri Acceptance has one product surface: isolated macOS Electron desktop. Command output and
+  focused tests are supporting evidence only.
 - Treat "quick deep review" and "快速 deep-review" as quick mode: use one clean-context reviewer
   and root-agent synthesis. Run the full multi-agent workflow only for an explicit `$deep-review`,
-  "full deep review", or "full multi-agent review" request.
+  "full deep review", "full multi-agent review", or the final aggregate-review phase of an explicit
+  `$go` run.
 - When an authorized implementation exposes an obvious, narrow workflow defect in `AGENTS.md` or a
   repository skill, fix it directly in the same change instead of stopping for another approval.
   This does not authorize pushing, publishing, posting, closing issues, or other remote mutations.
