@@ -11,12 +11,12 @@ export function Inspector() {
     const ActiveComponent = activePanel.Component;
     return (
         <aside className="inspector min-w-0 flex min-h-0 flex-col bg-surface">
-            <div className="inspector-tabs grid grid-cols-4 min-h-9 border-b border-border">
+            <div className="inspector-tabs grid h-11 grid-cols-4 items-end border-b border-border [&>div]:h-9">
                 {inspectorPanels.map(({ id, title, icon: Icon, commandId }) => (
                     <CommandTooltip key={id} commandId={commandId}>
                         <button
                             className={cn(
-                                'flex items-center justify-center gap-1 border-0 border-b-2 border-transparent bg-surface text-muted text-[11px] cursor-pointer hover:text-foreground',
+                                'flex h-9 items-center justify-center gap-1 border-0 border-b-2 border-transparent bg-surface text-muted text-[11px] cursor-pointer hover:text-foreground',
                                 mode === id && 'active border-indicator text-foreground',
                             )}
                             aria-label={title}

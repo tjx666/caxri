@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { agentProviderIds, type AgentProvider } from '../agents';
+import {
+    agentProviderIds,
+    type AgentLaunchSettings,
+    type AgentProvider,
+    type AgentProviderSettings,
+} from '../agents';
 import { inspectorModeSchema } from '../inspector';
 import { workItemSchema } from '../work-item';
 import { terminalLayoutSchema } from './layout';
@@ -19,6 +24,7 @@ const agentActivityStateSchema = z.enum([
     'idle',
     'unknown',
 ]);
+const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
     'starting',
@@ -31,6 +37,7 @@ const processStateSchema = z.enum([
 
 export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
+export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
 export type { InspectorMode } from '../inspector';
@@ -57,6 +64,8 @@ export const sessionRecordSchema = z.object({
     lastActivityState: agentActivityStateSchema,
     layoutVersion: z.number(),
     displayTitle: z.string(),
+    /** Automatic titles follow the primary Agent; manual titles are owned by the user. */
+    titleMode: sessionTitleModeSchema,
 });
 
 export const terminalRecordSchema = z.object({
@@ -128,8 +137,18 @@ export const DEFAULT_FILES_EXCLUDE = {
     '**/Thumbs.db': true,
 } as const;
 
+const agentLaunchSettingsSchema: z.ZodType<AgentLaunchSettings> = z.object({
+    executable: z.string(),
+    args: z.array(z.string()),
+});
+
+const agentProviderSettingsSchema: z.ZodType<Record<AgentProvider, AgentProviderSettings>> =
+    z.record(agentProviderSchema, z.object({ launch: agentLaunchSettingsSchema }));
+
 export const appSettingsSchema = z.object({
     'session.defaultAgent': terminalKindSchema.nullable(),
+    'agents.providers': agentProviderSettingsSchema,
+    'terminal.defaultWorkingDirectory': z.string().nullable(),
     'terminal.fontSize': z.number(),
     'terminal.scrollback': z.number(),
     'files.exclude': z.record(z.string(), z.boolean()),

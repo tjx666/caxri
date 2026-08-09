@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
+import type { ThemeTokens } from '../src/shared/types.ts';
+
 import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -131,6 +133,85 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await restoredFirstTab.hover();
         await restoredFirstTab.locator('.tab-close').click();
         await expect(running.page.locator('.terminal-group')).toHaveCount(1);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Terminal scrollbar is flush while the terminal-colored inset keeps text clear', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        const activeTheme = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
+        const contrastingTheme = structuredClone(activeTheme.value);
+        contrastingTheme.colors.background = '#101820';
+        contrastingTheme.terminal.background = '#304050';
+        await pageRequest(running.page, 'theme.update', {
+            source: JSON.stringify(contrastingTheme),
+        });
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.terminal-pane')
+                    .first()
+                    .evaluate((pane) => {
+                        const viewport = pane.querySelector('.xterm-scrollable-element');
+                        if (!viewport) throw new Error('Terminal viewport is unavailable');
+                        return {
+                            inset: getComputedStyle(pane).backgroundColor,
+                            viewport: getComputedStyle(viewport).backgroundColor,
+                        };
+                    }),
+            )
+            .toEqual({ inset: 'rgb(48, 64, 80)', viewport: 'rgb(48, 64, 80)' });
+
+        const terminalIds = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals.map((terminal) => terminal.id);
+        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        const secondTerminalId = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals.find((terminal) => !terminalIds.includes(terminal.id))!.id;
+        await splitTerminalToRight(running.page, secondTerminalId);
+        await expect(running.page.locator('.terminal-pane')).toHaveCount(2);
+
+        for (const width of [1_160, 1_300]) {
+            await running.page.setViewportSize({ width, height: 800 });
+            await running.page.evaluate(
+                () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+            );
+            const geometry = await running.page.locator('.terminal-pane').evaluateAll((panes) => {
+                return panes.map((pane) => {
+                    const paneBounds = pane.getBoundingClientRect();
+                    const screen = pane.querySelector('.xterm-screen')?.getBoundingClientRect();
+                    const scrollbar = pane
+                        .querySelector('.xterm-scrollable-element > .scrollbar.vertical')
+                        ?.getBoundingClientRect();
+                    if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
+                    return {
+                        edgeGap: paneBounds.right - scrollbar.right,
+                        textGutter: scrollbar.left - screen.right,
+                    };
+                });
+            });
+
+            for (const [index, pane] of geometry.entries()) {
+                expect(
+                    Math.abs(pane.edgeGap),
+                    `viewport width ${width}px, pane ${index}`,
+                ).toBeLessThanOrEqual(1);
+                expect(
+                    pane.textGutter,
+                    `viewport width ${width}px, pane ${index}`,
+                ).toBeGreaterThanOrEqual(4);
+            }
+        }
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

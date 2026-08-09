@@ -1,6 +1,7 @@
 # Deep Review workflow
 
-Run this workflow only for explicit deep mode. Review stays read-only throughout.
+Run this workflow only for explicit full deep mode. A quick deep review uses the single-reviewer
+workflow in `SKILL.md`. Review stays read-only throughout.
 
 ## Runtime contract
 
@@ -60,7 +61,8 @@ When a reviewer completes:
    bun run .agents/skills/deep-review/scripts/validate-output.ts review
    ```
 
-   Pass the response on stdin or via a task-scoped temporary file.
+   Write the response to a task-scoped temporary file and pass it to stdin. Validate immediately so
+   malformed output never enters later prompts or manual interpretation.
 
 2. Retry invalid output once with the validation error. If the retry also fails, record missing
    coverage for that group instead of interpreting malformed prose.
@@ -72,7 +74,7 @@ When a reviewer completes:
 
 When a verifier completes:
 
-1. Validate with `validate-output.ts verify`.
+1. Validate with `validate-output.ts verify` from a task-scoped temporary file.
 2. Require each input id exactly once and reject invented ids.
 3. Retry invalid or incomplete ids once with the exact validation problem.
 4. Apply valid severity, likelihood, nature, exposure, and fix-option overrides.

@@ -78,6 +78,15 @@ export function unarchiveSession(sessionId: string): void {
     );
 }
 
+export async function renameSession(sessionId: string, displayTitle: string): Promise<boolean> {
+    const renamed = await tryCommand(
+        'Session rename failed',
+        () => caxri.request('session.rename', { sessionId, displayTitle }),
+        { refresh: true },
+    );
+    return renamed !== undefined;
+}
+
 /**
  * The directory-picker grant is a single-use Main-process authorization, so abandoning the Agent
  * choice must revoke it instead of leaving the root reachable.

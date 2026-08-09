@@ -1,8 +1,9 @@
 # Releasing Caxri
 
-Caxri currently publishes an unsigned Apple Silicon DMG for personal use. A normal commit runs CI
-only; a commit whose subject is exactly `release: v<package-version>` also runs the macOS release
-workflow and creates the matching Git tag and GitHub Release.
+Caxri currently publishes an unsigned Apple Silicon DMG for personal use. A normal commit runs the
+platform-neutral CI checks only. A commit whose subject is exactly
+`release: v<package-version>` also runs the full macOS E2E suite; after that CI succeeds, the macOS
+release workflow creates the matching Git tag and GitHub Release.
 
 ## Create a release
 
@@ -23,10 +24,11 @@ git commit -m "release: v${version}"
 git push origin main
 ```
 
-The workflow rejects a release when the commit subject and package version differ or when the tag
-already exists. It runs the full CI gates, builds an arm64 DMG, launches the packaged application
-through the startup benchmark, verifies the disk image, writes a SHA-256 checksum, and publishes
-both files to GitHub Releases.
+CI rejects the release path unless its platform-neutral gates and full macOS E2E suite pass. The
+downstream workflow then rejects a release when the commit subject and package version differ or
+when the tag already exists. It builds an arm64 DMG, launches the packaged application through the
+startup benchmark, verifies the disk image, writes a SHA-256 checksum, and publishes both files to
+GitHub Releases without repeating the CI gates.
 
 ## Current distribution boundary
 

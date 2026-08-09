@@ -7,6 +7,17 @@ export const agentProviderIds = ['claude', 'codex'] as const;
 
 export type AgentProvider = (typeof agentProviderIds)[number];
 
+export interface AgentLaunchSettings {
+    /** Executable name or absolute path resolved by the Runtime without invoking a shell command. */
+    executable: string;
+    /** Structured arguments prepended to provider-owned resume arguments. */
+    args: string[];
+}
+
+export interface AgentProviderSettings {
+    launch: AgentLaunchSettings;
+}
+
 /** Display and executable metadata for one Agent provider. */
 export interface AgentProviderCatalogEntry {
     /** Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog). */
@@ -33,3 +44,16 @@ export const agentProviderCatalog = {
         resumeArguments: (agentSessionId) => ['resume', agentSessionId],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
+
+/** Provider-scoped defaults keep future CLI-specific settings under the provider they configure. */
+export const defaultAgentProviderSettings = Object.fromEntries(
+    agentProviderIds.map((provider) => [
+        provider,
+        {
+            launch: {
+                executable: agentProviderCatalog[provider].executableName,
+                args: [],
+            },
+        },
+    ]),
+) as unknown as Record<AgentProvider, AgentProviderSettings>;

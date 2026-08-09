@@ -4,7 +4,12 @@ import { asc, eq } from 'drizzle-orm';
 
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
-import type { AgentActivityState, SessionRecord, SessionState } from '../../../shared/types';
+import type {
+    AgentActivityState,
+    SessionRecord,
+    SessionState,
+    SessionTitleMode,
+} from '../../../shared/types';
 import {
     CURRENT_SESSION_STATE_VERSION,
     projects,
@@ -25,6 +30,7 @@ const sessionSelection = {
     lastActivityState: sessions.lastActivityState,
     layoutVersion: sessions.layoutVersion,
     displayTitle: sessions.displayTitle,
+    titleMode: sessions.titleMode,
 };
 
 interface SessionJoinRow {
@@ -38,6 +44,7 @@ interface SessionJoinRow {
     lastActivityState: string;
     layoutVersion: number;
     displayTitle: string;
+    titleMode: string;
 }
 
 function mapSession(row: SessionJoinRow): SessionRecord {
@@ -52,6 +59,7 @@ function mapSession(row: SessionJoinRow): SessionRecord {
         lastActivityState: row.lastActivityState as AgentActivityState,
         layoutVersion: row.layoutVersion,
         displayTitle: row.displayTitle,
+        titleMode: row.titleMode as SessionTitleMode,
     };
 }
 
@@ -179,6 +187,7 @@ export class SessionsModel {
                 lastActivityState: 'idle',
                 layoutVersion: DEFAULT_LAYOUT_VERSION,
                 displayTitle: input.displayTitle,
+                titleMode: 'automatic',
             })
             .run();
         return this.get(id)!;
@@ -233,6 +242,16 @@ export class SessionsModel {
             .set({ displayTitle, lastActivityState })
             .where(eq(sessions.id, id))
             .run();
+    }
+
+    rename(id: string, displayTitle: string): boolean {
+        return (
+            this.db
+                .update(sessions)
+                .set({ displayTitle, titleMode: 'manual' })
+                .where(eq(sessions.id, id))
+                .run().changes === 1
+        );
     }
 
     setActivityStateByPrimaryTerminal(

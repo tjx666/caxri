@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: Multi-dimensional, evidence-first review of Caxri pull requests, branches, commits, diffs, and uncommitted changes. Use for ordinary review requests in light mode and for an explicit `$deep-review`, "deep review", or "full multi-agent review" request in deep mode. Covers Electron process ownership, typed IPC, local-file and PTY security, persisted state and recovery, performance, packaged-runtime compatibility, UX, tests, and GitHub readiness. Do not use for explain-only questions about what a change does.
+description: Multi-dimensional, evidence-first review of Caxri pull requests, branches, commits, diffs, and uncommitted changes. Use ordinary review requests in light mode, "quick deep review" or "快速 deep-review" requests in quick mode, and only explicit `$deep-review`, "full deep review", or "full multi-agent review" requests in deep mode. Covers Electron process ownership, typed IPC, local-file and PTY security, persisted state and recovery, performance, packaged-runtime compatibility, UX, tests, and GitHub readiness. Do not use for explain-only questions about what a change does.
 ---
 
 # Deep Review
@@ -25,12 +25,14 @@ the user separately authorizes that action after the report.
 
 ## Entry modes
 
-| Mode  | Trigger                                                              | Execution                                                                                                 |
-| ----- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Light | Ordinary review requests                                             | Main agent applies the applicable quick checklists inline; no subagents.                                  |
-| Deep  | Explicit `$deep-review`, "deep review", or "full multi-agent review" | Independent dimension reviewers, independent verification, global deduplication, and a structured report. |
+| Mode  | Trigger                                                                          | Execution                                                                                                 |
+| ----- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Light | Ordinary review requests                                                         | Main agent applies the applicable quick checklists inline; no subagents.                                  |
+| Quick | "quick deep review", "快速 deep-review", or an equivalent explicit quick request | One clean-context reviewer covers the applicable dimensions; the main agent validates and synthesizes.    |
+| Deep  | Explicit `$deep-review`, "full deep review", or "full multi-agent review"        | Independent dimension reviewers, independent verification, global deduplication, and a structured report. |
 
-Do not silently escalate light mode to deep mode.
+Do not silently escalate light or quick mode to deep mode. The bare phrase "deep review" is not a
+full-workflow trigger unless the user explicitly requests the full or multi-agent workflow.
 
 ## Dimensions
 
@@ -89,6 +91,15 @@ When this session implemented the change under review, do not run the checklist 
 own implementation context: dispatch one clean-context subagent with the light-mode instructions
 and scope, then apply its findings with your own judgment. This guards against self-review bias
 and is not an escalation to deep mode.
+
+## Quick mode
+
+1. Follow light-mode scoping and pruning.
+2. Dispatch exactly one clean-context reviewer with the exact scope and every applicable dimension
+   quick checklist. The reviewer returns only evidence-backed findings and missing context.
+3. Validate each candidate against the current source and tests, then synthesize the concise report.
+4. Do not add independent verifiers or a consolidation agent. Escalate to deep mode only when the
+   user explicitly requests the full workflow.
 
 ## Deep mode
 

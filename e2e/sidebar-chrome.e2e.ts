@@ -13,11 +13,12 @@ import {
     pageRequest,
     selectedSessionId,
     sessionCard,
+    waitForRuntimeReady,
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
-test('sidebar titlebar aligns the Caxri logo with native traffic lights', async () => {
+test('sidebar is logo-free and reveals Add Project on hover or focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -26,28 +27,183 @@ test('sidebar titlebar aligns the Caxri logo with native traffic lights', async 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         const titlebar = running.page.locator('.sidebar-title');
-        const logo = titlebar.locator('[data-caxri-logo]');
-        await expect(logo).toBeVisible();
-        await expect(titlebar.getByRole('button', { name: 'Add Project' })).toBeVisible();
+        const addProject = titlebar.getByRole('button', { name: 'Add Project' });
+        await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
+        await expect(addProject).toHaveCSS('opacity', '0');
+        await expect(addProject).toHaveCSS('pointer-events', 'none');
         const titlebarMetrics = await titlebar.evaluate((element) => {
-            const logoBounds = element.querySelector('[data-caxri-logo]')!.getBoundingClientRect();
             const titlebarBounds = element.getBoundingClientRect();
             return {
                 appRegion: getComputedStyle(element).getPropertyValue('-webkit-app-region'),
                 height: titlebarBounds.height,
-                logoCenterY: logoBounds.top + logoBounds.height / 2,
-                titlebarCenterY: titlebarBounds.top + titlebarBounds.height / 2,
             };
         });
         expect(titlebarMetrics).toMatchObject({ appRegion: 'drag', height: 44 });
+
+        await running.page.locator('.project-list').hover({ position: { x: 20, y: 100 } });
+        await expect(addProject).toHaveCSS('opacity', '1');
+        await expect(addProject).toHaveCSS('pointer-events', 'auto');
+        await running.page.mouse.move(500, 300);
+        await expect(addProject).toHaveCSS('opacity', '0');
+        await expect(addProject).toHaveCSS('pointer-events', 'none');
+
+        await titlebar.hover({ position: { x: 90, y: 22 } });
+        await expect(addProject).toHaveCSS('opacity', '1');
+        await expect(addProject).toHaveCSS('pointer-events', 'auto');
         expect(
-            Math.abs(titlebarMetrics.logoCenterY - titlebarMetrics.titlebarCenterY),
-        ).toBeLessThanOrEqual(0.5);
+            await addProject.evaluate((element) =>
+                getComputedStyle(element).getPropertyValue('-webkit-app-region'),
+            ),
+        ).toBe('no-drag');
+        await running.page.mouse.move(500, 300);
+        await addProject.focus();
+        await expect(addProject).toHaveCSS('opacity', '1');
         expect(
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.getWindowButtonPosition(),
             ),
         ).toEqual({ x: 15, y: 15 });
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('active and inactive Project navigation keeps full contrast', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-sidebar-contrast-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        await createAdditionalShellSession(running.page);
+        const cards = running.page.locator('.session-card');
+        await expect(cards).toHaveCount(2);
+        const colors = await Promise.all([
+            running.page
+                .locator('.project-heading')
+                .evaluate((element) => getComputedStyle(element).color),
+            cards.nth(0).evaluate((element) => getComputedStyle(element).color),
+            cards.nth(1).evaluate((element) => getComputedStyle(element).color),
+        ]);
+        expect(new Set(colors).size).toBe(1);
+        const backgrounds = await Promise.all([
+            cards.nth(0).evaluate((element) => getComputedStyle(element).backgroundColor),
+            cards.nth(1).evaluate((element) => getComputedStyle(element).backgroundColor),
+        ]);
+        expect(backgrounds[0]).not.toBe(backgrounds[1]);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Session inline rename validates input and survives Renderer reload', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const sessionId = await selectedSessionId(running.page);
+        const card = sessionCard(running.page, sessionId);
+        await card.dblclick();
+        const input = card.getByRole('textbox', { name: 'Rename Shell' });
+        await expect(input).toBeFocused();
+        expect(
+            await input.evaluate((element) => ({
+                end: (element as HTMLInputElement).selectionEnd,
+                start: (element as HTMLInputElement).selectionStart,
+                value: (element as HTMLInputElement).value,
+            })),
+        ).toEqual({ end: 5, start: 0, value: 'Shell' });
+
+        await input.fill('   ');
+        await input.press('Enter');
+        await expect(input).toHaveAttribute('aria-invalid', 'true');
+        await expect(card.getByRole('alert')).toHaveText('Session name is required');
+        await input.press('Escape');
+        await expect(card.locator('strong')).toHaveText('Shell');
+        await expect(card).toBeFocused();
+
+        await card.dblclick();
+        const blurInput = card.getByRole('textbox', { name: 'Rename Shell' });
+        await blurInput.fill('Blurred investigation');
+        const filesTab = running.page.getByRole('button', { name: 'Files', exact: true });
+        await filesTab.click();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
+        await expect(filesTab).toBeFocused();
+
+        await card.dblclick();
+        const emptyBlurInput = card.getByRole('textbox', {
+            name: 'Rename Blurred investigation',
+        });
+        await emptyBlurInput.fill('   ');
+        await filesTab.click();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
+        await expect(filesTab).toBeFocused();
+
+        await card.focus();
+        await card.press('Enter');
+        const keyboardInput = card.getByRole('textbox', {
+            name: 'Rename Blurred investigation',
+        });
+        await keyboardInput.fill('Manual investigation');
+        await keyboardInput.press('Enter');
+        await expect(card.locator('strong')).toHaveText('Manual investigation');
+        await expect(card).toBeFocused();
+        const state = await pageRequest<{
+            sessions: Array<{ displayTitle: string; id: string; titleMode: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
+            displayTitle: 'Manual investigation',
+            titleMode: 'manual',
+        });
+
+        await running.page.reload();
+        await waitForRuntimeReady(running.page);
+        await expect(sessionCard(running.page, sessionId).locator('strong')).toHaveText(
+            'Manual investigation',
+        );
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Session rows support keyboard selection independently from rename', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-keyboard-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const firstSessionId = await selectedSessionId(running.page);
+        await createAdditionalShellSession(running.page);
+        const secondSessionId = await selectedSessionId(running.page);
+        expect(secondSessionId).not.toBe(firstSessionId);
+
+        const firstCard = sessionCard(running.page, firstSessionId);
+        const newSession = running.page.getByRole('button', {
+            name: 'New Session in project',
+        });
+        await newSession.focus();
+        await running.page.keyboard.press('Tab');
+        await expect(firstCard).toBeFocused();
+        expect(await firstCard.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
+            'none',
+        );
+        await firstCard.press('Space');
+        await expect(firstCard).toHaveClass(/active/);
+        expect(await selectedSessionId(running.page)).toBe(firstSessionId);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -152,6 +308,27 @@ test('work tabs leave a draggable titlebar and keep New Terminal beside the last
         expect(Math.abs(metrics[2].left - metrics[1].right)).toBeLessThanOrEqual(1);
         expect(metrics[0].right - metrics[2].right).toBeGreaterThan(100);
         await expect(running.page.getByRole('button', { name: 'Split Terminal' })).toHaveCount(0);
+
+        const alignedBottoms = async (...selectors: string[]) =>
+            Promise.all(
+                selectors.map((selector) =>
+                    running.page
+                        .locator(selector)
+                        .evaluate((element) => element.getBoundingClientRect().bottom),
+                ),
+            );
+        const assertAligned = (values: number[]): void => {
+            expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(1);
+        };
+        assertAligned(await alignedBottoms('.sidebar-title', '.work-tabs', '.inspector-tabs'));
+        await running.page.keyboard.press('Meta+[');
+        assertAligned(
+            await alignedBottoms('.collapsed-sidebar-titlebar', '.work-tabs', '.inspector-tabs'),
+        );
+        await running.page.keyboard.press('Meta+[');
+        await running.page.keyboard.press('Meta+]');
+        assertAligned(await alignedBottoms('.sidebar-title', '.work-tabs'));
+        await running.page.keyboard.press('Meta+]');
 
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
         await newTerminal.hover();

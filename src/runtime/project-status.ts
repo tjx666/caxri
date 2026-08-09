@@ -16,6 +16,7 @@ import type {
     ProjectStatusSummary,
 } from '../shared/types';
 import type { GitService } from './git';
+import { resolveRuntimeExecutable, runtimeProcessEnvironment } from './executables';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);
@@ -33,6 +34,28 @@ export type ProjectStatusRunner = (
     args: readonly string[],
     cwd: string,
 ) => Promise<string>;
+
+type RunProjectStatusFile = (
+    executable: string,
+    args: string[],
+    options: {
+        cwd: string;
+        timeout: number;
+        maxBuffer: number;
+        env: NodeJS.ProcessEnv;
+    },
+) => Promise<{ stdout: string }>;
+
+export interface ProjectStatusCommandDependencies {
+    environment?: () => Promise<NodeJS.ProcessEnv>;
+    resolveExecutable?: (name: string) => Promise<string | undefined>;
+    run?: RunProjectStatusFile;
+}
+
+const runProjectStatusFile: RunProjectStatusFile = async (executable, args, options) => {
+    const { stdout } = await execFileAsync(executable, args, options);
+    return { stdout };
+};
 
 class ProjectStatusCliError extends Error {
     constructor(
@@ -680,17 +703,28 @@ function vcListArgs(
     return args;
 }
 
-async function runProjectStatusCommand(
+export async function runProjectStatusCommand(
     command: ProjectStatusCommand,
     args: readonly string[],
     cwd: string,
+    dependencies: ProjectStatusCommandDependencies = {},
 ): Promise<string> {
     try {
-        const { stdout } = await execFileAsync(command, [...args], {
+        const resolveExecutable = dependencies.resolveExecutable ?? resolveRuntimeExecutable;
+        const readEnvironment = dependencies.environment ?? runtimeProcessEnvironment;
+        const run = dependencies.run ?? runProjectStatusFile;
+        const executable = command === 'git' ? command : await resolveExecutable(command);
+        if (!executable) {
+            const missing = new Error(`${command} was not found`) as NodeJS.ErrnoException;
+            missing.code = 'ENOENT';
+            throw missing;
+        }
+        const environment = command === 'git' ? safeProcessEnvironment() : await readEnvironment();
+        const { stdout } = await run(executable, [...args], {
             cwd,
             timeout: CLI_TIMEOUT_MS,
             maxBuffer: CLI_MAX_BUFFER_BYTES,
-            env: { ...safeProcessEnvironment(), CI: '1', LC_ALL: 'C' },
+            env: { ...environment, CI: '1', LC_ALL: 'C' },
         });
         return stdout;
     } catch (error) {

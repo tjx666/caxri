@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { launchCaxri, pageRequest, selectedSessionId } from './helpers.ts';
+import { launchCaxri, openAddProjectDialog, pageRequest, selectedSessionId } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const execFileAsync = promisify(execFile);
@@ -29,7 +29,7 @@ test('Agent identities stay consistent across every shared surface', async () =>
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(running.page);
         const createDialog = running.page.getByRole('dialog');
         await expect(createDialog.locator('[data-agent-icon="claude"]')).toBeVisible();
         await expect(createDialog.locator('[data-agent-icon="codex"]')).toBeVisible();

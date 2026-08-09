@@ -26,6 +26,42 @@ afterEach(async () => {
 });
 
 describe('AgentCoordinator', () => {
+    it('correlates Agent metadata against the persisted Terminal cwd', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-cwd-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        const terminalRoot = join(directory, 'terminal');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(
+            database.createProject(projectRoot).id,
+            'codex',
+            terminalRoot,
+        );
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.probeTerminal(created.terminal.id);
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalled());
+            expect(snapshot.mock.calls[0]?.[0].rootPath).toBe(terminalRoot);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it.each(['claude', 'codex'] as const)(
         'promotes a Shell Terminal after a direct %s command creates Agent metadata',
         async (provider) => {

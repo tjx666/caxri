@@ -127,13 +127,20 @@ export async function createProjectSession(
     page: Page,
     kind: 'shell' | 'codex' = 'shell',
 ): Promise<void> {
-    await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+    await openAddProjectDialog(page);
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page
         .getByRole('dialog')
         .getByRole('button', { name: kind === 'shell' ? 'Shell' : 'Codex', exact: true })
         .click();
     await expect(page.locator('.session-card')).toHaveCount(1);
+}
+
+/** Reveals the quiet titlebar action before activating it, matching pointer use at rest. */
+export async function openAddProjectDialog(page: Page): Promise<void> {
+    const titlebar = page.locator('.sidebar-title');
+    await titlebar.hover({ position: { x: 90, y: 22 } });
+    await titlebar.getByRole('button', { name: 'Add Project', exact: true }).click();
 }
 
 export async function createShellSession(page: Page): Promise<void> {

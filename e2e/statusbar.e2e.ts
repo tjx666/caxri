@@ -16,6 +16,7 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
     const root = join(testDirectory, 'status-project');
     const bin = join(testDirectory, 'bin');
     const gh = join(bin, 'gh');
+    const loginShell = join(testDirectory, 'login-shell');
     const ghCalls = join(testDirectory, 'gh-calls');
     await execFileAsync('mkdir', ['-p', root, bin]);
     await writeFile(
@@ -24,6 +25,18 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
         'utf8',
     );
     await chmod(gh, 0o755);
+    await writeFile(
+        loginShell,
+        `#!/bin/sh
+if [ "$1" = "-lic" ]; then
+  printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
+  exit 0
+fi
+exec /bin/zsh -l
+`,
+        'utf8',
+    );
+    await chmod(loginShell, 0o755);
     await execFileAsync('git', ['init', '-b', 'feature/status-bar'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
@@ -42,14 +55,17 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
     const running = await launchCaxri({
         userDataDir: userData,
         testRootPath: root,
-        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+        env: { PATH: '/usr/bin:/bin', SHELL: loginShell },
     });
     try {
         await createProjectSession(running.page);
         await expect(running.page.locator('.statusbar-count')).toHaveCount(0);
         await expect(running.page.locator('.statusbar-toggle')).toHaveCount(0);
         await expect(running.page.getByLabel(/^Terminal memory: [\d.]+ MB$/)).toBeVisible();
-        await expect(running.page.getByLabel(/^Terminal \d+ child processes?$/)).toBeVisible();
+        const childProcesses = running.page.getByLabel(/^Terminal: \d+ child processes?$/);
+        await expect(childProcesses).toBeVisible();
+        await expect(childProcesses).toHaveText(/^\d+$/);
+        await expect(childProcesses).toHaveAttribute('title', /^Terminal: \d+ child processes?$/);
         const project = running.page.getByRole('button', {
             name: 'Open project files: status-project',
         });
