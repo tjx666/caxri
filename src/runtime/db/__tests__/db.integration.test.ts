@@ -192,6 +192,14 @@ describe('CaxriDb', () => {
         const databasePath = join(directory, 'state.db');
         const previous = new CaxriDb(databasePath);
         const project = previous.projects.create(directory);
+        const oldestProject = previous.projects.create(join(directory, 'oldest'));
+        const middleProject = previous.projects.create(join(directory, 'middle'));
+        const setCreatedAt = previous.database.prepare(
+            'UPDATE projects SET created_at = ? WHERE id = ?',
+        );
+        setCreatedAt.run(300, project.id);
+        setCreatedAt.run(100, oldestProject.id);
+        setCreatedAt.run(200, middleProject.id);
         const session = previous.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
         const terminal = previous.terminals.insert({
             sessionId: session.id,
@@ -220,7 +228,11 @@ describe('CaxriDb', () => {
 
         const upgraded = new CaxriDb(databasePath);
 
-        expect(upgraded.projects.get(project.id)).toMatchObject({ id: project.id, orderIndex: 0 });
+        expect(upgraded.projects.list()).toEqual([
+            expect.objectContaining({ id: oldestProject.id, orderIndex: 0 }),
+            expect.objectContaining({ id: middleProject.id, orderIndex: 1 }),
+            expect.objectContaining({ id: project.id, orderIndex: 2 }),
+        ]);
         expect(upgraded.sessions.get(session.id)).toMatchObject({
             id: session.id,
             displayTitle: 'Shell',
