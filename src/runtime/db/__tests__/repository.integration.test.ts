@@ -30,6 +30,26 @@ async function tempDir(prefix: string): Promise<string> {
  * pure-decision behavior lives in `../../session-policy.test.ts`.
  */
 describe('CaxriDatabase', () => {
+    it.each([
+        ['shell', 'Shell'],
+        ['claude', 'Claude Code'],
+        ['codex', 'Codex'],
+    ] as const)(
+        'starts a new %s Session as Untitled with a provider-specific Terminal title',
+        async (kind, terminalTitle) => {
+            const directory = await tempDir(`caxri-db-untitled-${kind}-`);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, kind);
+
+            expect(created.session).toMatchObject({
+                displayTitle: 'Untitled',
+                titleMode: 'automatic',
+            });
+            expect(created.terminal.title).toBe(terminalTitle);
+            database.close();
+        },
+    );
+
     it('persists manual Session title ownership across metadata resets and reopen', async () => {
         const directory = await tempDir('caxri-db-session-rename-');
         const databasePath = join(directory, 'state.db');
@@ -268,7 +288,7 @@ describe('CaxriDatabase', () => {
             updatedAt: restartedAt,
         });
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Codex',
+            displayTitle: 'Implement Agent metadata',
             lastActivityState: 'running',
         });
         database.close();
@@ -284,7 +304,7 @@ describe('CaxriDatabase', () => {
         const claude = database.createTerminal(created.session.id, 'claude');
 
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Codex',
+            displayTitle: 'Untitled',
             primaryAgentTerminalId: codex.id,
         });
         database.updateAgentMetadata(codex.id, {

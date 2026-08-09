@@ -80,7 +80,8 @@ done
     try {
         await openAddProjectDialog(page);
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
-        await expect(page.locator('.session-card strong')).toHaveText('Codex');
+        await expect(page.locator('.session-card strong')).toHaveText('Untitled');
+        await expect(page.getByRole('tab', { name: 'Codex', exact: true })).toBeVisible();
 
         const input = page.locator('.xterm-helper-textarea');
         await input.focus();
@@ -163,7 +164,8 @@ exec -a claude /bin/zsh -c 'while :; do printf "tick\\n"; sleep 1; done'
     });
     try {
         await createShellSession(page);
-        await expect(page.locator('.session-card strong')).toHaveText('Shell');
+        await expect(page.locator('.session-card strong')).toHaveText('Untitled');
+        await expect(page.getByRole('tab', { name: 'Shell', exact: true })).toBeVisible();
 
         await typeTerminal(page, 'ccy');
 
