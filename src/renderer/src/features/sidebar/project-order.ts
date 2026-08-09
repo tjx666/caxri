@@ -2,6 +2,19 @@ export const PROJECT_DRAG_TYPE = 'application/x-caxri-project';
 
 export type ProjectDropEdge = 'after' | 'before';
 
+export interface ProjectDropTarget {
+    edge: ProjectDropEdge;
+    projectId: string;
+}
+
+/** Lets high-frequency dragover events retain React state when the visible insertion point is unchanged. */
+export function projectDropTargetsEqual(
+    first: ProjectDropTarget | undefined,
+    second: ProjectDropTarget | undefined,
+): boolean {
+    return first?.edge === second?.edge && first?.projectId === second?.projectId;
+}
+
 /** Returns the complete Project permutation produced by one before/after insertion. */
 export function projectOrderAfterDrop(
     projectIds: readonly string[],
