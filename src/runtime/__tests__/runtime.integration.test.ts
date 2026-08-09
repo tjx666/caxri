@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 
-import type { IPty } from 'node-pty';
+import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
@@ -32,6 +32,185 @@ afterEach(async () => {
 });
 
 describe('Runtime composition root', () => {
+    it('applies provider settings through Runtime composition to a new Agent Terminal', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-agent-settings-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const runtime = await createRuntime({
+            userDataPath: join(directory, 'user-data'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: {
+                agentEnvironment: () =>
+                    Promise.resolve({ HOME: directory, PATH: '/login/bin:/usr/bin' }),
+                spawn,
+            },
+            agentAdapters: fakeAgentAdapters(),
+        });
+
+        try {
+            const currentSettings = await runtime.handlers['settings.get']({});
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'agents.providers': {
+                        ...currentSettings.value['agents.providers'],
+                        codex: {
+                            launch: {
+                                executable: '/bin/echo',
+                                args: ['--profile', 'focused'],
+                            },
+                        },
+                    },
+                }),
+            });
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'codex',
+            });
+            const canonicalProjectRoot = await realpath(projectRoot);
+
+            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/echo');
+            expect(spawn.mock.calls[0]?.[1]).toEqual(['--profile', 'focused']);
+            expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cwd: canonicalProjectRoot });
+            expect(spawn.mock.calls[0]?.[2].env).toMatchObject({
+                PATH: '/login/bin:/usr/bin',
+            });
+        } finally {
+            await runtime.close();
+        }
+    });
+
+    it('applies the configured cwd only to new Terminals and preserves recorded cwd on restart', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-cwd-'));
+        const homeDirectory = await mkdtemp(join(homedir(), '.caxri-runtime-cwd-'));
+        temporaryDirectories.push(directory, homeDirectory);
+        const projectRoot = join(directory, 'project');
+        const customRoot = join(directory, 'custom');
+        const changedRoot = join(directory, 'changed');
+        await Promise.all([mkdir(projectRoot), mkdir(customRoot), mkdir(changedRoot)]);
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const runtime = await createRuntime({
+            userDataPath: join(directory, 'user-data'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn,
+            },
+        });
+
+        try {
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            const original = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+            });
+            expect(original.terminal.cwd).toBe(project.rootPath);
+
+            const currentSettings = await runtime.handlers['settings.get']({});
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'terminal.defaultWorkingDirectory': customRoot,
+                }),
+            });
+            const customized = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+            });
+            const additional = await runtime.handlers['terminal.create']({
+                sessionId: customized.session.id,
+                kind: 'shell',
+            });
+            const canonicalCustomRoot = await realpath(customRoot);
+            expect(customized.terminal.cwd).toBe(canonicalCustomRoot);
+            expect(additional.cwd).toBe(canonicalCustomRoot);
+
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'terminal.defaultWorkingDirectory': changedRoot,
+                }),
+            });
+            await runtime.handlers['terminal.restart']({ terminalId: additional.id });
+            expect(spawn.mock.calls.at(-1)?.[2]).toMatchObject({ cwd: canonicalCustomRoot });
+
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'terminal.defaultWorkingDirectory': `~/${basename(homeDirectory)}`,
+                }),
+            });
+            const homeTerminal = await runtime.handlers['terminal.create']({
+                sessionId: customized.session.id,
+                kind: 'shell',
+            });
+            expect(homeTerminal.cwd).toBe(homeDirectory);
+
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'terminal.defaultWorkingDirectory': join(directory, 'missing'),
+                }),
+            });
+            const spawnCount = spawn.mock.calls.length;
+            await expect(
+                runtime.handlers['terminal.create']({
+                    sessionId: customized.session.id,
+                    kind: 'shell',
+                }),
+            ).rejects.toMatchObject({ code: 'IO' });
+            expect(spawn).toHaveBeenCalledTimes(spawnCount);
+        } finally {
+            await runtime.close();
+        }
+    });
+
+    it('renames a Session through typed Runtime IPC and persists manual ownership', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-session-rename-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const runtime = await createRuntime({
+            userDataPath: join(directory, 'user-data'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: () => createFakePty(),
+            },
+        });
+
+        try {
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            const created = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+            });
+            expect(
+                runtime.handlers['session.rename']({
+                    sessionId: created.session.id,
+                    displayTitle: '  Focused investigation  ',
+                }),
+            ).toMatchObject({
+                displayTitle: 'Focused investigation',
+                titleMode: 'manual',
+            });
+            expect(() =>
+                runtime.handlers['session.rename']({
+                    sessionId: created.session.id,
+                    displayTitle: '   ',
+                }),
+            ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+        } finally {
+            await runtime.close();
+        }
+    });
+
     it('serves a Project, Session, and Files workflow through the handler table', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-'));
         temporaryDirectories.push(directory);

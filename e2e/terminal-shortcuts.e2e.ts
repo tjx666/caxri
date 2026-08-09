@@ -1,12 +1,18 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
+import {
+    createProjectSession,
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    splitTerminalToRight,
+} from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -92,6 +98,74 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('AFTER_CLEAR');
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-input-shortcuts-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const bin = join(testDirectory, 'bin');
+    const executable = join(bin, 'codex');
+    await Promise.all([mkdir(root), mkdir(bin)]);
+    await writeFile(
+        executable,
+        `#!${process.execPath}
+if (process.argv[2] === '--version') {
+  process.stdout.write('codex-test 1.0\\n');
+  process.exit(0);
+}
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdout.write('FAKE_CODEX_READY\\r\\n');
+process.stdin.on('data', (chunk) => {
+  process.stdout.write(\`INPUT_HEX:\${chunk.toString('hex')}\\r\\n\`);
+});
+`,
+        'utf8',
+    );
+    await chmod(executable, 0o700);
+
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+    });
+    try {
+        await createProjectSession(running.page, 'codex');
+        const input = running.page.locator('.xterm-helper-textarea');
+        const rows = running.page.locator('.xterm-rows');
+        await expect(rows).toContainText('FAKE_CODEX_READY');
+        await input.focus();
+
+        await input.press('Shift+Enter');
+        await expect(rows).toContainText('INPUT_HEX:1b0d');
+        await input.press('Meta+ArrowLeft');
+        await expect(rows).toContainText('INPUT_HEX:01');
+        expect(await rows.textContent()).not.toContain('INPUT_HEX:1b0dINPUT_HEX:0d');
+        await input.press('Meta+ArrowRight');
+        await expect(rows).toContainText('INPUT_HEX:05');
+
+        await running.app.evaluate(({ clipboard, nativeImage }) => {
+            clipboard.clear();
+            const image = nativeImage.createFromBuffer(
+                Buffer.from(
+                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+                    'base64',
+                ),
+            );
+            if (image.isEmpty()) throw new Error('Image clipboard fixture is empty');
+            clipboard.writeImage(image);
+        });
+        await input.press('Meta+V');
+        await expect(rows).toContainText('INPUT_HEX:16');
+
+        await running.app.evaluate(({ clipboard }) => clipboard.writeText('TEXT_PASTE'));
+        await input.press('Meta+V');
+        await expect(rows).toContainText('INPUT_HEX:544558545f5041535445');
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

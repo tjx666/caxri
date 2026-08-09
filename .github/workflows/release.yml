@@ -1,7 +1,9 @@
 name: Release macOS
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
 
 concurrency:
@@ -10,7 +12,13 @@ concurrency:
 
 jobs:
   release:
-    if: "${{ startsWith(github.event.head_commit.message, 'release: v') }}"
+    # CI already owns every quality gate and the full macOS E2E suite. Wait for that workflow so
+    # release commits consume one E2E runner instead of executing the same suite twice.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      startsWith(github.event.workflow_run.display_title, 'release: v')
     runs-on: macos-15
     timeout-minutes: 60
     permissions:
@@ -19,6 +27,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -28,9 +37,9 @@ jobs:
       - name: Validate release commit
         id: release
         env:
-          RELEASE_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          RELEASE_COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          subject="${RELEASE_COMMIT_MESSAGE%%$'\n'*}"
+          subject="$(git show -s --format=%s "$RELEASE_COMMIT_SHA")"
           version="$(node -p "require('./package.json').version")"
           tag="v${version}"
           expected="release: ${tag}"
@@ -47,16 +56,6 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
-      - name: Run release gates
-        run: |
-          bun run lint
-          bun run knip
-          bun run doctor
-          bun run typecheck
-          bun run format:check
-          bun run format:md:check
-          bun run test
-          bun run test:e2e
 
       - name: Package unsigned Apple Silicon DMG
         env:
@@ -67,9 +66,10 @@ jobs:
         env:
           CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
+          CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/Caxri.app/Contents/MacOS/Caxri
         run: |
           file "$CAXRI_BENCHMARK_EXECUTABLE" | grep -q 'arm64'
-          bunx playwright test e2e/startup.performance.e2e.ts --reporter=line
+          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line
 
       - name: Verify release artifact
         id: artifact
@@ -92,13 +92,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
           RELEASE_DMG: ${{ steps.artifact.outputs.dmg }}
           RELEASE_CHECKSUM: ${{ steps.artifact.outputs.checksum }}
         run: |
           gh release create "$RELEASE_TAG" \
             "$RELEASE_DMG" \
             "$RELEASE_CHECKSUM" \
-            --target "$GITHUB_SHA" \
+            --target "$RELEASE_TARGET_SHA" \
             --title "Caxri ${RELEASE_TAG}" \
             --generate-notes \
             --fail-on-no-commits

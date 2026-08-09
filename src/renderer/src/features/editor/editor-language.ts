@@ -25,6 +25,12 @@ function modelFilename(path: string): string {
     }
 }
 
+export interface EditorLanguageRegistration {
+    id: string;
+    extensions?: readonly string[];
+    filenames?: readonly string[];
+}
+
 /**
  * Selects syntax for configuration files on Caxri's custom model URI. Dotenv stays explicit because
  * Monaco filename inference is not reliable while a cold editor and custom language initialize.
@@ -36,4 +42,37 @@ export function resolveEditorLanguage(path: string): string | undefined {
     if (ignoreFilenames.has(filename) || filename.endsWith('.ignore')) return IGNORE_LANGUAGE_ID;
     if (/^\.[^.]+rc$/.test(filename)) return RC_LANGUAGE_ID;
     return undefined;
+}
+
+/**
+ * Resolves Monaco's built-in language registrations for wrappers that otherwise force an unknown
+ * `text` language instead of inferring from the model URI. Exact filenames win, followed by the
+ * longest matching extension so compound suffixes remain deterministic.
+ */
+export function resolveRegisteredEditorLanguage(
+    path: string,
+    registrations: readonly EditorLanguageRegistration[],
+): string | undefined {
+    const explicit = resolveEditorLanguage(path);
+    if (explicit) return explicit;
+    const filename = modelFilename(path);
+    const filenameMatch = registrations.find((registration) =>
+        registration.filenames?.some((candidate) => candidate.toLowerCase() === filename),
+    );
+    if (filenameMatch) return filenameMatch.id;
+    let matchedLanguage: string | undefined;
+    let matchedExtensionLength = -1;
+    for (const registration of registrations) {
+        for (const extension of registration.extensions ?? []) {
+            const normalizedExtension = extension.toLowerCase();
+            if (
+                filename.endsWith(normalizedExtension) &&
+                normalizedExtension.length > matchedExtensionLength
+            ) {
+                matchedLanguage = registration.id;
+                matchedExtensionLength = normalizedExtension.length;
+            }
+        }
+    }
+    return matchedLanguage;
 }

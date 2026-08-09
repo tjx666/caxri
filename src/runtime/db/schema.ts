@@ -31,6 +31,7 @@ export const sessions = sqliteTable(
         lastActivityState: text('last_activity_state').notNull().default('idle'),
         layoutVersion: integer('layout_version').notNull().default(DEFAULT_LAYOUT_VERSION),
         displayTitle: text('display_title').notNull(),
+        titleMode: text('title_mode').notNull().default('automatic'),
     },
     (table) => [
         index('sessions_project_activity').on(table.projectId, sql`${table.lastOpenedAt} DESC`),

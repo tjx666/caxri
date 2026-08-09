@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveEditorLanguage } from './editor-language';
+import { resolveEditorLanguage, resolveRegisteredEditorLanguage } from './editor-language';
 
 describe('resolveEditorLanguage', () => {
     it.each(['.gitignore', '.prettierignore', '.dockerignore', '.npmignore', 'local.ignore'])(
@@ -43,5 +43,43 @@ describe('resolveEditorLanguage', () => {
         expect(resolveEditorLanguage('caxri://session/session-1/project/space%20name.ignore')).toBe(
             'ignore',
         );
+    });
+});
+
+describe('resolveRegisteredEditorLanguage', () => {
+    const registrations = [
+        { id: 'typescript', extensions: ['.ts', '.tsx'] },
+        { id: 'dockerfile', filenames: ['Dockerfile'] },
+        { id: 'templated-typescript', extensions: ['.generated.ts'] },
+    ];
+
+    it('resolves built-in Monaco languages for custom diff model URIs', () => {
+        expect(
+            resolveRegisteredEditorLanguage(
+                'caxri://git-diff/session/repository/modified/src/App.tsx',
+                registrations,
+            ),
+        ).toBe('typescript');
+        expect(
+            resolveRegisteredEditorLanguage(
+                'caxri://git-diff/session/repository/modified/Dockerfile',
+                registrations,
+            ),
+        ).toBe('dockerfile');
+    });
+
+    it('prefers custom language rules and the longest registered extension', () => {
+        expect(
+            resolveRegisteredEditorLanguage(
+                'caxri://git-diff/session/repository/modified/.env.local',
+                registrations,
+            ),
+        ).toBe('caxri-dotenv');
+        expect(
+            resolveRegisteredEditorLanguage(
+                'caxri://git-diff/session/repository/modified/schema.generated.ts',
+                registrations,
+            ),
+        ).toBe('templated-typescript');
     });
 });

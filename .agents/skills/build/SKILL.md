@@ -12,3 +12,5 @@ description: Build Caxri's Electron Main, CommonJS sandboxed Preload, Renderer, 
 5. Run `bun run package` when validating native modules inside the unsigned macOS app.
 
 Keep Renderer Node-free and do not replace the CommonJS preload output without revalidating the sandboxed packaged app.
+Keep successful build output compact: retain full output in a task-scoped log when needed, report the
+phase and artifact checks, and surface the complete log only on failure.

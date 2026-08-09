@@ -41,6 +41,7 @@ export {
     type ProjectStatusSummary,
     type ProjectRecord,
     type SessionRecord,
+    type SessionTitleMode,
     type SessionState,
     type TerminalKind,
     type TerminalRecord,

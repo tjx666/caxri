@@ -297,7 +297,7 @@ export class AgentCoordinator {
                 agentSessionId: terminal.agentSessionId,
                 correlationId: terminal.id,
                 excludedAgentSessionIds,
-                rootPath: session.rootPath,
+                rootPath: terminal.cwd,
                 processState: terminal.lastProcessState,
                 startedAt: this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
             });
@@ -341,7 +341,7 @@ export class AgentCoordinator {
                 provider,
                 terminal.id,
             ),
-            rootPath: session.rootPath,
+            rootPath: terminal.cwd,
             processState: terminal.lastProcessState,
             startedAt: candidate.startedAt,
         });

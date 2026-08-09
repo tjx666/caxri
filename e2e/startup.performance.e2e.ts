@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test, type ElectronApplication } from '@playwright/test';
 
-import { launchCaxriApp, waitForRuntimeReady } from './helpers.ts';
+import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
@@ -57,7 +57,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await waitForRuntimeReady(page);
         const runtimeReadyMs = performance.now() - launchedAt;
 
-        await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(page);
         const shellButton = page
             .getByRole('dialog')
             .getByRole('button', { name: 'Shell', exact: true });

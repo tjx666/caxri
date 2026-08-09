@@ -1,5 +1,10 @@
 import type { StructuredLogger } from '../../shared/node/logger';
-import { agentProviderIds, type AgentProvider } from '../../shared/agents';
+import {
+    agentProviderCatalog,
+    agentProviderIds,
+    type AgentLaunchSettings,
+    type AgentProvider,
+} from '../../shared/agents';
 import type { AgentSnapshot } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import {
@@ -21,13 +26,17 @@ export interface AgentAdapter {
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
 }
 
-function createCliAdapter(provider: AgentProvider, environment: AgentEnvironment): AgentAdapter {
+function createCliAdapter(
+    provider: AgentProvider,
+    environment: AgentEnvironment,
+    launchSettings: () => AgentLaunchSettings,
+): AgentAdapter {
     return {
         provider,
         async snapshot(context): Promise<AgentSnapshot> {
             const observedAt = Date.now();
             const [executable, localState] = await Promise.all([
-                discoverExecutable(provider),
+                discoverExecutable(provider, launchSettings().executable),
                 agentProviders[provider].readState(context, environment),
             ]);
             const version = executable ? await readVersion(provider, executable) : undefined;
@@ -48,9 +57,17 @@ function createCliAdapter(provider: AgentProvider, environment: AgentEnvironment
 
 export function createLocalAgentAdapters(
     environment: AgentEnvironment = defaultAgentEnvironment(),
+    launchSettings?: (provider: AgentProvider) => AgentLaunchSettings,
 ): Record<AgentProvider, AgentAdapter> {
     return Object.fromEntries(
-        agentProviderIds.map((provider) => [provider, createCliAdapter(provider, environment)]),
+        agentProviderIds.map((provider) => [
+            provider,
+            createCliAdapter(provider, environment, () =>
+                launchSettings
+                    ? launchSettings(provider)
+                    : { executable: agentProviderCatalog[provider].executableName, args: [] },
+            ),
+        ]),
     ) as Record<AgentProvider, AgentAdapter>;
 }
 

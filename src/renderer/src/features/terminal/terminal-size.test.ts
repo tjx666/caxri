@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { terminalSizeChanged } from './terminal-size';
+import { terminalSizeChanged, terminalSizeWithScrollbarGutter } from './terminal-size';
+
+describe('Terminal scrollbar gutter', () => {
+    it('reserves one text column without dropping below xterm minimum dimensions', () => {
+        expect(terminalSizeWithScrollbarGutter(undefined)).toBeUndefined();
+        expect(terminalSizeWithScrollbarGutter({ cols: 100, rows: 30 })).toEqual({
+            cols: 99,
+            rows: 30,
+        });
+        expect(terminalSizeWithScrollbarGutter({ cols: 2, rows: 1 })).toEqual({
+            cols: 2,
+            rows: 1,
+        });
+    });
+});
 
 describe('Terminal resize deduplication', () => {
     it('suppresses an unchanged grid while preserving either dimension change', () => {

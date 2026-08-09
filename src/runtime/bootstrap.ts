@@ -1,5 +1,7 @@
-import { realpath } from 'node:fs/promises';
-import { join } from 'node:path';
+import { constants } from 'node:fs';
+import { access, realpath, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 
 import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
@@ -13,7 +15,7 @@ import type {
     TerminalRecord,
 } from '../shared/types';
 import { AgentCoordinator } from './agents/coordinator';
-import { AgentService, type AgentAdapter } from './agents/service';
+import { AgentService, createLocalAgentAdapters, type AgentAdapter } from './agents/service';
 import { ConfigurationService } from './configuration';
 import { CURRENT_SCHEMA_VERSION } from './db';
 import { CaxriDatabase } from './db/repository';
@@ -95,7 +97,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
         },
     );
-    const agents = new AgentService(logger, deps.agentAdapters);
+    const agentLaunchSettings = (provider: AgentProvider) =>
+        configuration.getSettings().value['agents.providers'][provider].launch;
+    const agents = new AgentService(
+        logger,
+        deps.agentAdapters ?? createLocalAgentAdapters(undefined, agentLaunchSettings),
+    );
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
         refreshDelayMs: deps.agentRefreshDelayMs,
     });
@@ -114,7 +121,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 );
         },
         logger,
-        deps.terminal,
+        {
+            ...deps.terminal,
+            agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
+        },
     );
     const terminalRestores = new TerminalRestoreSupervisor();
     const git = new GitService(new ProjectRootResolver(database), logger);
@@ -170,11 +180,42 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         return database.getAppState<string | null>('lastSelectedSessionId') ?? undefined;
     }
 
+    async function terminalWorkingDirectory(projectRoot: string): Promise<string> {
+        const configured = configuration.getSettings().value['terminal.defaultWorkingDirectory'];
+        if (!configured) return projectRoot;
+        const expanded =
+            configured === '~'
+                ? homedir()
+                : configured.startsWith('~/')
+                  ? join(homedir(), configured.slice(2))
+                  : configured;
+        if (!isAbsolute(expanded))
+            throw new CaxriError(
+                'VALIDATION',
+                'Terminal default working directory must be absolute or start with ~',
+            );
+        try {
+            const canonical = await realpath(expanded);
+            if (!(await stat(canonical)).isDirectory())
+                throw new Error('Configured path is not a directory');
+            await access(canonical, constants.X_OK);
+            return canonical;
+        } catch (error) {
+            throw new CaxriError(
+                'IO',
+                `Terminal default working directory is unavailable: ${String(error)}`,
+            );
+        }
+    }
+
     async function createAndStartTerminal(
         sessionId: string,
         kind: TerminalKind,
     ): Promise<TerminalRecord> {
-        const terminal = database.createTerminal(sessionId, kind);
+        const session = database.getSession(sessionId);
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const cwd = await terminalWorkingDirectory(session.rootPath);
+        const terminal = database.createTerminal(sessionId, kind, cwd);
         coordinator.prepareTerminalStart(terminal.id);
         try {
             return await terminals.start(terminal);
@@ -298,7 +339,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return bootstrapState();
         },
         'session.create': async ({ projectId, defaultAgent }) => {
-            const created = database.createSession(projectId, defaultAgent);
+            const project = database.getProject(projectId);
+            if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
+            const cwd = await terminalWorkingDirectory(project.rootPath);
+            const created = database.createSession(projectId, defaultAgent, cwd);
             coordinator.prepareTerminalStart(created.terminal.id);
             try {
                 await terminals.start(created.terminal);
@@ -323,6 +367,14 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             coordinator.probeSessionPrimaryAgent(sessionId);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
             return database.getSession(sessionId)!;
+        },
+        'session.rename': ({ sessionId, displayTitle }) => {
+            const session = database.renameSession(sessionId, displayTitle);
+            send({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
+            });
+            return session;
         },
         'session.archive': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);

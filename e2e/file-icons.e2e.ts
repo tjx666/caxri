@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { launchCaxri } from './helpers.ts';
+import { launchCaxri, openAddProjectDialog } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -24,7 +24,7 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await running.page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(running.page);
         await running.page.getByRole('dialog').getByRole('button', { name: 'Shell' }).click();
 
         await expect(running.page.locator('[data-file-icon="folder-github"]')).toBeVisible();

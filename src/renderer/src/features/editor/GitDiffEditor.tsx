@@ -5,9 +5,11 @@ import { gitDiffModelPath, type GitDiffTab } from '@shared/git-diff';
 import type { GitDiffDocument, GitFileStatus } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
+import { resolveRegisteredEditorLanguage } from './editor-language';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -70,6 +72,12 @@ function DiffSurface({
     );
     if (!theme) return null;
     const modelRepositoryId = `${source}:${repositoryId}`;
+    const registrations = monaco.languages.getLanguages();
+    const originalLanguage = resolveRegisteredEditorLanguage(
+        document.originalPath ?? document.path,
+        registrations,
+    );
+    const modifiedLanguage = resolveRegisteredEditorLanguage(document.path, registrations);
     if (document.format === 'patch')
         return (
             <Editor
@@ -93,6 +101,8 @@ function DiffSurface({
         <DiffEditor
             original={document.original}
             modified={document.modified}
+            originalLanguage={originalLanguage}
+            modifiedLanguage={modifiedLanguage}
             originalModelPath={gitDiffModelPath(
                 sessionId,
                 modelRepositoryId,

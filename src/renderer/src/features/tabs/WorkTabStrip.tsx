@@ -125,7 +125,7 @@ export function WorkTabStrip() {
     return (
         <div
             className={cn(
-                'work-tabs flex min-h-9 overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag]',
+                'work-tabs flex h-11 items-end overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag] [&>.work-tab]:h-9',
                 !sidebarVisible && 'pl-[78px]',
             )}
             role="tablist"
@@ -146,7 +146,7 @@ export function WorkTabStrip() {
                     preview={tab.preview}
                 />
             ))}
-            <div className="tab-actions flex flex-none items-center px-1 bg-surface [-webkit-app-region:no-drag]">
+            <div className="tab-actions flex h-9 flex-none items-center px-1 bg-surface [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
                     <Button
                         size="icon"

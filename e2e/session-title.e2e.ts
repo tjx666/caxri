@@ -6,7 +6,13 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
-import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    openAddProjectDialog,
+    pageRequest,
+    typeTerminal,
+} from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -55,7 +61,7 @@ fi
 printf 'Fake Codex ready\\n'
 while IFS= read -r line; do
   now_ms="$(date +%s)999"
-  /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', 'hello', $now_ms, $now_ms, 0, 0);"
+  /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '[Image #1] hello', $now_ms, $now_ms, 0, 0);"
   printf 'received %s\\n' "$line"
 done
 `,
@@ -72,7 +78,7 @@ done
         },
     });
     try {
-        await page.getByRole('button', { name: 'Add Project', exact: true }).last().click();
+        await openAddProjectDialog(page);
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(page.locator('.session-card strong')).toHaveText('Codex');
 
@@ -95,6 +101,13 @@ done
         await expect(info).toContainText('current-agent-session');
         await expect(info).toContainText('Title source');
         await expect(info.getByText('PID', { exact: true })).toBeVisible();
+
+        await page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
+        await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await page.keyboard.press('Meta+W');
+        await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
+        await expect(page.locator('.session-card strong')).toHaveText('hello');
     } finally {
         await app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
