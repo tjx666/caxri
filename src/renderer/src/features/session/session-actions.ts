@@ -63,10 +63,8 @@ export function selectProject(projectId: string): void {
 }
 
 export async function reorderProject(projectId: string, targetIndex: number): Promise<boolean> {
-    const reordered = await tryCommand(
-        'Project reordering failed',
-        () => caxri.request('project.reorder', { projectId, targetIndex }),
-        { refresh: true },
+    const reordered = await tryCommand('Project reordering failed', () =>
+        caxri.request('project.reorder', { projectId, targetIndex }),
     );
     return reordered !== undefined;
 }
