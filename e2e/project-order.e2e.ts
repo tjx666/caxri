@@ -121,6 +121,24 @@ test('Project drag ordering shows feedback and persists across reload', async ()
         );
 
         await running.page.evaluate(() => {
+            const session = document.querySelector<HTMLElement>('[data-session-id="session-0"]');
+            const transfer = (window as unknown as { projectDragTransfer?: DataTransfer })
+                .projectDragTransfer;
+            if (!session || !transfer) throw new Error('Project Session drag fixture not found');
+            const bounds = session.getBoundingClientRect();
+            session.dispatchEvent(
+                new DragEvent('dragover', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientY: bounds.top + bounds.height / 2,
+                    dataTransfer: transfer,
+                }),
+            );
+        });
+
+        await expect(running.page.locator('.project-drop-marker')).toHaveCount(0);
+
+        await running.page.evaluate(() => {
             const targetHeading = document.querySelector<HTMLElement>(
                 '.project-heading[data-project-id="project-0"]',
             );
@@ -128,6 +146,14 @@ test('Project drag ordering shows feedback and persists across reload', async ()
                 .projectDragTransfer;
             if (!targetHeading || !transfer) throw new Error('Project drop fixtures not found');
             const bounds = targetHeading.getBoundingClientRect();
+            targetHeading.dispatchEvent(
+                new DragEvent('dragover', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientY: bounds.top + 1,
+                    dataTransfer: transfer,
+                }),
+            );
             targetHeading.dispatchEvent(
                 new DragEvent('drop', {
                     bubbles: true,
@@ -151,6 +177,35 @@ test('Project drag ordering shows feedback and persists across reload', async ()
         await expect.poll(projectTitles).toEqual(['alpha', 'gamma', 'beta']);
         await expect(running.page.locator('.project-order-announcement')).toContainText(
             'Moved gamma to position 2 of 3',
+        );
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('rapid keyboard Project moves preserve every intended step', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-order-keys-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const roots = ['alpha', 'beta', 'gamma'].map((name) => join(testDirectory, name));
+    await Promise.all([mkdir(userData), ...roots.map((root) => mkdir(root))]);
+    await seedProjects(join(userData, 'caxri.db'), roots);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: roots[0] });
+    const projectTitles = () => running.page.locator('.project-select strong').allTextContents();
+    try {
+        await expect.poll(projectTitles).toEqual(['alpha', 'beta', 'gamma']);
+        await running.page
+            .locator('.project-group[data-project-id="project-0"] .project-select')
+            .evaluate((element) => {
+                const options = { altKey: true, bubbles: true, key: 'ArrowDown' };
+                element.dispatchEvent(new KeyboardEvent('keydown', options));
+                element.dispatchEvent(new KeyboardEvent('keydown', options));
+            });
+
+        await expect.poll(projectTitles).toEqual(['beta', 'gamma', 'alpha']);
+        await expect(running.page.locator('.project-order-announcement')).toContainText(
+            'Moved alpha to position 3 of 3',
         );
     } finally {
         await running.app.close().catch(() => undefined);

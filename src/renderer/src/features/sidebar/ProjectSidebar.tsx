@@ -259,32 +259,46 @@ export function ProjectSidebar() {
     const [projectOrderAnnouncement, setProjectOrderAnnouncement] = useState('');
     const renamingSessionIdRef = useRef<string | undefined>(undefined);
     const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
+    const pendingProjectOrderRef = useRef<string[] | undefined>(undefined);
+    const projectOrderQueueRef = useRef(Promise.resolve());
+
+    /** Serializes reorder writes while retaining the latest keyboard intent between snapshots. */
+    const enqueueProjectOrder = (
+        projectIds: string[],
+        movedProjectId: string,
+        displayTitle: string,
+    ): void => {
+        pendingProjectOrderRef.current = projectIds;
+        const persist = async (): Promise<void> => {
+            try {
+                const reordered = await reorderProjects(projectIds);
+                if (!reordered) return;
+                setProjectOrderAnnouncement(
+                    `Moved ${displayTitle} to position ${projectIds.indexOf(movedProjectId) + 1} of ${projectIds.length}`,
+                );
+            } finally {
+                if (pendingProjectOrderRef.current === projectIds)
+                    pendingProjectOrderRef.current = undefined;
+            }
+        };
+        projectOrderQueueRef.current = projectOrderQueueRef.current.then(persist, persist);
+    };
 
     const commitProjectOrder = (
         projectIds: string[],
         movedProjectId: string,
         displayTitle: string,
     ): void => {
-        const currentIds = projects.map((project) => project.id);
+        const currentIds = pendingProjectOrderRef.current ?? projects.map((project) => project.id);
         if (projectIds.every((projectId, index) => projectId === currentIds[index])) return;
-        void reorderProjects(projectIds).then((reordered) => {
-            if (!reordered) return;
-            setProjectOrderAnnouncement(
-                `Moved ${displayTitle} to position ${projectIds.indexOf(movedProjectId) + 1} of ${projectIds.length}`,
-            );
-        });
+        enqueueProjectOrder(projectIds, movedProjectId, displayTitle);
     };
 
     const moveProject = (projectId: string, displayTitle: string, delta: -1 | 1): void => {
-        const projectIds = projects.map((project) => project.id);
+        const projectIds = pendingProjectOrderRef.current ?? projects.map((project) => project.id);
         const reordered = adjacentProjectOrder(projectIds, projectId, delta);
         if (!reordered) return;
-        void reorderProjects(reordered).then((moved) => {
-            if (!moved) return;
-            setProjectOrderAnnouncement(
-                `Moved ${displayTitle} to position ${reordered.indexOf(projectId) + 1} of ${reordered.length}`,
-            );
-        });
+        enqueueProjectOrder(reordered, projectId, displayTitle);
     };
 
     const projectDropEdge = (
@@ -399,7 +413,15 @@ export function ProjectSidebar() {
                     </Button>
                 </CommandTooltip>
             </div>
-            <div className="project-list min-h-0 flex-1 overflow-auto p-2">
+            <div
+                className="project-list min-h-0 flex-1 overflow-auto p-2"
+                onDragOver={(event) => {
+                    if (!event.dataTransfer.types.includes(PROJECT_DRAG_TYPE)) return;
+                    const target = event.target;
+                    if (!(target instanceof Element) || !target.closest('.project-heading'))
+                        setProjectDropTarget(undefined);
+                }}
+            >
                 {projects.map((project) => {
                     const projectSessions = sessions.filter(
                         (session) => session.projectId === project.id,
@@ -463,8 +485,11 @@ export function ProjectSidebar() {
                                     setDraggedProjectId(undefined);
                                     setProjectDropTarget(undefined);
                                     if (!draggedId || !target) return;
+                                    const currentOrder =
+                                        pendingProjectOrderRef.current ??
+                                        projects.map((item) => item.id);
                                     const reordered = projectOrderAfterDrop(
-                                        projects.map((item) => item.id),
+                                        currentOrder,
                                         draggedId,
                                         target.projectId,
                                         target.edge,

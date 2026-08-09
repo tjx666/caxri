@@ -123,7 +123,7 @@ export const methods = {
     },
     'project.reorder': {
         owner: 'runtime',
-        params: z.object({ projectIds: z.array(identifierSchema).max(128) }),
+        params: z.object({ projectIds: z.array(identifierSchema) }),
         result: z.array(projectRecordSchema),
     },
     'session.create': {
