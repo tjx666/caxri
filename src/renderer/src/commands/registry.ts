@@ -24,6 +24,7 @@ export interface CommandContext {
         openPathBrowser(): void;
     };
     windows: { openProcessExplorer(): void };
+    developer: { toggleScreencastMode(): void };
     diagnostics: { export(): void };
     updates: { check(): void };
 }

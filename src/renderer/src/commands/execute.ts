@@ -11,6 +11,7 @@ import {
     deleteSelectedSession,
     selectAdjacentSession,
 } from '../features/session/session-actions';
+import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     clearActiveTerminal,
     closeTerminal,
@@ -108,6 +109,7 @@ const commandContext: CommandContext = {
             );
         },
     },
+    developer: { toggleScreencastMode },
     diagnostics: {
         export: () => {
             void tryCommand('Diagnostics export failed', async () => {

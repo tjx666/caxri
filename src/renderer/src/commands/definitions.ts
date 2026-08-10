@@ -72,6 +72,9 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('processExplorer.open', (ctx) => ctx.windows.openProcessExplorer()),
+    fromCatalog('developer.toggleScreencastMode', (ctx) => ctx.developer.toggleScreencastMode(), {
+        allowInEditable: true,
+    }),
     fromCatalog('diagnostics.export', (ctx) => ctx.diagnostics.export()),
 ];
 

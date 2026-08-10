@@ -186,6 +186,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'help', group: 0, order: 0 },
     },
     {
+        id: 'developer.toggleScreencastMode',
+        title: 'Toggle Screencast Mode',
+        category: 'Developer',
+        description: 'Show clicks and Caxri shortcuts for external screen recording',
+    },
+    {
         id: 'diagnostics.export',
         title: 'Export Diagnostics',
         category: 'Help',
