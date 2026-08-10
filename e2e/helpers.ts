@@ -66,6 +66,27 @@ export interface LaunchCaxriOptions {
     executablePath?: string;
 }
 
+/** Waits for the asynchronous New Terminal action to become observable through Runtime state. */
+export async function waitForNewTerminalId(
+    page: Page,
+    existingIds: readonly string[],
+): Promise<string> {
+    let newTerminalId: string | undefined;
+    await expect
+        .poll(async () => {
+            const bootstrap = await pageRequest<{ terminals: Array<{ id: string }> }>(
+                page,
+                'app.bootstrap',
+            );
+            newTerminalId = bootstrap.terminals.find(
+                (terminal) => !existingIds.includes(terminal.id),
+            )?.id;
+            return newTerminalId;
+        })
+        .toBeTruthy();
+    return newTerminalId!;
+}
+
 /**
  * Launches the Caxri Electron app for e2e tests without waiting for the
  * Runtime to become ready. Most specs should use {@link launchCaxri} instead;

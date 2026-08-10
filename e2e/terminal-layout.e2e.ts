@@ -4,30 +4,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 import type { ThemeTokens } from '../src/shared/types.ts';
 
-import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    splitTerminalToRight,
+    waitForNewTerminalId,
+} from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
-
-async function waitForNewTerminalId(page: Page, existingIds: readonly string[]): Promise<string> {
-    let newTerminalId: string | undefined;
-    await expect
-        .poll(async () => {
-            const bootstrap = await pageRequest<{ terminals: Array<{ id: string }> }>(
-                page,
-                'app.bootstrap',
-            );
-            newTerminalId = bootstrap.terminals.find(
-                (terminal) => !existingIds.includes(terminal.id),
-            )?.id;
-            return newTerminalId;
-        })
-        .toBeTruthy();
-    return newTerminalId!;
-}
 
 test('Terminal split layout drags, resizes, restores, and preserves the live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));

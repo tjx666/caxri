@@ -459,7 +459,8 @@ test('archived Sessions reveal a Delete action on hover that removes the Session
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
         });
-        await archivedRow.hover();
+        await deleteButton.focus();
+        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
         await deleteButton.click();
 
         await expect(archivedRow).toHaveCount(0);
