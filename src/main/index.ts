@@ -342,6 +342,38 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
         case 'project.cancelCreate':
             grantedRoots.revoke(request.params.rootPath);
             return null;
+        case 'files.reveal': {
+            const item = await supervisor.request('files.authorizeOpen', request.params);
+            shell.showItemInFolder(item.path);
+            return null;
+        }
+        case 'files.trash': {
+            const item = await supervisor.request('files.authorizeTrash', request.params);
+            const result = await dialog.showMessageBox(mainWindow!, {
+                type: 'warning',
+                title: 'Move to Trash',
+                message: `Move '${item.name}' to the Trash?`,
+                detail: `${item.path}\n\nYou can recover this item from the Trash.`,
+                buttons: ['Move to Trash', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+            });
+            if (result.response !== 0) return { canceled: true };
+            /** Reauthorize after the native dialog so a replaced path cannot inherit approval. */
+            const current = await supervisor.request('files.authorizeTrash', request.params);
+            if (
+                current.path !== item.path ||
+                current.device !== item.device ||
+                current.inode !== item.inode ||
+                current.root.path !== item.root.path ||
+                current.root.device !== item.root.device ||
+                current.root.inode !== item.root.inode
+            )
+                throw new CaxriError('CONFLICT', 'File or folder changed before it reached Trash');
+            /** Electron's Trash API is path-based, so authorization is repeated immediately before it. */
+            await shell.trashItem(current.path);
+            return item;
+        }
         case 'project.delete': {
             const { projectId } = request.params;
             const state = await supervisor.request('app.bootstrap');

@@ -38,6 +38,11 @@ bun run .agents/skills/go/scripts/state.ts pr \
   --state "$STATE" --number 123 --url "https://github.com/..." \
   --status open --head-sha abc1234
 
+# Product P0/P1 must be zero to freeze the reviewed head.
+bun run .agents/skills/go/scripts/state.ts review \
+  --state "$STATE" --head-sha abc1234 --mode full \
+  --p0 0 --p1 0 --scope "Goal-range product review" --freeze
+
 # A required hosted check could not start because of external infrastructure.
 bun run .agents/skills/go/scripts/state.ts pr \
   --state "$STATE" --status checks_blocked --head-sha abc1234
@@ -110,7 +115,20 @@ event history.
 - Keep `pullRequest.status` as `checks_blocked` when local fallback passes. The
   ledger distinguishes substitute evidence from a green hosted check.
 - Recording a different PR head invalidates the current fallback admission and
-  results. Verify the replacement hosted run before considering a new fallback.
+  results plus its review freeze. Verify the replacement hosted run and record a
+  clean exact-head full, targeted, or eligible verification decision before
+  considering a new fallback.
+- Full Goal-range review decisions are limited to three per run. Record at most
+  one targeted P0/P1 repair verification after each full round; do not disguise
+  a full review as targeted. `--freeze` rejects any decision with a nonzero
+  product P0 or P1 count.
+- A `verification` decision is reserved for workflow, test-infrastructure,
+  evidence, or PR-metadata-only commits. It requires a prior full review, zero
+  product P0/P1, and `--freeze`; the ledger permits at most two per Go run.
+- The fallback admission command rejects an unfrozen or stale PR head. The
+  ledger retains full Electron E2E history across head changes and rejects a
+  third full run; a prior passing run can be repeated only after human
+  Acceptance rejected that delivered head.
 - Keep observations concise. Store raw logs and reports beside the ledger rather
   than inside it. Record observed repeated reads, oversized output, duplicate
   validation, or polling as `token_waste`; record reusable automation ideas as

@@ -6,17 +6,30 @@ export async function mapWithConcurrency<Input, Output>(
 ): Promise<Output[]> {
     if (inputs.length === 0) return [];
     const results = new Array<Output>(inputs.length);
+    let failed = false;
+    let failure: unknown;
     let nextIndex = 0;
     const worker = async (): Promise<void> => {
+        if (failed) return;
         const index = nextIndex;
         nextIndex += 1;
         if (index >= inputs.length) return;
-        results[index] = await map(inputs[index], index);
+        try {
+            results[index] = await map(inputs[index], index);
+        } catch (error) {
+            /** Stop claiming queued work, but drain already-started workers before rejecting. */
+            if (!failed) {
+                failed = true;
+                failure = error;
+            }
+            return;
+        }
         return worker();
     };
     await Promise.all(
         Array.from({ length: Math.min(inputs.length, Math.max(1, maximum)) }, () => worker()),
     );
+    if (failed) throw failure;
     return results;
 }
 

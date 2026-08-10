@@ -11,6 +11,7 @@ import {
     recordCiFallbackResult,
 } from './ci-fallback';
 import { createResumeCheckpoint } from './resume';
+import { recordReviewDecision } from './review-gate';
 import { createInitialState, recordPullRequest, transitionState, validateState } from './state';
 
 const headSha = 'abc123';
@@ -24,6 +25,14 @@ function blockedDelivery() {
     transitionState(state, 'planning');
     transitionState(state, 'issue_execution');
     transitionState(state, 'deep_review');
+    recordReviewDecision(state, {
+        freeze: true,
+        headSha,
+        mode: 'full',
+        p0: 0,
+        p1: 0,
+        scope: 'Goal range',
+    });
     transitionState(state, 'delivery');
     recordPullRequest(state, {
         headSha,
@@ -112,6 +121,13 @@ describe('Go local CI fallback', () => {
         ).toThrow('exact current PR head');
     });
 
+    it('rejects fallback after the reviewed head is invalidated', () => {
+        const state = blockedDelivery();
+        state.reviewGate.frozenHeadSha = null;
+
+        expect(() => admit(state)).toThrow('explicitly frozen review-clean head');
+    });
+
     it('records exact-head evidence and keeps hosted checks externally blocked', () => {
         const state = blockedDelivery();
         admit(state);
@@ -196,11 +212,28 @@ describe('Go local CI fallback', () => {
         recordPullRequest(state, { headSha: 'new-head', status: 'checks_pending' });
 
         expect(state.ciFallback.status).toBe('not_requested');
-        expect(state.events.at(-2)).toMatchObject({
+        expect(state.reviewGate.frozenHeadSha).toBeNull();
+        expect(state.events.findLast(({ type }) => type === 'ci_fallback')).toMatchObject({
             detail: `Invalidated admitted fallback for ${headSha}`,
             type: 'ci_fallback',
         });
         expect(validateState(state)).toEqual(state);
+    });
+
+    it('preserves a replacement head freeze recorded before the PR update', () => {
+        const state = blockedDelivery();
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'reviewed-replacement',
+            mode: 'targeted',
+            p0: 0,
+            p1: 0,
+            scope: 'Delivery repair',
+        });
+
+        recordPullRequest(state, { headSha: 'reviewed-replacement', status: 'checks_pending' });
+
+        expect(state.reviewGate.frozenHeadSha).toBe('reviewed-replacement');
     });
 
     it('rejects partial parity commands and non-full Electron runs', () => {
@@ -266,5 +299,98 @@ describe('Go local CI fallback', () => {
             ciFallback: { status: 'passed' },
             pullRequest: { status: 'checks_blocked' },
         });
+    });
+
+    it('limits a Go run to two full Electron E2E attempts', () => {
+        const state = blockedDelivery();
+        admit(state);
+        recordCiFallbackResult(state, {
+            electronE2eCommand: 'bun run test:e2e',
+            electronE2eResult: 'failed',
+            headSha,
+            platformCommands: [...PLATFORM_NEUTRAL_CI_COMMANDS],
+            platformResult: 'passed',
+        });
+
+        recordPullRequest(state, { headSha: 'second-head', status: 'checks_blocked' });
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'second-head',
+            mode: 'targeted',
+            p0: 0,
+            p1: 0,
+            scope: 'First E2E repair',
+        });
+        admitCiFallback(state, {
+            failureDetail: 'The job was not started because the spending limit was reached.',
+            failureJob: 'checks',
+            failureKind: 'billing',
+            failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/124',
+            headSha: 'second-head',
+            verifiedZeroSteps: true,
+        });
+        recordCiFallbackResult(state, {
+            electronE2eCommand: 'bun run test:e2e',
+            electronE2eResult: 'failed',
+            headSha: 'second-head',
+            platformCommands: [...PLATFORM_NEUTRAL_CI_COMMANDS],
+            platformResult: 'passed',
+        });
+
+        recordPullRequest(state, { headSha: 'third-head', status: 'checks_blocked' });
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'third-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            scope: 'Second E2E repair',
+        });
+        expect(() =>
+            admitCiFallback(state, {
+                failureDetail: 'The job was not started because the spending limit was reached.',
+                failureJob: 'checks',
+                failureKind: 'billing',
+                failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/125',
+                headSha: 'third-head',
+                verifiedZeroSteps: true,
+            }),
+        ).toThrow('at most two full Electron E2E suites');
+    });
+
+    it('does not repeat a passing full E2E without human rejection', () => {
+        const state = blockedDelivery();
+        admit(state);
+        recordCiFallbackResult(state, {
+            electronE2eCommand: 'bun run test:e2e',
+            electronE2eResult: 'passed',
+            headSha,
+            platformCommands: [...PLATFORM_NEUTRAL_CI_COMMANDS],
+            platformResult: 'passed',
+        });
+
+        recordPullRequest(state, { headSha: 'replacement-head', status: 'checks_blocked' });
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'replacement-head',
+            mode: 'targeted',
+            p0: 0,
+            p1: 0,
+            scope: 'Replacement head',
+        });
+        const input = {
+            failureDetail: 'The job was not started because the spending limit was reached.',
+            failureJob: 'checks',
+            failureKind: 'billing' as const,
+            failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/126',
+            headSha: 'replacement-head',
+            verifiedZeroSteps: true,
+        };
+
+        expect(() => admitCiFallback(state, input)).toThrow(
+            'cannot be repeated unless human Acceptance rejected',
+        );
+        state.acceptance.status = 'rejected';
+        expect(() => admitCiFallback(state, input)).not.toThrow();
     });
 });

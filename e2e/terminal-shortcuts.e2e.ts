@@ -12,6 +12,7 @@ import {
     launchCaxri,
     pageRequest,
     splitTerminalToRight,
+    waitForNewTerminalId,
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -48,9 +49,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         ).toContainText('FIRST_MARKER');
 
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
-        const secondTerminalId = (await terminalIds(running.page)).find(
-            (terminalId) => terminalId !== firstTerminalId,
-        )!;
+        const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await typeInTerminal(running.page, secondTerminalId, "printf 'SECOND_MARKER\\n'");
         await running.page

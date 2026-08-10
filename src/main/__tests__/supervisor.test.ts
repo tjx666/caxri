@@ -177,6 +177,93 @@ describe('RuntimeSupervisor', () => {
         expect(electronMock.fork).toHaveBeenCalledTimes(1);
     });
 
+    it('keeps a file copy pending beyond the ordinary request deadline', async () => {
+        vi.useFakeTimers();
+        const supervisor = new RuntimeSupervisor(
+            '/runtime',
+            '/user-data',
+            '/logs',
+            fakeLogger() as unknown as StructuredLogger,
+        );
+        const started = supervisor.start();
+        const child = electronMock.children[0];
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await started;
+
+        const copy = supervisor.forward('files.copy', {
+            sessionId: 'session-1',
+            path: '/project/source.txt',
+            directory: '/project/target',
+        });
+        await Promise.resolve();
+        const sent = child.postMessage.mock.calls[0][0] as { id: string };
+        let settled = false;
+        void copy.finally(() => {
+            settled = true;
+        });
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(settled).toBe(false);
+
+        child.emit('message', {
+            id: sent.id,
+            ok: true,
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: '/project/target/source.txt',
+            },
+        });
+        await expect(copy).resolves.toMatchObject({ path: '/project/target/source.txt' });
+    });
+
+    it('lets Runtime cancel a queued save instead of timing it out in Main', async () => {
+        vi.useFakeTimers();
+        const supervisor = new RuntimeSupervisor(
+            '/runtime',
+            '/user-data',
+            '/logs',
+            fakeLogger() as unknown as StructuredLogger,
+        );
+        const started = supervisor.start();
+        const child = electronMock.children[0];
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await started;
+
+        const write = supervisor.forward('files.write', {
+            sessionId: 'session-1',
+            path: '/project/source.txt',
+            content: 'saved',
+        });
+        await Promise.resolve();
+        const sent = child.postMessage.mock.calls[0][0] as { id: string };
+        let settled = false;
+        void write.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(settled).toBe(false);
+
+        child.emit('message', {
+            id: sent.id,
+            ok: false,
+            error: { code: 'TIMEOUT', message: 'File operation timed out before it could start' },
+        });
+        await expect(write).rejects.toMatchObject({ code: 'TIMEOUT' });
+    });
+
     it('retries a synchronous Runtime fork failure without abandoning startup', async () => {
         vi.useFakeTimers();
         electronMock.fork.mockImplementationOnce(() => {

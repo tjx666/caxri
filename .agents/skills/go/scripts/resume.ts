@@ -14,11 +14,16 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
                 ? `Continue issue #${currentIssue.number}: ${currentIssue.title}`
                 : 'Transition to deep_review';
         case 'deep_review':
+            if (state.reviewGate.frozenHeadSha)
+                return 'Transition the frozen review-clean head to delivery';
             return 'Complete the Goal-range deep review and repair valid findings';
         case 'delivery':
             if (state.pullRequest.status === 'checks_pending')
                 return 'Wait for or repair the required PR checks';
             if (state.pullRequest.status === 'checks_blocked') {
+                if (state.pullRequest.headSha !== state.reviewGate.frozenHeadSha) {
+                    return 'Record a clean exact-head review decision and freeze the PR head';
+                }
                 if (state.ciFallback.status === 'passed') {
                     return 'Transition to Acceptance with hosted CI still externally blocked';
                 }
@@ -64,6 +69,10 @@ export function createResumeCheckpoint(state: GoState) {
         ...(state.pullRequest.status === 'checks_blocked' && state.ciFallback.status !== 'passed'
             ? ['Required hosted CI could not start']
             : []),
+        ...(state.phase === 'delivery' &&
+        state.pullRequest.headSha !== state.reviewGate.frozenHeadSha
+            ? ['Current PR head is not review-clean and frozen']
+            : []),
         ...(state.acceptance.status === 'blocked' ? ['Acceptance is blocked'] : []),
     ];
     const lastTransition = state.events.findLast((event) => event.type === 'phase') ?? null;
@@ -101,6 +110,7 @@ export function createResumeCheckpoint(state: GoState) {
         objective: state.objective,
         phase: state.phase,
         pullRequest: state.pullRequest,
+        reviewGate: state.reviewGate,
         remainingIssues: remainingIssues.map(({ number, status, title }) => ({
             number,
             status,
@@ -108,6 +118,7 @@ export function createResumeCheckpoint(state: GoState) {
         })),
         status: state.status,
         updatedAt: state.updatedAt,
+        validationBudget: state.validationBudget,
         workflowObservations,
     };
 }
@@ -136,6 +147,14 @@ export function formatResumeCheckpoint(
     }
     if (checkpoint.ciFallback.status !== 'not_requested') {
         lines.push(`local-ci-fallback: ${checkpoint.ciFallback.status}`);
+    }
+    if (checkpoint.reviewGate.frozenHeadSha) {
+        lines.push(`review-frozen-head: ${checkpoint.reviewGate.frozenHeadSha}`);
+    }
+    if (checkpoint.validationBudget.fullElectronE2eRuns.length > 0) {
+        lines.push(
+            `full-electron-e2e-runs: ${checkpoint.validationBudget.fullElectronE2eRuns.length}/2`,
+        );
     }
     if (checkpoint.workflowObservations.length > 0) {
         lines.push('workflow observations:');

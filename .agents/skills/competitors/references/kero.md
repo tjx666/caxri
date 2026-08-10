@@ -1,6 +1,6 @@
 # Kero (egoist/kero)
 
-_Researched 2026-08-06._
+_Researched 2026-08-10._
 
 - **Positioning**: Calm, native macOS "terminal-centered project workspace" — shells, file tree, Git diffs/panel, and a lightweight editor in one window so developers can supervise agent-written changes without a full IDE. Closest product shape to Caxri.
 - **Company/traction**: Solo/small-team by egoist; v0.1.x, signed & notarized, free & open-source; modest early traction.
@@ -20,6 +20,7 @@ _Researched 2026-08-06._
 - Inline Git panel (stage/unstage/discard/commit/amend) beside the shell that produced the diff; inline diff viewer; branch operations from the sidebar.
 - Session Info panel with processes + listening ports per session.
 - OSC 9;4 progress-bar rendering above the terminal; Sparkle silent auto-update.
+- Files supports inline create/rename, system Trash, and path remapping so open file tabs follow file or directory renames. Caxri should preserve the same recoverability and editor continuity while keeping mutation authorization in its isolated Runtime/Main boundary.
 
 ## Community sentiment
 
