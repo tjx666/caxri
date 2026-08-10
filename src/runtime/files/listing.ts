@@ -2,6 +2,11 @@ import { lstat, readdir, realpath } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
 import { CaxriError, errorMessage } from '../../shared/ipc/errors';
+import {
+    MAX_FILE_BROWSE_ENTRIES,
+    type RuntimeMethodParams,
+    type RuntimeMethodResult,
+} from '../../shared/ipc/methods';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileEntry } from '../../shared/types';
@@ -17,6 +22,10 @@ export type DirectoryListedListener = (sessionId: string, path: string) => void;
 /** Lists directories under a Session's Project root, tolerating entries that vanish mid-listing. */
 export class ListingService {
     private readonly listRequests = new SingleFlight<string, FileEntry[]>();
+    private readonly browseRequests = new SingleFlight<
+        string,
+        RuntimeMethodResult<'files.browse'>
+    >();
 
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
@@ -32,12 +41,61 @@ export class ListingService {
         );
     }
 
+    browse(
+        params: RuntimeMethodParams<'files.browse'>,
+    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        const excludes = this.fileTreeExcludes();
+        return this.browseRequests.run(JSON.stringify([params, excludes]), () =>
+            this.loadBrowse(params, excludes),
+        );
+    }
+
     private async loadList(
         sessionId: string,
         directory: string | undefined,
         excludes: FileTreeExcludes,
     ): Promise<FileEntry[]> {
         const startedAt = performance.now();
+        const { root, path, names } = await this.loadVisibleNames(sessionId, directory, excludes);
+        const sorted = this.sortEntries(await this.describeEntries(path, names));
+        this.logger.write('info', 'file.list', {
+            durationMs: performance.now() - startedAt,
+            fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
+        });
+        return sorted;
+    }
+
+    private async loadBrowse(
+        { sessionId, directory, query }: RuntimeMethodParams<'files.browse'>,
+        excludes: FileTreeExcludes,
+    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        const startedAt = performance.now();
+        const { root, path, names } = await this.loadVisibleNames(sessionId, directory, excludes);
+        const normalizedQuery = query.toLocaleLowerCase();
+        const matches = names
+            .filter((name) => name.toLocaleLowerCase().includes(normalizedQuery))
+            .sort((a, b) => a.localeCompare(b));
+        const truncated = matches.length > MAX_FILE_BROWSE_ENTRIES;
+        const entries = this.sortEntries(
+            await this.describeEntries(path, matches.slice(0, MAX_FILE_BROWSE_ENTRIES)),
+        );
+        this.logger.write('info', 'file.browse', {
+            durationMs: performance.now() - startedAt,
+            fields: {
+                sessionId,
+                path: relative(root, path) || '.',
+                entryCount: entries.length,
+                truncated,
+            },
+        });
+        return { entries, truncated };
+    }
+
+    private async loadVisibleNames(
+        sessionId: string,
+        directory: string | undefined,
+        excludes: FileTreeExcludes,
+    ): Promise<{ root: string; path: string; names: string[] }> {
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
         this.onDirectoryListed?.(sessionId, path);
         const before = await lstat(path);
@@ -54,22 +112,29 @@ export class ListingService {
             (await realpath(path)) !== path
         )
             throw new CaxriError('IO', 'Directory changed during listing');
-        const visible = entries.filter((entry) => {
-            const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
-            return !matchesFileTreeExclude(relativePath, excludes);
-        });
-        const settled = await mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
-            this.describeEntry(path, entry.name),
+        const names = entries
+            .filter((entry) => {
+                const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
+                return !matchesFileTreeExclude(relativePath, excludes);
+            })
+            .map((entry) => entry.name);
+        return { root, path, names };
+    }
+
+    private async describeEntries(
+        directory: string,
+        names: readonly string[],
+    ): Promise<FileEntry[]> {
+        const settled = await mapWithConcurrency(names, MAX_CONCURRENT_ENTRY_STATS, (name) =>
+            this.describeEntry(directory, name),
         );
-        const result = settled.filter((entry): entry is FileEntry => entry !== undefined);
-        const sorted = result.sort((a, b) =>
+        return settled.filter((entry): entry is FileEntry => entry !== undefined);
+    }
+
+    private sortEntries(entries: FileEntry[]): FileEntry[] {
+        return entries.sort((a, b) =>
             a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
         );
-        this.logger.write('info', 'file.list', {
-            durationMs: performance.now() - startedAt,
-            fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
-        });
-        return sorted;
     }
 
     /**

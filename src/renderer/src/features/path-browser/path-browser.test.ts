@@ -22,6 +22,7 @@ describe('path browser navigation', () => {
         expect(completePathQuery(entries, 'read')).toBe('README.md');
         expect(completePathQuery(entries, 's')).toBeUndefined();
         expect(completePathQuery(entries, 'missing')).toBeUndefined();
+        expect(completePathQuery([entries[2]], 'read', true)).toBeUndefined();
     });
 
     it('returns to a parent without ever crossing the Project root', () => {

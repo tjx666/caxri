@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
+import type { MessageBoxOptions } from 'electron';
 
 import { createShellSession, launchCaxri, typeTerminal } from './helpers.ts';
 
@@ -52,7 +53,7 @@ async function clickTerminalText(page: Page, text: string): Promise<void> {
     await page.mouse.click(x, y);
 }
 
-test('Terminal links open Project files at a location and route URLs through window.open', async () => {
+test('Terminal links open Project files and confirm URLs through Main', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-links-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -74,13 +75,21 @@ test('Terminal links open Project files at a location and route URLs through win
         );
         await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
 
-        await running.page.evaluate(() => {
-            const target = window as Window & { openedTerminalUrl?: string };
-            target.open = (url?: string | URL) => {
-                target.openedTerminalUrl = String(url);
-                return null;
+        await running.app.evaluate(({ dialog, shell }) => {
+            const target = globalThis as typeof globalThis & {
+                caxriExternalLinkProbe?: { confirmations: string[]; opened: string[] };
+            };
+            target.caxriExternalLinkProbe = { confirmations: [], opened: [] };
+            dialog.showMessageBox = ((options: MessageBoxOptions) => {
+                target.caxriExternalLinkProbe!.confirmations.push(options.message);
+                return Promise.resolve({ response: 0, checkboxChecked: false });
+            }) as typeof dialog.showMessageBox;
+            shell.openExternal = (url) => {
+                target.caxriExternalLinkProbe!.opened.push(url);
+                return Promise.resolve();
             };
         });
+        await running.page.evaluate(() => window.open('file:///tmp/caxri-denied-link'));
         const url = 'https://example.com/caxri-link';
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         await typeTerminal(running.page, `printf '%s\\n' '${url}'`);
@@ -88,11 +97,25 @@ test('Terminal links open Project files at a location and route URLs through win
         await clickTerminalText(running.page, url);
         await expect
             .poll(() =>
-                running.page.evaluate(
-                    () => (window as Window & { openedTerminalUrl?: string }).openedTerminalUrl,
-                ),
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriExternalLinkProbe?: { confirmations: string[]; opened: string[] };
+                    };
+                    return target.caxriExternalLinkProbe?.opened;
+                }),
             )
-            .toBe(url);
+            .toContain(url);
+        await expect(
+            running.app.evaluate(() => {
+                const target = globalThis as typeof globalThis & {
+                    caxriExternalLinkProbe?: { confirmations: string[]; opened: string[] };
+                };
+                return target.caxriExternalLinkProbe;
+            }),
+        ).resolves.toEqual({
+            confirmations: ['Open example.com in your default browser?'],
+            opened: [url],
+        });
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

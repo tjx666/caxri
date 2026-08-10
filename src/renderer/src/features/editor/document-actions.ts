@@ -18,9 +18,48 @@ import { markEditorDocumentReady, markEditorOpenStarted } from './editor-perform
 
 let fileOpenIntent = 0;
 
+interface PendingDocumentOperation {
+    discarded: boolean;
+    path: string;
+    sessionId: string;
+}
+
+/**
+ * File reads and writes can finish after a rename, move, or Trash request. Keeping only active
+ * intents lets mutation completion remap or invalidate them without retaining an unbounded path
+ * history for the Session.
+ */
+const pendingDocumentOperations = new Set<PendingDocumentOperation>();
+
+function trackDocumentOperation(sessionId: string, path: string): PendingDocumentOperation {
+    const operation = { discarded: false, path, sessionId };
+    pendingDocumentOperations.add(operation);
+    return operation;
+}
+
+function remapPendingDocumentOperations(
+    sessionId: string,
+    previousPath: string,
+    nextPath: string,
+): void {
+    for (const operation of pendingDocumentOperations) {
+        if (operation.sessionId === sessionId && pathIsAtOrBelow(operation.path, previousPath))
+            operation.path = remapPath(operation.path, previousPath, nextPath);
+    }
+}
+
+function discardPendingDocumentOperations(sessionId: string, path: string): void {
+    for (const operation of pendingDocumentOperations) {
+        if (operation.sessionId === sessionId && pathIsAtOrBelow(operation.path, path))
+            operation.discarded = true;
+    }
+}
+
 /** Updates dirtiness and pins a preview as soon as it contains an edit. */
-function updateOpenTab(path: string, dirty: boolean): void {
-    const current = getSessionState();
+function updateOpenTab(sessionId: string, path: string, dirty: boolean): void {
+    const current = useWorkbenchStore
+        .getState()
+        .bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!current) return;
     const next = updateEditorTabState(current, path, dirty);
     if (next !== current) patchSessionState(next);
@@ -42,10 +81,20 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
 
 /** Reads a file into the Session document cache without changing the focused WorkItem. */
 export async function cacheDocument(sessionId: string, path: string): Promise<void> {
-    await tryCommand('Unable to restore file', async () => {
-        const document = await caxri.request('files.read', { sessionId, path });
-        useSessionViewStore.getState().cacheDocument(sessionId, { ...document, dirty: false });
-    });
+    const operation = trackDocumentOperation(sessionId, path);
+    try {
+        await tryCommand('Unable to restore file', async () => {
+            const document = await caxri.request('files.read', { sessionId, path });
+            if (operation.discarded) return;
+            useSessionViewStore.getState().cacheDocument(sessionId, {
+                ...document,
+                path: operation.path,
+                dirty: false,
+            });
+        });
+    } finally {
+        pendingDocumentOperations.delete(operation);
+    }
 }
 
 export async function openFile(
@@ -55,16 +104,31 @@ export async function openFile(
     const session = getSelectedSession();
     if (!session) return false;
     const intent = ++fileOpenIntent;
+    const operation = trackDocumentOperation(session.id, path);
     markEditorOpenStarted();
-    const opened = await tryCommand('Unable to open file', async () => {
-        const document = await caxri.request('files.read', { sessionId: session.id, path });
-        if (intent !== fileOpenIntent || getSelectedSession()?.id !== session.id) return false;
-        markEditorDocumentReady();
-        useSessionViewStore.getState().cacheDocument(session.id, { ...document, dirty: false });
-        openEditorTab(document.path, options);
-        return document.path;
-    });
-    return opened ?? false;
+    try {
+        const opened = await tryCommand('Unable to open file', async () => {
+            const document = await caxri.request('files.read', { sessionId: session.id, path });
+            if (
+                operation.discarded ||
+                intent !== fileOpenIntent ||
+                getSelectedSession()?.id !== session.id
+            )
+                return false;
+            markEditorDocumentReady();
+            const currentPath = operation.path;
+            useSessionViewStore.getState().cacheDocument(session.id, {
+                ...document,
+                path: currentPath,
+                dirty: false,
+            });
+            openEditorTab(currentPath, options);
+            return currentPath;
+        });
+        return opened ?? false;
+    } finally {
+        pendingDocumentOperations.delete(operation);
+    }
 }
 
 /** Selecting an already open tab reuses the cached buffer; an evicted one is read again. */
@@ -80,7 +144,7 @@ export function changeDocument(path: string, content: string): void {
     const session = getSelectedSession();
     if (!session) return;
     useSessionViewStore.getState().updateDocumentContent(session.id, path, content);
-    updateOpenTab(path, true);
+    updateOpenTab(session.id, path, true);
 }
 
 export function pinEditorTab(path: string): void {
@@ -98,15 +162,29 @@ export async function saveActiveEditor(): Promise<void> {
     if (isGitDiffTabPath(path)) return;
     const document = useSessionViewStore.getState().documents[session.id]?.[path];
     if (!document) return;
-    await tryCommand('Save failed', async () => {
-        const saved = await caxri.request('files.write', {
-            sessionId: session.id,
-            path,
-            content: document.content,
+    const operation = trackDocumentOperation(session.id, path);
+    try {
+        await tryCommand('Save failed', async () => {
+            const saved = await caxri.request('files.write', {
+                sessionId: session.id,
+                path,
+                content: document.content,
+            });
+            if (operation.discarded) return;
+            const current = useSessionViewStore.getState().documents[session.id]?.[operation.path];
+            if (!current) return;
+            const changedDuringSave = current.content !== document.content;
+            useSessionViewStore.getState().cacheDocument(session.id, {
+                ...saved,
+                path: operation.path,
+                content: changedDuringSave ? current.content : saved.content,
+                dirty: changedDuringSave,
+            });
+            updateOpenTab(session.id, operation.path, changedDuringSave);
         });
-        useSessionViewStore.getState().cacheDocument(session.id, { ...saved, dirty: false });
-        updateOpenTab(path, false);
-    });
+    } finally {
+        pendingDocumentOperations.delete(operation);
+    }
 }
 
 function closeEditors(targetPath: string, mode: EditorTabCloseMode): void {
@@ -163,6 +241,7 @@ export function closeAllEditors(path: string): void {
 
 /** Keeps normal editor tabs and dirty buffers attached to a file or directory after it moves. */
 export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
+    remapPendingDocumentOperations(sessionId, previousPath, nextPath);
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!current || previousPath === nextPath) return;
@@ -188,6 +267,7 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
 
 /** Closes every normal editor under an item only after Main has moved that item to the Trash. */
 export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
+    discardPendingDocumentOperations(sessionId, path);
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!current) return;

@@ -13,7 +13,9 @@ export function filterPathEntries(entries: readonly FileEntry[], query: string):
 export function completePathQuery(
     entries: readonly FileEntry[],
     query: string,
+    truncated = false,
 ): string | undefined {
+    if (truncated) return undefined;
     const matches = filterPathEntries(entries, query);
     return matches.length === 1 ? matches[0].name : undefined;
 }
