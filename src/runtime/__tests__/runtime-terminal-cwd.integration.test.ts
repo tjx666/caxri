@@ -169,4 +169,57 @@ describe('Runtime Terminal cwd authorization', () => {
             await runtime.close();
         }
     });
+
+    it('marks an interrupted Terminal failed when restore cwd validation rejects', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-cwd-rejected-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        const projectFolder = join(projectRoot, 'folder');
+        const outside = join(directory, 'outside');
+        await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: () => createFakePty(),
+            },
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'shell',
+        });
+        const terminal = await runtimeA.handlers['terminal.create']({
+            sessionId: created.session.id,
+            kind: 'shell',
+            cwd: projectFolder,
+        });
+        await runtimeA.close();
+        await rename(projectFolder, `${projectFolder}-original`);
+        await symlink(outside, projectFolder);
+
+        const runtimeB = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-b')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: () => createFakePty(),
+            },
+        });
+        try {
+            await vi.waitFor(async () => {
+                const state = await runtimeB.handlers['app.bootstrap']({});
+                expect(
+                    state.terminals.find((candidate) => candidate.id === terminal.id)
+                        ?.lastProcessState,
+                ).toBe('failed');
+            });
+        } finally {
+            await runtimeB.close();
+        }
+    });
 });
