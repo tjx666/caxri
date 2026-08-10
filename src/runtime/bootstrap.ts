@@ -300,6 +300,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                     });
                     if (restarted.lastProcessState !== 'running') return false;
                 } catch {
+                    const current = database.getTerminal(terminal.id);
+                    if (current?.lastProcessState === 'interrupted') {
+                        database.updateTerminalState(terminal.id, 'failed');
+                        logger.write('warn', 'terminal.restore_cwd_rejected', {
+                            fields: { terminalId: terminal.id },
+                        });
+                        send({
+                            event: 'state.changed',
+                            payload: {
+                                kind: 'records',
+                                sessionIds: [],
+                                terminalIds: [terminal.id],
+                            },
+                        });
+                    }
                     return false;
                 }
                 if (terminal.provider) coordinator.probeTerminal(terminal.id);
