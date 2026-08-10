@@ -8,6 +8,7 @@ import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { ResolveSessionPath } from './documents';
+import { isStagedCreatePersistenceError } from './mutation-journal';
 
 type MutableEntry = RuntimeMethodResult<'files.create'>;
 type MovedEntry = RuntimeMethodResult<'files.rename'>;
@@ -221,6 +222,7 @@ export class FileMutationService {
             });
             return { kind: params.kind, name, path };
         } catch (error) {
+            if (isStagedCreatePersistenceError(error)) throw error;
             throw mutationError(error, 'creating the item');
         }
     }

@@ -42,6 +42,11 @@ class StagedCreatePersistenceError extends Error {
     }
 }
 
+/** Lets the file-system service preserve the journal's post-native retry signal unchanged. */
+export function isStagedCreatePersistenceError(error: unknown): error is Error {
+    return error instanceof StagedCreatePersistenceError;
+}
+
 const MAXIMUM_RETAINED_OPERATIONS = 256;
 const DEFAULT_MAXIMUM_ACTIVE_PER_SESSION = 8;
 const DEFAULT_PRE_STAGE_TIMEOUT_MS = 15_000;
@@ -375,29 +380,7 @@ export class FileMutationJournal {
     }
 
     private async reconcileStaged(operation: FileMutationOperation): Promise<void> {
-        let completed = false;
-        if (operation.kind === 'create') {
-            const expected = operation.expectedResult;
-            if (expected?.device && expected.inode) {
-                const target = await pathIdentity(expected.path);
-                completed =
-                    target?.kind === expected.kind &&
-                    target.device === expected.device &&
-                    target.inode === expected.inode;
-            }
-        } else {
-            const expected = operation.expectedResult;
-            if (!expected) return this.failStagedRecovery(operation);
-            const [target, sourceKind] = await Promise.all([
-                pathIdentity(expected.path),
-                pathKind(expected.previousPath),
-            ]);
-            completed =
-                target?.kind === expected.kind &&
-                target.device === expected.device &&
-                target.inode === expected.inode &&
-                sourceKind === undefined;
-        }
+        const completed = await this.expectedResultMatches(operation, operation.expectedResult);
         operation.updatedAt = this.now();
         if (completed && operation.expectedResult) {
             operation.phase = 'completed';
@@ -406,6 +389,23 @@ export class FileMutationJournal {
             return;
         }
         this.failStagedRecovery(operation);
+    }
+
+    private async expectedResultMatches(
+        operation: FileMutationOperation,
+        expected: FileMutationExpectedResult | undefined,
+    ): Promise<boolean> {
+        if (!expected?.device || !expected.inode) return false;
+        const target = await pathIdentity(expected.path);
+        if (
+            target?.kind !== expected.kind ||
+            target.device !== expected.device ||
+            target.inode !== expected.inode
+        )
+            return false;
+        if (operation.kind === 'create') return true;
+        if (!('previousPath' in expected)) return false;
+        return (await pathKind(expected.previousPath)) === undefined;
     }
 
     private failStagedRecovery(operation: FileMutationOperation): void {
@@ -612,9 +612,39 @@ export class FileMutationJournal {
         const retry = async (): Promise<void> => {
             if (this.closed) return;
             try {
+                const operation = await this.get(operationId);
+                const expected = pending.expectedResult ?? operation?.expectedResult;
+                if (
+                    !operation ||
+                    operation.phase !== 'staged' ||
+                    !(await this.expectedResultMatches(operation, expected))
+                ) {
+                    if (operation && !finalPhases.has(operation.phase))
+                        await this.fail(
+                            operationId,
+                            new CaxriError(
+                                'CONFLICT',
+                                'File operation target changed before completion could be recorded',
+                            ),
+                        );
+                    this.pendingCompletions.delete(operationId);
+                    return;
+                }
                 if (pending.expectedResult) {
                     await this.stage(operationId, pending.expectedResult);
                     pending.expectedResult = undefined;
+                }
+                const staged = await this.get(operationId);
+                if (!staged || !(await this.expectedResultMatches(staged, staged.expectedResult))) {
+                    await this.fail(
+                        operationId,
+                        new CaxriError(
+                            'CONFLICT',
+                            'File operation target changed before completion could be recorded',
+                        ),
+                    );
+                    this.pendingCompletions.delete(operationId);
+                    return;
                 }
                 await this.complete(operationId, pending.result);
                 this.pendingCompletions.delete(operationId);

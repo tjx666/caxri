@@ -31,4 +31,14 @@ describe('TerminalScreenState', () => {
         expect(snapshot.payload).toContain('exceeded parser backpressure');
         screen.dispose();
     });
+
+    it('resolves a pending snapshot from the explicit reset after parser overflow', async () => {
+        const screen = new TerminalScreenState('', 40, 6, { maximumQueuedBytes: 64 });
+        screen.write('before-overflow');
+        const snapshot = screen.snapshot();
+        screen.write('x'.repeat(65));
+
+        expect((await snapshot).payload).toContain('exceeded parser backpressure');
+        screen.dispose();
+    });
 });

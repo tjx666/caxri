@@ -1,10 +1,17 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { acquireDesktopLease, releaseDesktopLease, type DesktopLeaseHandle } from './desktop-lease';
+import {
+    acquireDesktopLease,
+    releaseDesktopLease,
+    transferDesktopLease,
+    type DesktopLeaseHandle,
+} from './desktop-lease';
 import { getProcessIdentity, runCapture } from './process';
 import {
     pathExists,
@@ -222,6 +229,24 @@ describe('switch-worktree creation and diagnostics', () => {
 });
 
 describe('switch-worktree shared ownership', () => {
+    it('waits for repository lock owner metadata to become visible', async () => {
+        const fixture = await createFixture();
+        const context = await repositoryContext(fixture.root);
+        const lockPath = join(context.stateDir, 'operation.lock');
+        await mkdir(lockPath, { recursive: true });
+        let entered = false;
+        const operation = withRepositoryLock(context, () => {
+            entered = true;
+            return Promise.resolve();
+        });
+
+        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
+        expect(entered).toBe(false);
+        await rm(lockPath, { recursive: true });
+        await expect(operation).resolves.toBeUndefined();
+        expect(entered).toBe(true);
+    });
+
     it('serializes repository mutations with a process identity lock', async () => {
         const fixture = await createFixture();
         const context = await repositoryContext(fixture.root);
@@ -422,6 +447,67 @@ describe('switch-worktree shared ownership', () => {
             await readFile(acquired.leasePath, 'utf8'),
         ) as DesktopLeaseHandle;
         expect(persisted.token).toBe(acquired.token);
+    });
+
+    it('serializes release cleanup with a competing desktop lease acquisition', async () => {
+        const fixture = await createFixture();
+        const first = await acquireDesktopLease(fixture.root, 'old Electron owner');
+        const releaseEntered = Promise.withResolvers<void>();
+        const releaseCleanup = Promise.withResolvers<void>();
+        const release = releaseDesktopLease(first, {
+            afterLockAcquired: async () => {
+                releaseEntered.resolve();
+                await releaseCleanup.promise;
+            },
+        });
+        await releaseEntered.promise;
+
+        let contenderEntered = false;
+        const contender = acquireDesktopLease(
+            fixture.root,
+            'reclaimed Electron owner',
+            process.pid,
+            {
+                afterLockAcquired: () => {
+                    contenderEntered = true;
+                    return Promise.resolve();
+                },
+            },
+        );
+        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
+        expect(contenderEntered).toBe(false);
+
+        releaseCleanup.resolve();
+        await release;
+        const reclaimed = await contender;
+        activeLeases.push(reclaimed);
+        const persisted = JSON.parse(
+            await readFile(reclaimed.leasePath, 'utf8'),
+        ) as DesktopLeaseHandle;
+        expect(persisted.token).toBe(reclaimed.token);
+    });
+
+    it('keeps the desktop lease active after ownership transfers to a child process', async () => {
+        const fixture = await createFixture();
+        const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+            stdio: 'ignore',
+        });
+        await once(child, 'spawn');
+        const childPid = child.pid;
+        if (!childPid) throw new Error('Test child process has no PID');
+        let lease = await acquireDesktopLease(fixture.root, 'Acceptance');
+        activeLeases.push(lease);
+
+        try {
+            lease = await transferDesktopLease(lease, childPid);
+            activeLeases[activeLeases.length - 1] = lease;
+            await expect(acquireDesktopLease(fixture.root, 'Electron E2E')).rejects.toThrow(
+                'Desktop is in use by Acceptance in',
+            );
+        } finally {
+            child.kill('SIGTERM');
+            await once(child, 'exit');
+        }
     });
 });
 

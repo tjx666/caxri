@@ -138,9 +138,17 @@ export async function ensureProfile(context: RepositoryContext, identity: string
     return profile;
 }
 
-async function readLockOwner(path: string): Promise<LockOwner> {
+async function readLockOwner(path: string): Promise<LockOwner | undefined> {
+    let source: string;
     try {
-        return JSON.parse(await readFile(join(path, 'owner.json'), 'utf8')) as LockOwner;
+        source = await readFile(join(path, 'owner.json'), 'utf8');
+    } catch (error) {
+        /** The lock directory becomes visible just before its atomically-written owner record. */
+        if (errorCode(error) === 'ENOENT') return undefined;
+        throw error;
+    }
+    try {
+        return JSON.parse(source) as LockOwner;
     } catch {
         throw new CommandError(`Invalid repository lock at ${path}; inspect it before continuing`);
     }
@@ -169,15 +177,26 @@ export async function withRepositoryLock<T>(
         }
         try {
             await mkdir(lockPath);
-            await writeFile(
-                join(lockPath, 'owner.json'),
-                `${JSON.stringify({ identity, pid: process.pid, startedAt: new Date().toISOString() })}\n`,
-                'utf8',
-            );
+            try {
+                await writeJsonAtomic(join(lockPath, 'owner.json'), {
+                    identity,
+                    pid: process.pid,
+                    startedAt: new Date().toISOString(),
+                });
+            } catch (error) {
+                await rm(lockPath, { force: true, recursive: true });
+                throw error;
+            }
             acquired = true;
         } catch (error) {
             if (errorCode(error) !== 'EEXIST') throw error;
             const owner = await readLockOwner(lockPath);
+            if (!owner) {
+                if (Date.now() >= deadline)
+                    throw new CommandError('Timed out waiting for repository lock owner metadata');
+                await new Promise<void>((resolveWait) => setTimeout(resolveWait, 25));
+                continue;
+            }
             if (await isProcessIdentityAlive(owner.pid, owner.identity)) {
                 if (Date.now() >= deadline) {
                     throw new CommandError(
@@ -196,7 +215,7 @@ export async function withRepositoryLock<T>(
             }
             try {
                 const latest = await readLockOwner(lockPath);
-                if (!(await isProcessIdentityAlive(latest.pid, latest.identity))) {
+                if (latest && !(await isProcessIdentityAlive(latest.pid, latest.identity))) {
                     await rm(lockPath, { recursive: true });
                 }
             } catch (cleanupError) {

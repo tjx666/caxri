@@ -353,6 +353,52 @@ describe('FileMutationJournal', () => {
         await journal.close();
     });
 
+    it('refuses to complete a retry after the created target identity changes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-create-conflict-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'operations.json');
+        const target = join(directory, 'created.txt');
+        const replacement = join(directory, 'replacement.txt');
+        let writes = 0;
+        const journal = new FileMutationJournal(
+            path,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                completionRetryBaseMs: 100,
+                writeJournal: async (journalPath, sourceText) => {
+                    writes += 1;
+                    if (writes === 3) throw new Error('journal temporarily unavailable');
+                    await writeFile(journalPath, sourceText, 'utf8');
+                },
+            },
+        );
+        await journal.initialize();
+        const result = { kind: 'file' as const, name: 'created.txt', path: target };
+
+        await expect(
+            journal.run(createOperation('operation-create-conflict', directory), async (stage) => {
+                await stage(result);
+                await writeFile(target, 'created', 'utf8');
+                const stats = await lstat(target, { bigint: true });
+                await stage({
+                    ...result,
+                    device: stats.dev.toString(),
+                    inode: stats.ino.toString(),
+                });
+                return result;
+            }),
+        ).rejects.toThrow('journal temporarily unavailable');
+        await writeFile(replacement, 'foreign', 'utf8');
+        await rename(replacement, target);
+
+        await expect
+            .poll(async () => (await journal.get('operation-create-conflict'))?.phase)
+            .toBe('failed');
+        await expect(readFile(target, 'utf8')).resolves.toBe('foreign');
+        await journal.close();
+    });
+
     it('bounds active mutations within one Session', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-capacity-'));
         temporaryDirectories.push(directory);
