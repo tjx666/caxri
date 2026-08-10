@@ -39,6 +39,40 @@ describe('bounded concurrency', () => {
         expect(values).toEqual(Array.from({ length: 12 }, (_, index) => index * 2));
     });
 
+    it('stops queued work and drains active workers before rejecting', async () => {
+        let releaseWorkers!: () => void;
+        const workersReleased = new Promise<void>((resolve) => {
+            releaseWorkers = resolve;
+        });
+        const started: number[] = [];
+        const mapping = mapWithConcurrency(
+            Array.from({ length: 12 }, (_, index) => index),
+            3,
+            async (value) => {
+                started.push(value);
+                if (value === 0) throw new Error('expected');
+                await workersReleased;
+                return value;
+            },
+        );
+        let settled = false;
+        void mapping.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(started).toEqual([0, 1, 2]);
+        expect(settled).toBe(false);
+        releaseWorkers();
+        await expect(mapping).rejects.toThrow('expected');
+        expect(started).toEqual([0, 1, 2]);
+    });
+
     it('releases semaphore capacity after success and failure', async () => {
         const semaphore = new AsyncSemaphore(2);
         const bounded = await verifyBounded((operation) => semaphore.run(operation));

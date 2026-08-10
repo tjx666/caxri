@@ -399,6 +399,59 @@ describe('FileMutationService', () => {
         expect(maximumActiveValidations).toBe(32);
     });
 
+    it('drains active target validations and stops queued checks after failure', async () => {
+        let startedValidations = 0;
+        let markValidationPoolFull!: () => void;
+        let releaseValidations!: () => void;
+        const validationPoolFull = new Promise<void>((resolve) => {
+            markValidationPoolFull = resolve;
+        });
+        const validationsReleased = new Promise<void>((resolve) => {
+            releaseValidations = resolve;
+        });
+        const fixture = await createFixture('caxri-file-copy-validation-failure-', {
+            mutations: {
+                beforeCopyTargetValidation: async () => {
+                    const validation = startedValidations;
+                    startedValidations += 1;
+                    if (startedValidations === 32) markValidationPoolFull();
+                    if (validation === 0) throw new Error('validation failed');
+                    await validationsReleased;
+                },
+            },
+        });
+        const source = join(fixture.root, 'folder');
+        await mkdir(source);
+        await Promise.all(
+            Array.from({ length: 40 }, (_, index) =>
+                writeFile(join(source, `file-${index}.txt`), 'copy', 'utf8'),
+            ),
+        );
+
+        const copying = fixture.service.copy({
+            sessionId: fixture.sessionId,
+            path: source,
+            directory: fixture.root,
+        });
+        let settled = false;
+        void copying.then(
+            () => {
+                settled = true;
+            },
+            () => {
+                settled = true;
+            },
+        );
+        await validationPoolFull;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(startedValidations).toBe(32);
+        expect(settled).toBe(false);
+        releaseValidations();
+        await expect(copying).rejects.toThrow('partial copy was kept');
+        expect(startedValidations).toBe(32);
+    });
+
     it('aborts a stalled file transfer without deleting its partial target by path', async () => {
         let markTransferStarted!: () => void;
         const transferStarted = new Promise<void>((resolve) => {
