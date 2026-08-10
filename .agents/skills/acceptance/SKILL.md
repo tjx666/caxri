@@ -25,6 +25,9 @@ substitutes for the real desktop path when the claim is user-visible.
 - Use CDP and `agent-browser` for renderer interaction, DOM inspection, and
   screenshots. Use OS capture only when the criterion is specifically about
   Electron or macOS chrome that CDP cannot see.
+- Handle native dialogs according to [references/native-dialogs.md](references/native-dialogs.md):
+  stub Main's dialog boundary in focused tests, but use semantic macOS Accessibility interaction
+  for a real Acceptance path.
 - Read every screenshot or recording before citing it. A file existing is not
   evidence that the expected UI rendered.
 - Keep focused regression tests separate from acceptance evidence. Tests prove a
@@ -57,7 +60,9 @@ Read [references/report.md](references/report.md) before authoring the report an
 1. Build and launch from the adapter. Confirm the CDP target is the Caxri
    renderer, not DevTools or a stale resident build.
 2. Drive the smallest real user path that proves each plan item. Follow
-   [surfaces/electron.md](surfaces/electron.md).
+   [surfaces/electron.md](surfaces/electron.md). Inspect and click a native sheet
+   or app-modal window exactly once by its semantic button name; never retry the
+   Renderer action or click screen coordinates.
 3. Capture evidence while testing:
    - settled UI state: screenshot plus DOM snapshot when useful;
    - behavior over time: GIF or video following
@@ -110,5 +115,6 @@ summary shown beside that URL.
 - Electron workflow: [surfaces/electron.md](surfaces/electron.md)
 - CDP commands: [references/agent-browser.md](references/agent-browser.md)
 - Evidence rules: [references/evidence.md](references/evidence.md)
+- Native dialogs: [references/native-dialogs.md](references/native-dialogs.md)
 - Report schema: [references/report.md](references/report.md)
 - Temporal capture: [references/recording-cdp.md](references/recording-cdp.md)

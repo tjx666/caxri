@@ -226,6 +226,35 @@ describe('Go state ledger', () => {
         );
     });
 
+    it('surfaces accumulated workflow and token-waste notes during final reporting', () => {
+        const state = createInitialState({ objective: 'Report audit notes', runId: 'audit-test' });
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        transitionState(state, 'deep_review');
+        transitionState(state, 'delivery');
+        recordPullRequest(state, { headSha: 'audit-head', status: 'ready' });
+        transitionState(state, 'acceptance');
+        recordAcceptance(state, {
+            acceptedHeadSha: 'audit-head',
+            status: 'accepted',
+        });
+        transitionState(state, 'waiting_acceptance');
+        recordNote(state, { kind: 'token_waste', text: 'Repeated a large status query.' });
+        recordNote(state, { kind: 'workflow', text: '把重复证据捕获步骤做成脚本。' });
+        transitionState(state, 'merge');
+        transitionState(state, 'self_improvement');
+
+        const checkpoint = createResumeCheckpoint(state);
+        expect(checkpoint.auditNotes).toEqual({
+            tokenWaste: ['Repeated a large status query.'],
+            truncated: false,
+            workflow: ['把重复证据捕获步骤做成脚本。'],
+        });
+        expect(formatResumeCheckpoint(checkpoint)).toContain(
+            'report audit notes:\n- token_waste: Repeated a large status query.\n- workflow: 把重复证据捕获步骤做成脚本。',
+        );
+    });
+
     it('migrates schema version 2 ledgers with an empty fallback record', () => {
         const current = createInitialState({
             objective: 'Resume old ledger',

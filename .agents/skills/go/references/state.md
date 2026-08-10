@@ -42,14 +42,16 @@ bun run .agents/skills/go/scripts/state.ts pr \
 bun run .agents/skills/go/scripts/state.ts pr \
   --state "$STATE" --status checks_blocked --head-sha abc1234
 
-# Admit only after verifying a zero-step external failure and receiving
-# separate explicit user authorization.
+# Verified payment/spending-limit failures use automatic Go policy authorization.
 bun run .agents/skills/go/scripts/state.ts ci-fallback-admit \
   --state "$STATE" --head-sha abc1234 --failure-kind billing \
   --failure-url "https://github.com/.../actions/runs/..." \
-  --failure-job checks --failure-detail "Rejected before runner allocation" \
-  --authorization "User explicitly authorized local fallback" \
+  --failure-job checks \
+  --failure-detail "The job was not started because the spending limit was reached" \
   --verified-zero-steps
+
+# For another infrastructure failure, add explicit user authorization:
+# --authorization "User explicitly authorized this exact-head fallback"
 
 bun run .agents/skills/go/scripts/state.ts ci-fallback-result \
   --state "$STATE" --head-sha abc1234 \
@@ -93,6 +95,10 @@ fallback evidence, blockers, last phase transition, and unfinished issue
 summaries. During Acceptance it also emits only the three newest material
 workflow observations for the user handoff. Use `show` only for a full ledger
 audit; it intentionally includes all events, validations, and notes.
+During `self_improvement` and `reporting`, compact resume includes up to 20
+workflow and token-waste notes. If it reports truncation, read only the complete
+note sets with `state.ts notes --state "$STATE" --json`; do not load the full
+event history.
 
 ## Rules
 
@@ -106,6 +112,11 @@ audit; it intentionally includes all events, validations, and notes.
 - Recording a different PR head invalidates the current fallback admission and
   results. Verify the replacement hosted run before considering a new fallback.
 - Keep observations concise. Store raw logs and reports beside the ledger rather
-  than inside it. Write `workflow` observations in Simplified Chinese because
-  the Acceptance handoff exposes them directly.
+  than inside it. Record observed repeated reads, oversized output, duplicate
+  validation, or polling as `token_waste`; record reusable automation ideas as
+  `workflow`. Write `workflow` observations in Simplified Chinese because the
+  Acceptance handoff exposes them directly.
+- For automatic billing fallback, preserve the original GitHub payment,
+  billing, or spending-limit failure text in `--failure-detail`; the ledger
+  includes it in policy authorization evidence.
 - Never commit `.records/`.

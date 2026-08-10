@@ -617,13 +617,14 @@ Commands:
      [--head-sha SHA]
   ci-fallback-admit --state PATH --head-sha SHA --failure-kind billing|infrastructure
                     --failure-url URL --failure-job NAME --failure-detail TEXT
-                    --authorization TEXT --verified-zero-steps
+                    [--authorization TEXT] --verified-zero-steps
   ci-fallback-result --state PATH --head-sha SHA --platform-command COMMAND
                      [--platform-command COMMAND] --platform-result passed|failed
                      --e2e-command COMMAND --e2e-result passed|failed
   acceptance --state PATH [--id ID] [--url URL] [--round N] [--status STATUS]
              [--accepted-head-sha SHA]
   note --state PATH --kind technical_debt|workflow|token_waste --text TEXT
+  notes --state PATH [--json]
   resume --state PATH [--json]
   show --state PATH
   validate --state PATH`;
@@ -665,6 +666,16 @@ async function main(argv: string[]): Promise<void> {
         console.log(JSON.stringify(state, null, 2));
         return;
     }
+    if (command === 'notes') {
+        if (options.json) console.log(JSON.stringify(state.notes, null, 2));
+        else {
+            for (const [kind, notes] of Object.entries(state.notes)) {
+                console.log(`${kind}:`);
+                for (const note of notes) console.log(`- ${note.text}`);
+            }
+        }
+        return;
+    }
     if (command === 'validate') {
         console.log('Go state is valid');
         return;
@@ -698,7 +709,7 @@ async function main(argv: string[]): Promise<void> {
         });
     } else if (command === 'ci-fallback-admit') {
         admitCiFallback(state, {
-            authorization: one(options, 'authorization', true) ?? '',
+            authorization: one(options, 'authorization'),
             failureDetail: one(options, 'failure-detail', true) ?? '',
             failureJob: one(options, 'failure-job', true) ?? '',
             failureKind: ciFailureKindSchema.parse(one(options, 'failure-kind', true)),

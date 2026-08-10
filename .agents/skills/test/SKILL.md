@@ -32,14 +32,17 @@ Use this workflow only when focused E2E coverage is insufficient:
 ## Guarded local fallback for external CI failure
 
 Use this exception only inside an explicit Go run. The `$go` invocation alone
-does not authorize it. Before running any fallback command, verify and record:
+automatically authorizes only a verified zero-step GitHub Actions payment or
+spending-limit failure. Before running any fallback command, verify and record:
 
 1. The current PR head and a hosted Actions job for that head whose step count
    is zero because of external billing or infrastructure failure.
 2. The workflow URL, job name, failure classification, and external failure
-   detail. An ordinary code or test failure is ineligible.
-3. Separate explicit user authorization to substitute local validation for that
-   exact head.
+   detail. For automatic billing authorization, preserve the original GitHub
+   payment, billing, or spending-limit error text. An ordinary code or test
+   failure is ineligible.
+3. The project-policy authorization for a payment or spending-limit failure, or
+   separate explicit user authorization for another infrastructure failure.
 4. A clean worktree at the recorded PR head and an admitted fallback in the Go
    ledger. If the head changes, discard the admission and return to remote CI.
 

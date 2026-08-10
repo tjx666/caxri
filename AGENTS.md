@@ -40,8 +40,9 @@ step-by-step workflows beyond this summary.
 - Treat `$go` as an explicit, manual authorization for the project-local long-running delivery
   workflow. It may create or update in-scope GitHub issues, commit and push the working branch,
   create and update a PR, publish LobeHub Acceptance rounds, merge the accepted PR, and close its
-  issues. It does not authorize destructive data operations, releases, secrets, account changes,
-  or unrelated work.
+  issues. A verified zero-step GitHub Actions payment or spending-limit failure automatically
+  authorizes the exact-head local CI fallback defined below; do not ask again. It does not
+  authorize destructive data operations, releases, secrets, account changes, or unrelated work.
 - Caxri Acceptance has one product surface: isolated macOS Electron desktop. Command output and
   focused tests are supporting evidence only.
 - User-facing Acceptance prose uses Simplified Chinese. Keep code, identifiers, paths, commands,
@@ -111,10 +112,12 @@ step-by-step workflows beyond this summary.
 - Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
 - A local full-E2E fallback is allowed only inside an explicit Go run after the current-head hosted
   jobs are verified to have failed before runner allocation for external billing or infrastructure,
-  and the user separately authorizes the substitution. Record the head, failure evidence,
-  authorization, exact platform-neutral CI commands and results, and one `bun run test:e2e` result
-  in the Go ledger. Keep the hosted check externally failed; never relabel it green. Code/test
-  failures, missing authorization, release packaging, and deployment are never eligible.
+  with automatic authorization for verified payment or spending-limit failures. Other
+  infrastructure failures still require separate user authorization. Record the head, failure
+  evidence, policy or user authorization, exact platform-neutral CI commands and results, and one
+  `bun run test:e2e` result in the Go ledger. Keep the hosted check externally failed; never relabel
+  it green. Code/test failures, missing required authorization, release packaging, and deployment
+  are never eligible.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     admitCiFallback,
+    BILLING_POLICY_AUTHORIZATION,
     PLATFORM_NEUTRAL_CI_COMMANDS,
     recordCiFallbackResult,
 } from './ci-fallback';
@@ -37,8 +38,8 @@ function admit(state: ReturnType<typeof blockedDelivery>) {
     return admitCiFallback(
         state,
         {
-            authorization: 'The user explicitly authorized local CI fallback for this head.',
-            failureDetail: 'The job was rejected before runner allocation.',
+            authorization: '',
+            failureDetail: 'The job was not started because the spending limit was reached.',
             failureJob: 'checks',
             failureKind: 'billing',
             failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/123',
@@ -73,6 +74,9 @@ describe('Go local CI fallback', () => {
         expect(() => transitionState(state, 'acceptance')).toThrow(
             'green hosted checks or a passed exact-head local CI fallback',
         );
+        expect(createResumeCheckpoint(state).nextAction).toBe(
+            'Classify the zero-step failure; auto-admit billing or request infrastructure authorization',
+        );
         expect(() =>
             admitCiFallback(state, {
                 authorization: '',
@@ -83,7 +87,7 @@ describe('Go local CI fallback', () => {
                 headSha,
                 verifiedZeroSteps: true,
             }),
-        ).toThrow('explicit user authorization');
+        ).toThrow('Infrastructure local CI fallback requires explicit user authorization');
         expect(() =>
             admitCiFallback(state, {
                 authorization: 'User approved.',
@@ -117,6 +121,7 @@ describe('Go local CI fallback', () => {
             headSha,
             status: 'admitted',
         });
+        expect(state.ciFallback.authorization?.detail).toContain(BILLING_POLICY_AUTHORIZATION);
         expect(() =>
             recordCiFallbackResult(state, {
                 electronE2eCommand: 'bun run test:e2e',
@@ -147,6 +152,41 @@ describe('Go local CI fallback', () => {
         expect(state.pullRequest.status).toBe('checks_blocked');
         expect(validateState(state)).toEqual(state);
         expect(() => transitionState(state, 'acceptance')).not.toThrow();
+    });
+
+    it('preserves explicit infrastructure authorization in the ledger', () => {
+        const state = blockedDelivery();
+
+        admitCiFallback(state, {
+            authorization: 'User approved this exact-head infrastructure fallback.',
+            failureDetail: 'Runner allocation failed before any step started.',
+            failureJob: 'checks',
+            failureKind: 'infrastructure',
+            failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/123',
+            headSha,
+            verifiedZeroSteps: true,
+        });
+
+        expect(state.ciFallback.authorization?.detail).toBe(
+            'User approved this exact-head infrastructure fallback.',
+        );
+    });
+
+    it('requires original billing evidence for automatic policy authorization', () => {
+        const state = blockedDelivery();
+
+        expect(() =>
+            admitCiFallback(state, {
+                failureDetail: 'The hosted job did not start.',
+                failureJob: 'checks',
+                failureKind: 'billing',
+                failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/123',
+                headSha,
+                verifiedZeroSteps: true,
+            }),
+        ).toThrow(
+            'requires the original GitHub payment, billing, or spending-limit failure detail',
+        );
     });
 
     it('invalidates recorded fallback evidence when the PR head changes', () => {
