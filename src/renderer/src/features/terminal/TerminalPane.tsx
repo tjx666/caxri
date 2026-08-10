@@ -29,6 +29,7 @@ import {
     terminalKeyboardInput,
 } from './terminal-keyboard';
 import { TerminalReplayBuffer } from './terminal-replay';
+import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
 import { registerTerminalLinks } from './terminal-links';
 import {
     terminalSizeChanged,
@@ -225,6 +226,18 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                 onError(errorMessage(error, 'Terminal input failed'));
             });
         });
+        let clipboardFailureReported = false;
+        const selectionClipboard = new TerminalSelectionClipboard(
+            (value) => navigator.clipboard.writeText(value),
+            (error) => {
+                if (clipboardFailureReported) return;
+                clipboardFailureReported = true;
+                onError(errorMessage(error, 'Terminal selection could not be copied'));
+            },
+        );
+        const selectionDisposable = xterm.onSelectionChange(() => {
+            void selectionClipboard.copy(xterm.getSelection());
+        });
         const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
@@ -263,6 +276,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             observer.disconnect();
             container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
+            selectionDisposable.dispose();
             dataDisposable.dispose();
             unregisterLinks();
             xterm.dispose();
