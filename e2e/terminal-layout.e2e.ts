@@ -4,13 +4,30 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import type { ThemeTokens } from '../src/shared/types.ts';
 
 import { createShellSession, launchCaxri, pageRequest, splitTerminalToRight } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
+
+async function waitForNewTerminalId(page: Page, existingIds: readonly string[]): Promise<string> {
+    let newTerminalId: string | undefined;
+    await expect
+        .poll(async () => {
+            const bootstrap = await pageRequest<{ terminals: Array<{ id: string }> }>(
+                page,
+                'app.bootstrap',
+            );
+            newTerminalId = bootstrap.terminals.find(
+                (terminal) => !existingIds.includes(terminal.id),
+            )?.id;
+            return newTerminalId;
+        })
+        .toBeTruthy();
+    return newTerminalId!;
+}
 
 test('Terminal split layout drags, resizes, restores, and preserves the live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
@@ -38,9 +55,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
             ),
         ).toContainText('alive');
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
-        const secondTerminalId = (
-            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
-        ).terminals.find((terminal) => terminal.id !== firstTerminalId)!.id;
+        const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.terminal-group')).toHaveCount(2);
         const terminalSplitter = running.page.getByRole('separator', {
@@ -175,9 +190,7 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
         ).terminals.map((terminal) => terminal.id);
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
-        const secondTerminalId = (
-            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
-        ).terminals.find((terminal) => !terminalIds.includes(terminal.id))!.id;
+        const secondTerminalId = await waitForNewTerminalId(running.page, terminalIds);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.terminal-pane')).toHaveCount(2);
 
