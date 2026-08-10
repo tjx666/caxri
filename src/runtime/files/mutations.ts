@@ -157,8 +157,10 @@ export class FileMutationService {
             throw new CaxriError('PATH_DENIED', 'Symbolic links cannot be changed');
         if (!allowRoot && resolved.path === resolved.root)
             throw new CaxriError('PATH_DENIED', 'The Project root cannot be changed');
-        const stats = await lstat(resolved.path, { bigint: true });
-        const rootStats = await lstat(resolved.root, { bigint: true });
+        const [stats, rootStats] = await Promise.all([
+            lstat(resolved.path, { bigint: true }),
+            lstat(resolved.root, { bigint: true }),
+        ]);
         if (
             stats.isSymbolicLink() ||
             lexicalStats.dev !== stats.dev ||

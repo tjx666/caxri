@@ -74,6 +74,7 @@ function InlineFileName({
             await onSubmit(value);
         } catch (submissionError) {
             setError(describeFailure(submissionError, 'Unable to change item'));
+        } finally {
             setPending(false);
         }
     };
@@ -328,6 +329,13 @@ export function FileTreePanel() {
                 Create a Session to browse files.
             </div>
         );
+    const dropIntoProjectRoot = async (event: DragEvent): Promise<void> => {
+        event.preventDefault();
+        const source = dragPath(event);
+        if (!source) return;
+        const moved = await moveFile(session.id, source, session.rootPath);
+        if (moved) setSelectedPath(moved.path);
+    };
 
     const tree = (
         <div
@@ -335,14 +343,7 @@ export function FileTreePanel() {
             onDragOver={(event) => {
                 if (hasDraggedPath(event)) event.preventDefault();
             }}
-            onDrop={(event) => {
-                event.preventDefault();
-                const source = dragPath(event);
-                if (!source) return;
-                void moveFile(session.id, source, session.rootPath).then((moved) => {
-                    if (moved) setSelectedPath(moved.path);
-                });
-            }}
+            onDrop={(event) => void dropIntoProjectRoot(event)}
         >
             <DirectoryEntries
                 key={`${session.id}:${collapseRevision}`}

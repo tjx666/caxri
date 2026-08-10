@@ -1,5 +1,5 @@
 import { ChevronLeft, CornerDownLeft } from 'lucide-react';
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
@@ -20,6 +20,10 @@ import {
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
 const EMPTY_ENTRIES: readonly FileEntry[] = [];
+
+function closePathBrowser(): void {
+    setPathBrowserOpen(false);
+}
 
 function relativeDirectory(root: string, directory: string): string {
     if (directory === root) return '';
@@ -62,10 +66,12 @@ function PathBrowserContent({
     root: string;
     sessionId: string;
 }) {
-    const [directory, setDirectory] = useState(root);
+    const [nestedDirectory, setNestedDirectory] = useState<string>();
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const debouncedQuery = useDebouncedValue(query);
+    const directory = nestedDirectory ?? root;
+    const inputRef = useRef<HTMLInputElement>(null);
     const listboxId = useId();
     const { data, error, isError, isFetching, isPending } = useCaxriQuery(
         'files.browse',
@@ -87,18 +93,19 @@ function PathBrowserContent({
         if (activeOptionId)
             document.getElementById(activeOptionId)?.scrollIntoView({ block: 'nearest' });
     }, [activeOptionId]);
+    useEffect(() => inputRef.current?.focus(), []);
 
-    const close = (): void => setPathBrowserOpen(false);
     const updateQuery = (value: string): void => {
         setQuery(value);
         setSelectedIndex(0);
     };
     const enterDirectory = (path: string): void => {
-        setDirectory(path);
+        setNestedDirectory(path === root ? undefined : path);
         updateQuery('');
     };
     const goToParent = (): void => {
-        setDirectory((current) => parentDirectoryWithinRoot(root, current));
+        const parent = parentDirectoryWithinRoot(root, directory);
+        setNestedDirectory(parent === root ? undefined : parent);
         updateQuery('');
     };
     const choose = (entry: FileEntry | undefined): void => {
@@ -107,7 +114,7 @@ function PathBrowserContent({
             enterDirectory(entry.path);
             return;
         }
-        close();
+        closePathBrowser();
         void openFile(entry.path);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -165,13 +172,13 @@ function PathBrowserContent({
                     {root ? relativeDirectory(root, directory) : ''}
                 </span>
                 <input
+                    ref={inputRef}
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
                     aria-busy={!resultsReady}
                     aria-controls={listboxId}
                     aria-expanded="true"
                     aria-label="File path"
-                    autoFocus
                     className="h-full min-w-[80px] flex-1 border-0 bg-transparent px-1 text-[13px] text-foreground outline-none"
                     placeholder="Filter this directory…"
                     role="combobox"
