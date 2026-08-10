@@ -3,6 +3,7 @@ import { Command } from 'cmdk';
 import { commandDefinitions } from '@shared/commands';
 
 import { executeCommand } from '../../commands/execute';
+import { ShortcutBadge } from '../../components/ShortcutBadge';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
@@ -33,9 +34,11 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
             <small className={commandItemMetaClassName}>
                 {command.category}
                 {shortcut && (
-                    <kbd className="inline-flex h-4 items-center rounded bg-elevated px-1 font-[inherit] text-[10px] text-foreground group-data-[selected=true]:bg-[var(--selection)]">
-                        {shortcut}
-                    </kbd>
+                    <ShortcutBadge
+                        compact
+                        keyClassName="group-data-[selected=true]:bg-[var(--selection)]"
+                        shortcut={shortcut}
+                    />
                 )}
             </small>
         </Command.Item>

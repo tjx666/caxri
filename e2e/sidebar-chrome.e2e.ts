@@ -398,7 +398,7 @@ test('work tabs leave a draggable titlebar and keep New Terminal beside the last
         await newTerminal.hover();
         const tooltip = running.page.locator('.tooltip-popup');
         await expect(tooltip).toContainText('Create a Terminal in the current Session');
-        await expect(tooltip.locator('kbd')).toHaveText('⌘T');
+        await expect(tooltip.locator('kbd')).toHaveText(['⌘', 'T']);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -555,7 +555,7 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
         await paletteSearch.fill('new terminal');
         const terminalCommand = palette.getByRole('option').filter({ hasText: 'New Terminal' });
         await expect(terminalCommand).toBeVisible();
-        await expect(terminalCommand.locator('kbd')).toHaveText('⌘T');
+        await expect(terminalCommand.locator('kbd')).toHaveText(['⌘', 'T']);
         await running.page.keyboard.press('Escape');
         await expect(palette).toHaveCount(0);
 

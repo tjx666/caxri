@@ -1,7 +1,8 @@
 import { Braces, FileJson, Save, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import type { AppSettings } from '@shared/types';
+import { findKeybindingConflicts } from '@shared/configuration';
+import type { AppSettings, Keybinding } from '@shared/types';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/ChromeTabs';
 import { Button } from '../../components/ui/button';
@@ -27,6 +28,11 @@ import {
     type ConfigKind,
 } from './config-edit';
 import { ConfigurationSourceView } from './ConfigurationSourceView';
+import {
+    appendKeybindingSource,
+    removeKeybindingSource,
+    updateKeybindingSource,
+} from './keybinding-editor';
 import { KeybindingsForm } from './KeybindingsForm';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
 import { SettingsForm } from './SettingsForm';
@@ -92,6 +98,10 @@ export function SettingsDialog() {
         [state.settings, state.keybindings, state.theme],
     );
     const dirtyKinds = dirtyConfigKinds(drafts);
+    const draftKeybindingConflicts = useMemo(() => {
+        const parsed = parseConfigSource('keybindings', state.keybindings.source);
+        return parsed.ok ? findKeybindingConflicts(parsed.value) : [];
+    }, [state.keybindings.source]);
 
     const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
         setSourceErrors((current) => {
@@ -244,13 +254,34 @@ export function SettingsDialog() {
         });
     };
 
-    const updateBinding = (index: number, field: 'key' | 'command', value: string): void => {
+    const updateBinding = (index: number, key: string): void => {
         dispatch({
             type: 'keybindings/changed',
             value: state.keybindings.value.map((binding, at) =>
-                at === index ? { ...binding, [field]: value } : binding,
+                at === index ? { ...binding, key } : binding,
             ),
-            source: applyFormEdit(state.keybindings.source, [index, field], value),
+            source: updateKeybindingSource(state.keybindings.source, index, key),
+        });
+    };
+
+    const addBinding = (command: string, key: string): void => {
+        const binding: Keybinding = { command, key };
+        dispatch({
+            type: 'keybindings/changed',
+            value: [...state.keybindings.value, binding],
+            source: appendKeybindingSource(
+                state.keybindings.source,
+                state.keybindings.value.length,
+                binding,
+            ),
+        });
+    };
+
+    const removeBinding = (index: number): void => {
+        dispatch({
+            type: 'keybindings/changed',
+            value: state.keybindings.value.filter((_, at) => at !== index),
+            source: removeKeybindingSource(state.keybindings.source, index),
         });
     };
 
@@ -391,8 +422,9 @@ export function SettingsDialog() {
                         ) : (
                             <KeybindingsForm
                                 keybindings={state.keybindings.value}
-                                conflicts={state.keybindings.conflicts}
-                                onFieldChange={updateBinding}
+                                onAdd={addBinding}
+                                onChange={updateBinding}
+                                onRemove={removeBinding}
                             />
                         ))}
                 </ChromeTabPanel>
@@ -438,7 +470,9 @@ export function SettingsDialog() {
                         disabled={
                             saving ||
                             dirtyKinds.length === 0 ||
-                            dirtyKinds.some((kind) => sourceErrors[kind] !== undefined)
+                            dirtyKinds.some((kind) => sourceErrors[kind] !== undefined) ||
+                            (dirtyKinds.includes('keybindings') &&
+                                draftKeybindingConflicts.length > 0)
                         }
                         onClick={() => void applyAll()}
                     >

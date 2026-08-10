@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { getCommandDefinition } from '@shared/commands';
 
+import { ShortcutBadge } from '../ShortcutBadge';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utils';
 
@@ -58,9 +59,7 @@ export function Tooltip({
                     >
                         <span>{content}</span>
                         {shortcut && (
-                            <kbd className="ml-auto shrink-0 rounded border border-border bg-surface px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted">
-                                {shortcut}
-                            </kbd>
+                            <ShortcutBadge className="ml-auto" compact shortcut={shortcut} />
                         )}
                     </TooltipPrimitive.Popup>
                 </TooltipPrimitive.Positioner>

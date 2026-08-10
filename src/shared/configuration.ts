@@ -11,7 +11,10 @@ import {
     keybindingSchema,
     SETTINGS_BOUNDS,
     type AppSettings,
+    type Keybinding,
+    type KeybindingConflict,
 } from './types';
+import { normalizeShortcut } from './shortcuts';
 
 const MAX_FILES_EXCLUDE_PATTERNS = 100;
 
@@ -82,3 +85,18 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
 });
 
 export const keybindingsFileSchema = z.array(keybindingSchema);
+
+/** Finds normalized chords assigned to more than one distinct command. */
+export function findKeybindingConflicts(keybindings: readonly Keybinding[]): KeybindingConflict[] {
+    const byKey = new Map<string, Set<string>>();
+    for (const binding of keybindings) {
+        const key = normalizeShortcut(binding.key);
+        const commands = byKey.get(key) ?? new Set<string>();
+        commands.add(binding.command);
+        byKey.set(key, commands);
+    }
+    const conflicts: KeybindingConflict[] = [];
+    for (const [key, commands] of byKey)
+        if (commands.size > 1) conflicts.push({ key, commands: [...commands] });
+    return conflicts;
+}
