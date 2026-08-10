@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
-import { access, realpath, stat } from 'node:fs/promises';
+import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
@@ -28,6 +28,7 @@ import {
     TerminalManager,
     type TerminalManagerOptions,
     TerminalRestoreSupervisor,
+    type TerminalWorkingDirectoryIdentity,
 } from './terminal';
 import { ProjectRootResolver } from './project-roots';
 
@@ -93,9 +94,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         send,
         logger,
         () => configuration.getSettings().value['files.maxFileBytes'],
-        {
-            fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
-        },
+        { fileTreeExcludes: () => configuration.getSettings().value['files.exclude'] },
     );
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
@@ -180,7 +179,38 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         return database.getAppState<string | null>('lastSelectedSessionId') ?? undefined;
     }
 
-    async function terminalWorkingDirectory(projectRoot: string): Promise<string> {
+    async function terminalWorkingDirectory(
+        projectRoot: string,
+        requestedCwd?: string,
+    ): Promise<string> {
+        if (requestedCwd) {
+            if (!isAbsolute(requestedCwd))
+                throw new CaxriError('VALIDATION', 'Terminal working directory must be absolute');
+            let canonicalRoot: string;
+            let canonical: string;
+            try {
+                [canonicalRoot, canonical] = await Promise.all([
+                    realpath(projectRoot),
+                    realpath(requestedCwd),
+                ]);
+                if (!(await stat(canonical)).isDirectory())
+                    throw new CaxriError(
+                        'VALIDATION',
+                        'Terminal working directory must be a folder',
+                    );
+                await access(canonical, constants.X_OK);
+            } catch (error) {
+                if (error instanceof CaxriError) throw error;
+                throw new CaxriError('IO', 'Terminal working directory is unavailable');
+            }
+            const nested = relative(canonicalRoot, canonical);
+            if (nested === '..' || nested.startsWith(`..${sep}`) || isAbsolute(nested))
+                throw new CaxriError(
+                    'PATH_DENIED',
+                    'Terminal working directory must stay inside the Project root',
+                );
+            return canonical;
+        }
         const configured = configuration.getSettings().value['terminal.defaultWorkingDirectory'];
         if (!configured) return projectRoot;
         const expanded =
@@ -211,17 +241,32 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     async function createAndStartTerminal(
         sessionId: string,
         kind: TerminalKind,
+        requestedCwd?: string,
     ): Promise<TerminalRecord> {
         const session = database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const cwd = await terminalWorkingDirectory(session.rootPath);
+        const cwd = await terminalWorkingDirectory(session.rootPath, requestedCwd);
+        const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
         const terminal = database.createTerminal(sessionId, kind, cwd);
         coordinator.prepareTerminalStart(terminal.id);
         try {
-            return await terminals.start(terminal);
+            return await terminals.start(terminal, { expectedWorkingDirectory });
         } catch {
             return database.getTerminal(terminal.id)!;
         }
+    }
+
+    async function terminalDirectoryIdentity(
+        path: string,
+    ): Promise<TerminalWorkingDirectoryIdentity> {
+        const stats = await lstat(path, { bigint: true });
+        if (stats.isSymbolicLink() || !stats.isDirectory())
+            throw new CaxriError('CONFLICT', 'Terminal working directory changed before launch');
+        return {
+            path,
+            device: stats.dev.toString(),
+            inode: stats.ino.toString(),
+        };
     }
 
     /**
@@ -247,12 +292,30 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                     : undefined;
                 if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
                 try {
+                    const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
                     const restarted = await terminals.restart(terminal.id, {
+                        expectedWorkingDirectory,
                         resumeAgentSessionId,
                         shouldStart: isCurrent,
                     });
                     if (restarted.lastProcessState !== 'running') return false;
                 } catch {
+                    const current = database.getTerminal(terminal.id);
+                    if (current?.lastProcessState === 'interrupted') {
+                        database.updateTerminalState(terminal.id, 'failed');
+                        logger.write('warn', 'terminal.restore_cwd_rejected', {
+                            fields: { terminalId: terminal.id },
+                        });
+                    }
+                    if (database.getTerminal(terminal.id)?.lastProcessState === 'failed')
+                        send({
+                            event: 'state.changed',
+                            payload: {
+                                kind: 'records',
+                                sessionIds: [],
+                                terminalIds: [terminal.id],
+                            },
+                        });
                     return false;
                 }
                 if (terminal.provider) coordinator.probeTerminal(terminal.id);
@@ -310,6 +373,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
+        'files.reveal': () => mainOwned('files.reveal'),
+        'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),
         'updates.check': () => mainOwned('updates.check'),
         'updates.download': () => mainOwned('updates.download'),
@@ -347,10 +412,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
             const cwd = await terminalWorkingDirectory(project.rootPath);
+            const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
             const created = database.createSession(projectId, defaultAgent, cwd);
             coordinator.prepareTerminalStart(created.terminal.id);
             try {
-                await terminals.start(created.terminal);
+                await terminals.start(created.terminal, { expectedWorkingDirectory });
             } catch {
                 // The failed durable terminal remains visible and restartable; Session creation still succeeds.
             }
@@ -409,8 +475,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             database.updateSessionState(state);
             return database.getSessionState(state.sessionId);
         },
-        'terminal.create': async ({ sessionId, kind }) => {
-            const terminal = await createAndStartTerminal(sessionId, kind);
+        'terminal.create': async ({ sessionId, kind, cwd }) => {
+            const terminal = await createAndStartTerminal(sessionId, kind, cwd);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.create' } });
             return terminal;
@@ -444,8 +510,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'terminal.restart': async ({ terminalId }) => {
+            const current = database.getTerminal(terminalId);
+            if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+            const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
             coordinator.prepareTerminalStart(terminalId);
-            const terminal = await terminals.restart(terminalId);
+            const terminal = await terminals.restart(terminalId, { expectedWorkingDirectory });
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             send({
                 event: 'state.changed',
@@ -463,6 +532,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
+        'files.create': (params) => files.create(params),
+        'files.copy': (params) => files.copy(params),
+        'files.rename': (params) => files.rename(params),
+        'files.move': (params) => files.move(params),
+        'files.authorizeTrash': (params) => files.authorizeTrash(params),
+        'files.authorizeOpen': (params) => files.authorizeOpen(params),
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (params) => files.search(params),

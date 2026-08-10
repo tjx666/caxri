@@ -15,13 +15,18 @@ export function activateTerminal(terminalId: string): void {
     useSessionViewStore.getState().activateWork({ kind: 'terminal', terminalId });
 }
 
-export async function createTerminal(kind: TerminalKind = 'shell', split = false): Promise<void> {
+export async function createTerminal(
+    kind: TerminalKind = 'shell',
+    split = false,
+    cwd?: string,
+): Promise<void> {
     const session = getSelectedSession();
     if (!session) return;
     await tryCommand('Terminal creation failed', async () => {
         const terminal = await caxri.request('terminal.create', {
             sessionId: session.id,
             kind,
+            ...(cwd ? { cwd } : {}),
         });
         const currentState = getSessionState();
         const item: WorkItem = { kind: 'terminal', terminalId: terminal.id };

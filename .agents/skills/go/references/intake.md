@@ -30,6 +30,28 @@ Check only prerequisites relevant to the planned workflow:
 Resolve safe agent-owned mechanics without asking the user. Do not start the
 desktop app merely to approve the plan.
 
+## Research before proposing solutions
+
+Invoke the `competitors` skill after requirements are normalized and before an
+issue solution or Acceptance matrix is frozen. Inspect current source or dated
+research notes for products that already solve the same problem; do not rely on
+screenshots, product memory, or an issue author's proposed implementation alone.
+
+- For performance, security, filesystem, editor, IPC, and desktop-platform
+  mechanics, use the current official VS Code source as the primary baseline.
+- For UI and UX behavior, compare Orca, Muxy, Kero, or the closest products in
+  the competitor landscape. Prefer at least two relevant implementations when
+  the interaction is not already constrained by the user.
+- Record the observed behavior or architecture, the source revision or research
+  date, and the Caxri-specific adaptation or deliberate deviation.
+- Check licenses before reading implementation details. Reference behavior and
+  architecture only when a license does not permit reuse.
+
+Competitor behavior is evidence, not an automatic requirement. Preserve Caxri's
+product model, process boundaries, and security grants, and surface a material
+trade-off before encoding a stricter or more complex design than the reference.
+If no relevant implementation is available, record that briefly and continue.
+
 ## Classify every requirement
 
 | Class             | Meaning                                                                   | Action                                                       |
@@ -83,6 +105,9 @@ For each selected issue, record:
   surface claim;
 - dependencies and priority;
 - likely owning layer;
+- competitor evidence and any deliberate Caxri deviation;
+- the authority and threat-model boundary, accepted reference-product residual
+  risks, and any explicitly stronger guarantee;
 - focused validation;
 - stable Acceptance check ids and required evidence;
 - whether the check is visual, temporal, or non-visual.

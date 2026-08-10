@@ -17,6 +17,7 @@ import {
     keybindingConflictSchema,
     keybindingSchema,
     MAX_CONFIGURABLE_FILE_BYTES,
+    mutableFileEntrySchema,
     pathSchema,
     persistedWindowStateSchema,
     projectStatusOverviewSchema,
@@ -53,6 +54,21 @@ const keybindingsResult = z.object({
 });
 const themeResult = z.object({ value: themeTokensSchema, source: z.string() });
 const exportedFile = z.object({ path: z.string() });
+const fileName = z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .refine(
+        (name) =>
+            name !== '.' &&
+            name !== '..' &&
+            !name.includes('/') &&
+            !name.includes('\\') &&
+            !name.includes('\0'),
+        'File name must not contain path separators',
+    );
+const movedFileEntry = mutableFileEntrySchema.extend({ previousPath: pathSchema });
 
 /** Main returns this instead of a Runtime result when the user dismisses a confirmation dialog. */
 const canceled = z.object({ canceled: z.literal(true) });
@@ -169,7 +185,12 @@ export const methods = {
     },
     'terminal.create': {
         owner: 'runtime',
-        params: z.object({ sessionId: identifierSchema, kind: terminalKindSchema }),
+        params: z.object({
+            sessionId: identifierSchema,
+            kind: terminalKindSchema,
+            /** Files may request a bounded Project-local cwd; ordinary creation keeps settings. */
+            cwd: pathSchema.optional(),
+        }),
         result: terminalRecordSchema,
     },
     'terminal.input': {
@@ -225,6 +246,50 @@ export const methods = {
         owner: 'runtime',
         params: z.object({ sessionId: identifierSchema, directory: pathSchema.optional() }),
         result: z.array(fileEntrySchema),
+    },
+    'files.create': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            directory: pathSchema,
+            name: fileName,
+            kind: z.enum(['file', 'directory']).default('file'),
+        }),
+        result: mutableFileEntrySchema,
+    },
+    'files.copy': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+            directory: pathSchema,
+        }),
+        result: mutableFileEntrySchema,
+    },
+    'files.rename': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema, path: pathSchema, name: fileName }),
+        result: movedFileEntry,
+    },
+    'files.move': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+            directory: pathSchema,
+            conflict: z.enum(['reject', 'rename']).default('reject'),
+        }),
+        result: movedFileEntry,
+    },
+    'files.reveal': {
+        owner: 'main',
+        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        result: z.null(),
+    },
+    'files.trash': {
+        owner: 'main',
+        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        result: z.union([canceled, mutableFileEntrySchema]),
     },
     'files.read': {
         owner: 'runtime',
@@ -398,6 +463,24 @@ export const internalMethods = {
         owner: 'runtime',
         params: z.object({ destination: pathSchema }),
         result: exportedFile,
+    },
+    'files.authorizeTrash': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        result: mutableFileEntrySchema.extend({
+            device: z.string().regex(/^\d+$/),
+            inode: z.string().regex(/^\d+$/),
+            root: z.object({
+                path: pathSchema,
+                device: z.string().regex(/^\d+$/),
+                inode: z.string().regex(/^\d+$/),
+            }),
+        }),
+    },
+    'files.authorizeOpen': {
+        owner: 'runtime',
+        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        result: mutableFileEntrySchema,
     },
     'runtime.shutdown': { owner: 'runtime', params: noParams, result: z.null() },
     'terminal.detachAll': { owner: 'runtime', params: noParams, result: z.null() },

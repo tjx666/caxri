@@ -238,6 +238,12 @@ export const fileEntrySchema = z.object({
     size: z.number().optional(),
 });
 
+export const mutableFileEntrySchema = z.object({
+    name: z.string().min(1).max(255),
+    path: pathSchema,
+    kind: z.enum(['file', 'directory']),
+});
+
 export const fileChangeSchema = z.object({
     path: z.string(),
     kind: z.enum(['create', 'update', 'delete']),
@@ -540,6 +546,7 @@ export type Keybinding = z.infer<typeof keybindingSchema>;
 export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
 export type ThemeTokens = z.infer<typeof themeTokensSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
+export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
 export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
 export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;

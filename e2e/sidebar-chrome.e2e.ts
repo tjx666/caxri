@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
+import type { ElectronApplication } from 'playwright';
 
 import {
     createAdditionalShellSession,
@@ -17,6 +18,40 @@ import {
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Electron documents macOS fullscreen transitions as asynchronous. Keep the Main-process
+ * evaluation alive until the matching native event so later Renderer assertions cannot race the
+ * transition: https://www.electronjs.org/docs/latest/api/browser-window#winsetfullscreenflag
+ */
+async function setFullScreen(app: ElectronApplication, fullScreen: boolean): Promise<void> {
+    await app.evaluate(async ({ app, BrowserWindow }, nextFullScreen) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        if (!window) throw new Error('Caxri window is unavailable');
+        if (window.isFullScreen() === nextFullScreen) return;
+        app.focus({ steal: true });
+        window.focus();
+        const event = nextFullScreen ? 'enter-full-screen' : 'leave-full-screen';
+        await new Promise<void>((resolve, reject) => {
+            const onTransition = (): void => {
+                clearTimeout(timeout);
+                resolve();
+            };
+            const timeout = setTimeout(() => {
+                if (nextFullScreen) window.removeListener('enter-full-screen', onTransition);
+                else window.removeListener('leave-full-screen', onTransition);
+                reject(
+                    new Error(
+                        `Timed out waiting for ${event}; visible=${window.isVisible()} focused=${window.isFocused()} fullscreenable=${window.isFullScreenable()}`,
+                    ),
+                );
+            }, 15_000);
+            if (nextFullScreen) window.once('enter-full-screen', onTransition);
+            else window.once('leave-full-screen', onTransition);
+            window.setFullScreen(nextFullScreen);
+        });
+    }, fullScreen);
+}
 
 test('sidebar is logo-free and reveals Add Project on hover or focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
@@ -65,18 +100,14 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
         ).toEqual({ x: 15, y: 15 });
 
         // macOS hides the traffic lights in fullscreen; the logo takes their place.
-        await running.app.evaluate(({ BrowserWindow }) =>
-            BrowserWindow.getAllWindows()[0]?.setFullScreen(true),
-        );
+        await setFullScreen(running.app, true);
         const logo = titlebar.locator('img[data-caxri-logo]');
         await expect(logo).toHaveCount(1);
         await expect(logo).toHaveAttribute('alt', 'Caxri');
         await expect(logo).toBeVisible();
         await expect(titlebar).toHaveCSS('padding-left', '12px');
 
-        await running.app.evaluate(({ BrowserWindow }) =>
-            BrowserWindow.getAllWindows()[0]?.setFullScreen(false),
-        );
+        await setFullScreen(running.app, false);
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
         await expect(titlebar).toHaveCSS('padding-left', '84px');
     } finally {
@@ -459,7 +490,8 @@ test('archived Sessions reveal a Delete action on hover that removes the Session
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
         });
-        await archivedRow.hover();
+        await deleteButton.focus();
+        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
         await deleteButton.click();
 
         await expect(archivedRow).toHaveCount(0);

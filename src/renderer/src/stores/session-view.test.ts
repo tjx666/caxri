@@ -93,4 +93,33 @@ describe('Session document cache', () => {
         expect(useSessionViewStore.getState().documents['session-1']).toBeUndefined();
         expect(cachedPaths('session-2')).toEqual(['/shared.ts']);
     });
+
+    it('remaps descendant documents without losing dirty buffers', () => {
+        const store = useSessionViewStore.getState();
+        store.cacheDocument('session-1', document('/project/src/dirty.ts', true));
+        store.cacheDocument('session-1', document('/project/src/nested/clean.ts'));
+        store.cacheDocument('session-1', document('/project/other.ts'));
+
+        store.remapDocuments('session-1', '/project/src', '/project/lib');
+
+        expect(cachedPaths('session-1')).toEqual([
+            '/project/lib/dirty.ts',
+            '/project/lib/nested/clean.ts',
+            '/project/other.ts',
+        ]);
+        expect(
+            useSessionViewStore.getState().documents['session-1']['/project/lib/dirty.ts'],
+        ).toMatchObject({ path: '/project/lib/dirty.ts', dirty: true });
+    });
+
+    it('evicts only documents at or below a trashed path', () => {
+        const store = useSessionViewStore.getState();
+        store.cacheDocument('session-1', document('/project/src/a.ts', true));
+        store.cacheDocument('session-1', document('/project/src/nested/b.ts'));
+        store.cacheDocument('session-1', document('/project/src-other/c.ts'));
+
+        store.evictDocumentsUnderPath('session-1', '/project/src');
+
+        expect(cachedPaths('session-1')).toEqual(['/project/src-other/c.ts']);
+    });
 });
