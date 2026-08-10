@@ -263,12 +263,25 @@ async function setupManagedWorktree(
     const identity = await worktreeIdentity(path, true);
     if (!identity) throw new CommandError(`Could not create an identity for ${path}`);
     await ensureProfile(context, identity);
-    await install(path);
-    const dependencies = await dependencyState(path);
-    if (dependencies === 'symlink') {
+    const existingDependencies = await dependencyState(path);
+    if (existingDependencies === 'symlink') {
         throw new CommandError(`Refusing shared node_modules symlink in ${path}`);
     }
-    if (dependencies !== 'ready') throw new CommandError(`ni did not create ${path}/node_modules`);
+    if (existingDependencies === 'ready') return;
+    await install(path);
+    if ((await dependencyState(path)) !== 'ready')
+        throw new CommandError(`ni did not create ${path}/node_modules`);
+}
+
+async function repairManagedWorktree(
+    context: RepositoryContext,
+    worktree: WorktreeRecord,
+    install: (path: string) => Promise<void>,
+): Promise<WorktreeStatus> {
+    const status = await inspectOne(context, worktree, await inspectDesktopLease(context.root));
+    if (!status.managed || (status.dependencies === 'ready' && status.profile)) return status;
+    await setupManagedWorktree(context, worktree.path, install);
+    return await inspectOne(context, worktree, await inspectDesktopLease(context.root));
 }
 
 function assertSemanticBranch(branch: string): void {
@@ -287,10 +300,7 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
     return await withRepositoryLock(context, async () => {
         const worktrees = await listWorktrees(context);
         const existing = worktrees.find((worktree) => worktree.branch === options.branch);
-        if (existing) {
-            const desktop = await inspectDesktopLease(context.root);
-            return await inspectOne(context, existing, desktop);
-        }
+        if (existing) return await repairManagedWorktree(context, existing, install);
         if (
             !(await commandSucceeds(
                 'git',
@@ -334,20 +344,11 @@ export async function switchWorktree(
     install: (path: string) => Promise<void> = installWorktreeDependencies,
 ): Promise<WorktreeStatus> {
     const context = await repositoryContext(cwd);
-    const worktrees = await listWorktrees(context);
-    const existing = resolveExistingTarget(worktrees, cwd, target);
-    if (existing)
-        return await inspectOne(context, existing, await inspectDesktopLease(context.root));
-    if (!(await branchExists(context, target))) {
-        throw new CommandError(`No worktree or local branch matches: ${target}`, 2);
-    }
     return await withRepositoryLock(context, async () => {
-        const current = (await listWorktrees(context)).find(
-            (worktree) => worktree.branch === target,
-        );
-        if (current) {
-            return await inspectOne(context, current, await inspectDesktopLease(context.root));
-        }
+        const current = resolveExistingTarget(await listWorktrees(context), cwd, target);
+        if (current) return await repairManagedWorktree(context, current, install);
+        if (!(await branchExists(context, target)))
+            throw new CommandError(`No worktree or local branch matches: ${target}`, 2);
         const path = worktreeDirectory(context, target);
         if (await pathExists(path)) throw new CommandError(`Worktree path already exists: ${path}`);
         await mkdir(resolve(path, '..'), { recursive: true });

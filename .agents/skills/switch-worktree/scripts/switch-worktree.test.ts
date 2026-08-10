@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     acquireDesktopLease,
+    beginDesktopLeaseHandoff,
     releaseDesktopLease,
     transferDesktopLease,
     type DesktopLeaseHandle,
@@ -153,6 +154,41 @@ describe('switch-worktree creation and diagnostics', () => {
         expect(switched.branch).toBe('feat/dormant');
         expect(switched.dependencies).toBe('ready');
         expect(installs).toBe(2);
+    });
+
+    it('repairs a managed checkout when its first dependency installation fails', async () => {
+        const fixture = await createFixture();
+        const failInstall = (): Promise<void> => Promise.reject(new Error('temporary ni failure'));
+
+        await expect(
+            createWorktree({
+                branch: 'fix/retry-create-install',
+                cwd: fixture.root,
+                install: failInstall,
+            }),
+        ).rejects.toThrow('temporary ni failure');
+        const created = await createWorktree({
+            branch: 'fix/retry-create-install',
+            cwd: fixture.root,
+            install: fakeInstall,
+        });
+        expect(created.dependencies).toBe('ready');
+        expect((await doctorWorktree(created.path)).valid).toBe(true);
+
+        await expect(
+            createWorktree({
+                branch: 'fix/retry-switch-install',
+                cwd: fixture.root,
+                install: failInstall,
+            }),
+        ).rejects.toThrow('temporary ni failure');
+        const switched = await switchWorktree(
+            fixture.root,
+            'fix/retry-switch-install',
+            fakeInstall,
+        );
+        expect(switched.dependencies).toBe('ready');
+        expect((await doctorWorktree(switched.path)).valid).toBe(true);
     });
 
     it('reports deterministic list fields and rejects non-semantic new branches', async () => {
@@ -499,6 +535,8 @@ describe('switch-worktree shared ownership', () => {
         activeLeases.push(lease);
 
         try {
+            lease = await beginDesktopLeaseHandoff(lease);
+            activeLeases[activeLeases.length - 1] = lease;
             lease = await transferDesktopLease(lease, childPid);
             activeLeases[activeLeases.length - 1] = lease;
             await expect(acquireDesktopLease(fixture.root, 'Electron E2E')).rejects.toThrow(
@@ -508,6 +546,20 @@ describe('switch-worktree shared ownership', () => {
             child.kill('SIGTERM');
             await once(child, 'exit');
         }
+    });
+
+    it('fails closed when a desktop launcher dies during child handoff', async () => {
+        const fixture = await createFixture();
+        let lease = await acquireDesktopLease(fixture.root, 'Acceptance');
+        activeLeases.push(lease);
+        lease = await beginDesktopLeaseHandoff(lease);
+        activeLeases[activeLeases.length - 1] = lease;
+        const stored = JSON.parse(await readFile(lease.leasePath, 'utf8')) as DesktopLeaseHandle;
+        await writeJsonAtomic(lease.leasePath, { ...stored, identity: 'dead-launcher-identity' });
+
+        await expect(acquireDesktopLease(fixture.root, 'Electron E2E')).rejects.toThrow(
+            'Desktop handoff from Acceptance did not complete',
+        );
     });
 });
 
