@@ -7,6 +7,7 @@ import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod } from '../shared/ipc/methods';
 import type { StructuredLogger } from '../shared/node/logger';
+import { NativeFileOperations } from '../shared/node/native-file-operations';
 import type {
     AgentProvider,
     BootstrapState,
@@ -41,6 +42,8 @@ const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, hei
 export interface RuntimeDeps {
     /** Directory that owns `caxri.db` and the `config/` tree. */
     userDataPath: string;
+    /** Bundled helper that performs descriptor-anchored file mutations. */
+    fileOperationsHelperPath?: string;
     logger: StructuredLogger;
     /** Receives every Runtime event; the entry point forwards these to the Electron parent port. */
     send: (event: RuntimeEvent) => void;
@@ -95,6 +98,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         () => configuration.getSettings().value['files.maxFileBytes'],
         {
             fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
+            ...(deps.fileOperationsHelperPath
+                ? {
+                      nativeFileOperations: new NativeFileOperations(deps.fileOperationsHelperPath),
+                  }
+                : {}),
         },
     );
     const agentLaunchSettings = (provider: AgentProvider) =>
@@ -310,6 +318,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
+        'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),
         'updates.check': () => mainOwned('updates.check'),
         'updates.download': () => mainOwned('updates.download'),
@@ -463,6 +472,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
+        'files.create': (params) => files.create(params),
+        'files.rename': (params) => files.rename(params),
+        'files.move': (params) => files.move(params),
+        'files.authorizeTrash': (params) => files.authorizeTrash(params),
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (params) => files.search(params),

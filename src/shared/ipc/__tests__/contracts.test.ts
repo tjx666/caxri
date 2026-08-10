@@ -192,6 +192,38 @@ describe('files.write contract', () => {
     });
 });
 
+describe('file mutation contracts', () => {
+    const base = { sessionId: 'session-1', path: '/project/note.txt' };
+
+    it('keeps filesystem mutations narrow and gives Trash to Main only', () => {
+        expect(methods['files.create'].owner).toBe('runtime');
+        expect(methods['files.rename'].owner).toBe('runtime');
+        expect(methods['files.move'].owner).toBe('runtime');
+        expect(methods['files.trash'].owner).toBe('main');
+        expect(internalMethods['files.authorizeTrash'].owner).toBe('runtime');
+    });
+
+    it.each(['', '.', '..', '../escape', 'nested/file', 'nested\\file', 'null\0byte'])(
+        'rejects invalid item name %j',
+        (name) => {
+            expect(methods['files.rename'].params.safeParse({ ...base, name }).success).toBe(false);
+        },
+    );
+
+    it('trims a valid leaf name and keeps Trash authorization off the Renderer bridge', () => {
+        expect(methods['files.rename'].params.parse({ ...base, name: ' note.md ' }).name).toBe(
+            'note.md',
+        );
+        expect(
+            requestEnvelopeSchema.safeParse({
+                id: 'r1',
+                method: 'files.authorizeTrash',
+                params: base,
+            }).success,
+        ).toBe(false);
+    });
+});
+
 describe('Project and Session contracts', () => {
     it('keeps the selected root on Project creation and requires Sessions to reference it by id', () => {
         expect(methods['project.create'].params.safeParse({ rootPath: '/project' }).success).toBe(

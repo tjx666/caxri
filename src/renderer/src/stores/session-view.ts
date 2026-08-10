@@ -9,6 +9,8 @@ import {
 import type { InspectorMode } from '@shared/types';
 import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/work-item';
 
+import { pathIsAtOrBelow, remapPath } from '../lib/file-path';
+
 import {
     getSelectedSession,
     getSessionState,
@@ -40,6 +42,8 @@ interface SessionViewState {
     cacheDocuments(sessionId: string, documents: readonly EditorDocument[]): void;
     updateDocumentContent(sessionId: string, path: string, content: string): void;
     evictDocument(sessionId: string, path: string): void;
+    evictDocumentsUnderPath(sessionId: string, path: string): void;
+    remapDocuments(sessionId: string, previousPath: string, nextPath: string): void;
     dropSessions(sessionIds: readonly string[]): void;
     setInspectorMode(mode: InspectorMode): void;
 }
@@ -212,6 +216,49 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
                     ...state.recentDocuments,
                     [sessionId]: (state.recentDocuments[sessionId] ?? []).filter(
                         (value) => value !== path,
+                    ),
+                },
+            };
+        });
+    },
+
+    evictDocumentsUnderPath(sessionId, path) {
+        set((state) => {
+            const cached = state.documents[sessionId];
+            if (!cached || !Object.keys(cached).some((value) => pathIsAtOrBelow(value, path)))
+                return state;
+            const remaining = Object.fromEntries(
+                Object.entries(cached).filter(([value]) => !pathIsAtOrBelow(value, path)),
+            );
+            return {
+                documents: { ...state.documents, [sessionId]: remaining },
+                recentDocuments: {
+                    ...state.recentDocuments,
+                    [sessionId]: (state.recentDocuments[sessionId] ?? []).filter(
+                        (value) => !pathIsAtOrBelow(value, path),
+                    ),
+                },
+            };
+        });
+    },
+
+    remapDocuments(sessionId, previousPath, nextPath) {
+        set((state) => {
+            const cached = state.documents[sessionId];
+            if (!cached || !Object.keys(cached).some((path) => pathIsAtOrBelow(path, previousPath)))
+                return state;
+            const remapped = Object.fromEntries(
+                Object.entries(cached).map(([path, document]) => {
+                    const nextDocumentPath = remapPath(path, previousPath, nextPath);
+                    return [nextDocumentPath, { ...document, path: nextDocumentPath }];
+                }),
+            );
+            return {
+                documents: { ...state.documents, [sessionId]: remapped },
+                recentDocuments: {
+                    ...state.recentDocuments,
+                    [sessionId]: (state.recentDocuments[sessionId] ?? []).map((path) =>
+                        remapPath(path, previousPath, nextPath),
                     ),
                 },
             };

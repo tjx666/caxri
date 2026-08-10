@@ -99,6 +99,8 @@ export function lintPipelineForFile(file: string): 'code' | 'format' | undefined
 
 export function testCandidatesForFile(file: string): string[] {
     const normalized = file.replaceAll('\\', '/');
+    if (normalized === 'native/file-ops.c' || normalized === 'scripts/build-file-ops-helper.ts')
+        return ['src/runtime/files/__tests__/mutations.integration.test.ts'];
     if (/\.test\.(?:cts|mts|ts|tsx)$/.test(normalized)) return [normalized];
 
     const extension = TEST_EXTENSIONS.find((candidate) => normalized.endsWith(candidate));
@@ -221,6 +223,8 @@ async function runTests(root: string, files: string[]): Promise<number> {
     const candidates = [...new Set(files.flatMap(testCandidatesForFile))];
     const tests = await existingFiles(root, candidates);
     if (tests.length > 0) {
+        if (tests.includes('src/runtime/files/__tests__/mutations.integration.test.ts'))
+            await runCapture('bun', ['run', 'build:file-ops'], root);
         await runTool(root, 'vitest', ['run', '--silent=passed-only', ...tests]);
     }
     return tests.length;

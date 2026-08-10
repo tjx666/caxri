@@ -1,11 +1,13 @@
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { NativeFileOperations } from '../../shared/node/native-file-operations';
 import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService } from './listing';
+import { FileMutationService, type FileMutationOperations } from './mutations';
 import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
@@ -13,6 +15,7 @@ export interface FileServiceOptions extends WatcherServiceOptions {
     fileTreeExcludes?: () => AppSettings['files.exclude'];
     openFile?: OpenFile;
     search?: SearchServiceOptions;
+    nativeFileOperations?: FileMutationOperations;
 }
 
 /**
@@ -24,6 +27,7 @@ export class FileService {
     private readonly projectRoots: ProjectRootResolver;
     private readonly documents: DocumentService;
     private readonly listing: ListingService;
+    private readonly mutations: FileMutationService;
     private readonly searcher: SearchService;
     private readonly watcher: WatcherService;
 
@@ -57,6 +61,14 @@ export class FileService {
             maxFileBytes,
             options.search,
         );
+        this.mutations = new FileMutationService(
+            resolveSessionPath,
+            logger,
+            options.nativeFileOperations ??
+                new NativeFileOperations(
+                    process.env.CAXRI_FILE_OPS_HELPER ?? 'out/native/caxri-file-ops',
+                ),
+        );
     }
 
     resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
@@ -70,6 +82,28 @@ export class FileService {
 
     list(sessionId: string, directory?: string): Promise<FileEntry[]> {
         return this.listing.list(sessionId, directory);
+    }
+
+    create(
+        params: RuntimeMethodParams<'files.create'>,
+    ): Promise<RuntimeMethodResult<'files.create'>> {
+        return this.mutations.create(params);
+    }
+
+    rename(
+        params: RuntimeMethodParams<'files.rename'>,
+    ): Promise<RuntimeMethodResult<'files.rename'>> {
+        return this.mutations.rename(params);
+    }
+
+    move(params: RuntimeMethodParams<'files.move'>): Promise<RuntimeMethodResult<'files.move'>> {
+        return this.mutations.move(params);
+    }
+
+    authorizeTrash(
+        params: RuntimeMethodParams<'files.authorizeTrash'>,
+    ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
+        return this.mutations.authorizeTrash(params);
     }
 
     read(sessionId: string, path: string): Promise<FileDocument> {
