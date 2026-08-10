@@ -3,7 +3,9 @@
 ## Commands
 
 - Install dependencies: `ni`
-- Start the Electron app: `bun run dev`
+- Start the Electron app in the current worktree: `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`
+- Manage isolated worktrees: explicitly invoke `$switch-worktree`; its CLI creates adjacent
+  `caxri-worktrees/` checkouts, runs `ni` per checkout, and owns profile/process/desktop isolation.
 - Format the whole repository: `bun run format`; verify formatting: `bun run format:check`. Appending
   file paths does not narrow `bun run format`; use `bunx --bun prettier --write <files...>` for a
   focused formatting pass.
@@ -121,6 +123,9 @@ step-by-step workflows beyond this summary.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
+- Electron E2E helpers, Acceptance, and performance benchmarks acquire one repository-wide desktop
+  lease before launch. Never bypass their launch helpers or run a second desktop task concurrently;
+  use `$switch-worktree`'s `desktop` command for any additional Electron desktop workflow.
 - Finish source edits before updating tests. For a bug fix, first add or identify a behavior-level regression that fails for the bug and passes after the fix.
 - Do not unit-test React components by default. When component logic needs coverage, extract it into a hook or pure function and test that; rendering and interaction belong to the smallest relevant E2E workflow.
 - Prefer observable output and integration boundaries over internal call assertions. Mock Electron IPC or native boundaries for unit tests; reserve a real Electron launch for the smallest relevant E2E workflow.

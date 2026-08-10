@@ -3,6 +3,12 @@ import { join, resolve } from 'node:path';
 import { expect, type ElectronApplication, type Page } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 
+import {
+    acquireDesktopLease,
+    releaseDesktopLease,
+    transferDesktopLease,
+    type DesktopLeaseHandle,
+} from '../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -98,21 +104,46 @@ export async function launchCaxriApp(
 ): Promise<{ app: ElectronApplication; page: Page }> {
     await assertBuildIsFresh();
     const { userDataDir, testRootPath, env = {}, executablePath } = options;
-
-    const app = await electron.launch({
-        ...(executablePath ? { executablePath } : {}),
-        args: executablePath ? ['--disable-gpu'] : ['.', '--disable-gpu'],
-        cwd: projectRoot,
-        env: {
-            ...process.env,
-            ...env,
-            CAXRI_E2E: '1',
-            CAXRI_USER_DATA_DIR: userDataDir,
-            CAXRI_TEST_ROOT_PATH: testRootPath,
-        },
+    let lease: DesktopLeaseHandle = await acquireDesktopLease(
+        projectRoot,
+        executablePath ? 'performance benchmark' : 'Electron E2E',
+    );
+    let app: ElectronApplication;
+    try {
+        app = await electron.launch({
+            ...(executablePath ? { executablePath } : {}),
+            args: executablePath ? ['--disable-gpu'] : ['.', '--disable-gpu'],
+            cwd: projectRoot,
+            env: {
+                ...process.env,
+                ...env,
+                CAXRI_E2E: '1',
+                CAXRI_USER_DATA_DIR: userDataDir,
+                CAXRI_TEST_ROOT_PATH: testRootPath,
+            },
+        });
+        const electronPid = app.process().pid;
+        if (!electronPid) throw new Error('Could not establish the Electron process identity');
+        lease = await transferDesktopLease(lease, electronPid);
+    } catch (error) {
+        await releaseDesktopLease(lease);
+        throw error;
+    }
+    app.once('close', () => {
+        void releaseDesktopLease(lease).catch((error: unknown) => {
+            console.error(
+                `Could not release Caxri desktop lease: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        });
     });
-    const page = await app.firstWindow();
-    return { app, page };
+    try {
+        const page = await app.firstWindow();
+        return { app, page };
+    } catch (error) {
+        await app.close().catch(() => undefined);
+        await releaseDesktopLease(lease).catch(() => undefined);
+        throw error;
+    }
 }
 
 /**

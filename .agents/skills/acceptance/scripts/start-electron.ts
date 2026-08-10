@@ -16,6 +16,10 @@ import {
     runtimeStateSchema,
     type RuntimeState,
 } from './runtime-state';
+import {
+    acquireDesktopLease,
+    releaseDesktopLease,
+} from '../../switch-worktree/scripts/desktop-lease';
 import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -172,97 +176,102 @@ async function main(): Promise<void> {
         throw new Error('--port must be an integer between 1024 and 65535');
     }
 
-    await access(ELECTRON_PATH);
-    await assertBuildOutputsFresh({
-        inputPaths: BUILD_INPUT_PATHS,
-        outputPaths: BUILD_OUTPUT_PATHS,
-        staleMessage: STALE_BUILD_MESSAGE,
-        watchedDirectoryExtensions: WATCHED_BUILD_INPUT_EXTENSIONS,
-    });
-    await removeStaleRuntime();
-    await assertPortAvailable(port);
-
-    const requestedRoots = stringOptions(options, 'test-root');
-    const testRootPaths = (requestedRoots.length > 0 ? requestedRoots : [PROJECT_ROOT]).map(
-        (root) => resolve(PROJECT_ROOT, root),
-    );
-    await Promise.all(
-        testRootPaths.map((root) =>
-            access(root).catch(() => {
-                throw new Error(`Test root does not exist: ${root}`);
-            }),
-        ),
-    );
-    const testRootPath = testRootPaths[0];
-    const launcherIdentity = await getProcessIdentity(process.pid);
-    if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
-    const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-'));
-
-    const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
-        cwd: PROJECT_ROOT,
-        env: {
-            ...process.env,
-            CAXRI_E2E: '1',
-            CAXRI_TEST_ROOT_PATH: testRootPath,
-            CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
-            CAXRI_USER_DATA_DIR: userDataDir,
-        },
-        stdio: 'inherit',
-    });
-    const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-        (resolveExit, rejectExit) => {
-            child.once('error', rejectExit);
-            child.once('exit', (code, signal) => resolveExit({ code, signal }));
-        },
-    );
-
-    const runtime: RuntimeState = {
-        cdpUrl: `http://127.0.0.1:${port}`,
-        electronPid: child.pid ?? null,
-        launcherIdentity,
-        launcherPid: process.pid,
-        ownedUserData: true,
-        port,
-        startedAt: new Date().toISOString(),
-        testRootPath,
-        testRootPaths,
-        userDataDir,
-    };
-    let stopping = false;
-    const stop = (): void => {
-        if (stopping) return;
-        stopping = true;
-        if (isAlive(child.pid)) child.kill('SIGTERM');
-        const forceTimer = setTimeout(() => {
-            if (isAlive(child.pid)) child.kill('SIGKILL');
-        }, 5_000);
-        forceTimer.unref();
-    };
-    process.on('SIGINT', stop);
-    process.on('SIGTERM', stop);
-
+    const desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
-        await writeRuntime(runtime);
-        await Promise.race([
-            waitForCdp(port, child),
-            childExit.then<never>(({ code, signal }) => {
-                throw new Error(
-                    `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
-                );
-            }),
-        ]);
-        console.log(JSON.stringify({ ...runtime, status: 'ready' }));
-        const { code, signal } = await childExit;
-        if (!stopping && code !== 0) {
-            throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
+        await access(ELECTRON_PATH);
+        await assertBuildOutputsFresh({
+            inputPaths: BUILD_INPUT_PATHS,
+            outputPaths: BUILD_OUTPUT_PATHS,
+            staleMessage: STALE_BUILD_MESSAGE,
+            watchedDirectoryExtensions: WATCHED_BUILD_INPUT_EXTENSIONS,
+        });
+        await removeStaleRuntime();
+        await assertPortAvailable(port);
+
+        const requestedRoots = stringOptions(options, 'test-root');
+        const testRootPaths = (requestedRoots.length > 0 ? requestedRoots : [PROJECT_ROOT]).map(
+            (root) => resolve(PROJECT_ROOT, root),
+        );
+        await Promise.all(
+            testRootPaths.map((root) =>
+                access(root).catch(() => {
+                    throw new Error(`Test root does not exist: ${root}`);
+                }),
+            ),
+        );
+        const testRootPath = testRootPaths[0];
+        const launcherIdentity = await getProcessIdentity(process.pid);
+        if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
+        const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-'));
+
+        const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
+            cwd: PROJECT_ROOT,
+            env: {
+                ...process.env,
+                CAXRI_E2E: '1',
+                CAXRI_TEST_ROOT_PATH: testRootPath,
+                CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
+                CAXRI_USER_DATA_DIR: userDataDir,
+            },
+            stdio: 'inherit',
+        });
+        const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+            (resolveExit, rejectExit) => {
+                child.once('error', rejectExit);
+                child.once('exit', (code, signal) => resolveExit({ code, signal }));
+            },
+        );
+
+        const runtime: RuntimeState = {
+            cdpUrl: `http://127.0.0.1:${port}`,
+            electronPid: child.pid ?? null,
+            launcherIdentity,
+            launcherPid: process.pid,
+            ownedUserData: true,
+            port,
+            startedAt: new Date().toISOString(),
+            testRootPath,
+            testRootPaths,
+            userDataDir,
+        };
+        let stopping = false;
+        const stop = (): void => {
+            if (stopping) return;
+            stopping = true;
+            if (isAlive(child.pid)) child.kill('SIGTERM');
+            const forceTimer = setTimeout(() => {
+                if (isAlive(child.pid)) child.kill('SIGKILL');
+            }, 5_000);
+            forceTimer.unref();
+        };
+        process.on('SIGINT', stop);
+        process.on('SIGTERM', stop);
+
+        try {
+            await writeRuntime(runtime);
+            await Promise.race([
+                waitForCdp(port, child),
+                childExit.then<never>(({ code, signal }) => {
+                    throw new Error(
+                        `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
+                    );
+                }),
+            ]);
+            console.log(JSON.stringify({ ...runtime, status: 'ready' }));
+            const { code, signal } = await childExit;
+            if (!stopping && code !== 0) {
+                throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
+            }
+        } finally {
+            stop();
+            await childExit.catch(() => undefined);
+            await unlink(RUNTIME_PATH).catch((error: unknown) => {
+                if (errorCode(error) !== 'ENOENT') throw error;
+            });
+            await removeOwnedUserData(runtime);
         }
     } finally {
-        stop();
-        await childExit.catch(() => undefined);
-        await unlink(RUNTIME_PATH).catch((error: unknown) => {
-            if (errorCode(error) !== 'ENOENT') throw error;
-        });
-        await removeOwnedUserData(runtime);
+        await releaseDesktopLease(desktopLease);
     }
 }
 
