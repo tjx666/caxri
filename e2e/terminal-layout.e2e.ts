@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 
 import type { ThemeTokens } from '../src/shared/types.ts';
 
@@ -17,6 +17,162 @@ import {
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
+
+interface TerminalGlyphPixels {
+    deviceX: number;
+    foregroundPixels: number;
+}
+
+async function terminalGlyphPixelCounts(
+    app: ElectronApplication,
+    page: Page,
+    terminalId: string,
+    glyph: string,
+): Promise<TerminalGlyphPixels[]> {
+    const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
+    const geometry = await pane.evaluate((paneElement, target) => {
+        const paneBounds = paneElement.getBoundingClientRect();
+        const screenElement = paneElement.querySelector('.xterm-screen');
+        if (!screenElement) throw new Error('Terminal screen is unavailable');
+        const rows = screenElement.querySelector('.xterm-rows');
+        if (!rows) throw new Error('Terminal rows are unavailable');
+        const matches: Array<{ height: number; width: number; x: number; y: number }> = [];
+        for (const row of rows.children) {
+            const text = row.textContent ?? '';
+            if (text.trim() !== target) continue;
+            const index = text.indexOf(target);
+            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+            let offset = 0;
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                const length = node.textContent?.length ?? 0;
+                if (index < offset || index + target.length > offset + length) {
+                    offset += length;
+                    continue;
+                }
+                const range = document.createRange();
+                range.setStart(node, index - offset);
+                range.setEnd(node, index + target.length - offset);
+                const bounds = range.getBoundingClientRect();
+                matches.push({
+                    height: bounds.height,
+                    width: bounds.width,
+                    x: bounds.x - paneBounds.x,
+                    y: bounds.y - paneBounds.y,
+                });
+                break;
+            }
+        }
+        return { height: paneBounds.height, matches, width: paneBounds.width };
+    }, glyph);
+    const screenshot = await pane.screenshot();
+    return app.evaluate(
+        ({ nativeImage }, { geometry, screenshotBase64 }) => {
+            const image = nativeImage.createFromBuffer(Buffer.from(screenshotBase64, 'base64'));
+            const size = image.getSize();
+            const bitmap = image.toBitmap();
+            const scaleX = size.width / geometry.width;
+            const scaleY = size.height / geometry.height;
+            return geometry.matches.map((bounds) => {
+                const left = Math.max(0, Math.floor((bounds.x - 3) * scaleX));
+                const right = Math.min(
+                    size.width,
+                    Math.ceil((bounds.x + bounds.width + 3) * scaleX),
+                );
+                const top = Math.max(0, Math.floor(bounds.y * scaleY));
+                const bottom = Math.min(
+                    size.height,
+                    Math.ceil((bounds.y + bounds.height) * scaleY),
+                );
+                let foregroundPixels = 0;
+                for (let y = top; y < bottom; y += 1) {
+                    for (let x = left; x < right; x += 1) {
+                        const offset = (y * size.width + x) * 4;
+                        if (Math.max(bitmap[offset], bitmap[offset + 1], bitmap[offset + 2]) > 96)
+                            foregroundPixels += 1;
+                    }
+                }
+                return { deviceX: bounds.x * scaleX, foregroundPixels };
+            });
+        },
+        { geometry, screenshotBase64: screenshot.toString('base64') },
+    );
+}
+
+function alignedTerminalGlyphs(samples: TerminalGlyphPixels[]): {
+    edge: TerminalGlyphPixels;
+    reference: TerminalGlyphPixels;
+} {
+    const edge = samples.at(-1);
+    if (!edge || samples.length < 2) throw new Error('Terminal glyph samples are incomplete');
+    const edgeFraction = edge.deviceX - Math.floor(edge.deviceX);
+    const reference = samples.slice(0, -1).reduce((closest, candidate) => {
+        const candidateFraction = candidate.deviceX - Math.floor(candidate.deviceX);
+        const closestFraction = closest.deviceX - Math.floor(closest.deviceX);
+        const candidateDistance = Math.min(
+            Math.abs(candidateFraction - edgeFraction),
+            1 - Math.abs(candidateFraction - edgeFraction),
+        );
+        const closestDistance = Math.min(
+            Math.abs(closestFraction - edgeFraction),
+            1 - Math.abs(closestFraction - edgeFraction),
+        );
+        return candidateDistance < closestDistance ? candidate : closest;
+    });
+    return { edge, reference };
+}
+
+async function terminalEdgeGlyphEvidence(
+    app: ElectronApplication,
+    page: Page,
+    terminalId: string,
+    output: string,
+    minimumSamples = { ascii: 3, cjk: 3 },
+): Promise<{
+    alignedAscii: ReturnType<typeof alignedTerminalGlyphs>;
+    alignedCjk: ReturnType<typeof alignedTerminalGlyphs>;
+}> {
+    const input = page.locator(
+        `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
+    );
+    const rows = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`);
+    await input.focus();
+    await input.press('Control+L');
+    await input.pressSequentially(`${output} ascii`);
+    await input.press('Enter');
+    await expect
+        .poll(() =>
+            rows.evaluate(
+                (rowContainer) =>
+                    [...rowContainer.children].filter((row) => row.textContent?.trim() === 'W')
+                        .length,
+            ),
+        )
+        .toBeGreaterThanOrEqual(minimumSamples.ascii);
+    const ascii = await terminalGlyphPixelCounts(app, page, terminalId, 'W');
+    await input.press('Control+C');
+
+    await input.focus();
+    await input.press('Control+L');
+    await input.pressSequentially(`${output} cjk`);
+    await input.press('Enter');
+    await expect
+        .poll(() =>
+            rows.evaluate(
+                (rowContainer) =>
+                    [...rowContainer.children].filter((row) => row.textContent?.trim() === '界')
+                        .length,
+            ),
+        )
+        .toBeGreaterThanOrEqual(minimumSamples.cjk);
+    const cjk = await terminalGlyphPixelCounts(app, page, terminalId, '界');
+    await input.press('Control+C');
+    expect(ascii.length).toBeGreaterThanOrEqual(minimumSamples.ascii);
+    expect(cjk.length).toBeGreaterThanOrEqual(minimumSamples.cjk);
+    return {
+        alignedAscii: alignedTerminalGlyphs(ascii),
+        alignedCjk: alignedTerminalGlyphs(cjk),
+    };
+}
 
 test('Terminal split layout drags, resizes, restores, and preserves the live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
@@ -213,6 +369,144 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     `viewport width ${width}px, pane ${index}`,
                 ).toBeGreaterThanOrEqual(4);
             }
+        }
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Terminal paints complete ASCII and CJK glyphs in the final grid cells', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-glyph-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const output = join(testDirectory, 'terminal-glyph-output.sh');
+    await execFileAsync('mkdir', ['-p', root]);
+    await writeFile(
+        output,
+        `#!/bin/sh
+i=0
+while [ "$i" -lt 80 ]; do printf 'filler-%03d\\n' "$i"; i=$((i + 1)); done
+cols=$(tput cols)
+if [ "$1" = ascii ]; then
+  for offset in 2 3 4 5 6 7 8 9 10 11 12; do
+    if [ "$offset" -lt "$((cols - 1))" ]; then printf '%*sW\\n' "$((cols - 1 - offset))" ''; fi
+  done
+  printf '%*sW\\n' "$((cols - 1))" ''
+else
+  for offset in 2 3 4 5 6 7 8 9 10 11 12; do
+    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s界\\n' "$((cols - 2 - offset))" ''; fi
+  done
+  printf '%*s界\\n' "$((cols - 2))" ''
+fi
+sleep 30
+`,
+        'utf8',
+    );
+    await chmod(output, 0o700);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        const activeTheme = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
+        const contrastingTheme = structuredClone(activeTheme.value);
+        contrastingTheme.terminal.background = '#000000';
+        contrastingTheme.terminal.foreground = '#ffffff';
+        await pageRequest(running.page, 'theme.update', {
+            source: JSON.stringify(contrastingTheme),
+        });
+        const terminalId = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals[0].id;
+        const rows = running.page.locator(
+            `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`,
+        );
+        const settings = await pageRequest<{
+            value: Record<string, unknown>;
+        }>(running.page, 'settings.get');
+        for (const { fontSize, width } of [
+            { fontSize: 9, width: 900 },
+            { fontSize: 9, width: 1_160 },
+            { fontSize: 13, width: 900 },
+            { fontSize: 13, width: 1_160 },
+            { fontSize: 32, width: 900 },
+            { fontSize: 32, width: 1_160 },
+        ]) {
+            await pageRequest(running.page, 'settings.update', {
+                source: JSON.stringify({
+                    ...settings.value,
+                    'terminal.fontSize': fontSize,
+                }),
+            });
+            await running.page.setViewportSize({ height: 800, width });
+            await expect
+                .poll(() =>
+                    rows.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+                )
+                .toBe(fontSize);
+            await running.page.evaluate(
+                () =>
+                    new Promise<void>((resolve) =>
+                        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+                    ),
+            );
+            const { alignedAscii, alignedCjk } = await terminalEdgeGlyphEvidence(
+                running.app,
+                running.page,
+                terminalId,
+                output,
+            );
+            const evidence = JSON.stringify({ alignedAscii, alignedCjk, fontSize, width });
+            expect(alignedAscii.edge.foregroundPixels, evidence).toBeGreaterThanOrEqual(
+                alignedAscii.reference.foregroundPixels * 0.95,
+            );
+            expect(alignedCjk.edge.foregroundPixels, evidence).toBeGreaterThanOrEqual(
+                alignedCjk.reference.foregroundPixels * 0.95,
+            );
+        }
+
+        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
+        await splitTerminalToRight(running.page, secondTerminalId);
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify({ ...settings.value, 'terminal.fontSize': 13 }),
+        });
+        await running.page.setViewportSize({ height: 800, width: 1_160 });
+        const secondRows = running.page.locator(
+            `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-rows`,
+        );
+        await expect
+            .poll(() =>
+                secondRows.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+            )
+            .toBe(13);
+        await running.page.evaluate(
+            () =>
+                new Promise<void>((resolve) =>
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+                ),
+        );
+        const splitLeft = await terminalEdgeGlyphEvidence(
+            running.app,
+            running.page,
+            terminalId,
+            output,
+        );
+        const splitRight = await terminalEdgeGlyphEvidence(
+            running.app,
+            running.page,
+            secondTerminalId,
+            output,
+            { ascii: 3, cjk: 2 },
+        );
+        for (const split of [splitLeft, splitRight]) {
+            const splitEvidence = JSON.stringify(split);
+            expect(split.alignedAscii.edge.foregroundPixels, splitEvidence).toBeGreaterThanOrEqual(
+                split.alignedAscii.reference.foregroundPixels * 0.95,
+            );
+            expect(split.alignedCjk.edge.foregroundPixels, splitEvidence).toBeGreaterThanOrEqual(
+                split.alignedCjk.reference.foregroundPixels * 0.95,
+            );
         }
     } finally {
         await running.app.close().catch(() => undefined);
