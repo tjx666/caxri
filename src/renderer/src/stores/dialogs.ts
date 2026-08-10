@@ -7,6 +7,8 @@ interface DialogState {
     settingsRequest: { id: number; view: SettingsView };
     paletteOpen: boolean;
     pathBrowserOpen: boolean;
+    bugReportOpen: boolean;
+    bugReportRequestId: number;
     /** Directory granted by the native picker, awaiting the default-Agent choice. */
     pendingRoot?: string;
     /** Existing Project awaiting the default-Agent choice for a new Session. */
@@ -27,6 +29,8 @@ interface DialogState {
     setSettingsOpen(open: boolean): void;
     setPaletteOpen(open: boolean): void;
     setPathBrowserOpen(open: boolean): void;
+    openBugReport(): void;
+    setBugReportOpen(open: boolean): void;
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
@@ -43,6 +47,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
     pathBrowserOpen: false,
+    bugReportOpen: false,
+    bugReportRequestId: 0,
     pendingRoot: undefined,
     pendingProjectId: undefined,
     openModalIds: new Set(),
@@ -54,6 +60,12 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setPathBrowserOpen: (pathBrowserOpen) => set({ pathBrowserOpen }),
+    openBugReport: () =>
+        set((state) => ({
+            bugReportOpen: true,
+            bugReportRequestId: state.bugReportRequestId + 1,
+        })),
+    setBugReportOpen: (bugReportOpen) => set({ bugReportOpen }),
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
@@ -82,4 +94,6 @@ export const setPaletteOpen = (open: boolean): void =>
     useDialogStore.getState().setPaletteOpen(open);
 export const setPathBrowserOpen = (open: boolean): void =>
     useDialogStore.getState().setPathBrowserOpen(open);
+export const setBugReportOpen = (open: boolean): void =>
+    useDialogStore.getState().setBugReportOpen(open);
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();

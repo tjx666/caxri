@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/useCommandShortcuts';
+import { BugReportDialog } from './features/bug-report/BugReportDialog';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
@@ -150,6 +151,7 @@ export function App() {
                 <UpdateDialog />
                 <CommandPalette />
                 <PathBrowserDialog />
+                <BugReportDialog />
                 <ToastOutlet />
                 <ScreencastOverlay />
             </main>

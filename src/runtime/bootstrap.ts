@@ -370,6 +370,32 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
+        'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
+        'bugReport.context': () => diagnostics.reportContext(),
+        'bugReport.send': ({ report, sessionId, terminalId }) => {
+            const terminal = database.getTerminal(terminalId);
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
+            if (terminal.sessionId !== sessionId)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'The selected Agent no longer belongs to this Session',
+                );
+            if (!terminal.provider)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Bug reports can only be sent to an Agent Terminal',
+                );
+            if (
+                terminal.lastProcessState !== 'running' ||
+                terminals.processId(terminalId) === undefined
+            )
+                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            /** Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report
+             *  cannot contain control characters capable of terminating the paste sequence. */
+            if (!terminals.write(terminalId, `\u001B[200~${report}\u001B[201~\r`))
+                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            return null;
+        },
         'files.reveal': () => mainOwned('files.reveal'),
         'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),

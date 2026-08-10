@@ -47,6 +47,21 @@ export interface MethodSpec {
  */
 const noParams = z.object({}).default({});
 const configurationSource = z.string().max(128 * 1024);
+function containsReportControlCharacter(value: string): boolean {
+    for (const character of value) {
+        const code = character.codePointAt(0)!;
+        if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127) return true;
+    }
+    return false;
+}
+const bugReportText = z
+    .string()
+    .min(1)
+    .max(48 * 1024)
+    .refine(
+        (value) => !containsReportControlCharacter(value),
+        'Report contains control characters',
+    );
 
 /** Keeps path-browser IPC and rendering bounded while still allowing users to refine by name. */
 export const MAX_FILE_BROWSE_ENTRIES = 200;
@@ -119,6 +134,38 @@ export const methods = {
         owner: 'main',
         params: noParams,
         result: exportedFile.nullable(),
+    },
+    'bugReport.context': {
+        owner: 'runtime',
+        params: noParams,
+        result: z.object({
+            appVersion: z.string().min(1).max(100),
+            architecture: z.string().min(1).max(100),
+            commit: z.string().min(1).max(100),
+            platform: z.string().min(1).max(100),
+            recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
+        }),
+    },
+    'bugReport.captureScreenshot': {
+        owner: 'main',
+        params: noParams,
+        result: z.object({
+            dataUrl: z
+                .string()
+                .startsWith('data:image/jpeg;base64,')
+                .max(12 * 1024 * 1024),
+            height: z.number().int().positive().max(16_384),
+            width: z.number().int().positive().max(16_384),
+        }),
+    },
+    'bugReport.send': {
+        owner: 'runtime',
+        params: z.object({
+            report: bugReportText,
+            sessionId: identifierSchema,
+            terminalId: identifierSchema,
+        }),
+        result: z.null(),
     },
     'updates.getState': { owner: 'main', params: noParams, result: updateStateSchema },
     'updates.check': { owner: 'main', params: noParams, result: updateStateSchema },

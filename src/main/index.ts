@@ -451,6 +451,17 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
         case 'processExplorer.open':
             processExplorer.open();
             return null;
+        case 'bugReport.captureScreenshot': {
+            if (!mainWindow || mainWindow.isDestroyed())
+                throw new CaxriError('UNAVAILABLE', 'The Caxri window is not available');
+            const image = await mainWindow.webContents.capturePage();
+            const { height, width } = image.getSize();
+            return {
+                dataUrl: `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`,
+                height,
+                width,
+            };
+        }
         case 'diagnostics.export': {
             const result = await dialog.showSaveDialog(mainWindow!, {
                 title: 'Export Diagnostics',
