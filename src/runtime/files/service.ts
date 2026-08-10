@@ -84,6 +84,12 @@ export class FileService {
         return this.listing.list(sessionId, directory);
     }
 
+    browse(
+        params: RuntimeMethodParams<'files.browse'>,
+    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        return this.listing.browse(params);
+    }
+
     create(
         params: RuntimeMethodParams<'files.create'>,
     ): Promise<RuntimeMethodResult<'files.create'>> {

@@ -46,6 +46,9 @@ export interface MethodSpec {
 const noParams = z.object({}).default({});
 const configurationSource = z.string().max(128 * 1024);
 
+/** Keeps path-browser IPC and rendering bounded while still allowing users to refine by name. */
+export const MAX_FILE_BROWSE_ENTRIES = 200;
+
 const settingsResult = z.object({ value: appSettingsSchema, source: z.string() });
 const keybindingsResult = z.object({
     value: z.array(keybindingSchema),
@@ -241,6 +244,18 @@ export const methods = {
         owner: 'runtime',
         params: z.object({ sessionId: identifierSchema, directory: pathSchema.optional() }),
         result: z.array(fileEntrySchema),
+    },
+    'files.browse': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            directory: pathSchema.optional(),
+            query: z.string().max(255),
+        }),
+        result: z.object({
+            entries: z.array(fileEntrySchema).max(MAX_FILE_BROWSE_ENTRIES),
+            truncated: z.boolean(),
+        }),
     },
     'files.create': {
         owner: 'runtime',

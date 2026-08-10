@@ -15,6 +15,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { MAX_FILE_BROWSE_ENTRIES } from '../../../shared/ipc/methods';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
@@ -318,6 +319,51 @@ describe('FileService', () => {
             'node_modules',
             'visible.ts',
         ]);
+        database.close();
+    });
+
+    it('bounds path browsing while a name refinement can reach entries beyond the first page', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-limit-'));
+        temporaryDirectories.push(directory);
+        await Promise.all(
+            Array.from({ length: MAX_FILE_BROWSE_ENTRIES + 5 }, (_, index) =>
+                writeFile(
+                    join(directory, `file-${String(index).padStart(3, '0')}.txt`),
+                    'x',
+                    'utf8',
+                ),
+            ),
+        );
+        await writeFile(join(directory, 'zz-target.txt'), 'target', 'utf8');
+        const targetPath = await realpath(join(directory, 'zz-target.txt'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        );
+
+        const initial = await service.browse({ sessionId: session.id, query: '' });
+        expect(initial.entries).toHaveLength(MAX_FILE_BROWSE_ENTRIES);
+        expect(initial.truncated).toBe(true);
+        expect(initial.entries.some((entry) => entry.name === 'zz-target.txt')).toBe(false);
+
+        await expect(service.browse({ sessionId: session.id, query: 'target' })).resolves.toEqual({
+            entries: [
+                {
+                    kind: 'file',
+                    name: 'zz-target.txt',
+                    path: targetPath,
+                    size: 6,
+                },
+            ],
+            truncated: false,
+        });
         database.close();
     });
 

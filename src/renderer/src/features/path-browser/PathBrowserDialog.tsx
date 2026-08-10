@@ -1,5 +1,5 @@
 import { ChevronLeft, CornerDownLeft } from 'lucide-react';
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
@@ -13,9 +13,21 @@ import { describeFailure } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { completePathQuery, filterPathEntries, parentDirectoryWithinRoot } from './path-browser';
 
+const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
+const EMPTY_ENTRIES: readonly FileEntry[] = [];
+
 function relativeDirectory(root: string, directory: string): string {
     if (directory === root) return '';
     return `${directory.slice(root === '/' ? 1 : root.length + 1)}/`;
+}
+
+function useDebouncedValue(value: string): string {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebounced(value), PATH_BROWSER_QUERY_DEBOUNCE_MS);
+        return () => window.clearTimeout(timer);
+    }, [value]);
+    return debounced;
 }
 
 export function PathBrowserDialog() {
@@ -48,15 +60,27 @@ function PathBrowserContent({
     const [directory, setDirectory] = useState(root);
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
-    const {
-        data: entries = [],
-        error,
-        isError,
-        isPending,
-    } = useCaxriQuery('files.list', { sessionId, directory }, { staleTime: 0 });
+    const debouncedQuery = useDebouncedValue(query);
+    const listboxId = useId();
+    const { data, error, isError, isFetching, isPending } = useCaxriQuery(
+        'files.browse',
+        { sessionId, directory, query: debouncedQuery },
+        { staleTime: 0 },
+    );
+    const entries = data?.entries ?? EMPTY_ENTRIES;
+    const truncated = data?.truncated ?? false;
+    const settled = query === debouncedQuery && !isPending && !isFetching;
     const matches = useMemo(() => filterPathEntries(entries, query), [entries, query]);
+    const exactMatchAvailable = !truncated && matches.length === 1 && matches[0].name === query;
+    const resultsReady = settled || exactMatchAvailable;
     const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(matches.length - 1, 0));
-    const selected = matches[effectiveSelectedIndex];
+    const selected = resultsReady ? matches[effectiveSelectedIndex] : undefined;
+    const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
+
+    useEffect(() => {
+        if (activeOptionId)
+            document.getElementById(activeOptionId)?.scrollIntoView({ block: 'nearest' });
+    }, [activeOptionId]);
 
     const close = (): void => setPathBrowserOpen(false);
     const updateQuery = (value: string): void => {
@@ -81,6 +105,7 @@ function PathBrowserContent({
         void openFile(entry.path);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+        if (event.nativeEvent.isComposing) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             if (matches.length === 0) return;
@@ -90,7 +115,7 @@ function PathBrowserContent({
         }
         if (event.key === 'Tab') {
             event.preventDefault();
-            const completion = completePathQuery(entries, query);
+            const completion = completePathQuery(entries, query, truncated);
             if (completion) updateQuery(completion);
             return;
         }
@@ -134,10 +159,16 @@ function PathBrowserContent({
                     {root ? relativeDirectory(root, directory) : ''}
                 </span>
                 <input
+                    aria-activedescendant={activeOptionId}
+                    aria-autocomplete="list"
+                    aria-busy={!resultsReady}
+                    aria-controls={listboxId}
+                    aria-expanded="true"
                     aria-label="File path"
                     autoFocus
                     className="h-full min-w-[80px] flex-1 border-0 bg-transparent px-1 text-[13px] text-foreground outline-none"
                     placeholder="Filter this directory…"
+                    role="combobox"
                     value={query}
                     onChange={(event) => {
                         const value = event.target.value;
@@ -147,49 +178,56 @@ function PathBrowserContent({
                     onKeyDown={handleKeyDown}
                 />
             </div>
-            <div
-                aria-label="Files in current directory"
-                className="max-h-[360px] min-h-[180px] overflow-auto p-1"
-                role="listbox"
-            >
+            <div className="max-h-[360px] min-h-[180px] overflow-auto p-1">
                 {isPending && <p className="p-6 text-center text-muted">Loading…</p>}
                 {isError && (
                     <p className="p-6 text-center text-danger" role="alert">
                         {describeFailure(error, 'Unable to read directory')}
                     </p>
                 )}
-                {!isPending && !isError && matches.length === 0 && (
+                {!isPending && !isError && !resultsReady && (
+                    <p className="p-6 text-center text-muted">Searching…</p>
+                )}
+                {resultsReady && !isError && matches.length === 0 && (
                     <p className="p-6 text-center text-muted">No matching file or folder.</p>
                 )}
-                {!isPending &&
-                    !isError &&
-                    matches.map((entry, index) => (
-                        <button
-                            key={entry.path}
-                            aria-disabled={entry.kind === 'symlink'}
-                            aria-selected={index === effectiveSelectedIndex}
-                            className={cn(
-                                'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated',
-                                index === effectiveSelectedIndex && 'bg-elevated',
-                                entry.kind === 'symlink' && 'cursor-not-allowed text-muted',
-                            )}
-                            role="option"
-                            type="button"
-                            disabled={entry.kind === 'symlink'}
-                            onClick={() => choose(entry)}
-                            onMouseMove={() => setSelectedIndex(index)}
-                        >
-                            <FileTypeIcon entry={entry} />
-                            <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                            {entry.kind === 'directory' && (
-                                <CornerDownLeft
-                                    aria-label="Directory"
-                                    className="text-muted"
-                                    size={13}
-                                />
-                            )}
-                        </button>
-                    ))}
+                {resultsReady && !isError && (
+                    <div aria-label="Files in current directory" id={listboxId} role="listbox">
+                        {matches.map((entry, index) => (
+                            <button
+                                key={entry.path}
+                                id={`${listboxId}-option-${index}`}
+                                aria-disabled={entry.kind === 'symlink'}
+                                aria-selected={index === effectiveSelectedIndex}
+                                className={cn(
+                                    'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated',
+                                    index === effectiveSelectedIndex && 'bg-elevated',
+                                    entry.kind === 'symlink' && 'cursor-not-allowed text-muted',
+                                )}
+                                role="option"
+                                type="button"
+                                disabled={entry.kind === 'symlink'}
+                                onClick={() => choose(entry)}
+                                onMouseMove={() => setSelectedIndex(index)}
+                            >
+                                <FileTypeIcon entry={entry} />
+                                <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                                {entry.kind === 'directory' && (
+                                    <CornerDownLeft
+                                        aria-label="Directory"
+                                        className="text-muted"
+                                        size={13}
+                                    />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {resultsReady && !isError && truncated && (
+                    <p className="px-2 py-1 text-[10px] text-muted" role="status">
+                        More items are available. Type to narrow the list.
+                    </p>
+                )}
             </div>
             <div className="flex h-8 items-center gap-3 border-t border-border px-3 text-[10px] text-muted">
                 <span>↑↓ Select</span>
