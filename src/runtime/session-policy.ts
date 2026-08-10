@@ -15,7 +15,10 @@ import type {
  * composes these with `./db/models/*` (pure SQL) inside its own transactions.
  */
 
-/** Single source of truth for the title a Terminal (or a newly promoted primary Agent) starts with. */
+/** Neutral automatic title used until a new Session gains useful Agent metadata or a manual name. */
+export const DEFAULT_SESSION_TITLE = 'Untitled';
+
+/** Single source of truth for the title a Terminal starts with. */
 const DEFAULT_TERMINAL_TITLE: Record<TerminalKind, string> = {
     shell: 'Shell',
     claude: 'Claude Code',
@@ -97,10 +100,7 @@ export function choosePrimaryAgentForNewTerminal(
     if (terminal.kind === 'shell' || session.primaryAgentTerminalId) return undefined;
     return {
         primaryAgentTerminalId: terminal.id,
-        displayTitle:
-            session.titleMode === 'manual'
-                ? session.displayTitle
-                : defaultTerminalTitle(terminal.kind),
+        displayTitle: session.displayTitle,
         lastActivityState: 'idle',
     };
 }
@@ -112,20 +112,18 @@ export interface PrimaryAgentSuccession {
 }
 
 /**
- * Picks the next primary Agent Terminal after the current one closes. Another Agent becomes the
- * new title source; when only Shell Terminals remain, the last generated Agent title stays visible.
+ * Picks the next primary Agent Terminal after the current one closes. The visible title stays
+ * stable until useful metadata from the successor arrives; when only Shell Terminals remain, the
+ * last generated Agent title stays visible.
  */
 export function choosePrimaryAgentSuccessor(
     remainingTerminals: TerminalRecord[],
-    session: Pick<SessionRecord, 'displayTitle' | 'titleMode'>,
+    session: Pick<SessionRecord, 'displayTitle'>,
 ): PrimaryAgentSuccession {
     const nextAgent = remainingTerminals.find((candidate) => candidate.provider);
     return {
         primaryAgentTerminalId: nextAgent?.id ?? null,
-        displayTitle:
-            session.titleMode === 'manual'
-                ? session.displayTitle
-                : (nextAgent?.title ?? session.displayTitle),
+        displayTitle: session.displayTitle,
         lastActivityState: nextAgent ? processActivityState(nextAgent.lastProcessState) : 'idle',
     };
 }

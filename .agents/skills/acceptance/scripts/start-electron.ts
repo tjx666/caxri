@@ -54,21 +54,30 @@ const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
 ]);
 
 type OptionValue = string | true;
+type ParsedOptions = Record<string, OptionValue[]>;
 
-function parseOptions(argv: string[]): Record<string, OptionValue> {
-    const options: Record<string, OptionValue> = {};
+function parseOptions(argv: string[]): ParsedOptions {
+    const options: ParsedOptions = {};
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
         if (!token.startsWith('--')) throw new Error(`Expected an option, received: ${token}`);
         const key = token.slice(2);
         const next = argv[index + 1];
-        options[key] = next && !next.startsWith('--') ? argv[++index] : true;
+        (options[key] ??= []).push(next && !next.startsWith('--') ? argv[++index] : true);
     }
     return options;
 }
 
-function stringOption(options: Record<string, OptionValue>, key: string): string | undefined {
-    const value = options[key];
+function stringOptions(options: ParsedOptions, key: string): string[] {
+    const values = options[key] ?? [];
+    if (values.some((value) => value === true)) throw new Error(`--${key} requires a value`);
+    return values as string[];
+}
+
+function stringOption(options: ParsedOptions, key: string): string | undefined {
+    const values = options[key] ?? [];
+    if (values.length > 1) throw new Error(`--${key} may only be provided once`);
+    const value = values[0];
     if (value === true) throw new Error(`--${key} requires a value`);
     return value;
 }
@@ -78,7 +87,7 @@ function help(): string {
 
 Options:
   --port N               CDP port (default: 9222)
-  --test-root PATH       Project root selected in Caxri (default: repository root)
+  --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
   --help                 Show this message`;
 }
 
@@ -153,7 +162,7 @@ async function waitForCdp(port: number, child: ChildProcess): Promise<void> {
 
 async function main(): Promise<void> {
     const options = parseOptions(process.argv.slice(2));
-    if (options.help) {
+    if (options.help?.length) {
         console.log(help());
         return;
     }
@@ -173,10 +182,18 @@ async function main(): Promise<void> {
     await removeStaleRuntime();
     await assertPortAvailable(port);
 
-    const testRootPath = resolve(PROJECT_ROOT, stringOption(options, 'test-root') ?? PROJECT_ROOT);
-    await access(testRootPath).catch(() => {
-        throw new Error(`Test root does not exist: ${testRootPath}`);
-    });
+    const requestedRoots = stringOptions(options, 'test-root');
+    const testRootPaths = (requestedRoots.length > 0 ? requestedRoots : [PROJECT_ROOT]).map(
+        (root) => resolve(PROJECT_ROOT, root),
+    );
+    await Promise.all(
+        testRootPaths.map((root) =>
+            access(root).catch(() => {
+                throw new Error(`Test root does not exist: ${root}`);
+            }),
+        ),
+    );
+    const testRootPath = testRootPaths[0];
     const launcherIdentity = await getProcessIdentity(process.pid);
     if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
     const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-'));
@@ -187,6 +204,7 @@ async function main(): Promise<void> {
             ...process.env,
             CAXRI_E2E: '1',
             CAXRI_TEST_ROOT_PATH: testRootPath,
+            CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
             CAXRI_USER_DATA_DIR: userDataDir,
         },
         stdio: 'inherit',
@@ -207,6 +225,7 @@ async function main(): Promise<void> {
         port,
         startedAt: new Date().toISOString(),
         testRootPath,
+        testRootPaths,
         userDataDir,
     };
     let stopping = false;

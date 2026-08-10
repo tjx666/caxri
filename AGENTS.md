@@ -127,6 +127,8 @@ Launch Caxri headlessly, without the interactive directory picker, using environ
 - `CAXRI_E2E=1` selects test mode.
 - `CAXRI_USER_DATA_DIR=<tmpdir>` isolates Electron's user-data directory from a developer's real profile.
 - `CAXRI_TEST_ROOT_PATH=<dir>` stubs the directory-picker grant with a fixed Project root (see `src/main/test-root.ts`); only honored when `CAXRI_E2E=1` and the app is unpackaged.
+- `CAXRI_TEST_ROOT_PATHS=<JSON array>` queues multiple deterministic directory-picker roots for
+  multi-Project tests; the Acceptance adapter sets it when `--test-root` is repeated.
 
 Structured logs land in `logs/main.jsonl` and `logs/runtime.jsonl` in development; packaged/test launches write under the active Electron user-data directory instead.
 

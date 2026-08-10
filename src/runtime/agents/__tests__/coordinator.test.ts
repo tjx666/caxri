@@ -154,7 +154,7 @@ describe('AgentCoordinator', () => {
                 title: 'Codex',
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Codex',
+                displayTitle: 'Untitled',
                 primaryAgentTerminalId: created.terminal.id,
             });
         } finally {
@@ -231,7 +231,7 @@ describe('AgentCoordinator', () => {
                 provider: undefined,
             });
             expect(database.getSession(created.session.id)).toMatchObject({
-                displayTitle: 'Shell',
+                displayTitle: 'Untitled',
                 primaryAgentTerminalId: undefined,
             });
         } finally {
@@ -408,7 +408,7 @@ describe('AgentCoordinator', () => {
         try {
             coordinator.probeSessionPrimaryAgent(created.session.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Codex');
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
 
             const shellOnly = database.createSession(
                 database.createProject(join(directory, 'other')).id,

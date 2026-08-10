@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
@@ -30,16 +31,33 @@ import {
     TERMINAL_DRAG_TYPE,
 } from '../terminal/terminal-actions';
 import { WorkTab } from './WorkTab';
+import {
+    finishWorkTabMotion,
+    reconcileWorkTabMotion,
+    type WorkTabMotionItem,
+    type WorkTabMotionPhase,
+} from './work-tab-motion';
 
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
-function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: TerminalRecord }) {
+function TerminalWorkTab({
+    active,
+    motionPhase,
+    onMotionEnd,
+    terminal,
+}: {
+    active: boolean;
+    motionPhase: WorkTabMotionPhase;
+    onMotionEnd: () => void;
+    terminal: TerminalRecord;
+}) {
     return (
         <WorkTab
             active={active}
             closeLabel="Close Terminal"
             icon={terminal.kind}
             label={terminal.title}
+            motionPhase={motionPhase}
             status={terminal.lastProcessState}
             terminalId={terminal.id}
             onClose={() => closeTerminal(terminal.id)}
@@ -48,6 +66,7 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
                 event.dataTransfer.setData(TERMINAL_DRAG_TYPE, terminal.id);
                 event.dataTransfer.setData('text/plain', terminal.id);
             }}
+            onMotionEnd={onMotionEnd}
             onSelect={() => activateTerminal(terminal.id)}
         />
     );
@@ -58,8 +77,12 @@ function EditorWorkTab({
     active,
     path,
     preview,
+    motionPhase,
+    onMotionEnd,
 }: {
     active: boolean;
+    motionPhase: WorkTabMotionPhase;
+    onMotionEnd: () => void;
     path: string;
     preview?: true;
 }) {
@@ -84,7 +107,9 @@ function EditorWorkTab({
             }
             icon="file"
             label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
+            motionPhase={motionPhase}
             onDoubleClick={() => pinEditorTab(path)}
+            onMotionEnd={onMotionEnd}
             onClose={() => closeEditor(path)}
             onSelect={() => selectEditorTab(path)}
             contextMenu={
@@ -117,11 +142,82 @@ function isActive(activeWork: WorkItem | undefined, item: WorkItem): boolean {
     return workItemsEqual(activeWork, item);
 }
 
+type WorkTabItem =
+    | { kind: 'editor'; motionKey: string; path: string; preview?: true }
+    | { kind: 'terminal'; motionKey: string; terminal: TerminalRecord };
+
+function usePrefersReducedMotion(): boolean {
+    const [reduced, setReduced] = useState(
+        () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    );
+    useEffect(() => {
+        const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const update = (): void => setReduced(media.matches);
+        media.addEventListener('change', update);
+        return () => media.removeEventListener('change', update);
+    }, []);
+    return reduced;
+}
+
+function useWorkTabMotion(items: WorkTabItem[], sessionId: string | undefined) {
+    const reducedMotion = usePrefersReducedMotion();
+    const sessionIdRef = useRef(sessionId);
+    const [rendered, setRendered] = useState<WorkTabMotionItem<WorkTabItem>[]>(() =>
+        reconcileWorkTabMotion([], items, false),
+    );
+
+    useLayoutEffect(() => {
+        const sessionChanged = sessionIdRef.current !== sessionId;
+        sessionIdRef.current = sessionId;
+        setRendered((current) =>
+            reconcileWorkTabMotion(current, items, !sessionChanged && !reducedMotion),
+        );
+    }, [items, reducedMotion, sessionId]);
+
+    /** Animation events normally settle presence; this bound prevents a hidden window from retaining ghosts. */
+    useEffect(() => {
+        if (!rendered.some((entry) => entry.phase !== 'stable')) return;
+        const timer = window.setTimeout(() => {
+            setRendered((current) =>
+                current.flatMap((entry) =>
+                    entry.phase === 'exit' ? [] : [{ ...entry, phase: 'stable' }],
+                ),
+            );
+        }, 220);
+        return () => window.clearTimeout(timer);
+    }, [rendered]);
+
+    return {
+        finish: (motionKey: string): void => {
+            setRendered((current) => finishWorkTabMotion(current, motionKey));
+        },
+        rendered,
+    };
+}
+
 export function WorkTabStrip() {
     const sessionTerminals = useSessionTerminals();
     const openTabs = useSessionState()?.openTabs;
+    const selectedSessionId = useSelectedSession()?.id;
     const activeWork = useActiveWork();
     const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
+    const items = useMemo<WorkTabItem[]>(
+        () => [
+            ...sessionTerminals.map((terminal) => ({
+                kind: 'terminal' as const,
+                motionKey: `terminal:${terminal.id}`,
+                terminal,
+            })),
+            ...(openTabs ?? []).map((tab) => ({
+                kind: 'editor' as const,
+                motionKey: `editor:${tab.path}`,
+                path: tab.path,
+                preview: tab.preview,
+            })),
+        ],
+        [openTabs, sessionTerminals],
+    );
+    const motion = useWorkTabMotion(items, selectedSessionId);
     return (
         <div
             className={cn(
@@ -131,21 +227,36 @@ export function WorkTabStrip() {
             role="tablist"
             aria-label="Open work"
         >
-            {sessionTerminals.map((terminal) => (
-                <TerminalWorkTab
-                    key={terminal.id}
-                    active={isActive(activeWork, { kind: 'terminal', terminalId: terminal.id })}
-                    terminal={terminal}
-                />
-            ))}
-            {openTabs?.map((tab) => (
-                <EditorWorkTab
-                    key={tab.path}
-                    active={isActive(activeWork, { kind: 'editor', path: tab.path })}
-                    path={tab.path}
-                    preview={tab.preview}
-                />
-            ))}
+            {motion.rendered.map(({ item, phase }) => {
+                const onMotionEnd = (): void => motion.finish(item.motionKey);
+                return item.kind === 'terminal' ? (
+                    <TerminalWorkTab
+                        key={item.motionKey}
+                        active={
+                            phase !== 'exit' &&
+                            isActive(activeWork, {
+                                kind: 'terminal',
+                                terminalId: item.terminal.id,
+                            })
+                        }
+                        motionPhase={phase}
+                        onMotionEnd={onMotionEnd}
+                        terminal={item.terminal}
+                    />
+                ) : (
+                    <EditorWorkTab
+                        key={item.motionKey}
+                        active={
+                            phase !== 'exit' &&
+                            isActive(activeWork, { kind: 'editor', path: item.path })
+                        }
+                        motionPhase={phase}
+                        onMotionEnd={onMotionEnd}
+                        path={item.path}
+                        preview={item.preview}
+                    />
+                );
+            })}
             <div className="tab-actions flex h-9 flex-none items-center px-1 bg-surface [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
                     <Button

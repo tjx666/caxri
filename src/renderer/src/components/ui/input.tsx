@@ -13,7 +13,7 @@ export function Input({ className, type, ...props }: ComponentProps<'input'>) {
             type={type}
             data-slot="input"
             className={cn(
-                'block h-9 w-full min-w-0 rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+                'block h-9 w-full min-w-0 appearance-none rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 className,
             )}
             {...props}

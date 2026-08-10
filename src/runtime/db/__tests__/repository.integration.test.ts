@@ -30,6 +30,26 @@ async function tempDir(prefix: string): Promise<string> {
  * pure-decision behavior lives in `../../session-policy.test.ts`.
  */
 describe('CaxriDatabase', () => {
+    it.each([
+        ['shell', 'Shell'],
+        ['claude', 'Claude Code'],
+        ['codex', 'Codex'],
+    ] as const)(
+        'starts a new %s Session as Untitled with a provider-specific Terminal title',
+        async (kind, terminalTitle) => {
+            const directory = await tempDir(`caxri-db-untitled-${kind}-`);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, kind);
+
+            expect(created.session).toMatchObject({
+                displayTitle: 'Untitled',
+                titleMode: 'automatic',
+            });
+            expect(created.terminal.title).toBe(terminalTitle);
+            database.close();
+        },
+    );
+
     it('persists manual Session title ownership across metadata resets and reopen', async () => {
         const directory = await tempDir('caxri-db-session-rename-');
         const databasePath = join(directory, 'state.db');
@@ -117,6 +137,44 @@ describe('CaxriDatabase', () => {
         expect(database.getAppState<string>('lastSelectedProjectId')).toBe(firstProject.id);
         expect(database.getAppState<string>('lastSelectedSessionId')).toBe(firstSession.session.id);
         database.close();
+    });
+
+    it('persists bounded Project moves and rejects stale or malformed targets', async () => {
+        const directory = await tempDir('caxri-db-project-reorder-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const first = database.createProject(join(directory, 'first'));
+        const second = database.createProject(join(directory, 'second'));
+        const third = database.createProject(join(directory, 'third'));
+
+        expect(database.reorderProject(third.id, 0).map(({ id }) => id)).toEqual([
+            third.id,
+            first.id,
+            second.id,
+        ]);
+        for (const [projectId, targetIndex] of [
+            ['unknown-project', 0],
+            [first.id, -1],
+            [first.id, 3],
+        ] as const) {
+            expect(() => database.reorderProject(projectId, targetIndex)).toThrow(
+                /current Project and valid position/,
+            );
+            expect(database.listProjects().map(({ id }) => id)).toEqual([
+                third.id,
+                first.id,
+                second.id,
+            ]);
+        }
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        expect(reopened.listProjects().map(({ id }) => id)).toEqual([
+            third.id,
+            first.id,
+            second.id,
+        ]);
+        reopened.close();
     });
 
     it('never removes the Project directory or user files when deleting metadata', async () => {
@@ -232,7 +290,7 @@ describe('CaxriDatabase', () => {
             updatedAt: restartedAt,
         });
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Codex',
+            displayTitle: 'Implement Agent metadata',
             lastActivityState: 'running',
         });
         database.close();
@@ -248,7 +306,7 @@ describe('CaxriDatabase', () => {
         const claude = database.createTerminal(created.session.id, 'claude');
 
         expect(database.getSession(created.session.id)).toMatchObject({
-            displayTitle: 'Codex',
+            displayTitle: 'Untitled',
             primaryAgentTerminalId: codex.id,
         });
         database.updateAgentMetadata(codex.id, {
@@ -274,6 +332,21 @@ describe('CaxriDatabase', () => {
         expect(database.getSession(created.session.id)?.displayTitle).toBe(
             'Run the development server',
         );
+        database.close();
+    });
+
+    it('keeps Untitled while promoting an Agent Terminal before metadata arrives', async () => {
+        const directory = await tempDir('caxri-db-primary-agent-succession-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const claude = database.createTerminal(created.session.id, 'claude');
+
+        database.closeTerminal(created.terminal.id);
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Untitled',
+            primaryAgentTerminalId: claude.id,
+        });
         database.close();
     });
 

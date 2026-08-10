@@ -46,6 +46,7 @@ export const projectRecordSchema = z.object({
     id: z.string(),
     rootPath: z.string(),
     displayTitle: z.string(),
+    orderIndex: z.number().int().nonnegative(),
     createdAt: z.number(),
     lastOpenedAt: z.number(),
 });

@@ -112,7 +112,7 @@ test('Session inline rename validates input and survives Renderer reload', async
         const sessionId = await selectedSessionId(running.page);
         const card = sessionCard(running.page, sessionId);
         await card.dblclick();
-        const input = card.getByRole('textbox', { name: 'Rename Shell' });
+        const input = card.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(input).toBeFocused();
         expect(
             await input.evaluate((element) => ({
@@ -120,18 +120,18 @@ test('Session inline rename validates input and survives Renderer reload', async
                 start: (element as HTMLInputElement).selectionStart,
                 value: (element as HTMLInputElement).value,
             })),
-        ).toEqual({ end: 5, start: 0, value: 'Shell' });
+        ).toEqual({ end: 8, start: 0, value: 'Untitled' });
 
         await input.fill('   ');
         await input.press('Enter');
         await expect(input).toHaveAttribute('aria-invalid', 'true');
         await expect(card.getByRole('alert')).toHaveText('Session name is required');
         await input.press('Escape');
-        await expect(card.locator('strong')).toHaveText('Shell');
+        await expect(card.locator('strong')).toHaveText('Untitled');
         await expect(card).toBeFocused();
 
         await card.dblclick();
-        const blurInput = card.getByRole('textbox', { name: 'Rename Shell' });
+        const blurInput = card.getByRole('textbox', { name: 'Rename Untitled' });
         await blurInput.fill('Blurred investigation');
         const filesTab = running.page.getByRole('button', { name: 'Files', exact: true });
         await filesTab.click();
@@ -249,7 +249,10 @@ test('Project and Files actions reveal on hover or focus', async () => {
         const projectName = projectHeading.getByRole('button', { name: 'project', exact: true });
         await projectName.click();
         await expect(projectHeading.getByRole('button', { name: 'Expand project' })).toBeVisible();
-        await expect(running.page.locator('.session-list')).toHaveCount(0);
+        await expect(running.page.locator('.project-session-disclosure')).toHaveAttribute(
+            'data-expanded',
+            'false',
+        );
         await projectName.click();
         await expect(
             projectHeading.getByRole('button', { name: 'Collapse project' }),

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 
 import type { ProjectRecord } from '../../../shared/types';
 import { projects } from '../schema';
@@ -18,7 +18,7 @@ export class ProjectsModel {
         return this.db
             .select()
             .from(projects)
-            .orderBy(asc(projects.createdAt), asc(projects.id))
+            .orderBy(asc(projects.orderIndex), asc(projects.createdAt), asc(projects.id))
             .all();
     }
 
@@ -36,17 +36,25 @@ export class ProjectsModel {
         if (existing) return existing;
         const id = randomUUID();
         const now = Date.now();
+        const orderIndex = sql<number>`COALESCE((SELECT MAX(${projects.orderIndex}) + 1 FROM ${projects}), 0)`;
         this.db
             .insert(projects)
             .values({
                 id,
                 rootPath,
                 displayTitle: basename(rootPath) || rootPath,
+                orderIndex,
                 createdAt: now,
                 lastOpenedAt: now,
             })
             .run();
         return this.get(id)!;
+    }
+
+    /** Writes a complete, already-validated Project order. The facade owns set validation. */
+    reorder(projectIds: readonly string[]): void {
+        for (const [orderIndex, id] of projectIds.entries())
+            this.db.update(projects).set({ orderIndex }).where(eq(projects.id, id)).run();
     }
 
     /** Returns true when a row was removed; Sessions and Terminals cascade via foreign keys. */

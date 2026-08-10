@@ -5,6 +5,7 @@ import { createTerminalLayout, splitTerminal } from '../../shared/terminal-layou
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
+    DEFAULT_SESSION_TITLE,
     decideAgentMetadataUpdate,
     defaultTerminalTitle,
     processActivityState,
@@ -42,13 +43,17 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         primaryAgentTerminalId: undefined,
         lastActivityState: 'idle',
         layoutVersion: 2,
-        displayTitle: 'Shell',
+        displayTitle: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
         ...overrides,
     };
 }
 
 describe('defaultTerminalTitle', () => {
+    it('keeps the new Session title distinct from provider-specific Terminal titles', () => {
+        expect(DEFAULT_SESSION_TITLE).toBe('Untitled');
+    });
+
     it('maps each Terminal kind to its default title', () => {
         expect(defaultTerminalTitle('shell')).toBe('Shell');
         expect(defaultTerminalTitle('claude')).toBe('Claude Code');
@@ -100,7 +105,7 @@ describe('choosePrimaryAgentForNewTerminal', () => {
         );
         expect(assignment).toEqual({
             primaryAgentTerminalId: 'codex-1',
-            displayTitle: 'Codex',
+            displayTitle: 'Untitled',
             lastActivityState: 'idle',
         });
     });
@@ -153,7 +158,7 @@ describe('choosePrimaryAgentSuccessor', () => {
             ),
         ).toEqual({
             primaryAgentTerminalId: 'claude-1',
-            displayTitle: 'Claude Code',
+            displayTitle: 'Existing',
             lastActivityState: 'running',
         });
     });
