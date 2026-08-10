@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 
 import { agentProviderCatalog } from '@shared/agents';
 import { errorMessage, type MethodResult } from '@shared/ipc';
@@ -91,21 +91,71 @@ function initialReportState(): {
     };
 }
 
+interface BugReportDialogState {
+    busy: boolean;
+    captureHidden: boolean;
+    contextError: string | undefined;
+    diagnostics: DiagnosticsContext | undefined;
+    draft: BugReportDraft;
+    includeScreenshot: boolean;
+    report: string | undefined;
+    screenshot: Screenshot | undefined;
+    screenshotError: string | undefined;
+    selectedTargetId: string | undefined;
+    sendError: string | undefined;
+    source: ReportSource | undefined;
+}
+
+type BugReportDialogUpdate =
+    | Partial<BugReportDialogState>
+    | ((state: BugReportDialogState) => Partial<BugReportDialogState>);
+
+function createBugReportDialogState(): BugReportDialogState {
+    const initial = initialReportState();
+    return {
+        busy: false,
+        captureHidden: false,
+        contextError: initial.contextError,
+        diagnostics: undefined,
+        draft: EMPTY_DRAFT,
+        includeScreenshot: false,
+        report: undefined,
+        screenshot: undefined,
+        screenshotError: undefined,
+        selectedTargetId: initial.selectedTargetId,
+        sendError: undefined,
+        source: initial.source,
+    };
+}
+
+function bugReportDialogReducer(
+    state: BugReportDialogState,
+    update: BugReportDialogUpdate,
+): BugReportDialogState {
+    return { ...state, ...(typeof update === 'function' ? update(state) : update) };
+}
+
 function BugReportDialogContent() {
-    const [initial] = useState(initialReportState);
+    const [state, updateState] = useReducer(
+        bugReportDialogReducer,
+        undefined,
+        createBugReportDialogState,
+    );
     const bootstrap = useWorkbenchStore((state) => state.bootstrap);
-    const [draft, setDraft] = useState(EMPTY_DRAFT);
-    const source = initial.source;
-    const [diagnostics, setDiagnostics] = useState<DiagnosticsContext>();
-    const [contextError, setContextError] = useState(initial.contextError);
-    const [selectedTargetId, setSelectedTargetId] = useState(initial.selectedTargetId);
-    const [includeScreenshot, setIncludeScreenshot] = useState(false);
-    const [screenshot, setScreenshot] = useState<Screenshot>();
-    const [screenshotError, setScreenshotError] = useState<string>();
-    const [captureHidden, setCaptureHidden] = useState(false);
-    const [report, setReport] = useState<string>();
-    const [busy, setBusy] = useState(false);
-    const [sendError, setSendError] = useState<string>();
+    const {
+        busy,
+        captureHidden,
+        contextError,
+        diagnostics,
+        draft,
+        includeScreenshot,
+        report,
+        screenshot,
+        screenshotError,
+        selectedTargetId,
+        sendError,
+        source,
+    } = state;
 
     useEffect(() => {
         if (!source) return;
@@ -113,10 +163,13 @@ function BugReportDialogContent() {
         void caxri
             .request('bugReport.context')
             .then((value) => {
-                if (current) setDiagnostics(value);
+                if (current) updateState({ diagnostics: value });
             })
             .catch((error: unknown) => {
-                if (current) setContextError(errorMessage(error, 'Unable to load Caxri context.'));
+                if (current)
+                    updateState({
+                        contextError: errorMessage(error, 'Unable to load Caxri context.'),
+                    });
             });
         return () => {
             current = false;
@@ -135,29 +188,38 @@ function BugReportDialogContent() {
     );
 
     const updateDraft = (field: keyof BugReportDraft, value: string): void => {
-        setDraft((current) => ({ ...current, [field]: value }));
+        updateState((current) => ({ draft: { ...current.draft, [field]: value } }));
     };
 
     const preview = async (): Promise<void> => {
         if (!source || !diagnostics || !canPreview) return;
         const context: BugReportContext = { ...diagnostics, ...source };
-        setBusy(true);
-        setSendError(undefined);
-        setScreenshot(undefined);
-        setScreenshotError(undefined);
-        if (includeScreenshot) {
-            setCaptureHidden(true);
-            await afterPaint();
-            try {
-                setScreenshot(await caxri.request('bugReport.captureScreenshot'));
-            } catch (error) {
-                setScreenshotError(errorMessage(error, 'Unable to capture the Caxri window.'));
-            } finally {
-                setCaptureHidden(false);
+        updateState({
+            busy: true,
+            screenshot: undefined,
+            screenshotError: undefined,
+            sendError: undefined,
+        });
+        try {
+            if (includeScreenshot) {
+                updateState({ captureHidden: true });
+                await afterPaint();
+                try {
+                    updateState({
+                        screenshot: await caxri.request('bugReport.captureScreenshot'),
+                    });
+                } catch (error) {
+                    updateState({
+                        screenshotError: errorMessage(error, 'Unable to capture the Caxri window.'),
+                    });
+                } finally {
+                    updateState({ captureHidden: false });
+                }
             }
+            updateState({ report: buildBugReport(draft, context) });
+        } finally {
+            updateState({ busy: false });
         }
-        setReport(buildBugReport(draft, context));
-        setBusy(false);
     };
 
     const copyReport = async (): Promise<void> => {
@@ -166,7 +228,7 @@ function BugReportDialogContent() {
             await navigator.clipboard.writeText(report);
             pushToast('success', 'Bug report copied');
         } catch (error) {
-            setSendError(errorMessage(error, 'Unable to copy the bug report.'));
+            updateState({ sendError: errorMessage(error, 'Unable to copy the bug report.') });
         }
     };
 
@@ -174,20 +236,22 @@ function BugReportDialogContent() {
         if (!report || !source) return;
         const current = getBootstrap();
         if (current?.selectedSessionId !== source.session.id) {
-            setSendError('The selected Session changed. Copy the report or reopen this flow.');
+            updateState({
+                sendError: 'The selected Session changed. Copy the report or reopen this flow.',
+            });
             return;
         }
         const liveTarget = runningAgentTargets(current.terminals, source.session.id).find(
             (item) => item.id === selectedTargetId,
         );
         if (!liveTarget) {
-            setSendError(
-                'The selected Agent is no longer running. Choose another Agent or copy the report.',
-            );
+            updateState({
+                sendError:
+                    'The selected Agent is no longer running. Choose another Agent or copy the report.',
+            });
             return;
         }
-        setBusy(true);
-        setSendError(undefined);
+        updateState({ busy: true, sendError: undefined });
         try {
             await caxri.request('bugReport.send', {
                 report,
@@ -197,9 +261,9 @@ function BugReportDialogContent() {
             setBugReportOpen(false);
             pushToast('success', `Bug report sent to ${liveTarget.title}`);
         } catch (error) {
-            setSendError(errorMessage(error, 'Unable to send the bug report.'));
+            updateState({ sendError: errorMessage(error, 'Unable to send the bug report.') });
         } finally {
-            setBusy(false);
+            updateState({ busy: false });
         }
     };
 
@@ -257,7 +321,9 @@ function BugReportDialogContent() {
                                 checked={includeScreenshot}
                                 className="size-4 accent-[var(--accent)]"
                                 type="checkbox"
-                                onChange={(event) => setIncludeScreenshot(event.target.checked)}
+                                onChange={(event) =>
+                                    updateState({ includeScreenshot: event.target.checked })
+                                }
                             />
                             Capture a screenshot of the current Caxri window for preview
                         </label>
@@ -295,7 +361,9 @@ function BugReportDialogContent() {
                         </label>
                         <Select
                             value={selectedTargetId}
-                            onValueChange={(value) => setSelectedTargetId(value ?? undefined)}
+                            onValueChange={(value) =>
+                                updateState({ selectedTargetId: value ?? undefined })
+                            }
                         >
                             <SelectTrigger
                                 id="bug-report-target"
@@ -331,7 +399,10 @@ function BugReportDialogContent() {
                         </p>
                     )}
                     <div className="flex justify-between gap-2">
-                        <Button variant="secondary" onClick={() => setReport(undefined)}>
+                        <Button
+                            variant="secondary"
+                            onClick={() => updateState({ report: undefined })}
+                        >
                             Back
                         </Button>
                         <div className="flex gap-2">

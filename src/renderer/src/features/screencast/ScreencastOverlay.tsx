@@ -32,14 +32,15 @@ function ActiveScreencastOverlay() {
     const keyTimer = useRef<number | undefined>(undefined);
 
     useEffect(() => {
+        const timers = clickTimers.current;
         const onPointerDown = (event: PointerEvent): void => {
             const marker = { id: ++nextId.current, x: event.clientX, y: event.clientY };
             setClicks((current) => [...current, marker]);
             const timer = window.setTimeout(() => {
-                clickTimers.current.delete(timer);
+                timers.delete(timer);
                 setClicks((current) => current.filter((item) => item.id !== marker.id));
             }, CLICK_LIFETIME_MS);
-            clickTimers.current.add(timer);
+            timers.add(timer);
         };
         const onKeyDown = (event: KeyboardEvent): void => {
             const description = describeScreencastKey(event, keybindings, {
@@ -58,8 +59,8 @@ function ActiveScreencastOverlay() {
         return () => {
             window.removeEventListener('pointerdown', onPointerDown, { capture: true });
             window.removeEventListener('keydown', onKeyDown, { capture: true });
-            for (const timer of clickTimers.current) window.clearTimeout(timer);
-            clickTimers.current.clear();
+            for (const timer of timers) window.clearTimeout(timer);
+            timers.clear();
             if (keyTimer.current !== undefined) window.clearTimeout(keyTimer.current);
         };
     }, [keybindings]);

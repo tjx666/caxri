@@ -155,6 +155,8 @@ function ActiveFileStatus({ sessionId, path }: { sessionId: string; path: string
     );
 }
 
+const openProcessExplorer = (): void => executeCommand('processExplorer.open');
+
 function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
     const usage = useCaxriQuery(
         'terminal.resources',
@@ -163,7 +165,6 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
     ).data;
     if (!usage) return null;
     const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
-    const openProcessExplorer = (): void => executeCommand('processExplorer.open');
     return (
         <>
             <StatusItem

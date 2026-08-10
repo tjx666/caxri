@@ -122,7 +122,7 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                     {visibleRows.length} of {rows.length} commands and bindings
                 </p>
             </div>
-            <div className="structured-editor min-h-0 overflow-auto p-2" role="list">
+            <ul className="structured-editor m-0 min-h-0 list-none overflow-auto p-2">
                 {visibleRows.map((row) => {
                     const conflict = row.key
                         ? conflictsByKey.get(normalizeShortcut(row.key))
@@ -130,9 +130,8 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                     const conflictId = conflict ? `keybinding-conflict-${row.id}` : undefined;
                     const isRecording = recording?.rowId === row.id;
                     return (
-                        <div
+                        <li
                             key={row.id}
-                            role="listitem"
                             aria-describedby={conflictId}
                             aria-invalid={conflict ? true : undefined}
                             className="group mb-1 grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded border border-transparent px-3 py-2 hover:border-border hover:bg-elevated focus-within:border-border focus-within:bg-elevated"
@@ -157,9 +156,10 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                                         <AlertTriangle aria-hidden="true" size={11} />
                                         Conflicts with{' '}
                                         {conflict.commands
-                                            .filter((command) => command !== row.command)
-                                            .map(
-                                                (command) => titleByCommand.get(command) ?? command,
+                                            .flatMap((command) =>
+                                                command === row.command
+                                                    ? []
+                                                    : [titleByCommand.get(command) ?? command],
                                             )
                                             .join(', ')}
                                     </p>
@@ -211,13 +211,13 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                                     </Button>
                                 )}
                             </div>
-                        </div>
+                        </li>
                     );
                 })}
                 {visibleRows.length === 0 && (
                     <p className="p-6 text-center text-muted">No keyboard shortcuts found.</p>
                 )}
-            </div>
+            </ul>
         </div>
     );
 }

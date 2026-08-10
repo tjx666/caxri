@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import { errorMessage } from '@shared/ipc';
+import type { ProcessState } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
 import { CommandTooltip } from '../../components/ui/tooltip';
@@ -56,6 +57,67 @@ const terminalRecoveryToneClassName = {
 
 const terminalRecoveryMessageClassName =
     'terminal-recovery-message inline-flex items-center gap-2 overflow-hidden whitespace-nowrap text-ellipsis';
+
+function TerminalRecoveryBar({
+    processState,
+    resumesAgentSession,
+    terminalId,
+}: {
+    processState: ProcessState;
+    resumesAgentSession: boolean;
+    terminalId: string;
+}) {
+    const exitPresentation = getTerminalExitPresentation(processState);
+    if (!exitPresentation) return null;
+    const ExitIcon =
+        exitPresentation.icon === 'completed'
+            ? CircleCheck
+            : exitPresentation.icon === 'failed'
+              ? TriangleAlert
+              : CircleX;
+    return (
+        <div
+            aria-live="polite"
+            className={cn(
+                `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
+                'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 -ml-2 pt-0 pr-1 pb-0 pl-2 border-t border-border text-[11px]',
+                'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
+                terminalRecoveryToneClassName[exitPresentation.tone],
+            )}
+            data-terminal-exit-state={processState}
+            role="status"
+        >
+            <span className={terminalRecoveryMessageClassName}>
+                <ExitIcon size={14} />
+                {exitPresentation.label}
+            </span>
+            <CommandTooltip commandId="terminal.restart">
+                <Button
+                    aria-label={resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'}
+                    className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => restartTerminal(terminalId)}
+                >
+                    <RotateCcw size={12} /> {resumesAgentSession ? 'Resume' : 'Restart'}
+                </Button>
+            </CommandTooltip>
+            {resumesAgentSession && (
+                <CommandTooltip commandId="terminal.startNewAgentSession">
+                    <Button
+                        aria-label="Start New Agent Session"
+                        className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startNewAgentSession(terminalId)}
+                    >
+                        <MessageSquarePlus size={12} /> New session
+                    </Button>
+                </CommandTooltip>
+            )}
+        </div>
+    );
+}
 
 /**
  * Owns one xterm instance for the lifetime of its Terminal. Everything the imperative xterm callbacks
@@ -328,13 +390,6 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         [terminalId],
     );
 
-    const exitPresentation = getTerminalExitPresentation(processState);
-    const ExitIcon =
-        exitPresentation?.icon === 'completed'
-            ? CircleCheck
-            : exitPresentation?.icon === 'failed'
-              ? TriangleAlert
-              : CircleX;
     const resumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
 
     return (
@@ -347,50 +402,11 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
             <div ref={containerRef} className="terminal-surface min-h-0 w-full flex-1" />
-            {exitPresentation && (
-                <div
-                    aria-live="polite"
-                    className={cn(
-                        `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
-                        'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 -ml-2 pt-0 pr-1 pb-0 pl-2 border-t border-border text-[11px]',
-                        'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
-                        terminalRecoveryToneClassName[exitPresentation.tone],
-                    )}
-                    data-terminal-exit-state={processState}
-                    role="status"
-                >
-                    <span className={terminalRecoveryMessageClassName}>
-                        <ExitIcon size={14} />
-                        {exitPresentation.label}
-                    </span>
-                    <CommandTooltip commandId="terminal.restart">
-                        <Button
-                            aria-label={
-                                resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'
-                            }
-                            className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => restartTerminal(terminalId)}
-                        >
-                            <RotateCcw size={12} /> {resumesAgentSession ? 'Resume' : 'Restart'}
-                        </Button>
-                    </CommandTooltip>
-                    {resumesAgentSession && (
-                        <CommandTooltip commandId="terminal.startNewAgentSession">
-                            <Button
-                                aria-label="Start New Agent Session"
-                                className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => startNewAgentSession(terminalId)}
-                            >
-                                <MessageSquarePlus size={12} /> New session
-                            </Button>
-                        </CommandTooltip>
-                    )}
-                </div>
-            )}
+            <TerminalRecoveryBar
+                processState={processState}
+                resumesAgentSession={resumesAgentSession}
+                terminalId={terminalId}
+            />
         </div>
     );
 }

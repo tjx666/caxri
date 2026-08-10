@@ -19,14 +19,14 @@ export class TerminalSelectionClipboard {
     }
 
     private async drain(): Promise<void> {
-        while (this.pending !== undefined) {
-            const selection = this.pending;
-            this.pending = undefined;
-            try {
-                await this.writeText(selection);
-            } catch (error) {
-                this.onFailure(error);
-            }
+        const selection = this.pending;
+        if (selection === undefined) return;
+        this.pending = undefined;
+        try {
+            await this.writeText(selection);
+        } catch (error) {
+            this.onFailure(error);
         }
+        await this.drain();
     }
 }
