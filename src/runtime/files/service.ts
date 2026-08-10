@@ -6,13 +6,14 @@ import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
-import { ListingService } from './listing';
+import { ListingService, type OpenDirectory } from './listing';
 import { FileMutationService, type FileMutationOperations } from './mutations';
 import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
 export interface FileServiceOptions extends WatcherServiceOptions {
     fileTreeExcludes?: () => AppSettings['files.exclude'];
+    openDirectory?: OpenDirectory;
     openFile?: OpenFile;
     search?: SearchServiceOptions;
     nativeFileOperations?: FileMutationOperations;
@@ -53,6 +54,7 @@ export class FileService {
             logger,
             options.fileTreeExcludes ?? (() => ({})),
             (sessionId, path) => this.watcher.noteDirectoryListed(sessionId, path),
+            options.openDirectory,
         );
         this.searcher = new SearchService(
             resolveSessionPath,

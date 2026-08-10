@@ -36,6 +36,16 @@ describe('findTerminalLinks', () => {
     it('does not turn custom protocols, flags, or ordinary dotted prose into file links', () => {
         expect(findTerminalLinks('javascript:alert(1) --flag version.')).toEqual([]);
     });
+
+    it('keeps maximal trailing-bracket trimming bounded', () => {
+        const text = `https://example.com/value${')'.repeat(16_000)}`;
+        const startedAt = performance.now();
+
+        expect(findTerminalLinks(text)).toMatchObject([
+            { kind: 'url', target: 'https://example.com/value' },
+        ]);
+        expect(performance.now() - startedAt).toBeLessThan(500);
+    });
 });
 
 describe('resolveTerminalFilePath', () => {
