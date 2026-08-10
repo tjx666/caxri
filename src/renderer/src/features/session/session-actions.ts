@@ -125,16 +125,20 @@ export function deleteSelectedProject(): void {
     });
 }
 
+export function deleteSession(sessionId: string): void {
+    void tryCommand('Session deletion failed', async () => {
+        const result = await caxri.request('session.delete', { sessionId });
+        if ('canceled' in result) return;
+        useSessionViewStore.getState().dropSessions([sessionId]);
+        removeSessionQueries(queryClient, [sessionId]);
+        await refreshWorkbench();
+    });
+}
+
 export function deleteSelectedSession(): void {
     const session = getSelectedSession();
     if (!session) return;
-    void tryCommand('Session deletion failed', async () => {
-        const result = await caxri.request('session.delete', { sessionId: session.id });
-        if ('canceled' in result) return;
-        useSessionViewStore.getState().dropSessions([session.id]);
-        removeSessionQueries(queryClient, [session.id]);
-        await refreshWorkbench();
-    });
+    deleteSession(session.id);
 }
 
 export function selectAdjacentSession(delta: 1 | -1): void {

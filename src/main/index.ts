@@ -135,11 +135,32 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     window.on('resize', scheduleWindowState);
     window.on('maximize', scheduleWindowState);
     window.on('unmaximize', scheduleWindowState);
-    window.on('enter-full-screen', scheduleWindowState);
-    window.on('leave-full-screen', scheduleWindowState);
+    const sendFullScreenState = (): void => {
+        window.webContents.send('caxri:event', {
+            event: 'window.fullScreen',
+            payload: { isFullScreen: window.isFullScreen() },
+        });
+    };
+    window.on('enter-full-screen', () => {
+        scheduleWindowState();
+        sendFullScreenState();
+    });
+    window.on('leave-full-screen', () => {
+        scheduleWindowState();
+        sendFullScreenState();
+    });
     if (initialState.isMaximized) window.maximize();
+    /**
+     * `setFullScreen(true)` here fires `enter-full-screen` synchronously, before `mainWindow` is
+     * assigned by the caller (it's only set once `createWindow` returns), so the module-level
+     * `sendEvent`/`mainWindow` path can't be used for this push. `did-finish-load` covers the
+     * matching case where the Renderer loads (or reloads/crash-recovers) while already fullscreen,
+     * so it observes the current state instead of missing the one-shot restore event above.
+     */
     if (initialState.isFullScreen) window.setFullScreen(true);
     mainLogger?.write('info', 'window.created');
+
+    window.webContents.on('did-finish-load', sendFullScreenState);
 
     window.once('ready-to-show', () => {
         mainLogger?.write('info', 'window.ready_to_show', {

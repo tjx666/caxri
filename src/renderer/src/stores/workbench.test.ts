@@ -37,7 +37,7 @@ afterEach(() => {
     mocks.request.mockClear();
     mocks.onEvent.mockClear();
     mocks.reset();
-    useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
+    useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
 });
 
 describe('workbench Runtime events', () => {
@@ -126,6 +126,18 @@ describe('workbench Runtime events', () => {
 
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
         expect(mocks.request.mock.calls[0]?.[0]).toBe('app.bootstrap');
+        unsubscribe();
+    });
+
+    it('mirrors the native window fullscreen state', () => {
+        const unsubscribe = subscribeWorkbenchEvents({ onCommand: vi.fn() });
+        expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
+
+        mocks.emit({ event: 'window.fullScreen', payload: { isFullScreen: true } });
+        expect(useWorkbenchStore.getState().isFullScreen).toBe(true);
+
+        mocks.emit({ event: 'window.fullScreen', payload: { isFullScreen: false } });
+        expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
         unsubscribe();
     });
 });

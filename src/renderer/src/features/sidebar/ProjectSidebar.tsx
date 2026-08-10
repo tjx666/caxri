@@ -2,10 +2,12 @@ import { Plus } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { Button } from '../../components/ui/button';
 import { CommandTooltip } from '../../components/ui/tooltip';
 import { executeCommand } from '../../commands/execute';
 import {
+    useIsFullScreen,
     useProjects,
     useSelectedProject,
     useSelectedSession,
@@ -18,12 +20,15 @@ import { ProjectGroup } from './ProjectGroup';
 import { useProjectOrder } from './useProjectOrder';
 
 const NO_RECORDS: never[] = [];
+/** Vite serves this repo-only asset in development without bundling it into production. */
+const sidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
 const onAddProject = (): void => executeCommand('project.create');
 
 export function ProjectSidebar() {
     const projects = useProjects() ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
+    const isFullScreen = useIsFullScreen();
     const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
     const projectOrder = useProjectOrder(projects);
@@ -120,9 +125,22 @@ export function ProjectSidebar() {
     return (
         <aside className="session-sidebar group/sidebar flex min-w-0 flex-col bg-surface">
             <div
-                className="sidebar-title group/sidebar-title flex h-11 items-center justify-end border-b border-border py-0 pr-2 pl-[84px] font-semibold"
+                className={`sidebar-title group/sidebar-title flex h-11 items-center justify-end border-b border-border py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
                 style={{ WebkitAppRegion: 'drag' } as CSSProperties}
             >
+                {isFullScreen && (
+                    /**
+                     * macOS hides the traffic lights in fullscreen, leaving the reserved
+                     * `pl-[84px]` gap empty. Show the logo instead so the sidebar header keeps a
+                     * left-side anchor; `data-caxri-logo` also lets e2e assert it only exists here.
+                     */
+                    <img
+                        src={sidebarLogoUrl}
+                        alt="Caxri"
+                        className="mr-auto h-7 w-7 object-contain"
+                        data-caxri-logo
+                    />
+                )}
                 <CommandTooltip commandId="project.create">
                     <Button
                         className="pointer-events-none opacity-0 transition-opacity group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100"
