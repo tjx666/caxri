@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises';
 
 import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
 import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
+import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { ResolveSessionPath } from './documents';
 
@@ -51,6 +52,8 @@ interface CopyFileOptions {
 type CopyFile = (source: FileHandle, target: FileHandle, options: CopyFileOptions) => Promise<void>;
 
 export interface FileMutationServiceOptions {
+    /** Test seam for observing bounded validation after a recursive copy. */
+    beforeCopyTargetValidation?: () => Promise<void>;
     /** Test seam for replacing a destination after source preflight but before identity revalidation. */
     beforeCopyValidation?: () => Promise<void>;
     copyFile?: CopyFile;
@@ -60,6 +63,7 @@ export interface FileMutationServiceOptions {
 
 const MAX_UNIQUE_NAME_ATTEMPTS = 100;
 const MAX_FILE_NAME_BYTES = 255;
+const MAX_CONCURRENT_COPY_VALIDATIONS = 32;
 const DEFAULT_COPY_LIMITS: CopyLimits = {
     maximumBytes: 20 * 1024 * 1024 * 1024,
     maximumDurationMs: 5 * 60_000,
@@ -133,6 +137,7 @@ function mutationError(error: unknown, action: string): CaxriError {
  * `openat`/no-replace rename API; Main applies the same last-moment check before Electron Trash.
  */
 export class FileMutationService {
+    private readonly beforeCopyTargetValidation?: () => Promise<void>;
     private readonly beforeCopyValidation?: () => Promise<void>;
     private readonly copyFile: CopyFile;
     private readonly copyLimits: CopyLimits;
@@ -144,6 +149,7 @@ export class FileMutationService {
         private readonly logger: StructuredLogger,
         options: FileMutationServiceOptions = {},
     ) {
+        this.beforeCopyTargetValidation = options.beforeCopyTargetValidation;
         this.beforeCopyValidation = options.beforeCopyValidation;
         this.copyFile = options.copyFile ?? streamCopyFile;
         this.copyLimits = { ...DEFAULT_COPY_LIMITS, ...options.copyLimits };
@@ -234,11 +240,14 @@ export class FileMutationService {
                             controller.signal,
                             (target) => createdTargets.push(target),
                         );
-                        await Promise.all(
-                            createdTargets.map(async (target) => {
+                        await mapWithConcurrency(
+                            createdTargets,
+                            MAX_CONCURRENT_COPY_VALIDATIONS,
+                            async (target) => {
                                 this.assertCopyDeadline(startedAt, controller.signal);
+                                await this.beforeCopyTargetValidation?.();
                                 await this.assertPathIdentity(target);
-                            }),
+                            },
                         );
                         this.assertCopyDeadline(startedAt, controller.signal);
                         this.logger.write('info', 'file.copied', {
