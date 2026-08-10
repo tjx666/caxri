@@ -52,8 +52,12 @@ then repair one cohesive batch.
   review open. Record debt or fix delivery metadata in its owning phase.
 - A report against an old head is advisory. It can reopen work only when its
   product P0/P1 reproduces against the current head.
+- Workflow, verification-infrastructure, evidence, and PR-metadata-only commits
+  use a `verification` decision after focused validation. It requires a prior
+  full product-review baseline, zero product P0/P1, and exact-head freeze. Batch
+  them; the ledger permits at most two per Go run.
 
-Record every counted full or targeted decision through `state.ts review`. Use
+Record every full, targeted, or verification decision through `state.ts review`. Use
 `--freeze` only with zero product P0/P1; the ledger invalidates the freeze when
 the PR head changes. CI, Acceptance, and merge cannot reuse the old head's
 decision.

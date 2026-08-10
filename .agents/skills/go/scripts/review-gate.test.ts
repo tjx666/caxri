@@ -88,6 +88,55 @@ describe('Go review gate', () => {
         ).toThrow('requires a prior full Goal-range review');
     });
 
+    it('freezes a verification-only delta without consuming another product review', () => {
+        const state = reviewing();
+        recordReviewDecision(state, {
+            freeze: false,
+            headSha: 'product-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            scope: 'Goal range',
+        });
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'verification-head',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'E2E stabilization only',
+        });
+
+        expect(state.reviewGate.frozenHeadSha).toBe('verification-head');
+        expect(state.reviewGate.rounds.filter(({ mode }) => mode === 'full')).toHaveLength(1);
+    });
+
+    it('bounds verification-only freezes and requires a full review baseline', () => {
+        const state = reviewing();
+        const verification = (headSha: string) =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha,
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Verification-only delta',
+            });
+
+        expect(() => verification('unreviewed-head')).toThrow('requires a prior full');
+        recordReviewDecision(state, {
+            freeze: false,
+            headSha: 'product-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            scope: 'Goal range',
+        });
+        verification('verification-1');
+        verification('verification-2');
+        expect(() => verification('verification-3')).toThrow('at most two verification-only');
+    });
+
     it('allows only one targeted verification after the third full review', () => {
         const state = reviewing();
         for (const headSha of ['head-1', 'head-2', 'head-3']) {
