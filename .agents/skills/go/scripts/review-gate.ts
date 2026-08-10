@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const reviewModeSchema = z.enum(['full', 'targeted']);
+export const reviewModeSchema = z.enum(['full', 'targeted', 'verification']);
 
 const reviewDecisionSchema = z.object({
     completedAt: z.string(),
@@ -34,6 +34,7 @@ interface ReviewDecisionInput {
 }
 
 const MAX_FULL_REVIEW_ROUNDS = 3;
+const MAX_VERIFICATION_DECISIONS = 2;
 
 export function createEmptyReviewGate(): ReviewGate {
     return { frozenHeadSha: null, rounds: [] };
@@ -54,7 +55,7 @@ export function recordReviewDecision(
                 'Full deep review is limited to three rounds; use one targeted P0/P1 verification or escalate the architecture decision',
             );
         }
-    } else {
+    } else if (input.mode === 'targeted') {
         if (fullRounds === 0) {
             throw new Error('Targeted verification requires a prior full Goal-range review');
         }
@@ -63,6 +64,18 @@ export function recordReviewDecision(
             state.reviewGate.rounds.slice(lastFullIndex + 1).some(({ mode }) => mode === 'targeted')
         ) {
             throw new Error('Only one targeted verification is allowed after each full review');
+        }
+    } else {
+        if (fullRounds === 0) {
+            throw new Error('Verification-only freeze requires a prior full Goal-range review');
+        }
+        if (!input.freeze)
+            throw new Error('Verification-only review decisions must freeze the head');
+        const verificationDecisions = state.reviewGate.rounds.filter(
+            ({ mode }) => mode === 'verification',
+        ).length;
+        if (verificationDecisions >= MAX_VERIFICATION_DECISIONS) {
+            throw new Error('A Go run can record at most two verification-only head freezes');
         }
     }
     if (input.freeze && (input.p0 > 0 || input.p1 > 0)) {

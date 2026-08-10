@@ -637,7 +637,7 @@ Commands:
         [--check ID] [--validation TEXT]
   pr --state PATH [--number N] [--url URL] [--status STATUS] [--branch NAME]
      [--head-sha SHA]
-  review --state PATH --head-sha SHA --mode full|targeted --p0 N --p1 N
+  review --state PATH --head-sha SHA --mode full|targeted|verification --p0 N --p1 N
          --scope TEXT [--freeze]
   ci-fallback-admit --state PATH --head-sha SHA --failure-kind billing|infrastructure
                     --failure-url URL --failure-job NAME --failure-detail TEXT

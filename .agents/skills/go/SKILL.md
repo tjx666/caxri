@@ -121,12 +121,17 @@ After all issue commits:
    `state.ts review --freeze`. A clean first or second round may freeze
    immediately; three rounds are a ceiling, not a target. P2/P3 findings become
    debt and cannot keep the loop open.
-5. Push the branch and create a PR whose body maps issues to behavior and uses
+5. For a workflow, test-infrastructure, evidence, or PR-metadata-only commit,
+   record a `verification` decision after focused validation. It requires an
+   existing full product-review baseline, zero product P0/P1, and freezes the
+   exact head without consuming another product review. Batch these repairs; a
+   Go run permits at most two verification-only freezes.
+6. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
-6. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
+7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
    Acceptance matrix. A narrow Acceptance must never certify a broader PR.
-7. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
-8. Route code failures through repair, focused validation, one targeted review, commit,
+8. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
+9. Route code failures through repair, focused validation, one targeted review, commit,
    and push. A zero-step hosted-runner billing or infrastructure failure remains
    external and blocked. A verified GitHub Actions payment or spending-limit
    failure is automatically authorized for the documented exact-head local
