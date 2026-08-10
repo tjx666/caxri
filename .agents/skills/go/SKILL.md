@@ -54,15 +54,19 @@ Read [references/intake.md](references/intake.md) in full.
    authentication state without modifying them.
 2. Normalize the user's requirements. Deduplicate them and classify each as
    execute now, already satisfied, defer, reject, or discuss before execution.
-3. Resolve every material product choice, scope expansion, external authority,
+3. Invoke the `competitors` skill before proposing issue solutions. Use current
+   source evidence from relevant products, prefer VS Code for performance,
+   security, filesystem, editor, IPC, and desktop-platform mechanics, and prefer
+   Orca, Muxy, Kero, or another close workbench for UI and UX behavior.
+4. Resolve every material product choice, scope expansion, external authority,
    destructive action, or unavailable prerequisite now. Do not knowingly carry
    an ordinary decision gate into the active Goal.
-4. Split selected work into independently verifiable GitHub issues. Reuse an
+5. Split selected work into independently verifiable GitHub issues. Reuse an
    existing issue when it already owns the work; otherwise invoke the
    repository's `file-issue` skill.
-5. Freeze dependencies, priorities, execution order, issue completion criteria,
+6. Freeze dependencies, priorities, execution order, issue completion criteria,
    and stable Acceptance check ids. Produce one compact execution plan.
-6. Initialize the ledger. When the runtime provides `create_goal`, call it with
+7. Initialize the ledger. When the runtime provides `create_goal`, call it with
    the concrete objective and do not set a token budget unless the user explicitly
    requested one. In a compatible client without that tool, transition the ledger
    to active execution and use it as the durable Goal marker; do not pause or
