@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 
+type SettingsView = 'ui' | 'source';
+
 interface DialogState {
     settingsOpen: boolean;
+    settingsRequest: { id: number; view: SettingsView };
     paletteOpen: boolean;
     pathBrowserOpen: boolean;
     /** Directory granted by the native picker, awaiting the default-Agent choice. */
@@ -20,6 +23,7 @@ interface DialogState {
      * double-invoked effects idempotent.
      */
     openModalIds: Set<string>;
+    openSettings(view?: SettingsView): void;
     setSettingsOpen(open: boolean): void;
     setPaletteOpen(open: boolean): void;
     setPathBrowserOpen(open: boolean): void;
@@ -36,11 +40,17 @@ interface DialogState {
 
 export const useDialogStore = create<DialogState>((set, get) => ({
     settingsOpen: false,
+    settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
     pathBrowserOpen: false,
     pendingRoot: undefined,
     pendingProjectId: undefined,
     openModalIds: new Set(),
+    openSettings: (view = 'ui') =>
+        set((state) => ({
+            settingsOpen: true,
+            settingsRequest: { id: state.settingsRequest.id + 1, view },
+        })),
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setPathBrowserOpen: (pathBrowserOpen) => set({ pathBrowserOpen }),

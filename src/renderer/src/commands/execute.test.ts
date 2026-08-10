@@ -108,6 +108,15 @@ describe('executeCommand', () => {
         );
     });
 
+    it('deep-links the Settings source command without changing the regular UI command', () => {
+        const { calls, context } = recordingContext();
+
+        executeCommand('settings.open', undefined, context);
+        executeCommand('settings.openSource', undefined, context);
+
+        expect(calls).toEqual(['dialogs.openSettings', 'dialogs.openSettings(source)']);
+    });
+
     it('shows exactly one error toast for an unknown command instead of throwing', () => {
         const { calls, context } = recordingContext();
 

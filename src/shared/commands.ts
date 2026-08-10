@@ -152,6 +152,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'application', group: 0, order: 0 },
     },
     {
+        id: 'settings.openSource',
+        title: 'Open Settings (JSON)',
+        category: 'Preferences',
+        description: 'Open settings.jsonc in the Caxri source editor',
+    },
+    {
         id: 'updates.check',
         title: 'Check for Updates',
         category: 'Preferences',

@@ -1,36 +1,18 @@
-import { Suspense, lazy } from 'react';
-
-import type { Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
+import type { Keybinding, KeybindingConflict } from '@shared/types';
 
 import { Input } from '../../components/ui/input';
-import { configurationEditorLoadingClassName } from '../../lib/utils';
-
-const ConfigurationEditor = lazy(async () => {
-    const module = await import('./ConfigurationEditor');
-    return { default: module.ConfigurationEditor };
-});
 
 interface KeybindingsFormProps {
     keybindings: Keybinding[];
     conflicts: KeybindingConflict[];
-    source: string;
-    theme: ThemeTokens;
     onFieldChange: (index: number, field: 'key' | 'command', value: string) => void;
-    onSourceChange: (source: string) => void;
 }
 
-/** The `keybindings` tab: one row per binding on the left, the raw keybindings.jsonc source on the right. */
-export function KeybindingsForm({
-    keybindings,
-    conflicts,
-    source,
-    theme,
-    onFieldChange,
-    onSourceChange,
-}: KeybindingsFormProps) {
+/** Full-width structured editor for `keybindings.jsonc`. */
+export function KeybindingsForm({ keybindings, conflicts, onFieldChange }: KeybindingsFormProps) {
     return (
-        <div className="grid min-h-0 grid-cols-[minmax(250px,0.85fr)_minmax(310px,1.15fr)] overflow-hidden">
-            <div className="structured-editor min-h-0 overflow-auto border-r border-border p-3">
+        <div className="min-h-0 overflow-hidden">
+            <div className="structured-editor h-full min-h-0 overflow-auto p-3">
                 {keybindings.map((binding, index) => (
                     <div
                         key={`${binding.command}-${index}`}
@@ -58,15 +40,6 @@ export function KeybindingsForm({
                     </div>
                 )}
             </div>
-            <Suspense fallback={<div className={configurationEditorLoadingClassName} />}>
-                <ConfigurationEditor
-                    ariaLabel="keybindings.jsonc source"
-                    path="/caxri/keybindings.jsonc"
-                    theme={theme}
-                    value={source}
-                    onChange={onSourceChange}
-                />
-            </Suspense>
         </div>
     );
 }

@@ -90,6 +90,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.page.keyboard.press('Meta+,');
         await running.page.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
+        await running.page.getByRole('button', { name: 'Open theme.json Source' }).click();
         await expect(
             running.page.getByLabel('theme.json source').locator('.view-lines'),
         ).toContainText('#282a36');
