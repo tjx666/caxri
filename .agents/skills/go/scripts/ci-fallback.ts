@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { assertReviewHeadFrozen, type ReviewGate } from './review-gate';
+
 export const ciFailureKindSchema = z.enum(['billing', 'infrastructure']);
 export const ciFallbackResultSchema = z.enum(['passed', 'failed']);
 export const PLATFORM_NEUTRAL_CI_COMMANDS = [
@@ -31,6 +33,14 @@ const validationSchema = z.object({
     completedAt: z.string(),
     result: ciFallbackResultSchema,
 });
+const fullElectronE2eRunSchema = z.object({
+    completedAt: z.string(),
+    headSha: z.string().min(1),
+    result: ciFallbackResultSchema,
+});
+export const validationBudgetSchema = z.object({
+    fullElectronE2eRuns: z.array(fullElectronE2eRunSchema).max(2),
+});
 
 export const ciFallbackSchema = z.discriminatedUnion('status', [
     z.object({
@@ -60,13 +70,17 @@ export const ciFallbackSchema = z.discriminatedUnion('status', [
 ]);
 
 export type CiFallback = z.infer<typeof ciFallbackSchema>;
+export type ValidationBudget = z.infer<typeof validationBudgetSchema>;
 type CiFailureKind = z.infer<typeof ciFailureKindSchema>;
 type CiFallbackResult = z.infer<typeof ciFallbackResultSchema>;
 
 interface DeliveryContext {
+    acceptance: { status: string };
     ciFallback: CiFallback;
     phase: string;
     pullRequest: { headSha: string | null; status: string };
+    reviewGate: ReviewGate;
+    validationBudget: ValidationBudget;
 }
 
 interface AdmissionInput {
@@ -98,6 +112,10 @@ export function createEmptyCiFallback(): CiFallback {
     };
 }
 
+export function createEmptyValidationBudget(): ValidationBudget {
+    return { fullElectronE2eRuns: [] };
+}
+
 export function admitCiFallback(
     state: DeliveryContext,
     input: AdmissionInput,
@@ -116,6 +134,16 @@ export function admitCiFallback(
     }
     if (!state.pullRequest.headSha || state.pullRequest.headSha !== input.headSha) {
         throw new Error('Local CI fallback must target the exact current PR head');
+    }
+    assertReviewHeadFrozen(state, input.headSha);
+    if (state.validationBudget.fullElectronE2eRuns.length >= 2) {
+        throw new Error('A Go run can execute at most two full Electron E2E suites');
+    }
+    const previousE2e = state.validationBudget.fullElectronE2eRuns.at(-1);
+    if (previousE2e?.result === 'passed' && state.acceptance.status !== 'rejected') {
+        throw new Error(
+            'A passed full Electron E2E run cannot be repeated unless human Acceptance rejected the delivered head',
+        );
     }
     if (!input.verifiedZeroSteps) {
         throw new Error('Local CI fallback requires a verified zero-step hosted job failure');
@@ -188,6 +216,11 @@ export function recordCiFallbackResult(
         commands: [input.electronE2eCommand],
         completedAt: recordedAt,
         result: input.electronE2eResult,
+    });
+    state.validationBudget.fullElectronE2eRuns.push({
+        completedAt: recordedAt,
+        headSha: input.headSha,
+        result: electronE2e.result,
     });
     state.ciFallback = {
         authorization: state.ciFallback.authorization,

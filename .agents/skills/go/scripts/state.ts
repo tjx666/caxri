@@ -13,15 +13,25 @@ import {
     ciFallbackSchema,
     ciFailureKindSchema,
     createEmptyCiFallback,
+    createEmptyValidationBudget,
     recordCiFallbackResult,
+    validationBudgetSchema,
 } from './ci-fallback';
+import {
+    assertReviewHeadFrozen,
+    createEmptyReviewGate,
+    recordReviewDecision,
+    reviewGateSchema,
+    reviewModeSchema,
+} from './review-gate';
 import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
+import { migrateState } from './state-migration';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const STATE_ROOT = join(RECORDS_ROOT, 'go');
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const MAX_EVENTS = 120;
 
 const PHASES = [
@@ -116,10 +126,12 @@ const goStateSchema = z.object({
         status: pullRequestStatusSchema,
         url: z.string().nullable(),
     }),
+    reviewGate: reviewGateSchema,
     runId: z.string().min(1),
     schemaVersion: z.literal(SCHEMA_VERSION),
     status: z.enum(['planning', 'active', 'waiting_acceptance', 'complete']),
     updatedAt: z.string(),
+    validationBudget: validationBudgetSchema,
 });
 
 export type GoState = z.infer<typeof goStateSchema>;
@@ -258,10 +270,12 @@ export function createInitialState({
             status: 'none',
             url: null,
         },
+        reviewGate: createEmptyReviewGate(),
         runId,
         schemaVersion: SCHEMA_VERSION,
         status: 'planning',
         updatedAt: timestamp,
+        validationBudget: createEmptyValidationBudget(),
     };
 }
 
@@ -270,8 +284,10 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
     if (!allowed.has(phase))
         throw new Error(`Invalid phase transition: ${state.phase} -> ${phase}`);
     if (state.phase === 'delivery' && phase === 'acceptance') {
+        assertReviewHeadFrozen(state, state.pullRequest.headSha ?? undefined);
         assertDeliveryCanAdvance(state);
     }
+    if (state.phase === 'deep_review' && phase === 'delivery') assertReviewHeadFrozen(state);
 
     const previous = state.phase;
     state.phase = phase;
@@ -331,6 +347,21 @@ export function recordPullRequest(state: GoState, input: PullRequestInput): GoSt
         );
         state.ciFallback = createEmptyCiFallback();
     }
+    if (
+        input.headSha &&
+        state.pullRequest.headSha &&
+        input.headSha !== state.pullRequest.headSha &&
+        state.reviewGate.frozenHeadSha !== input.headSha
+    ) {
+        if (state.reviewGate.frozenHeadSha) {
+            addEvent(
+                state,
+                'review',
+                `Invalidated frozen review head ${state.reviewGate.frozenHeadSha}`,
+            );
+        }
+        state.reviewGate.frozenHeadSha = null;
+    }
 
     state.pullRequest = {
         headSha: input.headSha ?? state.pullRequest.headSha,
@@ -377,7 +408,7 @@ export function recordNote(
 }
 
 export function validateState(state: unknown): GoState {
-    const parsed = goStateSchema.parse(migrateState(state));
+    const parsed = goStateSchema.parse(migrateState(state, SCHEMA_VERSION));
     if (parsed.status !== statusForPhase(parsed.phase)) {
         throw new Error('Invalid Go state: status does not match phase');
     }
@@ -390,7 +421,11 @@ export function validateState(state: unknown): GoState {
     ) {
         throw new Error('Invalid Go state: local CI fallback does not match the current PR head');
     }
+    if (parsed.ciFallback.status !== 'not_requested') {
+        assertReviewHeadFrozen(parsed, parsed.pullRequest.headSha ?? undefined);
+    }
     if (['acceptance', 'waiting_acceptance'].includes(parsed.phase)) {
+        assertReviewHeadFrozen(parsed, parsed.pullRequest.headSha ?? undefined);
         assertDeliveryCanAdvance(parsed);
     }
     const unfinishedIssues = parsed.issues.filter(
@@ -416,19 +451,6 @@ export function validateState(state: unknown): GoState {
         throw new Error('Invalid Go state: merge requires the exact human-accepted PR head');
     }
     return parsed;
-}
-
-function migrateState(state: unknown): unknown {
-    if (
-        typeof state === 'object' &&
-        state !== null &&
-        'schemaVersion' in state &&
-        state.schemaVersion === 2 &&
-        !('ciFallback' in state)
-    ) {
-        return { ...state, ciFallback: createEmptyCiFallback(), schemaVersion: SCHEMA_VERSION };
-    }
-    return state;
 }
 
 function parseOptions(argv: string[]): { command: string | undefined; options: Options } {
@@ -615,6 +637,8 @@ Commands:
         [--check ID] [--validation TEXT]
   pr --state PATH [--number N] [--url URL] [--status STATUS] [--branch NAME]
      [--head-sha SHA]
+  review --state PATH --head-sha SHA --mode full|targeted --p0 N --p1 N
+         --scope TEXT [--freeze]
   ci-fallback-admit --state PATH --head-sha SHA --failure-kind billing|infrastructure
                     --failure-url URL --failure-job NAME --failure-detail TEXT
                     [--authorization TEXT] --verified-zero-steps
@@ -707,6 +731,21 @@ async function main(argv: string[]): Promise<void> {
             status: status ? pullRequestStatusSchema.parse(status) : undefined,
             url: one(options, 'url'),
         });
+    } else if (command === 'review') {
+        recordReviewDecision(state, {
+            freeze: options.freeze === true,
+            headSha: one(options, 'head-sha', true) ?? '',
+            mode: reviewModeSchema.parse(one(options, 'mode', true)),
+            p0: integer(options, 'p0', true) ?? 0,
+            p1: integer(options, 'p1', true) ?? 0,
+            scope: one(options, 'scope', true) ?? '',
+        });
+        const review = state.reviewGate.rounds.at(-1);
+        addEvent(
+            state,
+            'review',
+            `${review?.mode} review for ${review?.headSha}: P0=${review?.productP0} P1=${review?.productP1}${state.reviewGate.frozenHeadSha ? ' (frozen)' : ''}`,
+        );
     } else if (command === 'ci-fallback-admit') {
         admitCiFallback(state, {
             authorization: one(options, 'authorization'),

@@ -16,6 +16,18 @@ import {
     writeInitialState,
 } from './state';
 import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
+import { recordReviewDecision } from './review-gate';
+
+function freezeReview(state: ReturnType<typeof createInitialState>, headSha: string) {
+    recordReviewDecision(state, {
+        freeze: true,
+        headSha,
+        mode: 'full',
+        p0: 0,
+        p1: 0,
+        scope: 'Goal range',
+    });
+}
 
 describe('Go state ledger', () => {
     it('rejects path-like run IDs before resolving the ledger path', () => {
@@ -93,6 +105,7 @@ describe('Go state ledger', () => {
         expect(state.issues[0].status).toBe('complete');
 
         transitionState(state, 'deep_review');
+        freezeReview(state, 'pr-head-123');
         transitionState(state, 'delivery');
         recordPullRequest(state, {
             headSha: 'pr-head-123',
@@ -145,6 +158,19 @@ describe('Go state ledger', () => {
         ).toThrow('positive integers');
     });
 
+    it('requires an explicit review-clean head freeze before delivery', () => {
+        const state = createInitialState({ objective: 'Freeze delivery', runId: 'freeze-test' });
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        transitionState(state, 'deep_review');
+
+        expect(() => transitionState(state, 'delivery')).toThrow(
+            'explicitly frozen review-clean head',
+        );
+        freezeReview(state, 'frozen-head');
+        expect(() => transitionState(state, 'delivery')).not.toThrow();
+    });
+
     it('requires completed issues and the exact accepted PR head before merge', () => {
         const state = createInitialState({ objective: 'Protect merge', runId: 'merge-test' });
         transitionState(state, 'planning');
@@ -156,6 +182,7 @@ describe('Go state ledger', () => {
 
         upsertIssue(state, { commits: ['abc123'], number: 44, status: 'complete' });
         expect(validateState(state).phase).toBe('deep_review');
+        freezeReview(state, 'abc123');
         transitionState(state, 'delivery');
         recordPullRequest(state, { headSha: 'abc123', number: 124, status: 'ready' });
         transitionState(state, 'acceptance');
@@ -211,6 +238,7 @@ describe('Go state ledger', () => {
 
         expect(createResumeCheckpoint(state).workflowObservations).toEqual([]);
         transitionState(state, 'deep_review');
+        freezeReview(state, 'handoff-head');
         transitionState(state, 'delivery');
         recordPullRequest(state, { headSha: 'handoff-head', status: 'ready' });
         transitionState(state, 'acceptance');
@@ -231,6 +259,7 @@ describe('Go state ledger', () => {
         transitionState(state, 'planning');
         transitionState(state, 'issue_execution');
         transitionState(state, 'deep_review');
+        freezeReview(state, 'audit-head');
         transitionState(state, 'delivery');
         recordPullRequest(state, { headSha: 'audit-head', status: 'ready' });
         transitionState(state, 'acceptance');
@@ -265,7 +294,30 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 3,
+            reviewGate: { frozenHeadSha: null, rounds: [] },
+            schemaVersion: 4,
+            validationBudget: { fullElectronE2eRuns: [] },
+        });
+    });
+
+    it('imports a pre-v4 delivery review as an unfrozen baseline', () => {
+        const current = createInitialState({ objective: 'Migrate delivery', runId: 'legacy-v3' });
+        transitionState(current, 'planning');
+        transitionState(current, 'issue_execution');
+        transitionState(current, 'deep_review');
+        freezeReview(current, 'legacy-head');
+        transitionState(current, 'delivery');
+        recordPullRequest(current, { headSha: 'legacy-head', status: 'checks_blocked' });
+        const legacy = { ...current, schemaVersion: 3 } as Record<string, unknown>;
+        delete legacy.reviewGate;
+        delete legacy.validationBudget;
+
+        expect(validateState(legacy)).toMatchObject({
+            reviewGate: {
+                frozenHeadSha: null,
+                rounds: [{ headSha: 'legacy-head', mode: 'full' }],
+            },
+            schemaVersion: 4,
         });
     });
 

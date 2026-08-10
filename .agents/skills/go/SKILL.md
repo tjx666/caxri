@@ -87,9 +87,13 @@ For each queued issue in dependency order:
    before fixing it. Finish source edits before updating tests when project
    instructions require that order.
 4. Implement the smallest cohesive solution and run only affected validation.
-5. Invoke `deep-review` in light mode for the issue's current diff.
-6. Repair every valid blocking finding and repeat focused validation plus light
-   review until clear.
+5. Invoke `deep-review` in light mode for the issue's current diff. Collect and
+   adjudicate the whole result before editing; do not repair findings as
+   reviewers arrive.
+6. Repair valid product P0/P1 findings, run focused validation, and use at most
+   one targeted recheck. Record P2/P3 findings as debt unless they directly
+   violate the frozen issue outcome. Do not start another light-review loop once
+   the targeted recheck has no product P0/P1.
 7. Create one cohesive English commit. Record the commit, validation, and stable
    Acceptance ids in the ledger. Continue immediately to the next issue.
 
@@ -100,23 +104,37 @@ it stale.
 
 After all issue commits:
 
-1. Invoke the repository's `deep-review` skill in full deep mode over the whole
+1. Finish every gate likely to change code, including affected tests,
+   changed-file checks, `knip`, `doctor`, builds, and focused Electron E2E. Then
+   invoke the repository's `deep-review` skill in full deep mode over the whole
    Goal range.
-2. Repair findings, run affected validation, commit, and repeat the deep review
-   whenever a repair crosses issue or architectural boundaries.
-3. Push the branch and create a PR whose body maps issues to behavior and uses
+2. Collect all reports for the round before adjudication. Repair valid product
+   P0/P1 findings as one cohesive batch and run only affected validation.
+   Delivery evidence, PR prose, and workflow bookkeeping never reopen product
+   review.
+3. Run at most three full Goal-range review rounds. After the third round, use
+   at most one targeted verification for its remaining P0/P1 repairs; a further
+   architecture-level P0/P1 requires a user decision instead of a fourth full
+   review. Ignore reports for an older head unless their product P0/P1 reproduces
+   on the current head.
+4. When the current head has no product P0/P1, record and freeze it with
+   `state.ts review --freeze`. A clean first or second round may freeze
+   immediately; three rounds are a ceiling, not a target. P2/P3 findings become
+   debt and cannot keep the loop open.
+5. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
-4. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
+6. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
    Acceptance matrix. A narrow Acceptance must never certify a broader PR.
-5. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
-6. Route code failures through repair, focused validation, light review, commit,
+7. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
+8. Route code failures through repair, focused validation, one targeted review, commit,
    and push. A zero-step hosted-runner billing or infrastructure failure remains
    external and blocked. A verified GitHub Actions payment or spending-limit
    failure is automatically authorized for the documented exact-head local
    fallback; do not ask the user again. Other infrastructure failures still need
    separate authorization. Record the policy or user authorization before
    running the exact platform-neutral gates and one full isolated Electron E2E
-   suite. Never call the hosted check green.
+   suite. Start the fallback only after the review-clean PR head is explicitly
+   frozen. Never call the hosted check green.
 
 Read [references/workflow.md](references/workflow.md) for the transition table
 and repair routing.
@@ -170,9 +188,11 @@ accepted head and requires review plus another Acceptance round.
    that should become scripts. Record both the observed cost and the prevention;
    explicitly say none was found instead of omitting either audit.
 6. Apply obvious, narrow project-local workflow fixes when discovered early
-   enough to remain inside the reviewed PR. Never mutate the active skill to
-   change the current run's rules, recursively run self-improvement, or append
-   literal feedback as permanent policy.
+   enough to remain inside the reviewed PR. Never silently mutate the active
+   skill to change the current run's rules; an explicit user instruction may
+   update it prospectively, after which focused skill validation and a new
+   exact-head review freeze are required. Never recursively run self-improvement
+   or append literal feedback as permanent policy.
 7. Create follow-up issues for durable product debt. Keep larger or generic
    workflow proposals in the report or route them upstream.
 8. Mark the Goal complete only after no required work remains. When the Goal has
@@ -188,7 +208,9 @@ accepted head and requires review plus another Acceptance round.
 - Never run the full local Electron E2E suite during an ordinary run. The only
   exception is the exact-head, ledger-recorded external CI fallback authorized
   by project policy or the user as defined by the `test` skill and Go workflow
-  reference.
+  reference. Run it only after the final head is frozen, normally once per Go
+  run and never more than twice; after a second product failure, stop and report
+  instead of starting a third full run.
 - Never expose local report paths or internal verification-run URLs in the final
   handoff; expose the stable Acceptance URL.
 - Never mark a Goal blocked merely because CI or human Acceptance is pending.

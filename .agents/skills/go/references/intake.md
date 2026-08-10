@@ -106,6 +106,8 @@ For each selected issue, record:
 - dependencies and priority;
 - likely owning layer;
 - competitor evidence and any deliberate Caxri deviation;
+- the authority and threat-model boundary, accepted reference-product residual
+  risks, and any explicitly stronger guarantee;
 - focused validation;
 - stable Acceptance check ids and required evidence;
 - whether the check is visual, temporal, or non-visual.

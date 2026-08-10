@@ -43,14 +43,20 @@ spending-limit failure. Before running any fallback command, verify and record:
    failure is ineligible.
 3. The project-policy authorization for a payment or spending-limit failure, or
    separate explicit user authorization for another infrastructure failure.
-4. A clean worktree at the recorded PR head and an admitted fallback in the Go
-   ledger. If the head changes, discard the admission and return to remote CI.
+4. A clean worktree at the recorded PR head, an explicit exact-head review
+   freeze, and an admitted fallback in the Go ledger. If the head changes,
+   discard the freeze and admission and return to focused validation and remote
+   CI.
 
 Run the platform-neutral CI commands from `.github/workflows/ci.yml` in their
 declared order, then run `bun run test:e2e` exactly once against the same
 isolated head. Record every command and its result through the Go ledger. Any
 failure blocks delivery and routes back to normal repair; never re-admit the
 same head. Push a repaired head and wait for its new hosted run before another
-fallback can be considered. Do not include release
-packaging or deployment, do not use the fallback without authorization, and do
-not change the hosted check from externally failed to green.
+fallback can be considered. Normally a Go run gets one full Electron E2E; a
+product failure or human Acceptance rejection may permit one final exact-head
+rerun after focused repair and a new review freeze. The ledger rejects a third
+full run and rejects repetition after a passing run without human rejection. Do
+not include release packaging or deployment, do not use the fallback without
+authorization, and do not change the hosted check from externally failed to
+green.
