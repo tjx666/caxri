@@ -5,11 +5,23 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
+import { validateHumanText } from '../../acceptance/scripts/validate-report';
+import {
+    admitCiFallback,
+    assertDeliveryCanAdvance,
+    ciFallbackResultSchema,
+    ciFallbackSchema,
+    ciFailureKindSchema,
+    createEmptyCiFallback,
+    recordCiFallbackResult,
+} from './ci-fallback';
+import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
+
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const STATE_ROOT = join(RECORDS_ROOT, 'go');
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const MAX_EVENTS = 120;
 
 const PHASES = [
@@ -38,6 +50,7 @@ const PR_STATUSES = [
     'draft',
     'open',
     'checks_pending',
+    'checks_blocked',
     'ready',
     'merged',
     'closed',
@@ -86,6 +99,7 @@ const goStateSchema = z.object({
         url: z.string().nullable(),
     }),
     branch: z.string().nullable(),
+    ciFallback: ciFallbackSchema,
     createdAt: z.string(),
     events: z.array(eventSchema),
     issues: z.array(issueSchema),
@@ -187,6 +201,10 @@ function statusForPhase(phase: Phase): GoState['status'] {
     return 'active';
 }
 
+function printResumeCheckpoint(checkpoint: ReturnType<typeof createResumeCheckpoint>): void {
+    console.log(formatResumeCheckpoint(checkpoint));
+}
+
 function addEvent(state: GoState, type: string, detail: string): void {
     state.events.push({ at: now(), detail, type });
     while (state.events.length > MAX_EVENTS) {
@@ -223,6 +241,7 @@ export function createInitialState({
             url: null,
         },
         branch,
+        ciFallback: createEmptyCiFallback(),
         createdAt: timestamp,
         events: [{ at: timestamp, detail: 'Run ledger initialized', type: 'init' }],
         issues: [],
@@ -250,6 +269,9 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
     const allowed = PHASE_TRANSITIONS[state.phase];
     if (!allowed.has(phase))
         throw new Error(`Invalid phase transition: ${state.phase} -> ${phase}`);
+    if (state.phase === 'delivery' && phase === 'acceptance') {
+        assertDeliveryCanAdvance(state);
+    }
 
     const previous = state.phase;
     state.phase = phase;
@@ -296,6 +318,19 @@ export function recordPullRequest(state: GoState, input: PullRequestInput): GoSt
     if (input.number !== undefined && (!Number.isInteger(input.number) || input.number <= 0)) {
         throw new Error('PR number must be positive');
     }
+    if (
+        input.headSha &&
+        state.pullRequest.headSha &&
+        input.headSha !== state.pullRequest.headSha &&
+        state.ciFallback.status !== 'not_requested'
+    ) {
+        addEvent(
+            state,
+            'ci_fallback',
+            `Invalidated ${state.ciFallback.status} fallback for ${state.ciFallback.headSha}`,
+        );
+        state.ciFallback = createEmptyCiFallback();
+    }
 
     state.pullRequest = {
         headSha: input.headSha ?? state.pullRequest.headSha,
@@ -333,20 +368,30 @@ export function recordNote(
     { kind, text }: { kind: NoteKind; text: string },
 ): GoState {
     if (!text.trim()) throw new Error('Note text is required');
-    if (!state.notes[kind].some((item) => item.text === text)) {
-        state.notes[kind].push({ at: now(), text });
-        addEvent(state, 'note', `${kind}: ${text}`);
+    const normalized = kind === 'workflow' ? validateHumanText(text, 'workflow note') : text.trim();
+    if (!state.notes[kind].some((item) => item.text === normalized)) {
+        state.notes[kind].push({ at: now(), text: normalized });
+        addEvent(state, 'note', `${kind}: ${normalized}`);
     }
     return state;
 }
 
 export function validateState(state: unknown): GoState {
-    const parsed = goStateSchema.parse(state);
+    const parsed = goStateSchema.parse(migrateState(state));
     if (parsed.status !== statusForPhase(parsed.phase)) {
         throw new Error('Invalid Go state: status does not match phase');
     }
     if (new Set(parsed.issues.map((issue) => issue.number)).size !== parsed.issues.length) {
         throw new Error('Invalid Go state: duplicate issue number');
+    }
+    if (
+        parsed.ciFallback.status !== 'not_requested' &&
+        parsed.ciFallback.headSha !== parsed.pullRequest.headSha
+    ) {
+        throw new Error('Invalid Go state: local CI fallback does not match the current PR head');
+    }
+    if (['acceptance', 'waiting_acceptance'].includes(parsed.phase)) {
+        assertDeliveryCanAdvance(parsed);
     }
     const unfinishedIssues = parsed.issues.filter(
         (issue) => !['committed', 'complete', 'deferred'].includes(issue.status),
@@ -371,6 +416,19 @@ export function validateState(state: unknown): GoState {
         throw new Error('Invalid Go state: merge requires the exact human-accepted PR head');
     }
     return parsed;
+}
+
+function migrateState(state: unknown): unknown {
+    if (
+        typeof state === 'object' &&
+        state !== null &&
+        'schemaVersion' in state &&
+        state.schemaVersion === 2 &&
+        !('ciFallback' in state)
+    ) {
+        return { ...state, ciFallback: createEmptyCiFallback(), schemaVersion: SCHEMA_VERSION };
+    }
+    return state;
 }
 
 function parseOptions(argv: string[]): { command: string | undefined; options: Options } {
@@ -557,9 +615,16 @@ Commands:
         [--check ID] [--validation TEXT]
   pr --state PATH [--number N] [--url URL] [--status STATUS] [--branch NAME]
      [--head-sha SHA]
+  ci-fallback-admit --state PATH --head-sha SHA --failure-kind billing|infrastructure
+                    --failure-url URL --failure-job NAME --failure-detail TEXT
+                    --authorization TEXT --verified-zero-steps
+  ci-fallback-result --state PATH --head-sha SHA --platform-command COMMAND
+                     [--platform-command COMMAND] --platform-result passed|failed
+                     --e2e-command COMMAND --e2e-result passed|failed
   acceptance --state PATH [--id ID] [--url URL] [--round N] [--status STATUS]
              [--accepted-head-sha SHA]
   note --state PATH --kind technical_debt|workflow|token_waste --text TEXT
+  resume --state PATH [--json]
   show --state PATH
   validate --state PATH`;
 }
@@ -590,6 +655,12 @@ async function main(argv: string[]): Promise<void> {
     const path = await statePathFrom(options);
     const state = await readState(path);
 
+    if (command === 'resume') {
+        const checkpoint = createResumeCheckpoint(state);
+        if (options.json) console.log(JSON.stringify(checkpoint, null, 2));
+        else printResumeCheckpoint(checkpoint);
+        return;
+    }
     if (command === 'show') {
         console.log(JSON.stringify(state, null, 2));
         return;
@@ -625,6 +696,26 @@ async function main(argv: string[]): Promise<void> {
             status: status ? pullRequestStatusSchema.parse(status) : undefined,
             url: one(options, 'url'),
         });
+    } else if (command === 'ci-fallback-admit') {
+        admitCiFallback(state, {
+            authorization: one(options, 'authorization', true) ?? '',
+            failureDetail: one(options, 'failure-detail', true) ?? '',
+            failureJob: one(options, 'failure-job', true) ?? '',
+            failureKind: ciFailureKindSchema.parse(one(options, 'failure-kind', true)),
+            failureRunUrl: one(options, 'failure-url', true) ?? '',
+            headSha: one(options, 'head-sha', true) ?? '',
+            verifiedZeroSteps: options['verified-zero-steps'] === true,
+        });
+        addEvent(state, 'ci_fallback', `Admitted for ${state.ciFallback.headSha}`);
+    } else if (command === 'ci-fallback-result') {
+        recordCiFallbackResult(state, {
+            electronE2eCommand: one(options, 'e2e-command', true) ?? '',
+            electronE2eResult: ciFallbackResultSchema.parse(one(options, 'e2e-result', true)),
+            headSha: one(options, 'head-sha', true) ?? '',
+            platformCommands: many(options, 'platform-command'),
+            platformResult: ciFallbackResultSchema.parse(one(options, 'platform-result', true)),
+        });
+        addEvent(state, 'ci_fallback', `Local parity -> ${state.ciFallback.status}`);
     } else if (command === 'acceptance') {
         const status = one(options, 'status');
         recordAcceptance(state, {

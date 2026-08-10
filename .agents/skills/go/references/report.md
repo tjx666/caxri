@@ -1,7 +1,8 @@
 # Final Execution Report and Self-Improvement
 
 Write the final report in Simplified Chinese. Keep code, identifiers, commit
-subjects, PR content, and GitHub issue content in English per project rules.
+subjects, and PR content in English. GitHub issue titles, bodies, and comments
+use Simplified Chinese per project rules.
 
 ## Required sections
 

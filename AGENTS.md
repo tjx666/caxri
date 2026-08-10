@@ -9,7 +9,7 @@
   focused formatting pass.
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
 - Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]`
-- Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions.
+- Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions except for the guarded Go fallback defined below.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
@@ -20,7 +20,7 @@
   `release: v<package-version>` enters release CI, and the macOS release workflow runs only after
   that commit's CI checks and full E2E suite succeed.
 - Native probes: `bun run spike:native`, `bun run spike:pty`, `bun run spike:agents`
-- Issue tracking lives in GitHub issues (`gh issue`); this project does not use Linear.
+- Issue tracking lives in GitHub issues (`gh issue`); titles, bodies, and comments use Simplified Chinese, while technical identifiers remain English. This project does not use Linear.
 
 ## Forbidden
 
@@ -44,6 +44,8 @@ step-by-step workflows beyond this summary.
   or unrelated work.
 - Caxri Acceptance has one product surface: isolated macOS Electron desktop. Command output and
   focused tests are supporting evidence only.
+- User-facing Acceptance prose uses Simplified Chinese. Keep code, identifiers, paths, commands,
+  branches, and commits in English.
 - Treat "quick deep review" and "快速 deep-review" as quick mode: use one clean-context reviewer
   and root-agent synthesis. Run the full multi-agent workflow only for an explicit `$deep-review`,
   "full deep review", "full multi-agent review", or the final aggregate-review phase of an explicit
@@ -81,7 +83,9 @@ step-by-step workflows beyond this summary.
 
 ## Code conventions
 
-- UI strings, code, comments, docs, and commit messages use English.
+- UI strings, code, comments, docs, PR content, and commit messages use English. GitHub issue titles,
+  bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and commands in
+  English.
 - Prefer named exports; React components under `src/` must not use default exports. Keep default exports only where a framework or module contract requires them.
 - Prefer asynchronous Node.js APIs (`node:fs/promises`, promisified `child_process`) over `*Sync` variants in Main, Runtime, and tooling code; test code is exempt and may use `*Sync` APIs for brevity. Elsewhere, a deliberately synchronous boundary (better-sqlite3 by design, strict startup ordering) needs a comment justifying it.
 - Prefer JSDoc for non-obvious lifecycle/security behavior and document why a workaround exists.
@@ -104,7 +108,13 @@ step-by-step workflows beyond this summary.
   source batch is complete. Re-run only gates invalidated by later edits. Rebuild before focused
   Electron E2E whenever relevant `src/` files changed after the previous build.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
-- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`); it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
+- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
+- A local full-E2E fallback is allowed only inside an explicit Go run after the current-head hosted
+  jobs are verified to have failed before runner allocation for external billing or infrastructure,
+  and the user separately authorizes the substitution. Record the head, failure evidence,
+  authorization, exact platform-neutral CI commands and results, and one `bun run test:e2e` result
+  in the Go ledger. Keep the hosted check externally failed; never relabel it green. Code/test
+  failures, missing authorization, release packaging, and deployment are never eligible.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.

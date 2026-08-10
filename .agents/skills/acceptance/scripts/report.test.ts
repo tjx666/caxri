@@ -1,0 +1,310 @@
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
+
+import { finalizeReport, initializeReport, type InitializeReportInput } from './report';
+
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+/** The production path guard requires fixtures under the real project `.records/` root. */
+const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
+const TEST_ROOT = join(RECORDS_ROOT, '__test__', `acceptance-report-${process.pid}`);
+const acceptanceRoots: string[] = [];
+const requirement = 'Caxri 终端应完整填满工作区。';
+const plan = [
+    {
+        category: '终端布局',
+        expected: '终端视口周围不出现应用背景色条。',
+        id: 'terminal-layout',
+        method: '启动隔离的 Caxri 并检查稳定后的终端布局。',
+        requiredEvidence: ['screenshot', 'dom_snapshot'],
+        surface: 'desktop',
+        supersedes: ['legacy-terminal-layout'],
+        title: '终端内容填满工作区',
+        verifier: 'agent',
+    },
+] satisfies InitializeReportInput['plan'];
+
+interface ReportFixture {
+    cases: Array<Record<string, unknown>>;
+    plan: Array<Record<string, unknown>>;
+    [key: string]: unknown;
+}
+
+function parseReport(raw: string): ReportFixture {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        !('cases' in parsed) ||
+        !Array.isArray(parsed.cases) ||
+        !('plan' in parsed) ||
+        !Array.isArray(parsed.plan)
+    ) {
+        throw new Error('Invalid report fixture');
+    }
+    return parsed as ReportFixture;
+}
+
+async function reportDirectory(round = 1): Promise<string> {
+    await mkdir(TEST_ROOT, { recursive: true });
+    const root = await mkdtemp(join(TEST_ROOT, 'case-'));
+    acceptanceRoots.push(root);
+    return join(root, `round-${round}`);
+}
+
+async function initialize(directory: string, input: Partial<InitializeReportInput> = {}) {
+    return initializeReport({
+        directory,
+        entry: '在 Caxri Electron 中打开首个 Session 终端。',
+        plan: [...plan],
+        requirement,
+        title: '验收 Caxri 终端布局',
+        ...input,
+    });
+}
+
+afterEach(async () => {
+    await Promise.all(
+        acceptanceRoots.splice(0).map((directory) => rm(directory, { recursive: true })),
+    );
+});
+
+afterAll(async () => {
+    await rm(TEST_ROOT, { force: true, recursive: true });
+});
+
+describe('Acceptance report scaffold', () => {
+    it('reports an actionable error for generated TODO placeholders', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'Case terminal-layout is still a TODO placeholder',
+        );
+    });
+
+    it('initializes a Chinese report with visible case placeholders and a frozen requirement', async () => {
+        const directory = await reportDirectory();
+
+        await initialize(directory, {
+            branch: 'fix/terminal-layout',
+            commit: 'abc123',
+            entry: '  在 Caxri Electron 中打开首个 Session 终端。  ',
+            pullRequest: 42,
+            title: '  验收 Caxri 终端布局  ',
+        });
+
+        const result = parseReport(await readFile(join(directory, 'result.json'), 'utf8'));
+        expect(result).toMatchObject({
+            cases: [{ id: 'terminal-layout', status: 'TODO' }],
+            entry: '在 Caxri Electron 中打开首个 Session 终端。',
+            pullRequest: { number: 42 },
+            requirement,
+            title: '验收 Caxri 终端布局',
+        });
+        expect(result).not.toHaveProperty('summary');
+        await expect(access(join(directory, 'assets'))).resolves.toBeUndefined();
+        await expect(readFile(join(dirname(directory), 'requirement.txt'), 'utf8')).resolves.toBe(
+            `${requirement}\n`,
+        );
+        await expect(readFile(join(directory, 'report.md'), 'utf8')).resolves.toBe(
+            '本轮暂无补充说明。\n',
+        );
+    });
+
+    it('derives summary, verifies evidence coverage, and preserves supported extension fields', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            datasets: [{ id: 'terminal-layout-metrics' }],
+            evidence: ['assets/terminal.png', 'assets/terminal-dom.html'],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '终端视口周围没有露出应用背景。',
+            required: false,
+            status: 'pass',
+            suggestion: '保持当前终端布局实现。',
+            surface: 'desktop',
+        };
+        result.summary = { score: 92, uncertain: 0 };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'assets/terminal.png'), 'image'),
+            writeFile(join(directory, 'assets/terminal-dom.html'), '<main>terminal</main>'),
+        ]);
+
+        const conclusion = '本轮针对终端布局完成了专项桌面验收。';
+        const finalized = await finalizeReport({ conclusion, directory, requirement });
+
+        expect(finalized.summary).toEqual({
+            blocked: 0,
+            conclusion,
+            failed: 0,
+            passed: 1,
+            score: 92,
+            total: 1,
+            uncertain: 0,
+            verdict: 'pass',
+        });
+        expect(finalized.plan[0]).toMatchObject({
+            surface: 'desktop',
+            supersedes: ['legacy-terminal-layout'],
+        });
+        expect(finalized.cases[0]).toMatchObject({
+            datasets: [{ id: 'terminal-layout-metrics' }],
+            required: false,
+            suggestion: '保持当前终端布局实现。',
+        });
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { conclusion },
+        });
+    });
+
+    it('rejects missing required evidence before writing a summary', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/terminal.png'],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '终端视口周围没有露出应用背景。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'assets/terminal.png'), 'image'),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'missing required evidence: dom_snapshot',
+        );
+        expect(parseReport(await readFile(resultPath, 'utf8'))).not.toHaveProperty('summary');
+    });
+
+    it('rejects case ids or labels that drift from the frozen plan', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/terminal.png'],
+            id: 'different-check',
+            name: '终端内容填满工作区',
+            observation: '终端视口周围没有露出应用背景。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'Case ids and order must exactly match the frozen plan',
+        );
+
+        result.cases[0].id = 'terminal-layout';
+        result.cases[0].name = '被修改的检查名称';
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'title and category must match the frozen plan',
+        );
+    });
+
+    it('rejects requirement drift between rounds and inside a round', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        await expect(
+            initialize(join(dirname(directory), 'round-2'), {
+                requirement: 'Caxri 终端应完整填满整个工作区。',
+            }),
+        ).rejects.toThrow('must match the frozen requirement');
+
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.requirement = 'Caxri 终端应完整填满整个工作区。';
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'must match the frozen requirement',
+        );
+    });
+
+    it('rejects report directories outside .records or behind a symbolic link', async () => {
+        await expect(initialize('/tmp/caxri-acceptance/round-1')).rejects.toThrow(
+            'must stay under .records',
+        );
+
+        const directory = await reportDirectory();
+        const root = dirname(directory);
+        const target = join(root, 'target');
+        await mkdir(target);
+        await symlink(target, join(root, 'linked'), 'dir');
+        await expect(initialize(join(root, 'linked', 'round-1'))).rejects.toThrow(
+            'must not contain symbolic links',
+        );
+    });
+
+    it('rejects evidence paths that normalize outside assets', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, {
+            plan: [{ ...plan[0], requiredEvidence: ['screenshot'] }],
+        });
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/../outside.png'],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '终端视口周围没有露出应用背景。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'outside.png'), 'image'),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'must stay under assets',
+        );
+    });
+
+    it('matches markdown evidence to the installed ingest mapping and rejects transcript plans', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, {
+            plan: [{ ...plan[0], requiredEvidence: ['markdown'] }],
+        });
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/terminal-notes.md'],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '终端视口周围没有露出应用背景。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'assets/terminal-notes.md'), '验收记录'),
+        ]);
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { verdict: 'pass' },
+        });
+
+        const nextDirectory = join(dirname(directory), 'round-2');
+        const transcriptPlan = [
+            { ...plan[0], requiredEvidence: ['transcript'] },
+        ] as unknown as InitializeReportInput['plan'];
+        await expect(initialize(nextDirectory, { plan: transcriptPlan })).rejects.toThrow(
+            'Invalid option: expected one of',
+        );
+    });
+});
