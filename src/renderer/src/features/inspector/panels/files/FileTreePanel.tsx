@@ -40,17 +40,28 @@ import { closeFileSearch, useFileSearchStore } from './file-search-state';
 const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
 
 type EditRequest =
-    | { kind: 'create'; directory: string; itemKind: 'file' | 'directory' }
+    | {
+          kind: 'create';
+          directory: string;
+          itemKind: 'file' | 'directory';
+          returnFocus: FocusTarget;
+      }
     | { kind: 'rename'; entry: FileEntry };
 
+type FocusTarget =
+    { kind: 'caption'; itemKind: 'file' | 'directory' } | { kind: 'path'; path: string };
+
 interface TreeProps {
+    clearFocusPath: () => void;
     depth?: number;
     directory: string;
     editing?: EditRequest;
+    focusPath?: string;
     projectId: string;
     projectRoot: string;
     selectedPath?: string;
     sessionId: string;
+    requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
     setSelectedPath: (path?: string) => void;
 }
@@ -141,9 +152,12 @@ function DirectoryEntries({
     directory,
     depth = 0,
     editing,
+    focusPath,
     projectId,
     projectRoot,
     selectedPath,
+    clearFocusPath,
+    requestFocus,
     setEditing,
     setSelectedPath,
 }: TreeProps) {
@@ -161,7 +175,10 @@ function DirectoryEntries({
                     depth={depth}
                     initialValue=""
                     label={editing.itemKind === 'directory' ? 'New folder name' : 'New file name'}
-                    onCancel={() => setEditing(undefined)}
+                    onCancel={() => {
+                        setEditing(undefined);
+                        requestFocus(editing.returnFocus);
+                    }}
                     onSubmit={async (name) => {
                         const created = await createItem(
                             sessionId,
@@ -171,6 +188,7 @@ function DirectoryEntries({
                         );
                         setSelectedPath(created.path);
                         setEditing(undefined);
+                        requestFocus({ kind: 'path', path: created.path });
                     }}
                 />
             )}
@@ -180,10 +198,13 @@ function DirectoryEntries({
                     depth={depth}
                     editing={editing}
                     entry={entry}
+                    focusPath={focusPath}
                     projectId={projectId}
                     projectRoot={projectRoot}
                     selectedPath={selectedPath}
                     sessionId={sessionId}
+                    clearFocusPath={clearFocusPath}
+                    requestFocus={requestFocus}
                     setEditing={setEditing}
                     setSelectedPath={setSelectedPath}
                 />
@@ -197,13 +218,17 @@ function FileTreeItem({
     sessionId,
     depth = 0,
     editing,
+    focusPath,
     projectId,
     projectRoot,
     selectedPath,
+    clearFocusPath,
+    requestFocus,
     setEditing,
     setSelectedPath,
 }: Omit<TreeProps, 'directory'> & { entry: FileEntry }) {
     const [expanded, setExpanded] = useState(false);
+    const rowRef = useRef<HTMLButtonElement>(null);
     const clipboard = useFileClipboardStore((state) => state.entry);
     const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
     const editable = entry.kind !== 'symlink';
@@ -216,15 +241,21 @@ function FileTreeItem({
     const startCreate = (itemKind: 'file' | 'directory'): void => {
         if (entry.kind !== 'directory') return;
         setExpanded(true);
-        setEditing({ kind: 'create', directory: entry.path, itemKind });
+        setEditing({
+            kind: 'create',
+            directory: entry.path,
+            itemKind,
+            returnFocus: { kind: 'path', path: entry.path },
+        });
     };
     const openEntry = (): void => {
         if (entry.kind === 'directory') setExpanded(true);
         else void openFile(entry.path);
     };
     const pasteIntoEntry = async (): Promise<void> => {
-        if (!clipboard) return;
-        const pasted = await pasteFile(sessionId, projectId, pasteDirectory, clipboard);
+        const currentClipboard = useFileClipboardStore.getState().entry;
+        if (!currentClipboard) return;
+        const pasted = await pasteFile(sessionId, projectId, pasteDirectory, currentClipboard);
         if (pasted) setSelectedPath(pasted.path);
     };
     const duplicateEntry = async (): Promise<void> => {
@@ -247,23 +278,34 @@ function FileTreeItem({
         });
     };
 
+    useEffect(() => {
+        if (focusPath !== entry.path || isRenaming) return;
+        rowRef.current?.focus();
+        clearFocusPath();
+    }, [clearFocusPath, entry.path, focusPath, isRenaming]);
+
     if (isRenaming)
         return (
             <InlineFileName
                 depth={depth}
                 initialValue={entry.name}
                 label={`Rename ${entry.name}`}
-                onCancel={() => setEditing(undefined)}
+                onCancel={() => {
+                    setEditing(undefined);
+                    requestFocus({ kind: 'path', path: entry.path });
+                }}
                 onSubmit={async (name) => {
                     const moved = await renameFile(sessionId, entry.path, name);
                     setSelectedPath(moved.path);
                     setEditing(undefined);
+                    requestFocus({ kind: 'path', path: moved.path });
                 }}
             />
         );
 
     const row = (
         <button
+            ref={rowRef}
             className={treeRowClassName}
             data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
             data-selected={selectedPath === entry.path}
@@ -283,7 +325,18 @@ function FileTreeItem({
             onDoubleClick={() => {
                 if (entry.kind === 'file') void openFile(entry.path);
             }}
+            onFocus={() => {
+                if (focusPath && focusPath !== entry.path) clearFocusPath();
+            }}
             onContextMenu={() => setSelectedPath(entry.path)}
+            onCopy={(event) => {
+                event.preventDefault();
+                rememberFile(projectId, entry.path, 'copy');
+            }}
+            onCut={(event) => {
+                event.preventDefault();
+                rememberFile(projectId, entry.path, 'cut');
+            }}
             onDragOver={(event) => {
                 if (entry.kind === 'directory' && hasDraggedPath(event)) event.preventDefault();
             }}
@@ -292,6 +345,10 @@ function FileTreeItem({
                 event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, entry.path);
             }}
             onDrop={dropIntoDirectory}
+            onPaste={(event) => {
+                event.preventDefault();
+                void pasteIntoEntry();
+            }}
             onKeyDown={(event) => {
                 if (event.key === 'Enter' && editable) {
                     event.preventDefault();
@@ -381,10 +438,13 @@ function FileTreeItem({
                     depth={depth + 1}
                     directory={entry.path}
                     editing={editing}
+                    focusPath={focusPath}
                     projectId={projectId}
                     projectRoot={projectRoot}
                     selectedPath={selectedPath}
                     sessionId={sessionId}
+                    clearFocusPath={clearFocusPath}
+                    requestFocus={requestFocus}
                     setEditing={setEditing}
                     setSelectedPath={setSelectedPath}
                 />
@@ -398,23 +458,39 @@ export function FileTreePanel() {
     const project = useSelectedProject();
     const sessionId = session?.id;
     const clipboard = useFileClipboardStore((state) => state.entry);
+    const fileCaptionRef = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
     const [editingState, setEditingState] = useState<{
         request: EditRequest;
         sessionId: string;
     }>();
+    const [focusState, setFocusState] = useState<{ path: string; sessionId: string }>();
     const [selectionState, setSelectionState] = useState<{
         path: string;
         sessionId: string;
     }>();
     const editing =
         editingState && editingState.sessionId === sessionId ? editingState.request : undefined;
+    const focusPath =
+        focusState && focusState.sessionId === sessionId ? focusState.path : undefined;
     const selectedPath =
         selectionState && selectionState.sessionId === sessionId ? selectionState.path : undefined;
     const setEditing = (request?: EditRequest): void =>
         setEditingState(request && sessionId ? { request, sessionId } : undefined);
     const setSelectedPath = (path?: string): void =>
         setSelectionState(path && sessionId ? { path, sessionId } : undefined);
+    const clearFocusPath = (): void => setFocusState(undefined);
+    const requestFocus = (target: FocusTarget): void => {
+        if (target.kind === 'path') {
+            setFocusState(sessionId ? { path: target.path, sessionId } : undefined);
+            return;
+        }
+        setFocusState(undefined);
+        const label = target.itemKind === 'file' ? 'New File' : 'New Folder';
+        fileCaptionRef.current
+            ?.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+            ?.focus();
+    };
     const searchVisible = useFileSearchStore(
         (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
     );
@@ -428,8 +504,9 @@ export function FileTreePanel() {
         );
     const projectId = project?.id ?? session.projectId;
     const pasteIntoProjectRoot = async (): Promise<void> => {
-        if (!clipboard) return;
-        const pasted = await pasteFile(session.id, projectId, session.rootPath, clipboard);
+        const currentClipboard = useFileClipboardStore.getState().entry;
+        if (!currentClipboard) return;
+        const pasted = await pasteFile(session.id, projectId, session.rootPath, currentClipboard);
         if (pasted) setSelectedPath(pasted.path);
     };
     const dropIntoProjectRoot = async (event: DragEvent): Promise<void> => {
@@ -449,13 +526,16 @@ export function FileTreePanel() {
             onDrop={(event) => void dropIntoProjectRoot(event)}
         >
             <DirectoryEntries
+                clearFocusPath={clearFocusPath}
                 key={`${session.id}:${collapseRevision}`}
                 directory={session.rootPath}
                 editing={editing}
+                focusPath={focusPath}
                 projectId={projectId}
                 projectRoot={session.rootPath}
                 selectedPath={selectedPath}
                 sessionId={session.id}
+                requestFocus={requestFocus}
                 setEditing={setEditing}
                 setSelectedPath={setSelectedPath}
             />
@@ -467,7 +547,10 @@ export function FileTreePanel() {
             key={session.id}
             className="inspector-content flex min-h-0 flex-1 flex-col overflow-hidden"
         >
-            <div className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]">
+            <div
+                ref={fileCaptionRef}
+                className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]"
+            >
                 <span className="truncate" title={session.rootPath}>
                     {project?.displayTitle ??
                         session.rootPath.split('/').filter(Boolean).at(-1) ??
@@ -485,6 +568,7 @@ export function FileTreePanel() {
                                     kind: 'create',
                                     directory: session.rootPath,
                                     itemKind: 'file',
+                                    returnFocus: { kind: 'caption', itemKind: 'file' },
                                 })
                             }
                         >
@@ -502,6 +586,7 @@ export function FileTreePanel() {
                                     kind: 'create',
                                     directory: session.rootPath,
                                     itemKind: 'directory',
+                                    returnFocus: { kind: 'caption', itemKind: 'directory' },
                                 })
                             }
                         >
@@ -552,6 +637,7 @@ export function FileTreePanel() {
                                     kind: 'create',
                                     directory: session.rootPath,
                                     itemKind: 'file',
+                                    returnFocus: { kind: 'caption', itemKind: 'file' },
                                 })
                             }
                         >
@@ -563,6 +649,7 @@ export function FileTreePanel() {
                                     kind: 'create',
                                     directory: session.rootPath,
                                     itemKind: 'directory',
+                                    returnFocus: { kind: 'caption', itemKind: 'directory' },
                                 })
                             }
                         >

@@ -44,12 +44,28 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await newFileName.fill('created.txt');
         await newFileName.press('Enter');
         await expect(running.page.locator('.work-tab', { hasText: 'created.txt' })).toBeVisible();
+        await expect(
+            running.page
+                .locator('.file-list')
+                .first()
+                .getByRole('button', { name: 'created.txt', exact: true }),
+        ).toBeFocused();
         await expect(readFile(join(root, 'created.txt'), 'utf8')).resolves.toBe('');
 
-        await caption.getByRole('button', { name: 'New Folder' }).click();
+        const newFolderButton = caption.getByRole('button', { name: 'New Folder' });
+        await newFolderButton.click();
+        await running.page.getByRole('textbox', { name: 'New folder name' }).press('Escape');
+        await expect(newFolderButton).toBeFocused();
+        await newFolderButton.click();
         const newFolderName = running.page.getByRole('textbox', { name: 'New folder name' });
         await newFolderName.fill('created-folder');
         await newFolderName.press('Enter');
+        await expect(
+            running.page
+                .locator('.file-list')
+                .first()
+                .getByRole('button', { name: 'created-folder', exact: true }),
+        ).toBeFocused();
         await expect
             .poll(() =>
                 access(join(root, 'created-folder'))
@@ -70,6 +86,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         );
         await expect(conflictingName).toBeVisible();
         await conflictingName.press('Escape');
+        await expect(createdRow).toBeFocused();
 
         const draftRow = fileList.getByRole('button', { name: 'draft.txt', exact: true });
         const destinationRow = fileList.getByRole('button', {
@@ -118,10 +135,13 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
                 };
             })
             .toEqual({ count: terminalCount + 1, cwd: root });
+        await expect(running.page.locator('.xterm-helper-textarea').last()).toBeFocused();
 
         await draftRow.focus();
+        await expect(draftRow).toBeFocused();
         await running.page.keyboard.press('Meta+C');
         await destinationRow.focus();
+        await expect(destinationRow).toBeFocused();
         await running.page.keyboard.press('Meta+V');
         await expect
             .poll(() => readFile(join(destination, 'draft.txt'), 'utf8').catch(() => undefined))
@@ -190,6 +210,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await expect(access(join(root, 'renamed.txt'))).resolves.toBeUndefined();
 
         const renamedRow = fileList.getByRole('button', { name: 'renamed.txt', exact: true });
+        await expect(renamedRow).toBeFocused();
         await renamedRow.dragTo(destinationRow);
         const movedPath = join(destination, 'renamed.txt');
         await expect
