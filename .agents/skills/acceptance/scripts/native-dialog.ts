@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { isOwnedLauncher, runtimeStateSchema } from './runtime-state';
+import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
 interface ProcessRow {
     pid: number;
@@ -227,8 +227,8 @@ async function main(): Promise<void> {
     }
 
     const runtime = runtimeStateSchema.parse(JSON.parse(await readFile(RUNTIME_PATH, 'utf8')));
-    if (!(await isOwnedLauncher(runtime))) {
-        throw new Error('Acceptance runtime state does not belong to a live owned launcher');
+    if (!(await isOwnedRuntime(runtime))) {
+        throw new Error('Acceptance runtime state does not belong to a live owned process');
     }
     if (!runtime.electronPid) throw new Error('Owned Acceptance runtime has no Electron PID');
 

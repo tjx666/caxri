@@ -11,7 +11,7 @@ import {
     errorCode,
     getProcessIdentity,
     isAlive,
-    isOwnedLauncher,
+    isOwnedRuntime,
     removeOwnedUserData,
     runtimeStateSchema,
     type RuntimeState,
@@ -19,6 +19,7 @@ import {
 import {
     acquireDesktopLease,
     releaseDesktopLease,
+    transferDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
 import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
 
@@ -115,10 +116,8 @@ async function removeStaleRuntime(): Promise<void> {
     }
 
     /** Preserve a verified live owner; only stale identity can release its state. */
-    if (await isOwnedLauncher(current)) {
-        throw new Error(
-            `Acceptance instance already running with launcher PID ${current.launcherPid}`,
-        );
+    if (await isOwnedRuntime(current)) {
+        throw new Error('Acceptance instance already running with a live owned process');
     }
     await unlink(RUNTIME_PATH);
     await removeOwnedUserData(current);
@@ -176,7 +175,7 @@ async function main(): Promise<void> {
         throw new Error('--port must be an integer between 1024 and 65535');
     }
 
-    const desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
+    let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
         await access(ELECTRON_PATH);
         await assertBuildOutputsFresh({
@@ -221,19 +220,6 @@ async function main(): Promise<void> {
                 child.once('exit', (code, signal) => resolveExit({ code, signal }));
             },
         );
-
-        const runtime: RuntimeState = {
-            cdpUrl: `http://127.0.0.1:${port}`,
-            electronPid: child.pid ?? null,
-            launcherIdentity,
-            launcherPid: process.pid,
-            ownedUserData: true,
-            port,
-            startedAt: new Date().toISOString(),
-            testRootPath,
-            testRootPaths,
-            userDataDir,
-        };
         let stopping = false;
         const stop = (): void => {
             if (stopping) return;
@@ -248,6 +234,25 @@ async function main(): Promise<void> {
         process.on('SIGTERM', stop);
 
         try {
+            const electronPid = child.pid;
+            if (!electronPid) throw new Error('Could not establish Acceptance Electron PID');
+            const electronIdentity = await getProcessIdentity(electronPid);
+            if (!electronIdentity)
+                throw new Error('Could not establish Acceptance Electron identity');
+            desktopLease = await transferDesktopLease(desktopLease, electronPid);
+            const runtime: RuntimeState = {
+                cdpUrl: `http://127.0.0.1:${port}`,
+                electronIdentity,
+                electronPid,
+                launcherIdentity,
+                launcherPid: process.pid,
+                ownedUserData: true,
+                port,
+                startedAt: new Date().toISOString(),
+                testRootPath,
+                testRootPaths,
+                userDataDir,
+            };
             await writeRuntime(runtime);
             await Promise.race([
                 waitForCdp(port, child),
@@ -265,10 +270,12 @@ async function main(): Promise<void> {
         } finally {
             stop();
             await childExit.catch(() => undefined);
+            process.off('SIGINT', stop);
+            process.off('SIGTERM', stop);
             await unlink(RUNTIME_PATH).catch((error: unknown) => {
                 if (errorCode(error) !== 'ENOENT') throw error;
             });
-            await removeOwnedUserData(runtime);
+            await removeOwnedUserData({ ownedUserData: true, userDataDir });
         }
     } finally {
         await releaseDesktopLease(desktopLease);

@@ -31,6 +31,7 @@ interface Fixture {
 }
 
 const fixtures: Fixture[] = [];
+const temporaryDirectories: string[] = [];
 async function createFixture(prefix: string, options: FileServiceOptions = {}): Promise<Fixture> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     const rootInput = join(directory, 'project');
@@ -59,9 +60,47 @@ afterEach(async () => {
             await rm(directory, { recursive: true, force: true });
         }),
     );
+    await Promise.all(
+        temporaryDirectories
+            .splice(0)
+            .map((directory) => rm(directory, { recursive: true, force: true })),
+    );
 });
 
 describe('FileMutationService', () => {
+    it('retries a post-create identity journal failure through the full service boundary', async () => {
+        let writes = 0;
+        const journalDirectory = await mkdtemp(join(tmpdir(), 'caxri-create-journal-'));
+        temporaryDirectories.push(journalDirectory);
+        const fixture = await createFixture('caxri-file-create-journal-retry-', {
+            mutationJournalPath: join(journalDirectory, 'operations.json'),
+            mutationJournal: {
+                completionRetryBaseMs: 1,
+                writeJournal: async (path, source) => {
+                    writes += 1;
+                    if (writes === 3) throw new Error('journal temporarily unavailable');
+                    await writeFile(path, source, 'utf8');
+                },
+            },
+        });
+        const operationId = 'create-journal-retry';
+        const target = join(fixture.root, 'created.txt');
+
+        await expect(
+            fixture.service.create({
+                operationId,
+                sessionId: fixture.sessionId,
+                directory: fixture.root,
+                name: 'created.txt',
+                kind: 'file',
+            }),
+        ).rejects.toThrow('journal temporarily unavailable');
+        await expect
+            .poll(async () => (await fixture.service.getMutationOperation(operationId))?.phase)
+            .toBe('completed');
+        await expect(readFile(target, 'utf8')).resolves.toBe('');
+    });
+
     it('creates, renames, and moves files and directories under the Project root', async () => {
         const { root, service, sessionId } = await createFixture('caxri-file-mutations-');
         const source = join(root, 'source.txt');

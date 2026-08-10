@@ -124,15 +124,15 @@ export class TerminalScreenState {
 
     private resetOverflowedQueue(incomingBytes: number): void {
         let droppedBytes = this.queuedWriteBytes + incomingBytes;
+        const snapshots: Extract<ScreenOperation, { type: 'snapshot' }>[] = [];
         for (const operation of this.operations.splice(0)) {
             if (operation.type === 'reset') droppedBytes += operation.droppedBytes;
-            if (operation.type === 'snapshot')
-                operation.reject(
-                    new Error('Terminal screen parser exceeded its bounded recovery queue'),
-                );
+            if (operation.type === 'snapshot') snapshots.push(operation);
         }
         this.queuedWriteBytes = 0;
-        this.operations.push({ droppedBytes, type: 'reset' });
+        /** A queued attach barrier now resolves from the explicit reset state. Output arriving
+         *  after this overflow is appended behind those barriers and remains live-only. */
+        this.operations.push({ droppedBytes, type: 'reset' }, ...snapshots);
         this.onOverflow?.(droppedBytes);
     }
 

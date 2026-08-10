@@ -32,6 +32,11 @@ export interface DesktopLeaseOptions {
     afterLockAcquired?: () => Promise<void>;
 }
 
+export interface DesktopLeaseReleaseOptions {
+    /** Test seam for proving a competing acquisition waits for release cleanup. */
+    afterLockAcquired?: () => Promise<void>;
+}
+
 export type DesktopLeaseStatus =
     { lease?: undefined; state: 'free' } | { lease: DesktopLease; state: 'active' | 'stale' };
 
@@ -147,11 +152,18 @@ export async function transferDesktopLease(
     return { ...transferred, leasePath: handle.leasePath };
 }
 
-export async function releaseDesktopLease(handle: DesktopLeaseHandle): Promise<void> {
-    const current = await readLease(handle.leasePath);
-    if (!current) return;
-    if (current.token !== handle.token) {
-        throw new CommandError('Refusing to release a desktop lease owned by another process');
-    }
-    await unlinkIfExists(handle.leasePath);
+export async function releaseDesktopLease(
+    handle: DesktopLeaseHandle,
+    options: DesktopLeaseReleaseOptions = {},
+): Promise<void> {
+    const context = await repositoryContext(handle.worktreePath);
+    await withRepositoryLock(context, async () => {
+        await options.afterLockAcquired?.();
+        const current = await readLease(handle.leasePath);
+        if (!current) return;
+        if (current.token !== handle.token) {
+            throw new CommandError('Refusing to release a desktop lease owned by another process');
+        }
+        await unlinkIfExists(handle.leasePath);
+    });
 }

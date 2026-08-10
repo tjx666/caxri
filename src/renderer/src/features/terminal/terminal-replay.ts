@@ -1,14 +1,58 @@
+/** Match Runtime's delivery batch ceiling while also bounding many tiny IPC events. */
+const DEFAULT_MAXIMUM_PENDING_BYTES = 256 * 1024;
+const DEFAULT_MAXIMUM_PENDING_ITEMS = 256;
+const textEncoder = new TextEncoder();
+
+export interface TerminalReplayBufferOptions {
+    maximumPendingBytes?: number;
+    maximumPendingItems?: number;
+}
+
+function utf8ByteLength(value: string): number {
+    return textEncoder.encode(value).byteLength;
+}
+
+function utf8Prefix(value: string, maximumBytes: number): string {
+    let bytes = 0;
+    let end = 0;
+    while (end < value.length) {
+        const code = value.charCodeAt(end);
+        const isPair = code >= 0xd800 && code <= 0xdbff && end + 1 < value.length;
+        const next = value.charCodeAt(end + 1);
+        const width =
+            isPair && next >= 0xdc00 && next <= 0xdfff ? 4 : code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
+        if (bytes + width > maximumBytes) break;
+        bytes += width;
+        end += isPair && next >= 0xdc00 && next <= 0xdfff ? 2 : 1;
+    }
+    return value.slice(0, end);
+}
+
 /** Orders output received during terminal attachment behind its restored snapshot. */
 export class TerminalReplayBuffer {
     private restored = false;
     private restoration?: Promise<void>;
     private readonly pending: string[] = [];
+    private pendingBytes = 0;
+    private droppedBytes = 0;
+    private readonly maximumPendingBytes: number;
+    private readonly maximumPendingItems: number;
 
-    constructor(private readonly write: (value: string) => Promise<void>) {}
+    constructor(
+        private readonly write: (value: string) => Promise<void>,
+        options: TerminalReplayBufferOptions = {},
+    ) {
+        this.maximumPendingBytes = options.maximumPendingBytes ?? DEFAULT_MAXIMUM_PENDING_BYTES;
+        this.maximumPendingItems = options.maximumPendingItems ?? DEFAULT_MAXIMUM_PENDING_ITEMS;
+        if (!Number.isInteger(this.maximumPendingBytes) || this.maximumPendingBytes < 1)
+            throw new RangeError('Terminal replay byte limit must be a positive integer');
+        if (!Number.isInteger(this.maximumPendingItems) || this.maximumPendingItems < 1)
+            throw new RangeError('Terminal replay item limit must be a positive integer');
+    }
 
     push(value: string): void {
         if (this.restored) void this.write(value);
-        else this.pending.push(value);
+        else this.enqueue(value);
     }
 
     restore(snapshot: string): Promise<void> {
@@ -27,9 +71,42 @@ export class TerminalReplayBuffer {
      */
     private async drainPending(): Promise<void> {
         const pending = this.pending.splice(0);
+        this.pendingBytes = 0;
         await this.writeBatch(pending);
         if (this.pending.length > 0) return this.drainPending();
+        if (this.droppedBytes > 0) {
+            const droppedBytes = this.droppedBytes;
+            this.droppedBytes = 0;
+            const marker = this.write(
+                `\r\n[Caxri dropped ${droppedBytes} bytes while terminal output was replaying]\r\n`,
+            );
+            /** Later output follows the marker directly, so a blocked marker cannot reopen the queue. */
+            this.restored = true;
+            await marker;
+            return;
+        }
         this.restored = true;
+    }
+
+    private enqueue(value: string): void {
+        const bytes = utf8ByteLength(value);
+        const availableBytes = this.maximumPendingBytes - this.pendingBytes;
+        if (this.pending.length >= this.maximumPendingItems || availableBytes <= 0) {
+            this.droppedBytes += bytes;
+            return;
+        }
+        if (bytes <= availableBytes) {
+            this.pending.push(value);
+            this.pendingBytes += bytes;
+            return;
+        }
+        const prefix = utf8Prefix(value, availableBytes);
+        const prefixBytes = utf8ByteLength(prefix);
+        if (prefix) {
+            this.pending.push(prefix);
+            this.pendingBytes += prefixBytes;
+        }
+        this.droppedBytes += bytes - prefixBytes;
     }
 
     private async writeBatch(pending: readonly string[], index = 0): Promise<void> {
@@ -49,8 +126,9 @@ export class TerminalReplayCoordinator {
     constructor(
         private readonly write: (value: string) => Promise<void>,
         private readonly reset: () => void,
+        private readonly replayOptions: TerminalReplayBufferOptions = {},
     ) {
-        this.replay = new TerminalReplayBuffer(write);
+        this.replay = new TerminalReplayBuffer(write, replayOptions);
         this.tail = this.initial.promise;
     }
 
@@ -68,7 +146,7 @@ export class TerminalReplayCoordinator {
 
     reattach(loadSnapshot: () => Promise<string>): Promise<void> {
         const task = this.tail.then(async () => {
-            const replay = new TerminalReplayBuffer(this.write);
+            const replay = new TerminalReplayBuffer(this.write, this.replayOptions);
             this.replay = replay;
             try {
                 const snapshot = await loadSnapshot();

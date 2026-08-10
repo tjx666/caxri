@@ -32,7 +32,7 @@ describe('bug report content', () => {
     it('builds bounded context without leaking secret-shaped user text', () => {
         const report = buildBugReport(
             {
-                actual: 'Request failed with token=private-value at https://example.invalid/object?X-Amz-Expires=900&X-Amz-Signature=sigvalue987654321',
+                actual: 'Request failed with token=private-value and {"api_key":"json-private-value"} at https://example.invalid/object?X-Amz-Expires=900&X-Amz-Signature=sigvalue987654321',
                 expected: 'No failure for sk-abcdefghijklmnop',
                 steps: '1. Open Caxri\n2. Reproduce',
             },
@@ -62,6 +62,7 @@ describe('bug report content', () => {
         expect(report).not.toContain('Bug fix');
         expect(report).not.toContain('Terminal: Agent');
         expect(report).not.toContain('private-value');
+        expect(report).not.toContain('json-private-value');
         expect(report).not.toContain('sigvalue987654321');
         expect(report).toContain('https://example.invalid/object?[REDACTED]');
         expect(report).not.toContain('/private/project');
