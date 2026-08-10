@@ -27,8 +27,19 @@ export interface FileMutationJournalOptions {
 
 interface PendingCompletion {
     attempt: number;
+    expectedResult?: FileMutationExpectedResult;
     result: FileMutationResult;
     timer?: ReturnType<typeof setTimeout>;
+}
+
+class StagedCreatePersistenceError extends Error {
+    constructor(
+        readonly expectedResult: FileMutationExpectedResult,
+        options: ErrorOptions,
+    ) {
+        super('Created item identity is waiting for journal persistence', options);
+        this.name = 'StagedCreatePersistenceError';
+    }
 }
 
 const MAXIMUM_RETAINED_OPERATIONS = 256;
@@ -175,6 +186,23 @@ export class FileMutationJournal {
             } catch (error) {
                 const canceledMessage = this.executionCancellations.get(operation.id);
                 if (canceledMessage) throw new CaxriError('TIMEOUT', canceledMessage);
+                if (error instanceof StagedCreatePersistenceError) {
+                    const result: FileMutationResult = {
+                        kind: error.expectedResult.kind,
+                        name: error.expectedResult.name,
+                        path: error.expectedResult.path,
+                    };
+                    this.scheduleCompletionRetry(operation.id, result, error.expectedResult);
+                    this.logger.write('error', 'file.operation_completion_pending', {
+                        durationMs: this.now() - operation.startedAt,
+                        fields: {
+                            operationId: operation.id,
+                            kind: operation.kind,
+                            code: (error.cause as NodeJS.ErrnoException | undefined)?.code ?? 'IO',
+                        },
+                    });
+                    throw error.cause instanceof Error ? error.cause : error;
+                }
                 const current = await this.get(operation.id);
                 if (current?.phase === 'canceled')
                     throw new CaxriError(
@@ -412,41 +440,52 @@ export class FileMutationJournal {
         operationId: string,
         expectedResult: FileMutationExpectedResult,
     ): Promise<void> {
-        const operation = await this.mutate(() => {
-            const cancellation = this.executionCancellations.get(operationId);
-            if (cancellation) throw new CaxriError('TIMEOUT', cancellation);
-            const current = this.requireOperation(operationId);
-            if (current.phase === 'canceled')
-                throw new CaxriError(
-                    'TIMEOUT',
-                    current.error?.message ?? 'File operation was canceled before it began',
-                );
-            if (current.phase === 'staged') {
-                if (
-                    current.kind !== 'create' ||
-                    !('device' in expectedResult) ||
-                    !expectedResult.device ||
-                    !expectedResult.inode ||
-                    !current.expectedResult ||
-                    current.expectedResult.path !== expectedResult.path ||
-                    current.expectedResult.kind !== expectedResult.kind ||
-                    current.expectedResult.name !== expectedResult.name
-                )
+        let refinesCreatedIdentity = false;
+        let operation: FileMutationOperation;
+        try {
+            operation = await this.mutate(() => {
+                const cancellation = this.executionCancellations.get(operationId);
+                if (cancellation) throw new CaxriError('TIMEOUT', cancellation);
+                const current = this.requireOperation(operationId);
+                if (current.phase === 'canceled')
                     throw new CaxriError(
-                        'CONFLICT',
-                        'File operation cannot replace its staged result',
+                        'TIMEOUT',
+                        current.error?.message ?? 'File operation was canceled before it began',
                     );
+                if (current.phase === 'staged') {
+                    if (
+                        current.kind !== 'create' ||
+                        !('device' in expectedResult) ||
+                        !expectedResult.device ||
+                        !expectedResult.inode ||
+                        !current.expectedResult ||
+                        current.expectedResult.path !== expectedResult.path ||
+                        current.expectedResult.kind !== expectedResult.kind ||
+                        current.expectedResult.name !== expectedResult.name
+                    )
+                        throw new CaxriError(
+                            'CONFLICT',
+                            'File operation cannot replace its staged result',
+                        );
+                    refinesCreatedIdentity = true;
+                    current.expectedResult = expectedResult;
+                    current.updatedAt = this.now();
+                    return current;
+                }
+                if (current.phase !== 'pre_stage')
+                    throw new CaxriError('CONFLICT', 'File operation cannot enter staging twice');
+                current.phase = 'staged';
                 current.expectedResult = expectedResult;
                 current.updatedAt = this.now();
                 return current;
-            }
-            if (current.phase !== 'pre_stage')
-                throw new CaxriError('CONFLICT', 'File operation cannot enter staging twice');
-            current.phase = 'staged';
-            current.expectedResult = expectedResult;
-            current.updatedAt = this.now();
-            return current;
-        });
+            });
+        } catch (error) {
+            /** The native create already succeeded before its inode refinement is persisted. Keep
+             *  the durable pre-create stage and retry the identity plus completion in-process. */
+            if (refinesCreatedIdentity)
+                throw new StagedCreatePersistenceError(expectedResult, { cause: error });
+            throw error;
+        }
         this.clearTimer(operationId);
         this.publish(operation);
     }
@@ -552,9 +591,13 @@ export class FileMutationJournal {
         else this.runningBySession.set(sessionId, running - 1);
     }
 
-    private scheduleCompletionRetry(operationId: string, result: FileMutationResult): void {
+    private scheduleCompletionRetry(
+        operationId: string,
+        result: FileMutationResult,
+        expectedResult?: FileMutationExpectedResult,
+    ): void {
         if (this.closed || this.pendingCompletions.has(operationId)) return;
-        const pending: PendingCompletion = { attempt: 0, result };
+        const pending: PendingCompletion = { attempt: 0, expectedResult, result };
         this.pendingCompletions.set(operationId, pending);
         const schedule = (): void => {
             if (this.closed || !this.pendingCompletions.has(operationId)) return;
@@ -569,6 +612,10 @@ export class FileMutationJournal {
         const retry = async (): Promise<void> => {
             if (this.closed) return;
             try {
+                if (pending.expectedResult) {
+                    await this.stage(operationId, pending.expectedResult);
+                    pending.expectedResult = undefined;
+                }
                 await this.complete(operationId, pending.result);
                 this.pendingCompletions.delete(operationId);
             } catch (error) {

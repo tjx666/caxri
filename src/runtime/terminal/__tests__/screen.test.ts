@@ -15,4 +15,20 @@ describe('TerminalScreenState', () => {
         expect(snapshot.payload).toContain('latest');
         screen.dispose();
     });
+
+    it('bounds parser backlog and makes an overflowed recovery explicit', async () => {
+        const overflows: number[] = [];
+        const screen = new TerminalScreenState('', 40, 6, {
+            maximumQueuedBytes: 64,
+            onOverflow: (droppedBytes) => overflows.push(droppedBytes),
+        });
+
+        for (let index = 0; index < 100; index += 1) screen.write('12345678');
+        expect(screen.pendingByteCount()).toBeLessThanOrEqual(64);
+
+        const snapshot = await screen.snapshot();
+        expect(overflows.length).toBeGreaterThan(0);
+        expect(snapshot.payload).toContain('exceeded parser backpressure');
+        screen.dispose();
+    });
 });

@@ -24,6 +24,11 @@ export interface AgentProviderCatalogEntry {
     displayName: string;
     /** Name of the CLI executable resolved from `PATH` or the user's login shell. */
     executableName: string;
+    /** Safe image input Caxri can drive after an explicit user action, when supported. */
+    imageInput?: {
+        kind: 'systemClipboardPaste';
+        terminalInput: string;
+    };
     /**
      * Structured argv for resuming a previous provider conversation identified by
      * `agentSessionId`. Used to auto-restore an Agent Terminal interrupted by an app shutdown
@@ -36,11 +41,13 @@ export const agentProviderCatalog = {
     claude: {
         displayName: 'Claude Code',
         executableName: 'claude',
+        imageInput: undefined,
         resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
     },
     codex: {
         displayName: 'Codex',
         executableName: 'codex',
+        imageInput: { kind: 'systemClipboardPaste', terminalInput: '\x16' },
         resumeArguments: (agentSessionId) => ['resume', agentSessionId],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;

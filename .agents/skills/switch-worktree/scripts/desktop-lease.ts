@@ -8,6 +8,7 @@ import {
     errorCode,
     repositoryContext,
     unlinkIfExists,
+    withRepositoryLock,
     worktreeIdentity,
     writeJsonAtomic,
 } from './repository';
@@ -24,6 +25,11 @@ interface DesktopLease {
 
 export interface DesktopLeaseHandle extends DesktopLease {
     leasePath: string;
+}
+
+export interface DesktopLeaseOptions {
+    /** Test seam for holding the repository lock across a competing acquisition. */
+    afterLockAcquired?: () => Promise<void>;
 }
 
 export type DesktopLeaseStatus =
@@ -75,6 +81,7 @@ export async function acquireDesktopLease(
     cwd: string,
     label: string,
     ownerPid = process.pid,
+    options: DesktopLeaseOptions = {},
 ): Promise<DesktopLeaseHandle> {
     const context = await repositoryContext(cwd);
     const worktreeId = await worktreeIdentity(context.root, true);
@@ -94,29 +101,34 @@ export async function acquireDesktopLease(
         worktreePath: context.root,
     };
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-            const handle = await open(leasePath, 'wx');
+    return await withRepositoryLock(context, async () => {
+        await options.afterLockAcquired?.();
+        for (let attempt = 0; attempt < 2; attempt += 1) {
             try {
-                await handle.writeFile(`${JSON.stringify(lease, null, 2)}\n`, 'utf8');
-                await handle.sync();
-            } finally {
-                await handle.close();
+                const handle = await open(leasePath, 'wx');
+                try {
+                    await handle.writeFile(`${JSON.stringify(lease, null, 2)}\n`, 'utf8');
+                    await handle.sync();
+                } finally {
+                    await handle.close();
+                }
+                return { ...lease, leasePath };
+            } catch (error) {
+                if (errorCode(error) !== 'EEXIST') throw error;
+                const current = await readLease(leasePath);
+                if (!current) continue;
+                if (await isProcessIdentityAlive(current.pid, current.identity)) {
+                    throw new CommandError(
+                        `Desktop is in use by ${current.label} in ${current.worktreePath} (PID ${current.pid})`,
+                    );
+                }
+                /** The repository lock keeps another contender from replacing this stale path
+                 *  between the identity check and unlink. */
+                await unlinkIfExists(leasePath);
             }
-            return { ...lease, leasePath };
-        } catch (error) {
-            if (errorCode(error) !== 'EEXIST') throw error;
-            const current = await readLease(leasePath);
-            if (!current) continue;
-            if (await isProcessIdentityAlive(current.pid, current.identity)) {
-                throw new CommandError(
-                    `Desktop is in use by ${current.label} in ${current.worktreePath} (PID ${current.pid})`,
-                );
-            }
-            await unlinkIfExists(leasePath);
         }
-    }
-    throw new CommandError('Could not acquire the repository desktop lease');
+        throw new CommandError('Could not acquire the repository desktop lease');
+    });
 }
 
 /** Transfer ownership after Electron starts so a surviving app keeps the lease fail-closed. */

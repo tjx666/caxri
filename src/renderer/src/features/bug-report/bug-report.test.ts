@@ -90,11 +90,11 @@ describe('bug report target selection', () => {
         ).toBe('codex');
     });
 
-    it('explains why a Codex screenshot remains preview-only before capture', () => {
+    it('discloses Codex clipboard-backed screenshot delivery before capture', () => {
         const notice = bugReportImageFallback('codex');
 
-        expect(notice).toContain('preview-only');
+        expect(notice).toContain('will be delivered');
         expect(notice).toContain('system clipboard');
-        expect(notice).toContain('manually');
+        expect(notice).toContain('replaces');
     });
 });

@@ -255,6 +255,7 @@ function BugReportDialogContent() {
         try {
             await caxri.request('bugReport.send', {
                 report,
+                screenshot,
                 sessionId: source.session.id,
                 terminalId: liveTarget.id,
             });

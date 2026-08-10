@@ -62,6 +62,14 @@ const bugReportText = z
         (value) => !containsReportControlCharacter(value),
         'Report contains control characters',
     );
+const bugReportScreenshot = z.object({
+    dataUrl: z
+        .string()
+        .startsWith('data:image/jpeg;base64,')
+        .max(12 * 1024 * 1024),
+    height: z.number().int().positive().max(16_384),
+    width: z.number().int().positive().max(16_384),
+});
 
 /** Keeps path-browser IPC and rendering bounded while still allowing users to refine by name. */
 export const MAX_FILE_BROWSE_ENTRIES = 200;
@@ -149,19 +157,13 @@ export const methods = {
     'bugReport.captureScreenshot': {
         owner: 'main',
         params: noParams,
-        result: z.object({
-            dataUrl: z
-                .string()
-                .startsWith('data:image/jpeg;base64,')
-                .max(12 * 1024 * 1024),
-            height: z.number().int().positive().max(16_384),
-            width: z.number().int().positive().max(16_384),
-        }),
+        result: bugReportScreenshot,
     },
     'bugReport.send': {
-        owner: 'runtime',
+        owner: 'main',
         params: z.object({
             report: bugReportText,
+            screenshot: bugReportScreenshot.optional(),
             sessionId: identifierSchema,
             terminalId: identifierSchema,
         }),
@@ -557,6 +559,16 @@ export const internalMethods = {
         owner: 'runtime',
         params: persistedWindowStateSchema,
         result: persistedWindowStateSchema,
+    },
+    'bugReport.deliver': {
+        owner: 'runtime',
+        params: z.object({
+            pasteImage: z.boolean(),
+            report: bugReportText,
+            sessionId: identifierSchema,
+            terminalId: identifierSchema,
+        }),
+        result: z.null(),
     },
     'config.paths': {
         owner: 'runtime',

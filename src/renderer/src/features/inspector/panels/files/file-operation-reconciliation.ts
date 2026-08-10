@@ -12,13 +12,35 @@ import { parentDirectoryPath } from './file-tree-refresh';
 
 const reconciling = new Map<string, Promise<void>>();
 const reconciled = new Set<string>();
+const retrying = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>();
 const MAXIMUM_REMEMBERED_RECONCILIATIONS = 256;
+const RECONCILIATION_RETRY_BASE_MS = 250;
+const MAXIMUM_RECONCILIATION_RETRY_MS = 30_000;
 
 function rememberReconciliation(operationId: string): void {
+    const retry = retrying.get(operationId);
+    if (retry) clearTimeout(retry.timer);
+    retrying.delete(operationId);
     reconciled.add(operationId);
     if (reconciled.size <= MAXIMUM_REMEMBERED_RECONCILIATIONS) return;
     const oldest = reconciled.values().next().value;
     if (oldest) reconciled.delete(oldest);
+}
+
+function scheduleReconciliationRetry(operation: FileMutationOperation): void {
+    const previous = retrying.get(operation.id);
+    if (previous) clearTimeout(previous.timer);
+    const attempt = (previous?.attempt ?? 0) + 1;
+    const delay = Math.min(
+        RECONCILIATION_RETRY_BASE_MS * 2 ** (attempt - 1),
+        MAXIMUM_RECONCILIATION_RETRY_MS,
+    );
+    const timer = setTimeout(() => {
+        void reconcileFileMutation(operation).catch(() => {
+            // The failed attempt schedules its own bounded-backoff retry.
+        });
+    }, delay);
+    retrying.set(operation.id, { attempt, timer });
 }
 
 function operationLabel(operation: FileMutationOperation): string {
@@ -106,7 +128,14 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
         await caxri.request('files.operation.acknowledge', { operationId: operation.id });
         useFileOperationStore.getState().finish(operation.id);
         rememberReconciliation(operation.id);
-    })().finally(() => reconciling.delete(operation.id));
+    })()
+        .catch((error) => {
+            /** Runtime keeps the durable result until every same-Project Session remap and ack
+             *  succeeds, so a transient persistence failure must retry without a reload. */
+            scheduleReconciliationRetry(operation);
+            throw error;
+        })
+        .finally(() => reconciling.delete(operation.id));
     reconciling.set(operation.id, reconciliation);
     return reconciliation;
 }

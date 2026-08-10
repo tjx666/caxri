@@ -4,13 +4,16 @@ import { dirname, join } from 'node:path';
 import {
     app,
     BrowserWindow,
+    clipboard,
     dialog,
     ipcMain,
     Menu,
+    nativeImage,
     shell,
     type IpcMainInvokeEvent,
 } from 'electron';
 
+import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError, errorMessage, toWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { isMainRequest, type CaxriRequest, type MainRequest } from '../shared/ipc/methods';
@@ -451,6 +454,43 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
         case 'processExplorer.open':
             processExplorer.open();
             return null;
+        case 'bugReport.send': {
+            const { report, screenshot, sessionId, terminalId } = request.params;
+            const records = await supervisor.request('app.records', {
+                sessionIds: [],
+                terminalIds: [terminalId],
+            });
+            const terminal = records.terminals[0];
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
+            if (terminal.sessionId !== sessionId)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'The selected Agent no longer belongs to this Session',
+                );
+            if (!terminal.provider)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Bug reports can only be sent to an Agent Terminal',
+                );
+            if (terminal.lastProcessState !== 'running' || terminal.processId === undefined)
+                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            const imageInput = agentProviderCatalog[terminal.provider].imageInput;
+            const pasteImage = Boolean(screenshot && imageInput);
+            if (pasteImage && screenshot) {
+                const image = nativeImage.createFromDataURL(screenshot.dataUrl);
+                if (image.isEmpty())
+                    throw new CaxriError('VALIDATION', 'Captured screenshot is not a valid image');
+                /** The user explicitly opted into screenshot delivery. Codex's supported image
+                 *  input reads the macOS clipboard, so disclose this replacement before Send. */
+                clipboard.writeImage(image);
+            }
+            return supervisor.request('bugReport.deliver', {
+                pasteImage,
+                report,
+                sessionId,
+                terminalId,
+            });
+        }
         case 'bugReport.captureScreenshot': {
             if (!mainWindow || mainWindow.isDestroyed())
                 throw new CaxriError('UNAVAILABLE', 'The Caxri window is not available');

@@ -387,6 +387,42 @@ describe('switch-worktree shared ownership', () => {
         expect(reclaimed.worktreePath).toBe(other.path);
         activeLeases.splice(activeLeases.indexOf(first), 1);
     });
+
+    it('serializes concurrent stale desktop lease reclamation', async () => {
+        const fixture = await createFixture();
+        const stale = await acquireDesktopLease(fixture.root, 'stale owner');
+        const stored = JSON.parse(await readFile(stale.leasePath, 'utf8')) as DesktopLeaseHandle;
+        await writeJsonAtomic(stale.leasePath, { ...stored, identity: 'stale-process-identity' });
+        const firstEntered = Promise.withResolvers<void>();
+        const releaseFirst = Promise.withResolvers<void>();
+        let secondEntered = false;
+
+        const first = acquireDesktopLease(fixture.root, 'first contender', process.pid, {
+            afterLockAcquired: async () => {
+                firstEntered.resolve();
+                await releaseFirst.promise;
+            },
+        });
+        await firstEntered.promise;
+        const second = acquireDesktopLease(fixture.root, 'second contender', process.pid, {
+            afterLockAcquired: () => {
+                secondEntered = true;
+                return Promise.resolve();
+            },
+        });
+        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
+        expect(secondEntered).toBe(false);
+
+        releaseFirst.resolve();
+        const acquired = await first;
+        activeLeases.push(acquired);
+        await expect(second).rejects.toThrow('Desktop is in use by first contender in');
+        expect(secondEntered).toBe(true);
+        const persisted = JSON.parse(
+            await readFile(acquired.leasePath, 'utf8'),
+        ) as DesktopLeaseHandle;
+        expect(persisted.token).toBe(acquired.token);
+    });
 });
 
 describe('switch-worktree safe removal', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TerminalReplayBuffer } from './terminal-replay';
+import { TerminalReplayBuffer, TerminalReplayCoordinator } from './terminal-replay';
 
 describe('TerminalReplayBuffer', () => {
     it('waits for each write before applying output received during attach', async () => {
@@ -34,6 +34,35 @@ describe('TerminalReplayBuffer', () => {
             'live-output',
             'during-snapshot',
             'later-output',
+        ]);
+    });
+});
+
+describe('TerminalReplayCoordinator', () => {
+    it('replaces a stale mounted screen and replays output received during reattachment', async () => {
+        const events: string[] = [];
+        const snapshot = Promise.withResolvers<string>();
+        const coordinator = new TerminalReplayCoordinator(
+            (value) => {
+                events.push(`write:${value}`);
+                return Promise.resolve();
+            },
+            () => events.push('reset'),
+        );
+        await coordinator.restoreInitial('old-screen');
+
+        const reattachment = coordinator.reattach(() => snapshot.promise);
+        await Promise.resolve();
+        coordinator.push('live-output');
+        expect(events).toEqual(['write:old-screen']);
+
+        snapshot.resolve('restored-screen');
+        await reattachment;
+        expect(events).toEqual([
+            'write:old-screen',
+            'reset',
+            'write:restored-screen',
+            'write:live-output',
         ]);
     });
 });
