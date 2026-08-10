@@ -35,6 +35,8 @@ interface CopyBudget {
 type CopyFile = (source: string, target: string, options: CopyOptions) => Promise<void>;
 
 export interface FileMutationServiceOptions {
+    /** Test seam for replacing a destination after source preflight but before identity revalidation. */
+    beforeCopyValidation?: () => Promise<void>;
     copyFile?: CopyFile;
     copyLimits?: Partial<CopyLimits>;
     now?: () => number;
@@ -105,6 +107,7 @@ function mutationError(error: unknown, action: string): CaxriError {
  * `openat`/no-replace rename API; Main applies the same last-moment check before Electron Trash.
  */
 export class FileMutationService {
+    private readonly beforeCopyValidation?: () => Promise<void>;
     private readonly copyFile: CopyFile;
     private readonly copyLimits: CopyLimits;
     private readonly now: () => number;
@@ -115,6 +118,7 @@ export class FileMutationService {
         private readonly logger: StructuredLogger,
         options: FileMutationServiceOptions = {},
     ) {
+        this.beforeCopyValidation = options.beforeCopyValidation;
         this.copyFile = options.copyFile ?? cp;
         this.copyLimits = { ...DEFAULT_COPY_LIMITS, ...options.copyLimits };
         this.now = options.now ?? Date.now;
@@ -164,6 +168,7 @@ export class FileMutationService {
             await Promise.all([this.assertIdentity(source), this.assertIdentity(directory)]);
             const startedAt = this.now();
             await this.inspectCopyTree(source.path, startedAt);
+            await this.beforeCopyValidation?.();
             for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
                 const name = suffixedName(source, sequence);
                 const path = resolve(directory.path, name);
@@ -171,6 +176,10 @@ export class FileMutationService {
                 if (!release) continue;
                 try {
                     if (await this.pathExists(path)) continue;
+                    await Promise.all([
+                        this.assertIdentity(source),
+                        this.assertIdentity(directory),
+                    ]);
                     const copyBudget: CopyBudget = { bytes: 0, entries: 0, startedAt };
                     await this.copyFile(source.path, path, {
                         dereference: false,

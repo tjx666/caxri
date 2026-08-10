@@ -38,6 +38,7 @@ const NON_EXPIRING_RUNTIME_METHODS = new Set<RuntimeMethod>([
     'files.create',
     'files.move',
     'files.rename',
+    'files.write',
 ]);
 /** Caps a single logged Runtime stdio line so a runaway native crash cannot log-bomb main.jsonl. */
 const MAX_STDIO_LINE_LENGTH = 4_096;

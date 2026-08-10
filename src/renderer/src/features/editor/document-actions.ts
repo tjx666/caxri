@@ -30,6 +30,18 @@ interface PendingDocumentOperation {
  */
 const pendingDocumentOperations = new Set<PendingDocumentOperation>();
 
+/** File paths belong to a Project, so every Session sharing that Project must reconcile them. */
+function projectSessionIds(originSessionId: string): string[] {
+    const bootstrap = useWorkbenchStore.getState().bootstrap;
+    const projectId = bootstrap?.sessions.find(
+        (session) => session.id === originSessionId,
+    )?.projectId;
+    if (!projectId) return [originSessionId];
+    return bootstrap.sessions
+        .filter((session) => session.projectId === projectId)
+        .map((session) => session.id);
+}
+
 function trackDocumentOperation(sessionId: string, path: string): PendingDocumentOperation {
     const operation = { discarded: false, path, sessionId };
     pendingDocumentOperations.add(operation);
@@ -241,8 +253,11 @@ export function closeAllEditors(path: string): void {
     closeEditors(path, 'all');
 }
 
-/** Keeps normal editor tabs and dirty buffers attached to a file or directory after it moves. */
-export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
+function remapOpenEditorsInSession(
+    sessionId: string,
+    previousPath: string,
+    nextPath: string,
+): void {
     remapPendingDocumentOperations(sessionId, previousPath, nextPath);
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
@@ -267,8 +282,13 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
     patchSessionState({ ...current, openTabs, activeTab }, 'Moved editor state could not be saved');
 }
 
-/** Closes every normal editor under an item only after Main has moved that item to the Trash. */
-export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
+/** Keeps every same-Project Session's normal tabs and dirty buffers attached after a move. */
+export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
+    for (const projectSessionId of projectSessionIds(sessionId))
+        remapOpenEditorsInSession(projectSessionId, previousPath, nextPath);
+}
+
+function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): void {
     discardPendingDocumentOperations(sessionId, path);
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
@@ -309,4 +329,10 @@ export function closeOpenEditorsUnderPath(sessionId: string, path: string): void
             : { ...current, openTabs, activeTab: undefined },
         'Trashed editor state could not be saved',
     );
+}
+
+/** Closes matching normal editors in every same-Project Session after Main confirms Trash. */
+export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
+    for (const projectSessionId of projectSessionIds(sessionId))
+        closeOpenEditorsUnderPathInSession(projectSessionId, path);
 }
