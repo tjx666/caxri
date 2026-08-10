@@ -104,6 +104,7 @@ function InlineFileName({
             await onSubmit(value);
         } catch (submissionError) {
             setError(describeFailure(submissionError, 'Unable to change item'));
+        } finally {
             setPending(false);
         }
     };

@@ -54,9 +54,11 @@ export function getProjectSessionIds(originSessionId: string): string[] {
     const sessions = getBootstrap()?.sessions ?? [];
     const projectId = sessions.find((session) => session.id === originSessionId)?.projectId;
     if (!projectId) return [originSessionId];
-    return sessions
-        .filter((session) => session.projectId === projectId)
-        .map((session) => session.id);
+    const sessionIds: string[] = [];
+    for (const session of sessions) {
+        if (session.projectId === projectId) sessionIds.push(session.id);
+    }
+    return sessionIds;
 }
 
 export function getSessionProjectId(sessionId: string): string | undefined {
