@@ -39,3 +39,49 @@ export class TerminalReplayBuffer {
         return this.writeBatch(pending, index + 1);
     }
 }
+
+/** Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output. */
+export class TerminalReplayCoordinator {
+    private readonly initial = Promise.withResolvers<void>();
+    private replay: TerminalReplayBuffer;
+    private tail: Promise<void>;
+
+    constructor(
+        private readonly write: (value: string) => Promise<void>,
+        private readonly reset: () => void,
+    ) {
+        this.replay = new TerminalReplayBuffer(write);
+        this.tail = this.initial.promise;
+    }
+
+    push(value: string): void {
+        this.replay.push(value);
+    }
+
+    async restoreInitial(snapshot: string): Promise<void> {
+        try {
+            await this.replay.restore(snapshot);
+        } finally {
+            this.initial.resolve();
+        }
+    }
+
+    reattach(loadSnapshot: () => Promise<string>): Promise<void> {
+        const task = this.tail.then(async () => {
+            const replay = new TerminalReplayBuffer(this.write);
+            this.replay = replay;
+            try {
+                const snapshot = await loadSnapshot();
+                this.reset();
+                await replay.restore(snapshot);
+            } catch (error) {
+                /** Keep the existing screen on an attach failure, but release output buffered while
+                 *  the Runtime request was pending. */
+                await replay.restore('');
+                throw error;
+            }
+        });
+        this.tail = task.catch(() => undefined);
+        return task;
+    }
+}

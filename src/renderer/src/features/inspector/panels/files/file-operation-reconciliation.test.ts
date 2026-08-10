@@ -21,6 +21,7 @@ import { useFileOperationStore } from './file-operation-state';
 beforeEach(() => vi.stubGlobal('window', globalThis));
 
 afterEach(() => {
+    vi.useRealTimers();
     mocks.request.mockClear();
     queryClient.clear();
     useFileOperationStore.getState().clear();
@@ -142,5 +143,79 @@ describe('file mutation reconciliation', () => {
         expect(useToastStore.getState().toasts).toContainEqual(
             expect.objectContaining({ kind: 'success', message: 'Item moved' }),
         );
+    });
+
+    it('retries a completed move after one Session-state persistence failure', async () => {
+        vi.useFakeTimers();
+        let sessionStateWrites = 0;
+        mocks.request.mockImplementation((method) => {
+            if (method !== 'session.updateState') return Promise.resolve(null);
+            sessionStateWrites += 1;
+            return sessionStateWrites === 2
+                ? Promise.reject(new Error('temporary database failure'))
+                : Promise.resolve(null);
+        });
+        const previousPath = '/project/source.txt';
+        const nextPath = '/project/destination/source.txt';
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [
+                    { id: 'session-a', projectId: 'project-1' },
+                    { id: 'session-b', projectId: 'project-1' },
+                ],
+                sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
+                    sessionId,
+                    openTabs: [{ path: previousPath, dirty: false }],
+                    activeTab: { kind: 'editor' as const, path: previousPath },
+                    inspectorMode: 'files' as const,
+                    layout: {},
+                })),
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const operation: FileMutationOperation = {
+            id: 'operation-retry-move',
+            kind: 'move',
+            sessionId: 'session-a',
+            phase: 'completed',
+            input: {
+                path: previousPath,
+                directory: '/project/destination',
+                conflict: 'reject',
+            },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        };
+
+        await expect(reconcileFileMutation(operation)).rejects.toThrow(
+            'Moved editor state could not be saved',
+        );
+        expect(
+            useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
+        ).toEqual([[{ path: nextPath, dirty: false }], [{ path: previousPath, dirty: false }]]);
+
+        await vi.runOnlyPendingTimersAsync();
+        await vi.waitFor(() => {
+            expect(mocks.request).toHaveBeenCalledWith('files.operation.acknowledge', {
+                operationId: operation.id,
+            });
+        });
+        expect(
+            useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
+        ).toEqual([[{ path: nextPath, dirty: false }], [{ path: nextPath, dirty: false }]]);
     });
 });

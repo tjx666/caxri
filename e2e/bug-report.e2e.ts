@@ -96,3 +96,74 @@ setInterval(() => {}, 1000);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('Bug report delivers an opted-in screenshot through Codex image paste', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-bug-report-codex-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const bin = join(testDirectory, 'bin');
+    const executable = join(bin, 'codex');
+    const capture = join(testDirectory, 'agent-input.bin');
+    await Promise.all([mkdir(root), mkdir(bin), writeFile(capture, '')]);
+    await writeFile(
+        executable,
+        `#!${process.execPath}
+const fs = require('node:fs');
+const capture = ${JSON.stringify(capture)};
+if (process.argv[2] === '--version') {
+  process.stdout.write('codex-test 1.0\\n');
+  process.exit(0);
+}
+process.stdout.write('Fake Codex ready\\n');
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdin.on('data', (chunk) => fs.appendFileSync(capture, chunk));
+setInterval(() => {}, 1000);
+`,
+        'utf8',
+    );
+    await chmod(executable, 0o700);
+
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+    });
+    try {
+        await createProjectSession(running.page, 'codex');
+        await running.page.keyboard.press('Meta+Shift+P');
+        const palette = running.page.getByRole('dialog');
+        await palette
+            .getByPlaceholder('Search projects, sessions, and commands…')
+            .fill('report bug');
+        await palette.getByText('Report Bug to Agent', { exact: true }).click();
+
+        const dialog = running.page.getByRole('dialog');
+        await dialog.getByLabel('Actual behavior').fill('The preview is stale.');
+        await dialog.getByLabel('Expected behavior').fill('The preview should refresh.');
+        await dialog.getByLabel('Reproduction steps').fill('1. Open preview\n2. Refresh');
+        await dialog
+            .getByLabel('Capture a screenshot of the current Caxri window for preview')
+            .check();
+        await expect(dialog).toContainText('Sending replaces the system clipboard');
+        await dialog.getByRole('button', { name: 'Preview Report' }).click();
+        await expect(dialog.getByAltText('Current Caxri window screenshot')).toBeVisible();
+
+        await dialog.getByRole('button', { name: 'Send to Agent' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect
+            .poll(() => running.app.evaluate(({ clipboard }) => !clipboard.readImage().isEmpty()))
+            .toBe(true);
+        let agentInput = '';
+        await expect
+            .poll(async () => {
+                agentInput = await readFile(capture, 'utf8');
+                return agentInput.endsWith('\u001B[201~\r');
+            })
+            .toBe(true);
+        expect(agentInput.startsWith('\x16\u001B[200~# Caxri Bug Report')).toBe(true);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

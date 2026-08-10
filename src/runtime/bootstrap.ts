@@ -3,6 +3,7 @@ import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
+import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod } from '../shared/ipc/methods';
@@ -372,7 +373,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
         'bugReport.context': () => diagnostics.reportContext(),
-        'bugReport.send': ({ report, sessionId, terminalId }) => {
+        'bugReport.send': () => mainOwned('bugReport.send'),
+        'bugReport.deliver': ({ pasteImage, report, sessionId, terminalId }) => {
             const terminal = database.getTerminal(terminalId);
             if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
             if (terminal.sessionId !== sessionId)
@@ -390,6 +392,16 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 terminals.processId(terminalId) === undefined
             )
                 throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            if (pasteImage) {
+                const imageInput = agentProviderCatalog[terminal.provider].imageInput;
+                if (!imageInput)
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'The selected Agent does not support screenshot delivery',
+                    );
+                if (!terminals.write(terminalId, imageInput.terminalInput))
+                    throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            }
             /** Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report
              *  cannot contain control characters capable of terminating the paste sequence. */
             if (!terminals.write(terminalId, `\u001B[200~${report}\u001B[201~\r`))

@@ -93,14 +93,8 @@ export function chooseBugReportTarget(
     return targets.find((terminal) => terminal.id === activeTerminalId)?.id ?? targets[0]?.id;
 }
 
-/**
- * Automated image delivery is intentionally unavailable until a provider accepts image bytes.
- * Codex's existing paste flow reads a user-owned system clipboard image, which this report flow
- * must not replace behind the user's back.
- */
 export function bugReportImageFallback(provider?: AgentProvider): string {
-    if (provider === 'codex') {
-        return 'Screenshot capture is preview-only. Caxri will not overwrite the system clipboard; paste an image in the Codex Terminal manually after sending the text report.';
-    }
+    if (provider && agentProviderCatalog[provider].imageInput)
+        return 'The screenshot will be delivered through this Agent image paste. Sending replaces the system clipboard with the captured image.';
     return 'Screenshot capture is preview-only. This Agent has no Caxri-safe automated image attachment; the text report will still be sent.';
 }

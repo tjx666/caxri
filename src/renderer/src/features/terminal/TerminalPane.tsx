@@ -30,7 +30,7 @@ import {
     clipboardContainsImage,
     terminalKeyboardInput,
 } from './terminal-keyboard';
-import { TerminalReplayBuffer } from './terminal-replay';
+import { TerminalReplayCoordinator } from './terminal-replay';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
 import { registerTerminalLinks } from './terminal-links';
 import {
@@ -139,6 +139,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
 
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
+    const replayRef = useRef<TerminalReplayCoordinator | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const attachedEpochRef = useRef(attachEpoch);
     const latestRef = useRef({
@@ -253,10 +254,18 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         };
         container.addEventListener('paste', handlePaste, true);
         xtermRef.current = xterm;
-        const replay = new TerminalReplayBuffer(
-            (value) => new Promise<void>((resolve) => xterm.write(value, resolve)),
-        );
         let disposed = false;
+        const replay = new TerminalReplayCoordinator(
+            (value) =>
+                new Promise<void>((resolve) => {
+                    if (disposed) resolve();
+                    else xterm.write(value, resolve);
+                }),
+            () => {
+                if (!disposed) xterm.reset();
+            },
+        );
+        replayRef.current = replay;
         let lastSentSize: TerminalSize | undefined;
 
         const fitToPane = (): TerminalSize | undefined => {
@@ -329,7 +338,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                 if (!disposed) onError(errorMessage(error, 'Terminal attachment failed'));
             }
             if (disposed) return;
-            await replay.restore(payload);
+            await replay.restoreInitial(payload);
             if (disposed) return;
             /** Resize only after xterm has parsed the snapshot and every output event buffered behind it. */
             fitAndResize();
@@ -352,6 +361,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             unregisterLinks();
             xterm.dispose();
             xtermRef.current = undefined;
+            if (replayRef.current === replay) replayRef.current = undefined;
             void caxri.request('terminal.detach', { terminalId }).catch(() => {
                 // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
             });
@@ -361,9 +371,20 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     useEffect(() => {
         if (attachedEpochRef.current === attachEpoch) return;
         attachedEpochRef.current = attachEpoch;
+        const replay = replayRef.current;
+        const xterm = xtermRef.current;
+        if (!replay || !xterm) return;
         /** Runtime-owned attachment state is lost with the utility process even though this pane remains mounted. */
-        void caxri
-            .request('terminal.attach', { terminalId })
+        void replay
+            .reattach(async () => {
+                const attachment = await caxri.request(
+                    'terminal.attach',
+                    latestRef.current.processState === 'running'
+                        ? { terminalId, cols: xterm.cols, rows: xterm.rows }
+                        : { terminalId },
+                );
+                return attachment?.payload ?? '';
+            })
             .catch((error: unknown) =>
                 onError(errorMessage(error, 'Terminal reattachment failed')),
             );

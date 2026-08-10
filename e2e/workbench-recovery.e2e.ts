@@ -121,6 +121,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await waitForRuntimeReady(running.page);
         await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_RENDERER_RELOAD');
 
+        await typeTerminal(running.page, "printf 'STALE_RENDERER_ONLY\\n'");
+        await expect(running.page.locator('.xterm-rows')).toContainText('STALE_RENDERER_ONLY');
         await running.app.evaluate(({ app }) => {
             const runtime = app.getAppMetrics().find((metric) => metric.name === 'Caxri Runtime');
             if (!runtime) throw new Error('Runtime utility process not found');
@@ -132,8 +134,13 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         );
         await waitForRuntimeReady(running.page);
         // Terminals killed with the Runtime are marked interrupted and auto-restored for the
-        // selected Session without a manual Restart click (GitHub issue #18).
+        // selected Session without a manual Restart click (GitHub issue #18). The mounted xterm is
+        // replaced from Runtime's durable snapshot, so output that existed only in the dead
+        // Renderer/Runtime generation cannot linger on screen (GitHub issue #67).
         await expect(running.page.locator('.process-running').first()).toBeVisible();
+        await expect(running.page.locator('.xterm-rows').first()).not.toContainText(
+            'STALE_RENDERER_ONLY',
+        );
         await typeTerminal(running.page, "printf 'AFTER_RUNTIME_RESTART\\n'");
         await expect(running.page.locator('.xterm-rows').first()).toContainText(
             'AFTER_RUNTIME_RESTART',

@@ -175,7 +175,12 @@ export class TerminalManager {
             const live: LiveTerminal = {
                 process: child,
                 record,
-                screen: new TerminalScreenState(initialSnapshot),
+                screen: new TerminalScreenState(initialSnapshot, 100, 30, {
+                    onOverflow: (droppedBytes) =>
+                        this.logger.write('warn', 'pty.screen_backpressure', {
+                            fields: { terminalId: record.id, droppedBytes },
+                        }),
+                }),
                 snapshot: new TerminalSnapshotBuffer(initialSnapshot),
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,

@@ -16,11 +16,21 @@ const { Terminal } = runtimeRequire('@xterm/headless') as typeof HeadlessModule;
 type ScreenOperation =
     | { chunks: string[]; type: 'write' }
     | { cols: number; rows: number; type: 'resize' }
+    | { droppedBytes: number; type: 'reset' }
     | {
           reject: (error: unknown) => void;
           resolve: (snapshot: ReturnType<typeof boundSnapshot>) => void;
           type: 'snapshot';
       };
+
+export interface TerminalScreenStateOptions {
+    /** Test seam and hard ceiling for raw input waiting on xterm's asynchronous parser. */
+    maximumQueuedBytes?: number;
+    onOverflow?: (droppedBytes: number) => void;
+}
+
+/** Allow the 2 MiB recovery snapshot to be rebuilt under a burst while bounding sustained parser lag. */
+const DEFAULT_MAXIMUM_QUEUED_BYTES = 4 * MAX_SNAPSHOT_BYTES;
 
 /**
  * Maintains the bounded, parsed Terminal screen owned by a live PTY. Raw ANSI retention can start
@@ -30,11 +40,23 @@ type ScreenOperation =
 export class TerminalScreenState {
     private disposed = false;
     private draining?: Promise<void>;
+    private readonly maximumQueuedBytes: number;
+    private readonly onOverflow?: (droppedBytes: number) => void;
     private readonly operations: ScreenOperation[] = [];
+    private queuedWriteBytes = 0;
     private readonly serialize = new SerializeAddon();
     private readonly terminal: HeadlessTerminal;
 
-    constructor(initialSnapshot: string, cols = 100, rows = 30) {
+    constructor(
+        initialSnapshot: string,
+        cols = 100,
+        rows = 30,
+        options: TerminalScreenStateOptions = {},
+    ) {
+        this.maximumQueuedBytes = options.maximumQueuedBytes ?? DEFAULT_MAXIMUM_QUEUED_BYTES;
+        this.onOverflow = options.onOverflow;
+        if (!Number.isInteger(this.maximumQueuedBytes) || this.maximumQueuedBytes < 1)
+            throw new RangeError('Terminal screen queue limit must be a positive integer');
         this.terminal = new Terminal({
             allowProposedApi: true,
             cols,
@@ -51,9 +73,16 @@ export class TerminalScreenState {
 
     write(data: string): void {
         if (this.disposed || !data) return;
+        const bytes = Buffer.byteLength(data, 'utf8');
+        if (this.queuedWriteBytes + bytes > this.maximumQueuedBytes) {
+            this.resetOverflowedQueue(bytes);
+            this.startDrain();
+            return;
+        }
         const last = this.operations.at(-1);
         if (last?.type === 'write') last.chunks.push(data);
         else this.operations.push({ chunks: [data], type: 'write' });
+        this.queuedWriteBytes += bytes;
         this.startDrain();
     }
 
@@ -88,6 +117,25 @@ export class TerminalScreenState {
         this.terminal.dispose();
     }
 
+    /** Pending bytes exclude the one bounded write currently inside xterm's parser. */
+    pendingByteCount(): number {
+        return this.queuedWriteBytes;
+    }
+
+    private resetOverflowedQueue(incomingBytes: number): void {
+        let droppedBytes = this.queuedWriteBytes + incomingBytes;
+        for (const operation of this.operations.splice(0)) {
+            if (operation.type === 'reset') droppedBytes += operation.droppedBytes;
+            if (operation.type === 'snapshot')
+                operation.reject(
+                    new Error('Terminal screen parser exceeded its bounded recovery queue'),
+                );
+        }
+        this.queuedWriteBytes = 0;
+        this.operations.push({ droppedBytes, type: 'reset' });
+        this.onOverflow?.(droppedBytes);
+    }
+
     private startDrain(): void {
         if (this.draining || this.disposed) return;
         this.draining = this.drain().finally(() => {
@@ -101,13 +149,22 @@ export class TerminalScreenState {
             const operation = this.operations.shift();
             if (!operation) return Promise.resolve();
             if (operation.type === 'write') {
-                return new Promise<void>((resolve) =>
-                    this.terminal.write(operation.chunks.join(''), resolve),
-                ).then(() => this.drain());
+                const data = operation.chunks.join('');
+                this.queuedWriteBytes -= Buffer.byteLength(data, 'utf8');
+                return new Promise<void>((resolve) => this.terminal.write(data, resolve)).then(() =>
+                    this.drain(),
+                );
             }
             if (operation.type === 'resize') {
                 this.terminal.resize(operation.cols, operation.rows);
                 continue;
+            }
+            if (operation.type === 'reset') {
+                this.terminal.reset();
+                const warning = `\r\n[Caxri reset Terminal screen recovery after ${operation.droppedBytes} bytes exceeded parser backpressure]\r\n`;
+                return new Promise<void>((resolve) => this.terminal.write(warning, resolve)).then(
+                    () => this.drain(),
+                );
             }
             try {
                 operation.resolve(this.serializeBounded());

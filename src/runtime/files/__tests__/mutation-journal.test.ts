@@ -311,6 +311,48 @@ describe('FileMutationJournal', () => {
         await journal.close();
     });
 
+    it('retries create identity persistence after the native creation succeeded', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-create-retry-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'operations.json');
+        const target = join(directory, 'created.txt');
+        let writes = 0;
+        const journal = new FileMutationJournal(
+            path,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                completionRetryBaseMs: 1,
+                writeJournal: async (journalPath, sourceText) => {
+                    writes += 1;
+                    if (writes === 3) throw new Error('journal temporarily unavailable');
+                    await writeFile(journalPath, sourceText, 'utf8');
+                },
+            },
+        );
+        await journal.initialize();
+        const result = { kind: 'file' as const, name: 'created.txt', path: target };
+
+        await expect(
+            journal.run(createOperation('operation-create-retry', directory), async (stage) => {
+                await stage(result);
+                await writeFile(target, 'created', 'utf8');
+                const stats = await lstat(target, { bigint: true });
+                await stage({
+                    ...result,
+                    device: stats.dev.toString(),
+                    inode: stats.ino.toString(),
+                });
+                return result;
+            }),
+        ).rejects.toThrow('journal temporarily unavailable');
+        await expect
+            .poll(async () => (await journal.get('operation-create-retry'))?.phase)
+            .toBe('completed');
+        await expect(readFile(target, 'utf8')).resolves.toBe('created');
+        await journal.close();
+    });
+
     it('bounds active mutations within one Session', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-capacity-'));
         temporaryDirectories.push(directory);
