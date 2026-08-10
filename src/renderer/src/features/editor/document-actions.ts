@@ -50,7 +50,7 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
 export async function openFile(
     path: string,
     options: { preview?: boolean } = {},
-): Promise<boolean> {
+): Promise<string | false> {
     const session = getSelectedSession();
     if (!session) return false;
     const intent = ++fileOpenIntent;
@@ -60,10 +60,10 @@ export async function openFile(
         if (intent !== fileOpenIntent || getSelectedSession()?.id !== session.id) return false;
         markEditorDocumentReady();
         useSessionViewStore.getState().cacheDocument(session.id, { ...document, dirty: false });
-        openEditorTab(path, options);
-        return true;
+        openEditorTab(document.path, options);
+        return document.path;
     });
-    return opened === true;
+    return opened ?? false;
 }
 
 /** Selecting an already open tab reuses the cached buffer; an evicted one is read again. */

@@ -6,13 +6,16 @@ export interface EditorRevealTarget {
     line: number;
     column: number;
     matchLength: number;
+    /** Search results select their match; navigation-only reveals leave a caret at the location. */
+    select?: boolean;
 }
 
 const editors = new Map<string, MonacoEditor>();
 const pending = new Map<string, EditorRevealTarget>();
 
 function applyReveal(editor: MonacoEditor, target: EditorRevealTarget): void {
-    const endColumn = target.column + Math.max(1, target.matchLength);
+    const endColumn =
+        target.column + (target.select === false ? 0 : Math.max(1, target.matchLength));
     editor.setSelection({
         startLineNumber: target.line,
         startColumn: target.column,
@@ -41,4 +44,12 @@ export function revealEditorMatch(path: string, target: EditorRevealTarget): voi
     const editor = editors.get(path);
     if (editor) applyReveal(editor, target);
     else pending.set(path, target);
+}
+
+/** Navigates to a source location without selecting the character after the requested column. */
+export function revealEditorLocation(
+    path: string,
+    target: Pick<EditorRevealTarget, 'column' | 'line'>,
+): void {
+    revealEditorMatch(path, { ...target, matchLength: 0, select: false });
 }
