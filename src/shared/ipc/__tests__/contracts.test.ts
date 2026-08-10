@@ -237,7 +237,11 @@ describe('files.browse contract', () => {
 });
 
 describe('file mutation contracts', () => {
-    const base = { sessionId: 'session-1', path: '/project/note.txt' };
+    const base = {
+        operationId: 'operation-1',
+        sessionId: 'session-1',
+        path: '/project/note.txt',
+    };
 
     it('keeps filesystem mutations narrow and gives Trash to Main only', () => {
         expect(methods['files.create'].owner).toBe('runtime');
@@ -253,6 +257,7 @@ describe('file mutation contracts', () => {
     it('defaults creation to a file and drag movement to conflict rejection', () => {
         expect(
             methods['files.create'].params.parse({
+                operationId: 'operation-1',
                 sessionId: 'session-1',
                 directory: '/project',
                 name: 'note.txt',
@@ -260,11 +265,23 @@ describe('file mutation contracts', () => {
         ).toMatchObject({ kind: 'file' });
         expect(
             methods['files.move'].params.parse({
+                operationId: 'operation-2',
                 sessionId: 'session-1',
                 path: '/project/note.txt',
                 directory: '/project/archive',
             }),
         ).toMatchObject({ conflict: 'reject' });
+    });
+
+    it('requires a durable operation ID for mutations that may outlive their IPC waiter', () => {
+        expect(
+            methods['files.create'].params.safeParse({
+                sessionId: 'session-1',
+                directory: '/project',
+                name: 'note.txt',
+            }).success,
+        ).toBe(false);
+        expect(methods['files.operation.list'].params.safeParse(undefined).success).toBe(true);
     });
 
     it.each(['', '.', '..', '../escape', 'nested/file', 'nested\\file', 'null\0byte'])(

@@ -5,6 +5,7 @@ import { useCommandShortcuts } from './commands/useCommandShortcuts';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
+import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
 import { CommandPalette } from './features/palette/CommandPalette';
 import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
@@ -60,6 +61,7 @@ export function App() {
     const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
 
     useRuntimeAttachment();
+    useFileMutationReconciliation(attached);
     useRuntimeQueryInvalidation();
     useCommandShortcuts();
     useExternalDocumentSync();

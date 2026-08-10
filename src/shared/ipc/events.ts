@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
     fileChangeSchema,
+    fileMutationOperationSchema,
     identifierSchema,
     runtimeStatusSchema,
     updateStateSchema,
@@ -71,6 +72,7 @@ export const runtimeEventPayloads = {
         changes: z.array(fileChangeSchema),
         overflow: z.boolean(),
     }),
+    'files.operationChanged': fileMutationOperationSchema,
     'settings.changed': configurationChangedSchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,

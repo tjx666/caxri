@@ -11,6 +11,24 @@ import type { ResolveSessionPath } from './documents';
 
 type MutableEntry = RuntimeMethodResult<'files.create'>;
 type MovedEntry = RuntimeMethodResult<'files.rename'>;
+type MutationStage<Result> = (expectedResult: Result) => Promise<void>;
+interface StagedCreatedEntry extends MutableEntry {
+    device?: string;
+    inode?: string;
+}
+interface StagedMovedEntry extends MovedEntry {
+    device: string;
+    inode: string;
+}
+type CreateMutationParams = Omit<RuntimeMethodParams<'files.create'>, 'operationId'> & {
+    operationId?: string;
+};
+type RenameMutationParams = Omit<RuntimeMethodParams<'files.rename'>, 'operationId'> & {
+    operationId?: string;
+};
+type MoveMutationParams = Omit<RuntimeMethodParams<'files.move'>, 'operationId'> & {
+    operationId?: string;
+};
 
 interface FileIdentity {
     device: string;
@@ -52,6 +70,8 @@ interface CopyFileOptions {
 type CopyFile = (source: FileHandle, target: FileHandle, options: CopyFileOptions) => Promise<void>;
 
 export interface FileMutationServiceOptions {
+    /** Test seam for replacing a source or parent after the durable stage write. */
+    afterMutationStage?: () => Promise<void>;
     /** Test seam for observing bounded validation after a recursive copy. */
     beforeCopyTargetValidation?: () => Promise<void>;
     /** Test seam for replacing a destination after source preflight but before identity revalidation. */
@@ -137,6 +157,7 @@ function mutationError(error: unknown, action: string): CaxriError {
  * `openat`/no-replace rename API; Main applies the same last-moment check before Electron Trash.
  */
 export class FileMutationService {
+    private readonly afterMutationStage?: () => Promise<void>;
     private readonly beforeCopyTargetValidation?: () => Promise<void>;
     private readonly beforeCopyValidation?: () => Promise<void>;
     private readonly copyFile: CopyFile;
@@ -149,6 +170,7 @@ export class FileMutationService {
         private readonly logger: StructuredLogger,
         options: FileMutationServiceOptions = {},
     ) {
+        this.afterMutationStage = options.afterMutationStage;
         this.beforeCopyTargetValidation = options.beforeCopyTargetValidation;
         this.beforeCopyValidation = options.beforeCopyValidation;
         this.copyFile = options.copyFile ?? streamCopyFile;
@@ -157,7 +179,8 @@ export class FileMutationService {
     }
 
     async create(
-        params: RuntimeMethodParams<'files.create'>,
+        params: CreateMutationParams,
+        stage?: MutationStage<StagedCreatedEntry>,
     ): Promise<RuntimeMethodResult<'files.create'>> {
         try {
             const directory = await this.resolveExisting(params.sessionId, params.directory, true);
@@ -167,9 +190,25 @@ export class FileMutationService {
             const path = resolve(directory.path, name);
             const release = this.reserveTarget(path);
             try {
+                const result: MutableEntry = { kind: params.kind, name, path };
                 await this.assertIdentity(directory);
-                if (params.kind === 'directory') await mkdir(path);
-                else await (await open(path, 'wx')).close();
+                await stage?.(result);
+                await this.afterMutationStage?.();
+                await this.assertIdentity(directory);
+                let identity: FileIdentity;
+                if (params.kind === 'directory') {
+                    await mkdir(path);
+                    identity = await this.createdIdentity(path);
+                } else {
+                    const file = await open(path, 'wx');
+                    try {
+                        identity = await this.createdHandleIdentity(file, path);
+                    } finally {
+                        await file.close();
+                    }
+                }
+                await stage?.({ ...result, device: identity.device, inode: identity.inode });
+                await this.assertPathIdentity(identity);
             } finally {
                 release();
             }
@@ -309,18 +348,30 @@ export class FileMutationService {
     }
 
     rename(
-        params: RuntimeMethodParams<'files.rename'>,
+        params: RenameMutationParams,
+        stage?: MutationStage<StagedMovedEntry>,
     ): Promise<RuntimeMethodResult<'files.rename'>> {
-        return this.moveTo(params.sessionId, params.path, undefined, fileName(params.name));
+        return this.moveTo(
+            params.sessionId,
+            params.path,
+            undefined,
+            fileName(params.name),
+            false,
+            stage,
+        );
     }
 
-    move(params: RuntimeMethodParams<'files.move'>): Promise<RuntimeMethodResult<'files.move'>> {
+    move(
+        params: MoveMutationParams,
+        stage?: MutationStage<StagedMovedEntry>,
+    ): Promise<RuntimeMethodResult<'files.move'>> {
         return this.moveTo(
             params.sessionId,
             params.path,
             params.directory,
             undefined,
             params.conflict === 'rename',
+            stage,
         );
     }
 
@@ -351,6 +402,7 @@ export class FileMutationService {
         targetDirectoryPath?: string,
         requestedName?: string,
         renameOnConflict = false,
+        stage?: MutationStage<StagedMovedEntry>,
     ): Promise<MovedEntry> {
         try {
             const source = await this.resolveExisting(sessionId, sourcePath);
@@ -398,6 +450,23 @@ export class FileMutationService {
                         this.assertIdentity(source),
                         this.assertIdentity(directory),
                     ]);
+                    const result: MovedEntry = {
+                        kind: source.kind,
+                        name,
+                        path: targetPath,
+                        previousPath: source.path,
+                    };
+                    await stage?.({ ...result, device: source.device, inode: source.inode });
+                    await this.afterMutationStage?.();
+                    if (await this.pathExists(targetPath))
+                        throw new CaxriError(
+                            'CONFLICT',
+                            'A file or folder with that name already exists',
+                        );
+                    await Promise.all([
+                        this.assertIdentity(source),
+                        this.assertIdentity(directory),
+                    ]);
                     /**
                      * Node's rename matches VS Code's local provider. The reservation prevents
                      * conflicting Caxri requests, while the final check avoids knowingly replacing
@@ -411,12 +480,7 @@ export class FileMutationService {
                             to: relative(source.root.path, targetPath),
                         },
                     });
-                    return {
-                        kind: source.kind,
-                        name,
-                        path: targetPath,
-                        previousPath: source.path,
-                    };
+                    return result;
                 } finally {
                     release();
                 }
