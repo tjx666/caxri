@@ -49,6 +49,20 @@ export function getSelectedSession(): SessionRecord | undefined {
     return selectSelectedSession(getBootstrap());
 }
 
+/** File paths belong to a Project, so mutations must reconcile every Session sharing it. */
+export function getProjectSessionIds(originSessionId: string): string[] {
+    const sessions = getBootstrap()?.sessions ?? [];
+    const projectId = sessions.find((session) => session.id === originSessionId)?.projectId;
+    if (!projectId) return [originSessionId];
+    return sessions
+        .filter((session) => session.projectId === projectId)
+        .map((session) => session.id);
+}
+
+export function getSessionProjectId(sessionId: string): string | undefined {
+    return getBootstrap()?.sessions.find((session) => session.id === sessionId)?.projectId;
+}
+
 export function getSessionState(): SessionState | undefined {
     return selectSessionState(getBootstrap());
 }

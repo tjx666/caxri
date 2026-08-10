@@ -1,3 +1,5 @@
+import { basename, dirname, resolve } from 'node:path';
+
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
@@ -12,6 +14,7 @@ import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
 const MAXIMUM_DOCUMENT_QUEUE_WAIT_MS = 15_000;
+const COPY_OPERATION_GROUP = 'files.copy';
 
 export interface FileServiceOptions extends WatcherServiceOptions {
     fileTreeExcludes?: () => AppSettings['files.exclude'];
@@ -82,47 +85,82 @@ export class FileService {
         return this.listing.list(sessionId, directory);
     }
 
-    create(
+    async create(
         params: RuntimeMethodParams<'files.create'>,
     ): Promise<RuntimeMethodResult<'files.create'>> {
-        return this.operations.run(() => this.mutations.create(params));
-    }
-
-    copy(params: RuntimeMethodParams<'files.copy'>): Promise<RuntimeMethodResult<'files.copy'>> {
-        return this.operations.run(() => this.mutations.copy(params));
-    }
-
-    rename(
-        params: RuntimeMethodParams<'files.rename'>,
-    ): Promise<RuntimeMethodResult<'files.rename'>> {
-        return this.operations.run(() => this.mutations.rename(params));
-    }
-
-    move(params: RuntimeMethodParams<'files.move'>): Promise<RuntimeMethodResult<'files.move'>> {
-        return this.operations.run(() => this.mutations.move(params));
-    }
-
-    authorizeTrash(
-        params: RuntimeMethodParams<'files.authorizeTrash'>,
-    ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
-        return this.operations.run(() => this.mutations.authorizeTrash(params));
-    }
-
-    authorizeOpen(
-        params: RuntimeMethodParams<'files.authorizeOpen'>,
-    ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
-        return this.operations.run(() => this.mutations.authorizeOpen(params));
-    }
-
-    read(sessionId: string, path: string): Promise<FileDocument> {
-        return this.operations.run(() => this.documents.read(sessionId, path), {
-            maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+        const { path: directory } = await this.projectRoots.resolveSessionPath(
+            params.sessionId,
+            params.directory,
+        );
+        return this.operations.run(() => this.mutations.create(params), {
+            paths: [resolve(directory, params.name)],
         });
     }
 
-    write(sessionId: string, path: string, content: string): Promise<FileDocument> {
+    async copy(
+        params: RuntimeMethodParams<'files.copy'>,
+    ): Promise<RuntimeMethodResult<'files.copy'>> {
+        const [source, directory] = await Promise.all([
+            this.projectRoots.resolveSessionPath(params.sessionId, params.path),
+            this.projectRoots.resolveSessionPath(params.sessionId, params.directory),
+        ]);
+        return this.operations.run(() => this.mutations.copy(params), {
+            group: `${COPY_OPERATION_GROUP}:${source.root}`,
+            paths: [source.path, resolve(directory.path, basename(source.path))],
+        });
+    }
+
+    async rename(
+        params: RuntimeMethodParams<'files.rename'>,
+    ): Promise<RuntimeMethodResult<'files.rename'>> {
+        const { path: source } = await this.projectRoots.resolveSessionPath(
+            params.sessionId,
+            params.path,
+        );
+        return this.operations.run(() => this.mutations.rename(params), {
+            paths: [source, resolve(dirname(source), params.name)],
+        });
+    }
+
+    async move(
+        params: RuntimeMethodParams<'files.move'>,
+    ): Promise<RuntimeMethodResult<'files.move'>> {
+        const [source, directory] = await Promise.all([
+            this.projectRoots.resolveSessionPath(params.sessionId, params.path),
+            this.projectRoots.resolveSessionPath(params.sessionId, params.directory),
+        ]);
+        return this.operations.run(() => this.mutations.move(params), {
+            paths: [source.path, resolve(directory.path, basename(source.path))],
+        });
+    }
+
+    async authorizeTrash(
+        params: RuntimeMethodParams<'files.authorizeTrash'>,
+    ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
+        const { path } = await this.projectRoots.resolveSessionPath(params.sessionId, params.path);
+        return this.operations.run(() => this.mutations.authorizeTrash(params), { paths: [path] });
+    }
+
+    async authorizeOpen(
+        params: RuntimeMethodParams<'files.authorizeOpen'>,
+    ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
+        const { path } = await this.projectRoots.resolveSessionPath(params.sessionId, params.path);
+        return this.operations.run(() => this.mutations.authorizeOpen(params), { paths: [path] });
+    }
+
+    async read(sessionId: string, path: string): Promise<FileDocument> {
+        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path);
+        return this.operations.run(() => this.documents.read(sessionId, path), {
+            maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+            paths: [operationPath.path],
+        });
+    }
+
+    async write(sessionId: string, path: string, content: string): Promise<FileDocument> {
+        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path);
         return this.operations.run(() => this.documents.write(sessionId, path, content), {
             maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+            paths: [operationPath.path],
         });
     }
 
