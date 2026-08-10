@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    askAgentForProject: vi.fn(),
     caxriRequest: vi.fn(() => Promise.resolve([])),
+    getBootstrap: vi.fn(),
     tryCommand: vi.fn(
         async (
             ...[, run]: [string, () => Promise<unknown>, { refresh?: boolean }?]
@@ -14,10 +16,12 @@ vi.mock('../../queries/client', () => ({ queryClient: {} }));
 vi.mock('../../queries/invalidation', () => ({ removeSessionQueries: vi.fn() }));
 vi.mock('../../stores/dialogs', () => ({
     clearPendingSession: vi.fn(),
-    useDialogStore: { getState: vi.fn(() => ({})) },
+    useDialogStore: {
+        getState: vi.fn(() => ({ askAgentForProject: mocks.askAgentForProject })),
+    },
 }));
 vi.mock('../../stores/selectors', () => ({
-    getBootstrap: vi.fn(),
+    getBootstrap: mocks.getBootstrap,
     getSelectedSession: vi.fn(),
     selectSelectedProject: vi.fn(),
 }));
@@ -27,12 +31,32 @@ vi.mock('../../stores/session-view', () => ({
 vi.mock('../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 vi.mock('../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
 
-import { reorderProject } from './session-actions';
+import { reorderProject, selectProject } from './session-actions';
 
 describe('Session actions', () => {
     beforeEach(() => {
+        mocks.askAgentForProject.mockClear();
         mocks.caxriRequest.mockClear();
+        mocks.getBootstrap.mockReset();
         mocks.tryCommand.mockClear();
+    });
+
+    it('does not start Session creation when a Project has no active Sessions', () => {
+        mocks.getBootstrap.mockReturnValue({
+            sessions: [
+                {
+                    archivedAt: Date.now(),
+                    id: 'session-1',
+                    projectId: 'project-1',
+                },
+            ],
+            settings: {},
+        });
+
+        selectProject('project-1');
+
+        expect(mocks.askAgentForProject).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
     });
 
     it('lets the Runtime full-state event be the sole Project reorder refresh', async () => {

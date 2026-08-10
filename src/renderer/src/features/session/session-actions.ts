@@ -59,7 +59,6 @@ export function selectProject(projectId: string): void {
         (item) => item.projectId === projectId && item.archivedAt === undefined,
     );
     if (session) void selectSession(session.id);
-    else beginSessionCreation(projectId);
 }
 
 export async function reorderProject(projectId: string, targetIndex: number): Promise<boolean> {
