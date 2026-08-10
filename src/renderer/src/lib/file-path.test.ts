@@ -9,6 +9,11 @@ describe('file path mutation helpers', () => {
         expect(pathIsAtOrBelow('/project/src-old/a.ts', '/project/src')).toBe(false);
     });
 
+    it('treats the filesystem root as the parent of every absolute path', () => {
+        expect(pathIsAtOrBelow('/project/file.ts', '/')).toBe(true);
+        expect(pathIsAtOrBelow('/', '/')).toBe(true);
+    });
+
     it('preserves a descendant suffix when its parent moves', () => {
         expect(remapPath('/project/src/nested/a.ts', '/project/src', '/project/lib')).toBe(
             '/project/lib/nested/a.ts',
