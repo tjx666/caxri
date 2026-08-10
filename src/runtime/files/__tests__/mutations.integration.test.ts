@@ -350,7 +350,7 @@ describe('FileMutationService', () => {
         ).rejects.toMatchObject({ code: 'TIMEOUT' });
     });
 
-    it('aborts a stalled file transfer at the copy deadline and removes its partial target', async () => {
+    it('aborts a stalled file transfer without deleting its partial target by path', async () => {
         let markTransferStarted!: () => void;
         const transferStarted = new Promise<void>((resolve) => {
             markTransferStarted = resolve;
@@ -388,10 +388,11 @@ describe('FileMutationService', () => {
         await vi.advanceTimersByTimeAsync(10);
 
         await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
-        await expect(access(target)).rejects.toThrow();
+        await expect(copying).rejects.toThrow('partial copy was kept');
+        await expect(readFile(target, 'utf8')).resolves.toBe('partial');
     });
 
-    it('preserves foreign descendants when cleaning up an aborted directory copy', async () => {
+    it('preserves foreign descendants after an aborted directory copy', async () => {
         let markTransferStarted!: () => void;
         const transferStarted = new Promise<void>((resolve) => {
             markTransferStarted = resolve;
@@ -429,7 +430,26 @@ describe('FileMutationService', () => {
 
         await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
         await expect(readFile(foreignPath, 'utf8')).resolves.toBe('foreign');
-        await expect(access(join(target, 'nested.txt'))).rejects.toThrow();
+        await expect(readFile(join(target, 'nested.txt'), 'utf8')).resolves.toBe('partial');
+    });
+
+    it('rejects a Project root replaced with an outside symlink before mutation', async () => {
+        const fixture = await createFixture('caxri-file-project-root-swap-');
+        const originalRoot = `${fixture.root}-original`;
+        const outside = join(fixture.directory, 'outside');
+        await mkdir(join(outside, 'target'), { recursive: true });
+        await rename(fixture.root, originalRoot);
+        await symlink(outside, fixture.root);
+
+        await expect(
+            fixture.service.create({
+                sessionId: fixture.sessionId,
+                directory: join(fixture.root, 'target'),
+                name: 'outside.txt',
+                kind: 'file',
+            }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        await expect(access(join(outside, 'outside.txt'))).rejects.toThrow();
     });
 
     it('revalidates the destination after source preflight before copying', async () => {
