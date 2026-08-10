@@ -89,12 +89,15 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     database.setAppState('schemaVersion', CURRENT_SCHEMA_VERSION);
     database.setAppState('activeThemeId', configuration.getTheme().value.id);
 
+    const git = new GitService(new ProjectRootResolver(database), logger);
     const files = new FileService(
         database,
         send,
         logger,
         () => configuration.getSettings().value['files.maxFileBytes'],
         {
+            decorateGitIgnored: (sessionId, directory, names) =>
+                git.ignoredEntries(sessionId, directory, names),
             fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
             mutationJournalPath: join(userDataPath, 'file-operations.json'),
         },
@@ -130,7 +133,6 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         },
     );
     const terminalRestores = new TerminalRestoreSupervisor();
-    const git = new GitService(new ProjectRootResolver(database), logger);
     const projectStatus = new ProjectStatusService(git, logger);
     const diagnostics = new DiagnosticsService(
         database,

@@ -71,6 +71,7 @@ export const runtimeEventPayloads = {
         sessionId: z.string(),
         changes: z.array(fileChangeSchema),
         overflow: z.boolean(),
+        gitIgnoreRulesChanged: z.literal(true).optional(),
     }),
     'files.operationChanged': fileMutationOperationSchema,
     'settings.changed': configurationChangedSchema,

@@ -8,7 +8,7 @@ import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
-import { ListingService, type OpenDirectory } from './listing';
+import { ListingService, type GitIgnoreDecorator, type OpenDirectory } from './listing';
 import { FileMutationService, type FileMutationServiceOptions } from './mutations';
 import { FileMutationJournal, type FileMutationJournalOptions } from './mutation-journal';
 import { FileOperationQueue } from './operation-queue';
@@ -19,6 +19,7 @@ const MAXIMUM_DOCUMENT_QUEUE_WAIT_MS = 15_000;
 const COPY_OPERATION_GROUP = 'files.copy';
 
 export interface FileServiceOptions extends WatcherServiceOptions {
+    decorateGitIgnored?: GitIgnoreDecorator;
     fileTreeExcludes?: () => AppSettings['files.exclude'];
     maximumPendingOperations?: number;
     mutationJournal?: FileMutationJournalOptions;
@@ -73,6 +74,8 @@ export class FileService {
             logger,
             options.fileTreeExcludes ?? (() => ({})),
             (sessionId, path) => this.watcher.noteDirectoryListed(sessionId, path),
+            options.decorateGitIgnored,
+            (sessionId, paths) => this.watcher.noteGitIgnoreRulePaths(sessionId, paths),
             options.openDirectory,
         );
         this.searcher = new SearchService(

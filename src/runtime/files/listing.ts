@@ -23,6 +23,19 @@ export const MAX_CONCURRENT_FILE_BROWSES = 4;
 /** Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it. */
 export type DirectoryListedListener = (sessionId: string, path: string) => void;
 export type OpenDirectory = (path: string) => ReturnType<typeof opendir>;
+export interface GitIgnoreDecoration {
+    ignoredNames: ReadonlySet<string>;
+    rulePaths: readonly string[];
+}
+export type GitIgnoreDecorator = (
+    sessionId: string,
+    directory: string,
+    names: readonly string[],
+) => Promise<GitIgnoreDecoration>;
+export type GitIgnoreRulesListedListener = (
+    sessionId: string,
+    paths: readonly string[],
+) => Promise<void>;
 
 /** Lists directories under a Session's Project root, tolerating entries that vanish mid-listing. */
 export class ListingService {
@@ -40,6 +53,8 @@ export class ListingService {
         private readonly logger: StructuredLogger,
         private readonly fileTreeExcludes: () => FileTreeExcludes,
         private readonly onDirectoryListed?: DirectoryListedListener,
+        private readonly decorateGitIgnored?: GitIgnoreDecorator,
+        private readonly onGitIgnoreRulesListed?: GitIgnoreRulesListedListener,
         private readonly openDirectory: OpenDirectory = opendir,
     ) {}
 
@@ -176,10 +191,24 @@ export class ListingService {
             const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
             return !matchesFileTreeExclude(relativePath, excludes);
         });
-        const settled = await mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
-            this.describeEntry(path, entry.name),
-        );
-        const result = settled.filter((entry): entry is FileEntry => entry !== undefined);
+        const [settled, gitIgnoreDecoration] = await Promise.all([
+            mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
+                this.describeEntry(path, entry.name),
+            ),
+            this.loadGitIgnoredNames(
+                sessionId,
+                path,
+                visible.map((entry) => entry.name),
+            ),
+        ]);
+        await this.onGitIgnoreRulesListed?.(sessionId, gitIgnoreDecoration.rulePaths);
+        const result = settled
+            .filter((entry): entry is FileEntry => entry !== undefined)
+            .map((entry) =>
+                gitIgnoreDecoration.ignoredNames.has(entry.name)
+                    ? { ...entry, gitIgnored: true as const }
+                    : entry,
+            );
         const sorted = result.sort((a, b) =>
             a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
         );
@@ -188,6 +217,24 @@ export class ListingService {
             fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
         });
         return sorted;
+    }
+
+    /** Git decoration is optional metadata; an unavailable CLI or non-repository never blocks browsing. */
+    private async loadGitIgnoredNames(
+        sessionId: string,
+        directory: string,
+        names: readonly string[],
+    ): Promise<GitIgnoreDecoration> {
+        if (!this.decorateGitIgnored || names.length === 0)
+            return { ignoredNames: new Set(), rulePaths: [] };
+        try {
+            return await this.decorateGitIgnored(sessionId, directory, names);
+        } catch (error) {
+            this.logger.write('debug', 'file.git_ignore_unavailable', {
+                fields: { directory, error: errorMessage(error, 'unknown') },
+            });
+            return { ignoredNames: new Set(), rulePaths: [] };
+        }
     }
 
     /**
