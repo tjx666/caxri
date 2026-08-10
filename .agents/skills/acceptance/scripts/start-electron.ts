@@ -18,6 +18,7 @@ import {
 } from './runtime-state';
 import {
     acquireDesktopLease,
+    beginDesktopLeaseHandoff,
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
@@ -203,6 +204,7 @@ async function main(): Promise<void> {
         if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
         const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-'));
 
+        desktopLease = await beginDesktopLeaseHandoff(desktopLease);
         const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
             cwd: PROJECT_ROOT,
             env: {

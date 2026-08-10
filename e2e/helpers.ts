@@ -5,6 +5,7 @@ import { _electron as electron } from 'playwright';
 
 import {
     acquireDesktopLease,
+    beginDesktopLeaseHandoff,
     releaseDesktopLease,
     transferDesktopLease,
     type DesktopLeaseHandle,
@@ -110,6 +111,7 @@ export async function launchCaxriApp(
     );
     let app: ElectronApplication;
     try {
+        lease = await beginDesktopLeaseHandoff(lease);
         app = await electron.launch({
             ...(executablePath ? { executablePath } : {}),
             args: executablePath ? ['--disable-gpu'] : ['.', '--disable-gpu'],

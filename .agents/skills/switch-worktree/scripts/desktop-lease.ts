@@ -15,6 +15,7 @@ import {
 
 interface DesktopLease {
     acquiredAt: string;
+    handoffPending?: boolean;
     identity: string;
     label: string;
     pid: number;
@@ -50,6 +51,7 @@ function parseLease(value: string, path: string): DesktopLease {
     const candidate = lease as Partial<DesktopLease>;
     if (
         typeof candidate.acquiredAt !== 'string' ||
+        (candidate.handoffPending !== undefined && typeof candidate.handoffPending !== 'boolean') ||
         typeof candidate.identity !== 'string' ||
         typeof candidate.label !== 'string' ||
         typeof candidate.pid !== 'number' ||
@@ -77,7 +79,10 @@ export async function inspectDesktopLease(cwd: string): Promise<DesktopLeaseStat
     if (!lease) return { state: 'free' };
     return {
         lease,
-        state: (await isProcessIdentityAlive(lease.pid, lease.identity)) ? 'active' : 'stale',
+        state:
+            lease.handoffPending || (await isProcessIdentityAlive(lease.pid, lease.identity))
+                ? 'active'
+                : 'stale',
     };
 }
 
@@ -127,6 +132,10 @@ export async function acquireDesktopLease(
                         `Desktop is in use by ${current.label} in ${current.worktreePath} (PID ${current.pid})`,
                     );
                 }
+                if (current.handoffPending)
+                    throw new CommandError(
+                        `Desktop handoff from ${current.label} did not complete; inspect ${leasePath} before continuing`,
+                    );
                 /** The repository lock keeps another contender from replacing this stale path
                  *  between the identity check and unlink. */
                 await unlinkIfExists(leasePath);
@@ -136,20 +145,37 @@ export async function acquireDesktopLease(
     });
 }
 
+/** Mark the lease fail-closed before spawning a child that will take ownership. */
+export async function beginDesktopLeaseHandoff(
+    handle: DesktopLeaseHandle,
+): Promise<DesktopLeaseHandle> {
+    const context = await repositoryContext(handle.worktreePath);
+    return await withRepositoryLock(context, async () => {
+        const current = await readLease(handle.leasePath);
+        if (!current || current.token !== handle.token)
+            throw new CommandError('Desktop lease ownership changed before handoff');
+        const pending = { ...current, handoffPending: true };
+        await writeJsonAtomic(handle.leasePath, pending);
+        return { ...pending, leasePath: handle.leasePath };
+    });
+}
+
 /** Transfer ownership after Electron starts so a surviving app keeps the lease fail-closed. */
 export async function transferDesktopLease(
     handle: DesktopLeaseHandle,
     ownerPid: number,
 ): Promise<DesktopLeaseHandle> {
-    const current = await readLease(handle.leasePath);
-    if (!current || current.token !== handle.token) {
-        throw new CommandError('Desktop lease ownership changed before transfer');
-    }
     const identity = await getProcessIdentity(ownerPid);
     if (!identity) throw new CommandError(`Could not establish Electron PID ${ownerPid} identity`);
-    const transferred = { ...current, identity, pid: ownerPid };
-    await writeJsonAtomic(handle.leasePath, transferred);
-    return { ...transferred, leasePath: handle.leasePath };
+    const context = await repositoryContext(handle.worktreePath);
+    return await withRepositoryLock(context, async () => {
+        const current = await readLease(handle.leasePath);
+        if (!current || current.token !== handle.token)
+            throw new CommandError('Desktop lease ownership changed before transfer');
+        const transferred = { ...current, handoffPending: undefined, identity, pid: ownerPid };
+        await writeJsonAtomic(handle.leasePath, transferred);
+        return { ...transferred, leasePath: handle.leasePath };
+    });
 }
 
 export async function releaseDesktopLease(
