@@ -32,7 +32,7 @@ import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
-import { resolveTestRootPath } from './test-root';
+import { createTestRootPathResolver } from './test-root';
 import { UpdateService } from './updates';
 import { createWindowCloseHandler } from './window-close';
 
@@ -63,6 +63,7 @@ let forceWindowClose = false;
 let quitStarted = false;
 let automaticUpdateCheckStarted = false;
 const grantedRoots = new ProjectRootGrants();
+const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
 
 function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'runtime.status') {
@@ -297,7 +298,7 @@ function assertNever(value: never): never {
 async function handleMainMethod(request: MainRequest): Promise<unknown> {
     switch (request.method) {
         case 'dialog.selectDirectory': {
-            const testRoot = resolveTestRootPath({ isPackaged: app.isPackaged });
+            const testRoot = resolveNextTestRootPath();
             if (testRoot) {
                 grantedRoots.grant(testRoot);
                 return testRoot;

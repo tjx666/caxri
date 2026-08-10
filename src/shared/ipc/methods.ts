@@ -121,6 +121,14 @@ export const methods = {
         params: z.object({ projectId: identifierSchema }),
         result: z.union([canceled, bootstrapStateSchema]),
     },
+    'project.reorder': {
+        owner: 'runtime',
+        params: z.object({
+            projectId: identifierSchema,
+            targetIndex: z.number().int().nonnegative(),
+        }),
+        result: z.array(projectRecordSchema),
+    },
     'session.create': {
         owner: 'runtime',
         params: z.object({ projectId: identifierSchema, defaultAgent: terminalKindSchema }),

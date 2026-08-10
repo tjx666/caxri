@@ -15,6 +15,7 @@ const configurationChangedSchema = z.object({
 const fullStateChangeReasonSchema = z.enum([
     'project.create',
     'project.delete',
+    'project.reorder',
     'session.create',
     'session.select',
     'session.archive',

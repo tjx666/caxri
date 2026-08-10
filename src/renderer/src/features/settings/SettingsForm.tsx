@@ -5,6 +5,7 @@ import type { AppSettings, ThemeTokens } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -17,7 +18,7 @@ import {
     configurationEditorLoadingClassName,
     settingsFieldRowClassName,
 } from '../../lib/utils';
-import { bytesToMebibytes, formatByteHint, mebibytesToBytes } from './config-edit';
+import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
 
 const ConfigurationEditor = lazy(async () => {
     const module = await import('./ConfigurationEditor');
@@ -50,12 +51,9 @@ export function SettingsForm({
 
     return (
         <div className="grid min-h-0 grid-cols-[minmax(250px,0.85fr)_minmax(310px,1.15fr)] overflow-hidden">
-            <div className="structured-editor min-h-0 overflow-auto border-r border-border p-3">
-                <div className={cn(settingsFieldRowClassName, 'min-h-9')}>
-                    <label className="inline-flex items-center gap-2" htmlFor="default-agent">
-                        <AgentIdentityIcon identity={settings['session.defaultAgent']} size={14} />
-                        Default agent for new sessions
-                    </label>
+            <div className="structured-editor min-h-0 overflow-auto border-r border-border p-4">
+                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <label htmlFor="default-agent">Default agent for new sessions</label>
                     <Select
                         value={settings['session.defaultAgent'] ?? 'ask'}
                         onValueChange={(value) =>
@@ -70,50 +68,77 @@ export function SettingsForm({
                         <SelectTrigger
                             id="default-agent"
                             aria-label="Default agent for new sessions"
-                            className="w-40 flex-none"
+                            className="w-44 flex-none bg-background"
                         >
                             <SelectValue>
-                                {defaultAgentLabel(settings['session.defaultAgent'])}
+                                <span className="flex items-center gap-2">
+                                    <AgentIdentityIcon
+                                        identity={settings['session.defaultAgent']}
+                                        size={14}
+                                    />
+                                    {defaultAgentLabel(settings['session.defaultAgent'])}
+                                </span>
                             </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="ask">Ask each time</SelectItem>
+                            <SelectItem value="ask">
+                                <span className="flex items-center gap-2">
+                                    <AgentIdentityIcon identity={null} size={14} /> Ask each time
+                                </span>
+                            </SelectItem>
                             {agentProviderIds.map((provider) => (
                                 <SelectItem key={provider} value={provider}>
-                                    {agentProviderCatalog[provider].displayName}
+                                    <span className="flex items-center gap-2">
+                                        <AgentIdentityIcon identity={provider} size={14} />
+                                        {agentProviderCatalog[provider].displayName}
+                                    </span>
                                 </SelectItem>
                             ))}
-                            <SelectItem value="shell">Shell</SelectItem>
+                            <SelectItem value="shell">
+                                <span className="flex items-center gap-2">
+                                    <AgentIdentityIcon identity="shell" size={14} /> Shell
+                                </span>
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
+                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
                     <span>Terminal font size</span>
-                    <Input
-                        className="w-40 flex-none"
-                        type="number"
-                        min={9}
-                        max={32}
-                        value={settings['terminal.fontSize']}
-                        onChange={(event) =>
-                            onFieldChange('terminal.fontSize', Number(event.target.value))
-                        }
-                    />
+                    <span className="relative w-40 flex-none">
+                        <Input
+                            className="bg-background pr-8"
+                            type="number"
+                            min={9}
+                            max={32}
+                            value={settings['terminal.fontSize']}
+                            onChange={(event) =>
+                                onFieldChange('terminal.fontSize', Number(event.target.value))
+                            }
+                        />
+                        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-muted">
+                            px
+                        </span>
+                    </span>
                 </label>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
+                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
                     <span>Terminal scrollback lines</span>
-                    <Input
-                        className="w-40 flex-none"
-                        type="number"
-                        min={100}
-                        max={10000}
-                        value={settings['terminal.scrollback']}
-                        onChange={(event) =>
-                            onFieldChange('terminal.scrollback', Number(event.target.value))
-                        }
-                    />
+                    <span className="relative w-40 flex-none">
+                        <Input
+                            className="bg-background pr-12"
+                            type="number"
+                            min={100}
+                            max={10000}
+                            value={settings['terminal.scrollback']}
+                            onChange={(event) =>
+                                onFieldChange('terminal.scrollback', Number(event.target.value))
+                            }
+                        />
+                        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-muted">
+                            lines
+                        </span>
+                    </span>
                 </label>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
+                <label className="mb-4 block text-foreground">
                     <span>
                         New Terminal working directory
                         <span className="block text-[11px] text-muted">
@@ -121,7 +146,7 @@ export function SettingsForm({
                         </span>
                     </span>
                     <Input
-                        className="w-40 flex-none"
+                        className="mt-2 bg-background"
                         placeholder="Project root"
                         value={settings['terminal.defaultWorkingDirectory'] ?? ''}
                         onChange={(event) =>
@@ -132,27 +157,27 @@ export function SettingsForm({
                         }
                     />
                 </label>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9')}>
-                    <span>
-                        Maximum editable file size
-                        <span className="block text-[11px] text-muted">
-                            {formatByteHint(settings['files.maxFileBytes'])}
+                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <span>Maximum editable file size</span>
+                    <span className="relative w-40 flex-none">
+                        <Input
+                            className="bg-background pr-8"
+                            type="number"
+                            min={0.001}
+                            max={16}
+                            step={0.5}
+                            value={maxFileMebibytes}
+                            onChange={(event) =>
+                                onFieldChange(
+                                    'files.maxFileBytes',
+                                    mebibytesToBytes(Number(event.target.value)),
+                                )
+                            }
+                        />
+                        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-muted">
+                            MB
                         </span>
                     </span>
-                    <Input
-                        className="w-40 flex-none"
-                        type="number"
-                        min={0.001}
-                        max={16}
-                        step={0.5}
-                        value={maxFileMebibytes}
-                        onChange={(event) =>
-                            onFieldChange(
-                                'files.maxFileBytes',
-                                mebibytesToBytes(Number(event.target.value)),
-                            )
-                        }
-                    />
                 </label>
                 {agentProviderIds.map((provider) => {
                     const launch = settings['agents.providers'][provider].launch;
@@ -164,14 +189,19 @@ export function SettingsForm({
                             [provider]: { launch: { ...launch, ...next } },
                         });
                     return (
-                        <fieldset key={provider} className="mb-3 rounded border border-border p-2">
-                            <legend className="px-1 font-medium text-foreground">
+                        <section
+                            key={provider}
+                            data-agent-provider={provider}
+                            className="mb-3 rounded-md bg-[color-mix(in_srgb,var(--elevated)_55%,transparent)] p-3"
+                        >
+                            <h3 className="mb-3 flex items-center gap-2 font-medium text-foreground">
+                                <AgentIdentityIcon identity={provider} size={16} />
                                 {agentProviderCatalog[provider].displayName}
-                            </legend>
+                            </h3>
                             <label className="mb-2 block text-[11px] text-muted">
                                 Executable
                                 <Input
-                                    className="mt-1"
+                                    className="mt-1 bg-background text-foreground"
                                     aria-label={`${agentProviderCatalog[provider].displayName} executable`}
                                     value={launch.executable}
                                     onChange={(event) =>
@@ -181,8 +211,8 @@ export function SettingsForm({
                             </label>
                             <label className="block text-[11px] text-muted">
                                 Initial arguments, one per line
-                                <textarea
-                                    className="mt-1 block min-h-[72px] w-full resize-y rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] p-2 text-[13px] text-foreground outline-none focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]"
+                                <Textarea
+                                    className="mt-1 bg-background text-foreground"
                                     aria-label={`${agentProviderCatalog[provider].displayName} initial arguments`}
                                     value={launch.args.join('\n')}
                                     onChange={(event) =>
@@ -194,7 +224,7 @@ export function SettingsForm({
                                     }
                                 />
                             </label>
-                        </fieldset>
+                        </section>
                     );
                 })}
             </div>

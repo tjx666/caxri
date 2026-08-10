@@ -136,6 +136,72 @@ select {
 }
 
 /*
+ * Work-tab presence mirrors the confirmed store list: entry can reveal immediately, while an exit
+ * snapshot is inert and exists only for the 110ms visual close. The 180px cap matches WorkTab's
+ * component redline, letting max-width provide horizontal continuity without measuring DOM nodes.
+ */
+@keyframes work-tab-enter {
+    from {
+        max-width: 0;
+        opacity: 0;
+    }
+    to {
+        max-width: 180px;
+        opacity: 1;
+    }
+}
+@keyframes work-tab-exit {
+    from {
+        max-width: 180px;
+        opacity: 1;
+    }
+    to {
+        max-width: 0;
+        opacity: 0;
+    }
+}
+.work-tab[data-motion] {
+    overflow: hidden;
+}
+.work-tab[data-motion='enter'] {
+    animation: work-tab-enter 140ms ease-out both;
+}
+.work-tab[data-motion='exit'] {
+    animation: work-tab-exit 110ms ease-in both;
+}
+
+/*
+ * A one-track grid interpolates between intrinsic content height and zero without a measured pixel
+ * height. Only user-toggled disclosures receive `data-motion`, so restored startup state is still.
+ */
+.disclosure-motion {
+    grid-template-rows: 0fr;
+    opacity: 0;
+}
+.disclosure-motion[data-expanded='true'] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+.disclosure-motion[data-motion] {
+    transition-property: grid-template-rows, opacity;
+    transition-duration: 130ms;
+    transition-timing-function: ease-in;
+}
+.disclosure-motion[data-motion][data-expanded='true'] {
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .work-tab[data-motion] {
+        animation-duration: 0s;
+    }
+    .disclosure-motion[data-motion] {
+        transition-duration: 0s;
+    }
+}
+
+/*
  * Monaco slides its 16px Find close control through a 200ms transform. Near the workbench edge,
  * the compact pointer tooltip can overlap that moving hit target, repeatedly lose hover, and absorb
  * the intended click. Keep the widget stationary, let pointer events pass through simple tooltips,

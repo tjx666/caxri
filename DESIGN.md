@@ -86,11 +86,24 @@ sidebar stays entirely neutral so the focused pane keeps the screen's one accent
 Activity dots keep color + gain `title`/`aria-label` text.
 All non-archived Project and Session names and navigation icons use `--foreground`, including
 inactive rows; the `--elevated` selected fill, not dimmed neighbors, communicates selection.
+Project ordering uses the whole Project heading as its drag source. While dragging, dim only the
+source group and show a 2px `--accent` insertion line with a circular leading cap between Project
+groups; Session rows are never drop targets. `Option+Up` / `Option+Down` on a focused Project name
+provides the keyboard-equivalent reorder and announces the resulting position.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
 the pattern — keep). Tab height 36px.
+
+**Motion** — motion explains structure; it never decorates state. User-triggered Project and
+Archived Session disclosures expand over 180ms with opacity plus intrinsic-height reveal using
+`cubic-bezier(0.25, 1, 0.5, 1)`, and collapse over 130ms with `ease-in`. Work tabs enter over 140ms
+with `ease-out` and confirmed removals exit over 110ms with `ease-in`, using opacity plus width
+reveal. Initial bootstrap/restore, tab activation, Agent activity, Project drag settlement, folder
+glyph changes, and Terminal panes remain instantaneous. Do not stagger rows or neighboring tabs.
+`prefers-reduced-motion: reduce` makes every spatial transition instantaneous without changing
+focus, selection, close confirmation, or PTY behavior.
 
 **Git inspector** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in
@@ -114,7 +127,10 @@ from live keybindings, `badge` size, `--elevated` chips). Group headings stay. W
 **Settings** — copy rewrite: dialog description becomes "Changes apply immediately and
 are stored as editable files." Field labels in plain language; byte values rendered as
 human units (`2 MB`) with unit-aware input. Every tab keeps a dirty marker; Apply saves
-all dirty tabs.
+all dirty tabs. Compact scalar controls keep labels left and show their unit inside the field;
+path controls occupy a full row. Provider launch groups use quiet `--elevated` sections headed by
+the shared Agent identity icon, and every multiline value uses the same themed field/focus redline
+as single-line input.
 
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status
 color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a
