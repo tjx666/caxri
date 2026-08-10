@@ -40,4 +40,33 @@ describe('ProjectRootResolver', () => {
             database.close();
         }
     });
+
+    it('rejects a canonical root captured while a transient replacement is active', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-project-root-transient-race-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const originalRoot = `${root}-original`;
+        const outside = join(directory, 'outside');
+        await Promise.all([mkdir(root), mkdir(outside)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const resolver = new ProjectRootResolver(database, {
+            beforeRootRealpath: async () => {
+                await rename(root, originalRoot);
+                await symlink(outside, root);
+            },
+            afterRootRealpath: async () => {
+                await rm(root);
+                await rename(originalRoot, root);
+            },
+        });
+
+        try {
+            await expect(resolver.resolveSessionPath(session.id)).rejects.toMatchObject({
+                code: 'PATH_DENIED',
+            });
+        } finally {
+            database.close();
+        }
+    });
 });

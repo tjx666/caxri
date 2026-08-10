@@ -13,6 +13,8 @@ export interface ResolvedSessionPath {
 export interface ProjectRootResolverOptions {
     /** Integration-test seam for a root replacement between the first metadata read and realpath. */
     beforeRootRealpath?: () => Promise<void>;
+    /** Integration-test seam for restoring a replaced root before the post-realpath identity read. */
+    afterRootRealpath?: () => Promise<void>;
 }
 
 /**
@@ -36,6 +38,7 @@ export class ProjectRootResolver {
             throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
         await this.options.beforeRootRealpath?.();
         const root = await realpath(session.rootPath);
+        await this.options.afterRootRealpath?.();
         const currentRootStats = await lstat(session.rootPath, { bigint: true });
         if (
             currentRootStats.isSymbolicLink() ||
@@ -43,6 +46,8 @@ export class ProjectRootResolver {
             currentRootStats.dev !== rootStats.dev ||
             currentRootStats.ino !== rootStats.ino
         )
+            throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
+        if ((await realpath(session.rootPath)) !== root)
             throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
         const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
         const resolved = await realpath(candidate);
