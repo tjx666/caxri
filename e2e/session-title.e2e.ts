@@ -96,7 +96,7 @@ done
             )
             .toContain('hello');
         await expect(page.locator('.session-card strong')).toHaveText('hello');
-        await page.getByRole('button', { name: 'Info', exact: true }).click();
+        await page.getByRole('tab', { name: 'Info', exact: true }).click();
         const info = page.locator('.terminal-info-card');
         await expect(info).toHaveCount(1);
         await expect(info).toContainText('current-agent-session');

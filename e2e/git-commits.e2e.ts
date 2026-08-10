@@ -43,7 +43,7 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const gitTab = running.page.getByRole('button', { name: 'Git', exact: true });
+        const gitTab = running.page.getByRole('tab', { name: 'Git', exact: true });
         await gitTab.click();
         await expect(gitTab).toHaveClass(/active/);
         await expect(running.page.locator('.git-repository-section')).toHaveCount(2);

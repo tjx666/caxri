@@ -194,7 +194,7 @@ test('Session inline rename validates input and survives Renderer reload', async
         await card.dblclick();
         const blurInput = card.getByRole('textbox', { name: 'Rename Untitled' });
         await blurInput.fill('Blurred investigation');
-        const filesTab = running.page.getByRole('button', { name: 'Files', exact: true });
+        const filesTab = running.page.getByRole('tab', { name: 'Files', exact: true });
         await filesTab.click();
         await expect(card.getByRole('textbox')).toHaveCount(0);
         await expect(card.locator('strong')).toHaveText('Blurred investigation');

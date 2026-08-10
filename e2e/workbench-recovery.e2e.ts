@@ -76,19 +76,19 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         ).toBeVisible();
         await expect(running.page.locator('.view-lines')).toContainText('external wins');
 
-        await running.page.getByRole('button', { name: 'Git', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const gitPanelText = running.page.locator('.git-panel').getByText('main', { exact: false });
         await expect(gitPanelText).toBeVisible();
         await expect(
             running.page.locator('.git-files .git-row', { hasText: 'note.txt' }),
         ).toBeVisible();
-        const infoTab = running.page.getByRole('button', { name: 'Info', exact: true });
+        const infoTab = running.page.getByRole('tab', { name: 'Info', exact: true });
         await infoTab.click();
         await expect(infoTab).toHaveClass(/active/);
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 
         await running.page.keyboard.press('Meta+,');
-        await running.page.getByRole('button', { name: 'Theme', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
         await expect(
             running.page.getByLabel('theme.json source').locator('.view-lines'),
