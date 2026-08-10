@@ -98,3 +98,8 @@ export function useSessions(): SessionRecord[] | undefined {
 export function useTerminals(): TerminalRecord[] {
     return useWorkbenchStore((state) => state.bootstrap?.terminals ?? NO_TERMINALS);
 }
+
+/** Mirrors the native window's fullscreen state; see `window.fullScreen` in `stores/workbench.ts`. */
+export function useIsFullScreen(): boolean {
+    return useWorkbenchStore((state) => state.isFullScreen);
+}

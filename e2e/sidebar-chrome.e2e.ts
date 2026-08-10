@@ -63,6 +63,22 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
                 BrowserWindow.getAllWindows()[0]?.getWindowButtonPosition(),
             ),
         ).toEqual({ x: 15, y: 15 });
+
+        // macOS hides the traffic lights in fullscreen; the logo takes their place.
+        await running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0]?.setFullScreen(true),
+        );
+        const logo = titlebar.locator('img[data-caxri-logo]');
+        await expect(logo).toHaveCount(1);
+        await expect(logo).toHaveAttribute('alt', 'Caxri');
+        await expect(logo).toBeVisible();
+        await expect(titlebar).toHaveCSS('padding-left', '12px');
+
+        await running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0]?.setFullScreen(false),
+        );
+        await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
+        await expect(titlebar).toHaveCSS('padding-left', '84px');
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -79,6 +95,20 @@ test('active and inactive Project navigation keeps full contrast', async () => {
     try {
         await createProjectSession(running.page);
         await createAdditionalShellSession(running.page);
+
+        const projectHeading = running.page.locator('.project-heading');
+        const restingBackground = await projectHeading.evaluate(
+            (element) => getComputedStyle(element).backgroundColor,
+        );
+        expect(restingBackground).toBe('rgba(0, 0, 0, 0)');
+        await projectHeading.hover();
+        await expect
+            .poll(() =>
+                projectHeading.evaluate((element) => getComputedStyle(element).backgroundColor),
+            )
+            .not.toBe(restingBackground);
+        await running.page.mouse.move(500, 300);
+
         const cards = running.page.locator('.session-card');
         await expect(cards).toHaveCount(2);
         const colors = await Promise.all([
@@ -385,6 +415,62 @@ test('Session archive hides active navigation without stopping Terminals and can
         expect(
             snapshot.sessions.find((session) => session.id === secondSessionId)?.archivedAt,
         ).toBe(undefined);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('archived Sessions reveal a Delete action on hover that removes the Session on confirmation', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-delete-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        await createAdditionalShellSession(running.page);
+        const archivedSessionId = await selectedSessionId(running.page);
+
+        const archivedSourceRow = sessionCard(running.page, archivedSessionId).locator('..');
+        await archivedSourceRow.hover();
+        await archivedSourceRow.getByRole('button', { name: /^Archive / }).click();
+        await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
+
+        await running.page.getByRole('button', { name: /Archived 1/ }).click();
+        const archivedRow = running.page.locator('.archived-row');
+        await expect(archivedRow).toHaveCount(1);
+        const deleteButton = archivedRow.getByRole('button', { name: /^Delete / });
+        await expect(deleteButton).toHaveCSS('opacity', '0');
+        await expect(deleteButton).toHaveCSS('pointer-events', 'none');
+        await archivedRow.hover();
+        await expect(deleteButton).toHaveCSS('opacity', '1');
+        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
+
+        // Cancel keeps the archived row.
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
+        });
+        await deleteButton.click();
+        await expect(archivedRow).toHaveCount(1);
+
+        // Confirm removes the archived row and the now-empty Archived group.
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+        });
+        await archivedRow.hover();
+        await deleteButton.click();
+
+        await expect(archivedRow).toHaveCount(0);
+        await expect(running.page.locator('.archived-sessions')).toHaveCount(0);
+        const snapshot = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(
+            snapshot.sessions.find((session) => session.id === archivedSessionId),
+        ).toBeUndefined();
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

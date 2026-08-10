@@ -75,6 +75,7 @@ export const runtimeEventPayloads = {
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,
     'updates.state': updateStateSchema,
+    'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one
      * fired by an actual mouse/touch click, so the Renderer can apply the editable-focus shortcut

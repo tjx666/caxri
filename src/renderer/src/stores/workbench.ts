@@ -16,6 +16,8 @@ interface WorkbenchState {
      * observe on its own.
      */
     attachEpoch: number;
+    /** Mirrors the native window's fullscreen state, pushed by Main via `window.fullScreen`. */
+    isFullScreen: boolean;
     /** Idempotent attach used on mount; joins an in-flight snapshot read instead of duplicating it. */
     initialize(): Promise<void>;
     /** Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read. */
@@ -163,6 +165,7 @@ export function refreshWorkbench(): Promise<void> {
 export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     bootstrap: undefined,
     attachEpoch: 0,
+    isFullScreen: false,
     initialize: initializeWorkbench,
     refresh: refreshWorkbench,
     patchSessionState(next, failureLabel = 'Session layout could not be saved') {
@@ -255,5 +258,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
         }
         if (event.event === 'command.execute')
             handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
+        if (event.event === 'window.fullScreen')
+            useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
     });
 }
