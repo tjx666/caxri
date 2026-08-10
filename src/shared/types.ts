@@ -14,6 +14,7 @@ export {
     type FileChange,
     type FileDocument,
     type FileEntry,
+    type MutableFileEntry,
     type FileSearchMatch,
     type FileSearchMode,
     type GitDiffDocument,

@@ -19,7 +19,7 @@ interface PendingRequest {
     method: RuntimeMethod;
     resolve: (value: unknown) => void;
     reject: (error: CaxriError) => void;
-    timer: NodeJS.Timeout;
+    timer?: NodeJS.Timeout;
 }
 
 interface RuntimeReadiness {
@@ -32,8 +32,22 @@ type StdioStream = 'stdout' | 'stderr';
 
 const RUNTIME_READY_TIMEOUT_MS = 15_000;
 const RUNTIME_STABILITY_WINDOW_MS = 30_000;
+const DEFAULT_RUNTIME_REQUEST_TIMEOUT_MS = 20_000;
+const NON_EXPIRING_RUNTIME_METHODS = new Set<RuntimeMethod>([
+    'files.copy',
+    'files.create',
+    'files.move',
+    'files.rename',
+]);
 /** Caps a single logged Runtime stdio line so a runaway native crash cannot log-bomb main.jsonl. */
 const MAX_STDIO_LINE_LENGTH = 4_096;
+
+/** File mutations continue inside Runtime after Main stops awaiting them, so they must not time out. */
+function defaultRequestTimeout(method: RuntimeMethod): number | undefined {
+    return NON_EXPIRING_RUNTIME_METHODS.has(method)
+        ? undefined
+        : DEFAULT_RUNTIME_REQUEST_TIMEOUT_MS;
+}
 
 function truncateForLog(text: string): string {
     return text.length > MAX_STDIO_LINE_LENGTH
@@ -205,7 +219,7 @@ export class RuntimeSupervisor extends EventEmitter {
                     : undefined;
             const pending = id ? this.pending.get(id) : undefined;
             if (pending && id) {
-                clearTimeout(pending.timer);
+                if (pending.timer) clearTimeout(pending.timer);
                 this.pending.delete(id);
                 pending.reject(new CaxriError('INTERNAL', 'Runtime returned an invalid message'));
             }
@@ -233,7 +247,7 @@ export class RuntimeSupervisor extends EventEmitter {
         const response = message;
         const pending = this.pending.get(response.id);
         if (!pending) return;
-        clearTimeout(pending.timer);
+        if (pending.timer) clearTimeout(pending.timer);
         this.pending.delete(response.id);
         /** Rebuilding the error preserves the Runtime's classification through Main to the Renderer. */
         if (!response.ok) {
@@ -259,7 +273,7 @@ export class RuntimeSupervisor extends EventEmitter {
         this.stabilityTimer = undefined;
         this.child = undefined;
         for (const pending of this.pending.values()) {
-            clearTimeout(pending.timer);
+            if (pending.timer) clearTimeout(pending.timer);
             pending.reject(new CaxriError('UNAVAILABLE', `Runtime exited with code ${code}`));
         }
         this.pending.clear();
@@ -331,17 +345,20 @@ export class RuntimeSupervisor extends EventEmitter {
     private async send(
         method: RuntimeMethod,
         params: unknown = {},
-        timeoutMs = 20_000,
+        timeoutMs = defaultRequestTimeout(method),
     ): Promise<unknown> {
         await this.start();
         const child = this.child;
         if (!child) throw new CaxriError('UNAVAILABLE', 'Runtime is unavailable');
         const id = randomUUID();
         return new Promise<unknown>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(id);
-                reject(new CaxriError('TIMEOUT', `Runtime request timed out: ${method}`));
-            }, timeoutMs);
+            const timer =
+                timeoutMs === undefined
+                    ? undefined
+                    : setTimeout(() => {
+                          this.pending.delete(id);
+                          reject(new CaxriError('TIMEOUT', `Runtime request timed out: ${method}`));
+                      }, timeoutMs);
             this.pending.set(id, { method, resolve, reject, timer });
             child.postMessage({ id, method, params });
         });
