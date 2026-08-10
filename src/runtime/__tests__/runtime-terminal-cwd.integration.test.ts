@@ -127,4 +127,46 @@ describe('Runtime Terminal cwd authorization', () => {
             await runtime.close();
         }
     });
+
+    it('rejects a recorded cwd retargeted before restart begins', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restart-cwd-retargeted-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        const projectFolder = join(projectRoot, 'folder');
+        const outside = join(directory, 'outside');
+        await Promise.all([
+            mkdir(projectFolder, { recursive: true }),
+            mkdir(join(outside, 'folder'), { recursive: true }),
+        ]);
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const runtime = await createRuntime({
+            userDataPath: join(directory, 'user-data'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
+        });
+
+        try {
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            const created = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+            });
+            const terminal = await runtime.handlers['terminal.create']({
+                sessionId: created.session.id,
+                kind: 'shell',
+                cwd: projectFolder,
+            });
+            expect(spawn).toHaveBeenCalledTimes(2);
+            await rename(projectRoot, `${projectRoot}-original`);
+            await symlink(outside, projectRoot);
+
+            await expect(
+                runtime.handlers['terminal.restart']({ terminalId: terminal.id }),
+            ).rejects.toMatchObject({ code: 'CONFLICT' });
+            expect(spawn).toHaveBeenCalledTimes(2);
+        } finally {
+            await runtime.close();
+        }
+    });
 });
