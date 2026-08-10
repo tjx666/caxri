@@ -42,7 +42,9 @@ the ledger is the compact resume index that prevents repeated discovery after
 context compaction. Resume with the ledger's compact `resume --json` command;
 do not reload the full event history unless an audit needs it. Record workflow
 observations in Simplified Chinese because they are surfaced at the Acceptance
-handoff.
+handoff. Add a deduplicated `token_waste` or `workflow` note as soon as a costly
+repeat or stable script candidate is observed; do not reconstruct the audit by
+rereading the transcript at the end.
 
 ## Phase 0: admit work before starting the Goal
 
@@ -105,10 +107,12 @@ After all issue commits:
 5. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
 6. Route code failures through repair, focused validation, light review, commit,
    and push. A zero-step hosted-runner billing or infrastructure failure remains
-   external and blocked. Admit the documented local fallback only after the user
-   separately authorizes it; record exact-head evidence before running the exact
-   platform-neutral gates and one full isolated Electron E2E suite. Never call
-   the hosted check green.
+   external and blocked. A verified GitHub Actions payment or spending-limit
+   failure is automatically authorized for the documented exact-head local
+   fallback; do not ask the user again. Other infrastructure failures still need
+   separate authorization. Record the policy or user authorization before
+   running the exact platform-neutral gates and one full isolated Electron E2E
+   suite. Never call the hosted check green.
 
 Read [references/workflow.md](references/workflow.md) for the transition table
 and repair routing.
@@ -155,14 +159,19 @@ accepted head and requires review plus another Acceptance round.
 3. Refresh all remote state before reporting it.
 4. Read [references/report.md](references/report.md). Produce the execution
    report with delivery results, Acceptance history, technical debt, workflow
-   improvements, and token-efficiency findings.
-5. Apply obvious, narrow project-local workflow fixes when discovered early
+   improvements, and token-efficiency findings. Read the accumulated audit notes
+   from compact `resume --json`; if it reports truncation, use `state.ts notes
+--json` instead of loading the full ledger.
+5. Always identify concrete token waste from this run and repeated manual steps
+   that should become scripts. Record both the observed cost and the prevention;
+   explicitly say none was found instead of omitting either audit.
+6. Apply obvious, narrow project-local workflow fixes when discovered early
    enough to remain inside the reviewed PR. Never mutate the active skill to
    change the current run's rules, recursively run self-improvement, or append
    literal feedback as permanent policy.
-6. Create follow-up issues for durable product debt. Keep larger or generic
+7. Create follow-up issues for durable product debt. Keep larger or generic
    workflow proposals in the report or route them upstream.
-7. Mark the Goal complete only after no required work remains. When the Goal has
+8. Mark the Goal complete only after no required work remains. When the Goal has
    a token budget, report final usage returned by the Goal tool.
 
 ## Non-negotiable invariants
@@ -173,8 +182,9 @@ accepted head and requires review plus another Acceptance round.
 - Never treat passing tests, code review, PR merge, deployment, and Acceptance
   as interchangeable facts.
 - Never run the full local Electron E2E suite during an ordinary run. The only
-  exception is the user-authorized, exact-head, ledger-recorded external CI
-  fallback defined by the `test` skill and Go workflow reference.
+  exception is the exact-head, ledger-recorded external CI fallback authorized
+  by project policy or the user as defined by the `test` skill and Go workflow
+  reference.
 - Never expose local report paths or internal verification-run URLs in the final
   handoff; expose the stable Acceptance URL.
 - Never mark a Goal blocked merely because CI or human Acceptance is pending.

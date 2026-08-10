@@ -1,6 +1,7 @@
 import type { GoState } from './state';
 
 const MAX_HANDOFF_WORKFLOW_OBSERVATIONS = 3;
+const MAX_REPORT_AUDIT_NOTES = 20;
 
 function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] | null): string {
     switch (state.phase) {
@@ -27,7 +28,7 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
                 if (state.ciFallback.status === 'admitted') {
                     return 'Run the admitted local CI parity commands against the recorded head';
                 }
-                return 'Wait for explicit user authorization before admitting a local CI fallback';
+                return 'Classify the zero-step failure; auto-admit billing or request infrastructure authorization';
             }
             if (state.pullRequest.status === 'ready') return 'Transition to acceptance';
             return 'Finish PR delivery and required review';
@@ -69,9 +70,22 @@ export function createResumeCheckpoint(state: GoState) {
     const workflowObservations = ['acceptance', 'waiting_acceptance'].includes(state.phase)
         ? state.notes.workflow.slice(-MAX_HANDOFF_WORKFLOW_OBSERVATIONS).map(({ text }) => text)
         : [];
+    const reportingPhase = ['self_improvement', 'reporting'].includes(state.phase);
+    const auditNotes = reportingPhase
+        ? {
+              tokenWaste: state.notes.token_waste
+                  .slice(-MAX_REPORT_AUDIT_NOTES)
+                  .map(({ text }) => text),
+              truncated:
+                  state.notes.token_waste.length > MAX_REPORT_AUDIT_NOTES ||
+                  state.notes.workflow.length > MAX_REPORT_AUDIT_NOTES,
+              workflow: state.notes.workflow.slice(-MAX_REPORT_AUDIT_NOTES).map(({ text }) => text),
+          }
+        : null;
 
     return {
         acceptance: state.acceptance,
+        auditNotes,
         blockers,
         branch: state.branch,
         ciFallback: state.ciFallback,
@@ -126,6 +140,18 @@ export function formatResumeCheckpoint(
     if (checkpoint.workflowObservations.length > 0) {
         lines.push('workflow observations:');
         lines.push(...checkpoint.workflowObservations.map((observation) => `- ${observation}`));
+    }
+    if (checkpoint.auditNotes) {
+        lines.push('report audit notes:');
+        lines.push(
+            ...checkpoint.auditNotes.tokenWaste.map(
+                (observation) => `- token_waste: ${observation}`,
+            ),
+            ...checkpoint.auditNotes.workflow.map((observation) => `- workflow: ${observation}`),
+        );
+        if (checkpoint.auditNotes.truncated) {
+            lines.push('- more notes available through state.ts notes --json');
+        }
     }
     if (checkpoint.blockers.length > 0) lines.push(`blockers: ${checkpoint.blockers.join('; ')}`);
     lines.push(`updated: ${checkpoint.updatedAt}`);

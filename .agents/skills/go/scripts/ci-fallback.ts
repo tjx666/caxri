@@ -13,6 +13,9 @@ export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run build',
 ] as const;
 const FULL_ELECTRON_E2E_COMMAND = 'bun run test:e2e';
+export const BILLING_POLICY_AUTHORIZATION =
+    'Explicit Go policy automatically authorizes exact-head local substitution for verified zero-step GitHub Actions billing failures.';
+const BILLING_EVIDENCE_PATTERN = /billing|payment|spending limit|account payments/i;
 
 const authorizationSchema = z.object({ at: z.string(), detail: z.string().min(1) });
 const externalFailureSchema = z.object({
@@ -67,7 +70,7 @@ interface DeliveryContext {
 }
 
 interface AdmissionInput {
-    authorization: string;
+    authorization?: string;
     failureDetail: string;
     failureJob: string;
     failureKind: CiFailureKind;
@@ -117,8 +120,14 @@ export function admitCiFallback(
     if (!input.verifiedZeroSteps) {
         throw new Error('Local CI fallback requires a verified zero-step hosted job failure');
     }
-    if (!input.authorization.trim()) {
-        throw new Error('Local CI fallback requires explicit user authorization');
+    const explicitAuthorization = input.authorization?.trim() ?? '';
+    if (input.failureKind === 'infrastructure' && !explicitAuthorization) {
+        throw new Error('Infrastructure local CI fallback requires explicit user authorization');
+    }
+    if (input.failureKind === 'billing' && !BILLING_EVIDENCE_PATTERN.test(input.failureDetail)) {
+        throw new Error(
+            'Billing fallback requires the original GitHub payment, billing, or spending-limit failure detail',
+        );
     }
     const externalFailure = externalFailureSchema.parse({
         detail: input.failureDetail,
@@ -129,7 +138,12 @@ export function admitCiFallback(
         zeroSteps: true,
     });
     state.ciFallback = {
-        authorization: { at: recordedAt, detail: input.authorization.trim() },
+        authorization: {
+            at: recordedAt,
+            detail:
+                explicitAuthorization ||
+                `${BILLING_POLICY_AUTHORIZATION} GitHub evidence: ${input.failureDetail}`,
+        },
         electronE2e: null,
         externalFailure,
         headSha: input.headSha,

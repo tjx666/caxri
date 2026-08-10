@@ -15,9 +15,10 @@ use Simplified Chinese per project rules.
    created follow-up issues or a clear reason no issue was filed.
 5. **Workflow evolution** — project skill, `AGENTS.md`, or Acceptance-adapter
    changes applied during the run plus larger recommendations not applied.
-6. **Token efficiency** — repeated discovery, duplicate verification, excessive
-   polling, oversized context loads, or report duplication observed, and the
-   concrete rule or script that would reduce it.
+6. **Token efficiency and automation candidates** — repeated discovery,
+   duplicate verification, excessive polling, oversized context loads, or
+   report duplication observed; repeated judgment-free steps that should become
+   scripts; and the concrete prevention for both audits.
 7. **Remaining boundaries** — known exclusions, pending deployment/release, or
    evidence the run did not claim.
 
@@ -56,3 +57,23 @@ Check specifically for:
   summarized.
 
 Report both the observed waste and the implemented or proposed prevention.
+Every Go report must include this audit even when the conclusion is that no
+material waste occurred.
+
+## Automation-candidate audit
+
+For every Go run, list repeated manual sequences that consumed judgment-free
+tool calls: state reconstruction, CI classification, evidence capture, native
+dialog handling, media inspection, report assembly, or remote-state filtering.
+Convert a stable, project-local sequence into a tested skill script when the
+same code or command choreography was written twice. Otherwise record the exact
+script boundary and why it was deferred.
+
+Keep discovery output bounded while doing this audit:
+
+- request only required `gh --json` fields and filter with `--jq`;
+- filter LobeHub Acceptance JSON to ids, decisions, checks, and report summaries;
+  never emit evidence `fileUrl` values or presigned query strings;
+- use compact ledger `resume --json` instead of full `show` unless auditing;
+- search before reading, then open only the relevant ranges or referenced files;
+- save large logs as artifacts and return a short actionable summary.

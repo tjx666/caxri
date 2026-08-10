@@ -58,6 +58,10 @@ lobehub acceptance run list --json
 - **Evidence:** renderer screenshot and DOM snapshot for settled UI; CDP frame
   recording for temporal behavior; focused test or log artifacts as supporting
   text evidence.
+- **Native dialogs:** inspect and click exactly one Accessibility button in an
+  owned sheet or app-modal window with
+  `bun run .agents/skills/acceptance/scripts/native-dialog.ts`; never use screen
+  coordinates or re-trigger the command while a dialog may be open.
 - **Resident app:** never attach to or close a developer-owned Caxri instance.
 
 ## 5. Project probes and navigation
@@ -66,6 +70,10 @@ lobehub acceptance run list --json
 - **Targets:** `curl --fail --silent http://127.0.0.1:<port>/json/list`; select
   the Caxri renderer and reject a `devtools://` target.
 - **Renderer snapshot:** `agent-browser --cdp <port> snapshot -i`.
+- **Renderer frame/DOM capture:**
+  `bun run .agents/skills/acceptance/scripts/capture-renderer.ts --help`; it
+  validates runtime ownership and supports `--url-contains` for secondary Caxri
+  windows.
 - **Main and Runtime logs:** the isolated user-data directory recorded in
   `.records/acceptance/runtime.json` owns packaged/test logs. Development logs
   may also appear under `logs/`. Copy any cited excerpt into the current round's

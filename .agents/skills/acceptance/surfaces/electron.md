@@ -27,8 +27,11 @@ inspect `http://127.0.0.1:$PORT/json/list` and reject `devtools://` targets.
    stopping the app; the adapter removes its isolated user-data directory.
 
 CDP excludes macOS-owned window chrome and system dialogs. When a criterion
-depends on them, state the boundary and collect the smallest safe macOS-level
-observation without attaching to a resident Caxri instance.
+depends on a native dialog, trigger it once, inspect exactly one matching sheet
+or app-modal window, capture the smallest safe macOS-level observation if
+required, click its semantic Accessibility button, and then verify the result through CDP. Follow
+[../references/native-dialogs.md](../references/native-dialogs.md); never retry
+the Renderer action while a sheet may already be open or use coordinates.
 
 ## Finish
 
