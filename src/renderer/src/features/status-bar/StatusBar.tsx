@@ -163,22 +163,25 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
     ).data;
     if (!usage) return null;
     const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
+    const openProcessExplorer = (): void => executeCommand('processExplorer.open');
     return (
         <>
-            <StatusInfo
-                ariaLabel={`Terminal memory: ${usage.memoryMb} MB`}
+            <StatusItem
+                ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
                 icon={MemoryStick}
-                title="Terminal process tree memory"
+                title={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
+                onClick={openProcessExplorer}
             >
                 {usage.memoryMb} MB
-            </StatusInfo>
-            <StatusInfo
-                ariaLabel={`Terminal: ${childLabel}`}
+            </StatusItem>
+            <StatusItem
+                ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
                 icon={Workflow}
-                title={`Terminal: ${childLabel}`}
+                title={`Open Process Explorer — Terminal: ${childLabel}`}
+                onClick={openProcessExplorer}
             >
                 {usage.childProcessCount}
-            </StatusInfo>
+            </StatusItem>
         </>
     );
 }
