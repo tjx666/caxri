@@ -8,6 +8,7 @@ import { Inspector } from './features/inspector/Inspector';
 import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
 import { CommandPalette } from './features/palette/CommandPalette';
 import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
+import { ScreencastOverlay } from './features/screencast/ScreencastOverlay';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { SettingsDialog } from './features/settings/SettingsDialog';
@@ -150,6 +151,7 @@ export function App() {
                 <CommandPalette />
                 <PathBrowserDialog />
                 <ToastOutlet />
+                <ScreencastOverlay />
             </main>
         </TooltipProvider>
     );
