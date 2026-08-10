@@ -9,7 +9,7 @@ Turn a bug, an idea, or a conclusion from the current conversation into a GitHub
 
 ## Title
 
-- English, imperative mood, ≤ 70 characters: "Replace the obstructive Terminal recovery overlay", not "Bug: overlay problem" or "Fixing the overlay".
+- Simplified Chinese, outcome-oriented, and ≤ 70 characters: “移除遮挡 Terminal 的恢复浮层”, not “Bug：浮层有问题” or “正在修复浮层”.
 - No `[Bug]` / `feat:` prefixes — labels carry the classification.
 - Use the repo's domain vocabulary with its capitalization: Project, Session, Terminal, Agent, Runtime, Renderer.
 
@@ -17,22 +17,24 @@ Turn a bug, an idea, or a conclusion from the current conversation into a GitHub
 
 Write naturally under these sections; skip any that are irrelevant. Bugs and enhancements emphasize different halves:
 
-- **Problem** — every issue starts here. For a bug: observed behavior, expected behavior, and reproduction steps or the triggering condition. For an enhancement: the friction or gap, from the user's perspective.
-- **Diagnosis** (bug) — root cause if known, citing the load-bearing code as `path/to/file.ts:42` or symbol names. State clearly when the cause is a hypothesis, not confirmed.
-- **Goal** (enhancement) — the end state in one or two sentences: what works afterwards that doesn't today.
-- **Proposed design / Proposed fix** — the approach, numbered when there are ordered steps. Mention schema migrations, IPC contract changes, or startup-gate impact explicitly since they cross process boundaries.
-- **Prior art** — how competitors solve this, when relevant; consult the `competitors` skill rather than guessing.
-- **Scope / Non-goals** — what is explicitly out, especially the tempting adjacent work.
-- **Acceptance criteria** — checkable statements of done; cover the core path plus the edge cases that motivated the issue. Include the regression-test expectation (behavior-level, per the testing workflow in AGENTS.md).
+- **问题** — every issue starts here. For a bug: observed behavior, expected behavior, and reproduction steps or the triggering condition. For an enhancement: the friction or gap, from the user's perspective.
+- **诊断** (bug) — root cause if known, citing the load-bearing code as `path/to/file.ts:42` or symbol names. State clearly when the cause is a hypothesis, not confirmed.
+- **目标** (enhancement) — the end state in one or two sentences: what works afterwards that doesn't today.
+- **方案 / 修复方案** — the approach, numbered when there are ordered steps. Mention schema migrations, IPC contract changes, or startup-gate impact explicitly since they cross process boundaries.
+- **参考实现** — how competitors solve this, when relevant; consult the `competitors` skill rather than guessing.
+- **范围 / 非目标** — what is explicitly out, especially the tempting adjacent work.
+- **验收标准** — checkable statements of done; cover the core path plus the edge cases that motivated the issue. Include the regression-test expectation (behavior-level, per the testing workflow in AGENTS.md).
 
 Code references (`path:line`) are welcome when they anchor the diagnosis or design — but keep them to load-bearing ones; broad file inventories go stale.
 
 ## Mechanics
 
-- Body language is English, like all repo content.
+- Write the title, section headings, body prose, and follow-up issue comments in Simplified Chinese.
+  Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in English.
+  This applies to every issue comment, not only comments created during filing.
 - Never pass the body inline with `--body` and `\n` escapes — that ships literal `\n` into the issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
 - Apply one label from the repo's existing vocabulary (`bug`, `enhancement`, `documentation`, `question`); don't invent new labels without asking.
-- Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the Problem section. Do not close or edit the parent.
+- Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the 问题 section. Do not close or edit the parent.
 
 ## Project tracking
 

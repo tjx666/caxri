@@ -15,6 +15,7 @@ import {
     validateState,
     writeInitialState,
 } from './state';
+import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
 
 describe('Go state ledger', () => {
     it('rejects path-like run IDs before resolving the ledger path', () => {
@@ -94,10 +95,13 @@ describe('Go state ledger', () => {
         transitionState(state, 'deep_review');
         transitionState(state, 'delivery');
         recordPullRequest(state, {
+            headSha: 'pr-head-123',
             number: 123,
-            status: 'ready',
+            status: 'checks_blocked',
             url: 'https://github.com/example/repo/pull/123',
         });
+        expect(state.pullRequest.status).toBe('checks_blocked');
+        recordPullRequest(state, { status: 'ready' });
         transitionState(state, 'acceptance');
         recordAcceptance(state, {
             id: 'acc_test',
@@ -106,10 +110,25 @@ describe('Go state ledger', () => {
             url: 'https://app.lobehub.com/acceptance/acc_test',
         });
         transitionState(state, 'waiting_acceptance');
-        recordNote(state, { kind: 'workflow', text: 'Capture evidence after aggregate review' });
-        recordNote(state, { kind: 'workflow', text: 'Capture evidence after aggregate review' });
+        recordNote(state, { kind: 'workflow', text: '在综合 review 后再捕获最终证据。' });
+        recordNote(state, { kind: 'workflow', text: '在综合 review 后再捕获最终证据。' });
 
         expect(state.notes.workflow).toHaveLength(1);
+        expect(createResumeCheckpoint(state)).toMatchObject({
+            acceptance: { status: 'pending' },
+            blockers: [],
+            currentIssue: null,
+            nextAction: 'Yield to the user and query Acceptance once on the next continuation',
+            phase: 'waiting_acceptance',
+            pullRequest: { number: 123, status: 'ready' },
+            remainingIssues: [],
+        });
+        expect(formatResumeCheckpoint(createResumeCheckpoint(state))).toContain(
+            'acceptance: pending round 1\n',
+        );
+        expect(formatResumeCheckpoint(createResumeCheckpoint(state))).not.toContain(
+            'acceptance: pending round 1 @ pr-head-123',
+        );
         expect(validateState(state)).toEqual(state);
         expect(() => transitionState(state, 'complete')).toThrow('Invalid phase transition');
     });
@@ -153,6 +172,72 @@ describe('Go state ledger', () => {
 
         recordAcceptance(state, { acceptedHeadSha: 'abc123', status: 'accepted' });
         expect(validateState(state).phase).toBe('merge');
+    });
+
+    it('summarizes only actionable resume state', () => {
+        const state = createInitialState({ objective: 'Resume compactly', runId: 'resume-test' });
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        upsertIssue(state, { number: 45, status: 'complete', title: 'Finished issue' });
+        upsertIssue(state, { number: 46, status: 'progressing', title: 'Current issue' });
+
+        const checkpoint = createResumeCheckpoint(state);
+
+        expect(checkpoint.currentIssue).toEqual({
+            number: 46,
+            status: 'progressing',
+            title: 'Current issue',
+        });
+        expect(checkpoint.nextAction).toBe('Continue issue #46: Current issue');
+        expect(checkpoint.remainingIssues).toHaveLength(1);
+        expect(checkpoint).not.toHaveProperty('events');
+        expect(checkpoint).not.toHaveProperty('notes');
+    });
+
+    it('surfaces a compact workflow summary only at the Acceptance handoff', () => {
+        const state = createInitialState({
+            objective: 'Summarize learnings',
+            runId: 'handoff-test',
+        });
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        expect(() =>
+            recordNote(state, { kind: 'workflow', text: 'English workflow observation.' }),
+        ).toThrow('workflow note must be primarily Chinese');
+        recordNote(state, { kind: 'workflow', text: '丢弃最早的一条观察。' });
+        recordNote(state, { kind: 'workflow', text: '保持稳定的 check id。' });
+        recordNote(state, { kind: 'workflow', text: '只冻结一次 requirement。' });
+        recordNote(state, { kind: 'workflow', text: '逐一检查每张 screenshot。' });
+
+        expect(createResumeCheckpoint(state).workflowObservations).toEqual([]);
+        transitionState(state, 'deep_review');
+        transitionState(state, 'delivery');
+        recordPullRequest(state, { headSha: 'handoff-head', status: 'ready' });
+        transitionState(state, 'acceptance');
+
+        const checkpoint = createResumeCheckpoint(state);
+        expect(checkpoint.workflowObservations).toEqual([
+            '保持稳定的 check id。',
+            '只冻结一次 requirement。',
+            '逐一检查每张 screenshot。',
+        ]);
+        expect(formatResumeCheckpoint(checkpoint)).toContain(
+            'workflow observations:\n- 保持稳定的 check id。\n- 只冻结一次 requirement。\n- 逐一检查每张 screenshot。',
+        );
+    });
+
+    it('migrates schema version 2 ledgers with an empty fallback record', () => {
+        const current = createInitialState({
+            objective: 'Resume old ledger',
+            runId: 'legacy-test',
+        });
+        const legacy = { ...current, schemaVersion: 2 } as Record<string, unknown>;
+        delete legacy.ciFallback;
+
+        expect(validateState(legacy)).toMatchObject({
+            ciFallback: { status: 'not_requested' },
+            schemaVersion: 3,
+        });
     });
 
     it('does not overwrite an existing run ledger', async () => {

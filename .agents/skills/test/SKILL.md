@@ -13,7 +13,7 @@ description: Validate Caxri changes with focused Vitest coverage, real PTY integ
 6. Run focused Playwright Electron coverage when window lifecycle, IPC, Renderer attach, PTY continuity, recovery, or packaging-facing behavior changes.
 7. Run `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup` after performance-sensitive initialization, watcher, PTY, file, Git, Agent, logging, or Renderer entry/lazy-loading changes. Skip it for pure style, copy, theme-token, or layout changes unless they alter startup measurement or Terminal fitting behavior.
 8. Preserve privacy in fixtures: never place real tokens, user code, transcripts, or production paths in test artifacts.
-9. Never run the full E2E suite locally. When development requires full-suite coverage, follow the remote pull-request workflow below. Run the full unit suite locally only when explicitly requested or when a shared cross-cutting contract makes focused coverage insufficient. Report exact commands, pass/fail counts, and benchmark timings. Do not weaken assertions or disable tests to manufacture a pass.
+9. Never run the full E2E suite locally during an ordinary run. When development requires full-suite coverage, follow the remote pull-request workflow below. The only exception is the guarded Go fallback below. Run the full unit suite locally only when explicitly requested or when a shared cross-cutting contract makes focused coverage insufficient. Report exact commands, pass/fail counts, and benchmark timings. Do not weaken assertions or disable tests to manufacture a pass.
 
 ## Remote full E2E during development
 
@@ -28,3 +28,26 @@ Use this workflow only when focused E2E coverage is insufficient:
    succeed.
 6. If CI fails, inspect the failing job with `gh run view <run-id> --log-failed`, fix the same branch, push again, and wait for the replacement checks. Never weaken or skip the suite to obtain a pass.
 7. Report the PR and workflow links plus the final checks and E2E conclusions. Do not merge or close the PR unless the user authorized that action.
+
+## Guarded local fallback for external CI failure
+
+Use this exception only inside an explicit Go run. The `$go` invocation alone
+does not authorize it. Before running any fallback command, verify and record:
+
+1. The current PR head and a hosted Actions job for that head whose step count
+   is zero because of external billing or infrastructure failure.
+2. The workflow URL, job name, failure classification, and external failure
+   detail. An ordinary code or test failure is ineligible.
+3. Separate explicit user authorization to substitute local validation for that
+   exact head.
+4. A clean worktree at the recorded PR head and an admitted fallback in the Go
+   ledger. If the head changes, discard the admission and return to remote CI.
+
+Run the platform-neutral CI commands from `.github/workflows/ci.yml` in their
+declared order, then run `bun run test:e2e` exactly once against the same
+isolated head. Record every command and its result through the Go ledger. Any
+failure blocks delivery and routes back to normal repair; never re-admit the
+same head. Push a repaired head and wait for its new hosted run before another
+fallback can be considered. Do not include release
+packaging or deployment, do not use the fallback without authorization, and do
+not change the hosted check from externally failed to green.

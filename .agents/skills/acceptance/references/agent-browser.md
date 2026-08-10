@@ -68,6 +68,21 @@ Capture settled renderer state with the explicit `html` selector:
 agent-browser --cdp "$PORT" screenshot html "$ARTIFACT_PATH"
 ```
 
+Capture a required `dom_snapshot` as a real `.html` artifact from the smallest
+semantic subtree that supports the observation. Choose a selector specific to
+the check instead of serializing the entire page:
+
+```bash
+agent-browser --cdp "$PORT" eval --stdin > "$ARTIFACT_DIR/check-dom.html" <<'EVALEOF'
+const node = document.querySelector('main')
+if (!node) throw new Error('Expected Renderer subtree was not found')
+new XMLSerializer().serializeToString(node)
+EVALEOF
+```
+
+Open the saved `.html` file and confirm it contains the intended settled state.
+Do not use interactive `snapshot -i` text as a `dom_snapshot` artifact.
+
 Do not replace `html` with `body`: Caxri's layout can produce a one-pixel body
 capture even when the app is fully rendered. Open and visually inspect every
 image before recording a verdict.

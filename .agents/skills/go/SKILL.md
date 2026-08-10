@@ -39,7 +39,10 @@ Store the printed path and update it after every phase, issue, PR, Acceptance,
 or durable observation. Read [references/state.md](references/state.md) before
 using the state script. Treat GitHub and LobeHub as authoritative remote state;
 the ledger is the compact resume index that prevents repeated discovery after
-context compaction.
+context compaction. Resume with the ledger's compact `resume --json` command;
+do not reload the full event history unless an audit needs it. Record workflow
+observations in Simplified Chinese because they are surfaced at the Acceptance
+handoff.
 
 ## Phase 0: admit work before starting the Goal
 
@@ -97,18 +100,24 @@ After all issue commits:
    whenever a repair crosses issue or architectural boundaries.
 3. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
-4. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
-5. Route every failure through repair, focused validation, light review, commit,
-   and push. Repeat deep review when the repair changes cross-issue behavior.
+4. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
+   Acceptance matrix. A narrow Acceptance must never certify a broader PR.
+5. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
+6. Route code failures through repair, focused validation, light review, commit,
+   and push. A zero-step hosted-runner billing or infrastructure failure remains
+   external and blocked. Admit the documented local fallback only after the user
+   separately authorizes it; record exact-head evidence before running the exact
+   platform-neutral gates and one full isolated Electron E2E suite. Never call
+   the hosted check green.
 
 Read [references/workflow.md](references/workflow.md) for the transition table
 and repair routing.
 
 ## Phase 3: Acceptance loop
 
-After the PR head is review-clean and its required checks are green, invoke the
-project-local `acceptance` skill. Its only product surface is isolated macOS
-Electron desktop.
+After the PR head is review-clean and either its required checks are green or an
+exact-head local fallback has passed, invoke the project-local `acceptance`
+skill. Its only product surface is isolated macOS Electron desktop.
 
 Read [references/acceptance-loop.md](references/acceptance-loop.md) before the
 first round. The Go intake plan already authorizes the planned Acceptance cases;
@@ -123,12 +132,18 @@ do not add another routine confirmation gate.
 - File unrelated discoveries as follow-up issues and continue only when they do
   not weaken the accepted business requirement.
 - After a passing round, transition to `waiting_acceptance` while keeping the
-  Goal active. Query status once per continuation or use the available wait
-  mechanism; never rerun code or tests merely because review is pending.
+  Goal active. Run the compact ledger resume command and include up to three
+  material workflow observations collected so far with the stable Acceptance
+  URL. Keep the complete technical-debt, workflow-evolution, and token-efficiency
+  audit for the post-merge report. Then yield control to the user.
+  Do not start a same-turn polling loop or emit periodic pending updates. Query
+  status once only after a later user or automatic continuation; never rerun
+  code or tests merely because review is pending.
 - Never accept or reject the builder's own delivery.
 
 On human rejection, fetch actionable feedback, reuse stable check ids, omit
-accepted checks unless at risk, repair, and publish the next round. On human
+accepted checks unless at risk, transition back through `acceptance` to
+`issue_execution` or `deep_review`, repair, and publish the next round. On human
 acceptance, proceed to merge. Any code change needed to merge invalidates the
 accepted head and requires review plus another Acceptance round.
 
@@ -157,8 +172,9 @@ accepted head and requires review plus another Acceptance round.
 - Preserve user changes and unrelated dirty worktree state.
 - Never treat passing tests, code review, PR merge, deployment, and Acceptance
   as interchangeable facts.
-- Never run the full local Electron E2E suite; follow Caxri's focused validation
-  and remote-CI rules.
+- Never run the full local Electron E2E suite during an ordinary run. The only
+  exception is the user-authorized, exact-head, ledger-recorded external CI
+  fallback defined by the `test` skill and Go workflow reference.
 - Never expose local report paths or internal verification-run URLs in the final
   handoff; expose the stable Acceptance URL.
 - Never mark a Goal blocked merely because CI or human Acceptance is pending.

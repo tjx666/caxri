@@ -10,11 +10,13 @@ Electron desktop.
    isolated-profile commands.
 2. Confirm LobeHub CLI authentication.
 3. Reuse the stable check ids frozen during Go intake.
-4. Write `plan[]` before executing cases.
-5. Create a fresh round directory under the current Go ledger directory.
+4. Write the frozen plan before executing cases.
+5. Use the Acceptance report scaffold to initialize a fresh round directory
+   under the current Go ledger directory.
 
 The first requirement is one immutable sentence describing the whole business
-goal, not the current repair.
+goal, not the current repair. Write the requirement and all human-facing report
+content in Simplified Chinese as required by the Acceptance report reference.
 
 ## Evidence policy
 
@@ -51,9 +53,17 @@ After a passing round:
 1. Store the acceptance id, URL, round index, and `pending` state in the ledger.
 2. Transition the local workflow to `waiting_acceptance`; keep the Codex Goal
    active.
-3. Query the current state once per continuation using the command in the
-   Acceptance report reference, or wait by event when supported.
-4. Never call `lobehub acceptance accept` or `reject` as the builder.
+3. Run `state.ts resume --state "$STATE" --json` and give the user the stable
+   Acceptance URL plus its compact `workflowObservations`. Do not duplicate the
+   full post-merge technical-debt, workflow, or token-efficiency audit here.
+4. End the current turn. Do not keep
+   a shell poller running, short-poll from the agent loop, or narrate unchanged
+   pending state.
+5. On a later user or automatic continuation, query the filtered `status` and
+   `userDecision` fields once using the Acceptance report reference. Treat an
+   explicit `userDecision` as authoritative even if an auxiliary review flag is
+   stale, or wait by event when supported.
+6. Never call `lobehub acceptance accept` or `reject` as the builder.
 
 On rejection:
 
@@ -62,8 +72,10 @@ On rejection:
    regress them.
 3. Reuse rejected stable ids. Use `supersedes` only for a semantic replacement
    and preserve its complete lineage.
-4. Repair, validate, review, commit, and push.
-5. Rerun rejected and regression-affected checks in a new immutable round.
+4. Transition `waiting_acceptance → acceptance → issue_execution` (or
+   `deep_review` for a cross-issue repair) before changing the PR head.
+5. Repair, validate, review, commit, and push.
+6. Rerun rejected and regression-affected checks in a new immutable round.
 
 On acceptance, merge only the exact accepted PR head. A conflict resolution or
 any other code change requires review and a new Acceptance round.
