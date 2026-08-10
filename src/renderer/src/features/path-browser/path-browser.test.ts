@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { FileEntry } from '@shared/types';
 
-import { completePathQuery, filterPathEntries, parentDirectoryWithinRoot } from './path-browser';
+import {
+    completePathQuery,
+    filterPathEntries,
+    parentDirectoryWithinRoot,
+    pathBrowserEmptyMessage,
+} from './path-browser';
 
 const entries: FileEntry[] = [
     { kind: 'directory', name: 'src', path: '/project/src' },
@@ -23,6 +28,14 @@ describe('path browser navigation', () => {
         expect(completePathQuery(entries, 's')).toBeUndefined();
         expect(completePathQuery(entries, 'missing')).toBeUndefined();
         expect(completePathQuery([entries[2]], 'read', true)).toBeUndefined();
+    });
+
+    it('distinguishes an exhausted scan from an authoritative empty result', () => {
+        expect(pathBrowserEmptyMessage(0, true)).toBe(
+            'No match in the scanned items. Refine or open a narrower folder.',
+        );
+        expect(pathBrowserEmptyMessage(0, false)).toBe('No matching file or folder.');
+        expect(pathBrowserEmptyMessage(1, true)).toBeUndefined();
     });
 
     it('returns to a parent without ever crossing the Project root', () => {
