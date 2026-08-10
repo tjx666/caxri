@@ -61,6 +61,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('sidebar.toggle', (ctx) => ctx.sidebar.toggle(), { allowInEditable: true }),
     fromCatalog('settings.open', (ctx) => ctx.dialogs.openSettings(), { allowInEditable: true }),
     fromCatalog('updates.check', (ctx) => ctx.updates.check()),
+    fromCatalog('pathBrowser.open', (ctx) => ctx.dialogs.openPathBrowser(), {
+        allowInEditable: true,
+    }),
     fromCatalog('commandPalette.open', (ctx) => ctx.dialogs.openPalette(), {
         allowInEditable: true,
     }),

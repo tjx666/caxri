@@ -125,7 +125,10 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+3', command: 'inspector.showAgent' },
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
-const closeTerminalDefaultKeybindings = defaultKeybindings.map((binding) =>
+const previousDefaultKeybindings = defaultKeybindings.filter(
+    (binding) => binding.command !== 'pathBrowser.open',
+);
+const closeTerminalDefaultKeybindings = previousDefaultKeybindings.map((binding) =>
     binding.command === 'workbench.closeActiveTab'
         ? { ...binding, command: 'terminal.close' }
         : binding,
@@ -136,6 +139,7 @@ const newlyAddedDefaultCommands = new Set([
     'sidebar.toggle',
 ]);
 const previousDefaultKeybindingSets = [
+    previousDefaultKeybindings,
     originalDefaultKeybindings,
     closeTerminalDefaultKeybindings,
     closeTerminalDefaultKeybindings.filter(

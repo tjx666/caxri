@@ -6,6 +6,7 @@ import {
     errorCodes,
     fromWireError,
     internalMethods,
+    MAX_FILE_BROWSE_ENTRIES,
     methods,
     parseCaxriResult,
     parseRuntimeMessage,
@@ -189,6 +190,28 @@ describe('files.write contract', () => {
             methods['files.write'].params.safeParse({ ...base, content: 'x'.repeat(maximum + 1) })
                 .success,
         ).toBe(false);
+    });
+});
+
+describe('files.browse contract', () => {
+    it('bounds both the refinement query and returned directory entries', () => {
+        const base = { sessionId: 'session-1', directory: '/project' };
+        expect(
+            methods['files.browse'].params.safeParse({ ...base, query: 'x'.repeat(255) }).success,
+        ).toBe(true);
+        expect(
+            methods['files.browse'].params.safeParse({ ...base, query: 'x'.repeat(256) }).success,
+        ).toBe(false);
+
+        const entries = Array.from({ length: MAX_FILE_BROWSE_ENTRIES + 1 }, (_, index) => ({
+            kind: 'file' as const,
+            name: `file-${index}`,
+            path: `/project/file-${index}`,
+            size: 1,
+        }));
+        expect(methods['files.browse'].result.safeParse({ entries, truncated: true }).success).toBe(
+            false,
+        );
     });
 });
 

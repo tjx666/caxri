@@ -10,11 +10,13 @@ import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigurationService, findKeybindingConflicts } from '../configuration';
 
 const temporaryDirectories: string[] = [];
-const v002DefaultKeybindings = defaultKeybindings.map((binding) =>
-    binding.command === 'workbench.closeActiveTab'
-        ? { ...binding, command: 'terminal.close' }
-        : binding,
-);
+const v002DefaultKeybindings = defaultKeybindings
+    .filter((binding) => binding.command !== 'pathBrowser.open')
+    .map((binding) =>
+        binding.command === 'workbench.closeActiveTab'
+            ? { ...binding, command: 'terminal.close' }
+            : binding,
+    );
 
 afterEach(async () => {
     await Promise.all(
@@ -192,6 +194,34 @@ describe('ConfigurationService', () => {
                 { key: 'cmd+t', command: 'session.create' },
             ]),
         ).toEqual([{ key: 'cmd+t', commands: ['terminal.new', 'session.create'] }]);
+    });
+
+    it('adds the path browser shortcut to the immediately previous untouched defaults', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-path-browser-shortcut-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(
+                defaultKeybindings.filter((binding) => binding.command !== 'pathBrowser.open'),
+                null,
+                2,
+            )}\n`,
+            'utf8',
+        );
+        const service = new ConfigurationService(directory, () => undefined);
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toContainEqual({
+            command: 'pathBrowser.open',
+            key: 'cmd+p',
+        });
+        expect(
+            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
+        ).toEqual(defaultKeybindings);
+        await service.close();
     });
 
     it('retains last-known-good settings after a parse failure', async () => {
