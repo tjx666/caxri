@@ -206,6 +206,11 @@ export async function createShellSession(page: Page): Promise<void> {
 }
 
 export async function createAdditionalShellSession(page: Page): Promise<void> {
+    const before = await pageRequest<{
+        selectedSessionId?: string;
+        terminals: Array<{ id: string }>;
+    }>(page, 'app.bootstrap');
+    if (!before.selectedSessionId) throw new Error('No Session selected before creation');
     await page
         .locator('.project-heading')
         .filter({ has: page.getByRole('button', { name: /^New Session in / }) })
@@ -213,6 +218,14 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
     await page.getByRole('button', { name: /^New Session in / }).click();
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
+    const terminalId = await waitForNewTerminalId(
+        page,
+        before.terminals.map((terminal) => terminal.id),
+    );
+    await expect.poll(() => selectedSessionId(page)).not.toBe(before.selectedSessionId);
+    await expect(
+        page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`),
+    ).toBeFocused();
 }
 
 export async function typeTerminal(page: Page, command: string): Promise<void> {
