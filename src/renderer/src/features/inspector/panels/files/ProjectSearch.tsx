@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 
+import { DisclosureMotion } from '../../../../components/DisclosureMotion';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
@@ -129,15 +130,18 @@ function NameSearchTreeNode({
                     />
                     <span className="truncate">{node.name}</span>
                 </button>
-                {expanded &&
-                    node.children.map((child) => (
-                        <NameSearchTreeNode
-                            key={child.relativePath}
-                            depth={depth + 1}
-                            node={child}
-                            sessionId={sessionId}
-                        />
-                    ))}
+                <DisclosureMotion animate expanded={expanded} kind="files-name-group">
+                    {() =>
+                        node.children.map((child) => (
+                            <NameSearchTreeNode
+                                key={child.relativePath}
+                                depth={depth + 1}
+                                node={child}
+                                sessionId={sessionId}
+                            />
+                        ))
+                    }
+                </DisclosureMotion>
             </div>
         );
     return (
@@ -217,14 +221,17 @@ function ContentResultGroup({
                 )}
                 <span className="ml-auto shrink-0 text-muted">{matches.length}</span>
             </button>
-            {expanded &&
-                matches.map((match) => (
-                    <ContentResultRow
-                        key={`${match.line}:${match.column}`}
-                        match={match}
-                        sessionId={sessionId}
-                    />
-                ))}
+            <DisclosureMotion animate expanded={expanded} kind="files-content-group">
+                {() =>
+                    matches.map((match) => (
+                        <ContentResultRow
+                            key={`${match.line}:${match.column}`}
+                            match={match}
+                            sessionId={sessionId}
+                        />
+                    ))
+                }
+            </DisclosureMotion>
         </div>
     );
 }

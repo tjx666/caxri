@@ -22,6 +22,7 @@ import { useState } from 'react';
 
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 
+import { DisclosureMotion } from '../../../../components/DisclosureMotion';
 import { Button } from '../../../../components/ui/button';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utils';
@@ -127,11 +128,15 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     {content}
                 </div>
             )}
-            {expandable &&
-                expanded &&
-                node.children.map((child) => (
-                    <StatusTreeNode key={child.id} depth={depth + 1} node={child} />
-                ))}
+            {expandable && (
+                <DisclosureMotion animate expanded={expanded} kind="status-node">
+                    {() =>
+                        node.children.map((child) => (
+                            <StatusTreeNode key={child.id} depth={depth + 1} node={child} />
+                        ))
+                    }
+                </DisclosureMotion>
+            )}
         </>
     );
 }
@@ -154,13 +159,15 @@ function RepositorySection({ repository }: { repository: ProjectStatusRepository
                     <small className="truncate text-muted text-[11px]">submodule</small>
                 )}
             </button>
-            {expanded && (
-                <div className="project-status-nodes">
-                    {buildProjectStatusNodes(repository).map((node) => (
-                        <StatusTreeNode key={node.id} depth={0} node={node} />
-                    ))}
-                </div>
-            )}
+            <DisclosureMotion animate expanded={expanded} kind="status-repository">
+                {() => (
+                    <div className="project-status-nodes">
+                        {buildProjectStatusNodes(repository).map((node) => (
+                            <StatusTreeNode key={node.id} depth={0} node={node} />
+                        ))}
+                    </div>
+                )}
+            </DisclosureMotion>
         </section>
     );
 }
