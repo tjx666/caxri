@@ -75,6 +75,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('developer.toggleScreencastMode', (ctx) => ctx.developer.toggleScreencastMode(), {
         allowInEditable: true,
     }),
+    fromCatalog('developer.reportBug', (ctx) => ctx.developer.reportBug(), {
+        allowInEditable: true,
+    }),
     fromCatalog('diagnostics.export', (ctx) => ctx.diagnostics.export()),
 ];
 

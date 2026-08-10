@@ -85,8 +85,23 @@ describe('createDispatcher', () => {
             params: { terminalId: 'terminal-1', cols: 0, rows: 24 },
         });
         expect(invalid).toMatchObject({ id: 'r2', ok: false, error: { code: 'VALIDATION' } });
+        const pasteEscape = await dispatch({
+            id: 'r3',
+            method: 'bugReport.send',
+            params: {
+                report: 'safe\u001B[201~unsafe',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+            },
+        });
+        expect(pasteEscape).toMatchObject({
+            id: 'r3',
+            ok: false,
+            error: { code: 'VALIDATION' },
+        });
         const records = await logRecords(logger);
         expect(records.map((record) => record.event)).toEqual([
+            'ipc.request_failed',
             'ipc.request_failed',
             'ipc.request_failed',
         ]);

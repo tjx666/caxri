@@ -35,6 +35,13 @@ describe('command registry', () => {
                 category: 'Developer',
             }),
         );
+        expect(commandDefinitions).toContainEqual(
+            expect.objectContaining({
+                id: 'developer.reportBug',
+                title: 'Report Bug to Agent',
+                category: 'Developer',
+            }),
+        );
     });
 
     it('owns unique native-menu placements and returns them in presentation order', () => {

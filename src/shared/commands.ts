@@ -192,6 +192,12 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show clicks and Caxri shortcuts for external screen recording',
     },
     {
+        id: 'developer.reportBug',
+        title: 'Report Bug to Agent',
+        category: 'Developer',
+        description: 'Preview and send a privacy-safe local bug report to a running Agent',
+    },
+    {
         id: 'diagnostics.export',
         title: 'Export Diagnostics',
         category: 'Help',

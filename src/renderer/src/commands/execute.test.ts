@@ -54,7 +54,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openPathBrowser: record('dialogs.openPathBrowser'),
             },
             windows: { openProcessExplorer: record('windows.openProcessExplorer') },
-            developer: { toggleScreencastMode: record('developer.toggleScreencastMode') },
+            developer: {
+                reportBug: record('developer.reportBug'),
+                toggleScreencastMode: record('developer.toggleScreencastMode'),
+            },
             diagnostics: { export: record('diagnostics.export') },
             updates: { check: record('updates.check') },
         },

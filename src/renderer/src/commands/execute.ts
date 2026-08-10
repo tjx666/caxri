@@ -109,7 +109,10 @@ const commandContext: CommandContext = {
             );
         },
     },
-    developer: { toggleScreencastMode },
+    developer: {
+        reportBug: () => useDialogStore.getState().openBugReport(),
+        toggleScreencastMode,
+    },
     diagnostics: {
         export: () => {
             void tryCommand('Diagnostics export failed', async () => {
