@@ -6,7 +6,11 @@ import parcelWatcher from '@parcel/watcher';
 
 import { defaultAgentProviderSettings } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
-import { keybindingsFileSchema, settingsFileSchema } from '../shared/configuration';
+import {
+    findKeybindingConflicts,
+    keybindingsFileSchema,
+    settingsFileSchema,
+} from '../shared/configuration';
 import { errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
@@ -112,20 +116,6 @@ async function atomicWrite(path: string, source: string): Promise<void> {
     } finally {
         await rm(temporary, { force: true });
     }
-}
-
-export function findKeybindingConflicts(keybindings: Keybinding[]): KeybindingConflict[] {
-    const byKey = new Map<string, Set<string>>();
-    for (const binding of keybindings) {
-        const key = binding.key.trim().toLowerCase();
-        const commands = byKey.get(key) ?? new Set<string>();
-        commands.add(binding.command);
-        byKey.set(key, commands);
-    }
-    const conflicts: KeybindingConflict[] = [];
-    for (const [key, commands] of byKey)
-        if (commands.size > 1) conflicts.push({ key, commands: [...commands] });
-    return conflicts;
 }
 
 export class ConfigurationService {

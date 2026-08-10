@@ -264,6 +264,95 @@ test('Settings shortcut opens while Terminal input has focus', async () => {
     }
 });
 
+test('Keyboard Shortcuts records, validates, resets, and dispatches a custom binding', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-keybindings-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await running.page.keyboard.press('Meta+,');
+        const dialog = running.page.getByRole('dialog');
+        await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+
+        const search = dialog.getByLabel('Search keyboard shortcuts');
+        await search.fill('toggle inspector');
+        const inspectorRow = dialog.getByRole('listitem').filter({ hasText: 'Toggle Inspector' });
+        const inspectorEdit = inspectorRow.getByRole('button', {
+            name: 'Edit shortcut for Toggle Inspector',
+        });
+        await expect(inspectorRow).toContainText('inspector.toggle');
+        await expect(inspectorRow.locator('[data-shortcut="cmd+]"] kbd')).toHaveCount(2);
+
+        await inspectorEdit.click();
+        await inspectorEdit.press('Meta+Alt+O');
+        await expect(inspectorEdit).toContainText('⌥⌘O');
+        await inspectorEdit.press('Escape');
+        await expect(inspectorEdit).toBeFocused();
+        await expect(inspectorRow.locator('[data-shortcut="cmd+]"]')).toBeVisible();
+
+        await inspectorEdit.click();
+        await inspectorEdit.press('Meta+Alt+I');
+        await inspectorEdit.press('Enter');
+        await expect(inspectorRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
+
+        await search.fill('toggle primary sidebar');
+        const sidebarRow = dialog
+            .getByRole('listitem')
+            .filter({ hasText: 'Toggle Primary Sidebar' });
+        const sidebarEdit = sidebarRow.getByRole('button', {
+            name: 'Edit shortcut for Toggle Primary Sidebar',
+        });
+        await sidebarEdit.click();
+        await sidebarEdit.press('Meta+Alt+I');
+        await sidebarEdit.press('Enter');
+        await expect(sidebarRow).toHaveAttribute('aria-invalid', 'true');
+        await expect(sidebarRow).toContainText('Conflicts with Toggle Inspector');
+        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
+
+        await sidebarRow
+            .getByRole('button', { name: 'Reset shortcut for Toggle Primary Sidebar' })
+            .click();
+        await expect(sidebarRow).not.toHaveAttribute('aria-invalid', 'true');
+        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled();
+
+        await search.fill('search files');
+        const searchFilesRow = dialog.getByRole('listitem').filter({ hasText: 'Search Files' });
+        await searchFilesRow
+            .getByRole('button', { name: 'Remove shortcut for Search Files' })
+            .click();
+        await expect(
+            searchFilesRow.getByRole('button', { name: 'Add shortcut for Search Files' }),
+        ).toBeFocused();
+        await searchFilesRow
+            .getByRole('button', { name: 'Reset shortcut for Search Files' })
+            .click();
+        await expect(searchFilesRow.locator('[data-shortcut="cmd+shift+f"]')).toBeVisible();
+
+        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: Array<{ command: string; key: string }>;
+                }>(running.page, 'keybindings.get');
+                return result.value.find((binding) => binding.command === 'inspector.toggle')?.key;
+            })
+            .toBe('cmd+alt+i');
+
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.locator('.inspector')).toBeVisible();
+        await running.page.keyboard.press('Meta+Alt+I');
+        await expect(running.page.locator('.inspector')).toHaveCount(0);
+        await running.page.keyboard.press('Meta+Alt+I');
+        await expect(running.page.locator('.inspector')).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('application menu registers the native macOS Command+H Hide command', async () => {
     test.skip(process.platform !== 'darwin', 'macOS application shortcut');
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-hide-e2e-'));

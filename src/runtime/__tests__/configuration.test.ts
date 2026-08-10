@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { defaultKeybindings } from '../../shared/commands';
+import { findKeybindingConflicts } from '../../shared/configuration';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
-import { ConfigurationService, findKeybindingConflicts } from '../configuration';
+import { ConfigurationService } from '../configuration';
 
 const temporaryDirectories: string[] = [];
 const v002DefaultKeybindings = defaultKeybindings

@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest';
+
+import type { Keybinding } from '@shared/types';
+
+import { formatShortcut, formatShortcutParts } from '../../lib/keybindings';
+import {
+    appendKeybindingSource,
+    buildKeybindingRows,
+    filterKeybindingRows,
+    removeKeybindingSource,
+    updateKeybindingSource,
+} from './keybinding-editor';
+
+const bindings: Keybinding[] = [
+    { key: 'cmd+x', command: 'custom.doThing' },
+    { key: 'cmd+t', command: 'terminal.new' },
+    { key: 'cmd+shift+t', command: 'terminal.new' },
+];
+
+describe('shortcut formatting', () => {
+    it('uses one stable macOS modifier order and keycap parts', () => {
+        expect(formatShortcutParts('command+alt+shift+p')).toEqual(['⌥', '⇧', '⌘', 'P']);
+        expect(formatShortcut('command+alt+shift+p')).toBe('⌥⇧⌘P');
+    });
+});
+
+describe('keybinding rows', () => {
+    const rows = buildKeybindingRows(bindings);
+
+    it('keeps unknown commands and duplicate bindings while adding unbound catalog commands', () => {
+        expect(rows.filter((row) => row.command === 'terminal.new')).toHaveLength(2);
+        expect(rows).toContainEqual(
+            expect.objectContaining({
+                bindingIndex: 0,
+                category: 'Custom',
+                command: 'custom.doThing',
+                title: 'custom.doThing',
+            }),
+        );
+        const unbound = rows.find((row) => row.command === 'project.delete');
+        expect(unbound).toMatchObject({ command: 'project.delete', title: 'Remove Project' });
+        expect(unbound?.bindingIndex).toBeUndefined();
+        expect(unbound?.key).toBeUndefined();
+    });
+
+    it('searches title, command ID, category, raw shortcut, and formatted shortcut', () => {
+        expect(filterKeybindingRows(rows, 'new terminal')).toHaveLength(2);
+        expect(filterKeybindingRows(rows, 'custom.dothing')).toHaveLength(1);
+        expect(filterKeybindingRows(rows, 'project')).not.toHaveLength(0);
+        expect(filterKeybindingRows(rows, 'cmd+shift+t')).toHaveLength(1);
+        expect(filterKeybindingRows(rows, '⇧⌘T')).toHaveLength(1);
+    });
+});
+
+describe('keybinding JSONC edits', () => {
+    const source = [
+        '[',
+        '  // Keep this custom shortcut note.',
+        '  { "key": "cmd+x", "command": "custom.doThing" },',
+        '  { "key": "cmd+t", "command": "terminal.new" }',
+        ']',
+        '',
+    ].join('\n');
+
+    it('updates and removes by binding index without rewriting unrelated comments or order', () => {
+        const updated = updateKeybindingSource(source, 1, 'cmd+alt+t');
+        expect(updated).toContain('// Keep this custom shortcut note.');
+        expect(updated.indexOf('custom.doThing')).toBeLessThan(updated.indexOf('terminal.new'));
+        expect(updated).toContain('"key": "cmd+alt+t"');
+
+        const removed = removeKeybindingSource(updated, 1);
+        expect(removed).toContain('// Keep this custom shortcut note.');
+        expect(removed).toContain('custom.doThing');
+        expect(removed).not.toContain('terminal.new');
+    });
+
+    it('appends a catalog binding without normalizing existing JSONC', () => {
+        const appended = appendKeybindingSource(source, bindings.length - 1, {
+            key: 'cmd+p',
+            command: 'pathBrowser.open',
+        });
+
+        expect(appended).toContain('// Keep this custom shortcut note.');
+        expect(appended).toContain('"command": "pathBrowser.open"');
+        expect(appended.indexOf('custom.doThing')).toBeLessThan(
+            appended.indexOf('pathBrowser.open'),
+        );
+    });
+});
