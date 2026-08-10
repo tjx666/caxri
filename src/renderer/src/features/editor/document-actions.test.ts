@@ -30,14 +30,21 @@ const sessionState = (sessionId: string, path: string): SessionState => ({
     layout: {},
 });
 
-function installSessions(originPath: string, selectedSessionId = 'session-2'): void {
+function installSessions(
+    originPath: string,
+    selectedSessionId = 'session-2',
+    secondSessionPath = '/other/session.ts',
+): void {
     useWorkbenchStore.setState({
         bootstrap: {
             selectedSessionId,
-            sessions: [{ id: 'session-1' }, { id: 'session-2' }],
+            sessions: [
+                { id: 'session-1', projectId: 'project-1' },
+                { id: 'session-2', projectId: 'project-1' },
+            ],
             sessionStates: [
                 sessionState('session-1', originPath),
-                sessionState('session-2', '/other/session.ts'),
+                sessionState('session-2', secondSessionPath),
             ],
             terminals: [],
         } as unknown as BootstrapState,
@@ -49,6 +56,13 @@ function installSessions(originPath: string, selectedSessionId = 'session-2'): v
         dirty: true,
         mtimeMs: 1,
         size: 7,
+    });
+    useSessionViewStore.getState().cacheDocument('session-2', {
+        path: secondSessionPath,
+        content: 'other unsaved',
+        dirty: true,
+        mtimeMs: 1,
+        size: 13,
     });
     useSessionViewStore.getState().setActiveWork('session-1', { kind: 'editor', path: originPath });
 }
@@ -119,6 +133,35 @@ describe('session-scoped file mutation completion', () => {
             { path: '/other/session.ts', dirty: true },
         ]);
         expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
+    });
+
+    it('remaps the same Project file in every Session while preserving independent buffers', () => {
+        installSessions('/project/source.ts', 'session-1', '/project/source.ts');
+
+        remapOpenEditors('session-1', '/project/source.ts', '/project/renamed.ts');
+
+        const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
+        expect(states.map((state) => state.openTabs[0]?.path)).toEqual([
+            '/project/renamed.ts',
+            '/project/renamed.ts',
+        ]);
+        expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
+            '/project/renamed.ts': { content: 'unsaved', dirty: true },
+        });
+        expect(useSessionViewStore.getState().documents['session-2']).toMatchObject({
+            '/project/renamed.ts': { content: 'other unsaved', dirty: true },
+        });
+    });
+
+    it('closes the same trashed Project file in every Session', () => {
+        installSessions('/project/trashed.ts', 'session-1', '/project/trashed.ts');
+
+        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+
+        const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
+        expect(states.map((state) => state.openTabs)).toEqual([[], []]);
+        expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
+        expect(useSessionViewStore.getState().documents['session-2']).toEqual({});
     });
 
     it('remaps a file read that completes after the file moved', async () => {

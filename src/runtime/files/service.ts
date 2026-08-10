@@ -11,6 +11,8 @@ import { FileOperationQueue } from './operation-queue';
 import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
+const MAXIMUM_DOCUMENT_QUEUE_WAIT_MS = 15_000;
+
 export interface FileServiceOptions extends WatcherServiceOptions {
     fileTreeExcludes?: () => AppSettings['files.exclude'];
     maximumPendingOperations?: number;
@@ -113,11 +115,15 @@ export class FileService {
     }
 
     read(sessionId: string, path: string): Promise<FileDocument> {
-        return this.operations.run(() => this.documents.read(sessionId, path));
+        return this.operations.run(() => this.documents.read(sessionId, path), {
+            maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+        });
     }
 
     write(sessionId: string, path: string, content: string): Promise<FileDocument> {
-        return this.operations.run(() => this.documents.write(sessionId, path, content));
+        return this.operations.run(() => this.documents.write(sessionId, path, content), {
+            maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+        });
     }
 
     search(

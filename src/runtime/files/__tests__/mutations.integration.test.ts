@@ -332,6 +332,39 @@ describe('FileMutationService', () => {
         ).rejects.toMatchObject({ code: 'TIMEOUT' });
     });
 
+    it('revalidates the destination after source preflight before copying', async () => {
+        let destination = '';
+        let outside = '';
+        let swapped = false;
+        const fixture = await createFixture('caxri-file-copy-destination-race-', {
+            mutations: {
+                beforeCopyValidation: async () => {
+                    if (swapped) return;
+                    swapped = true;
+                    await rename(destination, `${destination}-original`);
+                    await symlink(outside, destination);
+                },
+            },
+        });
+        destination = join(fixture.root, 'destination');
+        outside = join(fixture.directory, 'outside');
+        const source = join(fixture.root, 'source.txt');
+        await Promise.all([
+            mkdir(destination),
+            mkdir(outside),
+            writeFile(source, 'source', 'utf8'),
+        ]);
+
+        await expect(
+            fixture.service.copy({
+                sessionId: fixture.sessionId,
+                path: source,
+                directory: destination,
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(access(join(outside, 'source.txt'))).rejects.toThrow();
+    });
+
     it('finishes an in-flight document read before moving its path', async () => {
         let releaseOpen!: () => void;
         let signalOpen!: () => void;
