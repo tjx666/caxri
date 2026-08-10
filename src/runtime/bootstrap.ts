@@ -94,8 +94,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         send,
         logger,
         () => configuration.getSettings().value['files.maxFileBytes'],
-        { fileTreeExcludes: () => configuration.getSettings().value['files.exclude'] },
+        {
+            fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
+            mutationJournalPath: join(userDataPath, 'file-operations.json'),
+        },
     );
+    await files.initialize();
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
     const agents = new AgentService(
@@ -546,6 +550,14 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'files.copy': (params) => files.copy(params),
         'files.rename': (params) => files.rename(params),
         'files.move': (params) => files.move(params),
+        'files.operation.get': async ({ operationId }) =>
+            (await files.getMutationOperation(operationId)) ?? null,
+        'files.operation.list': () => files.listMutationOperations(),
+        'files.operation.cancel': ({ operationId }) => files.cancelMutationOperation(operationId),
+        'files.operation.acknowledge': async ({ operationId }) => {
+            await files.acknowledgeMutationOperation(operationId);
+            return null;
+        },
         'files.authorizeTrash': (params) => files.authorizeTrash(params),
         'files.authorizeOpen': (params) => files.authorizeOpen(params),
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),

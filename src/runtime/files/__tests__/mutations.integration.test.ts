@@ -123,6 +123,31 @@ describe('FileMutationService', () => {
         ).resolves.toMatchObject({ kind: 'file', name: 'nested.txt' });
     });
 
+    it('retains a completed mutation until its durable result is acknowledged', async () => {
+        const { root, service, sessionId } = await createFixture('caxri-file-mutation-result-');
+        const operationId = 'operation-durable-create';
+
+        const result = await service.create({
+            operationId,
+            sessionId,
+            directory: root,
+            name: 'durable.txt',
+            kind: 'file',
+        });
+
+        const operation = await service.getMutationOperation(operationId);
+        expect(operation).toMatchObject({
+            id: operationId,
+            phase: 'completed',
+            result,
+        });
+        if (operation?.kind !== 'create') throw new Error('Expected a durable create operation');
+        expect(typeof operation.expectedResult?.device).toBe('string');
+        expect(typeof operation.expectedResult?.inode).toBe('string');
+        await service.acknowledgeMutationOperation(operationId);
+        await expect(service.getMutationOperation(operationId)).resolves.toBeUndefined();
+    });
+
     it('copies recursively and auto-renames copy and cut-paste conflicts', async () => {
         const { directory, root, service, sessionId } = await createFixture(
             'caxri-file-copy-conflicts-',
@@ -298,6 +323,35 @@ describe('FileMutationService', () => {
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(access(join(root, 'linked-folder copy'))).rejects.toThrow();
         await expect(readFile(outside, 'utf8')).resolves.toBe('secret');
+    });
+
+    it('revalidates a rename source after its staged record is durable', async () => {
+        let source = '';
+        let preserved = '';
+        const fixture = await createFixture('caxri-file-staged-rename-race-', {
+            mutations: {
+                afterMutationStage: async () => {
+                    await rename(source, preserved);
+                    await writeFile(source, 'replacement', 'utf8');
+                },
+            },
+        });
+        source = join(fixture.root, 'source.txt');
+        preserved = join(fixture.root, 'preserved.txt');
+        const target = join(fixture.root, 'target.txt');
+        await writeFile(source, 'original', 'utf8');
+
+        await expect(
+            fixture.service.rename({
+                operationId: 'operation-staged-race',
+                sessionId: fixture.sessionId,
+                path: source,
+                name: 'target.txt',
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(readFile(preserved, 'utf8')).resolves.toBe('original');
+        await expect(readFile(source, 'utf8')).resolves.toBe('replacement');
+        await expect(access(target)).rejects.toThrow();
     });
 
     it('bounds recursive copies by entry count, total bytes, and duration', async () => {

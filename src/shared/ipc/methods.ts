@@ -5,6 +5,7 @@ import {
     bootstrapStateSchema,
     fileDocumentSchema,
     fileEntrySchema,
+    fileMutationOperationSchema,
     fileSearchModeSchema,
     fileSearchResultSchema,
     gitCommitDetailsSchema,
@@ -18,6 +19,7 @@ import {
     keybindingSchema,
     MAX_CONFIGURABLE_FILE_BYTES,
     mutableFileEntrySchema,
+    movedFileEntrySchema,
     pathSchema,
     persistedWindowStateSchema,
     projectStatusOverviewSchema,
@@ -71,8 +73,6 @@ const fileName = z
             !name.includes('\0'),
         'File name must not contain path separators',
     );
-const movedFileEntry = mutableFileEntrySchema.extend({ previousPath: pathSchema });
-
 /** Main returns this instead of a Runtime result when the user dismisses a confirmation dialog. */
 const canceled = z.object({ canceled: z.literal(true) });
 
@@ -276,6 +276,7 @@ export const methods = {
     'files.create': {
         owner: 'runtime',
         params: z.object({
+            operationId: identifierSchema,
             sessionId: identifierSchema,
             directory: pathSchema,
             name: fileName,
@@ -294,18 +295,44 @@ export const methods = {
     },
     'files.rename': {
         owner: 'runtime',
-        params: z.object({ sessionId: identifierSchema, path: pathSchema, name: fileName }),
-        result: movedFileEntry,
+        params: z.object({
+            operationId: identifierSchema,
+            sessionId: identifierSchema,
+            path: pathSchema,
+            name: fileName,
+        }),
+        result: movedFileEntrySchema,
     },
     'files.move': {
         owner: 'runtime',
         params: z.object({
+            operationId: identifierSchema,
             sessionId: identifierSchema,
             path: pathSchema,
             directory: pathSchema,
             conflict: z.enum(['reject', 'rename']).default('reject'),
         }),
-        result: movedFileEntry,
+        result: movedFileEntrySchema,
+    },
+    'files.operation.get': {
+        owner: 'runtime',
+        params: z.object({ operationId: identifierSchema }),
+        result: fileMutationOperationSchema.nullable(),
+    },
+    'files.operation.list': {
+        owner: 'runtime',
+        params: noParams,
+        result: z.array(fileMutationOperationSchema).max(256),
+    },
+    'files.operation.cancel': {
+        owner: 'runtime',
+        params: z.object({ operationId: identifierSchema }),
+        result: fileMutationOperationSchema,
+    },
+    'files.operation.acknowledge': {
+        owner: 'runtime',
+        params: z.object({ operationId: identifierSchema }),
+        result: z.null(),
     },
     'files.reveal': {
         owner: 'main',

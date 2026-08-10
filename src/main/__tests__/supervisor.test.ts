@@ -220,6 +220,35 @@ describe('RuntimeSupervisor', () => {
         await expect(copy).resolves.toMatchObject({ path: '/project/target/source.txt' });
     });
 
+    it('stops waiting for a staged file mutation at the ordinary request deadline', async () => {
+        vi.useFakeTimers();
+        const supervisor = new RuntimeSupervisor(
+            '/runtime',
+            '/user-data',
+            '/logs',
+            fakeLogger() as unknown as StructuredLogger,
+        );
+        const started = supervisor.start();
+        const child = electronMock.children[0];
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await started;
+
+        const move = supervisor.forward('files.move', {
+            operationId: 'operation-1',
+            sessionId: 'session-1',
+            path: '/project/source.txt',
+            directory: '/project/target',
+            conflict: 'reject',
+        });
+        const result = expect(move).rejects.toMatchObject({ code: 'TIMEOUT' });
+        await vi.advanceTimersByTimeAsync(20_000);
+
+        await result;
+    });
+
     it('lets Runtime cancel a queued save instead of timing it out in Main', async () => {
         vi.useFakeTimers();
         const supervisor = new RuntimeSupervisor(

@@ -10,6 +10,7 @@ interface FileOperationState {
     operations: PendingFileOperation[];
     begin(operation: PendingFileOperation): boolean;
     finish(id: string): void;
+    update(id: string, label: string): void;
     clear(): void;
 }
 
@@ -24,6 +25,12 @@ export const useFileOperationStore = create<FileOperationState>((set, get) => ({
     finish: (id) =>
         set((state) => ({
             operations: state.operations.filter((operation) => operation.id !== id),
+        })),
+    update: (id, label) =>
+        set((state) => ({
+            operations: state.operations.map((operation) =>
+                operation.id === id ? { ...operation, label } : operation,
+            ),
         })),
     clear: () => set({ operations: [] }),
 }));

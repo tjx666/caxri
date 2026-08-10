@@ -244,6 +244,67 @@ export const mutableFileEntrySchema = z.object({
     kind: z.enum(['file', 'directory']),
 });
 
+export const movedFileEntrySchema = mutableFileEntrySchema.extend({ previousPath: pathSchema });
+
+const stagedMovedFileEntrySchema = movedFileEntrySchema.extend({
+    device: z.string().min(1),
+    inode: z.string().min(1),
+});
+
+const stagedCreatedFileEntrySchema = mutableFileEntrySchema.extend({
+    device: z.string().min(1).optional(),
+    inode: z.string().min(1).optional(),
+});
+
+const fileMutationPhaseSchema = z.enum(['pre_stage', 'staged', 'completed', 'failed', 'canceled']);
+
+const fileMutationOperationBase = {
+    id: identifierSchema,
+    sessionId: identifierSchema,
+    phase: fileMutationPhaseSchema,
+    startedAt: z.number(),
+    updatedAt: z.number(),
+    error: z
+        .object({
+            code: z.string().min(1).max(64),
+            message: z.string().min(1).max(1_024),
+        })
+        .optional(),
+};
+
+/** Durable mutation records let a Renderer reconcile file side effects after an IPC or Runtime gap. */
+export const fileMutationOperationSchema = z.discriminatedUnion('kind', [
+    z.object({
+        ...fileMutationOperationBase,
+        kind: z.literal('create'),
+        input: z.object({
+            directory: pathSchema,
+            name: z.string().min(1).max(255),
+            kind: z.enum(['file', 'directory']),
+        }),
+        expectedResult: stagedCreatedFileEntrySchema.optional(),
+        result: mutableFileEntrySchema.optional(),
+    }),
+    z.object({
+        ...fileMutationOperationBase,
+        kind: z.literal('rename'),
+        input: z.object({ path: pathSchema, name: z.string().min(1).max(255) }),
+        expectedResult: stagedMovedFileEntrySchema.optional(),
+        result: movedFileEntrySchema.optional(),
+    }),
+    z.object({
+        ...fileMutationOperationBase,
+        kind: z.literal('move'),
+        input: z.object({
+            path: pathSchema,
+            directory: pathSchema,
+            conflict: z.enum(['reject', 'rename']),
+        }),
+        expectedResult: stagedMovedFileEntrySchema.optional(),
+        result: movedFileEntrySchema.optional(),
+    }),
+]);
+
 export const fileChangeSchema = z.object({
     path: z.string(),
     kind: z.enum(['create', 'update', 'delete']),
@@ -547,6 +608,8 @@ export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
 export type ThemeTokens = z.infer<typeof themeTokensSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
+export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;
+export type FileMutationOperation = z.infer<typeof fileMutationOperationSchema>;
 export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
 export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;

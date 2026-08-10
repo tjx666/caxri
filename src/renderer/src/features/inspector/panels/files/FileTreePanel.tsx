@@ -190,6 +190,11 @@ function DirectoryEntries({
                             name,
                             editing.itemKind,
                         );
+                        if (!created) {
+                            setEditing(undefined);
+                            requestFocus(editing.returnFocus);
+                            return;
+                        }
                         setSelectedPath(created.path);
                         setEditing(undefined);
                         requestFocus({ kind: 'path', path: created.path });
@@ -303,6 +308,11 @@ function FileTreeItem({
                 }}
                 onSubmit={async (name) => {
                     const moved = await renameFile(sessionId, entry.path, name);
+                    if (!moved) {
+                        setEditing(undefined);
+                        requestFocus({ kind: 'path', path: entry.path });
+                        return;
+                    }
                     setSelectedPath(moved.path);
                     setEditing(undefined);
                     requestFocus({ kind: 'path', path: moved.path });
