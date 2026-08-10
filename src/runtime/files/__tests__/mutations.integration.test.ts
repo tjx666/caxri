@@ -1,5 +1,6 @@
 import {
     access,
+    chmod,
     link,
     mkdir,
     mkdtemp,
@@ -9,12 +10,13 @@ import {
     rename,
     rm,
     symlink,
+    stat,
     writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
@@ -49,6 +51,7 @@ async function createFixture(prefix: string, options: FileServiceOptions = {}): 
 }
 
 afterEach(async () => {
+    vi.useRealTimers();
     await Promise.all(
         fixtures.splice(0).map(async ({ database, directory, service }) => {
             await service.close();
@@ -127,6 +130,7 @@ describe('FileMutationService', () => {
         const destination = join(root, 'destination');
         await Promise.all([writeFile(file, 'note', 'utf8'), mkdir(folder), mkdir(destination)]);
         await writeFile(join(folder, 'nested.txt'), 'nested', 'utf8');
+        await Promise.all([chmod(folder, 0o555), chmod(join(folder, 'nested.txt'), 0o744)]);
 
         const copiedFile = await service.copy({ sessionId, path: file, directory: root });
         expect(copiedFile.name).toBe('note copy.txt');
@@ -136,6 +140,11 @@ describe('FileMutationService', () => {
         await expect(readFile(join(copiedFolder.path, 'nested.txt'), 'utf8')).resolves.toBe(
             'nested',
         );
+        const copiedFolderMode = (await stat(copiedFolder.path)).mode & 0o777;
+        const copiedFileMode = (await stat(join(copiedFolder.path, 'nested.txt'))).mode & 0o777;
+        await Promise.all([chmod(folder, 0o755), chmod(copiedFolder.path, 0o755)]);
+        expect(copiedFolderMode).toBe(0o555);
+        expect(copiedFileMode).toBe(0o744);
 
         await writeFile(join(destination, 'note.txt'), 'existing', 'utf8');
         const moved = await service.move({
@@ -332,6 +341,47 @@ describe('FileMutationService', () => {
         ).rejects.toMatchObject({ code: 'TIMEOUT' });
     });
 
+    it('aborts a stalled file transfer at the copy deadline and removes its partial target', async () => {
+        let markTransferStarted!: () => void;
+        const transferStarted = new Promise<void>((resolve) => {
+            markTransferStarted = resolve;
+        });
+        const fixture = await createFixture('caxri-file-copy-stalled-transfer-', {
+            mutations: {
+                copyFile: async (_source, target, options) => {
+                    await target.writeFile('partial', 'utf8');
+                    expect(options.signal).toBeDefined();
+                    markTransferStarted();
+                    await new Promise<void>((_resolve, reject) => {
+                        options.signal?.addEventListener('abort', () => {
+                            reject(
+                                new Error('Transfer aborted', {
+                                    cause: options.signal?.reason,
+                                }),
+                            );
+                        });
+                    });
+                },
+                copyLimits: { maximumDurationMs: 10 },
+            },
+        });
+        const source = join(fixture.root, 'source.txt');
+        const target = join(fixture.root, 'source copy.txt');
+        await writeFile(source, 'source', 'utf8');
+        vi.useFakeTimers();
+
+        const copying = fixture.service.copy({
+            sessionId: fixture.sessionId,
+            path: source,
+            directory: fixture.root,
+        });
+        await transferStarted;
+        await vi.advanceTimersByTimeAsync(10);
+
+        await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
+        await expect(access(target)).rejects.toThrow();
+    });
+
     it('revalidates the destination after source preflight before copying', async () => {
         let destination = '';
         let outside = '';
@@ -363,6 +413,45 @@ describe('FileMutationService', () => {
             }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         await expect(access(join(outside, 'source.txt'))).rejects.toThrow();
+    });
+
+    it('keeps unrelated document I/O available while a copy is in progress', async () => {
+        let markTransferStarted!: () => void;
+        let releaseTransfer!: () => void;
+        const transferStarted = new Promise<void>((resolve) => {
+            markTransferStarted = resolve;
+        });
+        const transferReleased = new Promise<void>((resolve) => {
+            releaseTransfer = resolve;
+        });
+        const fixture = await createFixture('caxri-file-copy-unrelated-io-', {
+            mutations: {
+                copyFile: async (source, target) => {
+                    markTransferStarted();
+                    await transferReleased;
+                    await target.writeFile(await source.readFile());
+                },
+            },
+        });
+        const copiedSource = join(fixture.root, 'large.txt');
+        const unrelated = join(fixture.root, 'notes.txt');
+        await Promise.all([
+            writeFile(copiedSource, 'copy me', 'utf8'),
+            writeFile(unrelated, 'available', 'utf8'),
+        ]);
+
+        const copying = fixture.service.copy({
+            sessionId: fixture.sessionId,
+            path: copiedSource,
+            directory: fixture.root,
+        });
+        await transferStarted;
+
+        await expect(fixture.service.read(fixture.sessionId, unrelated)).resolves.toMatchObject({
+            content: 'available',
+        });
+        releaseTransfer();
+        await expect(copying).resolves.toMatchObject({ name: 'large copy.txt' });
     });
 
     it('finishes an in-flight document read before moving its path', async () => {

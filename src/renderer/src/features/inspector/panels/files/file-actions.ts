@@ -4,7 +4,11 @@ import type { MutableFileEntry } from '@shared/types';
 import { caxri } from '../../../../lib/caxri';
 import { projectRelativePath } from '../../../../lib/file-path';
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
-import { getSelectedSession } from '../../../../stores/selectors';
+import {
+    getProjectSessionIds,
+    getSelectedSession,
+    getSessionProjectId,
+} from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
 import {
     closeOpenEditorsUnderPath,
@@ -14,12 +18,40 @@ import {
 import { createTerminal } from '../../../terminal/terminal-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
+import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
 
-function invalidateDirectory(sessionId: string, directory: string): Promise<void> {
-    return queryClient.invalidateQueries({
-        queryKey: caxriQueryKey('files.list', { sessionId, directory }),
-    });
+async function invalidateDirectory(sessionId: string, directory: string): Promise<void> {
+    await Promise.all(
+        getProjectSessionIds(sessionId).map((projectSessionId) =>
+            queryClient.invalidateQueries({
+                queryKey: caxriQueryKey('files.list', {
+                    sessionId: projectSessionId,
+                    directory,
+                }),
+            }),
+        ),
+    );
+}
+
+async function runTrackedFileOperation<Value>(options: {
+    errorLabel: string;
+    id: string;
+    label: string;
+    projectId: string;
+    run: () => Promise<Value>;
+    successMessage: string;
+}): Promise<Value | undefined> {
+    const operations = useFileOperationStore.getState();
+    if (!operations.begin({ id: options.id, label: options.label, projectId: options.projectId }))
+        return undefined;
+    try {
+        const result = await tryCommand(options.errorLabel, options.run);
+        if (result !== undefined) pushToast('success', options.successMessage);
+        return result;
+    } finally {
+        useFileOperationStore.getState().finish(options.id);
+    }
 }
 
 export async function createItem(
@@ -39,10 +71,18 @@ function copyItem(
     path: string,
     directory: string,
 ): Promise<MutableFileEntry | undefined> {
-    return tryCommand('Unable to copy item', async () => {
-        const copied = await caxri.request('files.copy', { sessionId, path, directory });
-        await invalidateDirectory(sessionId, directory);
-        return copied;
+    const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
+    return runTrackedFileOperation({
+        errorLabel: 'Unable to copy item',
+        id: JSON.stringify(['copy', projectId, path, directory]),
+        label: 'Copying item…',
+        projectId,
+        successMessage: 'Item copied',
+        run: async () => {
+            const copied = await caxri.request('files.copy', { sessionId, path, directory });
+            await invalidateDirectory(sessionId, directory);
+            return copied;
+        },
     });
 }
 
@@ -63,14 +103,27 @@ export function moveFile(
     directory: string,
     conflict: 'reject' | 'rename' = 'reject',
 ): Promise<MethodResult<'files.move'> | undefined> {
-    return tryCommand('Unable to move item', async () => {
-        const moved = await caxri.request('files.move', { sessionId, path, directory, conflict });
-        remapOpenEditors(sessionId, moved.previousPath, moved.path);
-        await Promise.all([
-            invalidateDirectory(sessionId, parentDirectoryPath(moved.previousPath)),
-            invalidateDirectory(sessionId, directory),
-        ]);
-        return moved;
+    const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
+    return runTrackedFileOperation({
+        errorLabel: 'Unable to move item',
+        id: JSON.stringify(['move', projectId, path, directory, conflict]),
+        label: 'Moving item…',
+        projectId,
+        successMessage: 'Item moved',
+        run: async () => {
+            const moved = await caxri.request('files.move', {
+                sessionId,
+                path,
+                directory,
+                conflict,
+            });
+            remapOpenEditors(sessionId, moved.previousPath, moved.path);
+            await Promise.all([
+                invalidateDirectory(sessionId, parentDirectoryPath(moved.previousPath)),
+                invalidateDirectory(sessionId, directory),
+            ]);
+            return moved;
+        },
     });
 }
 

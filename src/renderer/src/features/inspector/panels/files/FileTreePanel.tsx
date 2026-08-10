@@ -32,6 +32,7 @@ import {
     trashFile,
 } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
+import { useFileOperationStore } from './file-operation-state';
 import { useFileTreeInvalidation } from './file-tree-refresh';
 import { parentDirectoryPath } from './file-tree-refresh';
 import { ProjectSearch } from './ProjectSearch';
@@ -56,6 +57,7 @@ interface TreeProps {
     depth?: number;
     directory: string;
     editing?: EditRequest;
+    fileOperationsPending: boolean;
     focusPath?: string;
     projectId: string;
     projectRoot: string;
@@ -152,6 +154,7 @@ function DirectoryEntries({
     directory,
     depth = 0,
     editing,
+    fileOperationsPending,
     focusPath,
     projectId,
     projectRoot,
@@ -198,6 +201,7 @@ function DirectoryEntries({
                     depth={depth}
                     editing={editing}
                     entry={entry}
+                    fileOperationsPending={fileOperationsPending}
                     focusPath={focusPath}
                     projectId={projectId}
                     projectRoot={projectRoot}
@@ -218,6 +222,7 @@ function FileTreeItem({
     sessionId,
     depth = 0,
     editing,
+    fileOperationsPending,
     focusPath,
     projectId,
     projectRoot,
@@ -272,6 +277,7 @@ function FileTreeItem({
         event.preventDefault();
         event.stopPropagation();
         const source = dragPath(event);
+        if (fileOperationsPending) return;
         if (!source || entry.kind !== 'directory') return;
         void moveFile(sessionId, source, entry.path).then((moved) => {
             if (moved) setSelectedPath(moved.path);
@@ -309,7 +315,7 @@ function FileTreeItem({
             className={treeRowClassName}
             data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
             data-selected={selectedPath === entry.path}
-            draggable={editable}
+            draggable={editable && !fileOperationsPending}
             style={{ paddingLeft: (entry.kind === 'directory' ? 8 : 23) + depth * 12 }}
             disabled={entry.kind === 'symlink'}
             title={
@@ -338,7 +344,8 @@ function FileTreeItem({
                 rememberFile(projectId, entry.path, 'cut');
             }}
             onDragOver={(event) => {
-                if (entry.kind === 'directory' && hasDraggedPath(event)) event.preventDefault();
+                if (!fileOperationsPending && entry.kind === 'directory' && hasDraggedPath(event))
+                    event.preventDefault();
             }}
             onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = 'move';
@@ -347,7 +354,7 @@ function FileTreeItem({
             onDrop={dropIntoDirectory}
             onPaste={(event) => {
                 event.preventDefault();
-                void pasteIntoEntry();
+                if (!fileOperationsPending) void pasteIntoEntry();
             }}
             onKeyDown={(event) => {
                 if (event.key === 'Enter' && editable) {
@@ -364,7 +371,7 @@ function FileTreeItem({
                 if (key === 'backspace') void confirmTrash();
                 else if (key === 'c') rememberFile(projectId, entry.path, 'copy');
                 else if (key === 'x') rememberFile(projectId, entry.path, 'cut');
-                else void pasteIntoEntry();
+                else if (!fileOperationsPending) void pasteIntoEntry();
             }}
         >
             {entry.kind === 'directory' &&
@@ -400,10 +407,18 @@ function FileTreeItem({
                 <ContextMenuItem onClick={() => rememberFile(projectId, entry.path, 'copy')}>
                     Copy
                 </ContextMenuItem>
-                <ContextMenuItem disabled={!canPaste} onClick={() => void pasteIntoEntry()}>
+                <ContextMenuItem
+                    disabled={!canPaste || fileOperationsPending}
+                    onClick={() => void pasteIntoEntry()}
+                >
                     Paste
                 </ContextMenuItem>
-                <ContextMenuItem onClick={() => void duplicateEntry()}>Duplicate</ContextMenuItem>
+                <ContextMenuItem
+                    disabled={fileOperationsPending}
+                    onClick={() => void duplicateEntry()}
+                >
+                    Duplicate
+                </ContextMenuItem>
                 <ContextMenuItem onClick={() => void copyFilePath(entry.path)}>
                     Copy Path
                 </ContextMenuItem>
@@ -438,6 +453,7 @@ function FileTreeItem({
                     depth={depth + 1}
                     directory={entry.path}
                     editing={editing}
+                    fileOperationsPending={fileOperationsPending}
                     focusPath={focusPath}
                     projectId={projectId}
                     projectRoot={projectRoot}
@@ -458,6 +474,10 @@ export function FileTreePanel() {
     const project = useSelectedProject();
     const sessionId = session?.id;
     const clipboard = useFileClipboardStore((state) => state.entry);
+    const selectedProjectId = project?.id ?? session?.projectId;
+    const pendingOperation = useFileOperationStore((state) =>
+        state.operations.find((operation) => operation.projectId === selectedProjectId),
+    );
     const fileCaptionRef = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
     const [editingState, setEditingState] = useState<{
@@ -502,7 +522,7 @@ export function FileTreePanel() {
                 Create a Session to browse files.
             </div>
         );
-    const projectId = project?.id ?? session.projectId;
+    const projectId = selectedProjectId ?? session.projectId;
     const pasteIntoProjectRoot = async (): Promise<void> => {
         const currentClipboard = useFileClipboardStore.getState().entry;
         if (!currentClipboard) return;
@@ -511,6 +531,7 @@ export function FileTreePanel() {
     };
     const dropIntoProjectRoot = async (event: DragEvent): Promise<void> => {
         event.preventDefault();
+        if (pendingOperation) return;
         const source = dragPath(event);
         if (!source) return;
         const moved = await moveFile(session.id, source, session.rootPath);
@@ -521,7 +542,7 @@ export function FileTreePanel() {
         <div
             className="min-h-0 flex-1 overflow-auto"
             onDragOver={(event) => {
-                if (hasDraggedPath(event)) event.preventDefault();
+                if (!pendingOperation && hasDraggedPath(event)) event.preventDefault();
             }}
             onDrop={(event) => void dropIntoProjectRoot(event)}
         >
@@ -530,6 +551,7 @@ export function FileTreePanel() {
                 key={`${session.id}:${collapseRevision}`}
                 directory={session.rootPath}
                 editing={editing}
+                fileOperationsPending={Boolean(pendingOperation)}
                 focusPath={focusPath}
                 projectId={projectId}
                 projectRoot={session.rootPath}
@@ -545,6 +567,7 @@ export function FileTreePanel() {
     return (
         <div
             key={session.id}
+            aria-busy={Boolean(pendingOperation)}
             className="inspector-content flex min-h-0 flex-1 flex-col overflow-hidden"
         >
             <div
@@ -625,6 +648,15 @@ export function FileTreePanel() {
                     </Tooltip>
                 </span>
             </div>
+            {pendingOperation && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
+                >
+                    {pendingOperation.label}
+                </div>
+            )}
             {searchVisible ? (
                 <ProjectSearch focusRevision={searchFocusRevision} sessionId={session.id} />
             ) : (
@@ -657,7 +689,11 @@ export function FileTreePanel() {
                         </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem
-                            disabled={!clipboard || clipboard.projectId !== projectId}
+                            disabled={
+                                !clipboard ||
+                                clipboard.projectId !== projectId ||
+                                Boolean(pendingOperation)
+                            }
                             onClick={() => void pasteIntoProjectRoot()}
                         >
                             Paste

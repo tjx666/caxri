@@ -65,4 +65,67 @@ describe('FileOperationQueue', () => {
         expect(timedOutError).toMatchObject({ code: 'TIMEOUT' });
         expect(timedOutOperationRan).toBe(false);
     });
+
+    it('allows unrelated paths to proceed while overlapping paths remain ordered', async () => {
+        const queue = new FileOperationQueue(4);
+        const firstRelease = deferred();
+        const events: string[] = [];
+
+        const first = queue.run(
+            async () => {
+                events.push('first:start');
+                await firstRelease.promise;
+                events.push('first:end');
+            },
+            { paths: ['/project/large-folder'] },
+        );
+        const overlapping = queue.run(
+            () => {
+                events.push('overlapping');
+                return Promise.resolve();
+            },
+            { paths: ['/project/large-folder/nested.txt'] },
+        );
+        const unrelated = queue.run(
+            () => {
+                events.push('unrelated');
+                return Promise.resolve();
+            },
+            { paths: ['/project/notes.txt'] },
+        );
+
+        await unrelated;
+        expect(events).toEqual(['first:start', 'unrelated']);
+        firstRelease.resolve();
+        await Promise.all([first, overlapping]);
+        expect(events).toEqual(['first:start', 'unrelated', 'first:end', 'overlapping']);
+    });
+
+    it('serializes operation groups even when their paths do not overlap', async () => {
+        const queue = new FileOperationQueue(3);
+        const firstRelease = deferred();
+        const events: string[] = [];
+
+        const first = queue.run(
+            async () => {
+                events.push('first:start');
+                await firstRelease.promise;
+                events.push('first:end');
+            },
+            { group: 'copy', paths: ['/project/one'] },
+        );
+        const second = queue.run(
+            () => {
+                events.push('second');
+                return Promise.resolve();
+            },
+            { group: 'copy', paths: ['/project/two'] },
+        );
+
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(events).toEqual(['first:start']);
+        firstRelease.resolve();
+        await Promise.all([first, second]);
+        expect(events).toEqual(['first:start', 'first:end', 'second']);
+    });
 });

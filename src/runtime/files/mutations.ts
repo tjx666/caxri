@@ -1,6 +1,7 @@
-import type { CopyOptions, Stats } from 'node:fs';
-import { cp, lstat, mkdir, open, readdir, rename } from 'node:fs/promises';
-import { basename, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { constants, type BigIntStats } from 'node:fs';
+import { lstat, mkdir, open, readdir, rename, rm, type FileHandle } from 'node:fs/promises';
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 
 import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
 import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
@@ -32,7 +33,17 @@ interface CopyBudget {
     startedAt: number;
 }
 
-type CopyFile = (source: string, target: string, options: CopyOptions) => Promise<void>;
+interface CopyEntry extends FileIdentity {
+    kind: 'directory' | 'file';
+    mode: number;
+    relativePath: string;
+}
+
+interface CopyFileOptions {
+    signal: AbortSignal;
+}
+
+type CopyFile = (source: FileHandle, target: FileHandle, options: CopyFileOptions) => Promise<void>;
 
 export interface FileMutationServiceOptions {
     /** Test seam for replacing a destination after source preflight but before identity revalidation. */
@@ -49,6 +60,16 @@ const DEFAULT_COPY_LIMITS: CopyLimits = {
     maximumDurationMs: 5 * 60_000,
     maximumEntries: 100_000,
 };
+
+async function streamCopyFile(
+    source: FileHandle,
+    target: FileHandle,
+    options: CopyFileOptions,
+): Promise<void> {
+    await pipeline(source.createReadStream(), target.createWriteStream(), {
+        signal: options.signal,
+    });
+}
 
 function fileName(name: string): string {
     const normalized = name.trim();
@@ -119,7 +140,7 @@ export class FileMutationService {
         options: FileMutationServiceOptions = {},
     ) {
         this.beforeCopyValidation = options.beforeCopyValidation;
-        this.copyFile = options.copyFile ?? cp;
+        this.copyFile = options.copyFile ?? streamCopyFile;
         this.copyLimits = { ...DEFAULT_COPY_LIMITS, ...options.copyLimits };
         this.now = options.now ?? Date.now;
     }
@@ -167,46 +188,65 @@ export class FileMutationService {
 
             await Promise.all([this.assertIdentity(source), this.assertIdentity(directory)]);
             const startedAt = this.now();
-            await this.inspectCopyTree(source.path, startedAt);
-            await this.beforeCopyValidation?.();
-            for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
-                const name = suffixedName(source, sequence);
-                const path = resolve(directory.path, name);
-                const release = this.tryReserveTarget(path);
-                if (!release) continue;
-                try {
-                    if (await this.pathExists(path)) continue;
-                    await Promise.all([
-                        this.assertIdentity(source),
-                        this.assertIdentity(directory),
-                    ]);
-                    const copyBudget: CopyBudget = { bytes: 0, entries: 0, startedAt };
-                    await this.copyFile(source.path, path, {
-                        dereference: false,
-                        errorOnExist: true,
-                        force: false,
-                        recursive: true,
-                        verbatimSymlinks: true,
-                        filter: async (candidate) => {
-                            await this.inspectCopyEntry(candidate, copyBudget);
-                            return true;
-                        },
-                    });
-                    this.logger.write('info', 'file.copied', {
-                        fields: {
-                            sessionId: params.sessionId,
-                            from: relative(source.root.path, source.path),
-                            to: relative(source.root.path, path),
-                        },
-                    });
-                    return { kind: source.kind, name, path };
-                } catch (error) {
-                    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-                } finally {
-                    release();
+            const controller = new AbortController();
+            const deadline = setTimeout(
+                () => controller.abort(),
+                this.copyLimits.maximumDurationMs,
+            );
+            try {
+                const entries = await this.inspectCopyTree(
+                    source.path,
+                    startedAt,
+                    controller.signal,
+                );
+                await this.beforeCopyValidation?.();
+                for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
+                    this.assertCopyDeadline(startedAt, controller.signal);
+                    const name = suffixedName(source, sequence);
+                    const path = resolve(directory.path, name);
+                    const release = this.tryReserveTarget(path);
+                    if (!release) continue;
+                    let createdTarget: (FileIdentity & { kind: CopyEntry['kind'] }) | undefined;
+                    try {
+                        if (await this.pathExists(path)) continue;
+                        await Promise.all([
+                            this.assertIdentity(source),
+                            this.assertIdentity(directory),
+                        ]);
+                        await this.copyEntries(
+                            entries,
+                            path,
+                            directory,
+                            startedAt,
+                            controller.signal,
+                            (target) => {
+                                createdTarget = target;
+                            },
+                        );
+                        this.assertCopyDeadline(startedAt, controller.signal);
+                        this.logger.write('info', 'file.copied', {
+                            fields: {
+                                sessionId: params.sessionId,
+                                from: relative(source.root.path, source.path),
+                                to: relative(source.root.path, path),
+                            },
+                        });
+                        return { kind: source.kind, name, path };
+                    } catch (error) {
+                        await this.removePartialCopy(createdTarget);
+                        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+                    } finally {
+                        release();
+                    }
                 }
+                throw new CaxriError('CONFLICT', 'Unable to find an available copy name');
+            } catch (error) {
+                if (controller.signal.aborted)
+                    throw new CaxriError('TIMEOUT', 'Copy exceeded the file operation time limit');
+                throw error;
+            } finally {
+                clearTimeout(deadline);
             }
-            throw new CaxriError('CONFLICT', 'Unable to find an available copy name');
         } catch (error) {
             throw mutationError(error, 'copying the item');
         }
@@ -343,31 +383,46 @@ export class FileMutationService {
         return release;
     }
 
-    /** Validates the whole source before `cp` can leave a partial target on a known rejection. */
-    private async inspectCopyTree(source: string, startedAt: number): Promise<void> {
+    /** Validates the whole source before native writes can leave a partial target. */
+    private async inspectCopyTree(
+        source: string,
+        startedAt: number,
+        signal: AbortSignal,
+    ): Promise<CopyEntry[]> {
         const budget: CopyBudget = { bytes: 0, entries: 0, startedAt };
         const pending = [source];
+        const entries: CopyEntry[] = [];
         while (pending.length > 0) {
             const candidate = pending.pop();
             if (!candidate) break;
+            this.assertCopyDeadline(startedAt, signal);
             const stats = await this.inspectCopyEntry(candidate, budget);
+            entries.push({
+                path: candidate,
+                relativePath: relative(source, candidate),
+                kind: stats.isDirectory() ? 'directory' : 'file',
+                mode: Number(stats.mode),
+                device: stats.dev.toString(),
+                inode: stats.ino.toString(),
+            });
             if (!stats.isDirectory()) continue;
             const names = await readdir(candidate);
             for (const name of names) pending.push(resolve(candidate, name));
         }
+        return entries;
     }
 
-    private async inspectCopyEntry(candidate: string, budget: CopyBudget): Promise<Stats> {
-        const stats = await lstat(candidate);
+    private async inspectCopyEntry(candidate: string, budget: CopyBudget): Promise<BigIntStats> {
+        const stats = await lstat(candidate, { bigint: true });
         if (stats.isSymbolicLink() || (!stats.isFile() && !stats.isDirectory()))
             throw new CaxriError('PATH_DENIED', 'Only regular files and folders can be copied');
-        if (stats.isFile() && stats.nlink > 1)
+        if (stats.isFile() && stats.nlink > 1n)
             throw new CaxriError(
                 'PATH_DENIED',
                 'Files with multiple filesystem links cannot be copied',
             );
         budget.entries += 1;
-        if (stats.isFile()) budget.bytes += stats.size;
+        if (stats.isFile()) budget.bytes += Number(stats.size);
         if (budget.entries > this.copyLimits.maximumEntries)
             throw new CaxriError(
                 'CAPACITY',
@@ -381,6 +436,147 @@ export class FileMutationService {
         if (this.now() - budget.startedAt > this.copyLimits.maximumDurationMs)
             throw new CaxriError('TIMEOUT', 'Copy exceeded the file operation time limit');
         return stats;
+    }
+
+    private async copyEntries(
+        entries: readonly CopyEntry[],
+        targetRoot: string,
+        destination: ResolvedMutableEntry,
+        startedAt: number,
+        signal: AbortSignal,
+        onTargetCreated: (target: FileIdentity & { kind: CopyEntry['kind'] }) => void,
+    ): Promise<void> {
+        const targetDirectories = new Map<string, FileIdentity>();
+        for (const entry of entries) {
+            this.assertCopyDeadline(startedAt, signal);
+            await Promise.all([
+                this.assertCopyEntryIdentity(entry),
+                this.assertIdentity(destination),
+            ]);
+            const targetPath = entry.relativePath
+                ? resolve(targetRoot, entry.relativePath)
+                : targetRoot;
+            const parentIdentity = targetDirectories.get(dirname(targetPath));
+            if (parentIdentity) await this.assertPathIdentity(parentIdentity);
+
+            if (entry.kind === 'directory') {
+                await mkdir(targetPath, { mode: (entry.mode & 0o777) | 0o700 });
+                const identity = await this.createdIdentity(targetPath);
+                targetDirectories.set(targetPath, identity);
+                if (!entry.relativePath) onTargetCreated({ ...identity, kind: entry.kind });
+                this.assertCopyDeadline(startedAt, signal);
+                continue;
+            }
+
+            const source = await open(entry.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+            let target: FileHandle | undefined;
+            try {
+                await this.assertOpenFileIdentity(source, entry);
+                target = await open(
+                    targetPath,
+                    constants.O_WRONLY |
+                        constants.O_CREAT |
+                        constants.O_EXCL |
+                        constants.O_NOFOLLOW,
+                    entry.mode,
+                );
+                const identity = await this.createdHandleIdentity(target, targetPath);
+                if (!entry.relativePath) onTargetCreated({ ...identity, kind: entry.kind });
+                await target.chmod(entry.mode & 0o777);
+                await this.copyFile(source, target, { signal });
+                this.assertCopyDeadline(startedAt, signal);
+            } finally {
+                await Promise.allSettled([source.close(), target?.close()]);
+            }
+        }
+        for (const entry of [...entries].reverse()) {
+            this.assertCopyDeadline(startedAt, signal);
+            if (entry.kind !== 'directory') continue;
+            const targetPath = entry.relativePath
+                ? resolve(targetRoot, entry.relativePath)
+                : targetRoot;
+            const identity = targetDirectories.get(targetPath);
+            if (identity) await this.chmodCreatedDirectory(identity, entry.mode & 0o777);
+        }
+        this.assertCopyDeadline(startedAt, signal);
+    }
+
+    private assertCopyDeadline(startedAt: number, signal: AbortSignal): void {
+        if (signal.aborted || this.now() - startedAt > this.copyLimits.maximumDurationMs)
+            throw new CaxriError('TIMEOUT', 'Copy exceeded the file operation time limit');
+    }
+
+    private async assertCopyEntryIdentity(entry: CopyEntry): Promise<void> {
+        const stats = await lstat(entry.path, { bigint: true });
+        if (
+            stats.isSymbolicLink() ||
+            stats.dev.toString() !== entry.device ||
+            stats.ino.toString() !== entry.inode ||
+            (entry.kind === 'file' && (!stats.isFile() || stats.nlink > 1n)) ||
+            (entry.kind === 'directory' && !stats.isDirectory())
+        )
+            throw new CaxriError('CONFLICT', 'File or folder changed while it was being copied');
+    }
+
+    private async assertOpenFileIdentity(file: FileHandle, entry: CopyEntry): Promise<void> {
+        const stats = await file.stat({ bigint: true });
+        if (
+            !stats.isFile() ||
+            stats.dev.toString() !== entry.device ||
+            stats.ino.toString() !== entry.inode ||
+            stats.nlink > 1n
+        )
+            throw new CaxriError('CONFLICT', 'File changed while it was being copied');
+    }
+
+    private async createdIdentity(path: string): Promise<FileIdentity> {
+        const stats = await lstat(path, { bigint: true });
+        return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+    }
+
+    private async createdHandleIdentity(file: FileHandle, path: string): Promise<FileIdentity> {
+        const stats = await file.stat({ bigint: true });
+        return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+    }
+
+    private async assertPathIdentity(identity: FileIdentity): Promise<void> {
+        const stats = await lstat(identity.path, { bigint: true });
+        if (
+            stats.isSymbolicLink() ||
+            stats.dev.toString() !== identity.device ||
+            stats.ino.toString() !== identity.inode
+        )
+            throw new CaxriError('CONFLICT', 'Copy destination changed during the operation');
+    }
+
+    private async chmodCreatedDirectory(identity: FileIdentity, mode: number): Promise<void> {
+        await this.assertPathIdentity(identity);
+        const directory = await open(identity.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+        try {
+            const stats = await directory.stat({ bigint: true });
+            if (
+                !stats.isDirectory() ||
+                stats.dev.toString() !== identity.device ||
+                stats.ino.toString() !== identity.inode
+            )
+                throw new CaxriError('CONFLICT', 'Copy destination changed during the operation');
+            await directory.chmod(mode);
+        } finally {
+            await directory.close();
+        }
+    }
+
+    private async removePartialCopy(
+        target?: FileIdentity & { kind: CopyEntry['kind'] },
+    ): Promise<void> {
+        if (!target) return;
+        try {
+            await this.assertPathIdentity(target);
+            await rm(target.path, { force: true, recursive: target.kind === 'directory' });
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+            this.logger.write('warn', 'file.copy_cleanup_skipped');
+        }
     }
 
     private tryReserveTarget(path: string): (() => void) | undefined {

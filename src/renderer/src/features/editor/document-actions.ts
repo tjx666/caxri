@@ -10,7 +10,12 @@ import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/wor
 
 import { caxri } from '../../lib/caxri';
 import { pathIsAtOrBelow, remapPath } from '../../lib/file-path';
-import { getSelectedSession, getSessionState, getSessionTerminals } from '../../stores/selectors';
+import {
+    getProjectSessionIds,
+    getSelectedSession,
+    getSessionState,
+    getSessionTerminals,
+} from '../../stores/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
@@ -29,18 +34,6 @@ interface PendingDocumentOperation {
  * lets file mutations remap or invalidate it without retaining an unbounded path history.
  */
 const pendingDocumentOperations = new Set<PendingDocumentOperation>();
-
-/** File paths belong to a Project, so every Session sharing that Project must reconcile them. */
-function projectSessionIds(originSessionId: string): string[] {
-    const bootstrap = useWorkbenchStore.getState().bootstrap;
-    const projectId = bootstrap?.sessions.find(
-        (session) => session.id === originSessionId,
-    )?.projectId;
-    if (!projectId) return [originSessionId];
-    return bootstrap.sessions
-        .filter((session) => session.projectId === projectId)
-        .map((session) => session.id);
-}
 
 function trackDocumentOperation(sessionId: string, path: string): PendingDocumentOperation {
     const operation = { discarded: false, path, sessionId };
@@ -284,7 +277,7 @@ function remapOpenEditorsInSession(
 
 /** Keeps every same-Project Session's normal tabs and dirty buffers attached after a move. */
 export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
-    for (const projectSessionId of projectSessionIds(sessionId))
+    for (const projectSessionId of getProjectSessionIds(sessionId))
         remapOpenEditorsInSession(projectSessionId, previousPath, nextPath);
 }
 
@@ -333,6 +326,6 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
 
 /** Closes matching normal editors in every same-Project Session after Main confirms Trash. */
 export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
-    for (const projectSessionId of projectSessionIds(sessionId))
+    for (const projectSessionId of getProjectSessionIds(sessionId))
         closeOpenEditorsUnderPathInSession(projectSessionId, path);
 }
