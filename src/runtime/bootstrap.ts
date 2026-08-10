@@ -292,7 +292,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                     : undefined;
                 if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
                 try {
+                    const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
                     const restarted = await terminals.restart(terminal.id, {
+                        expectedWorkingDirectory,
                         resumeAgentSessionId,
                         shouldStart: isCurrent,
                     });
@@ -492,8 +494,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'terminal.restart': async ({ terminalId }) => {
+            const current = database.getTerminal(terminalId);
+            if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+            const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
             coordinator.prepareTerminalStart(terminalId);
-            const terminal = await terminals.restart(terminalId);
+            const terminal = await terminals.restart(terminalId, { expectedWorkingDirectory });
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             send({
                 event: 'state.changed',

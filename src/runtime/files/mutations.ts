@@ -1,14 +1,5 @@
 import { constants, type BigIntStats } from 'node:fs';
-import {
-    lstat,
-    mkdir,
-    open,
-    readdir,
-    rename,
-    rmdir,
-    unlink,
-    type FileHandle,
-} from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, rename, type FileHandle } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
@@ -52,8 +43,6 @@ interface CopyManifest {
     entries: CopyEntry[];
     totalBytes: number;
 }
-
-type CreatedCopyEntry = FileIdentity & { kind: CopyEntry['kind'] };
 
 interface CopyFileOptions {
     signal: AbortSignal;
@@ -198,6 +187,7 @@ export class FileMutationService {
         let phase = 'preflight';
         let entryCount = 0;
         let totalBytes = 0;
+        let partialCopyPreserved = false;
         try {
             const source = await this.resolveExisting(params.sessionId, params.path);
             const directory = await this.resolveExisting(params.sessionId, params.directory, true);
@@ -228,7 +218,7 @@ export class FileMutationService {
                     const path = resolve(directory.path, name);
                     const release = this.tryReserveTarget(path);
                     if (!release) continue;
-                    const createdTargets: CreatedCopyEntry[] = [];
+                    let createdTargetCount = 0;
                     try {
                         if (await this.pathExists(path)) continue;
                         await Promise.all([
@@ -242,7 +232,9 @@ export class FileMutationService {
                             directory,
                             startedAt,
                             controller.signal,
-                            (target) => createdTargets.push(target),
+                            () => {
+                                createdTargetCount += 1;
+                            },
                         );
                         this.assertCopyDeadline(startedAt, controller.signal);
                         this.logger.write('info', 'file.copied', {
@@ -257,11 +249,16 @@ export class FileMutationService {
                         });
                         return { kind: source.kind, name, path };
                     } catch (error) {
-                        const failedPhase = phase;
-                        phase = 'cleanup';
-                        await this.removePartialCopy(createdTargets);
-                        phase = failedPhase;
-                        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+                        if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+                            if (createdTargetCount === 0) continue;
+                        }
+                        if (createdTargetCount > 0) {
+                            partialCopyPreserved = true;
+                            this.logger.write('warn', 'file.copy_partial_preserved', {
+                                fields: { entryCount: createdTargetCount },
+                            });
+                        }
+                        throw error;
                     } finally {
                         release();
                     }
@@ -288,7 +285,13 @@ export class FileMutationService {
                         'IO',
                 },
             });
-            throw mutationError(error, 'copying the item');
+            const failure = mutationError(error, 'copying the item');
+            if (partialCopyPreserved)
+                throw new CaxriError(
+                    failure.code,
+                    `${failure.message}. The partial copy was kept to avoid deleting files changed by another app.`,
+                );
+            throw failure;
         }
     }
 
@@ -484,7 +487,7 @@ export class FileMutationService {
         destination: ResolvedMutableEntry,
         startedAt: number,
         signal: AbortSignal,
-        onTargetCreated: (target: CreatedCopyEntry) => void,
+        onTargetCreated: () => void,
     ): Promise<void> {
         const targetDirectories = new Map<string, FileIdentity>();
         for (const entry of entries) {
@@ -503,7 +506,7 @@ export class FileMutationService {
                 await mkdir(targetPath, { mode: (entry.mode & 0o777) | 0o700 });
                 const identity = await this.createdIdentity(targetPath);
                 targetDirectories.set(targetPath, identity);
-                onTargetCreated({ ...identity, kind: entry.kind });
+                onTargetCreated();
                 this.assertCopyDeadline(startedAt, signal);
                 continue;
             }
@@ -520,8 +523,8 @@ export class FileMutationService {
                         constants.O_NOFOLLOW,
                     entry.mode,
                 );
-                const identity = await this.createdHandleIdentity(target, targetPath);
-                onTargetCreated({ ...identity, kind: entry.kind });
+                await this.createdHandleIdentity(target, targetPath);
+                onTargetCreated();
                 await target.chmod(entry.mode & 0o777);
                 await this.copyFile(source, target, { signal });
                 this.assertCopyDeadline(startedAt, signal);
@@ -603,25 +606,6 @@ export class FileMutationService {
             await directory.chmod(mode);
         } finally {
             await directory.close();
-        }
-    }
-
-    private async removePartialCopy(targets: readonly CreatedCopyEntry[]): Promise<void> {
-        for (const target of [...targets].reverse()) {
-            try {
-                await this.assertPathIdentity(target);
-                if (target.kind === 'directory') {
-                    if ((await readdir(target.path)).length > 0) {
-                        this.logger.write('warn', 'file.copy_cleanup_skipped');
-                        continue;
-                    }
-                    await rmdir(target.path);
-                } else await unlink(target.path);
-            } catch (error) {
-                const code = (error as NodeJS.ErrnoException).code;
-                if (code === 'ENOENT') continue;
-                this.logger.write('warn', 'file.copy_cleanup_skipped');
-            }
         }
     }
 

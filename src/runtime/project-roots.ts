@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import { CaxriError } from '../shared/ipc/errors';
@@ -23,6 +23,9 @@ export class ProjectRootResolver {
     async resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
         const session = this.database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const rootStats = await lstat(session.rootPath);
+        if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
+            throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
         const root = await realpath(session.rootPath);
         const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
         const resolved = await realpath(candidate);
