@@ -3,22 +3,16 @@ import { mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
-import { z } from 'zod';
 
-import {
-    agentProviderIds,
-    defaultAgentProviderSettings,
-    type AgentProvider,
-    type AgentProviderSettings,
-} from '../shared/agents';
+import { defaultAgentProviderSettings } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
+import { keybindingsFileSchema, settingsFileSchema } from '../shared/configuration';
 import { errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import {
     DEFAULT_FILES_EXCLUDE,
-    keybindingSchema as sharedKeybindingSchema,
     SETTINGS_BOUNDS,
     type AppSettings,
     type Keybinding,
@@ -41,78 +35,6 @@ interface PreparedConfiguration {
 
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
-const MAX_FILES_EXCLUDE_PATTERNS = 100;
-
-const filesExcludeSchema = z
-    .record(z.string().min(1).max(256), z.boolean())
-    .refine((value) => Object.keys(value).length <= MAX_FILES_EXCLUDE_PATTERNS, {
-        message: `files.exclude supports at most ${MAX_FILES_EXCLUDE_PATTERNS} patterns`,
-    })
-    .default({})
-    .transform((value) => ({ ...DEFAULT_FILES_EXCLUDE, ...value }));
-
-const agentLaunchSettingsSchema = z.object({
-    executable: z.string().trim().min(1).max(4_096),
-    args: z.array(z.string().max(4_096)).max(64),
-});
-
-const agentProviderSettingsSchema = z
-    .partialRecord(
-        z.enum(agentProviderIds),
-        z.object({
-            launch: agentLaunchSettingsSchema,
-        }),
-    )
-    .default({})
-    .transform(
-        (value) =>
-            Object.fromEntries(
-                agentProviderIds.map((provider) => [
-                    provider,
-                    value[provider] ?? structuredClone(defaultAgentProviderSettings[provider]),
-                ]),
-            ) as unknown as Record<AgentProvider, AgentProviderSettings>,
-    );
-
-/**
- * Bounds and defaults come from `SETTINGS_BOUNDS` in `src/shared/ipc/domain.ts`, keeping the strict
- * Runtime validation here linked to the wire-shape `appSettingsSchema` it validates against.
- */
-const settingsSchema = z.object({
-    'session.defaultAgent': z
-        .enum([...agentProviderIds, 'shell'])
-        .nullable()
-        .default(null),
-    'agents.providers': agentProviderSettingsSchema,
-    'terminal.defaultWorkingDirectory': z
-        .string()
-        .trim()
-        .min(1)
-        .max(16_384)
-        .nullable()
-        .default(null),
-    'terminal.fontSize': z
-        .number()
-        .int()
-        .min(SETTINGS_BOUNDS['terminal.fontSize'].min)
-        .max(SETTINGS_BOUNDS['terminal.fontSize'].max)
-        .default(SETTINGS_BOUNDS['terminal.fontSize'].default),
-    'terminal.scrollback': z
-        .number()
-        .int()
-        .min(SETTINGS_BOUNDS['terminal.scrollback'].min)
-        .max(SETTINGS_BOUNDS['terminal.scrollback'].max)
-        .default(SETTINGS_BOUNDS['terminal.scrollback'].default),
-    'files.exclude': filesExcludeSchema,
-    'files.maxFileBytes': z
-        .number()
-        .int()
-        .min(SETTINGS_BOUNDS['files.maxFileBytes'].min)
-        .max(SETTINGS_BOUNDS['files.maxFileBytes'].max)
-        .default(SETTINGS_BOUNDS['files.maxFileBytes'].default),
-});
-
-const keybindingSchema = z.array(sharedKeybindingSchema);
 const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+n', command: 'session.create' },
@@ -320,7 +242,7 @@ export class ConfigurationService {
         const path = this.pathFor(kind);
         try {
             if (kind === 'settings') {
-                const settings = settingsSchema.parse(parseJsonc(source));
+                const settings = settingsFileSchema.parse(parseJsonc(source));
                 return {
                     source,
                     apply: () => {
@@ -330,7 +252,7 @@ export class ConfigurationService {
                 };
             }
             if (kind === 'keybindings') {
-                const parsed = keybindingSchema.parse(parseJsonc(source));
+                const parsed = keybindingsFileSchema.parse(parseJsonc(source));
                 const keybindings = migrateLegacyDefaultKeybindings(parsed);
                 const normalizedSource =
                     keybindings === parsed ? source : `${JSON.stringify(keybindings, null, 2)}\n`;

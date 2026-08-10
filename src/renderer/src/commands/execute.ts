@@ -93,7 +93,7 @@ const commandContext: CommandContext = {
     },
     sidebar: { toggle: () => usePanelLayoutStore.getState().toggleSidebar() },
     dialogs: {
-        openSettings: () => useDialogStore.getState().setSettingsOpen(true),
+        openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
         openPathBrowser: () => {
             const bootstrap = getBootstrap();

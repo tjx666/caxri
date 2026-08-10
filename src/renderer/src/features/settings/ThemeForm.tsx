@@ -1,36 +1,22 @@
 import { Import } from 'lucide-react';
-import { Suspense, lazy } from 'react';
 
 import type { ThemeTokens } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
-import { configurationEditorLoadingClassName, settingsFieldRowClassName } from '../../lib/utils';
+import { settingsFieldRowClassName } from '../../lib/utils';
 import { ThemePreview } from './ThemePreview';
-
-const ConfigurationEditor = lazy(async () => {
-    const module = await import('./ConfigurationEditor');
-    return { default: module.ConfigurationEditor };
-});
 
 interface ThemeFormProps {
     theme: ThemeTokens;
-    source: string;
     onColorChange: (section: 'colors' | 'terminal' | 'editor', key: string, value: string) => void;
-    onSourceChange: (source: string) => void;
     onImport: () => void;
 }
 
-/** The `theme` tab: live preview and color pickers on the left, the raw theme.json source on the right. */
-export function ThemeForm({
-    theme,
-    source,
-    onColorChange,
-    onSourceChange,
-    onImport,
-}: ThemeFormProps) {
+/** Full-width structured editor and live preview for `theme.json`. */
+export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormProps) {
     return (
-        <div className="grid min-h-0 grid-cols-[minmax(250px,0.85fr)_minmax(310px,1.15fr)] overflow-hidden">
-            <div className="theme-editor structured-editor min-h-0 overflow-auto border-r border-border p-3">
+        <div className="min-h-0 overflow-hidden">
+            <div className="theme-editor structured-editor h-full min-h-0 overflow-auto p-3">
                 <ThemePreview theme={theme} />
                 <div className="mb-4 flex justify-between">
                     <strong>{theme.name}</strong>
@@ -73,15 +59,6 @@ export function ThemeForm({
                     <Import size={13} /> Import Theme
                 </Button>
             </div>
-            <Suspense fallback={<div className={configurationEditorLoadingClassName} />}>
-                <ConfigurationEditor
-                    ariaLabel="theme.json source"
-                    path="/caxri/theme.json"
-                    theme={theme}
-                    value={source}
-                    onChange={onSourceChange}
-                />
-            </Suspense>
         </div>
     );
 }

@@ -2,9 +2,21 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
+
+async function replaceMonacoText(
+    app: Awaited<ReturnType<typeof launchCaxri>>['app'],
+    page: Page,
+    editor: Locator,
+    source: string,
+): Promise<void> {
+    await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), source);
+    await editor.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.press('Meta+V');
+}
 
 test('Settings keeps actions visible and provides highlighted editors and live Theme preview', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-e2e-'));
@@ -18,6 +30,8 @@ test('Settings keeps actions visible and provides highlighted editors and live T
     try {
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
+        await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
+        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
         const settingsEditor = dialog.getByLabel('settings.jsonc source');
         await expect(settingsEditor.locator('.view-lines')).toContainText('terminal.fontSize');
 
@@ -27,6 +41,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 ...new Set(spans.map((span) => getComputedStyle(span).color)),
             ]);
         expect(tokenColors.length).toBeGreaterThan(1);
+        await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
         await expect(dialog.locator('[data-slot="input"]')).toHaveCount(6);
         await expect(dialog.locator('[data-slot="textarea"]')).toHaveCount(2);
         const defaultAgent = dialog.locator('[data-slot="select-trigger"]');
@@ -111,6 +126,116 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         });
         await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
         expect(pageErrors).toEqual([]);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Settings source mode preserves drafts and blocks stale UI for invalid source', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-source-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        const initial = await pageRequest<{ source: string }>(running.page, 'settings.get');
+        const legalSource = initial.source
+            .replace(/"terminal\.fontSize":\s*\d+/, '"terminal.fontSize": 17')
+            .replace(/\n}\s*$/, '\n  // keep-source-comment\n}\n');
+
+        await running.page.keyboard.press('Meta+,');
+        let dialog = running.page.getByRole('dialog');
+        await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: 'Open Config File' })).toBeVisible();
+
+        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        let sourceEditor = dialog.getByLabel('settings.jsonc source');
+        await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
+        await expect(dialog.getByRole('alert')).toHaveCount(0);
+        await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
+        await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
+        await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
+        await expect(
+            dialog.getByRole('tab', { name: 'Settings', exact: true }).locator('[data-dirty=true]'),
+        ).toBeVisible();
+
+        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        sourceEditor = dialog.getByLabel('settings.jsonc source');
+        await replaceMonacoText(
+            running.app,
+            running.page,
+            sourceEditor,
+            '{\n  "terminal.fontSize": nope\n}',
+        );
+        await expect(dialog.getByRole('alert')).toContainText(/settings\.jsonc: .*line 2/);
+        await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
+        await expect(sourceEditor).toBeVisible();
+        await expect(dialog.getByLabel('Terminal font size')).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
+
+        await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
+        await expect(dialog.getByRole('alert')).toHaveCount(0);
+        await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await expect(dialog.getByLabel('keybindings.jsonc source')).toBeVisible();
+        await dialog.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await expect(dialog.getByLabel('theme.json source')).toBeVisible();
+        await dialog.getByRole('tab', { name: 'Settings', exact: true }).click();
+        await expect(
+            dialog.getByLabel('settings.jsonc source').locator('.view-lines'),
+        ).toContainText('keep-source-comment');
+
+        await running.page.keyboard.press('Escape');
+        await running.page.keyboard.press('Meta+,');
+        dialog = running.page.getByRole('dialog');
+        await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
+        await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
+        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+        await expect
+            .poll(async () => {
+                const settings = await pageRequest<{
+                    value: { 'terminal.fontSize': number };
+                }>(running.page, 'settings.get');
+                return settings.value['terminal.fontSize'];
+            })
+            .toBe(17);
+
+        await running.page.keyboard.press('Escape');
+        await running.page.keyboard.press('Meta+Shift+P');
+        const palette = running.page.getByRole('dialog');
+        await palette
+            .getByPlaceholder('Search projects, sessions, and commands…')
+            .fill('Open Settings JSON');
+        await palette.getByRole('option').filter({ hasText: 'Open Settings (JSON)' }).click();
+        dialog = running.page.getByRole('dialog');
+        await expect(dialog.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(dialog.getByLabel('settings.jsonc source')).toBeVisible();
+
+        await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        const keybindingsEditor = dialog.getByLabel('keybindings.jsonc source');
+        await replaceMonacoText(running.app, running.page, keybindingsEditor, '[ invalid');
+        await expect(dialog.getByRole('alert')).toContainText('keybindings.jsonc');
+        await running.page.keyboard.press('Escape');
+        await running.page.keyboard.press('Meta+Shift+P');
+        const blockedPalette = running.page.getByRole('dialog');
+        await blockedPalette
+            .getByPlaceholder('Search projects, sessions, and commands…')
+            .fill('Open Settings JSON');
+        await blockedPalette
+            .getByRole('option')
+            .filter({ hasText: 'Open Settings (JSON)' })
+            .click();
+        dialog = running.page.getByRole('dialog');
+        await expect(dialog.getByRole('tab', { name: 'Keybindings', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(dialog.getByLabel('keybindings.jsonc source')).toBeVisible();
+        await expect(dialog.getByRole('alert')).toContainText('keybindings.jsonc');
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
