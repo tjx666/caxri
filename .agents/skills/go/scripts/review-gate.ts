@@ -34,7 +34,7 @@ interface ReviewDecisionInput {
 }
 
 const MAX_FULL_REVIEW_ROUNDS = 3;
-const MAX_VERIFICATION_DECISIONS = 2;
+const MAX_VERIFICATION_DECISIONS = 3;
 
 export function createEmptyReviewGate(): ReviewGate {
     return { frozenHeadSha: null, rounds: [] };
@@ -75,7 +75,7 @@ export function recordReviewDecision(
             ({ mode }) => mode === 'verification',
         ).length;
         if (verificationDecisions >= MAX_VERIFICATION_DECISIONS) {
-            throw new Error('A Go run can record at most two verification-only head freezes');
+            throw new Error('A Go run can record at most three verification-only head freezes');
         }
     }
     if (input.freeze && (input.p0 > 0 || input.p1 > 0)) {
