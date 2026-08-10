@@ -178,12 +178,10 @@ export class ListingService {
             (await realpath(path)) !== path
         )
             throw new CaxriError('IO', 'Directory changed during listing');
-        const names = entries
-            .filter((entry) => {
-                const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
-                return !matchesFileTreeExclude(relativePath, excludes);
-            })
-            .map((entry) => entry.name);
+        const names = entries.flatMap((entry) => {
+            const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
+            return matchesFileTreeExclude(relativePath, excludes) ? [] : [entry.name];
+        });
         return { root, path, names };
     }
 

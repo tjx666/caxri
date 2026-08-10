@@ -85,12 +85,12 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
     try {
         await tryCommand('Unable to restore file', async () => {
             const document = await caxri.request('files.read', { sessionId, path });
-            if (operation.discarded) return;
-            useSessionViewStore.getState().cacheDocument(sessionId, {
-                ...document,
-                path: operation.path,
-                dirty: false,
-            });
+            if (!operation.discarded)
+                useSessionViewStore.getState().cacheDocument(sessionId, {
+                    ...document,
+                    path: operation.path,
+                    dirty: false,
+                });
         });
     } finally {
         pendingDocumentOperations.delete(operation);
@@ -170,17 +170,20 @@ export async function saveActiveEditor(): Promise<void> {
                 path,
                 content: document.content,
             });
-            if (operation.discarded) return;
-            const current = useSessionViewStore.getState().documents[session.id]?.[operation.path];
-            if (!current) return;
-            const changedDuringSave = current.content !== document.content;
-            useSessionViewStore.getState().cacheDocument(session.id, {
-                ...saved,
-                path: operation.path,
-                content: changedDuringSave ? current.content : saved.content,
-                dirty: changedDuringSave,
-            });
-            updateOpenTab(session.id, operation.path, changedDuringSave);
+            if (!operation.discarded) {
+                const current =
+                    useSessionViewStore.getState().documents[session.id]?.[operation.path];
+                if (current) {
+                    const changedDuringSave = current.content !== document.content;
+                    useSessionViewStore.getState().cacheDocument(session.id, {
+                        ...saved,
+                        path: operation.path,
+                        content: changedDuringSave ? current.content : saved.content,
+                        dirty: changedDuringSave,
+                    });
+                    updateOpenTab(session.id, operation.path, changedDuringSave);
+                }
+            }
         });
     } finally {
         pendingDocumentOperations.delete(operation);
@@ -271,9 +274,9 @@ export function closeOpenEditorsUnderPath(sessionId: string, path: string): void
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!current) return;
-    const closingPaths = current.openTabs
-        .map((tab) => tab.path)
-        .filter((tabPath) => !isGitDiffTabPath(tabPath) && pathIsAtOrBelow(tabPath, path));
+    const closingPaths = current.openTabs.flatMap((tab) =>
+        !isGitDiffTabPath(tab.path) && pathIsAtOrBelow(tab.path, path) ? [tab.path] : [],
+    );
     if (closingPaths.length === 0) return;
     const closing = new Set(closingPaths);
     const firstClosingIndex = current.openTabs.findIndex((tab) => closing.has(tab.path));
