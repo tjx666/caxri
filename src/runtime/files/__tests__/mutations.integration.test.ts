@@ -350,6 +350,55 @@ describe('FileMutationService', () => {
         ).rejects.toMatchObject({ code: 'TIMEOUT' });
     });
 
+    it('bounds post-copy target validation concurrency', async () => {
+        let activeValidations = 0;
+        let maximumActiveValidations = 0;
+        let markValidationPoolFull!: () => void;
+        let releaseValidations!: () => void;
+        const validationPoolFull = new Promise<void>((resolve) => {
+            markValidationPoolFull = resolve;
+        });
+        const validationsReleased = new Promise<void>((resolve) => {
+            releaseValidations = resolve;
+        });
+        const fixture = await createFixture('caxri-file-copy-validation-concurrency-', {
+            mutations: {
+                beforeCopyTargetValidation: async () => {
+                    activeValidations += 1;
+                    maximumActiveValidations = Math.max(
+                        maximumActiveValidations,
+                        activeValidations,
+                    );
+                    if (activeValidations === 32) markValidationPoolFull();
+                    try {
+                        await validationsReleased;
+                    } finally {
+                        activeValidations -= 1;
+                    }
+                },
+            },
+        });
+        const source = join(fixture.root, 'folder');
+        await mkdir(source);
+        await Promise.all(
+            Array.from({ length: 40 }, (_, index) =>
+                writeFile(join(source, `file-${index}.txt`), 'copy', 'utf8'),
+            ),
+        );
+
+        const copying = fixture.service.copy({
+            sessionId: fixture.sessionId,
+            path: source,
+            directory: fixture.root,
+        });
+        await validationPoolFull;
+        expect(maximumActiveValidations).toBe(32);
+        releaseValidations();
+
+        await expect(copying).resolves.toMatchObject({ name: 'folder copy' });
+        expect(maximumActiveValidations).toBe(32);
+    });
+
     it('aborts a stalled file transfer without deleting its partial target by path', async () => {
         let markTransferStarted!: () => void;
         const transferStarted = new Promise<void>((resolve) => {
