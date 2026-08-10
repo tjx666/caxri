@@ -90,6 +90,11 @@ const commandContext: CommandContext = {
     dialogs: {
         openSettings: () => useDialogStore.getState().setSettingsOpen(true),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
+        openPathBrowser: () => {
+            const bootstrap = getBootstrap();
+            if (getSelectedSession() && selectSelectedProject(bootstrap))
+                useDialogStore.getState().setPathBrowserOpen(true);
+        },
     },
     windows: {
         openProcessExplorer: () => {

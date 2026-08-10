@@ -12,7 +12,7 @@ export interface CommandContext {
     editor: { saveActive(): void };
     inspector: { searchFiles(): void; setMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };
-    dialogs: { openSettings(): void; openPalette(): void };
+    dialogs: { openSettings(): void; openPalette(): void; openPathBrowser(): void };
     windows: { openProcessExplorer(): void };
     diagnostics: { export(): void };
     updates: { check(): void };
