@@ -433,6 +433,34 @@ describe('FileMutationService', () => {
         await expect(readFile(join(target, 'nested.txt'), 'utf8')).resolves.toBe('partial');
     });
 
+    it('rejects a copy whose created target is replaced during transfer', async () => {
+        let targetPath = '';
+        let movedTargetPath = '';
+        const fixture = await createFixture('caxri-file-copy-target-replaced-', {
+            mutations: {
+                copyFile: async (_source, target) => {
+                    await target.writeFile('copied', 'utf8');
+                    await rename(targetPath, movedTargetPath);
+                    await writeFile(targetPath, 'foreign', 'utf8');
+                },
+            },
+        });
+        const source = join(fixture.root, 'source.txt');
+        targetPath = join(fixture.root, 'source copy.txt');
+        movedTargetPath = join(fixture.root, 'moved-target.txt');
+        await writeFile(source, 'source', 'utf8');
+
+        await expect(
+            fixture.service.copy({
+                sessionId: fixture.sessionId,
+                path: source,
+                directory: fixture.root,
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(readFile(targetPath, 'utf8')).resolves.toBe('foreign');
+        await expect(readFile(movedTargetPath, 'utf8')).resolves.toBe('copied');
+    });
+
     it('rejects a Project root replaced with an outside symlink before mutation', async () => {
         const fixture = await createFixture('caxri-file-project-root-swap-');
         const originalRoot = `${fixture.root}-original`;

@@ -218,7 +218,7 @@ export class FileMutationService {
                     const path = resolve(directory.path, name);
                     const release = this.tryReserveTarget(path);
                     if (!release) continue;
-                    let createdTargetCount = 0;
+                    const createdTargets: FileIdentity[] = [];
                     try {
                         if (await this.pathExists(path)) continue;
                         await Promise.all([
@@ -232,10 +232,12 @@ export class FileMutationService {
                             directory,
                             startedAt,
                             controller.signal,
-                            () => {
-                                createdTargetCount += 1;
-                            },
+                            (target) => createdTargets.push(target),
                         );
+                        for (const target of createdTargets) {
+                            this.assertCopyDeadline(startedAt, controller.signal);
+                            await this.assertPathIdentity(target);
+                        }
                         this.assertCopyDeadline(startedAt, controller.signal);
                         this.logger.write('info', 'file.copied', {
                             durationMs: performance.now() - observedAt,
@@ -250,12 +252,12 @@ export class FileMutationService {
                         return { kind: source.kind, name, path };
                     } catch (error) {
                         if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-                            if (createdTargetCount === 0) continue;
+                            if (createdTargets.length === 0) continue;
                         }
-                        if (createdTargetCount > 0) {
+                        if (createdTargets.length > 0) {
                             partialCopyPreserved = true;
                             this.logger.write('warn', 'file.copy_partial_preserved', {
-                                fields: { entryCount: createdTargetCount },
+                                fields: { entryCount: createdTargets.length },
                             });
                         }
                         throw error;
@@ -487,7 +489,7 @@ export class FileMutationService {
         destination: ResolvedMutableEntry,
         startedAt: number,
         signal: AbortSignal,
-        onTargetCreated: () => void,
+        onTargetCreated: (target: FileIdentity) => void,
     ): Promise<void> {
         const targetDirectories = new Map<string, FileIdentity>();
         for (const entry of entries) {
@@ -506,7 +508,7 @@ export class FileMutationService {
                 await mkdir(targetPath, { mode: (entry.mode & 0o777) | 0o700 });
                 const identity = await this.createdIdentity(targetPath);
                 targetDirectories.set(targetPath, identity);
-                onTargetCreated();
+                onTargetCreated(identity);
                 this.assertCopyDeadline(startedAt, signal);
                 continue;
             }
@@ -523,8 +525,8 @@ export class FileMutationService {
                         constants.O_NOFOLLOW,
                     entry.mode,
                 );
-                await this.createdHandleIdentity(target, targetPath);
-                onTargetCreated();
+                const identity = await this.createdHandleIdentity(target, targetPath);
+                onTargetCreated(identity);
                 await target.chmod(entry.mode & 0o777);
                 await this.copyFile(source, target, { signal });
                 this.assertCopyDeadline(startedAt, signal);
