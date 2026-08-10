@@ -330,6 +330,55 @@ describe('AgentCoordinator', () => {
         }
     });
 
+    it('ignores an old Agent probe that resolves after a fresh restart begins', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-stale-probe-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'codex',
+            status: 'running',
+            observedAt: Date.now(),
+            available: true,
+            sessionId: 'old-agent-session',
+        });
+        const pendingSnapshot = Promise.withResolvers<{
+            provider: 'codex';
+            status: 'running';
+            observedAt: number;
+            available: true;
+            sessionId: string;
+        }>();
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() => pendingSnapshot.promise);
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.probeTerminal(created.terminal.id);
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledOnce());
+            coordinator.prepareTerminalStart(created.terminal.id);
+            expect(database.getTerminal(created.terminal.id)?.agentSessionId).toBeUndefined();
+
+            pendingSnapshot.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'old-agent-session',
+            });
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            expect(database.getTerminal(created.terminal.id)?.agentSessionId).toBeUndefined();
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('probes Agent Terminal output, ignores Shell output, and stops after a Terminal is closed', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-coordinator-'));
         temporaryDirectories.push(directory);

@@ -37,6 +37,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 create: record('terminal.create'),
                 clearActive: record('terminal.clear'),
                 restartActive: record('terminal.restart'),
+                startNewAgentSession: record('terminal.startNewAgentSession'),
                 closeActive: record('terminal.close'),
             },
             workbench: { closeActiveTab: record('workbench.closeActiveTab') },

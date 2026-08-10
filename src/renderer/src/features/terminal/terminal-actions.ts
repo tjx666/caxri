@@ -3,9 +3,9 @@ import type { TerminalKind, TerminalLayout } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
-import { getSelectedSession, getSessionState } from '../../stores/selectors';
+import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
 
 /** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
@@ -57,25 +57,38 @@ export function closeTerminal(terminalId: string): void {
     );
 }
 
-/**
- * Recovery path used by the in-pane Restart action: a Terminal that died with the Runtime has no
- * attachment left, so it is re-attached before the restart to receive the new process output.
- */
+async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fresh'): Promise<void> {
+    const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
+    /** A stopped PTY lost Runtime attachment ownership, while a running PTY must not be reattached
+     *  because replaying its screen without a new xterm consumer would discard queued live output. */
+    if (terminal?.lastProcessState !== 'running')
+        await caxri.request('terminal.attach', { terminalId });
+    await caxri.request('terminal.restart', { terminalId, mode });
+}
+
+/** Recovery path used by the in-pane Restart action. */
 export function restartTerminal(terminalId: string): void {
-    void tryCommand(
-        'Terminal restart failed',
-        async () => {
-            await caxri.request('terminal.attach', { terminalId });
-            await caxri.request('terminal.restart', { terminalId });
-        },
-        { refresh: true },
-    );
+    void tryCommand('Terminal restart failed', () => requestTerminalRestart(terminalId, 'resume'), {
+        refresh: true,
+    });
 }
 
 export function restartActiveTerminal(terminalId: string): void {
+    void tryCommand('Terminal restart failed', () => requestTerminalRestart(terminalId, 'resume'), {
+        refresh: true,
+    });
+}
+
+/** The only user action allowed to clear a durable provider-session binding. */
+export function startNewAgentSession(terminalId: string): void {
+    const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
+    if (!terminal?.provider || !terminal.agentSessionId) {
+        pushToast('info', 'The active Terminal has no Agent session to replace.');
+        return;
+    }
     void tryCommand(
-        'Terminal restart failed',
-        () => caxri.request('terminal.restart', { terminalId }),
+        'Starting a new Agent session failed',
+        () => requestTerminalRestart(terminalId, 'fresh'),
         { refresh: true },
     );
 }

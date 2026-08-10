@@ -1,0 +1,130 @@
+import { Buffer } from 'node:buffer';
+import { createRequire } from 'node:module';
+
+import type * as SerializeAddonModule from '@xterm/addon-serialize';
+import type * as HeadlessModule from '@xterm/headless';
+import type { Terminal as HeadlessTerminal } from '@xterm/headless';
+
+import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapshot';
+
+/** electron-vite externalizes production dependencies, and these xterm Node packages publish
+ *  CommonJS entry points whose named exports Node ESM cannot load directly. */
+const runtimeRequire = createRequire(import.meta.url);
+const { SerializeAddon } = runtimeRequire('@xterm/addon-serialize') as typeof SerializeAddonModule;
+const { Terminal } = runtimeRequire('@xterm/headless') as typeof HeadlessModule;
+
+type ScreenOperation =
+    | { chunks: string[]; type: 'write' }
+    | { cols: number; rows: number; type: 'resize' }
+    | {
+          reject: (error: unknown) => void;
+          resolve: (snapshot: ReturnType<typeof boundSnapshot>) => void;
+          type: 'snapshot';
+      };
+
+/**
+ * Maintains the bounded, parsed Terminal screen owned by a live PTY. Raw ANSI retention can start
+ * in the middle of a control sequence after trimming, so reattachment uses this serialized xterm
+ * state while durable crash recovery keeps the existing raw snapshot fallback.
+ */
+export class TerminalScreenState {
+    private disposed = false;
+    private draining?: Promise<void>;
+    private readonly operations: ScreenOperation[] = [];
+    private readonly serialize = new SerializeAddon();
+    private readonly terminal: HeadlessTerminal;
+
+    constructor(initialSnapshot: string, cols = 100, rows = 30) {
+        this.terminal = new Terminal({
+            allowProposedApi: true,
+            cols,
+            convertEol: false,
+            logLevel: 'off',
+            rows,
+            scrollback: MAX_SNAPSHOT_LINES,
+        });
+        /** addon-serialize declares the browser Terminal activation type, but its public buffer API
+         *  is shared with @xterm/headless and is the supported Node.js composition. */
+        this.terminal.loadAddon(this.serialize);
+        this.write(initialSnapshot);
+    }
+
+    write(data: string): void {
+        if (this.disposed || !data) return;
+        const last = this.operations.at(-1);
+        if (last?.type === 'write') last.chunks.push(data);
+        else this.operations.push({ chunks: [data], type: 'write' });
+        this.startDrain();
+    }
+
+    resize(cols: number, rows: number): void {
+        if (this.disposed) return;
+        const last = this.operations.at(-1);
+        if (last?.type === 'resize') {
+            last.cols = cols;
+            last.rows = rows;
+        } else {
+            this.operations.push({ cols, rows, type: 'resize' });
+        }
+        this.startDrain();
+    }
+
+    /** Inserts an exact ordering barrier so later live output can stream to the attached Renderer. */
+    snapshot(): Promise<ReturnType<typeof boundSnapshot>> {
+        if (this.disposed) return Promise.resolve(boundSnapshot(''));
+        return new Promise((resolve, reject) => {
+            this.operations.push({ reject, resolve, type: 'snapshot' });
+            this.startDrain();
+        });
+    }
+
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        for (const operation of this.operations.splice(0)) {
+            if (operation.type === 'snapshot')
+                operation.reject(new Error('Terminal screen was disposed before serialization'));
+        }
+        this.terminal.dispose();
+    }
+
+    private startDrain(): void {
+        if (this.draining || this.disposed) return;
+        this.draining = this.drain().finally(() => {
+            this.draining = undefined;
+            if (this.operations.length > 0) this.startDrain();
+        });
+    }
+
+    private async drain(): Promise<void> {
+        while (!this.disposed) {
+            const operation = this.operations.shift();
+            if (!operation) return;
+            if (operation.type === 'write') {
+                await new Promise<void>((resolve) =>
+                    this.terminal.write(operation.chunks.join(''), resolve),
+                );
+                continue;
+            }
+            if (operation.type === 'resize') {
+                this.terminal.resize(operation.cols, operation.rows);
+                continue;
+            }
+            try {
+                operation.resolve(this.serializeBounded());
+            } catch (error) {
+                operation.reject(error);
+            }
+        }
+    }
+
+    private serializeBounded(): ReturnType<typeof boundSnapshot> {
+        let scrollback = MAX_SNAPSHOT_LINES;
+        let payload = this.serialize.serialize({ scrollback });
+        while (Buffer.byteLength(payload, 'utf8') > MAX_SNAPSHOT_BYTES && scrollback > 0) {
+            scrollback = Math.floor(scrollback / 2);
+            payload = this.serialize.serialize({ scrollback });
+        }
+        return boundSnapshot(payload);
+    }
+}

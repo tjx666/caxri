@@ -68,6 +68,7 @@ export class AgentCoordinator {
     private readonly shellProcessDetections = new Map<string, ShellPromotionCandidate>();
     private readonly shellPromotionCandidates = new Map<string, ShellPromotionCandidate>();
     private readonly startedAtByTerminal = new Map<string, number>();
+    private readonly probeGenerations = new Map<string, number>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -179,6 +180,8 @@ export class AgentCoordinator {
     prepareTerminalStart(terminalId: string): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal?.provider) return;
+        /** Invalidate probes started for the previous process before clearing its durable binding. */
+        this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
         this.shellProcessDetections.delete(terminalId);
@@ -209,6 +212,7 @@ export class AgentCoordinator {
         this.shellPromotionCandidates.delete(terminalId);
         this.shellProcessDetections.delete(terminalId);
         this.startedAtByTerminal.delete(terminalId);
+        this.probeGenerations.delete(terminalId);
     }
 
     forgetSession(sessionId: string): void {
@@ -219,6 +223,7 @@ export class AgentCoordinator {
             this.shellPromotionCandidates.delete(terminal.id);
             this.shellProcessDetections.delete(terminal.id);
             this.startedAtByTerminal.delete(terminal.id);
+            this.probeGenerations.delete(terminal.id);
         }
     }
 
@@ -227,6 +232,7 @@ export class AgentCoordinator {
         this.shellInputs.clear();
         this.shellPromotionCandidates.clear();
         this.shellProcessDetections.clear();
+        this.probeGenerations.clear();
     }
 
     /**
@@ -281,6 +287,7 @@ export class AgentCoordinator {
 
     private async probe(terminalId: string, retryClaim = true): Promise<void> {
         try {
+            const generation = this.probeGenerations.get(terminalId) ?? 0;
             const terminal = this.database.getTerminal(terminalId);
             if (!terminal) return;
             if (!terminal.provider) {
@@ -301,6 +308,7 @@ export class AgentCoordinator {
                 processState: terminal.lastProcessState,
                 startedAt: this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
             });
+            if ((this.probeGenerations.get(terminalId) ?? 0) !== generation) return;
             if (
                 snapshot.sessionId &&
                 this.database.isAgentSessionClaimedByOtherTerminal(terminal.id, snapshot.sessionId)

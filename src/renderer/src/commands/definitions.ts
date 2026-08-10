@@ -46,6 +46,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('terminal.new', (ctx) => ctx.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.clear', (ctx) => ctx.terminal.clearActive(), { allowInEditable: true }),
     fromCatalog('terminal.restart', (ctx) => ctx.terminal.restartActive()),
+    fromCatalog('terminal.startNewAgentSession', (ctx) => ctx.terminal.startNewAgentSession()),
     fromCatalog('terminal.close', (ctx) => ctx.terminal.closeActive(), { allowInEditable: true }),
     fromCatalog('workbench.closeActiveTab', (ctx) => ctx.workbench.closeActiveTab(), {
         allowInEditable: true,

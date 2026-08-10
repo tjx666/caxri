@@ -121,7 +121,7 @@ describe('Runtime Terminal cwd authorization', () => {
             swapOnResolve = true;
 
             await expect(
-                runtime.handlers['terminal.restart']({ terminalId: terminal.id }),
+                runtime.handlers['terminal.restart']({ terminalId: terminal.id, mode: 'resume' }),
             ).rejects.toMatchObject({ code: 'CONFLICT' });
             expect(spawn).toHaveBeenCalledTimes(2);
         } finally {
@@ -163,7 +163,7 @@ describe('Runtime Terminal cwd authorization', () => {
             await symlink(outside, projectRoot);
 
             await expect(
-                runtime.handlers['terminal.restart']({ terminalId: terminal.id }),
+                runtime.handlers['terminal.restart']({ terminalId: terminal.id, mode: 'resume' }),
             ).rejects.toMatchObject({ code: 'CONFLICT' });
             expect(spawn).toHaveBeenCalledTimes(2);
         } finally {

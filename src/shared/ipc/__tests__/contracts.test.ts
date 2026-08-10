@@ -47,6 +47,27 @@ describe('method table', () => {
         expect(methods['files.read'].params.safeParse(undefined).success).toBe(false);
     });
 
+    it('defaults Terminal restart to resuming the bound Agent session', () => {
+        expect(methods['terminal.restart'].params.parse({ terminalId: 'terminal-1' })).toEqual({
+            terminalId: 'terminal-1',
+            mode: 'resume',
+        });
+    });
+
+    it('requires both grid dimensions when attaching a live Terminal', () => {
+        expect(
+            methods['terminal.attach'].params.safeParse({ terminalId: 'terminal-1', cols: 80 })
+                .success,
+        ).toBe(false);
+        expect(
+            methods['terminal.attach'].params.safeParse({
+                terminalId: 'terminal-1',
+                cols: 80,
+                rows: 24,
+            }).success,
+        ).toBe(true);
+    });
+
     it('rejects invalid Main and Runtime results as internal contract failures', () => {
         expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,

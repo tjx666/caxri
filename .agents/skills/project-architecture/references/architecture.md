@@ -52,7 +52,7 @@ SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and bu
 - `session_state`: versioned open editor tabs, active tab, inspector mode, and a recursive Terminal split layout; invalid JSON, invalid shapes, or unsupported versions repair to a default layout and emit a content-free warning instead of failing bootstrap
 - `app_state`: last selected Project and Session, window state, active theme, and schema version
 
-Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. A Renderer subscribes before attaching, then replays the bounded snapshot ahead of output received during attachment. Bytes already represented by that snapshot are removed from the live-output queue before replay to prevent duplication. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
+Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Output is appended to chunk buffers and compacted on a debounce so the PTY data callback neither rescans the full snapshot nor writes SQLite. Each live PTY also owns a Runtime-side headless xterm screen whose ordered write and resize queue preserves cursor-addressed state independently of the raw durable snapshot; a live attach first moves that screen and PTY to the receiving Renderer grid, then crosses an exact queue barrier and replays a bounded serialized screen before later output. A Renderer subscribes before attaching, then replays that bounded snapshot ahead of output received during attachment. Bytes already represented by that snapshot are removed from the live-output queue before replay to prevent duplication. Detached Terminals retain bounded snapshots without broadcasting output to an invisible view. Snapshots are UI restoration data, not proof that a process survived.
 
 ## PTY lifecycle and backpressure
 
@@ -68,7 +68,7 @@ Closing the last macOS window with live PTYs asks whether to keep running, termi
 
 Interrupted-Terminal recovery is supervised by one Runtime-wide four-spawn budget. Selecting a Session invalidates queued restore work from the previous selection, and the selected generation is revalidated after executable discovery immediately before PTY spawn. Startup Agent metadata probes are limited to the selected Session; another Session is probed when selected rather than during boot.
 
-Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity.
+Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
 
 ## Files and editor
 

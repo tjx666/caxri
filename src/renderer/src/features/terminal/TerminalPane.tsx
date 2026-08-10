@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
-import { CircleCheck, CircleX, RotateCcw, TriangleAlert } from 'lucide-react';
+import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
@@ -20,6 +20,7 @@ import {
     activateTerminal,
     registerTerminalClearHandler,
     restartTerminal,
+    startNewAgentSession,
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
@@ -249,11 +250,19 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         });
         const observer = new ResizeObserver(fitAndResize);
         /** Restore into the final visible grid instead of xterm's default 80x24 viewport. */
-        fitToPane();
+        const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
             let payload = '';
             try {
-                payload = (await caxri.request('terminal.attach', { terminalId }))?.payload ?? '';
+                const attachmentIsLive = latestRef.current.processState === 'running';
+                const attachment = await caxri.request(
+                    'terminal.attach',
+                    attachmentIsLive && initialSize
+                        ? { terminalId, ...initialSize }
+                        : { terminalId },
+                );
+                if (attachmentIsLive && initialSize) lastSentSize = initialSize;
+                payload = attachment?.payload ?? '';
             } catch (error) {
                 if (!disposed) onError(errorMessage(error, 'Terminal attachment failed'));
             }
@@ -326,6 +335,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             : exitPresentation?.icon === 'failed'
               ? TriangleAlert
               : CircleX;
+    const resumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
 
     return (
         <div
@@ -355,15 +365,30 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                     </span>
                     <CommandTooltip commandId="terminal.restart">
                         <Button
-                            aria-label="Restart Terminal"
+                            aria-label={
+                                resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'
+                            }
                             className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
                             size="sm"
                             variant="ghost"
                             onClick={() => restartTerminal(terminalId)}
                         >
-                            <RotateCcw size={12} /> Restart
+                            <RotateCcw size={12} /> {resumesAgentSession ? 'Resume' : 'Restart'}
                         </Button>
                     </CommandTooltip>
+                    {resumesAgentSession && (
+                        <CommandTooltip commandId="terminal.startNewAgentSession">
+                            <Button
+                                aria-label="Start New Agent Session"
+                                className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startNewAgentSession(terminalId)}
+                            >
+                                <MessageSquarePlus size={12} /> New session
+                            </Button>
+                        </CommandTooltip>
+                    )}
                 </div>
             )}
         </div>
