@@ -88,7 +88,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             dialogBox!.y + dialogBox!.height + 1,
         );
 
-        await dialog.getByRole('button', { name: 'Theme', exact: true }).click();
+        await dialog.getByRole('tab', { name: 'Theme', exact: true }).click();
         const preview = dialog.getByLabel('Theme preview');
         await expect(preview).toBeVisible();
         const backgroundInput = dialog

@@ -108,8 +108,9 @@ one layer:
    equivalent (see upstream debate in shadcn-ui/ui#10267).
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
    user-triggered disclosure: Sidebar Project and Archived Sessions, Files search groups, Git
-   directory/repository/history, Project Status sections. `components/DisclosureMotion.tsx` is
-   the thin presence wrapper: it mounts content in the commit that flips `data-expanded` and
+   directory/repository/history, Project Status sections. The measured Inspector/Settings chrome
+   tab indicator also uses a native transform/width transition. `components/DisclosureMotion.tsx`
+   is the thin presence wrapper: it mounts content in the commit that flips `data-expanded` and
    releases collapsed DOM once the height transition settles, so collapse never retains hidden
    queries, watchers, or large subtrees.
 3. **auto-animate** (zero-config list add/remove/reorder) — deferred, not installed: its React
@@ -124,11 +125,13 @@ transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallb
 tests: disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
 `cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, ease-in); work tabs
 enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms, ease-in);
+the shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
+`--motion-ease-emphasized`);
 overlays enter `--motion-overlay-enter` (150ms) and exit `--motion-overlay-exit` (100ms). JS
 resolves tokens through `lib/motion.ts` (`motionDurationMs`); settlement fallbacks are token
 plus a safety margin (`motionSettleTimeoutMs`), never an independent literal.
 
-Intentionally instant: initial bootstrap/restore, Session switches, tab activation, Agent
+Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
 activity, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes,
 and asynchronously lazy-loaded expansion (the Files directory tree fetches children on expand —
 with no content there is no spatial continuity to explain). Do not stagger rows or neighboring

@@ -248,7 +248,7 @@ test('Info inspector lists only the current Session Terminals', async () => {
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(running.page.locator('.session-card')).toHaveCount(1);
 
-        await running.page.getByRole('button', { name: 'Info', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Info', exact: true }).click();
         const terminalCards = running.page.locator('.terminal-info-card');
         await expect(terminalCards).toHaveCount(1);
         await expect(terminalCards.filter({ hasText: 'Codex' })).toBeVisible();
@@ -281,7 +281,7 @@ test('Project Status inspector renders and refreshes the current repository tree
             .click({ timeout: 5_000 })
             .catch(() => undefined);
         await expect(running.page.locator('.session-card')).toHaveCount(1);
-        await running.page.getByRole('button', { name: 'Status', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
 
         await expect(running.page.getByText('Project Status', { exact: true })).toBeVisible();
         const repository = running.page.locator('.project-status-repository');
@@ -357,7 +357,7 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.getByRole('button', { name: 'Git', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repositorySections = running.page.locator('.git-repository-section');
         await expect(repositorySections).toHaveCount(3);
         const primary = repositorySections.filter({

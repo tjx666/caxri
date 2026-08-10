@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 
+import { ChromeTabPanel, ChromeTabs } from '../../components/ChromeTabs';
 import { Button } from '../../components/ui/button';
 import {
     Dialog,
@@ -376,57 +377,86 @@ export function SettingsDialog() {
                         Changes apply immediately and are stored as editable files.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="flex border-b border-border">
-                    {CONFIG_KINDS.map((value) => (
-                        <button
-                            key={value}
-                            className={cn(
-                                'min-h-9 cursor-pointer border-0 border-b-2 border-transparent bg-surface px-4 text-muted hover:text-foreground',
-                                tab === value && 'border-b-indicator text-foreground',
-                            )}
-                            onClick={() => setTab(value)}
-                        >
-                            {value[0].toUpperCase() + value.slice(1)}
-                            {isConfigDirty(drafts[value]) && (
-                                <span className="text-warning" aria-hidden="true">
-                                    {' '}
-                                    •
+                <ChromeTabs
+                    ariaLabel="Settings sections"
+                    className="flex border-b border-border"
+                    idPrefix="settings"
+                    items={CONFIG_KINDS.map((value) => ({
+                        value,
+                        label: value[0].toUpperCase() + value.slice(1),
+                        content: (
+                            <>
+                                <span data-slot="chrome-tab-label">
+                                    {value[0].toUpperCase() + value.slice(1)}
                                 </span>
-                            )}
-                        </button>
-                    ))}
-                </div>
+                                {isConfigDirty(drafts[value]) && (
+                                    <span
+                                        aria-hidden="true"
+                                        className="text-warning"
+                                        data-dirty="true"
+                                    >
+                                        •
+                                    </span>
+                                )}
+                            </>
+                        ),
+                    }))}
+                    tabClassName="min-h-9 px-4"
+                    value={tab}
+                    onValueChange={setTab}
+                />
 
-                {tab === 'settings' && state.settings.value && state.theme.value && (
-                    <SettingsForm
-                        settings={state.settings.value}
-                        source={state.settings.source}
-                        theme={state.theme.value}
-                        onFieldChange={updateSettingsField}
-                        onSourceChange={updateSettingsSource}
-                    />
-                )}
+                <ChromeTabPanel
+                    active={tab === 'settings'}
+                    className="grid min-h-0 overflow-hidden"
+                    idPrefix="settings"
+                    value="settings"
+                >
+                    {tab === 'settings' && state.settings.value && state.theme.value && (
+                        <SettingsForm
+                            settings={state.settings.value}
+                            source={state.settings.source}
+                            theme={state.theme.value}
+                            onFieldChange={updateSettingsField}
+                            onSourceChange={updateSettingsSource}
+                        />
+                    )}
+                </ChromeTabPanel>
 
-                {tab === 'keybindings' && state.theme.value && (
-                    <KeybindingsForm
-                        keybindings={state.keybindings.value}
-                        conflicts={state.keybindings.conflicts}
-                        source={state.keybindings.source}
-                        theme={state.theme.value}
-                        onFieldChange={updateBinding}
-                        onSourceChange={updateKeybindingsSource}
-                    />
-                )}
+                <ChromeTabPanel
+                    active={tab === 'keybindings'}
+                    className="grid min-h-0 overflow-hidden"
+                    idPrefix="settings"
+                    value="keybindings"
+                >
+                    {tab === 'keybindings' && state.theme.value && (
+                        <KeybindingsForm
+                            keybindings={state.keybindings.value}
+                            conflicts={state.keybindings.conflicts}
+                            source={state.keybindings.source}
+                            theme={state.theme.value}
+                            onFieldChange={updateBinding}
+                            onSourceChange={updateKeybindingsSource}
+                        />
+                    )}
+                </ChromeTabPanel>
 
-                {tab === 'theme' && state.theme.value && (
-                    <ThemeForm
-                        theme={state.theme.value}
-                        source={state.theme.source}
-                        onColorChange={updateThemeColor}
-                        onSourceChange={updateThemeSource}
-                        onImport={() => void importTheme()}
-                    />
-                )}
+                <ChromeTabPanel
+                    active={tab === 'theme'}
+                    className="grid min-h-0 overflow-hidden"
+                    idPrefix="settings"
+                    value="theme"
+                >
+                    {tab === 'theme' && state.theme.value && (
+                        <ThemeForm
+                            theme={state.theme.value}
+                            source={state.theme.source}
+                            onColorChange={updateThemeColor}
+                            onSourceChange={updateThemeSource}
+                            onImport={() => void importTheme()}
+                        />
+                    )}
+                </ChromeTabPanel>
 
                 <footer
                     className={cn(
