@@ -42,7 +42,11 @@ const NON_EXPIRING_RUNTIME_METHODS = new Set<RuntimeMethod>([
 /** Caps a single logged Runtime stdio line so a runaway native crash cannot log-bomb main.jsonl. */
 const MAX_STDIO_LINE_LENGTH = 4_096;
 
-/** File mutations continue inside Runtime after Main stops awaiting them, so they must not time out. */
+/**
+ * File mutations continue inside Runtime after Main stops awaiting them, so Main must not report a
+ * timeout while they can still complete. Runtime instead bounds their queue and recursive-copy
+ * workload before accepting more work.
+ */
 function defaultRequestTimeout(method: RuntimeMethod): number | undefined {
     return NON_EXPIRING_RUNTIME_METHODS.has(method)
         ? undefined

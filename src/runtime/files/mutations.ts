@@ -1,4 +1,5 @@
-import { cp, lstat, mkdir, open, rename } from 'node:fs/promises';
+import type { CopyOptions, Stats } from 'node:fs';
+import { cp, lstat, mkdir, open, readdir, rename } from 'node:fs/promises';
 import { basename, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
@@ -19,8 +20,33 @@ interface ResolvedMutableEntry extends MutableEntry, FileIdentity {
     root: FileIdentity;
 }
 
+interface CopyLimits {
+    maximumBytes: number;
+    maximumDurationMs: number;
+    maximumEntries: number;
+}
+
+interface CopyBudget {
+    bytes: number;
+    entries: number;
+    startedAt: number;
+}
+
+type CopyFile = (source: string, target: string, options: CopyOptions) => Promise<void>;
+
+export interface FileMutationServiceOptions {
+    copyFile?: CopyFile;
+    copyLimits?: Partial<CopyLimits>;
+    now?: () => number;
+}
+
 const MAX_UNIQUE_NAME_ATTEMPTS = 100;
 const MAX_FILE_NAME_BYTES = 255;
+const DEFAULT_COPY_LIMITS: CopyLimits = {
+    maximumBytes: 20 * 1024 * 1024 * 1024,
+    maximumDurationMs: 5 * 60_000,
+    maximumEntries: 100_000,
+};
 
 function fileName(name: string): string {
     const normalized = name.trim();
@@ -79,12 +105,20 @@ function mutationError(error: unknown, action: string): CaxriError {
  * `openat`/no-replace rename API; Main applies the same last-moment check before Electron Trash.
  */
 export class FileMutationService {
+    private readonly copyFile: CopyFile;
+    private readonly copyLimits: CopyLimits;
+    private readonly now: () => number;
     private readonly reservedTargets = new Set<string>();
 
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
         private readonly logger: StructuredLogger,
-    ) {}
+        options: FileMutationServiceOptions = {},
+    ) {
+        this.copyFile = options.copyFile ?? cp;
+        this.copyLimits = { ...DEFAULT_COPY_LIMITS, ...options.copyLimits };
+        this.now = options.now ?? Date.now;
+    }
 
     async create(
         params: RuntimeMethodParams<'files.create'>,
@@ -128,6 +162,8 @@ export class FileMutationService {
                 throw new CaxriError('CONFLICT', 'A folder cannot be copied into itself');
 
             await Promise.all([this.assertIdentity(source), this.assertIdentity(directory)]);
+            const startedAt = this.now();
+            await this.inspectCopyTree(source.path, startedAt);
             for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
                 const name = suffixedName(source, sequence);
                 const path = resolve(directory.path, name);
@@ -135,19 +171,15 @@ export class FileMutationService {
                 if (!release) continue;
                 try {
                     if (await this.pathExists(path)) continue;
-                    await cp(source.path, path, {
+                    const copyBudget: CopyBudget = { bytes: 0, entries: 0, startedAt };
+                    await this.copyFile(source.path, path, {
                         dereference: false,
                         errorOnExist: true,
                         force: false,
                         recursive: true,
                         verbatimSymlinks: true,
                         filter: async (candidate) => {
-                            const stats = await lstat(candidate);
-                            if (stats.isSymbolicLink() || (!stats.isFile() && !stats.isDirectory()))
-                                throw new CaxriError(
-                                    'PATH_DENIED',
-                                    'Only regular files and folders can be copied',
-                                );
+                            await this.inspectCopyEntry(candidate, copyBudget);
                             return true;
                         },
                     });
@@ -302,6 +334,46 @@ export class FileMutationService {
         return release;
     }
 
+    /** Validates the whole source before `cp` can leave a partial target on a known rejection. */
+    private async inspectCopyTree(source: string, startedAt: number): Promise<void> {
+        const budget: CopyBudget = { bytes: 0, entries: 0, startedAt };
+        const pending = [source];
+        while (pending.length > 0) {
+            const candidate = pending.pop();
+            if (!candidate) break;
+            const stats = await this.inspectCopyEntry(candidate, budget);
+            if (!stats.isDirectory()) continue;
+            const names = await readdir(candidate);
+            for (const name of names) pending.push(resolve(candidate, name));
+        }
+    }
+
+    private async inspectCopyEntry(candidate: string, budget: CopyBudget): Promise<Stats> {
+        const stats = await lstat(candidate);
+        if (stats.isSymbolicLink() || (!stats.isFile() && !stats.isDirectory()))
+            throw new CaxriError('PATH_DENIED', 'Only regular files and folders can be copied');
+        if (stats.isFile() && stats.nlink > 1)
+            throw new CaxriError(
+                'PATH_DENIED',
+                'Files with multiple filesystem links cannot be copied',
+            );
+        budget.entries += 1;
+        if (stats.isFile()) budget.bytes += stats.size;
+        if (budget.entries > this.copyLimits.maximumEntries)
+            throw new CaxriError(
+                'CAPACITY',
+                `Copy exceeds the ${this.copyLimits.maximumEntries} entry safety limit`,
+            );
+        if (budget.bytes > this.copyLimits.maximumBytes)
+            throw new CaxriError(
+                'CAPACITY',
+                `Copy exceeds the ${this.copyLimits.maximumBytes} byte safety limit`,
+            );
+        if (this.now() - budget.startedAt > this.copyLimits.maximumDurationMs)
+            throw new CaxriError('TIMEOUT', 'Copy exceeded the file operation time limit');
+        return stats;
+    }
+
     private tryReserveTarget(path: string): (() => void) | undefined {
         if (this.reservedTargets.has(path)) return undefined;
         this.reservedTargets.add(path);
@@ -314,6 +386,7 @@ export class FileMutationService {
             stats.isSymbolicLink() ||
             stats.dev.toString() !== entry.device ||
             stats.ino.toString() !== entry.inode ||
+            (stats.isFile() && stats.nlink > 1n) ||
             (!stats.isFile() && !stats.isDirectory())
         )
             throw new CaxriError('CONFLICT', 'File or folder changed before the operation started');
@@ -352,6 +425,7 @@ export class FileMutationService {
             stats.isSymbolicLink() ||
             lexicalStats.dev !== stats.dev ||
             lexicalStats.ino !== stats.ino ||
+            (stats.isFile() && stats.nlink > 1n) ||
             (!stats.isFile() && !stats.isDirectory())
         )
             throw new CaxriError('PATH_DENIED', 'Only regular files and folders can be changed');

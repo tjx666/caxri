@@ -1,7 +1,9 @@
 import {
     access,
+    link,
     mkdir,
     mkdtemp,
+    open,
     readFile,
     realpath,
     rename,
@@ -16,7 +18,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
-import { FileService } from '../service';
+import { FileService, type FileServiceOptions } from '../service';
 
 interface Fixture {
     database: CaxriDatabase;
@@ -27,7 +29,7 @@ interface Fixture {
 }
 
 const fixtures: Fixture[] = [];
-async function createFixture(prefix: string): Promise<Fixture> {
+async function createFixture(prefix: string, options: FileServiceOptions = {}): Promise<Fixture> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     const rootInput = join(directory, 'project');
     await mkdir(rootInput);
@@ -39,6 +41,7 @@ async function createFixture(prefix: string): Promise<Fixture> {
         () => undefined,
         new StructuredLogger(join(directory, 'logs')),
         () => 1024,
+        options,
     );
     const fixture = { database, directory, root, service, sessionId: session.id };
     fixtures.push(fixture);
@@ -254,5 +257,114 @@ describe('FileMutationService', () => {
         await expect(readFile(losingSource, 'utf8')).resolves.toBe(
             targetContent === 'first' ? 'second' : 'first',
         );
+    });
+
+    it('rejects Project-local hard links to files outside the Project, including nested copies', async () => {
+        const { directory, root, service, sessionId } = await createFixture(
+            'caxri-file-hard-link-safety-',
+        );
+        const outside = join(directory, 'outside.txt');
+        const linkedFile = join(root, 'linked.txt');
+        const linkedFolder = join(root, 'linked-folder');
+        await Promise.all([writeFile(outside, 'secret', 'utf8'), mkdir(linkedFolder)]);
+        await Promise.all([
+            link(outside, linkedFile),
+            link(outside, join(linkedFolder, 'nested.txt')),
+        ]);
+
+        await expect(
+            service.copy({ sessionId, path: linkedFile, directory: root }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        await expect(
+            service.copy({ sessionId, path: linkedFolder, directory: root }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        await expect(access(join(root, 'linked-folder copy'))).rejects.toThrow();
+        await expect(readFile(outside, 'utf8')).resolves.toBe('secret');
+    });
+
+    it('bounds recursive copies by entry count, total bytes, and duration', async () => {
+        const entryFixture = await createFixture('caxri-file-copy-entry-limit-', {
+            mutations: { copyLimits: { maximumEntries: 1 } },
+        });
+        const entryFolder = join(entryFixture.root, 'folder');
+        await mkdir(entryFolder);
+        await writeFile(join(entryFolder, 'nested.txt'), 'nested', 'utf8');
+        await expect(
+            entryFixture.service.copy({
+                sessionId: entryFixture.sessionId,
+                path: entryFolder,
+                directory: entryFixture.root,
+            }),
+        ).rejects.toMatchObject({ code: 'CAPACITY' });
+        await expect(access(join(entryFixture.root, 'folder copy'))).rejects.toThrow();
+
+        const byteFixture = await createFixture('caxri-file-copy-byte-limit-', {
+            mutations: { copyLimits: { maximumBytes: 3 } },
+        });
+        const largeFile = join(byteFixture.root, 'large.txt');
+        await writeFile(largeFile, 'large', 'utf8');
+        await expect(
+            byteFixture.service.copy({
+                sessionId: byteFixture.sessionId,
+                path: largeFile,
+                directory: byteFixture.root,
+            }),
+        ).rejects.toMatchObject({ code: 'CAPACITY' });
+
+        let time = 0;
+        const timeFixture = await createFixture('caxri-file-copy-time-limit-', {
+            mutations: {
+                copyLimits: { maximumDurationMs: 1 },
+                now: () => {
+                    time += 2;
+                    return time;
+                },
+            },
+        });
+        const timedFile = join(timeFixture.root, 'timed.txt');
+        await writeFile(timedFile, 'timed', 'utf8');
+        await expect(
+            timeFixture.service.copy({
+                sessionId: timeFixture.sessionId,
+                path: timedFile,
+                directory: timeFixture.root,
+            }),
+        ).rejects.toMatchObject({ code: 'TIMEOUT' });
+    });
+
+    it('finishes an in-flight document read before moving its path', async () => {
+        let releaseOpen!: () => void;
+        let signalOpen!: () => void;
+        const openStarted = new Promise<void>((resolve) => {
+            signalOpen = resolve;
+        });
+        const openReleased = new Promise<void>((resolve) => {
+            releaseOpen = resolve;
+        });
+        const fixture = await createFixture('caxri-file-read-move-order-', {
+            openFile: async (...arguments_) => {
+                signalOpen();
+                await openReleased;
+                return open(...arguments_);
+            },
+        });
+        const source = join(fixture.root, 'source.txt');
+        await writeFile(source, 'source', 'utf8');
+
+        const reading = fixture.service.read(fixture.sessionId, source);
+        await openStarted;
+        let moved = false;
+        const moving = fixture.service
+            .rename({ sessionId: fixture.sessionId, path: source, name: 'moved.txt' })
+            .then((result) => {
+                moved = true;
+                return result;
+            });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(moved).toBe(false);
+
+        releaseOpen();
+        await expect(reading).resolves.toMatchObject({ content: 'source', path: source });
+        await expect(moving).resolves.toMatchObject({ path: join(fixture.root, 'moved.txt') });
     });
 });
