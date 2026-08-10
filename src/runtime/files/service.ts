@@ -6,6 +6,7 @@ import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService } from './listing';
+import { FileMutationService } from './mutations';
 import { SearchService, type SearchServiceOptions } from './search';
 import { WatcherService, type WatcherServiceOptions } from './watcher';
 
@@ -24,6 +25,7 @@ export class FileService {
     private readonly projectRoots: ProjectRootResolver;
     private readonly documents: DocumentService;
     private readonly listing: ListingService;
+    private readonly mutations: FileMutationService;
     private readonly searcher: SearchService;
     private readonly watcher: WatcherService;
 
@@ -57,6 +59,7 @@ export class FileService {
             maxFileBytes,
             options.search,
         );
+        this.mutations = new FileMutationService(resolveSessionPath, logger);
     }
 
     resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
@@ -70,6 +73,38 @@ export class FileService {
 
     list(sessionId: string, directory?: string): Promise<FileEntry[]> {
         return this.listing.list(sessionId, directory);
+    }
+
+    create(
+        params: RuntimeMethodParams<'files.create'>,
+    ): Promise<RuntimeMethodResult<'files.create'>> {
+        return this.mutations.create(params);
+    }
+
+    copy(params: RuntimeMethodParams<'files.copy'>): Promise<RuntimeMethodResult<'files.copy'>> {
+        return this.mutations.copy(params);
+    }
+
+    rename(
+        params: RuntimeMethodParams<'files.rename'>,
+    ): Promise<RuntimeMethodResult<'files.rename'>> {
+        return this.mutations.rename(params);
+    }
+
+    move(params: RuntimeMethodParams<'files.move'>): Promise<RuntimeMethodResult<'files.move'>> {
+        return this.mutations.move(params);
+    }
+
+    authorizeTrash(
+        params: RuntimeMethodParams<'files.authorizeTrash'>,
+    ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
+        return this.mutations.authorizeTrash(params);
+    }
+
+    authorizeOpen(
+        params: RuntimeMethodParams<'files.authorizeOpen'>,
+    ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
+        return this.mutations.authorizeOpen(params);
     }
 
     read(sessionId: string, path: string): Promise<FileDocument> {

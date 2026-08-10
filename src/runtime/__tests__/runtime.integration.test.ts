@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -89,9 +89,18 @@ describe('Runtime composition root', () => {
         const homeDirectory = await mkdtemp(join(homedir(), '.caxri-runtime-cwd-'));
         temporaryDirectories.push(directory, homeDirectory);
         const projectRoot = join(directory, 'project');
+        const projectFolder = join(projectRoot, 'folder');
+        const projectFile = join(projectRoot, 'file.txt');
         const customRoot = join(directory, 'custom');
         const changedRoot = join(directory, 'changed');
-        await Promise.all([mkdir(projectRoot), mkdir(customRoot), mkdir(changedRoot)]);
+        await mkdir(projectRoot);
+        await Promise.all([
+            mkdir(customRoot),
+            mkdir(changedRoot),
+            mkdir(projectFolder),
+            writeFile(projectFile, 'file', 'utf8'),
+        ]);
+        await symlink(customRoot, join(projectRoot, 'outside-link'));
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
@@ -129,6 +138,34 @@ describe('Runtime composition root', () => {
             const canonicalCustomRoot = await realpath(customRoot);
             expect(customized.terminal.cwd).toBe(canonicalCustomRoot);
             expect(additional.cwd).toBe(canonicalCustomRoot);
+
+            const projectLocal = await runtime.handlers['terminal.create']({
+                sessionId: customized.session.id,
+                kind: 'shell',
+                cwd: projectFolder,
+            });
+            expect(projectLocal.cwd).toBe(await realpath(projectFolder));
+            await expect(
+                runtime.handlers['terminal.create']({
+                    sessionId: customized.session.id,
+                    kind: 'shell',
+                    cwd: customRoot,
+                }),
+            ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+            await expect(
+                runtime.handlers['terminal.create']({
+                    sessionId: customized.session.id,
+                    kind: 'shell',
+                    cwd: join(projectRoot, 'outside-link'),
+                }),
+            ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+            await expect(
+                runtime.handlers['terminal.create']({
+                    sessionId: customized.session.id,
+                    kind: 'shell',
+                    cwd: projectFile,
+                }),
+            ).rejects.toMatchObject({ code: 'VALIDATION' });
 
             await runtime.handlers['settings.update']({
                 source: JSON.stringify({

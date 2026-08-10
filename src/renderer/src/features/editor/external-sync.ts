@@ -54,9 +54,16 @@ function applyExternalDocuments(sessionId: string, reloaded: readonly FileDocume
 function onFilesChanged(sessionId: string, changedPaths: readonly string[]): void {
     const uniquePaths = [...new Set(changedPaths)];
     if (uniquePaths.length === 0) return;
-    void readDocuments(sessionId, uniquePaths).then((reloaded) =>
-        applyExternalDocuments(sessionId, reloaded),
-    );
+    void readDocuments(sessionId, uniquePaths).then((documents) => {
+        const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
+        applyExternalDocuments(
+            sessionId,
+            documents.filter((document) => {
+                const previous = cached[document.path];
+                return previous && changedOnDisk(previous, document);
+            }),
+        );
+    });
 }
 
 /**
