@@ -11,7 +11,12 @@ import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
-import { completePathQuery, filterPathEntries, parentDirectoryWithinRoot } from './path-browser';
+import {
+    completePathQuery,
+    filterPathEntries,
+    parentDirectoryWithinRoot,
+    pathBrowserEmptyMessage,
+} from './path-browser';
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
 const EMPTY_ENTRIES: readonly FileEntry[] = [];
@@ -71,6 +76,7 @@ function PathBrowserContent({
     const truncated = data?.truncated ?? false;
     const settled = query === debouncedQuery && !isPending && !isFetching;
     const matches = useMemo(() => filterPathEntries(entries, query), [entries, query]);
+    const emptyMessage = pathBrowserEmptyMessage(matches.length, truncated);
     const exactMatchAvailable = !truncated && matches.length === 1 && matches[0].name === query;
     const resultsReady = settled || exactMatchAvailable;
     const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(matches.length - 1, 0));
@@ -188,8 +194,8 @@ function PathBrowserContent({
                 {!isPending && !isError && !resultsReady && (
                     <p className="p-6 text-center text-muted">Searching…</p>
                 )}
-                {resultsReady && !isError && matches.length === 0 && (
-                    <p className="p-6 text-center text-muted">No matching file or folder.</p>
+                {resultsReady && !isError && emptyMessage && (
+                    <p className="p-6 text-center text-muted">{emptyMessage}</p>
                 )}
                 {resultsReady && !isError && (
                     <div aria-label="Files in current directory" id={listboxId} role="listbox">
@@ -223,9 +229,9 @@ function PathBrowserContent({
                         ))}
                     </div>
                 )}
-                {resultsReady && !isError && truncated && (
+                {resultsReady && !isError && truncated && matches.length > 0 && (
                     <p className="px-2 py-1 text-[10px] text-muted" role="status">
-                        More items are available. Type to narrow the list.
+                        Only part of this directory is shown. Refine or open a narrower folder.
                     </p>
                 )}
             </div>

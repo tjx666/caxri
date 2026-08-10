@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_FILE_BROWSE_ENTRIES } from '../../../shared/ipc/methods';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
+import { MAX_FILE_BROWSE_SCANNED_ENTRIES } from '../listing';
 import { FileService } from '../service';
 import { rememberChangeFingerprint, rememberPolledDirectory } from '../watcher';
 
@@ -49,6 +50,14 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 const temporaryDirectories: string[] = [];
+
+function fakeDirent(name: string, kind: 'directory' | 'file' = 'file'): Dirent {
+    return {
+        isDirectory: () => kind === 'directory',
+        isSymbolicLink: () => false,
+        name,
+    } as Dirent;
+}
 
 afterEach(async () => {
     await Promise.all(
@@ -360,7 +369,6 @@ describe('FileService', () => {
                     kind: 'file',
                     name: 'zz-target.txt',
                     path: targetPath,
-                    size: 6,
                 },
             ],
             truncated: false,
@@ -385,7 +393,7 @@ describe('FileService', () => {
         let openCount = 0;
         const openDirectory = vi.fn(() => {
             openCount += 1;
-            const entries = [{ name: openCount === 1 ? 'first.txt' : 'second.txt' } as Dirent];
+            const entries = [fakeDirent(openCount === 1 ? 'first.txt' : 'second.txt')];
             let index = 0;
             return Promise.resolve({
                 close: () => Promise.resolve(),
@@ -418,6 +426,84 @@ describe('FileService', () => {
             truncated: false,
         });
         database.close();
+    });
+
+    it('caps a no-match path refinement and closes its directory handle', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-scan-limit-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        let readCount = 0;
+        const close = vi.fn(() => Promise.resolve());
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            {
+                openDirectory: () =>
+                    Promise.resolve({
+                        close,
+                        read: () => {
+                            readCount += 1;
+                            return Promise.resolve(fakeDirent(`entry-${readCount}.txt`));
+                        },
+                    } as unknown as Dir),
+            },
+        );
+
+        await expect(service.browse({ sessionId: session.id, query: 'absent' })).resolves.toEqual({
+            entries: [],
+            truncated: true,
+        });
+        expect(readCount).toBe(MAX_FILE_BROWSE_SCANNED_ENTRIES);
+        expect(close).toHaveBeenCalledOnce();
+        database.close();
+    });
+
+    it('uses opened-directory metadata without restatting entries through a mutable path', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-dirent-'));
+        temporaryDirectories.push(directory);
+        await writeFile(join(directory, 'inside.txt'), 'inside', 'utf8');
+        const entryPath = await realpath(join(directory, 'inside.txt'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        );
+        let entryRestats = 0;
+        setLstatOverride((path) => {
+            if (path === entryPath) entryRestats += 1;
+            return undefined;
+        });
+
+        try {
+            await expect(
+                service.browse({ sessionId: session.id, query: 'inside' }),
+            ).resolves.toEqual({
+                entries: [
+                    {
+                        kind: 'file',
+                        name: 'inside.txt',
+                        path: entryPath,
+                    },
+                ],
+                truncated: false,
+            });
+            expect(entryRestats).toBe(0);
+        } finally {
+            setLstatOverride(undefined);
+            database.close();
+        }
     });
 
     it('keeps visible dependency directories out of fallback polling', async () => {

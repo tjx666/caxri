@@ -15,6 +15,8 @@ import type { ResolveSessionPath } from './documents';
 import { matchesFileTreeExclude, type FileTreeExcludes } from './file-tree-excludes';
 
 const MAX_CONCURRENT_ENTRY_STATS = 32;
+/** Bounds a rare or absent path refinement independently of how many names match it. */
+export const MAX_FILE_BROWSE_SCANNED_ENTRIES = 4_096;
 
 /** Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it. */
 export type DirectoryListedListener = (sessionId: string, path: string) => void;
@@ -94,19 +96,36 @@ export class ListingService {
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
         const normalizedQuery = query.toLocaleLowerCase();
-        const matches: string[] = [];
+        const matches: FileEntry[] = [];
+        let reachedEnd = false;
+        let scannedEntries = 0;
         const directoryHandle = await this.openDirectory(path);
         try {
-            while (matches.length <= MAX_FILE_BROWSE_ENTRIES) {
+            while (
+                matches.length <= MAX_FILE_BROWSE_ENTRIES &&
+                scannedEntries < MAX_FILE_BROWSE_SCANNED_ENTRIES
+            ) {
                 const entry = await directoryHandle.read();
                 if (!isCurrent()) return { entries: [], truncated: true };
-                if (!entry) break;
+                if (!entry) {
+                    reachedEnd = true;
+                    break;
+                }
+                scannedEntries += 1;
                 const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
                 if (
                     !matchesFileTreeExclude(relativePath, excludes) &&
                     entry.name.toLocaleLowerCase().includes(normalizedQuery)
                 )
-                    matches.push(entry.name);
+                    matches.push({
+                        name: entry.name,
+                        path: resolve(path, entry.name),
+                        kind: entry.isSymbolicLink()
+                            ? 'symlink'
+                            : entry.isDirectory()
+                              ? 'directory'
+                              : 'file',
+                    });
             }
         } finally {
             await directoryHandle.close().catch(() => undefined);
@@ -122,17 +141,16 @@ export class ListingService {
             (await realpath(path)) !== path
         )
             throw new CaxriError('IO', 'Directory changed during listing');
-        matches.sort((a, b) => a.localeCompare(b));
-        const truncated = matches.length > MAX_FILE_BROWSE_ENTRIES;
-        const entries = this.sortEntries(
-            await this.describeEntries(path, matches.slice(0, MAX_FILE_BROWSE_ENTRIES)),
-        );
+        const truncated = !reachedEnd || matches.length > MAX_FILE_BROWSE_ENTRIES;
+        /** Dirent metadata stays bound to the opened directory instead of restatting a mutable path. */
+        const entries = this.sortEntries(matches).slice(0, MAX_FILE_BROWSE_ENTRIES);
         this.logger.write('info', 'file.browse', {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId,
                 path: relative(root, path) || '.',
                 entryCount: entries.length,
+                scannedEntries,
                 truncated,
             },
         });
