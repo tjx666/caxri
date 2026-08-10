@@ -217,7 +217,15 @@ export const methods = {
     },
     'terminal.attach': {
         owner: 'runtime',
-        params: z.object({ terminalId: identifierSchema }),
+        params: z
+            .object({
+                terminalId: identifierSchema,
+                cols: z.number().int().min(2).max(1_000).optional(),
+                rows: z.number().int().min(1).max(1_000).optional(),
+            })
+            .refine((value) => (value.cols === undefined) === (value.rows === undefined), {
+                message: 'Terminal attachment dimensions must be provided together',
+            }),
         result: terminalSnapshotSchema.nullable(),
     },
     'terminal.detach': {
@@ -227,7 +235,10 @@ export const methods = {
     },
     'terminal.restart': {
         owner: 'runtime',
-        params: z.object({ terminalId: identifierSchema }),
+        params: z.object({
+            terminalId: identifierSchema,
+            mode: z.enum(['resume', 'fresh']).default('resume'),
+        }),
         result: terminalRecordSchema,
     },
     'terminal.snapshot': {

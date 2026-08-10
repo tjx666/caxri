@@ -500,7 +500,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.close' } });
             return null;
         },
-        'terminal.attach': ({ terminalId }) => terminals.attach(terminalId),
+        'terminal.attach': ({ cols, rows, terminalId }) =>
+            terminals.attach(
+                terminalId,
+                cols === undefined || rows === undefined ? undefined : { cols, rows },
+            ),
         'terminal.detach': ({ terminalId }) => {
             terminals.detachView(terminalId);
             return null;
@@ -509,12 +513,17 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals.detachAllViews();
             return null;
         },
-        'terminal.restart': async ({ terminalId }) => {
+        'terminal.restart': async ({ mode, terminalId }) => {
             const current = database.getTerminal(terminalId);
             if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
             const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
-            coordinator.prepareTerminalStart(terminalId);
-            const terminal = await terminals.restart(terminalId, { expectedWorkingDirectory });
+            const startsFresh = mode === 'fresh';
+            const resumeAgentSessionId = startsFresh ? undefined : current.agentSessionId;
+            if (startsFresh) coordinator.prepareTerminalStart(terminalId);
+            const terminal = await terminals.restart(terminalId, {
+                expectedWorkingDirectory,
+                resumeAgentSessionId,
+            });
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             send({
                 event: 'state.changed',

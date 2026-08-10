@@ -24,6 +24,7 @@ import type { ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
 import { sampleTerminalResources } from './resources';
+import { TerminalScreenState } from './screen';
 
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 
@@ -48,6 +49,7 @@ export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): No
 interface LiveTerminal {
     process: pty.IPty;
     record: TerminalRecord;
+    screen: TerminalScreenState;
     snapshot: TerminalSnapshotBuffer;
     outputQueue: TerminalOutputQueue;
     droppedBytes: number;
@@ -168,6 +170,7 @@ export class TerminalManager {
             const live: LiveTerminal = {
                 process: child,
                 record,
+                screen: new TerminalScreenState(initialSnapshot),
                 snapshot: new TerminalSnapshotBuffer(initialSnapshot),
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,
@@ -240,6 +243,7 @@ export class TerminalManager {
         if (this.terminals.get(live.record.id) !== live) return;
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
+        live.screen.write(data);
         live.snapshot.append(data);
         if (this.attached.has(live.record.id)) {
             const droppedBytes = live.outputQueue.appendBounded(data);
@@ -349,23 +353,34 @@ export class TerminalManager {
         if (!live) return false;
         /** A remounted Renderer forgets its last grid; avoid turning that first measurement into a redundant SIGWINCH. */
         if (live.process.cols === cols && live.process.rows === rows) return true;
+        live.screen.resize(cols, rows);
         live.process.resize(cols, rows);
         return true;
     }
 
-    attach(terminalId: string): TerminalSnapshot | null {
+    async attach(
+        terminalId: string,
+        size?: { cols: number; rows: number },
+    ): Promise<TerminalSnapshot | null> {
         const live = this.terminals.get(terminalId);
         if (!live && !this.database.getTerminal(terminalId)) return null;
+        /** Serialize at the receiving xterm's grid. Restoring addon-serialize output into another
+         *  size can irreversibly wrap cursor-addressed alternate-screen content. */
+        if (live && size) this.resize(terminalId, size.cols, size.rows);
+        const wasAttached = this.attached.has(terminalId);
         this.attached.add(terminalId);
         if (!live) return this.database.getSnapshot(terminalId) ?? null;
-        /** The snapshot already contains queued bytes, so discard that live batch before replay. */
-        live.outputTimer = clearScheduledTimer(live.outputTimer);
-        live.outputQueue.clear();
-        live.droppedBytes = 0;
+        if (wasAttached) {
+            /** A repeated attach replays the parsed screen, so pending live bytes already included in
+             *  that screen must not also be delivered after the attachment response. */
+            live.outputTimer = clearScheduledTimer(live.outputTimer);
+            live.outputQueue.clear();
+            live.droppedBytes = 0;
+        }
         return {
             terminalId,
-            encodingVersion: 1,
-            ...live.snapshot.read(),
+            encodingVersion: 2,
+            ...(await live.screen.snapshot()),
             updatedAt: Date.now(),
         };
     }
@@ -418,6 +433,7 @@ export class TerminalManager {
         if (options.persist) this.persistSnapshot(live);
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
+        live.screen.dispose();
         return true;
     }
 

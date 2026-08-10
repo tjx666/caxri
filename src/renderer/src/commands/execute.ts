@@ -16,6 +16,7 @@ import {
     closeTerminal,
     createTerminal,
     restartActiveTerminal,
+    startNewAgentSession,
 } from '../features/terminal/terminal-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
 import { isEditableEventTarget } from '../lib/keybindings';
@@ -57,6 +58,10 @@ const commandContext: CommandContext = {
         restartActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) restartActiveTerminal(terminalId);
+        },
+        startNewAgentSession: () => {
+            const terminalId = activeTerminalId();
+            if (terminalId) startNewAgentSession(terminalId);
         },
         closeActive: () => {
             const terminalId = activeTerminalId();

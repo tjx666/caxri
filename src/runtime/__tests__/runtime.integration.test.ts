@@ -173,7 +173,10 @@ describe('Runtime composition root', () => {
                     'terminal.defaultWorkingDirectory': changedRoot,
                 }),
             });
-            await runtime.handlers['terminal.restart']({ terminalId: additional.id });
+            await runtime.handlers['terminal.restart']({
+                terminalId: additional.id,
+                mode: 'resume',
+            });
             expect(spawn.mock.calls.at(-1)?.[2]).toMatchObject({ cwd: canonicalCustomRoot });
 
             await runtime.handlers['settings.update']({
