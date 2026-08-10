@@ -88,6 +88,31 @@ describe('TerminalReplayBuffer', () => {
             '\r\n[Caxri dropped 2 bytes while terminal output was replaying]\r\n',
         ]);
     });
+
+    it('drops all later output after the retained prefix reaches its first gap', async () => {
+        const writes: string[] = [];
+        const snapshotWrite = Promise.withResolvers<void>();
+        const buffer = new TerminalReplayBuffer(
+            (value) => {
+                writes.push(value);
+                return snapshotWrite.promise;
+            },
+            { maximumPendingBytes: 8, maximumPendingItems: 3 },
+        );
+
+        const restoration = buffer.restore('snapshot');
+        buffer.push('\x1b[31mA');
+        buffer.push('🙂');
+        buffer.push('z');
+        snapshotWrite.resolve();
+        await restoration;
+
+        expect(writes).toEqual([
+            'snapshot',
+            '\x1b[31mA',
+            '\r\n[Caxri dropped 5 bytes while terminal output was replaying]\r\n',
+        ]);
+    });
 });
 
 describe('TerminalReplayCoordinator', () => {
