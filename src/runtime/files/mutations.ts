@@ -234,10 +234,12 @@ export class FileMutationService {
                             controller.signal,
                             (target) => createdTargets.push(target),
                         );
-                        for (const target of createdTargets) {
-                            this.assertCopyDeadline(startedAt, controller.signal);
-                            await this.assertPathIdentity(target);
-                        }
+                        await Promise.all(
+                            createdTargets.map(async (target) => {
+                                this.assertCopyDeadline(startedAt, controller.signal);
+                                await this.assertPathIdentity(target);
+                            }),
+                        );
                         this.assertCopyDeadline(startedAt, controller.signal);
                         this.logger.write('info', 'file.copied', {
                             durationMs: performance.now() - observedAt,
@@ -541,6 +543,8 @@ export class FileMutationService {
                 ? resolve(targetRoot, entry.relativePath)
                 : targetRoot;
             const identity = targetDirectories.get(targetPath);
+            /** Descendants must retain traversal permission until their modes are restored. */
+            // oxlint-disable-next-line react-doctor/async-await-in-loop
             if (identity) await this.chmodCreatedDirectory(identity, entry.mode & 0o777);
         }
         this.assertCopyDeadline(startedAt, signal);
