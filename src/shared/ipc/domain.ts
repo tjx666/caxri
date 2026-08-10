@@ -24,6 +24,7 @@ const agentActivityStateSchema = z.enum([
     'idle',
     'unknown',
 ]);
+const sessionAttentionKindSchema = z.enum(['waiting', 'completed', 'failed']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
@@ -37,6 +38,7 @@ const processStateSchema = z.enum([
 
 export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
+export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
@@ -63,6 +65,13 @@ export const sessionRecordSchema = z.object({
     /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
     primaryAgentTerminalId: z.string().optional(),
     lastActivityState: agentActivityStateSchema,
+    /** Monotonic generation of reliable Primary Agent attention events. */
+    attentionEpoch: z.number().int().nonnegative(),
+    /** Latest generation acknowledged after the Session was visibly focused. */
+    readAttentionEpoch: z.number().int().nonnegative(),
+    lastAttentionKind: sessionAttentionKindSchema.optional(),
+    /** Derived read-model field; SQLite stores only the two epochs above. */
+    hasUnread: z.boolean(),
     layoutVersion: z.number(),
     displayTitle: z.string(),
     /** Automatic titles follow the primary Agent; manual titles are owned by the user. */
@@ -588,6 +597,8 @@ export const bootstrapStateSchema = z.object({
 
 export interface AgentSnapshot {
     provider: AgentProvider;
+    /** Present only for a provider-owned reliable attention signal, never a process fallback. */
+    attentionKind?: SessionAttentionKind;
     sessionId?: string;
     title?: string;
     status: AgentActivityState;

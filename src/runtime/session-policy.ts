@@ -3,6 +3,7 @@ import type {
     AgentActivityState,
     AgentSnapshot,
     ProcessState,
+    SessionAttentionKind,
     SessionRecord,
     SessionState,
     TerminalKind,
@@ -141,7 +142,22 @@ export interface AgentMetadataDecision {
     /** New value to persist on the Terminal row (`undefined` clears the column). */
     agentSessionId: string | undefined;
     /** Present only when this Terminal is the Session's primary Agent and its title/status changed. */
-    sessionPatch?: { displayTitle: string; lastActivityState: AgentActivityState };
+    sessionPatch?: {
+        attentionKind?: SessionAttentionKind;
+        displayTitle: string;
+        lastActivityState: AgentActivityState;
+    };
+}
+
+/** Emits one attention generation per reliable state transition, never for process fallbacks. */
+function reliableAttentionTransition(
+    session: Pick<SessionRecord, 'lastActivityState' | 'lastAttentionKind'>,
+    snapshot: AgentSnapshot,
+): SessionAttentionKind | undefined {
+    const kind = snapshot.attentionKind;
+    if (!kind || snapshot.status !== kind) return undefined;
+    if (session.lastActivityState === kind && session.lastAttentionKind === kind) return undefined;
+    return kind;
 }
 
 /**
@@ -153,7 +169,11 @@ export function decideAgentMetadataUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider' | 'agentSessionId'>,
     session: Pick<
         SessionRecord,
-        'displayTitle' | 'lastActivityState' | 'primaryAgentTerminalId' | 'titleMode'
+        | 'displayTitle'
+        | 'lastActivityState'
+        | 'lastAttentionKind'
+        | 'primaryAgentTerminalId'
+        | 'titleMode'
     >,
     snapshot: AgentSnapshot,
 ): AgentMetadataDecision | undefined {
@@ -164,16 +184,24 @@ export function decideAgentMetadataUpdate(
             : agentDisplayTitle(snapshot.title, session.displayTitle);
     const agentSessionId = snapshot.sessionId?.trim() || undefined;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
+    const attentionKind = isPrimaryAgent
+        ? reliableAttentionTransition(session, snapshot)
+        : undefined;
     const noOp =
         (!isPrimaryAgent ||
             (session.displayTitle === displayTitle &&
                 session.lastActivityState === snapshot.status)) &&
-        terminal.agentSessionId === agentSessionId;
+        terminal.agentSessionId === agentSessionId &&
+        !attentionKind;
     if (noOp) return undefined;
     return {
         agentSessionId,
         sessionPatch: isPrimaryAgent
-            ? { displayTitle, lastActivityState: snapshot.status }
+            ? {
+                  displayTitle,
+                  lastActivityState: snapshot.status,
+                  ...(attentionKind ? { attentionKind } : {}),
+              }
             : undefined,
     };
 }

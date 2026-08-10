@@ -424,13 +424,14 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
+        const onOutputActivity = vi.fn();
         const manager = new TerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
             new StructuredLogger(join(directory, 'logs')),
-            { snapshotIntervalMs: 50 },
+            { onOutputActivity, snapshotIntervalMs: 50 },
         );
 
         await manager.start(created.terminal);
@@ -438,6 +439,7 @@ describe('TerminalManager', () => {
         await expect
             .poll(() => database.getSnapshot(created.terminal.id)?.payload)
             .toContain('DETACHED_ONLY');
+        expect(onOutputActivity).toHaveBeenCalledWith(created.terminal.id, expect.any(Number));
         expect(output).not.toContain('DETACHED_ONLY');
         expect((await manager.attach(created.terminal.id))?.payload).toContain('DETACHED_ONLY');
 

@@ -438,6 +438,57 @@ describe('AgentCoordinator', () => {
         }
     });
 
+    it('publishes one unread generation for each reliable Claude attention transition', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-attention-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        let status: 'running' | 'waiting' = 'running';
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                ...(status === 'waiting' ? { attentionKind: 'waiting' as const } : {}),
+                status,
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'claude-session',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeOutput(created.terminal.id);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+            });
+
+            status = 'waiting';
+            coordinator.observeOutput(created.terminal.id);
+            await expect
+                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .toBe(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                lastAttentionKind: 'waiting',
+                hasUnread: true,
+            });
+
+            coordinator.observeOutput(created.terminal.id);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(3);
+            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('probes the Session primary Agent Terminal and survives a failing probe', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-primary-'));
         temporaryDirectories.push(directory);

@@ -5,7 +5,7 @@ import {
     type AgentLaunchSettings,
     type AgentProvider,
 } from '../../shared/agents';
-import type { AgentSnapshot } from '../../shared/types';
+import type { AgentActivityState, AgentSnapshot, SessionAttentionKind } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import {
     defaultAgentEnvironment,
@@ -16,6 +16,14 @@ import {
 import { discoverExecutable, readVersion } from './discovery';
 import { agentProviders } from './providers';
 
+function reliableAttentionKind(
+    status: AgentActivityState | undefined,
+): SessionAttentionKind | undefined {
+    return status === 'waiting' || status === 'completed' || status === 'failed'
+        ? status
+        : undefined;
+}
+
 /**
  * A descriptor's `readState` reads only that provider's local on-disk state. An adapter layers
  * executable discovery and version probing on top of a descriptor, so it is the unit that
@@ -24,6 +32,23 @@ import { agentProviders } from './providers';
 export interface AgentAdapter {
     provider: AgentProvider;
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
+}
+
+/**
+ * Single-flight sharing is safe only for identical provider inputs. In particular, a resumed
+ * Terminal can retain its Agent session ID while changing process generation; omitting that
+ * generation would let the new probe accept a stale snapshot from the previous process.
+ */
+function snapshotRequestKey(provider: AgentProvider, context: AgentSnapshotContext): string {
+    return JSON.stringify([
+        provider,
+        context.rootPath,
+        context.agentSessionId ?? null,
+        context.correlationId ?? null,
+        [...new Set(context.excludedAgentSessionIds ?? [])].sort(),
+        context.processState ?? null,
+        context.startedAt ?? null,
+    ]);
 }
 
 function createCliAdapter(
@@ -42,6 +67,7 @@ function createCliAdapter(
             const version = executable ? await readVersion(provider, executable) : undefined;
             return {
                 provider,
+                attentionKind: reliableAttentionKind(localState?.status),
                 status: localState?.status ?? processStateToAgentActivity(context.processState),
                 observedAt,
                 available: Boolean(executable),
@@ -83,17 +109,14 @@ export class AgentService {
         provider: AgentProvider,
         context: AgentSnapshotContext = { rootPath: process.cwd() },
     ): Promise<AgentSnapshot> {
-        return this.requests.run(
-            `${provider}:${context.rootPath}:${context.agentSessionId ?? context.correlationId ?? ''}`,
-            async () => {
-                const startedAt = performance.now();
-                const snapshot = await this.adapters[provider].snapshot(context);
-                this.logger?.write('info', 'agent.probe', {
-                    durationMs: performance.now() - startedAt,
-                    fields: { provider, available: snapshot.available },
-                });
-                return snapshot;
-            },
-        );
+        return this.requests.run(snapshotRequestKey(provider, context), async () => {
+            const startedAt = performance.now();
+            const snapshot = await this.adapters[provider].snapshot(context);
+            this.logger?.write('info', 'agent.probe', {
+                durationMs: performance.now() - startedAt,
+                fields: { provider, available: snapshot.available },
+            });
+            return snapshot;
+        });
     }
 }

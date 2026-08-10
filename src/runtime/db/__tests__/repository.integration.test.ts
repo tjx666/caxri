@@ -296,6 +296,94 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('persists reliable primary-Agent attention and acknowledges only the current epoch', async () => {
+        const directory = await tempDir('caxri-db-session-attention-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            attentionEpoch: 0,
+            readAttentionEpoch: 0,
+            hasUnread: false,
+        });
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'claude',
+            available: true,
+            observedAt: Date.now(),
+            status: 'running',
+        });
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'claude',
+            attentionKind: 'waiting',
+            available: true,
+            observedAt: Date.now(),
+            status: 'waiting',
+            title: 'Needs input',
+        });
+        expect(database.getSession(created.session.id)).toMatchObject({
+            attentionEpoch: 1,
+            readAttentionEpoch: 0,
+            lastAttentionKind: 'waiting',
+            hasUnread: true,
+        });
+
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'claude',
+            attentionKind: 'waiting',
+            available: true,
+            observedAt: Date.now(),
+            status: 'waiting',
+            title: 'Still needs input',
+        });
+        expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+        expect(database.markSessionAttentionRead(created.session.id, 1)).toMatchObject({
+            acknowledged: true,
+            session: { hasUnread: false, readAttentionEpoch: 1 },
+        });
+
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'claude',
+            available: true,
+            observedAt: Date.now(),
+            status: 'running',
+        });
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'claude',
+            attentionKind: 'completed',
+            available: true,
+            observedAt: Date.now(),
+            status: 'completed',
+        });
+        expect(database.markSessionAttentionRead(created.session.id, 1)).toMatchObject({
+            acknowledged: false,
+            session: { attentionEpoch: 2, hasUnread: true, readAttentionEpoch: 1 },
+        });
+        expect(database.markSessionAttentionRead(created.session.id, 2)).toMatchObject({
+            acknowledged: true,
+            session: { attentionEpoch: 2, hasUnread: false, readAttentionEpoch: 2 },
+        });
+
+        database.updateTerminalState(created.terminal.id, 'running');
+        database.markShutdown('orderly');
+        expect(database.getSession(created.session.id)).toMatchObject({
+            attentionEpoch: 2,
+            hasUnread: false,
+            readAttentionEpoch: 2,
+        });
+
+        database.archiveSession(created.session.id);
+        database.close();
+        const reopened = new CaxriDatabase(databasePath);
+        expect(reopened.unarchiveSession(created.session.id)).toMatchObject({
+            attentionEpoch: 2,
+            readAttentionEpoch: 2,
+            lastAttentionKind: 'completed',
+            hasUnread: false,
+        });
+        reopened.close();
+    });
+
     it('promotes the first Agent Terminal in a Shell Session as its title source', async () => {
         const directory = await tempDir('caxri-db-primary-agent-');
         const root = join(directory, 'project');

@@ -116,22 +116,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
      * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
      * composition root, instead of hiding a provider check inside a shared event sink.
      */
-    const terminals = new TerminalManager(
-        database,
-        (event) => {
-            send(event);
-            if (event.event === 'terminal.output')
-                coordinator.observeOutput(
-                    event.payload.terminalId,
-                    terminals.processId(event.payload.terminalId),
-                );
-        },
-        logger,
-        {
-            ...deps.terminal,
-            agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
-        },
-    );
+    const terminals = new TerminalManager(database, send, logger, {
+        ...deps.terminal,
+        agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
+        onOutputActivity: (terminalId, processId) =>
+            coordinator.observeOutput(terminalId, processId),
+    });
     const terminalRestores = new TerminalRestoreSupervisor();
     const projectStatus = new ProjectStatusService(git, logger);
     const diagnostics = new DiagnosticsService(
@@ -296,7 +286,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 const resumeAgentSessionId = terminal.provider
                     ? terminal.agentSessionId
                     : undefined;
-                if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
+                if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
+                else coordinator.prepareTerminalStart(terminal.id);
                 try {
                     const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
                     const restarted = await terminals.restart(terminal.id, {
@@ -445,6 +436,15 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
             return database.getSession(sessionId)!;
         },
+        'session.markRead': ({ sessionId, attentionEpoch }) => {
+            const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
+            if (result.acknowledged)
+                send({
+                    event: 'state.changed',
+                    payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
+                });
+            return result.session;
+        },
         'session.rename': ({ sessionId, displayTitle }) => {
             const session = database.renameSession(sessionId, displayTitle);
             send({
@@ -525,7 +525,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
             const startsFresh = mode === 'fresh';
             const resumeAgentSessionId = startsFresh ? undefined : current.agentSessionId;
-            if (startsFresh) coordinator.prepareTerminalStart(terminalId);
+            if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminalId);
+            else coordinator.prepareTerminalStart(terminalId);
             const terminal = await terminals.restart(terminalId, {
                 expectedWorkingDirectory,
                 resumeAgentSessionId,

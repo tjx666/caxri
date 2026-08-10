@@ -9,6 +9,7 @@ import { useFileMutationReconciliation } from './features/inspector/panels/files
 import { CommandPalette } from './features/palette/CommandPalette';
 import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
+import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { SettingsDialog } from './features/settings/SettingsDialog';
 import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
 import { StatusBar } from './features/status-bar/StatusBar';
@@ -64,6 +65,7 @@ export function App() {
     useFileMutationReconciliation(attached);
     useRuntimeQueryInvalidation();
     useCommandShortcuts();
+    useSessionAttentionAcknowledgement();
     useExternalDocumentSync();
     usePanelViewportClamp();
     useEffect(() => {
