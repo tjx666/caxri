@@ -90,6 +90,10 @@ export class TerminalReplayBuffer {
 
     private enqueue(value: string): void {
         const bytes = utf8ByteLength(value);
+        if (this.droppedBytes > 0) {
+            this.droppedBytes += bytes;
+            return;
+        }
         const availableBytes = this.maximumPendingBytes - this.pendingBytes;
         if (this.pending.length >= this.maximumPendingItems || availableBytes <= 0) {
             this.droppedBytes += bytes;
