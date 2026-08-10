@@ -24,7 +24,7 @@ async function tempDir(prefix: string): Promise<string> {
 }
 
 describe('CaxriDb', () => {
-    it('creates the current schema with reversible Session archive metadata', async () => {
+    it('creates the current schema with Session archive and attention metadata', async () => {
         const directory = await tempDir('caxri-db-schema-');
         const db = new CaxriDb(join(directory, 'state.db'));
 
@@ -34,6 +34,17 @@ describe('CaxriDb', () => {
                 (column) => column.name,
             ),
         ).toContain('archived_at');
+        expect(
+            (db.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                (column) => column.name,
+            ),
+        ).toEqual(
+            expect.arrayContaining([
+                'attention_epoch',
+                'read_attention_epoch',
+                'last_attention_kind',
+            ]),
+        );
         expect(
             (db.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
                 (column) => column.name,
@@ -194,12 +205,6 @@ describe('CaxriDb', () => {
         const project = previous.projects.create(directory);
         const oldestProject = previous.projects.create(join(directory, 'oldest'));
         const middleProject = previous.projects.create(join(directory, 'middle'));
-        const setCreatedAt = previous.database.prepare(
-            'UPDATE projects SET created_at = ? WHERE id = ?',
-        );
-        setCreatedAt.run(300, project.id);
-        setCreatedAt.run(100, oldestProject.id);
-        setCreatedAt.run(200, middleProject.id);
         const session = previous.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
         const terminal = previous.terminals.insert({
             sessionId: session.id,
@@ -216,26 +221,28 @@ describe('CaxriDb', () => {
             payload: 'restored',
             updatedAt: 123,
         });
-        const columns = previous.database.pragma('table_info(projects)') as Array<{
+        const columns = previous.database.pragma('table_info(sessions)') as Array<{
             name: string;
         }>;
-        if (columns.some((column) => column.name === 'order_index'))
-            previous.database.exec(
-                'DROP INDEX IF EXISTS projects_order; ALTER TABLE projects DROP COLUMN order_index',
-            );
+        for (const column of ['attention_epoch', 'read_attention_epoch', 'last_attention_kind'])
+            if (columns.some((candidate) => candidate.name === column))
+                previous.database.exec(`ALTER TABLE sessions DROP COLUMN ${column}`);
         previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
         const upgraded = new CaxriDb(databasePath);
 
         expect(upgraded.projects.list()).toEqual([
-            expect.objectContaining({ id: oldestProject.id, orderIndex: 0 }),
-            expect.objectContaining({ id: middleProject.id, orderIndex: 1 }),
-            expect.objectContaining({ id: project.id, orderIndex: 2 }),
+            expect.objectContaining({ id: project.id, orderIndex: 0 }),
+            expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),
+            expect.objectContaining({ id: middleProject.id, orderIndex: 2 }),
         ]);
         expect(upgraded.sessions.get(session.id)).toMatchObject({
+            attentionEpoch: 0,
             id: session.id,
             displayTitle: 'Shell',
+            hasUnread: false,
+            readAttentionEpoch: 0,
             titleMode: 'automatic',
         });
         expect(upgraded.terminals.get(terminal.id)).toMatchObject({ id: terminal.id });

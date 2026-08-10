@@ -98,6 +98,10 @@ export class DiagnosticsService {
             createdAt: session.createdAt,
             lastOpenedAt: session.lastOpenedAt,
             lastActivityState: session.lastActivityState,
+            attentionEpoch: session.attentionEpoch,
+            readAttentionEpoch: session.readAttentionEpoch,
+            lastAttentionKind: session.lastAttentionKind,
+            hasUnread: session.hasUnread,
             layoutVersion: session.layoutVersion,
         }));
         const terminals = this.database.listTerminals().map((terminal) => ({

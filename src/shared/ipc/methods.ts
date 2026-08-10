@@ -163,6 +163,14 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema }),
         result: sessionRecordSchema,
     },
+    'session.markRead': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            attentionEpoch: z.number().int().nonnegative(),
+        }),
+        result: sessionRecordSchema,
+    },
     'session.rename': {
         owner: 'runtime',
         params: z.object({

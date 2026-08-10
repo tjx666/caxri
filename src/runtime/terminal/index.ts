@@ -56,6 +56,7 @@ interface LiveTerminal {
     metricOutputBytes: number;
     metricInputBytes: number;
     metricDroppedBytes: number;
+    activityTimer?: NodeJS.Timeout;
     outputTimer?: NodeJS.Timeout;
     snapshotTimer?: NodeJS.Timeout;
     metricTimer?: NodeJS.Timeout;
@@ -68,6 +69,8 @@ export interface TerminalManagerOptions {
     ) => Promise<string>;
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
+    /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
+    onOutputActivity?: (terminalId: string, processId: number) => void;
     snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -93,6 +96,7 @@ export class TerminalManager {
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
     private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
     private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
+    private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -106,6 +110,7 @@ export class TerminalManager {
         this.resolveExecutableOverride = options.resolveExecutable;
         this.agentLaunchSettings = options.agentLaunchSettings;
         this.agentEnvironment = options.agentEnvironment ?? runtimeProcessEnvironment;
+        this.onOutputActivity = options.onOutputActivity;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
@@ -241,6 +246,11 @@ export class TerminalManager {
 
     private onData(live: LiveTerminal, data: string): void {
         if (this.terminals.get(live.record.id) !== live) return;
+        live.activityTimer ??= setTimeout(() => {
+            live.activityTimer = undefined;
+            if (this.terminals.get(live.record.id) === live)
+                this.onOutputActivity?.(live.record.id, live.process.pid);
+        }, 16);
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
         live.screen.write(data);
@@ -420,7 +430,7 @@ export class TerminalManager {
     }
 
     /**
-     * Stops tracking a live PTY: clears its timer trio, flushes queued output and metrics, and
+     * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and
      * optionally persists a final snapshot. Shared by `onExit` (always persists, then reports the
      * exit) and `detach` (persists only when the caller wants the snapshot preserved, e.g. restart).
      * Returns false when the terminal was already retired, which both callers treat as a no-op.
@@ -438,6 +448,7 @@ export class TerminalManager {
     }
 
     private clearTerminalTimers(live: LiveTerminal): void {
+        live.activityTimer = clearScheduledTimer(live.activityTimer);
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.snapshotTimer = clearScheduledTimer(live.snapshotTimer);
         live.metricTimer = clearScheduledTimer(live.metricTimer);

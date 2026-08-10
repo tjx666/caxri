@@ -193,6 +193,15 @@ export class AgentCoordinator {
         this.database.resetAgentMetadataForStart(terminalId, startedAt);
     }
 
+    /** Starts a new process generation while preserving the Agent session it will resume. */
+    prepareTerminalResume(terminalId: string): void {
+        const terminal = this.database.getTerminal(terminalId);
+        if (!terminal?.provider) return;
+        this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
+        this.refreshes.cancel(terminalId);
+        this.startedAtByTerminal.set(terminalId, Date.now());
+    }
+
     /** Probes now instead of waiting for output, for a Terminal that just started or restarted. */
     probeTerminal(terminalId: string): void {
         void this.probe(terminalId);

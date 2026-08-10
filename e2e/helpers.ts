@@ -146,13 +146,16 @@ export async function launchCaxri(
  */
 export async function createProjectSession(
     page: Page,
-    kind: 'shell' | 'codex' = 'shell',
+    kind: 'shell' | 'claude' | 'codex' = 'shell',
 ): Promise<void> {
     await openAddProjectDialog(page);
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page
         .getByRole('dialog')
-        .getByRole('button', { name: kind === 'shell' ? 'Shell' : 'Codex', exact: true })
+        .getByRole('button', {
+            name: kind === 'shell' ? 'Shell' : kind === 'claude' ? 'Claude Code' : 'Codex',
+            exact: true,
+        })
         .click();
     await expect(page.locator('.session-card')).toHaveCount(1);
 }
