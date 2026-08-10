@@ -1,4 +1,5 @@
 import type * as FsPromises from 'node:fs/promises';
+import type { Dir, Dirent } from 'node:fs';
 import {
     mkdir,
     mkdtemp,
@@ -362,6 +363,58 @@ describe('FileService', () => {
                     size: 6,
                 },
             ],
+            truncated: false,
+        });
+        database.close();
+    });
+
+    it('supersedes an older path refinement before continuing its directory scan', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-refine-'));
+        temporaryDirectories.push(directory);
+        await Promise.all([
+            writeFile(join(directory, 'first.txt'), 'first', 'utf8'),
+            writeFile(join(directory, 'second.txt'), 'second', 'utf8'),
+        ]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const firstReadEntered = Promise.withResolvers<void>();
+        const releaseFirstRead = Promise.withResolvers<void>();
+        let openCount = 0;
+        const openDirectory = vi.fn(() => {
+            openCount += 1;
+            const entries = [{ name: openCount === 1 ? 'first.txt' : 'second.txt' } as Dirent];
+            let index = 0;
+            return Promise.resolve({
+                close: () => Promise.resolve(),
+                read: async () => {
+                    if (openCount === 1 && index === 0) {
+                        firstReadEntered.resolve();
+                        await releaseFirstRead.promise;
+                    }
+                    return entries[index++] ?? null;
+                },
+            } as unknown as Dir);
+        });
+        const service = new FileService(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            { openDirectory },
+        );
+
+        const first = service.browse({ sessionId: session.id, query: 'first' });
+        await firstReadEntered.promise;
+        const second = service.browse({ sessionId: session.id, query: 'second' });
+        await expect.poll(() => openDirectory.mock.calls.length).toBe(2);
+        releaseFirstRead.resolve();
+
+        await expect(first).resolves.toEqual({ entries: [], truncated: true });
+        await expect(second).resolves.toMatchObject({
+            entries: [{ name: 'second.txt' }],
             truncated: false,
         });
         database.close();

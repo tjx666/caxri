@@ -6,6 +6,15 @@ import { CaxriError } from '../ipc/errors';
 
 const run = promisify(execFile);
 
+type NativeFileOperationRunner = (
+    executable: string,
+    args: string[],
+    options: { windowsHide: boolean },
+) => Promise<unknown>;
+
+const runNativeFileOperation: NativeFileOperationRunner = (executable, args, options) =>
+    run(executable, args, options);
+
 export interface NativeFileIdentity {
     device: string;
     inode: string;
@@ -62,7 +71,10 @@ function operationError(error: unknown): CaxriError {
  * path APIs cannot express `openat` traversal or an atomic no-replace directory rename.
  */
 export class NativeFileOperations {
-    constructor(private readonly executable: string) {}
+    constructor(
+        private readonly executable: string,
+        private readonly runner: NativeFileOperationRunner = runNativeFileOperation,
+    ) {}
 
     create(directory: NativeProjectEntry, name: string): Promise<void> {
         return this.execute('create', [
@@ -104,8 +116,11 @@ export class NativeFileOperations {
 
     private async execute(operation: NativeFileOperation, args: string[]): Promise<void> {
         try {
-            await run(this.executable, [operation, ...args], {
-                timeout: 10_000,
+            /**
+             * Do not add an exec timeout here. The helper may already own a staged user-file
+             * transaction; killing it would prevent its conflict recovery from restoring the item.
+             */
+            await this.runner(this.executable, [operation, ...args], {
                 windowsHide: true,
             });
         } catch (error) {

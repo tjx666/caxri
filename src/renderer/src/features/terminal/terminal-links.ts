@@ -22,26 +22,36 @@ export interface TerminalLinkContext {
     openUrl(url: string): void;
 }
 
-function count(text: string, character: string): number {
-    return [...text].filter((value) => value === character).length;
+type ClosingBracket = ')' | ']' | '}';
+
+function closingBracket(value: string): ClosingBracket | undefined {
+    return value === ')' || value === ']' || value === '}' ? value : undefined;
 }
 
 function trimToken(raw: string): { endOffset: number; startOffset: number; text: string } {
     let startOffset = 0;
     let endOffset = raw.length;
     while (startOffset < endOffset && LEADING_WRAPPERS.has(raw[startOffset])) startOffset += 1;
+    const bracketExcess: Record<ClosingBracket, number> = { ')': 0, ']': 0, '}': 0 };
+    /** Count each bracket once so a maximal token with many trailing closers stays linear. */
+    for (let index = startOffset; index < endOffset; index += 1) {
+        const value = raw[index];
+        if (value === '(') bracketExcess[')'] -= 1;
+        else if (value === ')') bracketExcess[')'] += 1;
+        else if (value === '[') bracketExcess[']'] -= 1;
+        else if (value === ']') bracketExcess[']'] += 1;
+        else if (value === '{') bracketExcess['}'] -= 1;
+        else if (value === '}') bracketExcess['}'] += 1;
+    }
     while (startOffset < endOffset) {
         const last = raw[endOffset - 1];
         if (TRAILING_PUNCTUATION.has(last)) {
             endOffset -= 1;
             continue;
         }
-        const opening = last === ')' ? '(' : last === ']' ? '[' : last === '}' ? '{' : undefined;
-        if (
-            opening &&
-            count(raw.slice(startOffset, endOffset), last) >
-                count(raw.slice(startOffset, endOffset), opening)
-        ) {
+        const closing = closingBracket(last);
+        if (closing && bracketExcess[closing] > 0) {
+            bracketExcess[closing] -= 1;
             endOffset -= 1;
             continue;
         }
