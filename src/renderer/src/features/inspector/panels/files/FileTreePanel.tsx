@@ -69,7 +69,7 @@ interface TreeProps {
 }
 
 const treeRowClassName =
-    'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed data-[selected=true]:bg-elevated data-[cut=true]:opacity-50';
+    'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[selected=true]:bg-elevated data-[cut=true]:opacity-50';
 const captionActionClassName =
     'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
 
@@ -325,6 +325,7 @@ function FileTreeItem({
             ref={rowRef}
             className={treeRowClassName}
             data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
+            data-git-ignored={entry.gitIgnored}
             data-selected={selectedPath === entry.path}
             draggable={editable && !fileOperationsPending}
             style={{ paddingLeft: (entry.kind === 'directory' ? 8 : 23) + depth * 12 }}

@@ -236,6 +236,7 @@ export const fileEntrySchema = z.object({
     path: z.string(),
     kind: z.enum(['file', 'directory', 'symlink']),
     size: z.number().optional(),
+    gitIgnored: z.literal(true).optional(),
 });
 
 export const mutableFileEntrySchema = z.object({
