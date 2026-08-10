@@ -9,6 +9,8 @@ import { createDispatcher, type RuntimeRequestEnvelope } from './dispatch';
 const bootStartedAt = performance.now();
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
+const fileOperationsHelperPath = process.env.CAXRI_FILE_OPS_HELPER;
+if (!fileOperationsHelperPath) throw new Error('CAXRI_FILE_OPS_HELPER is required');
 const logDirectory = process.env.CAXRI_LOG_DIRECTORY ?? join(userDataPath, 'logs');
 const parentPort = process.parentPort;
 if (!parentPort) throw new Error('Caxri Runtime must run as an Electron utilityProcess');
@@ -21,6 +23,7 @@ const logger = new StructuredLogger(
 );
 const runtime = await createRuntime({
     userDataPath,
+    fileOperationsHelperPath,
     logger,
     send: (event: RuntimeEvent) => parentPort.postMessage(event),
 });

@@ -21,6 +21,7 @@ import {
     type CaxriReply,
 } from '../shared/ipc/transport';
 import { StructuredLogger } from '../shared/node/logger';
+import { NativeFileOperations } from '../shared/node/native-file-operations';
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
@@ -59,6 +60,7 @@ let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
 let processExplorer: ProcessExplorerWindowController;
 let updateService: UpdateService;
+let nativeFileOperations: NativeFileOperations;
 let forceWindowClose = false;
 let quitStarted = false;
 let automaticUpdateCheckStarted = false;
@@ -321,6 +323,35 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
         case 'project.cancelCreate':
             grantedRoots.revoke(request.params.rootPath);
             return null;
+        case 'files.trash': {
+            const item = await supervisor.request('files.authorizeTrash', request.params);
+            const result = await dialog.showMessageBox(mainWindow!, {
+                type: 'warning',
+                title: 'Move to Trash',
+                message: `Move '${item.name}' to the Trash?`,
+                detail: `${item.path}\n\nYou can recover this item from the Trash.`,
+                buttons: ['Move to Trash', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+            });
+            if (result.response !== 0) return { canceled: true };
+            /** Reauthorize after the native dialog so a replaced path cannot inherit approval. */
+            const current = await supervisor.request('files.authorizeTrash', request.params);
+            if (
+                current.path !== item.path ||
+                current.device !== item.device ||
+                current.inode !== item.inode ||
+                current.root.path !== item.root.path ||
+                current.root.device !== item.root.device ||
+                current.root.inode !== item.root.inode
+            )
+                throw new CaxriError('CONFLICT', 'File or folder changed before it reached Trash');
+            await nativeFileOperations.trash(
+                current,
+                process.env.CAXRI_E2E === '1' && !app.isPackaged,
+            );
+            return item;
+        }
         case 'project.delete': {
             const { projectId } = request.params;
             const state = await supervisor.request('app.bootstrap');
@@ -502,12 +533,17 @@ void app.whenReady().then(async () => {
             sendEvent({ event: 'updates.state', payload: state });
         },
     });
+    const fileOperationsHelperPath = app.isPackaged
+        ? join(process.resourcesPath, 'native', 'caxri-file-ops')
+        : join(currentDirectory, '../native/caxri-file-ops');
+    nativeFileOperations = new NativeFileOperations(fileOperationsHelperPath);
     supervisor = new RuntimeSupervisor(
         currentDirectory,
         userDataPath,
         logDirectory,
         mainLogger,
         logLevel,
+        fileOperationsHelperPath,
     );
     processExplorer = new ProcessExplorerWindowController({
         currentDirectory,

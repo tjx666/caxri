@@ -60,6 +60,7 @@ export class RuntimeSupervisor extends EventEmitter {
         private readonly logDirectory: string,
         logger: StructuredLogger,
         private readonly logLevel: 'debug' | 'info' = 'debug',
+        private readonly fileOperationsHelperPath = 'out/native/caxri-file-ops',
     ) {
         super();
         /** Shares Main's own logger so Runtime stdio and Main records interleave in one main.jsonl file. */
@@ -93,6 +94,7 @@ export class RuntimeSupervisor extends EventEmitter {
                     CAXRI_USER_DATA_PATH: this.userDataPath,
                     CAXRI_APP_VERSION: process.env.CAXRI_APP_VERSION ?? 'unknown',
                     CAXRI_GIT_COMMIT: process.env.CAXRI_GIT_COMMIT ?? 'unknown',
+                    CAXRI_FILE_OPS_HELPER: this.fileOperationsHelperPath,
                 },
                 stdio: 'pipe',
             });

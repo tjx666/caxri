@@ -8,7 +8,7 @@
     "main": "./out/main/index.js",
     "type": "module",
     "scripts": {
-        "dev": "electron-vite dev",
+        "dev": "bun run build:file-ops && electron-vite dev",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "format:md": "prettier --write \"**/*.md\"",
@@ -19,13 +19,14 @@
         "knip": "knip",
         "doctor": "react-doctor --no-score --blocking warning",
         "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-        "test": "vitest run",
-        "test:watch": "vitest",
+        "test": "bun run build:file-ops && vitest run",
+        "test:watch": "bun run build:file-ops && vitest",
         "test:e2e": "bun run build && playwright test",
         "test:smoke": "playwright test e2e/smoke.e2e.ts --reporter=line",
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
-        "build": "electron-vite build",
+        "build": "bun run build:file-ops && electron-vite build",
+        "build:file-ops": "bun run scripts/build-file-ops-helper.ts",
         "package": "bun run build && electron-builder --mac dir",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
         "postinstall": "electron-builder install-app-deps",
@@ -126,10 +127,17 @@
         ],
         "files": [
             "out/**",
+            "!out/native/**",
             "package.json",
             "THIRD_PARTY_NOTICES.md",
             "licenses/**",
             "node_modules/**"
+        ],
+        "extraResources": [
+            {
+                "from": "out/native",
+                "to": "native"
+            }
         ],
         "mac": {
             "category": "public.app-category.developer-tools",

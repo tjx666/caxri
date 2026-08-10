@@ -52,6 +52,15 @@ describe('testCandidatesForFile', () => {
         ]);
     });
 
+    it('runs file mutation coverage for the native helper and its build script', () => {
+        expect(testCandidatesForFile('native/file-ops.c')).toEqual([
+            'src/runtime/files/__tests__/mutations.integration.test.ts',
+        ]);
+        expect(testCandidatesForFile('scripts/build-file-ops-helper.ts')).toEqual([
+            'src/runtime/files/__tests__/mutations.integration.test.ts',
+        ]);
+    });
+
     it('discovers sibling and __tests__ layouts for source files', () => {
         expect(testCandidatesForFile('src/runtime/foo.ts')).toContain(
             'src/runtime/__tests__/foo.test.ts',

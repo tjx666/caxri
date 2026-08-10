@@ -6,13 +6,14 @@ import {
     type EditorTabCloseMode,
 } from '@shared/editor-state';
 import { isGitDiffTabPath } from '@shared/git-diff';
-import { activateWorkState, type WorkItem } from '@shared/work-item';
+import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
+import { pathIsAtOrBelow, remapPath } from '../../lib/file-path';
 import { getSelectedSession, getSessionState, getSessionTerminals } from '../../stores/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
-import { patchSessionState } from '../../stores/workbench';
+import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 
 let fileOpenIntent = 0;
@@ -158,4 +159,72 @@ export function closeEditorsToRight(path: string): void {
 
 export function closeAllEditors(path: string): void {
     closeEditors(path, 'all');
+}
+
+/** Keeps normal editor tabs and dirty buffers attached to a file or directory after it moves. */
+export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
+    const bootstrap = useWorkbenchStore.getState().bootstrap;
+    const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+    if (!current || previousPath === nextPath) return;
+    const remapEditorPath = (path: string): string =>
+        isGitDiffTabPath(path) ? path : remapPath(path, previousPath, nextPath);
+    const openTabs = current.openTabs.map((tab) => ({
+        ...tab,
+        path: remapEditorPath(tab.path),
+    }));
+    const activeTab =
+        current.activeTab?.kind === 'editor'
+            ? { kind: 'editor' as const, path: remapEditorPath(current.activeTab.path) }
+            : current.activeTab;
+    const activeWork = useSessionViewStore.getState().activeWork[sessionId];
+    useSessionViewStore.getState().remapDocuments(sessionId, previousPath, nextPath);
+    if (activeWork?.kind === 'editor')
+        useSessionViewStore.getState().setActiveWork(sessionId, {
+            kind: 'editor',
+            path: remapEditorPath(activeWork.path),
+        });
+    patchSessionState({ ...current, openTabs, activeTab }, 'Moved editor state could not be saved');
+}
+
+/** Closes every normal editor under an item only after Main has moved that item to the Trash. */
+export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
+    const bootstrap = useWorkbenchStore.getState().bootstrap;
+    const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+    if (!current) return;
+    const closingPaths = current.openTabs
+        .map((tab) => tab.path)
+        .filter((tabPath) => !isGitDiffTabPath(tabPath) && pathIsAtOrBelow(tabPath, path));
+    if (closingPaths.length === 0) return;
+    const closing = new Set(closingPaths);
+    const firstClosingIndex = current.openTabs.findIndex((tab) => closing.has(tab.path));
+    const openTabs = current.openTabs.filter((tab) => !closing.has(tab.path));
+    const sessionTerminals =
+        bootstrap?.terminals.filter((terminal) => terminal.sessionId === sessionId) ?? [];
+    const resolvedActive = resolveActiveWork({
+        activeWork: useSessionViewStore.getState().activeWork[sessionId],
+        sessionState: current,
+        sessionTerminals,
+    });
+    const activeWasClosed =
+        (resolvedActive?.kind === 'editor' && closing.has(resolvedActive.path)) ||
+        (current.activeTab?.kind === 'editor' && closing.has(current.activeTab.path));
+    useSessionViewStore.getState().evictDocumentsUnderPath(sessionId, path);
+    if (!activeWasClosed) {
+        patchSessionState({ ...current, openTabs });
+        return;
+    }
+    const fallbackPath = openTabs[Math.min(firstClosingIndex, openTabs.length - 1)]?.path;
+    const terminal = sessionTerminals[0];
+    const nextItem: WorkItem | undefined = fallbackPath
+        ? { kind: 'editor', path: fallbackPath }
+        : terminal
+          ? { kind: 'terminal', terminalId: terminal.id }
+          : undefined;
+    useSessionViewStore.getState().setActiveWork(sessionId, nextItem);
+    patchSessionState(
+        nextItem
+            ? activateWorkState({ ...current, openTabs }, nextItem)
+            : { ...current, openTabs, activeTab: undefined },
+        'Trashed editor state could not be saved',
+    );
 }
