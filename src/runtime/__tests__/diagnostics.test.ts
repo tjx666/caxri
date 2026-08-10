@@ -81,4 +81,18 @@ describe('bug report diagnostics summary', () => {
             ),
         ).toEqual(['runtime:correlation-1', 'main:window.close_failed:2026-08-11T00:00:01.000Z']);
     });
+
+    it('returns no identifiers when the requested limit is zero', () => {
+        expect(
+            summarizeRecentErrorIds(
+                JSON.stringify({
+                    timestamp: '2026-08-11T00:00:00.000Z',
+                    process: 'runtime',
+                    level: 'error',
+                    event: 'ipc.request_failed',
+                }),
+                0,
+            ),
+        ).toEqual([]);
+    });
 });

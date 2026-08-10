@@ -42,7 +42,7 @@ const onApplied = (): void => void refreshWorkbench();
 const onError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
 
-export function SettingsDialog() {
+function useSettingsDialogController() {
     const open = useDialogStore((state) => state.settingsOpen);
     const request = useDialogStore((state) => state.settingsRequest);
     const onOpenChange = setSettingsOpen;
@@ -323,6 +323,54 @@ export function SettingsDialog() {
         }
     };
 
+    return {
+        addBinding,
+        applyAll,
+        changeTab,
+        dirtyKinds,
+        draftKeybindingConflicts,
+        drafts,
+        importTheme,
+        onOpenChange,
+        open,
+        removeBinding,
+        saving,
+        showSource,
+        showUi,
+        sourceErrors,
+        state,
+        tab,
+        updateBinding,
+        updateSettingsField,
+        updateSource,
+        updateThemeColor,
+        view,
+    };
+}
+
+function SettingsDialogView({
+    addBinding,
+    applyAll,
+    changeTab,
+    dirtyKinds,
+    draftKeybindingConflicts,
+    drafts,
+    importTheme,
+    onOpenChange,
+    open,
+    removeBinding,
+    saving,
+    showSource,
+    showUi,
+    sourceErrors,
+    state,
+    tab,
+    updateBinding,
+    updateSettingsField,
+    updateSource,
+    updateThemeColor,
+    view,
+}: ReturnType<typeof useSettingsDialogController>) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
@@ -482,4 +530,9 @@ export function SettingsDialog() {
             </DialogContent>
         </Dialog>
     );
+}
+
+export function SettingsDialog() {
+    const controller = useSettingsDialogController();
+    return <SettingsDialogView {...controller} />;
 }

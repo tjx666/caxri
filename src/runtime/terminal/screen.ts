@@ -96,15 +96,14 @@ export class TerminalScreenState {
         });
     }
 
-    private async drain(): Promise<void> {
+    private drain(): Promise<void> {
         while (!this.disposed) {
             const operation = this.operations.shift();
-            if (!operation) return;
+            if (!operation) return Promise.resolve();
             if (operation.type === 'write') {
-                await new Promise<void>((resolve) =>
+                return new Promise<void>((resolve) =>
                     this.terminal.write(operation.chunks.join(''), resolve),
-                );
-                continue;
+                ).then(() => this.drain());
             }
             if (operation.type === 'resize') {
                 this.terminal.resize(operation.cols, operation.rows);
@@ -116,6 +115,7 @@ export class TerminalScreenState {
                 operation.reject(error);
             }
         }
+        return Promise.resolve();
     }
 
     private serializeBounded(): ReturnType<typeof boundSnapshot> {

@@ -11,6 +11,8 @@ export default defineConfig(
         'out',
         'release',
         'node_modules',
+        /** Generated Go and Acceptance evidence can contain temporary TypeScript outside tsconfig. */
+        '.records/**',
         'test-results',
         /** Shallow clones of third-party repos for competitive research; never lint someone else's project config. */
         'competitors/**',

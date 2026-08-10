@@ -73,10 +73,15 @@ export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
         }
     }
     const boundedLimit = Math.min(5, Math.max(0, Math.trunc(limit)));
+    if (boundedLimit === 0) return [];
     const recent = records.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
     const unique: string[] = [];
+    const seen = new Set<string>();
     for (const record of recent.toReversed()) {
-        if (!unique.includes(record.id)) unique.push(record.id);
+        if (!seen.has(record.id)) {
+            seen.add(record.id);
+            unique.push(record.id);
+        }
         if (unique.length === boundedLimit) break;
     }
     return unique.reverse();

@@ -309,34 +309,41 @@ export class FileMutationJournal {
             }
         }
         this.initialized = true;
-        let changed = false;
+        /** Recovery stays sequential because staged paths may overlap and native identity checks mutate records. */
+        let recovery = Promise.resolve(false);
         for (const operation of this.records.values()) {
-            let recovered = false;
-            if (operation.phase === 'pre_stage') {
-                operation.phase = 'canceled';
-                operation.updatedAt = this.now();
-                operation.error = {
-                    code: 'UNAVAILABLE',
-                    message: 'Runtime restarted before the file operation began',
-                };
-                changed = true;
-                recovered = true;
-            } else if (operation.phase === 'staged') {
-                await this.reconcileStaged(operation);
-                changed = true;
-                recovered = true;
-            }
-            if (recovered && finalPhases.has(operation.phase))
-                this.logger.write('info', 'file.operation_recovered', {
-                    durationMs: operation.updatedAt - operation.startedAt,
-                    fields: {
-                        operationId: operation.id,
-                        kind: operation.kind,
-                        phase: operation.phase,
-                    },
-                });
+            recovery = recovery.then(async (changed) =>
+                (await this.recoverOperation(operation)) ? true : changed,
+            );
         }
+        const changed = await recovery;
         if (changed) await this.persist();
+    }
+
+    private async recoverOperation(operation: FileMutationOperation): Promise<boolean> {
+        let recovered = false;
+        if (operation.phase === 'pre_stage') {
+            operation.phase = 'canceled';
+            operation.updatedAt = this.now();
+            operation.error = {
+                code: 'UNAVAILABLE',
+                message: 'Runtime restarted before the file operation began',
+            };
+            recovered = true;
+        } else if (operation.phase === 'staged') {
+            await this.reconcileStaged(operation);
+            recovered = true;
+        }
+        if (recovered && finalPhases.has(operation.phase))
+            this.logger.write('info', 'file.operation_recovered', {
+                durationMs: operation.updatedAt - operation.startedAt,
+                fields: {
+                    operationId: operation.id,
+                    kind: operation.kind,
+                    phase: operation.phase,
+                },
+            });
+        return recovered;
     }
 
     private async reconcileStaged(operation: FileMutationOperation): Promise<void> {
