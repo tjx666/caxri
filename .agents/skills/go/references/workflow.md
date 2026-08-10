@@ -8,8 +8,8 @@ transition rather than reconstructing progress from the conversation.
 | `intake`             | `$go` explicitly invoked    | Requirements classified                           | none                               |
 | `planning`           | Material decisions resolved | Issues and Acceptance matrix frozen; Goal created | `intake` only before Goal creation |
 | `issue_execution`    | Goal or ledger active       | Every queued issue has a reviewed commit          | same phase for repair              |
-| `deep_review`        | Issue queue complete        | Cross-issue review clear                          | `issue_execution`                  |
-| `delivery`           | Review-clean branch         | PR checks and review clear                        | `deep_review`                      |
+| `deep_review`        | Issue queue complete        | Exact head review-clean and frozen                | `issue_execution`                  |
+| `delivery`           | Frozen review-clean branch  | PR checks and review clear                        | `deep_review`                      |
 | `acceptance`         | Deliverable head stable     | Passing round published                           | `issue_execution` or `deep_review` |
 | `waiting_acceptance` | Passing round published     | Human accepts or rejects                          | `acceptance`                       |
 | `merge`              | Human accepted current head | PR merged and issues verified                     | `deep_review` if code changes      |
@@ -30,17 +30,33 @@ reproducible. Keep commits cohesive and independently explainable. A shared root
 cause may satisfy multiple issues, but the ledger and Acceptance matrix must
 retain each issue's observable outcome.
 
-## Aggregate loop
+## Aggregate review budget
 
 ```text
-all issue commits → full deep review → repair → affected validation → commit
-                         ↑                                  |
-                         └──────── repeat when needed ──────┘
+code-changing gates → full deep review → consolidate → repair P0/P1 → targeted validation
+                              │                                      │
+                              └──── freeze when current head is clear ┘
 ```
 
-After a clear review, push and create the PR. CI, conflicts, and review findings
-route through the same repair discipline. If a delivery repair crosses issue or
-architecture boundaries, return to full deep review before Acceptance.
+Complete `knip`, `doctor`, affected builds, and focused Electron E2E before the
+first full review so late gates do not reopen a declared-clean head. Wait for all
+reports in a round, adjudicate them against the frozen Goal and threat model, and
+then repair one cohesive batch.
+
+- Run no more than three full Goal-range rounds. Stop sooner whenever the current
+  head has no product P0/P1.
+- After round three, allow one targeted verification of its P0/P1 repairs. If it
+  exposes another architecture-level P0/P1, request a material architecture or
+  scope decision; never start round four.
+- P2/P3, stale evidence, PR copy, and workflow bookkeeping do not keep product
+  review open. Record debt or fix delivery metadata in its owning phase.
+- A report against an old head is advisory. It can reopen work only when its
+  product P0/P1 reproduces against the current head.
+
+Record every counted full or targeted decision through `state.ts review`. Use
+`--freeze` only with zero product P0/P1; the ledger invalidates the freeze when
+the PR head changes. CI, Acceptance, and merge cannot reuse the old head's
+decision.
 
 ## Discovery routing
 
@@ -70,7 +86,9 @@ fallback only when all of these facts are verified for the current PR head:
   user explicitly authorized another infrastructure failure;
 - the ledger records the exact head, workflow URL, job, failure detail, and
   policy or user authorization before local parity starts.
+- the exact PR head is explicitly frozen after the final review decision.
 
+Do not admit fallback while review or code-changing validation is still active.
 After admission, run the exact platform-neutral commands declared by
 `.github/workflows/ci.yml`, in order, followed by one `bun run test:e2e` run on
 the same clean head. Record commands and results in the ledger. Both surfaces
@@ -79,6 +97,9 @@ local result is substitute evidence, not a green hosted check. A changed head,
 missing required authorization, local failure, release package, or deployment
 is outside the exception and returns to the normal remote-CI path. Never
 re-admit a failed fallback for the same head; repair and push a new head first.
+Normally a Go run gets one full Electron E2E. A product failure or human
+Acceptance rejection may invalidate that head and permit one final rerun after
+focused repair and a new review freeze. The ledger rejects a third full run.
 
 ## Waiting without token churn
 
