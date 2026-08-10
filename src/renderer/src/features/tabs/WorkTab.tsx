@@ -1,5 +1,8 @@
+import { useIsPresent } from 'motion/react';
+import * as m from 'motion/react-m';
 import { X } from 'lucide-react';
-import type { AnimationEvent, DragEvent, ReactElement, ReactNode } from 'react';
+import type { DragEvent, ReactElement, ReactNode } from 'react';
+import { useState } from 'react';
 
 import type { ProcessState } from '@shared/types';
 
@@ -8,8 +11,8 @@ import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { FileTypeIcon } from '../../icons/files/FileTypeIcon';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
+import { motionDurationMs, usePrefersReducedMotion } from '../../lib/motion';
 import { cn } from '../../lib/utils';
-import type { WorkTabMotionPhase } from './work-tab-motion';
 
 const processIndicatorClassName =
     'process-indicator w-1.5 h-1.5 flex-none m-0 rounded-full bg-muted';
@@ -21,7 +24,6 @@ interface WorkTabProps {
     fileIconName?: string;
     icon: 'file' | AgentIconIdentity;
     label: string;
-    motionPhase?: WorkTabMotionPhase;
     preview?: boolean;
     status?: ProcessState;
     terminalId?: string;
@@ -29,9 +31,11 @@ interface WorkTabProps {
     onClose: () => void;
     onDoubleClick?: () => void;
     onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
-    onMotionEnd?: () => void;
     onSelect: () => void;
 }
+
+/** Target width the tab grows to/from during its enter/exit width animation. */
+const TAB_MAX_WIDTH = 180;
 
 export function WorkTab({
     active,
@@ -40,7 +44,6 @@ export function WorkTab({
     fileIconName,
     icon,
     label,
-    motionPhase = 'stable',
     preview = false,
     status,
     terminalId,
@@ -48,33 +51,60 @@ export function WorkTab({
     onClose,
     onDoubleClick,
     onDragStart,
-    onMotionEnd,
     onSelect,
 }: WorkTabProps) {
+    const isPresent = useIsPresent();
+    const reducedMotion = usePrefersReducedMotion();
+    // Token values need a live DOM (`getComputedStyle`), so they can't be read at module scope;
+    // a lazy `useState` initializer reads them once per mount instead of on every render.
+    const [durations] = useState(() => ({
+        enterS: motionDurationMs('--motion-tab-enter') / 1000,
+        exitS: motionDurationMs('--motion-tab-exit') / 1000,
+    }));
+    const enterDuration = reducedMotion ? 0 : durations.enterS;
+    const exitDuration = reducedMotion ? 0 : durations.exitS;
+    // Exiting tabs must never look or behave active: force the non-active visual state and lock
+    // out pointer/keyboard interaction while the exit animation plays out.
+    const visuallyActive = active && isPresent;
     const tab = (
-        <div
+        <m.div
             className={cn(
-                'work-tab group relative flex max-w-[180px] items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground [-webkit-app-region:no-drag]',
-                motionPhase === 'exit' && 'pointer-events-none',
-                active &&
+                'work-tab group relative flex items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground [-webkit-app-region:no-drag]',
+                !isPresent && 'pointer-events-none',
+                visuallyActive &&
                     "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
             )}
             data-terminal-id={terminalId}
             data-preview={preview || undefined}
-            data-motion={motionPhase === 'stable' ? undefined : motionPhase}
-            aria-hidden={motionPhase === 'exit' || undefined}
-            inert={motionPhase === 'exit' ? true : undefined}
+            aria-hidden={!isPresent || undefined}
+            inert={!isPresent ? true : undefined}
             draggable={Boolean(onDragStart)}
-            onDragStart={onDragStart}
+            // Motion's HTMLMotionProps redefines `onDragStart` for its own pointer-based drag
+            // gesture (a different signature: `(event, info: PanInfo) => void`), which shadows
+            // the native HTML5 dragstart handler this tab needs for terminal reordering. The
+            // `drag` gesture prop is never set here, so Motion never wires a listener under that
+            // name; the capture-phase prop name is untouched by Motion's typing and behaves
+            // identically to a bubble-phase listener for this leaf element.
+            onDragStartCapture={onDragStart}
             onDoubleClick={onDoubleClick}
-            onAnimationEnd={(event: AnimationEvent<HTMLDivElement>) => {
-                if (event.currentTarget === event.target) onMotionEnd?.();
+            initial={{ maxWidth: 0, opacity: 0, overflow: 'hidden' }}
+            animate={{
+                maxWidth: TAB_MAX_WIDTH,
+                opacity: 1,
+                transitionEnd: { overflow: 'visible' },
+                transition: { duration: enterDuration, ease: 'easeOut' },
+            }}
+            exit={{
+                maxWidth: 0,
+                opacity: 0,
+                overflow: 'hidden',
+                transition: { duration: exitDuration, ease: 'easeIn' },
             }}
         >
             <button
                 type="button"
                 role="tab"
-                aria-selected={active}
+                aria-selected={visuallyActive}
                 className="tab-select flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit cursor-pointer [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap"
                 onClick={onSelect}
             >
@@ -113,7 +143,7 @@ export function WorkTab({
                     </button>
                 </Tooltip>
             </span>
-        </div>
+        </m.div>
     );
     if (!contextMenu) return tab;
     return (

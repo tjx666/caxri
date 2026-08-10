@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { parseGitDiffTab, type GitDiffTab } from '@shared/git-diff';
 import type { GitRepositorySummary } from '@shared/types';
 
+import { DisclosureMotion } from '../../../../components/DisclosureMotion';
 import { Button } from '../../../../components/ui/button';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utils';
@@ -110,14 +111,16 @@ function GitTreeDirectory({
                 {expanded ? <FolderOpen size={14} /> : <Folder size={14} />}
                 <span className="truncate">{node.name}</span>
             </button>
-            {expanded && (
-                <GitTreeItems
-                    depth={depth + 1}
-                    nodes={node.children}
-                    onSelect={onSelect}
-                    selected={selected}
-                />
-            )}
+            <DisclosureMotion animate expanded={expanded} kind="git-directory">
+                {() => (
+                    <GitTreeItems
+                        depth={depth + 1}
+                        nodes={node.children}
+                        onSelect={onSelect}
+                        selected={selected}
+                    />
+                )}
+            </DisclosureMotion>
         </div>
     );
 }
@@ -214,53 +217,57 @@ function GitRepositorySection({
                     </span>
                 </span>
             </button>
-            {expanded && (
-                <div className="git-files overflow-visible">
-                    <div className="git-changes-caption flex items-center justify-between py-1.5 px-2 text-muted text-[10px] font-bold tracking-[0.06em] uppercase">
-                        <span>{pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}</span>
-                        <span className="git-changes-actions flex items-center gap-1">
-                            <Tooltip
-                                content={
-                                    mode === 'pull-request'
-                                        ? 'Open Pull Request Changes'
-                                        : 'Open Working Tree Changes'
-                                }
-                            >
-                                <Button
-                                    className="git-open-changes size-6"
-                                    size="icon"
-                                    variant="ghost"
-                                    aria-label={
+            <DisclosureMotion animate expanded={expanded} kind="git-repository">
+                {() => (
+                    <div className="git-files overflow-visible">
+                        <div className="git-changes-caption flex items-center justify-between py-1.5 px-2 text-muted text-[10px] font-bold tracking-[0.06em] uppercase">
+                            <span>
+                                {pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}
+                            </span>
+                            <span className="git-changes-actions flex items-center gap-1">
+                                <Tooltip
+                                    content={
                                         mode === 'pull-request'
                                             ? 'Open Pull Request Changes'
-                                            : 'Open Changes'
+                                            : 'Open Working Tree Changes'
                                     }
-                                    disabled={files.length === 0}
-                                    onClick={() => openChanges(repository.id, repository.name)}
                                 >
-                                    <Files size={13} />
-                                </Button>
-                            </Tooltip>
-                            <span>{files.length}</span>
-                        </span>
-                    </div>
-                    {files.length === 0 && (
-                        <div className="empty-panel py-4 px-3 text-muted text-center">
-                            {emptyMessage}
+                                    <Button
+                                        className="git-open-changes size-6"
+                                        size="icon"
+                                        variant="ghost"
+                                        aria-label={
+                                            mode === 'pull-request'
+                                                ? 'Open Pull Request Changes'
+                                                : 'Open Changes'
+                                        }
+                                        disabled={files.length === 0}
+                                        onClick={() => openChanges(repository.id, repository.name)}
+                                    >
+                                        <Files size={13} />
+                                    </Button>
+                                </Tooltip>
+                                <span>{files.length}</span>
+                            </span>
                         </div>
-                    )}
-                    {files.length > 0 && (
-                        <GitTreeItems
-                            nodes={buildGitFileTree(files)}
-                            selected={selectedPath}
-                            onSelect={(path) => openFile(repository.id, path)}
-                        />
-                    )}
-                    {mode === 'working' && (
-                        <CommitHistory repository={repository} sessionId={sessionId} />
-                    )}
-                </div>
-            )}
+                        {files.length === 0 && (
+                            <div className="empty-panel py-4 px-3 text-muted text-center">
+                                {emptyMessage}
+                            </div>
+                        )}
+                        {files.length > 0 && (
+                            <GitTreeItems
+                                nodes={buildGitFileTree(files)}
+                                selected={selectedPath}
+                                onSelect={(path) => openFile(repository.id, path)}
+                            />
+                        )}
+                        {mode === 'working' && (
+                            <CommitHistory repository={repository} sessionId={sessionId} />
+                        )}
+                    </div>
+                )}
+            </DisclosureMotion>
         </section>
     );
 }

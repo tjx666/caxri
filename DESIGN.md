@@ -96,14 +96,52 @@ provides the keyboard-equivalent reorder and announces the resulting position.
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
 the pattern — keep). Tab height 36px.
 
-**Motion** — motion explains structure; it never decorates state. User-triggered Project and
-Archived Session disclosures expand over 180ms with opacity plus intrinsic-height reveal using
-`cubic-bezier(0.25, 1, 0.5, 1)`, and collapse over 130ms with `ease-in`. Work tabs enter over 140ms
-with `ease-out` and confirmed removals exit over 110ms with `ease-in`, using opacity plus width
-reveal. Initial bootstrap/restore, tab activation, Agent activity, Project drag settlement, folder
-glyph changes, and Terminal panes remain instantaneous. Do not stagger rows or neighboring tabs.
-`prefers-reduced-motion: reduce` makes every spatial transition instantaneous without changing
-focus, selection, close confirmation, or PTY behavior.
+**Motion** — motion explains structure; it never decorates state. Motion is a layered stack;
+pick the least-powerful layer that covers the scenario, and one element is only ever driven by
+one layer:
+
+1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`) — every
+   overlay: dialogs, selects, context menus, tooltips, and future shadcn components. Fade plus
+   ~95% zoom on enter/exit, gated by Base UI popup state attributes. We deliberately do not
+   import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants exist to bridge
+   Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute variants are
+   equivalent (see upstream debate in shadcn-ui/ui#10267).
+2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
+   user-triggered disclosure: Sidebar Project and Archived Sessions, Files search groups, Git
+   directory/repository/history, Project Status sections. `components/DisclosureMotion.tsx` is
+   the thin presence wrapper: it mounts content in the commit that flips `data-expanded` and
+   releases collapsed DOM once the height transition settles, so collapse never retains hidden
+   queries, watchers, or large subtrees.
+3. **auto-animate** (zero-config list add/remove/reorder) — deferred, not installed: its React
+   StrictMode add-animation bug (formkit/auto-animate#232) is unfixed as of 0.10.0 and both
+   renderer entries enable StrictMode. Until it lands, simple lists stay instant.
+4. **Motion** (`motion/react` via `LazyMotion strict` + `motion/react-m`, `domAnimation`
+   features only) — fine presence/timing control and future layout math: the work tab strip's
+   enter/exit (opacity plus width), future drag reorder and shared-element transitions.
+
+Timing lives in the `--motion-*` tokens in `styles.css` (`:root`) — the single source for CSS
+transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and
+tests: disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
+`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, ease-in); work tabs
+enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms, ease-in);
+overlays enter `--motion-overlay-enter` (150ms) and exit `--motion-overlay-exit` (100ms). JS
+resolves tokens through `lib/motion.ts` (`motionDurationMs`); settlement fallbacks are token
+plus a safety margin (`motionSettleTimeoutMs`), never an independent literal.
+
+Intentionally instant: initial bootstrap/restore, Session switches, tab activation, Agent
+activity, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes,
+and asynchronously lazy-loaded expansion (the Files directory tree fetches children on expand —
+with no content there is no spatial continuity to explain). Do not stagger rows or neighboring
+tabs. The Process Explorer window is out of scope (separate style layer, read-only
+diagnostics).
+
+`prefers-reduced-motion: reduce` completes every layer instantly — overlay keyframes are gated
+behind `motion-safe:` variants (the library ships no media query of its own, and a
+`motion-reduce:animate-none` override would lose the specificity fight against the
+`data-open:` attribute variant), disclosure CSS zeroes its durations, Motion durations come
+from the shared `usePrefersReducedMotion` hook
+(`lib/motion.ts`, the only sanctioned way to read the preference in JS) — without changing
+focus, selection, command, query, or lifecycle behavior.
 
 **Git inspector** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in

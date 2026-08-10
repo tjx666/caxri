@@ -18,6 +18,7 @@ import type {
     TerminalRecord,
 } from '@shared/types';
 
+import { DisclosureMotion } from '../../components/DisclosureMotion';
 import { Button } from '../../components/ui/button';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
@@ -28,7 +29,6 @@ import {
     selectSession,
     unarchiveSession,
 } from '../session/session-actions';
-import { DisclosureMotion } from './DisclosureMotion';
 import { hasProjectDragType, type ProjectDropTarget } from './project-order';
 
 /** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */

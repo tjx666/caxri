@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { GitCommit, GitRepositorySummary } from '@shared/types';
 
+import { DisclosureMotion } from '../../../../components/DisclosureMotion';
 import { Button } from '../../../../components/ui/button';
 import { caxri } from '../../../../lib/caxri';
 import { cn } from '../../../../lib/utils';
@@ -214,62 +215,66 @@ export function CommitHistory({
                 <span>Commits</span>
                 {expanded && <span className="ml-auto">{commits.length}</span>}
             </button>
-            {expanded && (
-                <div>
-                    <div className="border-y border-border p-1.5">
-                        <input
-                            className="h-6 w-full rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-accent"
-                            aria-label={`History path for ${repository.name}`}
-                            placeholder="History path (optional)"
-                            value={path}
-                            onChange={(event) => setPath(event.currentTarget.value)}
-                        />
-                    </div>
-                    {error ? (
-                        <div className="px-3 py-2 text-[11px] text-danger">{error}</div>
-                    ) : loading && commits.length === 0 ? (
-                        <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted">
-                            <LoaderCircle size={12} className="animate-spin" /> Loading commits…
+            <DisclosureMotion animate expanded={expanded} kind="git-history">
+                {() => (
+                    <div>
+                        <div className="border-y border-border p-1.5">
+                            <input
+                                className="h-6 w-full rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-accent"
+                                aria-label={`History path for ${repository.name}`}
+                                placeholder="History path (optional)"
+                                value={path}
+                                onChange={(event) => setPath(event.currentTarget.value)}
+                            />
                         </div>
-                    ) : commits.length === 0 ? (
-                        <div className="px-3 py-2 text-[11px] text-muted">No commits.</div>
-                    ) : (
-                        commits.map((commit) => (
-                            <div key={commit.sha}>
-                                <CommitRow
-                                    commit={commit}
-                                    selected={selectedSha === commit.sha}
-                                    onSelect={() =>
-                                        setSelectedSha((current) =>
-                                            current === commit.sha ? undefined : commit.sha,
-                                        )
-                                    }
-                                />
-                                {selectedSha === commit.sha && (
-                                    <CommitDetails
-                                        path={scopePath}
-                                        repository={repository}
-                                        sessionId={sessionId}
-                                        sha={commit.sha}
-                                    />
-                                )}
+                        {error ? (
+                            <div className="px-3 py-2 text-[11px] text-danger">{error}</div>
+                        ) : loading && commits.length === 0 ? (
+                            <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted">
+                                <LoaderCircle size={12} className="animate-spin" /> Loading commits…
                             </div>
-                        ))
-                    )}
-                    {nextOffset !== undefined && (
-                        <div className="p-1.5">
-                            <Button
-                                className="w-full"
-                                variant="ghost"
-                                disabled={loading || path !== debouncedPath}
-                                onClick={() => void loadPage(nextOffset, false, repository.head)}
-                            >
-                                {loading ? 'Loading…' : 'Load more'}
-                            </Button>
-                        </div>
-                    )}
-                </div>
-            )}
+                        ) : commits.length === 0 ? (
+                            <div className="px-3 py-2 text-[11px] text-muted">No commits.</div>
+                        ) : (
+                            commits.map((commit) => (
+                                <div key={commit.sha}>
+                                    <CommitRow
+                                        commit={commit}
+                                        selected={selectedSha === commit.sha}
+                                        onSelect={() =>
+                                            setSelectedSha((current) =>
+                                                current === commit.sha ? undefined : commit.sha,
+                                            )
+                                        }
+                                    />
+                                    {selectedSha === commit.sha && (
+                                        <CommitDetails
+                                            path={scopePath}
+                                            repository={repository}
+                                            sessionId={sessionId}
+                                            sha={commit.sha}
+                                        />
+                                    )}
+                                </div>
+                            ))
+                        )}
+                        {nextOffset !== undefined && (
+                            <div className="p-1.5">
+                                <Button
+                                    className="w-full"
+                                    variant="ghost"
+                                    disabled={loading || path !== debouncedPath}
+                                    onClick={() =>
+                                        void loadPage(nextOffset, false, repository.head)
+                                    }
+                                >
+                                    {loading ? 'Loading…' : 'Load more'}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </DisclosureMotion>
         </section>
     );
 }
