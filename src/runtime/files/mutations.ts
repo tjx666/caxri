@@ -1,5 +1,14 @@
 import { constants, type BigIntStats } from 'node:fs';
-import { lstat, mkdir, open, readdir, rename, rm, type FileHandle } from 'node:fs/promises';
+import {
+    lstat,
+    mkdir,
+    open,
+    readdir,
+    rename,
+    rmdir,
+    unlink,
+    type FileHandle,
+} from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
@@ -38,6 +47,13 @@ interface CopyEntry extends FileIdentity {
     mode: number;
     relativePath: string;
 }
+
+interface CopyManifest {
+    entries: CopyEntry[];
+    totalBytes: number;
+}
+
+type CreatedCopyEntry = FileIdentity & { kind: CopyEntry['kind'] };
 
 interface CopyFileOptions {
     signal: AbortSignal;
@@ -178,6 +194,10 @@ export class FileMutationService {
     async copy(
         params: RuntimeMethodParams<'files.copy'>,
     ): Promise<RuntimeMethodResult<'files.copy'>> {
+        const observedAt = performance.now();
+        let phase = 'preflight';
+        let entryCount = 0;
+        let totalBytes = 0;
         try {
             const source = await this.resolveExisting(params.sessionId, params.path);
             const directory = await this.resolveExisting(params.sessionId, params.directory, true);
@@ -194,11 +214,13 @@ export class FileMutationService {
                 this.copyLimits.maximumDurationMs,
             );
             try {
-                const entries = await this.inspectCopyTree(
+                const manifest = await this.inspectCopyTree(
                     source.path,
                     startedAt,
                     controller.signal,
                 );
+                entryCount = manifest.entries.length;
+                totalBytes = manifest.totalBytes;
                 await this.beforeCopyValidation?.();
                 for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
                     this.assertCopyDeadline(startedAt, controller.signal);
@@ -206,34 +228,39 @@ export class FileMutationService {
                     const path = resolve(directory.path, name);
                     const release = this.tryReserveTarget(path);
                     if (!release) continue;
-                    let createdTarget: (FileIdentity & { kind: CopyEntry['kind'] }) | undefined;
+                    const createdTargets: CreatedCopyEntry[] = [];
                     try {
                         if (await this.pathExists(path)) continue;
                         await Promise.all([
                             this.assertIdentity(source),
                             this.assertIdentity(directory),
                         ]);
+                        phase = 'transfer';
                         await this.copyEntries(
-                            entries,
+                            manifest.entries,
                             path,
                             directory,
                             startedAt,
                             controller.signal,
-                            (target) => {
-                                createdTarget = target;
-                            },
+                            (target) => createdTargets.push(target),
                         );
                         this.assertCopyDeadline(startedAt, controller.signal);
                         this.logger.write('info', 'file.copied', {
+                            durationMs: performance.now() - observedAt,
                             fields: {
                                 sessionId: params.sessionId,
                                 from: relative(source.root.path, source.path),
                                 to: relative(source.root.path, path),
+                                entryCount,
+                                totalBytes,
                             },
                         });
                         return { kind: source.kind, name, path };
                     } catch (error) {
-                        await this.removePartialCopy(createdTarget);
+                        const failedPhase = phase;
+                        phase = 'cleanup';
+                        await this.removePartialCopy(createdTargets);
+                        phase = failedPhase;
                         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
                     } finally {
                         release();
@@ -248,6 +275,19 @@ export class FileMutationService {
                 clearTimeout(deadline);
             }
         } catch (error) {
+            this.logger.write('warn', 'file.copy_failed', {
+                durationMs: performance.now() - observedAt,
+                fields: {
+                    sessionId: params.sessionId,
+                    phase,
+                    entryCount,
+                    totalBytes,
+                    code:
+                        (isCaxriError(error) ? error.code : undefined) ??
+                        (error as NodeJS.ErrnoException).code ??
+                        'IO',
+                },
+            });
             throw mutationError(error, 'copying the item');
         }
     }
@@ -388,7 +428,7 @@ export class FileMutationService {
         source: string,
         startedAt: number,
         signal: AbortSignal,
-    ): Promise<CopyEntry[]> {
+    ): Promise<CopyManifest> {
         const budget: CopyBudget = { bytes: 0, entries: 0, startedAt };
         const pending = [source];
         const entries: CopyEntry[] = [];
@@ -409,7 +449,7 @@ export class FileMutationService {
             const names = await readdir(candidate);
             for (const name of names) pending.push(resolve(candidate, name));
         }
-        return entries;
+        return { entries, totalBytes: budget.bytes };
     }
 
     private async inspectCopyEntry(candidate: string, budget: CopyBudget): Promise<BigIntStats> {
@@ -444,7 +484,7 @@ export class FileMutationService {
         destination: ResolvedMutableEntry,
         startedAt: number,
         signal: AbortSignal,
-        onTargetCreated: (target: FileIdentity & { kind: CopyEntry['kind'] }) => void,
+        onTargetCreated: (target: CreatedCopyEntry) => void,
     ): Promise<void> {
         const targetDirectories = new Map<string, FileIdentity>();
         for (const entry of entries) {
@@ -463,7 +503,7 @@ export class FileMutationService {
                 await mkdir(targetPath, { mode: (entry.mode & 0o777) | 0o700 });
                 const identity = await this.createdIdentity(targetPath);
                 targetDirectories.set(targetPath, identity);
-                if (!entry.relativePath) onTargetCreated({ ...identity, kind: entry.kind });
+                onTargetCreated({ ...identity, kind: entry.kind });
                 this.assertCopyDeadline(startedAt, signal);
                 continue;
             }
@@ -481,7 +521,7 @@ export class FileMutationService {
                     entry.mode,
                 );
                 const identity = await this.createdHandleIdentity(target, targetPath);
-                if (!entry.relativePath) onTargetCreated({ ...identity, kind: entry.kind });
+                onTargetCreated({ ...identity, kind: entry.kind });
                 await target.chmod(entry.mode & 0o777);
                 await this.copyFile(source, target, { signal });
                 this.assertCopyDeadline(startedAt, signal);
@@ -566,16 +606,22 @@ export class FileMutationService {
         }
     }
 
-    private async removePartialCopy(
-        target?: FileIdentity & { kind: CopyEntry['kind'] },
-    ): Promise<void> {
-        if (!target) return;
-        try {
-            await this.assertPathIdentity(target);
-            await rm(target.path, { force: true, recursive: target.kind === 'directory' });
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-            this.logger.write('warn', 'file.copy_cleanup_skipped');
+    private async removePartialCopy(targets: readonly CreatedCopyEntry[]): Promise<void> {
+        for (const target of [...targets].reverse()) {
+            try {
+                await this.assertPathIdentity(target);
+                if (target.kind === 'directory') {
+                    if ((await readdir(target.path)).length > 0) {
+                        this.logger.write('warn', 'file.copy_cleanup_skipped');
+                        continue;
+                    }
+                    await rmdir(target.path);
+                } else await unlink(target.path);
+            } catch (error) {
+                const code = (error as NodeJS.ErrnoException).code;
+                if (code === 'ENOENT') continue;
+                this.logger.write('warn', 'file.copy_cleanup_skipped');
+            }
         }
     }
 

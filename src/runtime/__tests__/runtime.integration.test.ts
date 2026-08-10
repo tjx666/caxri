@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rename,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -202,6 +211,54 @@ describe('Runtime composition root', () => {
                 }),
             ).rejects.toMatchObject({ code: 'IO' });
             expect(spawn).toHaveBeenCalledTimes(spawnCount);
+        } finally {
+            await runtime.close();
+        }
+    });
+
+    it('rejects a requested Terminal cwd replaced after authorization but before spawn', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-cwd-race-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        const projectFolder = join(projectRoot, 'folder');
+        const outside = join(directory, 'outside');
+        await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
+        let swapOnResolve = false;
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const runtime = await createRuntime({
+            userDataPath: join(directory, 'user-data'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: async () => {
+                    if (swapOnResolve) {
+                        swapOnResolve = false;
+                        await rename(projectFolder, `${projectFolder}-original`);
+                        await symlink(outside, projectFolder);
+                    }
+                    return '/bin/zsh';
+                },
+                spawn,
+            },
+        });
+
+        try {
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            const created = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+            });
+            expect(spawn).toHaveBeenCalledTimes(1);
+            swapOnResolve = true;
+
+            const terminal = await runtime.handlers['terminal.create']({
+                sessionId: created.session.id,
+                kind: 'shell',
+                cwd: projectFolder,
+            });
+
+            expect(terminal.lastProcessState).toBe('failed');
+            expect(spawn).toHaveBeenCalledTimes(1);
         } finally {
             await runtime.close();
         }
