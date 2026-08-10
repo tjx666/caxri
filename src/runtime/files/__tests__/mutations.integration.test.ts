@@ -124,7 +124,9 @@ describe('FileMutationService', () => {
     });
 
     it('copies recursively and auto-renames copy and cut-paste conflicts', async () => {
-        const { root, service, sessionId } = await createFixture('caxri-file-copy-conflicts-');
+        const { directory, root, service, sessionId } = await createFixture(
+            'caxri-file-copy-conflicts-',
+        );
         const file = join(root, 'note.txt');
         const folder = join(root, 'folder');
         const destination = join(root, 'destination');
@@ -145,6 +147,13 @@ describe('FileMutationService', () => {
         await Promise.all([chmod(folder, 0o755), chmod(copiedFolder.path, 0o755)]);
         expect(copiedFolderMode).toBe(0o555);
         expect(copiedFileMode).toBe(0o744);
+        const copyLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
+            .filter((record) => record.event === 'file.copied');
+        expect(typeof copyLogs.at(-1)?.durationMs).toBe('number');
+        expect(copyLogs.at(-1)?.fields).toMatchObject({ entryCount: 2, totalBytes: 6 });
 
         await writeFile(join(destination, 'note.txt'), 'existing', 'utf8');
         const moved = await service.move({
@@ -380,6 +389,47 @@ describe('FileMutationService', () => {
 
         await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
         await expect(access(target)).rejects.toThrow();
+    });
+
+    it('preserves foreign descendants when cleaning up an aborted directory copy', async () => {
+        let markTransferStarted!: () => void;
+        const transferStarted = new Promise<void>((resolve) => {
+            markTransferStarted = resolve;
+        });
+        let foreignPath = '';
+        const fixture = await createFixture('caxri-file-copy-foreign-cleanup-', {
+            mutations: {
+                copyFile: async (_source, target, options) => {
+                    await target.writeFile('partial', 'utf8');
+                    await writeFile(foreignPath, 'foreign', 'utf8');
+                    markTransferStarted();
+                    await new Promise<void>((_resolve, reject) => {
+                        options.signal.addEventListener('abort', () => {
+                            reject(new Error('Transfer aborted'));
+                        });
+                    });
+                },
+                copyLimits: { maximumDurationMs: 10 },
+            },
+        });
+        const source = join(fixture.root, 'folder');
+        const target = join(fixture.root, 'folder copy');
+        foreignPath = join(target, 'foreign.txt');
+        await mkdir(source);
+        await writeFile(join(source, 'nested.txt'), 'source', 'utf8');
+        vi.useFakeTimers();
+
+        const copying = fixture.service.copy({
+            sessionId: fixture.sessionId,
+            path: source,
+            directory: fixture.root,
+        });
+        await transferStarted;
+        await vi.advanceTimersByTimeAsync(10);
+
+        await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
+        await expect(readFile(foreignPath, 'utf8')).resolves.toBe('foreign');
+        await expect(access(join(target, 'nested.txt'))).rejects.toThrow();
     });
 
     it('revalidates the destination after source preflight before copying', async () => {

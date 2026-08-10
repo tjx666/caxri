@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, realpath, stat } from 'node:fs/promises';
+import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
@@ -28,6 +28,7 @@ import {
     TerminalManager,
     type TerminalManagerOptions,
     TerminalRestoreSupervisor,
+    type TerminalWorkingDirectoryIdentity,
 } from './terminal';
 import { ProjectRootResolver } from './project-roots';
 
@@ -245,13 +246,27 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         const session = database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const cwd = await terminalWorkingDirectory(session.rootPath, requestedCwd);
+        const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
         const terminal = database.createTerminal(sessionId, kind, cwd);
         coordinator.prepareTerminalStart(terminal.id);
         try {
-            return await terminals.start(terminal);
+            return await terminals.start(terminal, { expectedWorkingDirectory });
         } catch {
             return database.getTerminal(terminal.id)!;
         }
+    }
+
+    async function terminalDirectoryIdentity(
+        path: string,
+    ): Promise<TerminalWorkingDirectoryIdentity> {
+        const stats = await lstat(path, { bigint: true });
+        if (stats.isSymbolicLink() || !stats.isDirectory())
+            throw new CaxriError('CONFLICT', 'Terminal working directory changed before launch');
+        return {
+            path,
+            device: stats.dev.toString(),
+            inode: stats.ino.toString(),
+        };
     }
 
     /**
@@ -379,10 +394,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
             const cwd = await terminalWorkingDirectory(project.rootPath);
+            const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
             const created = database.createSession(projectId, defaultAgent, cwd);
             coordinator.prepareTerminalStart(created.terminal.id);
             try {
-                await terminals.start(created.terminal);
+                await terminals.start(created.terminal, { expectedWorkingDirectory });
             } catch {
                 // The failed durable terminal remains visible and restartable; Session creation still succeeds.
             }

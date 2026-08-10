@@ -1,3 +1,5 @@
+import { lstat, realpath } from 'node:fs/promises';
+
 import * as pty from 'node-pty';
 
 import {
@@ -69,7 +71,14 @@ export interface TerminalManagerOptions {
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
 }
 
-interface TerminalStartOptions {
+export interface TerminalWorkingDirectoryIdentity {
+    device: string;
+    inode: string;
+    path: string;
+}
+
+export interface TerminalStartOptions {
+    expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity;
     resumeAgentSessionId?: string;
     /** Restore generations use this to abandon stale discovery before it spawns a process. */
     shouldStart?: () => boolean;
@@ -142,6 +151,7 @@ export class TerminalManager {
                 this.database.updateTerminalState(record.id, 'interrupted');
                 return this.database.getTerminal(record.id)!;
             }
+            await this.assertWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -203,6 +213,27 @@ export class TerminalManager {
                 `${agentProviderCatalog[kind].displayName} CLI was not found`,
             );
         return executable;
+    }
+
+    /** Revalidates the authorized cwd immediately before the path-based node-pty spawn. */
+    private async assertWorkingDirectory(
+        path: string,
+        expected?: TerminalWorkingDirectoryIdentity,
+    ): Promise<void> {
+        const [canonical, stats] = await Promise.all([
+            realpath(path),
+            lstat(path, { bigint: true }),
+        ]);
+        if (
+            stats.isSymbolicLink() ||
+            !stats.isDirectory() ||
+            (expected &&
+                (canonical !== path ||
+                    expected.path !== path ||
+                    expected.device !== stats.dev.toString() ||
+                    expected.inode !== stats.ino.toString()))
+        )
+            throw new CaxriError('CONFLICT', 'Terminal working directory changed before launch');
     }
 
     private onData(live: LiveTerminal, data: string): void {
