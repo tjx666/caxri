@@ -6,6 +6,7 @@ import { useExternalDocumentSync } from './features/editor/external-sync';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
 import { CommandPalette } from './features/palette/CommandPalette';
+import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
 import { SettingsDialog } from './features/settings/SettingsDialog';
 import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
@@ -143,6 +144,7 @@ export function App() {
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />
+                <PathBrowserDialog />
                 <ToastOutlet />
             </main>
         </TooltipProvider>

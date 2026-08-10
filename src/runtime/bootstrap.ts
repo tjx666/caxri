@@ -532,6 +532,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
+        'files.browse': (params) => files.browse(params),
         'files.create': (params) => files.create(params),
         'files.copy': (params) => files.copy(params),
         'files.rename': (params) => files.rename(params),

@@ -152,11 +152,18 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'application', group: 0, order: 1 },
     },
     {
+        id: 'pathBrowser.open',
+        title: 'Open File by Path',
+        category: 'View',
+        description: 'Browse the selected Project and open a file',
+        nativeMenu: { menu: 'view', group: 1, order: 0 },
+    },
+    {
         id: 'commandPalette.open',
         title: 'Open Command Palette',
         category: 'View',
         description: 'Search and run Caxri commands',
-        nativeMenu: { menu: 'view', group: 1, order: 0 },
+        nativeMenu: { menu: 'view', group: 1, order: 1 },
     },
     {
         id: 'processExplorer.open',
@@ -202,6 +209,7 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
 
 /** Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run. */
 export const defaultKeybindings: Keybinding[] = [
+    { key: 'cmd+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+n', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },

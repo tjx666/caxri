@@ -7,7 +7,7 @@ import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db/repository';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
-import { ListingService } from './listing';
+import { ListingService, type OpenDirectory } from './listing';
 import { FileMutationService, type FileMutationServiceOptions } from './mutations';
 import { FileOperationQueue } from './operation-queue';
 import { SearchService, type SearchServiceOptions } from './search';
@@ -20,6 +20,7 @@ export interface FileServiceOptions extends WatcherServiceOptions {
     fileTreeExcludes?: () => AppSettings['files.exclude'];
     maximumPendingOperations?: number;
     mutations?: FileMutationServiceOptions;
+    openDirectory?: OpenDirectory;
     openFile?: OpenFile;
     search?: SearchServiceOptions;
 }
@@ -61,6 +62,7 @@ export class FileService {
             logger,
             options.fileTreeExcludes ?? (() => ({})),
             (sessionId, path) => this.watcher.noteDirectoryListed(sessionId, path),
+            options.openDirectory,
         );
         this.searcher = new SearchService(
             resolveSessionPath,
@@ -83,6 +85,12 @@ export class FileService {
 
     list(sessionId: string, directory?: string): Promise<FileEntry[]> {
         return this.listing.list(sessionId, directory);
+    }
+
+    browse(
+        params: RuntimeMethodParams<'files.browse'>,
+    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        return this.listing.browse(params);
     }
 
     async create(

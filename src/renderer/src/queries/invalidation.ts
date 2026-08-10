@@ -23,6 +23,7 @@ function invalidateFileDependentQueries(
     sessionId: string,
 ): void {
     const sessionScoped = new Set<CaxriMethod>([
+        'files.browse',
         'git.summary',
         'git.diff',
         'git.diffDocument',
@@ -64,7 +65,8 @@ export function removeSessionQueries(
 /** `files.exclude` is global, so any valid settings reload refreshes every visible tree listing. */
 function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient>): void {
     void queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === 'files.list',
+        predicate: (query) =>
+            query.queryKey[0] === 'files.list' || query.queryKey[0] === 'files.browse',
     });
 }
 
