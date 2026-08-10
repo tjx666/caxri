@@ -4,15 +4,18 @@ import { Terminal } from '@xterm/xterm';
 import { CircleCheck, CircleX, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { editorModelPath } from '@shared/editor-state';
 import { errorMessage } from '@shared/ipc';
 
 import { Button } from '../../components/ui/button';
 import { CommandTooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
-import { useSettings, useTerminal, useTheme } from '../../stores/selectors';
+import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { openFile } from '../editor/document-actions';
+import { revealEditorLocation } from '../editor/editor-reveal';
 import {
     activateTerminal,
     registerTerminalClearHandler,
@@ -26,6 +29,7 @@ import {
     terminalKeyboardInput,
 } from './terminal-keyboard';
 import { TerminalReplayBuffer } from './terminal-replay';
+import { registerTerminalLinks } from './terminal-links';
 import {
     terminalSizeChanged,
     terminalSizeWithScrollbarGutter,
@@ -59,6 +63,7 @@ const terminalRecoveryMessageClassName =
  */
 export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProps) {
     const terminal = useTerminal(terminalId);
+    const session = useSelectedSession();
     const theme = useTheme();
     const settings = useSettings();
     const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
@@ -77,7 +82,10 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         fontSize,
         isCodex,
         processState,
+        projectRoot: session?.rootPath ?? '',
         scrollback,
+        terminalCwd: terminal?.cwd ?? '',
+        terminalSessionId: terminal?.sessionId ?? '',
         terminalTheme,
     });
 
@@ -87,10 +95,23 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             fontSize,
             isCodex,
             processState,
+            projectRoot: session?.rootPath ?? '',
             scrollback,
+            terminalCwd: terminal?.cwd ?? '',
+            terminalSessionId: terminal?.sessionId ?? '',
             terminalTheme,
         };
-    }, [active, fontSize, isCodex, processState, scrollback, terminalTheme]);
+    }, [
+        active,
+        fontSize,
+        isCodex,
+        processState,
+        scrollback,
+        session?.rootPath,
+        terminal?.cwd,
+        terminal?.sessionId,
+        terminalTheme,
+    ]);
 
     useEffect(() => {
         let canceled = false;
@@ -126,6 +147,26 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
         xterm.open(container);
+        const unregisterLinks = registerTerminalLinks(xterm, {
+            get cwd() {
+                return latestRef.current.terminalCwd;
+            },
+            get projectRoot() {
+                return latestRef.current.projectRoot;
+            },
+            openFile(path, location) {
+                void openFile(path).then((resolvedPath) => {
+                    if (!resolvedPath || !location) return;
+                    revealEditorLocation(
+                        editorModelPath(latestRef.current.terminalSessionId, resolvedPath),
+                        location,
+                    );
+                });
+            },
+            openUrl(url) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            },
+        });
         xterm.attachCustomKeyEventHandler((event) => {
             const input = terminalKeyboardInput(event, latestRef.current.isCodex);
             if (!input) return true;
@@ -223,6 +264,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
             dataDisposable.dispose();
+            unregisterLinks();
             xterm.dispose();
             xtermRef.current = undefined;
             void caxri.request('terminal.detach', { terminalId }).catch(() => {
