@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 
@@ -217,6 +218,67 @@ describe('Runtime Terminal cwd authorization', () => {
                     state.terminals.find((candidate) => candidate.id === terminal.id)
                         ?.lastProcessState,
                 ).toBe('failed');
+            });
+        } finally {
+            await runtimeB.close();
+        }
+    });
+
+    it('emits the failed Terminal record when restore cwd changes during launch', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-cwd-event-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        const projectFolder = join(projectRoot, 'folder');
+        const outside = join(directory, 'outside');
+        await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
+        const runtimeA = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-a')),
+            send: () => undefined,
+            terminal: {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn: () => createFakePty(),
+            },
+        });
+        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await runtimeA.handlers['session.create']({
+            projectId: project.id,
+            defaultAgent: 'shell',
+        });
+        const terminal = await runtimeA.handlers['terminal.create']({
+            sessionId: created.session.id,
+            kind: 'shell',
+            cwd: projectFolder,
+        });
+        await runtimeA.handlers['terminal.close']({ terminalId: created.terminal.id });
+        await runtimeA.close();
+
+        const events: RuntimeEvent[] = [];
+        const runtimeB = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs-b')),
+            send: (event) => events.push(event),
+            terminal: {
+                resolveExecutable: async () => {
+                    await rename(projectFolder, `${projectFolder}-original`);
+                    await symlink(outside, projectFolder);
+                    return '/bin/zsh';
+                },
+                spawn: () => createFakePty(),
+            },
+        });
+        try {
+            await vi.waitFor(async () => {
+                const state = await runtimeB.handlers['app.bootstrap']({});
+                expect(
+                    state.terminals.find((candidate) => candidate.id === terminal.id)
+                        ?.lastProcessState,
+                ).toBe('failed');
+            });
+            expect(events).toContainEqual({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
             });
         } finally {
             await runtimeB.close();

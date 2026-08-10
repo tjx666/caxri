@@ -306,6 +306,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                         logger.write('warn', 'terminal.restore_cwd_rejected', {
                             fields: { terminalId: terminal.id },
                         });
+                    }
+                    if (database.getTerminal(terminal.id)?.lastProcessState === 'failed')
                         send({
                             event: 'state.changed',
                             payload: {
@@ -314,7 +316,6 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                                 terminalIds: [terminal.id],
                             },
                         });
-                    }
                     return false;
                 }
                 if (terminal.provider) coordinator.probeTerminal(terminal.id);
