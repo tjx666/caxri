@@ -7,7 +7,7 @@ import {
     type AgentLaunchSettings,
     type AgentProvider,
 } from '../../shared/agents';
-import { CaxriError, errorMessage } from '../../shared/ipc/errors';
+import { CaxriError, errorMessage, toWireError } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import {
@@ -227,12 +227,14 @@ export class TerminalManager {
             });
             return this.database.getTerminal(record.id)!;
         } catch (error) {
+            const wire = toWireError(error);
             this.onLifecycleRetired?.(record.id);
             if (this.database.getTerminal(record.id))
                 this.database.updateTerminalState(record.id, 'failed', failureReason);
             this.logger.write('error', 'pty.spawn_failed', {
                 durationMs: performance.now() - startedAt,
                 fields: {
+                    code: wire.code,
                     terminalId: record.id,
                     kind: record.kind,
                     error: errorMessage(error, 'unknown'),

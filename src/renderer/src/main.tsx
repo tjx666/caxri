@@ -9,6 +9,9 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { queryClient } from './queries/client';
+import { installRendererErrorReporter } from './renderer-error-reporter';
+
+installRendererErrorReporter((kind) => window.caxri.reportError(kind));
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>

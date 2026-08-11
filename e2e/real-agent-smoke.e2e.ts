@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { test } from '@playwright/test';
+import { test } from './fixtures.ts';
 
 import { resolveRuntimeExecutable } from '../src/runtime/executables.ts';
 import { realCodexSmokeArgs } from './agent-fixture.ts';

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { identifierSchema } from './domain';
 import { CaxriError, fromWireError, toErrorCode, type WireError } from './errors';
 import { runtimeEventSchema, type RuntimeEvent } from './events';
+import type { RendererErrorKind } from '../renderer-error';
 import {
     getMethodSpec,
     isCaxriMethod,
@@ -113,6 +114,8 @@ export type MethodReply<M extends CaxriMethod> =
 export interface CaxriBridge {
     request<M extends CaxriMethod>(method: M, ...args: ParamsArg<M>): Promise<MethodReply<M>>;
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
+    /** Reports only a fault class; private exception values never cross the preload boundary. */
+    reportError(kind: RendererErrorKind): void;
 }
 
 /** Renderer-facing view of the bridge: results are unwrapped and failures reject with `CaxriError`. */
@@ -121,7 +124,7 @@ export interface CaxriClient {
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
 }
 
-export function createCaxriClient(bridge: CaxriBridge): CaxriClient {
+export function createCaxriClient(bridge: Pick<CaxriBridge, 'request' | 'onEvent'>): CaxriClient {
     async function request<M extends CaxriMethod>(
         method: M,
         ...args: ParamsArg<M>

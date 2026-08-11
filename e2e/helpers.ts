@@ -13,6 +13,7 @@ import {
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
 import type { AgentProvider } from '../src/shared/agents.ts';
+import { registerE2ELaunch } from './error-gate.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';
@@ -250,6 +251,7 @@ export async function launchCaxriApp(
             cwd: projectRoot,
             env: launchEnvironment,
         });
+        registerE2ELaunch(app, userDataDir);
         const electronPid = app.process().pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
         lease = await transferDesktopLease(lease, electronPid);

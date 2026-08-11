@@ -39,7 +39,22 @@ Runtime module placement follows one scale rule: a domain may remain flat while 
 
 Failures carry a closed error code (`VALIDATION`, `NOT_FOUND`, `PATH_DENIED`, `CAPACITY`, `UNAVAILABLE`, `TIMEOUT`, `CONFLICT`, `IO`, `GIT`, `INTERNAL`). Runtime and Main encode a `CaxriError` into the wire reply, and the supervisor and preload rebuild it on the other side, so a code survives every process hop instead of degrading into an opaque message. Unrecognized codes decay to `INTERNAL`, and only `INTERNAL` failures log a stack.
 
-The preload exposes one `request` method backed by a fixed method union plus `onEvent`. It does not expose `ipcRenderer`, Electron objects, environment data, or generic filesystem/process access. Main starts the Runtime with an allowlisted environment containing only process-launch context, tool state locations, and Caxri-owned paths; ambient credential variables are not copied into the utility process.
+The workbench preload exposes one `request` method backed by a fixed method union plus `onEvent` and
+a content-free `reportError` classifier. The Process Explorer preload has the same error classifier
+beside its read-only snapshot/theme methods. Renderer entries report only `page-exception` or
+`unhandled-rejection`; exception values never cross the bridge. Main validates both the sender and
+kind, then writes stable structured events. The preload does not expose `ipcRenderer`, Electron
+objects, environment data, or generic filesystem/process access. Main and Runtime observe fatal
+Node errors through `uncaughtExceptionMonitor`, which preserves their existing crash/exit behavior,
+and use a bounded early-startup buffer plus a synchronous bootstrap logger. Main starts the Runtime
+with an allowlisted environment containing only process-launch context, tool state locations, and
+Caxri-owned paths; ambient credential variables are not copied into the utility process.
+
+Every Electron Playwright spec uses `e2e/fixtures.ts`. `launchCaxriApp` registers each application
+with that automatic fixture, which observes all Renderer pages, captures both process logs before
+profile cleanup, and fails on any undeclared error/fatal event. Intentional faults use exact
+source/event/code/count allowances; unconsumed allowances fail so repaired faults cannot leave stale
+suppression behind.
 
 ## Persistence
 

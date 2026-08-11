@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 
 import { createFakeAgentMode } from './agent-fixture.ts';
 import {
@@ -485,6 +485,14 @@ test('removing a Project deletes only Caxri metadata', async () => {
 });
 
 test('canceling the Agent choice revokes the selected Project root grant', async () => {
+    allowE2EErrors([
+        {
+            source: 'main',
+            event: 'ipc.request_failed',
+            code: 'PATH_DENIED',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-grant-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
