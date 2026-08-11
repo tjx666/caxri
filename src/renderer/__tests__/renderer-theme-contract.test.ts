@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const repositoryRoot = fileURLToPath(new URL('../../..', import.meta.url));
+const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const stylesRoot = join(repositoryRoot, 'src/renderer/src/styles');
 const sharedThemeFile = 'theme.css';
 const rendererEntries = ['styles.css', 'process-explorer.css'];
