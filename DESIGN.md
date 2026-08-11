@@ -120,7 +120,10 @@ disclosures contain active Sessions only, so low-frequency history never fragmen
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
-the pattern — keep). Tab height 36px.
+the pattern — keep). Tab height 36px. A clean preview Editor owns one transient, Session-scoped
+motion identity: replacing its path updates the same DOM tab instantly, pinning preserves that
+identity, and only the next real tab receives the existing enter animation. Session bootstrap and
+switching still mount without structural motion; actual close keeps the exit animation.
 
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack;
 pick the least-powerful layer that covers the scenario, and one element is only ever driven by

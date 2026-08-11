@@ -111,6 +111,13 @@ export function useSessions(): SessionRecord[] | undefined {
     return useWorkbenchStore((state) => state.bootstrap?.sessions);
 }
 
+/** Stable shallow ID list for caches that must discard state after Session deletion. */
+export function useSessionIds(): string[] {
+    return useWorkbenchStore(
+        useShallow((state) => state.bootstrap?.sessions.map((session) => session.id) ?? []),
+    );
+}
+
 export function useTerminals(): TerminalRecord[] {
     return useWorkbenchStore((state) => state.bootstrap?.terminals ?? NO_TERMINALS);
 }
