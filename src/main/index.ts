@@ -11,6 +11,7 @@ import {
     nativeImage,
     shell,
     type IpcMainInvokeEvent,
+    type WebContents,
 } from 'electron';
 
 import { agentProviderCatalog } from '../shared/agents';
@@ -66,6 +67,7 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
 if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
 let mainWindow: BrowserWindow | undefined;
+let mainRenderer: WebContents | undefined;
 let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
 const processErrorMonitor = installProcessErrorMonitor({
@@ -325,8 +327,11 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     window.on('closed', () => {
         if (persistTimer) clearTimeout(persistTimer);
         /** Explicit quit can close the window before its already-queued IPC reaches Main. Retain
-         * the trusted sender reference until the process exits so teardown cannot misclassify it. */
-        if (mainWindow === window && !quitStarted) mainWindow = undefined;
+         * the trusted sender identity until process exit without reading the destroyed window. */
+        if (mainWindow === window && !quitStarted) {
+            mainWindow = undefined;
+            mainRenderer = undefined;
+        }
         mainLogger?.write('info', 'window.closed');
     });
 
@@ -353,10 +358,11 @@ async function openMainWindow(): Promise<void> {
             isFullScreen: false,
         }));
     mainWindow = createWindow(initialState);
+    mainRenderer = mainWindow.webContents;
 }
 
 function assertSender(event: IpcMainInvokeEvent): void {
-    if (!mainWindow || event.sender !== mainWindow.webContents)
+    if (!mainRenderer || event.sender !== mainRenderer)
         throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
 }
 
@@ -583,8 +589,7 @@ async function handleCaxriRequest(request: CaxriRequest): Promise<unknown> {
 
 function installIpc(): void {
     ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
-        if (!mainWindow || event.sender !== mainWindow.webContents || !isRendererErrorKind(rawKind))
-            return;
+        if (!mainRenderer || event.sender !== mainRenderer || !isRendererErrorKind(rawKind)) return;
         const kind: RendererErrorKind = rawKind;
         mainLogger?.write(
             'error',
