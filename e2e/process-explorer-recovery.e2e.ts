@@ -19,8 +19,7 @@ async function openProcessExplorer(running: RunningCaxri): Promise<Page> {
     const action = running.page.getByRole('button', {
         name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
     });
-    await action.focus();
-    await action.press('Enter');
+    await action.click();
     await expect.poll(() => running.app.windows().length).toBe(2);
     return running.app.windows().find((page) => page !== running.page)!;
 }
