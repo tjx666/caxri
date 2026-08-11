@@ -46,14 +46,40 @@ describe('Project ordering', () => {
     });
 
     it('selects and auto-expands an inactive collapsed Project without collapsing an inactive expanded one', () => {
-        expect(resolveProjectHeadingClick(false, false)).toEqual({ select: true, toggle: true });
-        expect(resolveProjectHeadingClick(false, true)).toEqual({ select: true, toggle: false });
+        expect(resolveProjectHeadingClick(false, false, true)).toEqual({
+            select: true,
+            toggle: true,
+        });
+        expect(resolveProjectHeadingClick(false, true, true)).toEqual({
+            select: true,
+            toggle: false,
+        });
     });
 
     it('only toggles disclosure when the Project is already active', () => {
-        expect(resolveProjectHeadingClick(true, true)).toEqual({ select: false, toggle: true });
-        expect(resolveProjectHeadingClick(true, false)).toEqual({ select: false, toggle: true });
+        expect(resolveProjectHeadingClick(true, true, true)).toEqual({
+            select: false,
+            toggle: true,
+        });
+        expect(resolveProjectHeadingClick(true, false, true)).toEqual({
+            select: false,
+            toggle: true,
+        });
     });
+
+    it.each(['no Sessions', 'only archived Sessions'])(
+        'only toggles an inactive Project with %s',
+        () => {
+            expect(resolveProjectHeadingClick(false, true, false)).toEqual({
+                select: false,
+                toggle: true,
+            });
+            expect(resolveProjectHeadingClick(false, false, false)).toEqual({
+                select: false,
+                toggle: true,
+            });
+        },
+    );
 
     it('recognizes only the structured Project drag payload', () => {
         expect(hasProjectDragType(['text/plain', PROJECT_DRAG_TYPE])).toBe(true);

@@ -412,9 +412,15 @@ export function ProjectGroup({
                 </Tooltip>
                 <button
                     className="project-select flex min-h-7 min-w-0 flex-1 items-center px-1 text-inherit text-left border-0 bg-transparent cursor-pointer"
+                    aria-controls={projectDisclosureId}
+                    aria-expanded={expanded}
                     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                     onClick={() => {
-                        const effect = resolveProjectHeadingClick(active, expanded);
+                        const effect = resolveProjectHeadingClick(
+                            active,
+                            expanded,
+                            activeSessions.length > 0,
+                        );
                         if (effect.select) onSelect();
                         if (effect.toggle) onToggle();
                     }}

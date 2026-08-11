@@ -320,6 +320,108 @@ test('Project and Files actions reveal on hover or focus', async () => {
     }
 });
 
+test('Project titles toggle disclosure when no active Session can be selected', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-empty-project-heading-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const activeRoot = join(testDirectory, 'active-project');
+    const emptyRoot = join(testDirectory, 'empty-project');
+    await Promise.all([
+        execFileAsync('mkdir', ['-p', activeRoot]),
+        execFileAsync('mkdir', ['-p', emptyRoot]),
+    ]);
+    const [canonicalActiveRoot, canonicalEmptyRoot] = await Promise.all([
+        realpath(activeRoot),
+        realpath(emptyRoot),
+    ]);
+
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: activeRoot,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([activeRoot, emptyRoot]) },
+    });
+    try {
+        await createProjectSession(running.page);
+        const activeSessionId = await selectedSessionId(running.page);
+        const selectedRoot = await pageRequest<string | null>(
+            running.page,
+            'dialog.selectDirectory',
+        );
+        expect(selectedRoot).toBe(emptyRoot);
+        await pageRequest(running.page, 'project.create', { rootPath: selectedRoot });
+        await expect(running.page.locator('.project-heading')).toHaveCount(2);
+
+        const bootstrap = await pageRequest<{
+            projects: Array<{ displayTitle: string; id: string; rootPath: string }>;
+            sessions: Array<{ archivedAt?: number; id: string; projectId: string }>;
+        }>(running.page, 'app.bootstrap');
+        const activeProject = bootstrap.projects.find(
+            (project) => project.rootPath === canonicalActiveRoot,
+        );
+        const emptyProject = bootstrap.projects.find(
+            (project) => project.rootPath === canonicalEmptyRoot,
+        );
+        if (!activeProject || !emptyProject) throw new Error('Expected both E2E Projects');
+        expect(
+            bootstrap.sessions.filter((session) => session.projectId === emptyProject.id),
+        ).toHaveLength(0);
+
+        const emptyHeading = running.page.locator(
+            `.project-heading[data-project-id="${emptyProject.id}"]`,
+        );
+        const emptyTitle = emptyHeading.getByRole('button', {
+            name: emptyProject.displayTitle,
+            exact: true,
+        });
+        const emptyDisclosure = emptyHeading.locator('.project-disclosure');
+        await expect(emptyTitle).toHaveAttribute('aria-expanded', 'true');
+        await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'true');
+        await emptyTitle.click();
+        await expect(emptyTitle).toHaveAttribute('aria-expanded', 'false');
+        await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'false');
+        expect(await selectedSessionId(running.page)).toBe(activeSessionId);
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
+
+        await emptyTitle.focus();
+        await emptyTitle.press('Enter');
+        await expect(emptyTitle).toBeFocused();
+        await expect(emptyTitle).toHaveAttribute('aria-expanded', 'true');
+        await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'true');
+
+        const activeRow = sessionCard(running.page, activeSessionId).locator('..');
+        await activeRow.hover();
+        await activeRow.getByRole('button', { name: /^Archive / }).click();
+        await expect(sessionCard(running.page, activeSessionId)).toHaveCount(0);
+        const archivedSnapshot = await pageRequest<{
+            sessions: Array<{ archivedAt?: number; id: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect(
+            archivedSnapshot.sessions.find((session) => session.id === activeSessionId)?.archivedAt,
+        ).toEqual(expect.any(Number));
+
+        const activeHeading = running.page.locator(
+            `.project-heading[data-project-id="${activeProject.id}"]`,
+        );
+        const activeTitle = activeHeading.getByRole('button', {
+            name: activeProject.displayTitle,
+            exact: true,
+        });
+        const activeDisclosure = activeHeading.locator('.project-disclosure');
+        await expect(activeTitle).toHaveAttribute('aria-expanded', 'true');
+        await activeTitle.click();
+        await expect(activeTitle).toHaveAttribute('aria-expanded', 'false');
+        await expect(activeDisclosure).toHaveAttribute('aria-expanded', 'false');
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
+        const finalSnapshot = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(finalSnapshot.sessions).toHaveLength(1);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('work tabs leave a draggable titlebar and keep New Terminal beside the last tab', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-e2e-'));
     const userData = join(testDirectory, 'user-data');
