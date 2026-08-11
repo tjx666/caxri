@@ -9,7 +9,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../shared/types';
-import type { AgentLifecyclePhase } from './agents/hooks/contract';
+import type { AgentLifecyclePhase } from './agents';
 
 /**
  * Domain policy for the persisted Project/Session/Terminal model: decisions take plain records as

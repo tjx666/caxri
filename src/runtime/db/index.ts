@@ -14,6 +14,7 @@ import { TerminalsModel } from './models/terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
 export { CURRENT_SCHEMA_VERSION } from './connection';
+export { CaxriDatabase } from './repository';
 
 export interface CaxriDbOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
