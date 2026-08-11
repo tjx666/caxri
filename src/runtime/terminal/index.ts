@@ -98,6 +98,8 @@ export interface TerminalStartOptions {
     resumeAgentSessionId?: string;
     /** Restore generations use this to abandon stale discovery before it spawns a process. */
     shouldStart?: () => boolean;
+    /** Cancels a visible restore's grid wait when its restore generation becomes stale. */
+    abortSignal?: AbortSignal;
     /** Gives a visible restored Terminal time to publish its receiving Renderer grid. */
     waitForAttachedSizeMs?: number;
 }
@@ -183,7 +185,11 @@ export class TerminalManager {
                 );
             }
             if (options?.waitForAttachedSizeMs)
-                await this.waitForAttachedSize(record.id, options.waitForAttachedSizeMs);
+                await this.waitForAttachedSize(
+                    record.id,
+                    options.waitForAttachedSizeMs,
+                    options.abortSignal,
+                );
             if (options?.shouldStart && !options.shouldStart()) {
                 if (!this.database.getTerminal(record.id))
                     throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
@@ -428,11 +434,20 @@ export class TerminalManager {
         return true;
     }
 
-    private waitForAttachedSize(terminalId: string, timeoutMs: number): Promise<void> {
-        if (this.attachedSizes.has(terminalId) || timeoutMs <= 0) return Promise.resolve();
+    private waitForAttachedSize(
+        terminalId: string,
+        timeoutMs: number,
+        abortSignal?: AbortSignal,
+    ): Promise<void> {
+        if (this.attachedSizes.has(terminalId) || timeoutMs <= 0 || abortSignal?.aborted)
+            return Promise.resolve();
         return new Promise((resolve) => {
+            let completed = false;
             const complete = (): void => {
+                if (completed) return;
+                completed = true;
                 clearTimeout(timer);
+                abortSignal?.removeEventListener('abort', complete);
                 const waiters = this.attachedSizeWaiters.get(terminalId);
                 waiters?.delete(complete);
                 if (waiters?.size === 0) this.attachedSizeWaiters.delete(terminalId);
@@ -442,6 +457,7 @@ export class TerminalManager {
             waiters.add(complete);
             this.attachedSizeWaiters.set(terminalId, waiters);
             const timer = setTimeout(complete, timeoutMs);
+            abortSignal?.addEventListener('abort', complete, { once: true });
         });
     }
 
