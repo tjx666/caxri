@@ -324,7 +324,9 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     });
     window.on('closed', () => {
         if (persistTimer) clearTimeout(persistTimer);
-        if (mainWindow === window) mainWindow = undefined;
+        /** Explicit quit can close the window before its already-queued IPC reaches Main. Retain
+         * the trusted sender reference until the process exits so teardown cannot misclassify it. */
+        if (mainWindow === window && !quitStarted) mainWindow = undefined;
         mainLogger?.write('info', 'window.closed');
     });
 

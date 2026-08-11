@@ -45,7 +45,15 @@ export class GitBlameService {
 
     blame(params: RuntimeMethodParams<'git.blame'>): Promise<GitBlame | null> {
         return this.requests.run(JSON.stringify(params), async () => {
-            const { path } = await this.paths.resolveSessionPath(params.sessionId, params.path);
+            let path: string;
+            try {
+                ({ path } = await this.paths.resolveSessionPath(params.sessionId, params.path));
+            } catch (error) {
+                /** A file move can rekey the active editor after this optional blame request starts;
+                 * a now-missing target is stale metadata, not an IPC failure. */
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+                throw error;
+            }
             const summary = await this.options.summary(params.sessionId);
             const repository = summary.repositories
                 .filter((candidate) => !isOutsideRoot(relative(candidate.rootPath, path)))
