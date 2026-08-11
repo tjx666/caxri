@@ -8,39 +8,37 @@ import type { MessageBoxOptions } from 'electron';
 import { createShellSession, launchCaxri, typeTerminal } from './helpers.ts';
 
 async function terminalTextBounds(page: Page, text: string) {
-    return page.locator('.xterm-rows').evaluate((rows, target) => {
-        for (const row of rows.children) {
-            const rowText = row.textContent ?? '';
-            const targetStart = rowText.indexOf(target);
-            if (targetStart < 0) continue;
-            const targetEnd = targetStart + target.length;
-            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-            let offset = 0;
-            let start: { node: Node; offset: number } | undefined;
-            let end: { node: Node; offset: number } | undefined;
-            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                const length = node.textContent?.length ?? 0;
-                if (!start && targetStart >= offset && targetStart <= offset + length)
-                    start = { node, offset: targetStart - offset };
-                if (targetEnd >= offset && targetEnd <= offset + length) {
-                    end = { node, offset: targetEnd - offset };
-                    break;
-                }
-                offset += length;
+    const row = page.locator('.xterm-rows > div').filter({ hasText: text }).last();
+    await expect(row).toContainText(text);
+    return row.evaluate((element, target) => {
+        const rowText = element.textContent ?? '';
+        const targetStart = rowText.indexOf(target);
+        const targetEnd = targetStart + target.length;
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        let offset = 0;
+        let start: { node: Node; offset: number } | undefined;
+        let end: { node: Node; offset: number } | undefined;
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const length = node.textContent?.length ?? 0;
+            if (!start && targetStart >= offset && targetStart <= offset + length)
+                start = { node, offset: targetStart - offset };
+            if (targetEnd >= offset && targetEnd <= offset + length) {
+                end = { node, offset: targetEnd - offset };
+                break;
             }
-            if (!start || !end) continue;
-            const range = document.createRange();
-            range.setStart(start.node, start.offset);
-            range.setEnd(end.node, end.offset);
-            const bounds = range.getBoundingClientRect();
-            return {
-                x: bounds.x,
-                y: bounds.y,
-                width: bounds.width,
-                height: bounds.height,
-            };
+            offset += length;
         }
-        throw new Error(`Terminal text not found: ${target}`);
+        if (!start || !end) throw new Error(`Terminal text bounds not found: ${target}`);
+        const range = document.createRange();
+        range.setStart(start.node, start.offset);
+        range.setEnd(end.node, end.offset);
+        const bounds = range.getBoundingClientRect();
+        return {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+        };
     }, text);
 }
 
