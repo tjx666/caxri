@@ -8,6 +8,7 @@ import {
     PROJECT_DRAG_TYPE,
     projectDropTargetsEqual,
     projectOrderAfterDrop,
+    resolveProjectHeadingClick,
 } from './project-order';
 
 describe('Project ordering', () => {
@@ -42,6 +43,16 @@ describe('Project ordering', () => {
             ),
         ).toBe(false);
         expect(projectDropTargetsEqual(undefined, undefined)).toBe(true);
+    });
+
+    it('selects and auto-expands an inactive collapsed Project without collapsing an inactive expanded one', () => {
+        expect(resolveProjectHeadingClick(false, false)).toEqual({ select: true, toggle: true });
+        expect(resolveProjectHeadingClick(false, true)).toEqual({ select: true, toggle: false });
+    });
+
+    it('only toggles disclosure when the Project is already active', () => {
+        expect(resolveProjectHeadingClick(true, true)).toEqual({ select: false, toggle: true });
+        expect(resolveProjectHeadingClick(true, false)).toEqual({ select: false, toggle: true });
     });
 
     it('recognizes only the structured Project drag payload', () => {
