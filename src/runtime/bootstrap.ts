@@ -327,7 +327,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         );
         const restored = await terminalRestores.restore(
             sessionId,
-            interrupted.map((terminal) => async (isCurrent) => {
+            interrupted.map((terminal) => async (isCurrent, abortSignal) => {
                 const resumeAgentSessionId = terminal.provider
                     ? terminal.agentSessionId
                     : undefined;
@@ -339,6 +339,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                         expectedWorkingDirectory,
                         resumeAgentSessionId,
                         shouldStart: isCurrent,
+                        abortSignal,
                         waitForAttachedSizeMs:
                             terminal.id === visibleTerminalId
                                 ? (deps.terminalRestoreGridWaitMs ??
