@@ -51,7 +51,7 @@ async function createFixture(): Promise<Fixture> {
     const remote = join(temporary, 'remote.git');
     const root = join(temporary, 'caxri');
     await mkdir(root);
-    await git(temporary, 'init', '--bare', remote);
+    await git(temporary, 'init', '--bare', '-b', 'main', remote);
     await git(root, 'init', '-b', 'main');
     await git(root, 'config', 'user.email', 'caxri@example.invalid');
     await git(root, 'config', 'user.name', 'Caxri Test');
