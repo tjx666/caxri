@@ -6,12 +6,16 @@ import { caxri } from '../../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
 import { getProjectSessionIds, getSessionProjectId } from '../../../../stores/selectors';
 import { pushToast } from '../../../../stores/toasts';
-import { remapOpenEditorsDurably } from '../../../editor/document-actions';
+import {
+    persistOpenEditorStatesDurably,
+    remapOpenEditorsDurably,
+} from '../../../editor/document-actions';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
 
 const reconciling = new Map<string, Promise<void>>();
 const reconciled = new Set<string>();
+const appliedEditorRemaps = new Set<string>();
 const retrying = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>();
 const MAXIMUM_REMEMBERED_RECONCILIATIONS = 256;
 const RECONCILIATION_RETRY_BASE_MS = 250;
@@ -21,6 +25,7 @@ function rememberReconciliation(operationId: string): void {
     const retry = retrying.get(operationId);
     if (retry) clearTimeout(retry.timer);
     retrying.delete(operationId);
+    appliedEditorRemaps.delete(operationId);
     reconciled.add(operationId);
     if (reconciled.size <= MAXIMUM_REMEMBERED_RECONCILIATIONS) return;
     const oldest = reconciled.values().next().value;
@@ -78,11 +83,19 @@ async function applyCompletedOperation(operation: FileMutationOperation): Promis
         await invalidateDirectory(operation.sessionId, operation.input.directory);
         return;
     }
-    await remapOpenEditorsDurably(
-        operation.sessionId,
-        operation.result.previousPath,
-        operation.result.path,
-    );
+    if (appliedEditorRemaps.has(operation.id)) {
+        /** A retry persists the latest visible state as-is. Replaying the original remap could
+         * move a different file that the user opened later at the now-vacant source path. */
+        await persistOpenEditorStatesDurably(operation.sessionId);
+    } else {
+        const persistence = remapOpenEditorsDurably(
+            operation.sessionId,
+            operation.result.previousPath,
+            operation.result.path,
+        );
+        appliedEditorRemaps.add(operation.id);
+        await persistence;
+    }
     const directories = [parentDirectoryPath(operation.result.previousPath)];
     if (operation.kind === 'move') directories.push(operation.input.directory);
     await Promise.all(
