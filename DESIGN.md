@@ -46,20 +46,34 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 
 ### Type scale (root 13px)
 
-| Tier    | Size | Usage                                             |
-| ------- | ---- | ------------------------------------------------- |
-| `title` | 15px | dialog titles and the welcome heading             |
-| `base`  | 13px | default UI text, inputs, list rows                |
-| `meta`  | 11px | secondary lines, captions, tab labels, status bar |
-| `badge` | 10px | tiny badges/kbd hints only — never sentences      |
+| Tier    | Size | Usage                                                      |
+| ------- | ---- | ---------------------------------------------------------- |
+| `title` | 15px | dialog titles and the welcome heading                      |
+| `base`  | 13px | default UI text, standard inputs, list rows                |
+| `dense` | 12px | compact workbench fields, menus, tooltips, and path chrome |
+| `meta`  | 11px | secondary lines, captions, tab labels, status bar          |
+| `badge` | 10px | tiny badges/kbd hints only — never sentences               |
 
-8px, 9px, and 10.5px sizes are banned. Monospace previews/diffs use `meta` size.
+8px, 9px, and 10.5px sizes are banned. Monospace previews/diffs use `meta` size. Dense prose may
+use unitless `1.45` or `1.5` line height; compact uppercase headings may use `0.04em` or `0.06em`
+tracking. No other arbitrary typography values are allowed.
 
 ### Spacing and radius
 
-- 4px grid: allowed gaps/paddings are 4, 8, 12, 16, 24. Row heights: 28px (dense list),
-  36px (inputs/buttons md), 44px (palette input).
+- 4px grid: primary gaps/paddings are 4, 8, 12, 16, 24. Optical half-steps (2, 6, 10px) are
+  allowed inside compact control chrome when a glyph or label does not center on the primary grid.
+  The Status Bar alone uses a 5px item inset/gap, and the Files caption uses 3px top/bottom inset
+  to preserve its 34px rail. The macOS traffic-light clearance is the only platform spacing
+  exception: 84px expanded-header padding and 78px collapsed-header/tab-strip clearance.
+- Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
+  Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. Nothing else.
+
+`src/runtime/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
+allowlist above and rejects feature-local raw text inputs. Checkbox and color inputs remain native
+by design. Numeric arbitrary width/height constraints are also closed by default; the test's small
+allowlist covers existing structural viewport, empty-state, and platform-diagnostic geometry, not
+additional control-density tiers.
 
 ## Component redlines
 
@@ -164,6 +178,12 @@ border `--border`, shadow from `--shadow`. Never a close X inside the command pa
 
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render
 from live keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
+
+**Inputs** — shared `Input` density is always explicit outside standard forms: `standard` (36px,
+base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base). `appearance`
+selects the standard themed fill, workbench canvas, inline surface, or an embedded field owned by
+`InputGroup`; all variants share one border, focus ring, invalid, and disabled contract. Adorned
+search/path fields use `InputGroup`, never feature-local field chrome.
 
 **Settings** — copy rewrite: dialog description becomes "Changes apply immediately and
 are stored as editable files." Field labels in plain language; byte values rendered as
