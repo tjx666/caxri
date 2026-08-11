@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentActivityState } from '@shared/types';
 
-import { formatSessionRelativeTime } from './SessionActivityCard';
-import { sessionActivityPresentation } from './session-activity';
+import { formatSessionRelativeTime, sessionActivityPresentation } from './session-activity';
 
 describe('Session activity presentation', () => {
     it.each<
