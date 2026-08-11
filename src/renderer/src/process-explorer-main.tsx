@@ -4,19 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { ProcessExplorerApp } from './features/process-explorer/ProcessExplorerApp';
-
-const forcedRenderErrorKey = 'caxri.process-explorer.forced-render-error';
-const forceRenderError =
-    new URLSearchParams(window.location.search).get('caxri-test-render-error') === '1' &&
-    sessionStorage.getItem(forcedRenderErrorKey) !== 'consumed';
-if (forceRenderError) sessionStorage.setItem(forcedRenderErrorKey, 'consumed');
-
-function ProcessExplorerRoot() {
-    /** The E2E-only query is consumed per document so the fallback's reload can recover. */
-    if (forceRenderError) throw new Error('Forced Process Explorer render error');
-    return <ProcessExplorerApp />;
-}
+import { ProcessExplorerRoot } from './features/process-explorer/ProcessExplorerRoot';
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
