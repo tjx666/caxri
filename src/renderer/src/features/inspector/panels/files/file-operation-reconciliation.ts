@@ -6,16 +6,12 @@ import { caxri } from '../../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
 import { getProjectSessionIds, getSessionProjectId } from '../../../../stores/selectors';
 import { pushToast } from '../../../../stores/toasts';
-import {
-    persistOpenEditorStatesDurably,
-    remapOpenEditorsDurably,
-} from '../../../editor/document-actions';
+import { remapOpenEditorsDurably } from '../../../editor/document-actions';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
 
 const reconciling = new Map<string, Promise<void>>();
 const reconciled = new Set<string>();
-const appliedEditorRemaps = new Set<string>();
 const retrying = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>();
 const MAXIMUM_REMEMBERED_RECONCILIATIONS = 256;
 const RECONCILIATION_RETRY_BASE_MS = 250;
@@ -25,7 +21,6 @@ function rememberReconciliation(operationId: string): void {
     const retry = retrying.get(operationId);
     if (retry) clearTimeout(retry.timer);
     retrying.delete(operationId);
-    appliedEditorRemaps.delete(operationId);
     reconciled.add(operationId);
     if (reconciled.size <= MAXIMUM_REMEMBERED_RECONCILIATIONS) return;
     const oldest = reconciled.values().next().value;
@@ -35,6 +30,7 @@ function rememberReconciliation(operationId: string): void {
 function scheduleReconciliationRetry(operation: FileMutationOperation): void {
     const previous = retrying.get(operation.id);
     if (previous) clearTimeout(previous.timer);
+    else pushToast('info', 'File change is still synchronizing in the background');
     const attempt = (previous?.attempt ?? 0) + 1;
     const delay = Math.min(
         RECONCILIATION_RETRY_BASE_MS * 2 ** (attempt - 1),
@@ -83,19 +79,12 @@ async function applyCompletedOperation(operation: FileMutationOperation): Promis
         await invalidateDirectory(operation.sessionId, operation.input.directory);
         return;
     }
-    if (appliedEditorRemaps.has(operation.id)) {
-        /** A retry persists the latest visible state as-is. Replaying the original remap could
-         * move a different file that the user opened later at the now-vacant source path. */
-        await persistOpenEditorStatesDurably(operation.sessionId);
-    } else {
-        const persistence = remapOpenEditorsDurably(
-            operation.sessionId,
-            operation.result.previousPath,
-            operation.result.path,
-        );
-        appliedEditorRemaps.add(operation.id);
-        await persistence;
-    }
+    await remapOpenEditorsDurably(
+        operation.sessionId,
+        operation.id,
+        operation.result.previousPath,
+        operation.result.path,
+    );
     const directories = [parentDirectoryPath(operation.result.previousPath)];
     if (operation.kind === 'move') directories.push(operation.input.directory);
     await Promise.all(
@@ -142,11 +131,10 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
         useFileOperationStore.getState().finish(operation.id);
         rememberReconciliation(operation.id);
     })()
-        .catch((error) => {
+        .catch(() => {
             /** Runtime keeps the durable result until every same-Project Session remap and ack
-             *  succeeds, so a transient persistence failure must retry without a reload. */
+             *  succeeds, so a transient persistence failure must retry across Renderer reloads. */
             scheduleReconciliationRetry(operation);
-            throw error;
         })
         .finally(() => reconciling.delete(operation.id));
     reconciling.set(operation.id, reconciliation);

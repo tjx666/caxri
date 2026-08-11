@@ -445,6 +445,7 @@ describe('Terminal layout contract', () => {
         expect(
             methods['session.updateState'].params.safeParse({
                 ...state,
+                editorRemapOperationId: 'operation-1',
                 layout: {
                     activeGroupId: 'group-1',
                     root: split({

@@ -337,6 +337,7 @@ describe('workbench Session state', () => {
             ...filesState,
             openTabs: [{ path: '/project/renamed.ts', dirty: true }],
             activeTab: { kind: 'editor', path: '/project/renamed.ts' },
+            editorRemapOperationId: 'operation-1',
         };
 
         await expect(

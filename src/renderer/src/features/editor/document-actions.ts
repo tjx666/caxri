@@ -265,10 +265,17 @@ function remapOpenEditorsInSession(
     previousPath: string,
     nextPath: string,
     durable = false,
+    operationId?: string,
 ): Promise<boolean> | undefined {
-    remapPendingDocumentOperations(sessionId, previousPath, nextPath);
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+    if (durable && operationId && current?.editorRemapOperationId === operationId)
+        return persistSessionState(current, {
+            failureLabel: 'Moved editor state could not be saved',
+            reportFailure: false,
+            retainOnFailure: true,
+        });
+    remapPendingDocumentOperations(sessionId, previousPath, nextPath);
     if (!current || previousPath === nextPath) return durable ? Promise.resolve(true) : undefined;
     const remapEditorPath = (path: string): string =>
         isGitDiffTabPath(path) ? path : remapPath(path, previousPath, nextPath);
@@ -287,11 +294,17 @@ function remapOpenEditorsInSession(
             kind: 'editor',
             path: remapEditorPath(activeWork.path),
         });
-    const nextState = { ...current, openTabs, activeTab };
+    const nextState = {
+        ...current,
+        openTabs,
+        activeTab,
+        ...(operationId ? { editorRemapOperationId: operationId } : {}),
+    };
     const failureLabel = 'Moved editor state could not be saved';
     if (durable)
         return persistSessionState(nextState, {
             failureLabel,
+            reportFailure: false,
             retainOnFailure: true,
         });
     patchSessionState(nextState, failureLabel);
@@ -307,34 +320,21 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
 /** Persists every same-Project editor remap before a durable file operation is acknowledged. */
 export async function remapOpenEditorsDurably(
     sessionId: string,
+    operationId: string,
     previousPath: string,
     nextPath: string,
 ): Promise<void> {
     const saved = await Promise.all(
         getProjectSessionIds(sessionId).map(
             (projectSessionId) =>
-                remapOpenEditorsInSession(projectSessionId, previousPath, nextPath, true) ??
-                Promise.resolve(true),
+                remapOpenEditorsInSession(
+                    projectSessionId,
+                    previousPath,
+                    nextPath,
+                    true,
+                    operationId,
+                ) ?? Promise.resolve(true),
         ),
-    );
-    if (saved.some((result) => !result)) throw new Error('Moved editor state could not be saved');
-}
-
-/** Retries the current same-Project Session states without replaying an earlier path remap. */
-export async function persistOpenEditorStatesDurably(sessionId: string): Promise<void> {
-    const bootstrap = useWorkbenchStore.getState().bootstrap;
-    const saved = await Promise.all(
-        getProjectSessionIds(sessionId).map((projectSessionId) => {
-            const current = bootstrap?.sessionStates.find(
-                (state) => state.sessionId === projectSessionId,
-            );
-            return current
-                ? persistSessionState(current, {
-                      failureLabel: 'Moved editor state could not be saved',
-                      retainOnFailure: true,
-                  })
-                : Promise.resolve(true);
-        }),
     );
     if (saved.some((result) => !result)) throw new Error('Moved editor state could not be saved');
 }
