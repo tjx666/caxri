@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+    agentHookHealthMapSchema,
     fileChangeSchema,
     fileMutationOperationSchema,
     identifierSchema,
@@ -75,6 +76,7 @@ export const runtimeEventPayloads = {
     }),
     'files.operationChanged': fileMutationOperationSchema,
     'settings.changed': configurationChangedSchema,
+    'agentHooks.changed': agentHookHealthMapSchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,
     'updates.state': updateStateSchema,

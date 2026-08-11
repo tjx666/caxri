@@ -11,6 +11,7 @@ import {
     type AgentSnapshotContext,
     type LocalAgentState,
 } from '../../contract';
+import { codexHookAdapter } from './hooks';
 
 interface SqliteColumn {
     name: string;
@@ -130,6 +131,7 @@ function resolveCodexStateDirectories(environment: AgentEnvironment): string[] {
 }
 
 export const codexProvider: AgentProviderDescriptor = {
+    hooks: codexHookAdapter,
     id: 'codex',
     readState: (context, environment) =>
         readCodexState(context, resolveCodexStateDirectories(environment)),

@@ -1,5 +1,5 @@
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
-import type { AppSettings } from '@shared/types';
+import type { AgentHookHealthMap, AppSettings } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Input } from '../../components/ui/input';
@@ -15,6 +15,8 @@ import { cn, settingsFieldRowClassName } from '../../lib/utils';
 import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
 
 interface SettingsFormProps {
+    agentHookHealth?: AgentHookHealthMap;
+    appliedSettings: AppSettings;
     settings: AppSettings;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
@@ -26,7 +28,35 @@ function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
 }
 
 /** Full-width structured editor for `settings.jsonc`. */
-export function SettingsForm({ settings, onFieldChange }: SettingsFormProps) {
+function hookHealthLabel(
+    draftEnabled: boolean,
+    appliedEnabled: boolean,
+    health: AgentHookHealthMap['codex'] | undefined,
+): string {
+    if (draftEnabled !== appliedEnabled)
+        return draftEnabled ? 'Pending Apply · will enable' : 'Pending Apply · will disable';
+    if (!appliedEnabled) return 'Disabled';
+    if (!health) return 'Checking installation…';
+    const labels = {
+        unsupported: 'Unavailable',
+        notInstalled: 'Not installed',
+        installedPending: 'Installed · awaiting first trusted event',
+        active: 'Active',
+        stale: 'Update required',
+        newer: 'Managed by a newer Caxri version',
+        drifted: 'Configuration changed',
+        conflict: 'Configuration conflict',
+        error: 'Installation error',
+    } as const;
+    return health.message ? `${labels[health.kind]} — ${health.message}` : labels[health.kind];
+}
+
+export function SettingsForm({
+    agentHookHealth,
+    appliedSettings,
+    settings,
+    onFieldChange,
+}: SettingsFormProps) {
     const maxFileMebibytes = bytesToMebibytes(settings['files.maxFileBytes']);
 
     return (
@@ -177,13 +207,25 @@ export function SettingsForm({ settings, onFieldChange }: SettingsFormProps) {
                     </span>
                 </label>
                 {agentProviderIds.map((provider) => {
-                    const launch = settings['agents.providers'][provider].launch;
+                    const providerSettings = settings['agents.providers'][provider];
+                    const launch = providerSettings.launch;
                     const updateLaunch = (
                         next: Partial<AppSettings['agents.providers'][typeof provider]['launch']>,
                     ): void =>
                         onFieldChange('agents.providers', {
                             ...settings['agents.providers'],
-                            [provider]: { launch: { ...launch, ...next } },
+                            [provider]: {
+                                ...providerSettings,
+                                launch: { ...launch, ...next },
+                            },
+                        });
+                    const updateHooks = (enabled: boolean): void =>
+                        onFieldChange('agents.providers', {
+                            ...settings['agents.providers'],
+                            [provider]: {
+                                ...providerSettings,
+                                hooks: { enabled },
+                            },
                         });
                     return (
                         <section
@@ -195,6 +237,32 @@ export function SettingsForm({ settings, onFieldChange }: SettingsFormProps) {
                                 <AgentIdentityIcon identity={provider} size={16} />
                                 {agentProviderCatalog[provider].displayName}
                             </h3>
+                            <label className="mb-3 flex items-start justify-between gap-4 text-[11px] text-muted">
+                                <span>
+                                    Lifecycle hooks
+                                    <span className="block max-w-xl">
+                                        Keeps background Session unread state accurate. Caxri only
+                                        receives lifecycle phases, never prompt or response content.
+                                        Restart Agent Terminals opened before lifecycle hooks were
+                                        enabled.
+                                    </span>
+                                    <span className="mt-1 block" role="status">
+                                        {hookHealthLabel(
+                                            providerSettings.hooks.enabled,
+                                            appliedSettings['agents.providers'][provider].hooks
+                                                .enabled,
+                                            agentHookHealth?.[provider],
+                                        )}
+                                    </span>
+                                </span>
+                                <input
+                                    aria-label={`${agentProviderCatalog[provider].displayName} lifecycle hooks`}
+                                    checked={providerSettings.hooks.enabled}
+                                    className="mt-0.5 size-4 flex-none accent-[var(--accent)]"
+                                    type="checkbox"
+                                    onChange={(event) => updateHooks(event.target.checked)}
+                                />
+                            </label>
                             <label className="mb-2 block text-[11px] text-muted">
                                 Executable
                                 <Input

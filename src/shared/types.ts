@@ -7,6 +7,8 @@ export {
     keybindingSchema,
     SETTINGS_BOUNDS,
     type AgentActivityState,
+    type AgentHookHealth,
+    type AgentHookHealthMap,
     type AgentProvider,
     type AgentSnapshot,
     type AppSettings,

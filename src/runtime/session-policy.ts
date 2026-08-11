@@ -9,6 +9,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../shared/types';
+import type { AgentLifecyclePhase } from './agents/hooks/contract';
 
 /**
  * Domain policy for the persisted Project/Session/Terminal model: decisions take plain records as
@@ -152,12 +153,56 @@ export interface AgentMetadataDecision {
 /** Emits one attention generation per reliable state transition, never for process fallbacks. */
 function reliableAttentionTransition(
     session: Pick<SessionRecord, 'lastActivityState' | 'lastAttentionKind'>,
-    snapshot: AgentSnapshot,
+    status: AgentActivityState,
+    kind?: SessionAttentionKind,
 ): SessionAttentionKind | undefined {
-    const kind = snapshot.attentionKind;
-    if (!kind || snapshot.status !== kind) return undefined;
+    if (!kind || status !== kind) return undefined;
     if (session.lastActivityState === kind && session.lastAttentionKind === kind) return undefined;
     return kind;
+}
+
+export interface AgentLifecycleDecision {
+    attentionKind?: SessionAttentionKind;
+    lastActivityState: AgentActivityState;
+}
+
+/**
+ * Converts one validated provider lifecycle signal into a Session-only patch. The result cannot
+ * carry `agentSessionId`, so a hook event can never clear a Terminal's resume binding.
+ */
+export function decideAgentLifecycleUpdate(
+    terminal: Pick<TerminalRecord, 'id' | 'provider'>,
+    session: Pick<
+        SessionRecord,
+        'lastActivityState' | 'lastAttentionKind' | 'primaryAgentTerminalId'
+    >,
+    provider: TerminalRecord['provider'],
+    phase: AgentLifecyclePhase,
+): AgentLifecycleDecision | undefined {
+    if (
+        !provider ||
+        terminal.provider !== provider ||
+        terminal.id !== session.primaryAgentTerminalId
+    ) {
+        return undefined;
+    }
+    const lastActivityState: AgentActivityState =
+        phase === 'turnStarted'
+            ? 'running'
+            : phase === 'attentionRequested'
+              ? 'waiting'
+              : 'completed';
+    const requestedAttention =
+        phase === 'attentionRequested' || phase === 'turnFinished'
+            ? (lastActivityState as SessionAttentionKind)
+            : undefined;
+    const attentionKind = reliableAttentionTransition(
+        session,
+        lastActivityState,
+        requestedAttention,
+    );
+    if (session.lastActivityState === lastActivityState && !attentionKind) return undefined;
+    return { lastActivityState, ...(attentionKind ? { attentionKind } : {}) };
 }
 
 /**
@@ -185,7 +230,7 @@ export function decideAgentMetadataUpdate(
     const agentSessionId = snapshot.sessionId?.trim() || undefined;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const attentionKind = isPrimaryAgent
-        ? reliableAttentionTransition(session, snapshot)
+        ? reliableAttentionTransition(session, snapshot.status, snapshot.attentionKind)
         : undefined;
     const noOp =
         (!isPrimaryAgent ||

@@ -51,6 +51,10 @@ describe('Runtime composition root', () => {
         });
 
         try {
+            expect(await runtime.handlers['agentHooks.get']({})).toMatchObject({
+                claude: { kind: 'notInstalled' },
+                codex: { kind: 'notInstalled' },
+            });
             const currentSettings = await runtime.handlers['settings.get']({});
             await runtime.handlers['settings.update']({
                 source: JSON.stringify({

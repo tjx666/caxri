@@ -39,8 +39,14 @@ describe('ConfigurationService', () => {
 
         expect(service.getSettings().value).toMatchObject({
             'agents.providers': {
-                claude: { launch: { executable: 'claude', args: [] } },
-                codex: { launch: { executable: 'codex', args: [] } },
+                claude: {
+                    hooks: { enabled: false },
+                    launch: { executable: 'claude', args: [] },
+                },
+                codex: {
+                    hooks: { enabled: false },
+                    launch: { executable: 'codex', args: [] },
+                },
             },
             'terminal.defaultWorkingDirectory': null,
             'terminal.fontSize': 15,

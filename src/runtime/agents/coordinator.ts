@@ -5,6 +5,7 @@ import type { StructuredLogger } from '../../shared/node/logger';
 import type { TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db/repository';
+import type { AgentLifecycleSignal } from './hooks/contract';
 import { detectForegroundAgentProvider } from './process-detection';
 import type { AgentService } from './service';
 
@@ -69,6 +70,8 @@ export class AgentCoordinator {
     private readonly shellPromotionCandidates = new Map<string, ShellPromotionCandidate>();
     private readonly startedAtByTerminal = new Map<string, number>();
     private readonly probeGenerations = new Map<string, number>();
+    private readonly launchIdsByTerminal = new Map<string, string>();
+    private readonly hookAuthoritativeLaunchIds = new Map<string, string>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -176,6 +179,47 @@ export class AgentCoordinator {
         this.refreshes.schedule(terminalId);
     }
 
+    /** Establishes the opaque PTY generation that every accepted hook signal must match. */
+    beginTerminalLaunch(terminalId: string, launchId: string): void {
+        this.launchIdsByTerminal.set(terminalId, launchId);
+        this.hookAuthoritativeLaunchIds.delete(terminalId);
+    }
+
+    /** Ends lifecycle authority for a retired PTY before a replacement generation can start. */
+    endTerminalLaunch(terminalId: string): void {
+        this.launchIdsByTerminal.delete(terminalId);
+        this.hookAuthoritativeLaunchIds.delete(terminalId);
+    }
+
+    /**
+     * Applies only validated, provider-neutral lifecycle data. An attention-bearing signal makes
+     * hooks authoritative for status; until then metadata remains a completion fallback when a
+     * later hook is lost, and it always owns identity/title/usage.
+     */
+    observeLifecycleSignal(signal: AgentLifecycleSignal): boolean {
+        if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId) return false;
+        const terminal = this.database.getTerminal(signal.terminalId);
+        if (!terminal) return false;
+        /**
+         * Hook environment is inherited by every child of a Shell PTY so an alias-launched Agent
+         * can use it later. It is not provider identity: only the independent foreground-process
+         * and metadata promotion paths may establish that binding.
+         */
+        if (terminal.provider !== signal.provider) return false;
+        if (signal.phase === 'turnStarted')
+            this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
+        else this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
+        const updated = this.database.updateAgentLifecycle(signal);
+        if (updated) this.emitAgentMetadataChange(signal.terminalId);
+        return true;
+    }
+
+    /** Drops hook authority when installation health proves the provider definition is no longer current. */
+    resetHookAuthority(provider: AgentProvider): void {
+        for (const terminal of this.database.listTerminals())
+            if (terminal.provider === provider) this.hookAuthoritativeLaunchIds.delete(terminal.id);
+    }
+
     /** Starts a fresh correlation window before a new Agent process can see historical metadata. */
     prepareTerminalStart(terminalId: string): void {
         const terminal = this.database.getTerminal(terminalId);
@@ -222,6 +266,8 @@ export class AgentCoordinator {
         this.shellProcessDetections.delete(terminalId);
         this.startedAtByTerminal.delete(terminalId);
         this.probeGenerations.delete(terminalId);
+        this.launchIdsByTerminal.delete(terminalId);
+        this.hookAuthoritativeLaunchIds.delete(terminalId);
     }
 
     forgetSession(sessionId: string): void {
@@ -233,6 +279,8 @@ export class AgentCoordinator {
             this.shellProcessDetections.delete(terminal.id);
             this.startedAtByTerminal.delete(terminal.id);
             this.probeGenerations.delete(terminal.id);
+            this.launchIdsByTerminal.delete(terminal.id);
+            this.hookAuthoritativeLaunchIds.delete(terminal.id);
         }
     }
 
@@ -242,6 +290,8 @@ export class AgentCoordinator {
         this.shellPromotionCandidates.clear();
         this.shellProcessDetections.clear();
         this.probeGenerations.clear();
+        this.launchIdsByTerminal.clear();
+        this.hookAuthoritativeLaunchIds.clear();
     }
 
     /**
@@ -325,7 +375,20 @@ export class AgentCoordinator {
                 if (retryClaim) await this.probe(terminalId, false);
                 return;
             }
-            if (this.database.updateAgentMetadata(terminal.id, snapshot))
+            const currentSession = this.database.getSession(terminal.sessionId);
+            if (!currentSession) return;
+            const hookLaunchId = this.hookAuthoritativeLaunchIds.get(terminal.id);
+            const hookAuthoritative =
+                hookLaunchId !== undefined &&
+                hookLaunchId === this.launchIdsByTerminal.get(terminal.id);
+            const metadataSnapshot = hookAuthoritative
+                ? {
+                      ...snapshot,
+                      attentionKind: undefined,
+                      status: currentSession.lastActivityState,
+                  }
+                : snapshot;
+            if (this.database.updateAgentMetadata(terminal.id, metadataSnapshot))
                 this.emitAgentMetadataChange(terminal.id);
         } catch (error) {
             /** A failed probe degrades Agent metadata to unknown; it never interrupts the Runtime. */

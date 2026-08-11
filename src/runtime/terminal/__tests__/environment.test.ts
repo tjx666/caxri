@@ -6,6 +6,7 @@ describe('terminalEnvironment', () => {
     it('passes required shell context without leaking app or credential variables', () => {
         const environment = terminalEnvironment({
             CAXRI_USER_DATA_PATH: '/private/data',
+            CAXRI_HOOK_TOKEN: 'previous-generation-secret',
             HOME: '/Users/example',
             HTTPS_PROXY: 'http://proxy.example',
             NODE_EXTRA_CA_CERTS: '/etc/company-ca.pem',
@@ -27,6 +28,7 @@ describe('terminalEnvironment', () => {
             TERM: 'xterm-256color',
         });
         expect(environment).not.toHaveProperty('CAXRI_USER_DATA_PATH');
+        expect(environment).not.toHaveProperty('CAXRI_HOOK_TOKEN');
         expect(environment).not.toHaveProperty('OPENAI_API_KEY');
         expect(environment).not.toHaveProperty('npm_config_token');
     });

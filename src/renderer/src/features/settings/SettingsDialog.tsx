@@ -2,7 +2,7 @@ import { Braces, FileJson, Save, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { findKeybindingConflicts } from '@shared/configuration';
-import type { AppSettings, Keybinding } from '@shared/types';
+import type { AgentHookHealthMap, AppSettings, Keybinding } from '@shared/types';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/ChromeTabs';
 import { Button } from '../../components/ui/button';
@@ -52,6 +52,7 @@ function useSettingsDialogController() {
     const [sourceErrors, setSourceErrors] = useState<Partial<Record<ConfigKind, string>>>({});
     const [loaded, setLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
@@ -61,8 +62,9 @@ function useSettingsDialogController() {
             caxri.request('settings.get'),
             caxri.request('keybindings.get'),
             caxri.request('theme.get'),
+            caxri.request('agentHooks.get'),
         ])
-            .then(([settingsResult, keybindingsResult, themeResult]) => {
+            .then(([settingsResult, keybindingsResult, themeResult, hookHealth]) => {
                 dispatch({
                     type: 'loaded',
                     settings: { value: settingsResult.value, source: settingsResult.source },
@@ -73,10 +75,19 @@ function useSettingsDialogController() {
                     },
                     theme: { value: themeResult.value, source: themeResult.source },
                 });
+                setAgentHookHealth(hookHealth);
                 setLoaded(true);
             })
             .catch((error: unknown) => onError(error, 'Unable to load configuration'));
     }, []);
+
+    useEffect(
+        () =>
+            caxri.onEvent((event) => {
+                if (event.event === 'agentHooks.changed') setAgentHookHealth(event.payload);
+            }),
+        [],
+    );
 
     // Only load once per app session: reopening the dialog after edits must keep the
     // in-memory drafts instead of silently overwriting them with the on-disk versions.
@@ -326,6 +337,7 @@ function useSettingsDialogController() {
 
     return {
         addBinding,
+        agentHookHealth,
         applyAll,
         changeTab,
         dirtyKinds,
@@ -351,6 +363,7 @@ function useSettingsDialogController() {
 
 function SettingsDialogView({
     addBinding,
+    agentHookHealth,
     applyAll,
     changeTab,
     dirtyKinds,
@@ -379,6 +392,10 @@ function SettingsDialogView({
     // affordance. Focusing the popup container itself instead avoids that, while Tab
     // still moves focus into the dialog's controls normally.
     const popupRef = useRef<HTMLDivElement>(null);
+    const appliedSettings = useMemo(() => {
+        const parsed = parseConfigSource('settings', state.settings.appliedSource);
+        return parsed.ok ? parsed.value : state.settings.value;
+    }, [state.settings.appliedSource, state.settings.value]);
     const dirtySourceErrorKinds = dirtyKinds.filter((kind) => sourceErrors[kind] !== undefined);
     const hasDirtyKeybindingConflicts =
         dirtyKinds.includes('keybindings') && draftKeybindingConflicts.length > 0;
@@ -464,6 +481,7 @@ function SettingsDialogView({
                 >
                     {tab === 'settings' &&
                         state.settings.value &&
+                        appliedSettings &&
                         state.theme.value &&
                         (view === 'source' ? (
                             <ConfigurationSourceView
@@ -475,6 +493,8 @@ function SettingsDialogView({
                             />
                         ) : (
                             <SettingsForm
+                                agentHookHealth={agentHookHealth}
+                                appliedSettings={appliedSettings}
                                 settings={state.settings.value}
                                 onFieldChange={updateSettingsField}
                             />

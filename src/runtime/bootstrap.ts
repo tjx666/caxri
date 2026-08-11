@@ -15,7 +15,9 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../shared/types';
+import { defaultAgentEnvironment, type AgentEnvironment } from './agents/contract';
 import { AgentCoordinator } from './agents/coordinator';
+import { AgentHookManager } from './agents/hooks';
 import { AgentService, createLocalAgentAdapters, type AgentAdapter } from './agents/service';
 import { ConfigurationService } from './configuration';
 import { CURRENT_SCHEMA_VERSION } from './db';
@@ -56,6 +58,12 @@ export interface RuntimeDeps {
     terminal?: TerminalManagerOptions;
     /** Agent adapter seam so an in-process test never executes an Agent CLI. */
     agentAdapters?: Record<AgentProvider, AgentAdapter>;
+    /** Shared provider-home seam for metadata and hook-config tests. */
+    agentEnvironment?: AgentEnvironment;
+    /** Main-approved shared install root. Omitted in tests/E2E to prevent global CLI mutation. */
+    agentHooksPath?: string;
+    /** Executable the staged bridge uses in Node mode. Defaults to the current Electron binary. */
+    runtimeExecutable?: string;
 }
 
 export interface Runtime {
@@ -106,12 +114,31 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     await files.initialize();
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
+    const agentEnvironment = deps.agentEnvironment ?? defaultAgentEnvironment();
     const agents = new AgentService(
         logger,
-        deps.agentAdapters ?? createLocalAgentAdapters(undefined, agentLaunchSettings),
+        deps.agentAdapters ?? createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
     );
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
         refreshDelayMs: deps.agentRefreshDelayMs,
+    });
+    const agentHooks = new AgentHookManager({
+        environment: agentEnvironment,
+        logger,
+        onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
+        onLaunchEnded: (terminalId) => coordinator.endTerminalLaunch(terminalId),
+        onLaunchStarted: (terminalId, launchId) =>
+            coordinator.beginTerminalLaunch(terminalId, launchId),
+        onSignal: (signal) => coordinator.observeLifecycleSignal(signal),
+        runtimeExecutable: deps.runtimeExecutable ?? process.execPath,
+        send,
+        sharedPath: deps.agentHooksPath,
+        userDataPath,
+    });
+    await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
+    let hookSettingsReconcile = Promise.resolve();
+    const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
+        hookSettingsReconcile = agentHooks.reconcile(settings['agents.providers']);
     });
     /**
      * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
@@ -120,6 +147,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const terminals = new TerminalManager(database, send, logger, {
         ...deps.terminal,
         agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
+        lifecycleEnvironment: (terminal) =>
+            agentHooks.terminalEnvironment(terminal.id, terminal.provider),
+        onLifecycleRetired: (terminalId) => agentHooks.endTerminalLaunch(terminalId),
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
     });
@@ -341,6 +371,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         terminalRestores.close();
         coordinator.close();
         terminals.shutdown('orderly');
+        unsubscribeHookSettings();
+        await hookSettingsReconcile;
+        await agentHooks.close();
         await files.close();
         await configuration.close();
         database.close();
@@ -622,8 +655,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),
+        'agentHooks.get': () => agentHooks.getHealth(),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
+            await hookSettingsReconcile;
             return configuration.getSettings();
         },
         'keybindings.get': () => configuration.getKeybindings(),

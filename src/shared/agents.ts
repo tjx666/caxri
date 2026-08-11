@@ -14,7 +14,13 @@ export interface AgentLaunchSettings {
     args: string[];
 }
 
+interface AgentHookSettings {
+    /** Explicitly authorizes Caxri to install and maintain this provider's lifecycle hooks. */
+    enabled: boolean;
+}
+
 export interface AgentProviderSettings {
+    hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
 }
 
@@ -57,6 +63,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
     agentProviderIds.map((provider) => [
         provider,
         {
+            hooks: { enabled: false },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,
                 args: [],
