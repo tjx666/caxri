@@ -8,6 +8,7 @@ import {
 } from '../agents';
 import { inspectorModeSchema } from '../inspector';
 import { workItemSchema } from '../work-item';
+import { MAX_KEYBINDINGS } from '../configuration-contract';
 import { terminalLayoutSchema } from './layout';
 
 export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
@@ -625,8 +626,8 @@ export const bootstrapStateSchema = z.object({
     selectedSessionId: z.string().optional(),
     sessionStates: z.array(sessionStateSchema),
     settings: appSettingsSchema,
-    keybindings: z.array(keybindingSchema),
-    keybindingConflicts: z.array(keybindingConflictSchema),
+    keybindings: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
+    keybindingConflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
     configurationErrors: z.array(z.string()).optional(),
     theme: themeTokensSchema,
     runtime: z.object({

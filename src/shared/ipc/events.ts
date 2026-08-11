@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { configurationSourceSchema } from '../configuration-contract';
+
 import {
     agentHookHealthMapSchema,
     fileChangeSchema,
@@ -10,7 +12,7 @@ import {
 } from './domain';
 
 const configurationChangedSchema = z.object({
-    source: z.string(),
+    source: configurationSourceSchema,
     error: z.string().optional(),
 });
 

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { configurationSourceSchema, MAX_KEYBINDINGS } from '../configuration-contract';
+
 import {
     agentHookHealthMapSchema,
     appSettingsSchema,
@@ -47,7 +49,6 @@ export interface MethodSpec {
  * makes `undefined` a valid input so callers may omit the argument entirely.
  */
 const noParams = z.object({}).default({});
-const configurationSource = z.string().max(128 * 1024);
 function containsReportControlCharacter(value: string): boolean {
     for (const character of value) {
         const code = character.codePointAt(0)!;
@@ -75,13 +76,13 @@ const bugReportScreenshot = z.object({
 /** Keeps path-browser IPC and rendering bounded while still allowing users to refine by name. */
 export const MAX_FILE_BROWSE_ENTRIES = 200;
 
-const settingsResult = z.object({ value: appSettingsSchema, source: z.string() });
+const settingsResult = z.object({ value: appSettingsSchema, source: configurationSourceSchema });
 const keybindingsResult = z.object({
-    value: z.array(keybindingSchema),
-    source: z.string(),
-    conflicts: z.array(keybindingConflictSchema),
+    value: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
+    source: configurationSourceSchema,
+    conflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
 });
-const themeResult = z.object({ value: themeTokensSchema, source: z.string() });
+const themeResult = z.object({ value: themeTokensSchema, source: configurationSourceSchema });
 const exportedFile = z.object({ path: z.string() });
 const fileName = z
     .string()
@@ -532,19 +533,19 @@ export const methods = {
     'agentHooks.get': { owner: 'runtime', params: noParams, result: agentHookHealthMapSchema },
     'settings.update': {
         owner: 'runtime',
-        params: z.object({ source: configurationSource }),
+        params: z.object({ source: configurationSourceSchema }),
         result: settingsResult,
     },
     'keybindings.get': { owner: 'runtime', params: noParams, result: keybindingsResult },
     'keybindings.update': {
         owner: 'runtime',
-        params: z.object({ source: configurationSource }),
+        params: z.object({ source: configurationSourceSchema }),
         result: keybindingsResult,
     },
     'theme.get': { owner: 'runtime', params: noParams, result: themeResult },
     'theme.update': {
         owner: 'runtime',
-        params: z.object({ source: z.string().max(256 * 1024) }),
+        params: z.object({ source: configurationSourceSchema }),
         result: themeResult,
     },
     'theme.import': { owner: 'main', params: noParams, result: themeTokensSchema.nullable() },

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { MAX_CONFIGURATION_SOURCE_BYTES, MAX_KEYBINDINGS } from '../../configuration-contract';
+
 import {
     CaxriError,
     createCaxriClient,
@@ -195,6 +197,46 @@ describe('runtime events', () => {
             ok: false,
             error: { code: 'INTERNAL', message: 'future failure' },
         });
+    });
+});
+
+describe('configuration contracts', () => {
+    const multibyteSourceAtLimit = '界'.repeat(Math.floor(MAX_CONFIGURATION_SOURCE_BYTES / 3));
+    const oversizedMultibyteSource = `${multibyteSourceAtLimit}界`;
+
+    it('uses the same UTF-8 byte ceiling for update, result, and event sources', () => {
+        for (const kind of ['settings', 'keybindings', 'theme'] as const) {
+            expect(
+                methods[`${kind}.update`].params.shape.source.safeParse(multibyteSourceAtLimit)
+                    .success,
+            ).toBe(true);
+            expect(
+                methods[`${kind}.update`].params.shape.source.safeParse(oversizedMultibyteSource)
+                    .success,
+            ).toBe(false);
+            expect(
+                methods[`${kind}.get`].result.shape.source.safeParse(oversizedMultibyteSource)
+                    .success,
+            ).toBe(false);
+            expect(
+                runtimeEventPayloads[`${kind}.changed`].shape.source.safeParse(
+                    oversizedMultibyteSource,
+                ).success,
+            ).toBe(false);
+        }
+    });
+
+    it('bounds keybinding arrays in configuration and bootstrap results', () => {
+        const binding = { command: 'terminal.new', key: 'cmd+t' };
+        const oversizedKeybindings = Array.from({ length: MAX_KEYBINDINGS + 1 }, () => binding);
+
+        expect(
+            methods['keybindings.get'].result.shape.value.safeParse(oversizedKeybindings).success,
+        ).toBe(false);
+        expect(
+            methods['app.bootstrap'].result.shape.keybindings.safeParse(oversizedKeybindings)
+                .success,
+        ).toBe(false);
     });
 });
 
