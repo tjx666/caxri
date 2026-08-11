@@ -420,15 +420,34 @@ describe('Go state ledger', () => {
         });
         expect(() =>
             recordReviewDecision(migrated, {
-                authorization: 'User approved another delivery verification.',
                 freeze: true,
                 headSha: 'delivery-head-5',
                 mode: 'verification',
                 p0: 0,
                 p1: 0,
-                scope: 'Disallowed fifth delivery repair',
+                scope: 'Unauthorized fifth delivery repair',
             }),
-        ).toThrow('four delivery-stage');
+        ).toThrow('requires explicit user authorization');
+        recordReviewDecision(migrated, {
+            authorization: 'User approved one systemic CI-parity verification.',
+            freeze: true,
+            headSha: 'delivery-head-5',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Authorized systemic delivery repair',
+        });
+        expect(() =>
+            recordReviewDecision(migrated, {
+                authorization: 'User approved another delivery verification.',
+                freeze: true,
+                headSha: 'delivery-head-6',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Disallowed sixth delivery repair',
+            }),
+        ).toThrow('five delivery-stage');
     });
 
     it('replays every v4 delivery and deep-review cycle while backfilling phases', () => {
