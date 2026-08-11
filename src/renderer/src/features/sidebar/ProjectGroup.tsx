@@ -1,14 +1,4 @@
-import {
-    Archive,
-    ArchiveRestore,
-    ChevronDown,
-    ChevronRight,
-    Circle,
-    FolderClosed,
-    FolderOpen,
-    Plus,
-    Trash2,
-} from 'lucide-react';
+import { Archive, Circle, FolderClosed, FolderOpen, Plus } from 'lucide-react';
 import type { DragEvent } from 'react';
 
 import type {
@@ -24,12 +14,7 @@ import { Input } from '../../components/ui/input';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { cn } from '../../lib/utils';
-import {
-    archiveSession,
-    deleteSession,
-    selectSession,
-    unarchiveSession,
-} from '../session/session-actions';
+import { archiveSession, selectSession } from '../session/session-actions';
 import {
     hasProjectDragType,
     resolveProjectHeadingClick,
@@ -214,83 +199,10 @@ function ActiveSessionRow({
     );
 }
 
-interface ArchivedSessionsProps {
-    animate: boolean;
-    expanded: boolean;
-    onToggle: () => void;
-    sessions: SessionRecord[];
-    terminals: TerminalRecord[];
-}
-
-function ArchivedSessions({
-    animate,
-    expanded,
-    onToggle,
-    sessions,
-    terminals,
-}: ArchivedSessionsProps) {
-    return (
-        <div className="archived-sessions mt-1">
-            <button
-                type="button"
-                className="archived-sessions-toggle flex h-7 w-full items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-left text-[11px] text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                aria-expanded={expanded}
-                onClick={onToggle}
-            >
-                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <Archive size={12} />
-                <span className="flex-1">Archived</span>
-                <span>{sessions.length}</span>
-            </button>
-            <DisclosureMotion animate={animate} expanded={expanded} kind="archive">
-                {() =>
-                    sessions.map((session) => (
-                        <div key={session.id} className="archived-row group/archived-row relative">
-                            <Tooltip content="Restore Session">
-                                <button
-                                    type="button"
-                                    className="archived-session flex h-7 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 pr-8 text-left text-muted cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                                    aria-label={`Restore ${session.displayTitle}`}
-                                    onClick={() => unarchiveSession(session.id)}
-                                >
-                                    <ArchiveRestore size={12} />
-                                    <AgentIdentityIcon
-                                        identity={
-                                            sessionTerminal(session, terminals)?.kind ?? 'shell'
-                                        }
-                                        size={13}
-                                    />
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {session.displayTitle}
-                                    </span>
-                                    <UnreadAttentionIndicator session={session} />
-                                </button>
-                            </Tooltip>
-                            <Tooltip content="Delete Session">
-                                <button
-                                    type="button"
-                                    className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 pointer-events-none cursor-pointer hover:text-foreground group-hover/archived-row:opacity-100 group-hover/archived-row:pointer-events-auto group-focus-within/archived-row:opacity-100 group-focus-within/archived-row:pointer-events-auto"
-                                    aria-label={`Delete ${session.displayTitle}`}
-                                    onClick={() => deleteSession(session.id)}
-                                >
-                                    <Trash2 size={12} />
-                                </button>
-                            </Tooltip>
-                        </div>
-                    ))
-                }
-            </DisclosureMotion>
-        </div>
-    );
-}
-
 interface ProjectGroupProps {
     active: boolean;
     activeSessions: SessionRecord[];
-    animateArchive: boolean;
     animateProject: boolean;
-    archiveExpanded: boolean;
-    archivedSessions: SessionRecord[];
     dragged: boolean;
     expanded: boolean;
     focusRenameInput: (element: HTMLInputElement | null) => void;
@@ -307,7 +219,6 @@ interface ProjectGroupProps {
     onRenameValueChange: (value: string) => void;
     onSelect: () => void;
     onToggle: () => void;
-    onToggleArchive: () => void;
     project: ProjectRecord;
     projectDropTarget?: ProjectDropTarget;
     renameError?: string;
@@ -320,10 +231,7 @@ interface ProjectGroupProps {
 export function ProjectGroup({
     active,
     activeSessions,
-    animateArchive,
     animateProject,
-    archiveExpanded,
-    archivedSessions,
     dragged,
     expanded,
     focusRenameInput,
@@ -340,7 +248,6 @@ export function ProjectGroup({
     onRenameValueChange,
     onSelect,
     onToggle,
-    onToggleArchive,
     project,
     projectDropTarget,
     renameError,
@@ -494,15 +401,6 @@ export function ProjectGroup({
                             >
                                 <Plus size={13} /> New Session
                             </button>
-                        )}
-                        {archivedSessions.length > 0 && (
-                            <ArchivedSessions
-                                animate={animateArchive}
-                                expanded={archiveExpanded}
-                                onToggle={onToggleArchive}
-                                sessions={archivedSessions}
-                                terminals={terminals}
-                            />
                         )}
                     </div>
                 )}

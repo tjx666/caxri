@@ -504,6 +504,13 @@ test('Session archive hides active navigation without stopping Terminals and can
         const firstSessionId = await selectedSessionId(running.page);
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: secondSessionId,
+            displayTitle: 'Archived investigation',
+        });
+        await expect(sessionCard(running.page, secondSessionId)).toContainText(
+            'Archived investigation',
+        );
         await expect(running.page.locator('.session-card')).toHaveCount(2);
         const runningBeforeArchive = await pageRequest<number>(
             running.page,
@@ -519,14 +526,28 @@ test('Session archive hides active navigation without stopping Terminals and can
         await expect
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeArchive);
-        const archived = running.page.getByRole('button', { name: /Archived 1/ });
+        await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
+        const archived = running.page.getByRole('button', { name: /Archived Sessions/ });
+        await expect(archived).toContainText('1');
         await archived.click();
-        const restore = running.page.getByRole('button', { name: /^Restore / });
-        await expect(restore.locator('svg')).toHaveCount(2);
+        const dialog = running.page.getByRole('dialog');
+        await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
+        await dialog.getByLabel('Search').fill('investigation');
+        await dialog.getByLabel('Filter by Project').click();
+        await running.page.getByRole('option', { name: 'project', exact: true }).click();
+        await dialog.getByLabel('Filter by Agent').click();
+        await running.page.getByRole('option', { name: 'Shell', exact: true }).click();
+        await expect(dialog.locator('.archived-manager-row')).toHaveCount(1);
+        const restore = dialog.getByRole('button', { name: 'Restore Archived investigation' });
         await restore.click();
 
         await expect(running.page.locator('.session-card')).toHaveCount(2);
-        await expect(running.page.locator('.archived-sessions')).toHaveCount(0);
+        await expect
+            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
+            .toBe(runningBeforeArchive);
+        await dialog.getByRole('button', { name: 'Done' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(archived).toContainText('0');
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');
@@ -539,7 +560,7 @@ test('Session archive hides active navigation without stopping Terminals and can
     }
 });
 
-test('archived Sessions reveal a Delete action on hover that removes the Session on confirmation', async () => {
+test('Archived Sessions manager deletes only after native confirmation', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-delete-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -556,15 +577,14 @@ test('archived Sessions reveal a Delete action on hover that removes the Session
         await archivedSourceRow.getByRole('button', { name: /^Archive / }).click();
         await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
 
-        await running.page.getByRole('button', { name: /Archived 1/ }).click();
-        const archivedRow = running.page.locator('.archived-row');
+        const archivedEntry = running.page.getByRole('button', { name: /Archived Sessions/ });
+        await expect(archivedEntry).toContainText('1');
+        await archivedEntry.click();
+        const dialog = running.page.getByRole('dialog');
+        const archivedRow = dialog.locator('.archived-manager-row');
         await expect(archivedRow).toHaveCount(1);
         const deleteButton = archivedRow.getByRole('button', { name: /^Delete / });
-        await expect(deleteButton).toHaveCSS('opacity', '0');
-        await expect(deleteButton).toHaveCSS('pointer-events', 'none');
-        await archivedRow.hover();
-        await expect(deleteButton).toHaveCSS('opacity', '1');
-        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
+        await expect(deleteButton).toBeVisible();
 
         // Cancel keeps the archived row.
         await running.app.evaluate(({ dialog }) => {
@@ -577,12 +597,13 @@ test('archived Sessions reveal a Delete action on hover that removes the Session
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
         });
-        await deleteButton.focus();
-        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
         await deleteButton.click();
 
         await expect(archivedRow).toHaveCount(0);
-        await expect(running.page.locator('.archived-sessions')).toHaveCount(0);
+        await expect(dialog.getByText('No archived Sessions yet')).toBeVisible();
+        await dialog.getByRole('button', { name: 'Done' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(archivedEntry).toContainText('0');
         const snapshot = await pageRequest<{ sessions: Array<{ id: string }> }>(
             running.page,
             'app.bootstrap',

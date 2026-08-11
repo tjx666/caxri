@@ -110,6 +110,9 @@ Project ordering uses the whole Project heading as its drag source. While draggi
 source group and show a 2px `--accent` insertion line with a circular leading cap between Project
 groups; Session rows are never drop targets. `Option+Up` / `Option+Down` on a focused Project name
 provides the keyboard-equivalent reorder and announces the resulting position.
+Archived Sessions use one stable Sidebar footer entry with a global count. Search, filters,
+Project-grouped results, restore, and delete live in a full-width management dialog; Project
+disclosures contain active Sessions only, so low-frequency history never fragments navigation.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
@@ -127,7 +130,7 @@ one layer:
    Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute variants are
    equivalent (see upstream debate in shadcn-ui/ui#10267).
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
-   user-triggered disclosure: Sidebar Project and Archived Sessions, Files search groups, Git
+   user-triggered disclosure: Sidebar Project, Files search groups, Git
    directory/repository/history, Project Status sections. The measured Inspector/Settings chrome
    tab indicator also uses a native transform/width transition. `components/DisclosureMotion.tsx`
    is the thin presence wrapper: it mounts content in the commit that flips `data-expanded` and
