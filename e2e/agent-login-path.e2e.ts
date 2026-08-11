@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
 import { realCodexSmokeArgs } from './agent-fixture.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest } from './helpers.ts';

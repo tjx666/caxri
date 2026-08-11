@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
 import { createFakeAgentMode } from './agent-fixture.ts';
 import { createProjectSession, launchCaxri } from './helpers.ts';

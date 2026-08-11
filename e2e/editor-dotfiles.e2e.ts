@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri } from './helpers.ts';
 

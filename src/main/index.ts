@@ -25,6 +25,12 @@ import {
 } from '../shared/ipc/transport';
 import { resolveE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
+import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
+import {
+    isRendererErrorKind,
+    RENDERER_ERROR_CHANNELS,
+    type RendererErrorKind,
+} from '../shared/renderer-error';
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
@@ -62,6 +68,10 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
 let mainWindow: BrowserWindow | undefined;
 let supervisor: RuntimeSupervisor;
 let mainLogger: StructuredLogger | undefined;
+const processErrorMonitor = installProcessErrorMonitor({
+    bootstrapWriter: () => (mainLogger ??= createMainLogger()),
+    processName: 'main',
+});
 let processExplorer: ProcessExplorerWindowController;
 let updateService: UpdateService;
 let forceWindowClose = false;
@@ -82,6 +92,17 @@ const e2eAgentPolicy = resolveE2EAgentPolicy({
         codex: process.env.CAXRI_E2E_FAKE_CODEX_EXECUTABLE,
     },
 });
+function createMainLogger(): StructuredLogger {
+    return new StructuredLogger(
+        resolveLogDirectory({
+            currentDirectory,
+            rendererUrl: process.env.ELECTRON_RENDERER_URL,
+            userDataPath: app.getPath('userData'),
+        }),
+        'main',
+        resolveLogLevel({ isPackaged: app.isPackaged }),
+    );
+}
 
 function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'runtime.status') {
@@ -204,11 +225,13 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     /** Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults. */
     window.webContents.on('console-message', (details) => {
         if (details.level !== 'error') return;
-        mainLogger?.write('error', 'renderer.console', {
-            fields: {
-                message: details.message.slice(0, 4096),
-                source: `${details.sourceId ?? 'unknown'}:${details.lineNumber ?? 0}`,
-            },
+        mainLogger?.write('error', 'renderer.console_error', {
+            fields: { code: 'CONSOLE_ERROR' },
+        });
+    });
+    window.webContents.on('preload-error', () => {
+        mainLogger?.write('error', 'renderer.preload_error', {
+            fields: { code: 'PRELOAD_ERROR' },
         });
     });
     window.webContents.on('render-process-gone', (_event, details) => {
@@ -221,6 +244,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         if (decision.action === 'reload') {
             mainLogger?.write('warn', 'window.render_process_gone', {
                 fields: {
+                    code: 'RENDER_PROCESS_GONE',
                     reason: details.reason,
                     crashCount: decision.crashCount,
                     delayMs: decision.delayMs ?? 0,
@@ -232,7 +256,11 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             return;
         }
         mainLogger?.write('error', 'window.render_process_crash_loop', {
-            fields: { reason: details.reason, crashCount: decision.crashCount },
+            fields: {
+                code: 'RENDER_PROCESS_CRASH_LOOP',
+                reason: details.reason,
+                crashCount: decision.crashCount,
+            },
         });
         void dialog
             .showMessageBox(window, {
@@ -552,6 +580,20 @@ async function handleCaxriRequest(request: CaxriRequest): Promise<unknown> {
 }
 
 function installIpc(): void {
+    ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
+        if (!mainWindow || event.sender !== mainWindow.webContents || !isRendererErrorKind(rawKind))
+            return;
+        const kind: RendererErrorKind = rawKind;
+        mainLogger?.write(
+            'error',
+            kind === 'page-exception' ? 'renderer.page_exception' : 'renderer.unhandled_rejection',
+            {
+                fields: {
+                    code: kind === 'page-exception' ? 'PAGE_EXCEPTION' : 'UNHANDLED_REJECTION',
+                },
+            },
+        );
+    });
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         try {
             assertSender(event);
@@ -603,7 +645,8 @@ void app.whenReady().then(async () => {
         userDataPath,
     });
     const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
-    mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
+    mainLogger ??= new StructuredLogger(logDirectory, 'main', logLevel);
+    processErrorMonitor.attach(mainLogger);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
     if (process.env.CAXRI_E2E === '1') {
         mainLogger.write('info', 'e2e.launch', {

@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 
 import { realCodexSmokeArgs } from './agent-fixture.ts';
 import {
@@ -14,6 +14,14 @@ import {
 } from './helpers.ts';
 
 test('the default E2E launch cannot resolve a host Agent executable', async () => {
+    allowE2EErrors([
+        {
+            source: 'runtime',
+            event: 'pty.spawn_failed',
+            code: 'UNAVAILABLE',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-mode-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -110,6 +118,26 @@ test('the blocked E2E mode shadows host Agents inside a Shell Terminal', async (
 });
 
 test('real mode rejects unsafe launch args and interactive Agent input', async () => {
+    allowE2EErrors([
+        {
+            source: 'main',
+            event: 'ipc.request_failed',
+            code: 'VALIDATION',
+            count: 1,
+        },
+        {
+            source: 'runtime',
+            event: 'ipc.request_failed',
+            code: 'VALIDATION',
+            count: 1,
+        },
+        {
+            source: 'runtime',
+            event: 'pty.spawn_failed',
+            code: 'VALIDATION',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-real-agent-policy-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -206,6 +234,14 @@ test('real mode rejects unsafe launch args and interactive Agent input', async (
 });
 
 test('real mode cannot bypass its Agent policy through a Shell Terminal', async () => {
+    allowE2EErrors([
+        {
+            source: 'runtime',
+            event: 'pty.spawn_failed',
+            code: 'VALIDATION',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-real-agent-shell-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

@@ -117,7 +117,9 @@ export class RuntimeSupervisor extends EventEmitter {
         } catch (error) {
             const message = errorMessage(error, 'Runtime failed to start');
             const failure = new CaxriError('UNAVAILABLE', message);
-            this.logger.write('error', 'runtime.error', { fields: { error: message } });
+            this.logger.write('error', 'runtime.launch_failed', {
+                fields: { code: failure.code, error: message },
+            });
             this.onExit(-1);
             return this.readiness?.promise ?? Promise.reject(failure);
         }
@@ -132,9 +134,13 @@ export class RuntimeSupervisor extends EventEmitter {
          * Electron's `UtilityProcess` 'error' event is a non-continuable V8 fault, not a JS `Error`
          * object; it reports a fixed error type plus a diagnostic report, which can be large.
          */
-        child.on('error', (type, location, report) =>
-            this.logger.write('error', 'runtime.error', {
-                fields: { type, location, report: truncateForLog(report) },
+        child.on('error', (type, location) =>
+            this.logger.write('error', 'runtime.utility_error', {
+                fields: {
+                    code: 'UTILITY_PROCESS_ERROR',
+                    type,
+                    location,
+                },
             }),
         );
         child.stdout?.on('data', (chunk: Buffer | string) => this.handleStdio('stdout', chunk));
@@ -282,6 +288,9 @@ export class RuntimeSupervisor extends EventEmitter {
         }
         this.pending.clear();
         if (this.intentionalStop || this.terminalFailure) return;
+        this.logger.write('error', 'runtime.process_exit', {
+            fields: { code: 'PROCESS_EXIT', exitCode: code, restartCount: this.restartCount },
+        });
         if (this.restartCount >= 3) {
             const failure = new CaxriError(
                 'UNAVAILABLE',
@@ -313,8 +322,9 @@ export class RuntimeSupervisor extends EventEmitter {
                     this.pendingRestart = undefined;
                     this.start().then(resolve, (error: unknown) => {
                         if (!this.intentionalStop)
-                            this.logger.write('error', 'runtime.error', {
+                            this.logger.write('error', 'runtime.restart_failed', {
                                 fields: {
+                                    code: 'UNAVAILABLE',
                                     error: errorMessage(error, String(error)),
                                 },
                             });
