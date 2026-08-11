@@ -37,6 +37,7 @@ import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
 import { createTestRootPathResolver } from './test-root';
 import { UpdateService } from './updates';
+import { resolveE2EWindowMode } from './window-mode';
 import { createWindowCloseHandler } from './window-close';
 
 const bootStartedAt = performance.now();
@@ -67,6 +68,10 @@ let quitStarted = false;
 let automaticUpdateCheckStarted = false;
 const grantedRoots = new ProjectRootGrants();
 const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
+const e2eWindowMode = resolveE2EWindowMode({
+    isE2E: process.env.CAXRI_E2E === '1',
+    requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
+});
 
 function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'runtime.status') {
@@ -169,7 +174,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         mainLogger?.write('info', 'window.ready_to_show', {
             durationMs: performance.now() - bootStartedAt,
         });
-        window.show();
+        if (e2eWindowMode === 'visible') window.show();
         if (app.isPackaged && !automaticUpdateCheckStarted) {
             automaticUpdateCheckStarted = true;
             /** Update discovery stays off the awaited startup path and never delays the first window. */
@@ -590,6 +595,9 @@ void app.whenReady().then(async () => {
     const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
     mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
+    if (process.env.CAXRI_E2E === '1') {
+        mainLogger.write('info', 'e2e.launch', { fields: { windowMode: e2eWindowMode } });
+    }
     updateService = new UpdateService({
         currentVersion: caxriVersion,
         downloadDirectory: join(userDataPath, 'updates'),
@@ -637,6 +645,7 @@ void app.whenReady().then(async () => {
                 })),
         }),
         theme: () => supervisor.request('theme.get').then((result) => result.value),
+        windowMode: e2eWindowMode,
     });
     supervisor.on('event', sendEvent);
     const runtimeStartedAt = performance.now();

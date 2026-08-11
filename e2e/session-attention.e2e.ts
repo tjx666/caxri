@@ -79,6 +79,7 @@ done
     const launchOptions = {
         userDataDir: userData,
         testRootPath: root,
+        windowMode: 'visible' as const,
         env: {
             PATH: `${bin}:${process.env.PATH ?? ''}`,
             CLAUDE_CONFIG_DIR: config,

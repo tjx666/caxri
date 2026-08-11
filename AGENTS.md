@@ -126,6 +126,7 @@ step-by-step workflows beyond this summary.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
+- Focused Electron E2E launches use hidden native windows by default. A spec that verifies native focus or pointer behavior must pass `windowMode: 'visible'`; the Acceptance adapter always does so for the real desktop surface.
 - Electron E2E helpers, Acceptance, and performance benchmarks acquire one repository-wide desktop
   lease before launch. Never bypass their launch helpers or run a second desktop task concurrently;
   use `$switch-worktree`'s `desktop` command for any additional Electron desktop workflow.
