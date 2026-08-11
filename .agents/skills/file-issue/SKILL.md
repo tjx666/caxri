@@ -58,10 +58,10 @@ After creating the issue, always add it to the owner's Caxri project and set its
 ```bash
 gh project item-add 2 --owner tjx666 --url "$issue_url"
 gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "P2 Normal"
-gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Backlog"
+gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Next"
 ```
 
-- Use `In Progress` instead of `Backlog` only when implementation or verification is already underway.
+- Use `In Progress` instead of `Next` only when implementation or verification is already underway.
 - Raise priority to `P1 High` or `P0 Critical` only when the issue body establishes concrete user impact; use `P3 Low` for explicitly deferrable work.
 - Do not assign the sole maintainer or invent a milestone merely to fill metadata.
 - If a Project mutation fails, retry it once. Keep the successfully created issue, report the tracking failure, and never delete or recreate the issue to recover.
