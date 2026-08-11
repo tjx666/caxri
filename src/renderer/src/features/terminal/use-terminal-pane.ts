@@ -156,9 +156,19 @@ export function useTerminalPaneRuntime({
                 });
             },
             openUrl(url) {
-                const opened = window.open(url, '_blank', 'noopener,noreferrer');
-                /** A popup blocker (or an OS-level prompt) can silently return null instead of throwing. */
-                if (!opened) onError(`Popup blocked: allow popups for Caxri to open ${url}`);
+                void caxri
+                    .request('external.open', { url })
+                    .then((result) => {
+                        if (result.status !== 'rejected') return;
+                        onError(
+                            result.reason === 'unsupported_protocol'
+                                ? 'Only HTTP and HTTPS links can be opened'
+                                : 'External link is invalid',
+                        );
+                    })
+                    .catch((error) =>
+                        onError(errorMessage(error, 'External link could not be opened')),
+                    );
             },
         });
         xterm.attachCustomKeyEventHandler((event) => {

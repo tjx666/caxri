@@ -36,6 +36,7 @@ import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { decideCrashRecovery } from './crash-policy';
+import { openExternalUrl } from './external-links';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
@@ -116,23 +117,24 @@ function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'keybindings.changed' && !event.payload.error) void installMenu();
 }
 
-async function confirmExternalUrl(url: string): Promise<void> {
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return;
-    }
-    if (!['http:', 'https:'].includes(parsed.protocol)) return;
-    const result = await dialog.showMessageBox({
-        type: 'question',
-        title: 'Open External Link',
-        message: `Open ${parsed.hostname} in your default browser?`,
-        buttons: ['Open', 'Cancel'],
-        defaultId: 1,
-        cancelId: 1,
+async function handleExternalUrl(url: string, window?: BrowserWindow) {
+    return openExternalUrl(url, {
+        confirm: async (parsed) => {
+            const options = {
+                type: 'question' as const,
+                title: 'Open External Link',
+                message: `Open ${parsed.hostname} in your default browser?`,
+                buttons: ['Open', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+            };
+            const result = window
+                ? await dialog.showMessageBox(window, options)
+                : await dialog.showMessageBox(options);
+            return result.response === 0;
+        },
+        open: (target) => shell.openExternal(target),
     });
-    if (result.response === 0) await shell.openExternal(parsed.toString());
 }
 
 function createWindow(initialState: PersistedWindowState): BrowserWindow {
@@ -215,14 +217,14 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         }
     });
     window.webContents.setWindowOpenHandler(({ url }) => {
-        void confirmExternalUrl(url);
+        void handleExternalUrl(url, window);
         return { action: 'deny' };
     });
     window.webContents.on('will-navigate', (event, url) => {
         const currentUrl = window.webContents.getURL();
         if (url === currentUrl) return;
         event.preventDefault();
-        void confirmExternalUrl(url);
+        void handleExternalUrl(url, window);
     });
     /** Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults. */
     window.webContents.on('console-message', (details) => {
@@ -372,6 +374,8 @@ function assertNever(value: never): never {
 
 async function handleMainMethod(request: MainRequest): Promise<unknown> {
     switch (request.method) {
+        case 'external.open':
+            return handleExternalUrl(request.params.url, mainWindow);
         case 'dialog.selectDirectory': {
             const testRoot = resolveNextTestRootPath();
             if (testRoot) {

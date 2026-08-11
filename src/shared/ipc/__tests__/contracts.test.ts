@@ -70,6 +70,29 @@ describe('method table', () => {
         ).toBe(true);
     });
 
+    it('bounds external URLs and accepts only the declared open outcomes', () => {
+        expect(methods['external.open'].params.safeParse({ url: '' }).success).toBe(false);
+        expect(
+            methods['external.open'].params.safeParse({ url: 'https://example.com' }).success,
+        ).toBe(true);
+        expect(methods['external.open'].params.safeParse({ url: 'x'.repeat(16_385) }).success).toBe(
+            false,
+        );
+        expect(methods['external.open'].result.safeParse({ status: 'canceled' }).success).toBe(
+            true,
+        );
+        expect(
+            methods['external.open'].result.safeParse({
+                status: 'rejected',
+                reason: 'unsupported_protocol',
+            }).success,
+        ).toBe(true);
+        expect(
+            methods['external.open'].result.safeParse({ status: 'rejected', reason: 'unknown' })
+                .success,
+        ).toBe(false);
+    });
+
     it('rejects invalid Main and Runtime results as internal contract failures', () => {
         expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
