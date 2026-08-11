@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 
 export const runtimeStateSchema = z.object({
     cdpUrl: z.string(),
+    electronIdentity: z.string().min(1).nullable(),
     electronPid: z.number().int().positive().nullable(),
     launcherIdentity: z.string().min(1),
     launcherPid: z.number().int().positive(),
@@ -64,6 +65,21 @@ export async function isOwnedLauncher(
     runtime: Pick<RuntimeState, 'launcherIdentity' | 'launcherPid'>,
 ): Promise<boolean> {
     return (await getProcessIdentity(runtime.launcherPid)) === runtime.launcherIdentity;
+}
+
+/** An isolated Acceptance instance remains owned while either supervised process is alive. */
+export async function isOwnedRuntime(
+    runtime: Pick<
+        RuntimeState,
+        'electronIdentity' | 'electronPid' | 'launcherIdentity' | 'launcherPid'
+    >,
+): Promise<boolean> {
+    if (await isOwnedLauncher(runtime)) return true;
+    return Boolean(
+        runtime.electronPid &&
+        runtime.electronIdentity &&
+        (await getProcessIdentity(runtime.electronPid)) === runtime.electronIdentity,
+    );
 }
 
 export async function removeOwnedUserData(

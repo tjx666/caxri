@@ -5,6 +5,7 @@ import {
     bootstrapStateSchema,
     fileDocumentSchema,
     fileEntrySchema,
+    fileMutationOperationSchema,
     fileSearchModeSchema,
     fileSearchResultSchema,
     gitCommitDetailsSchema,
@@ -18,6 +19,7 @@ import {
     keybindingSchema,
     MAX_CONFIGURABLE_FILE_BYTES,
     mutableFileEntrySchema,
+    movedFileEntrySchema,
     pathSchema,
     persistedWindowStateSchema,
     projectStatusOverviewSchema,
@@ -45,6 +47,32 @@ export interface MethodSpec {
  */
 const noParams = z.object({}).default({});
 const configurationSource = z.string().max(128 * 1024);
+function containsReportControlCharacter(value: string): boolean {
+    for (const character of value) {
+        const code = character.codePointAt(0)!;
+        if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127) return true;
+    }
+    return false;
+}
+const bugReportText = z
+    .string()
+    .min(1)
+    .max(48 * 1024)
+    .refine(
+        (value) => !containsReportControlCharacter(value),
+        'Report contains control characters',
+    );
+const bugReportScreenshot = z.object({
+    dataUrl: z
+        .string()
+        .startsWith('data:image/jpeg;base64,')
+        .max(12 * 1024 * 1024),
+    height: z.number().int().positive().max(16_384),
+    width: z.number().int().positive().max(16_384),
+});
+
+/** Keeps path-browser IPC and rendering bounded while still allowing users to refine by name. */
+export const MAX_FILE_BROWSE_ENTRIES = 200;
 
 const settingsResult = z.object({ value: appSettingsSchema, source: z.string() });
 const keybindingsResult = z.object({
@@ -68,8 +96,6 @@ const fileName = z
             !name.includes('\0'),
         'File name must not contain path separators',
     );
-const movedFileEntry = mutableFileEntrySchema.extend({ previousPath: pathSchema });
-
 /** Main returns this instead of a Runtime result when the user dismisses a confirmation dialog. */
 const canceled = z.object({ canceled: z.literal(true) });
 
@@ -117,6 +143,32 @@ export const methods = {
         params: noParams,
         result: exportedFile.nullable(),
     },
+    'bugReport.context': {
+        owner: 'runtime',
+        params: noParams,
+        result: z.object({
+            appVersion: z.string().min(1).max(100),
+            architecture: z.string().min(1).max(100),
+            commit: z.string().min(1).max(100),
+            platform: z.string().min(1).max(100),
+            recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
+        }),
+    },
+    'bugReport.captureScreenshot': {
+        owner: 'main',
+        params: noParams,
+        result: bugReportScreenshot,
+    },
+    'bugReport.send': {
+        owner: 'main',
+        params: z.object({
+            report: bugReportText,
+            screenshot: bugReportScreenshot.optional(),
+            sessionId: identifierSchema,
+            terminalId: identifierSchema,
+        }),
+        result: z.null(),
+    },
     'updates.getState': { owner: 'main', params: noParams, result: updateStateSchema },
     'updates.check': { owner: 'main', params: noParams, result: updateStateSchema },
     'updates.download': { owner: 'main', params: noParams, result: updateStateSchema },
@@ -158,6 +210,14 @@ export const methods = {
     'session.select': {
         owner: 'runtime',
         params: z.object({ sessionId: identifierSchema }),
+        result: sessionRecordSchema,
+    },
+    'session.markRead': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            attentionEpoch: z.number().int().nonnegative(),
+        }),
         result: sessionRecordSchema,
     },
     'session.rename': {
@@ -214,7 +274,15 @@ export const methods = {
     },
     'terminal.attach': {
         owner: 'runtime',
-        params: z.object({ terminalId: identifierSchema }),
+        params: z
+            .object({
+                terminalId: identifierSchema,
+                cols: z.number().int().min(2).max(1_000).optional(),
+                rows: z.number().int().min(1).max(1_000).optional(),
+            })
+            .refine((value) => (value.cols === undefined) === (value.rows === undefined), {
+                message: 'Terminal attachment dimensions must be provided together',
+            }),
         result: terminalSnapshotSchema.nullable(),
     },
     'terminal.detach': {
@@ -224,7 +292,10 @@ export const methods = {
     },
     'terminal.restart': {
         owner: 'runtime',
-        params: z.object({ terminalId: identifierSchema }),
+        params: z.object({
+            terminalId: identifierSchema,
+            mode: z.enum(['resume', 'fresh']).default('resume'),
+        }),
         result: terminalRecordSchema,
     },
     'terminal.snapshot': {
@@ -247,9 +318,22 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema, directory: pathSchema.optional() }),
         result: z.array(fileEntrySchema),
     },
+    'files.browse': {
+        owner: 'runtime',
+        params: z.object({
+            sessionId: identifierSchema,
+            directory: pathSchema.optional(),
+            query: z.string().max(255),
+        }),
+        result: z.object({
+            entries: z.array(fileEntrySchema).max(MAX_FILE_BROWSE_ENTRIES),
+            truncated: z.boolean(),
+        }),
+    },
     'files.create': {
         owner: 'runtime',
         params: z.object({
+            operationId: identifierSchema,
             sessionId: identifierSchema,
             directory: pathSchema,
             name: fileName,
@@ -268,18 +352,44 @@ export const methods = {
     },
     'files.rename': {
         owner: 'runtime',
-        params: z.object({ sessionId: identifierSchema, path: pathSchema, name: fileName }),
-        result: movedFileEntry,
+        params: z.object({
+            operationId: identifierSchema,
+            sessionId: identifierSchema,
+            path: pathSchema,
+            name: fileName,
+        }),
+        result: movedFileEntrySchema,
     },
     'files.move': {
         owner: 'runtime',
         params: z.object({
+            operationId: identifierSchema,
             sessionId: identifierSchema,
             path: pathSchema,
             directory: pathSchema,
             conflict: z.enum(['reject', 'rename']).default('reject'),
         }),
-        result: movedFileEntry,
+        result: movedFileEntrySchema,
+    },
+    'files.operation.get': {
+        owner: 'runtime',
+        params: z.object({ operationId: identifierSchema }),
+        result: fileMutationOperationSchema.nullable(),
+    },
+    'files.operation.list': {
+        owner: 'runtime',
+        params: noParams,
+        result: z.array(fileMutationOperationSchema).max(256),
+    },
+    'files.operation.cancel': {
+        owner: 'runtime',
+        params: z.object({ operationId: identifierSchema }),
+        result: fileMutationOperationSchema,
+    },
+    'files.operation.acknowledge': {
+        owner: 'runtime',
+        params: z.object({ operationId: identifierSchema }),
+        result: z.null(),
     },
     'files.reveal': {
         owner: 'main',
@@ -449,6 +559,16 @@ export const internalMethods = {
         owner: 'runtime',
         params: persistedWindowStateSchema,
         result: persistedWindowStateSchema,
+    },
+    'bugReport.deliver': {
+        owner: 'runtime',
+        params: z.object({
+            pasteImage: z.boolean(),
+            report: bugReportText,
+            sessionId: identifierSchema,
+            terminalId: identifierSchema,
+        }),
+        result: z.null(),
     },
     'config.paths': {
         owner: 'runtime',

@@ -144,6 +144,7 @@ export class CaxriDatabase {
                     session.id,
                     decision.sessionPatch.displayTitle,
                     decision.sessionPatch.lastActivityState,
+                    decision.sessionPatch.attentionKind,
                 );
             this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
             return true;
@@ -197,6 +198,7 @@ export class CaxriDatabase {
                     session.id,
                     decision.sessionPatch.displayTitle,
                     decision.sessionPatch.lastActivityState,
+                    decision.sessionPatch.attentionKind,
                 );
             this.db.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
             return true;
@@ -289,6 +291,18 @@ export class CaxriDatabase {
             this.db.projects.touchLastOpened(session.projectId);
             this.db.appState.set('lastSelectedSessionId', sessionId);
             this.db.appState.set('lastSelectedProjectId', session.projectId);
+        });
+    }
+
+    markSessionAttentionRead(
+        sessionId: string,
+        attentionEpoch: number,
+    ): { acknowledged: boolean; session: SessionRecord } {
+        return this.db.transaction(() => {
+            if (!this.db.sessions.get(sessionId))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            const acknowledged = this.db.sessions.acknowledgeAttention(sessionId, attentionEpoch);
+            return { acknowledged, session: this.db.sessions.get(sessionId)! };
         });
     }
 

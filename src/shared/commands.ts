@@ -87,15 +87,22 @@ export const commandDefinitions: CommandDefinition[] = [
         id: 'terminal.restart',
         title: 'Restart Terminal',
         category: 'Terminal',
-        description: 'Restart the active Terminal',
+        description: 'Restart Shell or resume the active Agent Terminal',
         nativeMenu: { menu: 'terminal', group: 0, order: 2 },
+    },
+    {
+        id: 'terminal.startNewAgentSession',
+        title: 'Start New Agent Session',
+        category: 'Terminal',
+        description: 'Restart the active Agent Terminal without its current session binding',
+        nativeMenu: { menu: 'terminal', group: 0, order: 3 },
     },
     {
         id: 'terminal.close',
         title: 'Close Terminal',
         category: 'Terminal',
         description: 'Close the active Terminal',
-        nativeMenu: { menu: 'terminal', group: 0, order: 3 },
+        nativeMenu: { menu: 'terminal', group: 0, order: 4 },
     },
     {
         id: 'workbench.closeActiveTab',
@@ -145,6 +152,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'application', group: 0, order: 0 },
     },
     {
+        id: 'settings.openSource',
+        title: 'Open Settings (JSON)',
+        category: 'Preferences',
+        description: 'Open settings.jsonc in the Caxri source editor',
+    },
+    {
         id: 'updates.check',
         title: 'Check for Updates',
         category: 'Preferences',
@@ -152,11 +165,18 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'application', group: 0, order: 1 },
     },
     {
+        id: 'pathBrowser.open',
+        title: 'Open File by Path',
+        category: 'View',
+        description: 'Browse the selected Project and open a file',
+        nativeMenu: { menu: 'view', group: 1, order: 0 },
+    },
+    {
         id: 'commandPalette.open',
         title: 'Open Command Palette',
         category: 'View',
         description: 'Search and run Caxri commands',
-        nativeMenu: { menu: 'view', group: 1, order: 0 },
+        nativeMenu: { menu: 'view', group: 1, order: 1 },
     },
     {
         id: 'processExplorer.open',
@@ -164,6 +184,18 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Inspect Caxri process resource usage',
         nativeMenu: { menu: 'help', group: 0, order: 0 },
+    },
+    {
+        id: 'developer.toggleScreencastMode',
+        title: 'Toggle Screencast Mode',
+        category: 'Developer',
+        description: 'Show clicks and Caxri shortcuts for external screen recording',
+    },
+    {
+        id: 'developer.reportBug',
+        title: 'Report Bug to Agent',
+        category: 'Developer',
+        description: 'Preview and send a privacy-safe local bug report to a running Agent',
     },
     {
         id: 'diagnostics.export',
@@ -202,6 +234,7 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
 
 /** Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run. */
 export const defaultKeybindings: Keybinding[] = [
+    { key: 'cmd+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+n', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },

@@ -46,6 +46,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('terminal.new', (ctx) => ctx.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.clear', (ctx) => ctx.terminal.clearActive(), { allowInEditable: true }),
     fromCatalog('terminal.restart', (ctx) => ctx.terminal.restartActive()),
+    fromCatalog('terminal.startNewAgentSession', (ctx) => ctx.terminal.startNewAgentSession()),
     fromCatalog('terminal.close', (ctx) => ctx.terminal.closeActive(), { allowInEditable: true }),
     fromCatalog('workbench.closeActiveTab', (ctx) => ctx.workbench.closeActiveTab(), {
         allowInEditable: true,
@@ -60,11 +61,23 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('inspector.toggle', (ctx) => ctx.inspector.toggle(), { allowInEditable: true }),
     fromCatalog('sidebar.toggle', (ctx) => ctx.sidebar.toggle(), { allowInEditable: true }),
     fromCatalog('settings.open', (ctx) => ctx.dialogs.openSettings(), { allowInEditable: true }),
+    fromCatalog('settings.openSource', (ctx) => ctx.dialogs.openSettings('source'), {
+        allowInEditable: true,
+    }),
     fromCatalog('updates.check', (ctx) => ctx.updates.check()),
+    fromCatalog('pathBrowser.open', (ctx) => ctx.dialogs.openPathBrowser(), {
+        allowInEditable: true,
+    }),
     fromCatalog('commandPalette.open', (ctx) => ctx.dialogs.openPalette(), {
         allowInEditable: true,
     }),
     fromCatalog('processExplorer.open', (ctx) => ctx.windows.openProcessExplorer()),
+    fromCatalog('developer.toggleScreencastMode', (ctx) => ctx.developer.toggleScreencastMode(), {
+        allowInEditable: true,
+    }),
+    fromCatalog('developer.reportBug', (ctx) => ctx.developer.reportBug(), {
+        allowInEditable: true,
+    }),
     fromCatalog('diagnostics.export', (ctx) => ctx.diagnostics.export()),
 ];
 

@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BootstrapState } from '@shared/types';
+import { CaxriError } from '@shared/ipc';
+import type { BootstrapState, FileMutationOperation } from '@shared/types';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
-import { dismissToast } from '../../../../stores/toasts';
+import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
-import { duplicateFile } from './file-actions';
+import { duplicateFile, moveFile, renameFile } from './file-actions';
+import { reconcileFileMutation } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -85,5 +87,117 @@ describe('file action lifecycle', () => {
                 caxriQueryKey('files.list', { sessionId: 'session-c', directory }),
             )?.isInvalidated,
         ).toBe(false);
+    });
+
+    it('keeps a staged move pending after the UI deadline and reconciles its late success', async () => {
+        vi.stubGlobal('crypto', { randomUUID: () => 'operation-timeout' });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const staged: FileMutationOperation = {
+            id: 'operation-timeout',
+            kind: 'move',
+            sessionId: 'session-a',
+            phase: 'staged',
+            input: {
+                path: '/project/source.txt',
+                directory: '/project/destination',
+                conflict: 'reject',
+            },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'source.txt',
+                path: '/project/destination/source.txt',
+                previousPath: '/project/source.txt',
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        };
+        mocks.request.mockImplementation((method) => {
+            if (method === 'files.move')
+                return Promise.reject(new CaxriError('TIMEOUT', 'Runtime request timed out'));
+            if (method === 'files.operation.cancel') return Promise.resolve(staged);
+            return Promise.resolve(null);
+        });
+
+        await expect(
+            moveFile('session-a', '/project/source.txt', '/project/destination', 'reject'),
+        ).resolves.toBeUndefined();
+
+        expect(useFileOperationStore.getState().operations).toEqual([
+            expect.objectContaining({
+                id: staged.id,
+                label: 'Moving item in background…',
+            }),
+        ]);
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({
+                kind: 'info',
+                message: 'File change is still finishing safely in the background',
+            }),
+        );
+
+        const completed: FileMutationOperation = {
+            ...staged,
+            phase: 'completed',
+            result: staged.expectedResult,
+            updatedAt: 3,
+        };
+        await reconcileFileMutation(completed);
+
+        expect(useFileOperationStore.getState().operations).toEqual([]);
+        expect(mocks.request).toHaveBeenCalledWith('files.operation.acknowledge', {
+            operationId: staged.id,
+        });
+    });
+
+    it('keeps a staged rename in the background while final persistence retries', async () => {
+        vi.stubGlobal('crypto', { randomUUID: () => 'operation-final-retry' });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const staged: FileMutationOperation = {
+            id: 'operation-final-retry',
+            kind: 'rename',
+            sessionId: 'session-a',
+            phase: 'staged',
+            input: { path: '/project/source.txt', name: 'renamed.txt' },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'renamed.txt',
+                path: '/project/renamed.txt',
+                previousPath: '/project/source.txt',
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        };
+        mocks.request.mockImplementation((method) => {
+            if (method === 'files.rename')
+                return Promise.reject(new CaxriError('IO', 'Journal write failed'));
+            if (method === 'files.operation.get') return Promise.resolve(staged);
+            return Promise.resolve(null);
+        });
+
+        await expect(
+            renameFile('session-a', '/project/source.txt', 'renamed.txt'),
+        ).resolves.toBeUndefined();
+        expect(useFileOperationStore.getState().operations).toEqual([
+            expect.objectContaining({
+                id: staged.id,
+                label: 'Renaming item in background…',
+            }),
+        ]);
     });
 });

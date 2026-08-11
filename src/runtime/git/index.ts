@@ -33,6 +33,12 @@ const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
 const MAX_COMMIT_FILES = 500;
 const MAX_LOCAL_BRANCHES = 1_000;
 
+interface GitCommandOptions {
+    allowFailure?: boolean;
+    input?: string;
+    maxBufferBytes?: number;
+}
+
 interface DiffTarget {
     candidate: string;
     file: GitFileStatus;
@@ -135,17 +141,23 @@ export class GitService {
     private async git(
         cwd: string,
         args: string[],
-        options: { allowFailure?: boolean; maxBufferBytes?: number } = {},
+        options: GitCommandOptions = {},
     ): Promise<string> {
         const startedAt = performance.now();
         return this.commands.run(async () => {
             try {
-                const { stdout } = await execFileAsync('git', args, {
+                const execution = execFileAsync('git', args, {
                     cwd,
                     timeout: 10_000,
                     maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
                     env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
                 });
+                if (options.input !== undefined) {
+                    /** A fast Git failure may close stdin before the bounded batch is written. */
+                    execution.child.stdin?.on('error', () => undefined);
+                    execution.child.stdin?.end(options.input);
+                }
+                const { stdout } = await execution;
                 this.logger.write('info', 'git.command', {
                     durationMs: performance.now() - startedAt,
                     fields: { operation: args[0] ?? 'unknown' },
@@ -210,6 +222,26 @@ export class GitService {
 
     summary(sessionId: string): Promise<GitSummary> {
         return this.repositoryService.summary(sessionId);
+    }
+
+    /** Returns ignored direct children using one NUL-delimited Git batch for the listed directory. */
+    async ignoredEntries(
+        sessionId: string,
+        directory: string,
+        names: readonly string[],
+    ): Promise<{ ignoredNames: ReadonlySet<string>; rulePaths: readonly string[] }> {
+        const repository = await this.repositoryService.resolveDirectory(sessionId, directory);
+        if (!repository) return { ignoredNames: new Set(), rulePaths: [] };
+        if (names.length === 0)
+            return { ignoredNames: new Set(), rulePaths: repository.ignoreRulePaths };
+        const output = await this.git(repository.directoryPath, ['check-ignore', '--stdin', '-z'], {
+            allowFailure: true,
+            input: `${names.join('\0')}\0`,
+        });
+        return {
+            ignoredNames: new Set(output.split('\0').filter(Boolean)),
+            rulePaths: repository.ignoreRulePaths,
+        };
     }
 
     private resolveRepository(

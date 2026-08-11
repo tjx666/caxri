@@ -1,6 +1,6 @@
 import { executeCommand } from '../../commands/execute';
+import { ChromeTabPanel, ChromeTabs } from '../../components/ChromeTabs';
 import { CommandTooltip } from '../../components/ui/tooltip';
-import { cn } from '../../lib/utils';
 import { useSelectedSession, useSessionState } from '../../stores/selectors';
 import { getInspectorPanel, inspectorPanels } from './panels';
 
@@ -9,26 +9,52 @@ export function Inspector() {
     const mode = useSessionState()?.inspectorMode ?? 'files';
     const activePanel = getInspectorPanel(mode);
     const ActiveComponent = activePanel.Component;
+    const tabs = inspectorPanels.map(({ id, title, icon: Icon }) => ({
+        value: id,
+        label: title,
+        content: (
+            <>
+                <Icon size={15} />
+                <span className="max-[1100px]:hidden" data-slot="chrome-tab-label">
+                    {title}
+                </span>
+            </>
+        ),
+    }));
     return (
         <aside className="inspector min-w-0 flex min-h-0 flex-col bg-surface">
-            <div className="inspector-tabs grid h-11 grid-cols-4 items-end border-b border-border [&>div]:h-9">
-                {inspectorPanels.map(({ id, title, icon: Icon, commandId }) => (
-                    <CommandTooltip key={id} commandId={commandId}>
-                        <button
-                            className={cn(
-                                'flex h-9 items-center justify-center gap-1 border-0 border-b-2 border-transparent bg-surface text-muted text-[11px] cursor-pointer hover:text-foreground',
-                                mode === id && 'active border-indicator text-foreground',
-                            )}
-                            aria-label={title}
-                            onClick={() => executeCommand(commandId)}
-                        >
-                            <Icon size={15} />
-                            <span className="max-[1100px]:hidden">{title}</span>
-                        </button>
+            <ChromeTabs
+                ariaLabel="Inspector"
+                className="inspector-tabs grid h-11 grid-cols-4 items-end border-b border-border"
+                idPrefix="inspector"
+                items={tabs}
+                tabClassName="h-9 w-full text-[11px]"
+                value={mode}
+                onValueChange={(nextMode) => executeCommand(getInspectorPanel(nextMode).commandId)}
+                renderTab={(item, tab) => (
+                    <CommandTooltip commandId={getInspectorPanel(item.value).commandId}>
+                        {tab}
                     </CommandTooltip>
-                ))}
-            </div>
-            <ActiveComponent key={activePanel.resetOnSessionChange ? sessionId : undefined} />
+                )}
+            />
+            {tabs.map(({ value }) => {
+                const active = value === mode;
+                return (
+                    <ChromeTabPanel
+                        key={value}
+                        active={active}
+                        className="flex min-h-0 flex-1 flex-col overflow-hidden [&>*]:min-h-0 [&>*]:flex-1"
+                        idPrefix="inspector"
+                        value={value}
+                    >
+                        {active && (
+                            <ActiveComponent
+                                key={activePanel.resetOnSessionChange ? sessionId : undefined}
+                            />
+                        )}
+                    </ChromeTabPanel>
+                );
+            })}
         </aside>
     );
 }

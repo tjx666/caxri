@@ -122,10 +122,12 @@ describe('Codex provider', () => {
             service.snapshot('codex', {
                 agentSessionId: 'codex-session-older',
                 rootPath: root,
-                processState: 'running',
+                processState: 'stopped',
             }),
         ).resolves.toMatchObject({
+            attentionKind: undefined,
             sessionId: 'codex-session-older',
+            status: 'completed',
             title: '$debug https://github.com/example/project/issues/1',
             usage: [{ label: 'Tokens', value: '42' }],
         });

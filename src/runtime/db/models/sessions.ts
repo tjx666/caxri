@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, lt, sql } from 'drizzle-orm';
 
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
 import type {
     AgentActivityState,
+    SessionAttentionKind,
     SessionRecord,
     SessionState,
     SessionTitleMode,
@@ -28,6 +29,9 @@ const sessionSelection = {
     archivedAt: sessions.archivedAt,
     primaryAgentTerminalId: sessions.primaryAgentTerminalId,
     lastActivityState: sessions.lastActivityState,
+    attentionEpoch: sessions.attentionEpoch,
+    readAttentionEpoch: sessions.readAttentionEpoch,
+    lastAttentionKind: sessions.lastAttentionKind,
     layoutVersion: sessions.layoutVersion,
     displayTitle: sessions.displayTitle,
     titleMode: sessions.titleMode,
@@ -42,6 +46,9 @@ interface SessionJoinRow {
     archivedAt: number | null;
     primaryAgentTerminalId: string | null;
     lastActivityState: string;
+    attentionEpoch: number;
+    readAttentionEpoch: number;
+    lastAttentionKind: string | null;
     layoutVersion: number;
     displayTitle: string;
     titleMode: string;
@@ -57,6 +64,10 @@ function mapSession(row: SessionJoinRow): SessionRecord {
         archivedAt: row.archivedAt ?? undefined,
         primaryAgentTerminalId: row.primaryAgentTerminalId ?? undefined,
         lastActivityState: row.lastActivityState as AgentActivityState,
+        attentionEpoch: row.attentionEpoch,
+        readAttentionEpoch: row.readAttentionEpoch,
+        lastAttentionKind: (row.lastAttentionKind as SessionAttentionKind | null) ?? undefined,
+        hasUnread: row.attentionEpoch > row.readAttentionEpoch,
         layoutVersion: row.layoutVersion,
         displayTitle: row.displayTitle,
         titleMode: row.titleMode as SessionTitleMode,
@@ -185,6 +196,9 @@ export class SessionsModel {
                 lastOpenedAt: now,
                 primaryAgentTerminalId: null,
                 lastActivityState: 'idle',
+                attentionEpoch: 0,
+                readAttentionEpoch: 0,
+                lastAttentionKind: null,
                 layoutVersion: DEFAULT_LAYOUT_VERSION,
                 displayTitle: input.displayTitle,
                 titleMode: 'automatic',
@@ -236,12 +250,39 @@ export class SessionsModel {
         id: string,
         displayTitle: string,
         lastActivityState: AgentActivityState,
+        attentionKind?: SessionAttentionKind,
     ): void {
         this.db
             .update(sessions)
-            .set({ displayTitle, lastActivityState })
+            .set({
+                displayTitle,
+                lastActivityState,
+                ...(attentionKind
+                    ? {
+                          attentionEpoch: sql`${sessions.attentionEpoch} + 1`,
+                          lastAttentionKind: attentionKind,
+                      }
+                    : {}),
+            })
             .where(eq(sessions.id, id))
             .run();
+    }
+
+    /** Acknowledges only the generation the Renderer actually displayed. */
+    acknowledgeAttention(id: string, attentionEpoch: number): boolean {
+        return (
+            this.db
+                .update(sessions)
+                .set({ readAttentionEpoch: attentionEpoch })
+                .where(
+                    and(
+                        eq(sessions.id, id),
+                        eq(sessions.attentionEpoch, attentionEpoch),
+                        lt(sessions.readAttentionEpoch, attentionEpoch),
+                    ),
+                )
+                .run().changes === 1
+        );
     }
 
     rename(id: string, displayTitle: string): boolean {

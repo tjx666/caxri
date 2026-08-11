@@ -44,6 +44,31 @@ const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
 
+const ATTENTION_LABELS = {
+    completed: 'Finished',
+    failed: 'Failed',
+    waiting: 'Waiting for you',
+} as const;
+
+function UnreadAttentionIndicator({ session }: { session: SessionRecord }) {
+    if (!session.hasUnread) return null;
+    const detail = session.lastAttentionKind
+        ? ATTENTION_LABELS[session.lastAttentionKind]
+        : 'Agent attention';
+    const label = `Unread: ${detail}`;
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            className="session-unread flex size-3 flex-none items-center justify-center rounded-full border border-accent"
+            data-attention-kind={session.lastAttentionKind}
+            title={label}
+        >
+            <span className="size-1.5 rounded-full bg-accent" />
+        </span>
+    );
+}
+
 function sessionTerminal(
     session: SessionRecord,
     terminals: TerminalRecord[],
@@ -162,6 +187,7 @@ function ActiveSessionRow({
                         <strong className="font-medium">{session.displayTitle}</strong>
                     </span>
                 )}
+                <UnreadAttentionIndicator session={session} />
             </div>
             <Tooltip content="Archive Session">
                 <button
@@ -226,6 +252,7 @@ function ArchivedSessions({
                                     <span className="min-w-0 flex-1 truncate">
                                         {session.displayTitle}
                                     </span>
+                                    <UnreadAttentionIndicator session={session} />
                                 </button>
                             </Tooltip>
                             <Tooltip content="Delete Session">

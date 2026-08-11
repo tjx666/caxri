@@ -22,8 +22,8 @@ interface WorkbenchState {
     initialize(): Promise<void>;
     /** Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read. */
     refresh(): Promise<void>;
-    /** Optimistically applies a Session layout/tab/inspector change and persists it. */
-    patchSessionState(next: SessionState, failureLabel?: string): void;
+    /** Optimistically applies a Session layout/tab/inspector change and reports persistence. */
+    patchSessionState(next: SessionState, failureLabel?: string): Promise<boolean>;
 }
 
 let inFlight: Promise<void> | undefined;
@@ -170,7 +170,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     refresh: refreshWorkbench,
     patchSessionState(next, failureLabel = 'Session layout could not be saved') {
         const bootstrap = get().bootstrap;
-        if (!bootstrap) return;
+        if (!bootstrap) return Promise.resolve(false);
         const previous = bootstrap.sessionStates.find(
             (state) => state.sessionId === next.sessionId,
         );
@@ -188,9 +188,12 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
             if (pendingSessionPatches.get(next.sessionId)?.revision === revision)
                 pendingSessionPatches.delete(next.sessionId);
         };
-        void caxri
+        return caxri
             .request('session.updateState', next)
-            .then(finish)
+            .then(() => {
+                finish();
+                return true;
+            })
             .catch((error: unknown) => {
                 // Only the latest pending revision for this Session may roll back: an older
                 // request's failure must not clobber a newer optimistic write (or the newer
@@ -212,12 +215,18 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                     });
                 }
                 pushToast('error', describeFailure(error, failureLabel));
+                return false;
             });
     },
 }));
 
 export function patchSessionState(next: SessionState, failureLabel?: string): void {
-    useWorkbenchStore.getState().patchSessionState(next, failureLabel);
+    void useWorkbenchStore.getState().patchSessionState(next, failureLabel);
+}
+
+/** Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime. */
+export function persistSessionState(next: SessionState, failureLabel?: string): Promise<boolean> {
+    return useWorkbenchStore.getState().patchSessionState(next, failureLabel);
 }
 
 export interface WorkbenchEventHandlers {

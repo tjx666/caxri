@@ -2,11 +2,16 @@ import { useEffect } from 'react';
 
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/useCommandShortcuts';
+import { BugReportDialog } from './features/bug-report/BugReportDialog';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
+import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
 import { CommandPalette } from './features/palette/CommandPalette';
+import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
+import { ScreencastOverlay } from './features/screencast/ScreencastOverlay';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
+import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { SettingsDialog } from './features/settings/SettingsDialog';
 import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
 import { StatusBar } from './features/status-bar/StatusBar';
@@ -59,8 +64,10 @@ export function App() {
     const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
 
     useRuntimeAttachment();
+    useFileMutationReconciliation(attached);
     useRuntimeQueryInvalidation();
     useCommandShortcuts();
+    useSessionAttentionAcknowledgement();
     useExternalDocumentSync();
     usePanelViewportClamp();
     useEffect(() => {
@@ -143,7 +150,10 @@ export function App() {
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />
+                <PathBrowserDialog />
+                <BugReportDialog />
                 <ToastOutlet />
+                <ScreencastOverlay />
             </main>
         </TooltipProvider>
     );

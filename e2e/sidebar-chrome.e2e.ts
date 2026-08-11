@@ -20,37 +20,22 @@ import {
 const execFileAsync = promisify(execFile);
 
 /**
- * Electron documents macOS fullscreen transitions as asynchronous. Keep the Main-process
- * evaluation alive until the matching native event so later Renderer assertions cannot race the
- * transition: https://www.electronjs.org/docs/latest/api/browser-window#winsetfullscreenflag
+ * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The
+ * chrome assertions do not need to move the test runner into a native Space, which is unavailable
+ * when a local CI fallback runs with the console locked.
  */
-async function setFullScreen(app: ElectronApplication, fullScreen: boolean): Promise<void> {
-    await app.evaluate(async ({ app, BrowserWindow }, nextFullScreen) => {
+async function publishFullScreenState(
+    app: ElectronApplication,
+    isFullScreen: boolean,
+): Promise<void> {
+    await app.evaluate(({ BrowserWindow }, nextFullScreen) => {
         const window = BrowserWindow.getAllWindows()[0];
         if (!window) throw new Error('Caxri window is unavailable');
-        if (window.isFullScreen() === nextFullScreen) return;
-        app.focus({ steal: true });
-        window.focus();
-        const event = nextFullScreen ? 'enter-full-screen' : 'leave-full-screen';
-        await new Promise<void>((resolve, reject) => {
-            const onTransition = (): void => {
-                clearTimeout(timeout);
-                resolve();
-            };
-            const timeout = setTimeout(() => {
-                if (nextFullScreen) window.removeListener('enter-full-screen', onTransition);
-                else window.removeListener('leave-full-screen', onTransition);
-                reject(
-                    new Error(
-                        `Timed out waiting for ${event}; visible=${window.isVisible()} focused=${window.isFocused()} fullscreenable=${window.isFullScreenable()}`,
-                    ),
-                );
-            }, 15_000);
-            if (nextFullScreen) window.once('enter-full-screen', onTransition);
-            else window.once('leave-full-screen', onTransition);
-            window.setFullScreen(nextFullScreen);
+        window.webContents.send('caxri:event', {
+            event: 'window.fullScreen',
+            payload: { isFullScreen: nextFullScreen },
         });
-    }, fullScreen);
+    }, isFullScreen);
 }
 
 test('sidebar is logo-free and reveals Add Project on hover or focus', async () => {
@@ -100,14 +85,14 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
         ).toEqual({ x: 15, y: 15 });
 
         // macOS hides the traffic lights in fullscreen; the logo takes their place.
-        await setFullScreen(running.app, true);
+        await publishFullScreenState(running.app, true);
         const logo = titlebar.locator('img[data-caxri-logo]');
         await expect(logo).toHaveCount(1);
         await expect(logo).toHaveAttribute('alt', 'Caxri');
         await expect(logo).toBeVisible();
         await expect(titlebar).toHaveCSS('padding-left', '12px');
 
-        await setFullScreen(running.app, false);
+        await publishFullScreenState(running.app, false);
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
         await expect(titlebar).toHaveCSS('padding-left', '84px');
     } finally {
@@ -194,7 +179,7 @@ test('Session inline rename validates input and survives Renderer reload', async
         await card.dblclick();
         const blurInput = card.getByRole('textbox', { name: 'Rename Untitled' });
         await blurInput.fill('Blurred investigation');
-        const filesTab = running.page.getByRole('button', { name: 'Files', exact: true });
+        const filesTab = running.page.getByRole('tab', { name: 'Files', exact: true });
         await filesTab.click();
         await expect(card.getByRole('textbox')).toHaveCount(0);
         await expect(card.locator('strong')).toHaveText('Blurred investigation');
@@ -398,7 +383,7 @@ test('work tabs leave a draggable titlebar and keep New Terminal beside the last
         await newTerminal.hover();
         const tooltip = running.page.locator('.tooltip-popup');
         await expect(tooltip).toContainText('Create a Terminal in the current Session');
-        await expect(tooltip.locator('kbd')).toHaveText('⌘T');
+        await expect(tooltip.locator('kbd')).toHaveText(['⌘', 'T']);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -555,7 +540,7 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
         await paletteSearch.fill('new terminal');
         const terminalCommand = palette.getByRole('option').filter({ hasText: 'New Terminal' });
         await expect(terminalCommand).toBeVisible();
-        await expect(terminalCommand.locator('kbd')).toHaveText('⌘T');
+        await expect(terminalCommand.locator('kbd')).toHaveText(['⌘', 'T']);
         await running.page.keyboard.press('Escape');
         await expect(palette).toHaveCount(0);
 

@@ -86,6 +86,7 @@
     --motion-collapse: 130ms;
     --motion-tab-enter: 140ms;
     --motion-tab-exit: 110ms;
+    --motion-chrome-switch: 160ms;
     --motion-overlay-enter: 150ms;
     --motion-overlay-exit: 100ms;
     /* Decelerating "settle" curve for spatial reveals; standard ease-out/in elsewhere. */

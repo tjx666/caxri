@@ -1,4 +1,6 @@
-export const CODEX_IMAGE_PASTE_INPUT = '\x16';
+import { agentProviderCatalog } from '@shared/agents';
+
+export const CODEX_IMAGE_PASTE_INPUT = agentProviderCatalog.codex.imageInput.terminalInput;
 
 interface ClipboardDataLike {
     files: ArrayLike<{ type: string }>;

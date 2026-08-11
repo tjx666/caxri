@@ -24,6 +24,7 @@ const agentActivityStateSchema = z.enum([
     'idle',
     'unknown',
 ]);
+const sessionAttentionKindSchema = z.enum(['waiting', 'completed', 'failed']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
@@ -37,6 +38,7 @@ const processStateSchema = z.enum([
 
 export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
+export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
@@ -63,6 +65,13 @@ export const sessionRecordSchema = z.object({
     /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
     primaryAgentTerminalId: z.string().optional(),
     lastActivityState: agentActivityStateSchema,
+    /** Monotonic generation of reliable Primary Agent attention events. */
+    attentionEpoch: z.number().int().nonnegative(),
+    /** Latest generation acknowledged after the Session was visibly focused. */
+    readAttentionEpoch: z.number().int().nonnegative(),
+    lastAttentionKind: sessionAttentionKindSchema.optional(),
+    /** Derived read-model field; SQLite stores only the two epochs above. */
+    hasUnread: z.boolean(),
     layoutVersion: z.number(),
     displayTitle: z.string(),
     /** Automatic titles follow the primary Agent; manual titles are owned by the user. */
@@ -236,6 +245,7 @@ export const fileEntrySchema = z.object({
     path: z.string(),
     kind: z.enum(['file', 'directory', 'symlink']),
     size: z.number().optional(),
+    gitIgnored: z.literal(true).optional(),
 });
 
 export const mutableFileEntrySchema = z.object({
@@ -243,6 +253,67 @@ export const mutableFileEntrySchema = z.object({
     path: pathSchema,
     kind: z.enum(['file', 'directory']),
 });
+
+export const movedFileEntrySchema = mutableFileEntrySchema.extend({ previousPath: pathSchema });
+
+const stagedMovedFileEntrySchema = movedFileEntrySchema.extend({
+    device: z.string().min(1),
+    inode: z.string().min(1),
+});
+
+const stagedCreatedFileEntrySchema = mutableFileEntrySchema.extend({
+    device: z.string().min(1).optional(),
+    inode: z.string().min(1).optional(),
+});
+
+const fileMutationPhaseSchema = z.enum(['pre_stage', 'staged', 'completed', 'failed', 'canceled']);
+
+const fileMutationOperationBase = {
+    id: identifierSchema,
+    sessionId: identifierSchema,
+    phase: fileMutationPhaseSchema,
+    startedAt: z.number(),
+    updatedAt: z.number(),
+    error: z
+        .object({
+            code: z.string().min(1).max(64),
+            message: z.string().min(1).max(1_024),
+        })
+        .optional(),
+};
+
+/** Durable mutation records let a Renderer reconcile file side effects after an IPC or Runtime gap. */
+export const fileMutationOperationSchema = z.discriminatedUnion('kind', [
+    z.object({
+        ...fileMutationOperationBase,
+        kind: z.literal('create'),
+        input: z.object({
+            directory: pathSchema,
+            name: z.string().min(1).max(255),
+            kind: z.enum(['file', 'directory']),
+        }),
+        expectedResult: stagedCreatedFileEntrySchema.optional(),
+        result: mutableFileEntrySchema.optional(),
+    }),
+    z.object({
+        ...fileMutationOperationBase,
+        kind: z.literal('rename'),
+        input: z.object({ path: pathSchema, name: z.string().min(1).max(255) }),
+        expectedResult: stagedMovedFileEntrySchema.optional(),
+        result: movedFileEntrySchema.optional(),
+    }),
+    z.object({
+        ...fileMutationOperationBase,
+        kind: z.literal('move'),
+        input: z.object({
+            path: pathSchema,
+            directory: pathSchema,
+            conflict: z.enum(['reject', 'rename']),
+        }),
+        expectedResult: stagedMovedFileEntrySchema.optional(),
+        result: movedFileEntrySchema.optional(),
+    }),
+]);
 
 export const fileChangeSchema = z.object({
     path: z.string(),
@@ -526,6 +597,8 @@ export const bootstrapStateSchema = z.object({
 
 export interface AgentSnapshot {
     provider: AgentProvider;
+    /** Present only for a provider-owned reliable attention signal, never a process fallback. */
+    attentionKind?: SessionAttentionKind;
     sessionId?: string;
     title?: string;
     status: AgentActivityState;
@@ -547,6 +620,8 @@ export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
 export type ThemeTokens = z.infer<typeof themeTokensSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
+export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;
+export type FileMutationOperation = z.infer<typeof fileMutationOperationSchema>;
 export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
 export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;

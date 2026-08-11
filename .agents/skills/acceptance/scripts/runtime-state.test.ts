@@ -8,6 +8,7 @@ import {
     getProcessIdentity,
     isAlive,
     isOwnedLauncher,
+    isOwnedRuntime,
     removeOwnedUserData,
     runtimeStateSchema,
 } from './runtime-state';
@@ -17,6 +18,7 @@ describe('Acceptance runtime ownership', () => {
         expect(
             runtimeStateSchema.parse({
                 cdpUrl: 'http://127.0.0.1:9222',
+                electronIdentity: 'started-at electron command',
                 electronPid: 124,
                 launcherIdentity: 'started-at command',
                 launcherPid: 123,
@@ -43,6 +45,21 @@ describe('Acceptance runtime ownership', () => {
             isOwnedLauncher({ launcherIdentity: 'recycled process', launcherPid: process.pid }),
         ).resolves.toBe(false);
         expect(isAlive(2_147_483_647)).toBe(false);
+    });
+
+    it('keeps an Acceptance runtime owned when its launcher has died but Electron remains live', async () => {
+        const identity = await getProcessIdentity(process.pid);
+        expect(identity).toBeTruthy();
+        if (!identity) throw new Error('Current process identity is unavailable');
+
+        await expect(
+            isOwnedRuntime({
+                electronIdentity: identity,
+                electronPid: process.pid,
+                launcherIdentity: 'dead launcher identity',
+                launcherPid: process.pid,
+            }),
+        ).resolves.toBe(true);
     });
 
     it('removes only explicitly owned Acceptance temp directories', async () => {

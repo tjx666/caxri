@@ -1,27 +1,17 @@
 import { homedir } from 'node:os';
 
+import { isSecretKey, redactSecretText } from '../redaction';
+
 /**
  * Node-only because it depends on `homedir()`; never import from src/renderer.
  * Shared by the structured logger and diagnostics export so credential-shaped
  * text is redacted identically wherever it is written to disk.
  */
-const SECRET_KEY = /(token|password|secret|credential|api[_-]?key|authorization|cookie)/i;
-const SECRET_ASSIGNMENT =
-    /\b(token|password|secret|credential|api[_-]?key|authorization|cookie)\s*[=:]\s*([^\s,;]+)/gi;
-const SECRET_VALUE =
-    /(sk-[a-zA-Z0-9_-]{12,}|Bearer\s+[a-zA-Z0-9._-]+|gh[pousr]_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{10,}|xox[baprs]-[a-zA-Z0-9-]{10,})/g;
-
-/** True when a field name looks like it holds a credential. */
-export function isSecretKey(key: string): boolean {
-    return SECRET_KEY.test(key);
-}
+export { isSecretKey } from '../redaction';
 
 /** Redacts secret-shaped tokens and `key=value` assignments from free-form log text. */
 export function redactLogValue(value: string): string {
-    return value
-        .replaceAll(homedir(), '$HOME')
-        .replace(SECRET_VALUE, '[REDACTED]')
-        .replace(SECRET_ASSIGNMENT, '$1=[REDACTED]');
+    return redactSecretText(value.replaceAll(homedir(), '$HOME'));
 }
 
 /** Recursively redacts secret-shaped keys and values from structured diagnostics data. */
@@ -37,7 +27,7 @@ export function redactSecrets(value: unknown, key = ''): unknown {
         );
     }
     if (typeof value === 'string') {
-        return value.replaceAll(homedir(), '$HOME').replace(SECRET_VALUE, '[REDACTED]');
+        return redactSecretText(value.replaceAll(homedir(), '$HOME'));
     }
     return value;
 }

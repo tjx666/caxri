@@ -1,4 +1,4 @@
-import type { MethodResult } from '@shared/ipc';
+import { errorMessage, isCaxriError, type MethodResult } from '@shared/ipc';
 import type { MutableFileEntry } from '@shared/types';
 
 import { caxri } from '../../../../lib/caxri';
@@ -10,14 +10,14 @@ import {
     getSessionProjectId,
 } from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
-import {
-    closeOpenEditorsUnderPath,
-    openFile,
-    remapOpenEditors,
-} from '../../../editor/document-actions';
+import { closeOpenEditorsUnderPath, openFile } from '../../../editor/document-actions';
 import { createTerminal } from '../../../terminal/terminal-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
+import {
+    reconcileFileMutation,
+    waitForFileMutationReconciliation,
+} from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
 
@@ -54,14 +54,97 @@ async function runTrackedFileOperation<Value>(options: {
     }
 }
 
+async function runDurableFileMutation<Value>(options: {
+    errorLabel: string;
+    id: string;
+    label: string;
+    projectId: string;
+    propagateFailure?: boolean;
+    run: () => Promise<Value>;
+}): Promise<Value | undefined> {
+    const store = useFileOperationStore.getState();
+    if (!store.begin({ id: options.id, label: options.label, projectId: options.projectId }))
+        return undefined;
+    try {
+        const result = await options.run();
+        const operation = await caxri.request('files.operation.get', {
+            operationId: options.id,
+        });
+        if (operation) await reconcileFileMutation(operation);
+        else if (!(await waitForFileMutationReconciliation(options.id))) {
+            useFileOperationStore.getState().finish(options.id);
+            pushToast('error', 'File operation recovery is temporarily unavailable');
+        }
+        return result;
+    } catch (error) {
+        if (isCaxriError(error) && error.code === 'TIMEOUT') {
+            const operation = await caxri
+                .request('files.operation.cancel', { operationId: options.id })
+                .catch(() => null);
+            if (!operation) {
+                if (!(await waitForFileMutationReconciliation(options.id)))
+                    pushToast('error', 'File operation recovery is temporarily unavailable');
+                return undefined;
+            }
+            if (operation.phase === 'staged') {
+                await reconcileFileMutation(operation);
+                pushToast('info', 'File change is still finishing safely in the background');
+                return undefined;
+            }
+            await reconcileFileMutation(operation);
+            if (options.propagateFailure)
+                throw new Error(operation.error?.message ?? options.errorLabel, { cause: error });
+            return undefined;
+        }
+        const operation = await caxri
+            .request('files.operation.get', { operationId: options.id })
+            .catch(() => null);
+        if (operation?.phase === 'staged') {
+            await reconcileFileMutation(operation);
+            pushToast('info', 'File change is still finishing safely in the background');
+            return undefined;
+        }
+        if (operation)
+            await reconcileFileMutation(operation).catch(() => {
+                pushToast('error', 'File operation recovery is temporarily unavailable');
+            });
+        else if (await waitForFileMutationReconciliation(options.id)) {
+            if (options.propagateFailure) throw error;
+            return undefined;
+        } else {
+            useFileOperationStore.getState().finish(options.id);
+            if (!options.propagateFailure)
+                pushToast('error', errorMessage(error, options.errorLabel));
+        }
+        if (options.propagateFailure) throw error;
+        return undefined;
+    }
+}
+
 export async function createItem(
     sessionId: string,
     directory: string,
     name: string,
     kind: 'file' | 'directory',
-): Promise<MutableFileEntry> {
-    const created = await caxri.request('files.create', { sessionId, directory, name, kind });
-    await invalidateDirectory(sessionId, directory);
+): Promise<MutableFileEntry | undefined> {
+    const operationId = crypto.randomUUID();
+    const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
+    const created = await runDurableFileMutation({
+        errorLabel: 'Unable to create item',
+        id: operationId,
+        label: 'Creating item…',
+        projectId,
+        propagateFailure: true,
+        run: () =>
+            caxri.request('files.create', {
+                operationId,
+                sessionId,
+                directory,
+                name,
+                kind,
+            }),
+    });
+    if (!created) return undefined;
     if (kind === 'file' && getSelectedSession()?.id === sessionId) void openFile(created.path);
     return created;
 }
@@ -90,11 +173,17 @@ export async function renameFile(
     sessionId: string,
     path: string,
     name: string,
-): Promise<MethodResult<'files.rename'>> {
-    const moved = await caxri.request('files.rename', { sessionId, path, name });
-    remapOpenEditors(sessionId, moved.previousPath, moved.path);
-    await invalidateDirectory(sessionId, parentDirectoryPath(moved.previousPath));
-    return moved;
+): Promise<MethodResult<'files.rename'> | undefined> {
+    const operationId = crypto.randomUUID();
+    const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
+    return runDurableFileMutation({
+        errorLabel: 'Unable to rename item',
+        id: operationId,
+        label: 'Renaming item…',
+        projectId,
+        propagateFailure: true,
+        run: () => caxri.request('files.rename', { operationId, sessionId, path, name }),
+    });
 }
 
 export function moveFile(
@@ -104,26 +193,20 @@ export function moveFile(
     conflict: 'reject' | 'rename' = 'reject',
 ): Promise<MethodResult<'files.move'> | undefined> {
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
-    return runTrackedFileOperation({
+    const operationId = crypto.randomUUID();
+    return runDurableFileMutation({
         errorLabel: 'Unable to move item',
-        id: JSON.stringify(['move', projectId, path, directory, conflict]),
+        id: operationId,
         label: 'Moving item…',
         projectId,
-        successMessage: 'Item moved',
-        run: async () => {
-            const moved = await caxri.request('files.move', {
+        run: () =>
+            caxri.request('files.move', {
+                operationId,
                 sessionId,
                 path,
                 directory,
                 conflict,
-            });
-            remapOpenEditors(sessionId, moved.previousPath, moved.path);
-            await Promise.all([
-                invalidateDirectory(sessionId, parentDirectoryPath(moved.previousPath)),
-                invalidateDirectory(sessionId, directory),
-            ]);
-            return moved;
-        },
+            }),
     });
 }
 

@@ -3,6 +3,7 @@ import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
+import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod } from '../shared/ipc/methods';
@@ -89,13 +90,20 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     database.setAppState('schemaVersion', CURRENT_SCHEMA_VERSION);
     database.setAppState('activeThemeId', configuration.getTheme().value.id);
 
+    const git = new GitService(new ProjectRootResolver(database), logger);
     const files = new FileService(
         database,
         send,
         logger,
         () => configuration.getSettings().value['files.maxFileBytes'],
-        { fileTreeExcludes: () => configuration.getSettings().value['files.exclude'] },
+        {
+            decorateGitIgnored: (sessionId, directory, names) =>
+                git.ignoredEntries(sessionId, directory, names),
+            fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
+            mutationJournalPath: join(userDataPath, 'file-operations.json'),
+        },
     );
+    await files.initialize();
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
     const agents = new AgentService(
@@ -109,24 +117,13 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
      * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
      * composition root, instead of hiding a provider check inside a shared event sink.
      */
-    const terminals = new TerminalManager(
-        database,
-        (event) => {
-            send(event);
-            if (event.event === 'terminal.output')
-                coordinator.observeOutput(
-                    event.payload.terminalId,
-                    terminals.processId(event.payload.terminalId),
-                );
-        },
-        logger,
-        {
-            ...deps.terminal,
-            agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
-        },
-    );
+    const terminals = new TerminalManager(database, send, logger, {
+        ...deps.terminal,
+        agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
+        onOutputActivity: (terminalId, processId) =>
+            coordinator.observeOutput(terminalId, processId),
+    });
     const terminalRestores = new TerminalRestoreSupervisor();
-    const git = new GitService(new ProjectRootResolver(database), logger);
     const projectStatus = new ProjectStatusService(git, logger);
     const diagnostics = new DiagnosticsService(
         database,
@@ -290,7 +287,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 const resumeAgentSessionId = terminal.provider
                     ? terminal.agentSessionId
                     : undefined;
-                if (!resumeAgentSessionId) coordinator.prepareTerminalStart(terminal.id);
+                if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
+                else coordinator.prepareTerminalStart(terminal.id);
                 try {
                     const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
                     const restarted = await terminals.restart(terminal.id, {
@@ -373,6 +371,43 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
+        'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
+        'bugReport.context': () => diagnostics.reportContext(),
+        'bugReport.send': () => mainOwned('bugReport.send'),
+        'bugReport.deliver': ({ pasteImage, report, sessionId, terminalId }) => {
+            const terminal = database.getTerminal(terminalId);
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
+            if (terminal.sessionId !== sessionId)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'The selected Agent no longer belongs to this Session',
+                );
+            if (!terminal.provider)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Bug reports can only be sent to an Agent Terminal',
+                );
+            if (
+                terminal.lastProcessState !== 'running' ||
+                terminals.processId(terminalId) === undefined
+            )
+                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            if (pasteImage) {
+                const imageInput = agentProviderCatalog[terminal.provider].imageInput;
+                if (!imageInput)
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'The selected Agent does not support screenshot delivery',
+                    );
+                if (!terminals.write(terminalId, imageInput.terminalInput))
+                    throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            }
+            /** Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report
+             *  cannot contain control characters capable of terminating the paste sequence. */
+            if (!terminals.write(terminalId, `\u001B[200~${report}\u001B[201~\r`))
+                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
+            return null;
+        },
         'files.reveal': () => mainOwned('files.reveal'),
         'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),
@@ -439,6 +474,15 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
             return database.getSession(sessionId)!;
         },
+        'session.markRead': ({ sessionId, attentionEpoch }) => {
+            const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
+            if (result.acknowledged)
+                send({
+                    event: 'state.changed',
+                    payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
+                });
+            return result.session;
+        },
         'session.rename': ({ sessionId, displayTitle }) => {
             const session = database.renameSession(sessionId, displayTitle);
             send({
@@ -500,7 +544,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.close' } });
             return null;
         },
-        'terminal.attach': ({ terminalId }) => terminals.attach(terminalId),
+        'terminal.attach': ({ cols, rows, terminalId }) =>
+            terminals.attach(
+                terminalId,
+                cols === undefined || rows === undefined ? undefined : { cols, rows },
+            ),
         'terminal.detach': ({ terminalId }) => {
             terminals.detachView(terminalId);
             return null;
@@ -509,12 +557,18 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals.detachAllViews();
             return null;
         },
-        'terminal.restart': async ({ terminalId }) => {
+        'terminal.restart': async ({ mode, terminalId }) => {
             const current = database.getTerminal(terminalId);
             if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
             const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
-            coordinator.prepareTerminalStart(terminalId);
-            const terminal = await terminals.restart(terminalId, { expectedWorkingDirectory });
+            const startsFresh = mode === 'fresh';
+            const resumeAgentSessionId = startsFresh ? undefined : current.agentSessionId;
+            if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminalId);
+            else coordinator.prepareTerminalStart(terminalId);
+            const terminal = await terminals.restart(terminalId, {
+                expectedWorkingDirectory,
+                resumeAgentSessionId,
+            });
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             send({
                 event: 'state.changed',
@@ -532,10 +586,19 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
+        'files.browse': (params) => files.browse(params),
         'files.create': (params) => files.create(params),
         'files.copy': (params) => files.copy(params),
         'files.rename': (params) => files.rename(params),
         'files.move': (params) => files.move(params),
+        'files.operation.get': async ({ operationId }) =>
+            (await files.getMutationOperation(operationId)) ?? null,
+        'files.operation.list': () => files.listMutationOperations(),
+        'files.operation.cancel': ({ operationId }) => files.cancelMutationOperation(operationId),
+        'files.operation.acknowledge': async ({ operationId }) => {
+            await files.acknowledgeMutationOperation(operationId);
+            return null;
+        },
         'files.authorizeTrash': (params) => files.authorizeTrash(params),
         'files.authorizeOpen': (params) => files.authorizeOpen(params),
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),

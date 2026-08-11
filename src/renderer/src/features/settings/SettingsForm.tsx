@@ -1,7 +1,5 @@
-import { Suspense, lazy } from 'react';
-
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
-import type { AppSettings, ThemeTokens } from '@shared/types';
+import type { AppSettings } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Input } from '../../components/ui/input';
@@ -13,24 +11,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
-import {
-    cn,
-    configurationEditorLoadingClassName,
-    settingsFieldRowClassName,
-} from '../../lib/utils';
+import { cn, settingsFieldRowClassName } from '../../lib/utils';
 import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
-
-const ConfigurationEditor = lazy(async () => {
-    const module = await import('./ConfigurationEditor');
-    return { default: module.ConfigurationEditor };
-});
 
 interface SettingsFormProps {
     settings: AppSettings;
-    source: string;
-    theme: ThemeTokens;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
-    onSourceChange: (source: string) => void;
 }
 
 function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
@@ -39,19 +25,13 @@ function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
     return 'Ask each time';
 }
 
-/** The `settings` tab: structured fields on the left, the raw settings.jsonc source on the right. */
-export function SettingsForm({
-    settings,
-    source,
-    theme,
-    onFieldChange,
-    onSourceChange,
-}: SettingsFormProps) {
+/** Full-width structured editor for `settings.jsonc`. */
+export function SettingsForm({ settings, onFieldChange }: SettingsFormProps) {
     const maxFileMebibytes = bytesToMebibytes(settings['files.maxFileBytes']);
 
     return (
-        <div className="grid min-h-0 grid-cols-[minmax(250px,0.85fr)_minmax(310px,1.15fr)] overflow-hidden">
-            <div className="structured-editor min-h-0 overflow-auto border-r border-border p-4">
+        <div className="min-h-0 overflow-hidden">
+            <div className="structured-editor h-full min-h-0 overflow-auto p-4">
                 <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
                     <label htmlFor="default-agent">Default agent for new sessions</label>
                     <Select
@@ -228,15 +208,6 @@ export function SettingsForm({
                     );
                 })}
             </div>
-            <Suspense fallback={<div className={configurationEditorLoadingClassName} />}>
-                <ConfigurationEditor
-                    ariaLabel="settings.jsonc source"
-                    path="/caxri/settings.jsonc"
-                    theme={theme}
-                    value={source}
-                    onChange={onSourceChange}
-                />
-            </Suspense>
         </div>
     );
 }

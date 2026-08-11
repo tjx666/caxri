@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
     errorCode,
     isOwnedLauncher,
+    isOwnedRuntime,
     removeOwnedUserData,
     runtimeStateSchema,
     type RuntimeState,
@@ -31,7 +32,7 @@ async function main(): Promise<void> {
         });
     }
 
-    if (!(await isOwnedLauncher(runtime))) {
+    if (!(await isOwnedRuntime(runtime))) {
         await unlink(RUNTIME_PATH).catch((error: unknown) => {
             if (errorCode(error) !== 'ENOENT') throw error;
         });
@@ -40,15 +41,18 @@ async function main(): Promise<void> {
         return;
     }
 
-    process.kill(runtime.launcherPid, 'SIGTERM');
+    const launcherAlive = await isOwnedLauncher(runtime);
+    const ownerPid = launcherAlive ? runtime.launcherPid : runtime.electronPid;
+    if (!ownerPid) throw new Error('Owned Acceptance runtime has no live process PID');
+    process.kill(ownerPid, 'SIGTERM');
 
     const deadline = Date.now() + 10_000;
-    while ((await isOwnedLauncher(runtime)) && Date.now() < deadline) {
+    while ((await isOwnedRuntime(runtime)) && Date.now() < deadline) {
         await new Promise<void>((resolveWait) => setTimeout(resolveWait, 250));
     }
-    if (await isOwnedLauncher(runtime)) {
+    if (await isOwnedRuntime(runtime)) {
         throw new Error(
-            `Launcher PID ${runtime.launcherPid} did not stop; inspect it before taking further action`,
+            `Acceptance owner PID ${ownerPid} did not stop; inspect it before taking further action`,
         );
     }
 

@@ -111,9 +111,13 @@ async function readClaudeState(
         if (!latest || preferred) latest = metadata;
     }
     if (!latest) return undefined;
+    /** A resumed process can briefly expose the previous turn's terminal status. Keep its identity
+     *  and title, but do not publish attention until Claude updates metadata in this generation. */
+    const statusIsCurrentGeneration =
+        !context.startedAt || timestamp(latest.updatedAt) >= context.startedAt;
     return {
         sessionId: typeof latest.sessionId === 'string' ? latest.sessionId : undefined,
-        status: claudeStatus(latest.status),
+        status: statusIsCurrentGeneration ? claudeStatus(latest.status) : undefined,
         title:
             typeof latest.name === 'string' && latest.name.trim() ? latest.name.trim() : undefined,
     };

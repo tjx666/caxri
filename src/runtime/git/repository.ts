@@ -27,6 +27,12 @@ interface RepositoryRoot {
     rootPath: string;
 }
 
+export interface GitDirectoryRepository {
+    directoryPath: string;
+    ignoreRulePaths: readonly string[];
+    rootPath: string;
+}
+
 interface GitRepositoryServiceOptions {
     git: (
         cwd: string,
@@ -192,6 +198,47 @@ export class GitRepositoryService {
                 'Git repository is outside the approved Project roots',
             );
         return repository;
+    }
+
+    /** Resolves the repository that owns one listed directory without crossing its Project root. */
+    async resolveDirectory(
+        sessionId: string,
+        directory: string,
+    ): Promise<GitDirectoryRepository | undefined> {
+        const { root: projectRoot, path: directoryPath } = await this.paths.resolveSessionPath(
+            sessionId,
+            directory,
+        );
+        const output = await this.options.git(
+            directoryPath,
+            [
+                'rev-parse',
+                '--path-format=absolute',
+                '--show-toplevel',
+                '--git-path',
+                'info/exclude',
+                '--git-path',
+                'config',
+                '--git-path',
+                'config.worktree',
+            ],
+            { allowFailure: true },
+        );
+        const [reportedRoot, ...ignoreRulePaths] = output.trim().split('\n');
+        if (!reportedRoot) return undefined;
+        try {
+            const rootPath = await realpath(reportedRoot);
+            /** Project creation stores canonical roots; include the freshly resolved current root for migrated data. */
+            const approvedRoots = [projectRoot, ...this.paths.listApprovedProjectRoots()];
+            if (!isApproved(rootPath, approvedRoots)) return undefined;
+            return {
+                directoryPath,
+                ignoreRulePaths: ignoreRulePaths.filter((path) => path.length > 0),
+                rootPath,
+            };
+        } catch {
+            return undefined;
+        }
     }
 
     private async loadStatus(rootPath: string): Promise<RepositoryStatus> {
