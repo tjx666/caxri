@@ -10,7 +10,7 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
 import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
-import { duplicateFile, moveFile, renameFile } from './file-actions';
+import { duplicateFile, moveFile, renameFile, trashFile } from './file-actions';
 import { reconcileFileMutation } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 
@@ -199,5 +199,34 @@ describe('file action lifecycle', () => {
                 label: 'Renaming item in background…',
             }),
         ]);
+    });
+
+    it('confirms a successful trash with a toast naming the item', async () => {
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockResolvedValue({
+            kind: 'file',
+            name: 'source.txt',
+            path: '/project/source.txt',
+        });
+
+        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(true);
+
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({ kind: 'success', message: "Moved 'source.txt' to Trash" }),
+        );
+    });
+
+    it('does not toast when Move to Trash is canceled', async () => {
+        mocks.request.mockResolvedValue({ canceled: true });
+
+        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(false);
+
+        expect(useToastStore.getState().toasts).toEqual([]);
     });
 });
