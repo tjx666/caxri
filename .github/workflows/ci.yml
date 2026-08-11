@@ -21,10 +21,6 @@ jobs:
           # checkout breaks that base detection and it falls back to reporting every
           # existing issue (https://www.react.doctor/docs/ci-and-prs/github-actions-setup).
           fetch-depth: 0
-      - name: Restore PR branch context for changed-scope checks
-        if: github.event_name == 'pull_request'
-        # Pull-request checkout is detached; React Doctor otherwise falls back to a full scan.
-        run: git switch --create "ci-pr-${{ github.event.pull_request.number }}"
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -33,7 +29,9 @@ jobs:
       - run: npm ci
       - run: bun run lint
       - run: bun run knip
-      - run: bun run doctor -- --scope changed
+      - run: bun run doctor:changed
+        env:
+          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
       - run: bun run typecheck
       - run: bun run format:check
       - run: bun run format:md:check

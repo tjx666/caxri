@@ -71,16 +71,13 @@ describe('Go local CI fallback', () => {
             );
         const commands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
             .map((match) => match[1])
-            .filter(
-                (command) =>
-                    command !== 'npm ci' && !command.startsWith('git switch --create "ci-pr-'),
-            );
+            .filter((command) => command !== 'npm ci');
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
-        expect(commands).toContain('bun run doctor -- --scope changed');
+        expect(commands).toContain('bun run doctor:changed');
         expect(checksJob).toContain(
-            'git switch --create "ci-pr-${{ github.event.pull_request.number }}"',
+            "CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}",
         );
     });
 
