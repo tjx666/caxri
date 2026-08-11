@@ -98,11 +98,14 @@ Themes normalize into one semantic token structure consumed by CSS variables, xt
 
 An Editor save revalidates the opened replacement inode and its canonical Project containment
 before writing document bytes; `O_NOFOLLOW` alone would not stop a swapped parent-directory
-symlink. Node has no atomic inode-compare-and-replace or directory-handle-relative write primitive,
-so an uncooperative external process can still win the narrow temporary-path validation-to-write
-or final target revalidation-to-rename race. The rename replaces a late symlink itself rather than
-following it; these narrow pathname races are the same explicit Node-only local filesystem tradeoff
-as create, rename, move, Trash, and PTY cwd launch.
+symlink. Failure cleanup likewise unlinks the temporary pathname only while it still resolves to
+the exact inode Caxri created; an untrusted replacement is preserved rather than risking deletion
+outside the Project. Node has no atomic inode-compare-and-replace or
+directory-handle-relative write/unlink primitive, so an uncooperative external process can still
+win the narrow temporary-path validation-to-write, cleanup-validation-to-unlink, or final target
+revalidation-to-rename race. The rename replaces a late symlink itself rather than following it;
+these narrow pathname races are the same explicit Node-only local filesystem tradeoff as create,
+rename, move, Trash, and PTY cwd launch.
 
 ## Git and Agent adapters
 

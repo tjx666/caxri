@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { lstat, open, realpath, rename, rm } from 'node:fs/promises';
+import { constants, type Stats } from 'node:fs';
+import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
 import { CaxriError } from '../../shared/ipc/errors';
@@ -21,6 +21,38 @@ export interface DocumentServiceOptions {
     beforeReplaceValidation?: () => Promise<void>;
     openFile?: OpenFile;
     replaceFile?: ReplaceFile;
+}
+
+function isPathInsideRoot(root: string, path: string): boolean {
+    const relativePath = relative(root, path);
+    return (
+        !isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${sep}`)
+    );
+}
+
+async function removeTrustedTemporaryFile(
+    temporaryPath: string,
+    openedStats: Stats | undefined,
+): Promise<void> {
+    if (!openedStats) return;
+    try {
+        const currentStats = await lstat(temporaryPath);
+        /**
+         * Cleanup is path-based too. Refuse to unlink unless the path still resolves to the exact
+         * inode Caxri created, so a swapped parent cannot redirect cleanup to a foreign file.
+         */
+        if (
+            currentStats.isSymbolicLink() ||
+            !currentStats.isFile() ||
+            currentStats.dev !== openedStats.dev ||
+            currentStats.ino !== openedStats.ino ||
+            currentStats.nlink > 1
+        )
+            return;
+        await unlink(temporaryPath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
 }
 
 /** Reads and writes text documents under a Session's Project root with TOCTOU-safe file handles. */
@@ -92,6 +124,7 @@ export class DocumentService {
             dirname(resolved.path),
             `.${basename(resolved.path)}.${randomUUID()}.caxri-tmp`,
         );
+        let openedReplacementStats: Stats | undefined;
         try {
             if ((await realpath(resolved.path)) !== resolved.path)
                 throw new CaxriError('IO', 'File path changed during save');
@@ -113,10 +146,9 @@ export class DocumentService {
                 stats.mode & 0o777,
             );
             try {
-                const openedReplacementStats = await replacement.stat();
+                openedReplacementStats = await replacement.stat();
                 const currentReplacementStats = await lstat(temporaryPath);
                 const resolvedTemporaryPath = await realpath(temporaryPath);
-                const temporaryRelativePath = relative(resolved.root, resolvedTemporaryPath);
                 /**
                  * `O_NOFOLLOW` covers only the final component. Revalidate the opened temporary
                  * inode and its canonical parent before writing editor content, so a parent
@@ -128,9 +160,7 @@ export class DocumentService {
                     currentReplacementStats.dev !== openedReplacementStats.dev ||
                     currentReplacementStats.ino !== openedReplacementStats.ino ||
                     currentReplacementStats.nlink > 1 ||
-                    isAbsolute(temporaryRelativePath) ||
-                    temporaryRelativePath === '..' ||
-                    temporaryRelativePath.startsWith(`..${sep}`)
+                    !isPathInsideRoot(resolved.root, resolvedTemporaryPath)
                 )
                     throw new CaxriError('IO', 'Temporary file changed during save');
                 await replacement.writeFile(content, 'utf8');
@@ -170,7 +200,7 @@ export class DocumentService {
             }
         } finally {
             await file.close();
-            await rm(temporaryPath, { force: true });
+            await removeTrustedTemporaryFile(temporaryPath, openedReplacementStats);
         }
         this.logger.write('info', 'file.saved', {
             fields: { sessionId, path: relative(resolved.root, resolved.path) },
