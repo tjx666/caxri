@@ -15,13 +15,18 @@ interface ThemeFormProps {
 /** Full-width structured editor and live preview for `theme.json`. */
 export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormProps) {
     return (
-        <div className="min-h-0 overflow-hidden">
-            <div className="theme-editor structured-editor h-full min-h-0 overflow-auto p-3">
-                <ThemePreview theme={theme} />
-                <div className="mb-4 flex justify-between">
-                    <strong>{theme.name}</strong>
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-3 p-3 pb-0">
+                <strong>{theme.name}</strong>
+                <span className="flex items-center gap-2">
                     <span className="text-muted">{theme.source}</span>
-                </div>
+                    <Button size="sm" variant="secondary" onClick={onImport}>
+                        <Import size={13} /> Import Theme
+                    </Button>
+                </span>
+            </div>
+            <div className="theme-editor structured-editor min-h-0 flex-1 overflow-auto p-3">
+                <ThemePreview theme={theme} />
                 {(['colors', 'terminal', 'editor'] as const).map((section) => (
                     <fieldset key={section} className="my-3 min-w-0 border-0 p-0">
                         <legend className="mb-2 text-[11px] font-semibold text-foreground uppercase">
@@ -55,9 +60,6 @@ export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormProps) {
                         {warning}
                     </p>
                 ))}
-                <Button size="sm" variant="secondary" onClick={onImport}>
-                    <Import size={13} /> Import Theme
-                </Button>
             </div>
         </div>
     );
