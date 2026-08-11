@@ -6,6 +6,7 @@ import {
     type AgentProvider,
     type AgentProviderSettings,
 } from './agents';
+import { MAX_KEYBINDINGS } from './configuration-contract';
 import {
     DEFAULT_FILES_EXCLUDE,
     keybindingSchema,
@@ -15,7 +16,11 @@ import {
     type KeybindingConflict,
 } from './types';
 import { normalizeShortcut } from './shortcuts';
-import { MAX_KEYBINDINGS } from './configuration-contract';
+import {
+    MAX_TRUSTED_DOMAINS,
+    MAX_TRUSTED_DOMAIN_LENGTH,
+    normalizeTrustedDomainRule,
+} from './trusted-domains';
 
 const MAX_FILES_EXCLUDE_PATTERNS = 100;
 
@@ -51,6 +56,27 @@ const agentProviderSettingsSchema = z
             ) as unknown as Record<AgentProvider, AgentProviderSettings>,
     );
 
+const trustedDomainsSchema = z
+    .array(z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH))
+    .max(MAX_TRUSTED_DOMAINS)
+    .default([])
+    .transform((values, context) => {
+        const normalized: string[] = [];
+        for (const [index, value] of values.entries()) {
+            const rule = normalizeTrustedDomainRule(value);
+            if (!rule) {
+                context.addIssue({
+                    code: 'custom',
+                    message: 'Expected an HTTP(S) origin or explicit *. subdomain rule',
+                    path: [index],
+                });
+                continue;
+            }
+            if (!normalized.includes(rule)) normalized.push(rule);
+        }
+        return normalized;
+    });
+
 /** Browser-safe single source of truth for Settings-file defaults and bounds. */
 export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
     'session.defaultAgent': z
@@ -58,6 +84,7 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
         .nullable()
         .default(null),
     'agents.providers': agentProviderSettingsSchema,
+    'security.trustedDomains': trustedDomainsSchema,
     'terminal.defaultWorkingDirectory': z
         .string()
         .trim()

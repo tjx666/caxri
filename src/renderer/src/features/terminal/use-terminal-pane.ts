@@ -163,7 +163,9 @@ export function useTerminalPaneRuntime({
                         onError(
                             result.reason === 'unsupported_protocol'
                                 ? 'Only HTTP and HTTPS links can be opened'
-                                : 'External link is invalid',
+                                : result.reason === 'credentials_not_allowed'
+                                  ? 'External links cannot include credentials'
+                                  : 'External link is invalid',
                         );
                     })
                     .catch((error) =>

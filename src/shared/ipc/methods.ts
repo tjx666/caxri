@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { configurationSourceSchema, MAX_KEYBINDINGS } from '../configuration-contract';
+import { MAX_TRUSTED_DOMAIN_LENGTH } from '../trusted-domains';
 
 import {
     agentHookHealthMapSchema,
@@ -105,7 +106,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
     z.object({ status: z.literal('canceled') }),
     z.object({
         status: z.literal('rejected'),
-        reason: z.enum(['invalid_url', 'unsupported_protocol']),
+        reason: z.enum(['invalid_url', 'unsupported_protocol', 'credentials_not_allowed']),
     }),
 ]);
 
@@ -594,6 +595,11 @@ export const internalMethods = {
             keybindings: z.string(),
             theme: z.string(),
         }),
+    },
+    'settings.trustDomain': {
+        owner: 'runtime',
+        params: z.object({ domain: z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH) }),
+        result: settingsResult,
     },
     'diagnostics.exportPath': {
         owner: 'runtime',

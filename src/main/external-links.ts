@@ -1,8 +1,17 @@
 import type { MethodResult } from '../shared/ipc/methods';
+import {
+    externalUrlOrigin,
+    isExternalUrlTrusted,
+    parseExternalHttpUrl,
+} from '../shared/trusted-domains';
+
+export type ExternalOpenDecision = 'open_once' | 'trust' | 'cancel';
 
 export interface ExternalUrlDependencies {
-    confirm(url: URL): Promise<boolean>;
+    getTrustedDomains(): Promise<readonly string[]>;
     open(url: string): Promise<void>;
+    prompt(url: URL): Promise<ExternalOpenDecision>;
+    trust(domain: string): Promise<void>;
 }
 
 /** Validates and opens a Renderer-submitted URL without giving the Renderer native authority. */
@@ -10,15 +19,15 @@ export async function openExternalUrl(
     input: string,
     dependencies: ExternalUrlDependencies,
 ): Promise<MethodResult<'external.open'>> {
-    let url: URL;
-    try {
-        url = new URL(input);
-    } catch {
-        return { status: 'rejected', reason: 'invalid_url' };
+    const parsed = parseExternalHttpUrl(input);
+    if (!parsed.ok) return { status: 'rejected', reason: parsed.reason };
+    const { url } = parsed;
+    const rules = await dependencies.getTrustedDomains();
+    if (!isExternalUrlTrusted(url, rules)) {
+        const decision = await dependencies.prompt(url);
+        if (decision === 'cancel') return { status: 'canceled' };
+        if (decision === 'trust') await dependencies.trust(externalUrlOrigin(url));
     }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:')
-        return { status: 'rejected', reason: 'unsupported_protocol' };
-    if (!(await dependencies.confirm(url))) return { status: 'canceled' };
     await dependencies.open(url.toString());
     return { status: 'opened' };
 }

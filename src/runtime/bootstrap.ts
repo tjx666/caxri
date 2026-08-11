@@ -665,6 +665,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             await hookSettingsReconcile;
             return configuration.getSettings();
         },
+        'settings.trustDomain': async ({ domain }) => {
+            await configuration.trustDomain(domain);
+            return configuration.getSettings();
+        },
         'keybindings.get': () => configuration.getKeybindings(),
         'keybindings.update': async ({ source }) => {
             await configuration.updateKeybindings(source);

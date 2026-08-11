@@ -119,22 +119,40 @@ function sendEvent(event: RuntimeEvent): void {
 
 async function handleExternalUrl(url: string, window?: BrowserWindow) {
     return openExternalUrl(url, {
-        confirm: async (parsed) => {
+        getTrustedDomains: async () =>
+            (await supervisor.request('settings.get')).value['security.trustedDomains'],
+        prompt: async (parsed) => {
             const options = {
                 type: 'question' as const,
                 title: 'Open External Link',
-                message: `Open ${parsed.hostname} in your default browser?`,
-                buttons: ['Open', 'Cancel'],
-                defaultId: 1,
-                cancelId: 1,
+                message: `Open ${parsed.host} in your default browser?`,
+                detail: 'You can open this link once or trust this exact origin for future links.',
+                buttons: ['Open Once', 'Trust Domain and Open', 'Cancel'],
+                defaultId: 2,
+                cancelId: 2,
             };
             const result = window
                 ? await dialog.showMessageBox(window, options)
                 : await dialog.showMessageBox(options);
-            return result.response === 0;
+            return result.response === 0
+                ? ('open_once' as const)
+                : result.response === 1
+                  ? ('trust' as const)
+                  : ('cancel' as const);
+        },
+        trust: async (domain) => {
+            await supervisor.request('settings.trustDomain', { domain });
         },
         open: (target) => shell.openExternal(target),
     });
+}
+
+function handlePassiveExternalUrl(url: string, window: BrowserWindow): void {
+    void handleExternalUrl(url, window).catch((error) =>
+        mainLogger?.write('error', 'external.open_failed', {
+            fields: { error: errorMessage(error, 'Unable to open external link') },
+        }),
+    );
 }
 
 function createWindow(initialState: PersistedWindowState): BrowserWindow {
@@ -217,14 +235,14 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         }
     });
     window.webContents.setWindowOpenHandler(({ url }) => {
-        void handleExternalUrl(url, window);
+        handlePassiveExternalUrl(url, window);
         return { action: 'deny' };
     });
     window.webContents.on('will-navigate', (event, url) => {
         const currentUrl = window.webContents.getURL();
         if (url === currentUrl) return;
         event.preventDefault();
-        void handleExternalUrl(url, window);
+        handlePassiveExternalUrl(url, window);
     });
     /** Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults. */
     window.webContents.on('console-message', (details) => {
