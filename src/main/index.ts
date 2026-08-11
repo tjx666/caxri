@@ -618,6 +618,9 @@ void app.whenReady().then(async () => {
     );
     processExplorer = new ProcessExplorerWindowController({
         currentDirectory,
+        forceRenderError:
+            process.env.CAXRI_E2E === '1' &&
+            process.env.CAXRI_TEST_PROCESS_EXPLORER_RENDER_ERROR === '1',
         logger: mainLogger,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         sampler: new ProcessExplorerSampler({
