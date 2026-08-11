@@ -62,7 +62,7 @@ bun run .agents/skills/go/scripts/state.ts ci-fallback-result \
   --state "$STATE" --head-sha abc1234 \
   --platform-command "bun run lint" \
   --platform-command "bun run knip" \
-  --platform-command "bun run doctor -- --scope changed" \
+  --platform-command "bun run doctor -- --scope changed --base origin/main" \
   --platform-command "bun run typecheck" \
   --platform-command "bun run format:check" \
   --platform-command "bun run format:md:check" \

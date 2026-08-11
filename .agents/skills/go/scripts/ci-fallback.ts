@@ -7,7 +7,7 @@ export const ciFallbackResultSchema = z.enum(['passed', 'failed']);
 export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run lint',
     'bun run knip',
-    'bun run doctor -- --scope changed',
+    'bun run doctor -- --scope changed --base origin/main',
     'bun run typecheck',
     'bun run format:check',
     'bun run format:md:check',
