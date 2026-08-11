@@ -122,14 +122,15 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
     const reconciliation = (async () => {
         if (operation.phase === 'completed') {
             await applyCompletedOperation(operation);
-            pushToast('success', operationSuccess(operation));
         } else {
             await invalidateAffectedDirectories(operation);
-            pushToast('error', operation.error?.message ?? 'File operation could not be completed');
         }
         await caxri.request('files.operation.acknowledge', { operationId: operation.id });
         useFileOperationStore.getState().finish(operation.id);
         rememberReconciliation(operation.id);
+        if (operation.phase === 'completed') pushToast('success', operationSuccess(operation));
+        else
+            pushToast('error', operation.error?.message ?? 'File operation could not be completed');
     })()
         .catch(() => {
             /** Runtime keeps the durable result until every same-Project Session remap and ack

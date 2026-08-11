@@ -379,4 +379,82 @@ describe('file mutation reconciliation', () => {
             [previousPath]: { content: 'new source body', path: previousPath },
         });
     });
+
+    it('does not report success until the durable operation acknowledgement succeeds', async () => {
+        vi.useFakeTimers();
+        let acknowledgeAttempts = 0;
+        mocks.request.mockImplementation((method) => {
+            if (method === 'files.operation.acknowledge') {
+                acknowledgeAttempts += 1;
+                return acknowledgeAttempts === 1
+                    ? Promise.reject(new Error('temporary journal failure'))
+                    : Promise.resolve(null);
+            }
+            return Promise.resolve(null);
+        });
+        const previousPath = '/project/source.txt';
+        const nextPath = '/project/destination/source.txt';
+        const operation: FileMutationOperation = {
+            id: 'operation-ack-retry',
+            kind: 'move',
+            sessionId: 'session-a',
+            phase: 'completed',
+            input: {
+                path: previousPath,
+                directory: '/project/destination',
+                conflict: 'reject',
+            },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        openTabs: [],
+                        inspectorMode: 'files',
+                        layout: {},
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+
+        await reconcileFileMutation(operation);
+
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'success' }),
+        );
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({
+                kind: 'info',
+                message: 'File change is still synchronizing in the background',
+            }),
+        );
+        expect(useFileOperationStore.getState().operations).toHaveLength(1);
+
+        await vi.runOnlyPendingTimersAsync();
+        await vi.waitFor(() => expect(acknowledgeAttempts).toBe(2));
+
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+        );
+        expect(useFileOperationStore.getState().operations).toEqual([]);
+    });
 });
