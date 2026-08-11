@@ -15,15 +15,30 @@ Turn a bug, an idea, or a conclusion from the current conversation into a GitHub
 
 ## Body structure
 
-Write naturally under these sections; skip any that are irrelevant. Bugs and enhancements emphasize different halves:
+Write naturally under these sections. Bugs and enhancements emphasize different halves. Keep
+`UX 设计` and `Acceptance 方案` in every issue; when the work has no direct UI or interaction
+change, state that explicitly instead of inventing a visual claim.
 
 - **问题** — every issue starts here. For a bug: observed behavior, expected behavior, and reproduction steps or the triggering condition. For an enhancement: the friction or gap, from the user's perspective.
 - **诊断** (bug) — root cause if known, citing the load-bearing code as `path/to/file.ts:42` or symbol names. State clearly when the cause is a hypothesis, not confirmed.
 - **目标** (enhancement) — the end state in one or two sentences: what works afterwards that doesn't today.
+- **UX 设计** — describe the user scenario, entry point, interaction flow, visible states, copy,
+  keyboard behavior, and accessibility expectations affected by the issue. For non-UI architecture
+  work, write `不涉及直接 UI 变化` and name the nearest user-visible outcome or explain why none
+  exists.
 - **方案 / 修复方案** — the approach, numbered when there are ordered steps. Mention schema migrations, IPC contract changes, or startup-gate impact explicitly since they cross process boundaries.
 - **参考实现** — how competitors solve this, when relevant; consult the `competitors` skill rather than guessing.
 - **范围 / 非目标** — what is explicitly out, especially the tempting adjacent work.
 - **验收标准** — checkable statements of done; cover the core path plus the edge cases that motivated the issue. Include the regression-test expectation (behavior-level, per the testing workflow in AGENTS.md).
+- **Acceptance 方案** — keep this separate from the definition of done. Describe the isolated
+  macOS Electron path, fixture or failure injection, expected observable result, and evidence needed
+  for human review. Prefer screenshots for settled UI and GIF/video for behavior over time. Use DOM,
+  structured logs, or text evidence only when the claim cannot be shown faithfully in the UI. Give
+  every Go-owned check a stable id, and explain a non-visual check instead of fabricating desktop
+  evidence.
+
+`验收标准` defines what must be true. `Acceptance 方案` defines how the final reviewer will see or
+otherwise verify that truth. Do not replace either section with the other.
 
 Code references (`path:line`) are welcome when they anchor the diagnosis or design — but keep them to load-bearing ones; broad file inventories go stale.
 
