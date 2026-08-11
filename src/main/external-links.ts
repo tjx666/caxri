@@ -14,10 +14,15 @@ export interface ExternalUrlDependencies {
     trust(domain: string): Promise<void>;
 }
 
+export interface ExternalOpenOptions {
+    allowTrust: boolean;
+}
+
 /** Validates and opens a Renderer-submitted URL without giving the Renderer native authority. */
 export async function openExternalUrl(
     input: string,
     dependencies: ExternalUrlDependencies,
+    options: ExternalOpenOptions,
 ): Promise<MethodResult<'external.open'>> {
     const parsed = parseExternalHttpUrl(input);
     if (!parsed.ok) return { status: 'rejected', reason: parsed.reason };
@@ -26,7 +31,10 @@ export async function openExternalUrl(
     if (!isExternalUrlTrusted(url, rules)) {
         const decision = await dependencies.prompt(url);
         if (decision === 'cancel') return { status: 'canceled' };
-        if (decision === 'trust') await dependencies.trust(externalUrlOrigin(url));
+        if (decision === 'trust') {
+            if (!options.allowTrust) return { status: 'canceled' };
+            await dependencies.trust(externalUrlOrigin(url));
+        }
     }
     await dependencies.open(url.toString());
     return { status: 'opened' };

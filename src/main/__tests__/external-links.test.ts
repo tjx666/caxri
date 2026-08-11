@@ -11,6 +11,8 @@ function dependencies(decision: ExternalOpenDecision = 'open_once') {
     };
 }
 
+const ALLOW_TRUST = { allowTrust: true } as const;
+
 describe('openExternalUrl', () => {
     it.each([
         ['not a URL', 'invalid_url'],
@@ -20,7 +22,7 @@ describe('openExternalUrl', () => {
     ] as const)('rejects %s before confirmation or OS dispatch', async (url, reason) => {
         const target = dependencies();
 
-        await expect(openExternalUrl(url, target)).resolves.toEqual({
+        await expect(openExternalUrl(url, target, ALLOW_TRUST)).resolves.toEqual({
             status: 'rejected',
             reason,
         });
@@ -32,7 +34,9 @@ describe('openExternalUrl', () => {
     it('returns canceled without dispatching the URL', async () => {
         const target = dependencies('cancel');
 
-        await expect(openExternalUrl('https://example.com/path', target)).resolves.toEqual({
+        await expect(
+            openExternalUrl('https://example.com/path', target, ALLOW_TRUST),
+        ).resolves.toEqual({
             status: 'canceled',
         });
         expect(target.prompt).toHaveBeenCalledOnce();
@@ -43,7 +47,9 @@ describe('openExternalUrl', () => {
     it('normalizes and dispatches a confirmed HTTP(S) URL exactly once', async () => {
         const target = dependencies();
 
-        await expect(openExternalUrl('https://example.com/a b', target)).resolves.toEqual({
+        await expect(
+            openExternalUrl('https://example.com/a b', target, ALLOW_TRUST),
+        ).resolves.toEqual({
             status: 'opened',
         });
         expect(target.prompt).toHaveBeenCalledWith(new URL('https://example.com/a%20b'));
@@ -56,7 +62,9 @@ describe('openExternalUrl', () => {
         const target = dependencies();
         target.getTrustedDomains.mockResolvedValueOnce(['https://example.com']);
 
-        await expect(openExternalUrl('https://example.com/again', target)).resolves.toEqual({
+        await expect(
+            openExternalUrl('https://example.com/again', target, ALLOW_TRUST),
+        ).resolves.toEqual({
             status: 'opened',
         });
         expect(target.prompt).not.toHaveBeenCalled();
@@ -66,7 +74,9 @@ describe('openExternalUrl', () => {
     it('persists the exact origin before opening when the user trusts it', async () => {
         const target = dependencies('trust');
 
-        await expect(openExternalUrl('https://example.com/path?q=1', target)).resolves.toEqual({
+        await expect(
+            openExternalUrl('https://example.com/path?q=1', target, ALLOW_TRUST),
+        ).resolves.toEqual({
             status: 'opened',
         });
         expect(target.trust).toHaveBeenCalledWith('https://example.com');
@@ -76,10 +86,22 @@ describe('openExternalUrl', () => {
         expect(target.open).toHaveBeenCalledWith('https://example.com/path?q=1');
     });
 
+    it('does not persist trust when the caller allows only a one-time open', async () => {
+        const target = dependencies('trust');
+
+        await expect(
+            openExternalUrl('https://example.com/path', target, { allowTrust: false }),
+        ).resolves.toEqual({ status: 'canceled' });
+        expect(target.trust).not.toHaveBeenCalled();
+        expect(target.open).not.toHaveBeenCalled();
+    });
+
     it('opens loopback URLs without a prompt or a persisted rule', async () => {
         const target = dependencies();
 
-        await expect(openExternalUrl('http://127.0.0.1:5173', target)).resolves.toEqual({
+        await expect(
+            openExternalUrl('http://127.0.0.1:5173', target, ALLOW_TRUST),
+        ).resolves.toEqual({
             status: 'opened',
         });
         expect(target.prompt).not.toHaveBeenCalled();
@@ -90,7 +112,7 @@ describe('openExternalUrl', () => {
         const target = dependencies('trust');
         target.trust.mockRejectedValueOnce(new Error('settings unavailable'));
 
-        await expect(openExternalUrl('https://example.com', target)).rejects.toThrow(
+        await expect(openExternalUrl('https://example.com', target, ALLOW_TRUST)).rejects.toThrow(
             'settings unavailable',
         );
         expect(target.open).not.toHaveBeenCalled();
@@ -100,7 +122,7 @@ describe('openExternalUrl', () => {
         const target = dependencies();
         target.open.mockRejectedValueOnce(new Error('browser unavailable'));
 
-        await expect(openExternalUrl('http://example.com', target)).rejects.toThrow(
+        await expect(openExternalUrl('http://example.com', target, ALLOW_TRUST)).rejects.toThrow(
             'browser unavailable',
         );
     });
