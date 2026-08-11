@@ -289,7 +289,11 @@ function remapOpenEditorsInSession(
         });
     const nextState = { ...current, openTabs, activeTab };
     const failureLabel = 'Moved editor state could not be saved';
-    if (durable) return persistSessionState(nextState, failureLabel);
+    if (durable)
+        return persistSessionState(nextState, {
+            failureLabel,
+            retainOnFailure: true,
+        });
     patchSessionState(nextState, failureLabel);
     return undefined;
 }
