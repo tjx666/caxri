@@ -408,6 +408,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return state;
         },
         'app.openConfigFile': () => mainOwned('app.openConfigFile'),
+        'external.open': () => mainOwned('external.open'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),

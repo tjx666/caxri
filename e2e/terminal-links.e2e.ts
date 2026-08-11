@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures.ts';
 import type { MessageBoxOptions } from 'electron';
 
-import { createShellSession, launchCaxri, typeTerminal } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
 
 async function terminalTextBounds(page: Page, text: string) {
     const row = page.locator('.xterm-rows > div').filter({ hasText: text }).last();
@@ -80,18 +80,44 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
 
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {
-                caxriExternalLinkProbe?: { confirmations: string[]; opened: string[] };
+                caxriExternalLinkProbe?: {
+                    confirmations: string[];
+                    failOpen: boolean;
+                    opened: string[];
+                    response: number;
+                };
             };
-            target.caxriExternalLinkProbe = { confirmations: [], opened: [] };
-            dialog.showMessageBox = ((options: MessageBoxOptions) => {
+            target.caxriExternalLinkProbe = {
+                confirmations: [],
+                failOpen: false,
+                opened: [],
+                response: 0,
+            };
+            dialog.showMessageBox = (
+                windowOrOptions: unknown,
+                maybeOptions?: MessageBoxOptions,
+            ) => {
+                const options = maybeOptions ?? (windowOrOptions as MessageBoxOptions);
                 target.caxriExternalLinkProbe!.confirmations.push(options.message);
-                return Promise.resolve({ response: 0, checkboxChecked: false });
-            }) as typeof dialog.showMessageBox;
+                return Promise.resolve({
+                    response: target.caxriExternalLinkProbe!.response,
+                    checkboxChecked: false,
+                });
+            };
             shell.openExternal = (url) => {
+                if (target.caxriExternalLinkProbe!.failOpen)
+                    return Promise.reject(new Error('browser unavailable'));
                 target.caxriExternalLinkProbe!.opened.push(url);
                 return Promise.resolve();
             };
         });
+
+        await expect(
+            pageRequest(running.page, 'external.open', { url: 'not a URL' }),
+        ).resolves.toEqual({ status: 'rejected', reason: 'invalid_url' });
+        await expect(
+            pageRequest(running.page, 'external.open', { url: 'file:///tmp/caxri-denied-link' }),
+        ).resolves.toEqual({ status: 'rejected', reason: 'unsupported_protocol' });
         await running.page.evaluate(() => window.open('file:///tmp/caxri-denied-link'));
         const url = 'https://example.com/caxri-link';
         await running.page.getByRole('tab', { name: 'Shell' }).click();
@@ -102,21 +128,66 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             .poll(() =>
                 running.app.evaluate(() => {
                     const target = globalThis as typeof globalThis & {
-                        caxriExternalLinkProbe?: { confirmations: string[]; opened: string[] };
+                        caxriExternalLinkProbe?: { opened: string[] };
                     };
                     return target.caxriExternalLinkProbe?.opened;
                 }),
             )
             .toContain(url);
+        await expect(running.page.locator('.toast')).toHaveCount(0);
+
+        const canceledUrl = 'https://example.org/canceled';
+        await running.app.evaluate(() => {
+            const target = globalThis as typeof globalThis & {
+                caxriExternalLinkProbe?: { response: number };
+            };
+            target.caxriExternalLinkProbe!.response = 1;
+        });
+        await typeTerminal(running.page, `printf '%s\\n' '${canceledUrl}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(canceledUrl);
+        await clickTerminalText(running.page, canceledUrl);
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriExternalLinkProbe?: { confirmations: string[] };
+                    };
+                    return target.caxriExternalLinkProbe?.confirmations.length;
+                }),
+            )
+            .toBe(2);
+        await expect(running.page.locator('.toast')).toHaveCount(0);
+
+        const failedUrl = 'https://example.net/failure';
+        await running.app.evaluate(() => {
+            const target = globalThis as typeof globalThis & {
+                caxriExternalLinkProbe?: { failOpen: boolean; response: number };
+            };
+            target.caxriExternalLinkProbe!.response = 0;
+            target.caxriExternalLinkProbe!.failOpen = true;
+        });
+        await typeTerminal(running.page, `printf '%s\\n' '${failedUrl}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(failedUrl);
+        await clickTerminalText(running.page, failedUrl);
+        await expect(running.page.locator('.toast')).toContainText('browser unavailable');
+        await expect(running.page.locator('.toast')).not.toContainText('Popup blocked');
+
         await expect(
             running.app.evaluate(() => {
                 const target = globalThis as typeof globalThis & {
-                    caxriExternalLinkProbe?: { confirmations: string[]; opened: string[] };
+                    caxriExternalLinkProbe?: {
+                        confirmations: string[];
+                        opened: string[];
+                    };
                 };
                 return target.caxriExternalLinkProbe;
             }),
-        ).resolves.toEqual({
-            confirmations: ['Open example.com in your default browser?'],
+        ).resolves.toMatchObject({
+            confirmations: [
+                'Open example.com in your default browser?',
+                'Open example.org in your default browser?',
+                'Open example.net in your default browser?',
+            ],
             opened: [url],
         });
     } finally {
