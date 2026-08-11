@@ -39,7 +39,7 @@ export function deriveArchivedSessionView(
 ): ArchivedSessionView {
     const terminalById = new Map(terminals.map((terminal) => [terminal.id, terminal]));
     const firstTerminalBySession = new Map<string, TerminalRecord>();
-    for (const terminal of [...terminals].sort(
+    for (const terminal of terminals.toSorted(
         (first, second) => first.orderIndex - second.orderIndex,
     ))
         if (!firstTerminalBySession.has(terminal.sessionId))
@@ -63,7 +63,7 @@ export function deriveArchivedSessionView(
         sessionsByProject.set(session.projectId, projectSessions);
     }
 
-    const orderedProjects = [...projects].sort(
+    const orderedProjects = projects.toSorted(
         (first, second) => first.orderIndex - second.orderIndex,
     );
     const projectOptions = orderedProjects.filter((project) => sessionsByProject.has(project.id));
@@ -81,14 +81,15 @@ export function deriveArchivedSessionView(
     const groups: ArchivedSessionGroup[] = [];
     for (const project of projectOptions) {
         if (projectId !== 'all' && projectId !== project.id) continue;
-        const matching = sessionsByProject
-            .get(project.id)!
+        const projectSessions = sessionsByProject.get(project.id);
+        if (!projectSessions) continue;
+        const matching = projectSessions
             .filter(
                 (item) =>
                     (filters.agent === 'all' || filters.agent === item.agent) &&
                     (!query || item.session.displayTitle.toLowerCase().includes(query)),
             )
-            .sort(
+            .toSorted(
                 (first, second) =>
                     second.archivedAt - first.archivedAt ||
                     first.session.id.localeCompare(second.session.id),
