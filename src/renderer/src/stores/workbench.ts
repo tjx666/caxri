@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { reconcileEditorTabDirtiness, withoutEditorTabDirtiness } from '@shared/editor-state';
 import type { RuntimeEvent } from '@shared/ipc/events';
 import type { BootstrapState, SessionRecord, SessionState, TerminalRecord } from '@shared/types';
 
@@ -23,7 +24,11 @@ interface WorkbenchState {
     /** Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read. */
     refresh(): Promise<void>;
     /** Optimistically applies a Session layout/tab/inspector change and reports persistence. */
-    patchSessionState(next: SessionState, failureLabel?: string): Promise<boolean>;
+    patchSessionState(
+        next: SessionState,
+        failureLabel?: string,
+        onLatestFailure?: () => void,
+    ): Promise<boolean>;
 }
 
 let inFlight: Promise<void> | undefined;
@@ -48,8 +53,17 @@ function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
     return { ...state, sessionStates };
 }
 
-function applySnapshot(state: BootstrapState): void {
-    const current = applyPendingSessionPatches(state);
+async function applySnapshot(state: BootstrapState): Promise<void> {
+    /** Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state. */
+    const { useSessionViewStore } = await import('./session-view');
+    const documents = useSessionViewStore.getState().documents;
+    const pending = applyPendingSessionPatches(state);
+    const current = {
+        ...pending,
+        sessionStates: pending.sessionStates.map((sessionState) =>
+            reconcileEditorTabDirtiness(sessionState, documents[sessionState.sessionId]),
+        ),
+    };
     useWorkbenchStore.setState((previous) => ({
         bootstrap: mergeStructurally(previous.bootstrap, current),
     }));
@@ -168,7 +182,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     isFullScreen: false,
     initialize: initializeWorkbench,
     refresh: refreshWorkbench,
-    patchSessionState(next, failureLabel = 'Session layout could not be saved') {
+    patchSessionState(next, failureLabel = 'Session layout could not be saved', onLatestFailure) {
         const bootstrap = get().bootstrap;
         if (!bootstrap) return Promise.resolve(false);
         const previous = bootstrap.sessionStates.find(
@@ -189,7 +203,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 pendingSessionPatches.delete(next.sessionId);
         };
         return caxri
-            .request('session.updateState', next)
+            .request('session.updateState', withoutEditorTabDirtiness(next))
             .then(() => {
                 finish();
                 return true;
@@ -214,14 +228,19 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                         };
                     });
                 }
+                if (isLatestRevision) onLatestFailure?.();
                 pushToast('error', describeFailure(error, failureLabel));
                 return false;
             });
     },
 }));
 
-export function patchSessionState(next: SessionState, failureLabel?: string): void {
-    void useWorkbenchStore.getState().patchSessionState(next, failureLabel);
+export function patchSessionState(
+    next: SessionState,
+    failureLabel?: string,
+    onLatestFailure?: () => void,
+): void {
+    void useWorkbenchStore.getState().patchSessionState(next, failureLabel, onLatestFailure);
 }
 
 /** Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime. */

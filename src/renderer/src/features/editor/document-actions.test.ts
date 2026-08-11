@@ -12,11 +12,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
-import { useSessionViewStore } from '../../stores/session-view';
+import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     changeDocument,
     closeOpenEditorsUnderPath,
+    openEditorTab,
     openFile,
     remapOpenEditors,
     saveActiveEditor,
@@ -101,6 +102,100 @@ afterEach(() => {
 });
 
 describe('session-scoped file mutation completion', () => {
+    it('does not replace a dirty cached preview when durable tab state is stale', () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              openTabs: [
+                                  {
+                                      path: '/project/unsaved.ts',
+                                      dirty: false,
+                                      preview: true,
+                                  },
+                              ],
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/unsaved.ts',
+            content: 'unsaved body',
+            dirty: true,
+            mtimeMs: 1,
+            size: 12,
+        });
+
+        openEditorTab('/project/next.ts', { preview: true });
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
+            { path: '/project/unsaved.ts', dirty: true },
+            { path: '/project/next.ts', dirty: false, preview: true },
+        ]);
+    });
+
+    it('restores preview cache and focus when tab persistence fails', async () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              activeTab: { kind: 'editor', path: '/project/first.ts' },
+                              openTabs: [
+                                  { path: '/project/first.ts', dirty: false, preview: true },
+                              ],
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/first.ts',
+            content: 'first body',
+            dirty: false,
+            mtimeMs: 1,
+            size: 10,
+        });
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/second.ts',
+            content: 'second body',
+            dirty: false,
+            mtimeMs: 1,
+            size: 11,
+        });
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-1', { kind: 'editor', path: '/project/first.ts' });
+        mocks.request.mockRejectedValueOnce(new Error('persistence failed'));
+
+        openEditorTab('/project/second.ts', { preview: true });
+        await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
+        await Promise.resolve();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
+            { path: '/project/first.ts', dirty: false, preview: true },
+        ]);
+        expect(getResolvedActiveWork()).toEqual({
+            kind: 'editor',
+            path: '/project/first.ts',
+        });
+        expect(useSessionViewStore.getState().activeWork['session-1']).toEqual({
+            kind: 'editor',
+            path: '/project/first.ts',
+        });
+        const documents = useSessionViewStore.getState().documents['session-1'];
+        expect(Object.keys(documents)).toEqual(['/project/first.ts']);
+        expect(documents['/project/first.ts']).toMatchObject({ content: 'first body' });
+    });
+
     it('remaps the origin Session after the user selected another Session', () => {
         installSessions('/project/source.ts');
 
