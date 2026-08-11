@@ -1,4 +1,5 @@
 import { removeTerminal as removeTerminalFromLayout } from '../shared/terminal-layout';
+import { agentProviderCatalog } from '../shared/agents';
 import type {
     AgentActivityState,
     AgentSnapshot,
@@ -20,15 +21,8 @@ import type { AgentLifecyclePhase } from './agents';
 /** Neutral automatic title used until a new Session gains useful Agent metadata or a manual name. */
 export const DEFAULT_SESSION_TITLE = 'Untitled';
 
-/** Single source of truth for the title a Terminal starts with. */
-const DEFAULT_TERMINAL_TITLE: Record<TerminalKind, string> = {
-    shell: 'Shell',
-    claude: 'Claude Code',
-    codex: 'Codex',
-};
-
 export function defaultTerminalTitle(kind: TerminalKind): string {
-    return DEFAULT_TERMINAL_TITLE[kind];
+    return kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName;
 }
 
 /** Maps a Terminal process lifecycle state onto the coarser Agent activity state shown in the UI. */
