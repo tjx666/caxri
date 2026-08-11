@@ -117,38 +117,53 @@ function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'keybindings.changed' && !event.payload.error) void installMenu();
 }
 
-async function handleExternalUrl(url: string, window?: BrowserWindow) {
-    return openExternalUrl(url, {
-        getTrustedDomains: async () =>
-            (await supervisor.request('settings.get')).value['security.trustedDomains'],
-        prompt: async (parsed) => {
-            const options = {
-                type: 'question' as const,
-                title: 'Open External Link',
-                message: `Open ${parsed.host} in your default browser?`,
-                detail: 'You can open this link once or trust this exact origin for future links.',
-                buttons: ['Open Once', 'Trust Domain and Open', 'Cancel'],
-                defaultId: 2,
-                cancelId: 2,
-            };
-            const result = window
-                ? await dialog.showMessageBox(window, options)
-                : await dialog.showMessageBox(options);
-            return result.response === 0
-                ? ('open_once' as const)
-                : result.response === 1
-                  ? ('trust' as const)
-                  : ('cancel' as const);
+async function handleExternalUrl(
+    url: string,
+    options: { allowTrust: boolean; window?: BrowserWindow },
+) {
+    return openExternalUrl(
+        url,
+        {
+            getTrustedDomains: async () =>
+                (await supervisor.request('settings.get')).value['security.trustedDomains'],
+            prompt: async (parsed) => {
+                const messageBoxOptions = options.allowTrust
+                    ? {
+                          type: 'question' as const,
+                          title: 'Open External Link',
+                          message: `Open ${parsed.host} in your default browser?`,
+                          detail: 'You can open this link once or trust this exact origin for future links.',
+                          buttons: ['Open Once', 'Trust Domain and Open', 'Cancel'],
+                          defaultId: 2,
+                          cancelId: 2,
+                      }
+                    : {
+                          type: 'question' as const,
+                          title: 'Open External Link',
+                          message: `Open ${parsed.host} in your default browser?`,
+                          detail: 'You can open this link once.',
+                          buttons: ['Open Once', 'Cancel'],
+                          defaultId: 1,
+                          cancelId: 1,
+                      };
+                const result = options.window
+                    ? await dialog.showMessageBox(options.window, messageBoxOptions)
+                    : await dialog.showMessageBox(messageBoxOptions);
+                if (result.response === 0) return 'open_once' as const;
+                if (options.allowTrust && result.response === 1) return 'trust' as const;
+                return 'cancel' as const;
+            },
+            trust: async (domain) => {
+                await supervisor.request('settings.trustDomain', { domain });
+            },
+            open: (target) => shell.openExternal(target),
         },
-        trust: async (domain) => {
-            await supervisor.request('settings.trustDomain', { domain });
-        },
-        open: (target) => shell.openExternal(target),
-    });
+        { allowTrust: options.allowTrust },
+    );
 }
 
 function handlePassiveExternalUrl(url: string, window: BrowserWindow): void {
-    void handleExternalUrl(url, window).catch((error) =>
+    void handleExternalUrl(url, { allowTrust: false, window }).catch((error) =>
         mainLogger?.write('error', 'external.open_failed', {
             fields: { error: errorMessage(error, 'Unable to open external link') },
         }),
@@ -393,7 +408,7 @@ function assertNever(value: never): never {
 async function handleMainMethod(request: MainRequest): Promise<unknown> {
     switch (request.method) {
         case 'external.open':
-            return handleExternalUrl(request.params.url, mainWindow);
+            return handleExternalUrl(request.params.url, { allowTrust: true, window: mainWindow });
         case 'dialog.selectDirectory': {
             const testRoot = resolveNextTestRootPath();
             if (testRoot) {
