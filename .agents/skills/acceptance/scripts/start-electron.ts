@@ -210,6 +210,7 @@ async function main(): Promise<void> {
             env: {
                 ...process.env,
                 CAXRI_E2E: '1',
+                CAXRI_E2E_WINDOW_MODE: 'visible',
                 CAXRI_TEST_ROOT_PATH: testRootPath,
                 CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
                 CAXRI_USER_DATA_DIR: userDataDir,

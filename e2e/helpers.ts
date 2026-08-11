@@ -71,6 +71,8 @@ export interface LaunchCaxriOptions {
     env?: NodeJS.ProcessEnv;
     /** Launches a packaged build instead of `.` (used by the startup benchmark). */
     executablePath?: string;
+    /** Hidden by default; use visible only for native focus, pointer, or desktop behavior. */
+    windowMode?: 'hidden' | 'visible';
 }
 
 /** Waits for the asynchronous New Terminal action to become observable through Runtime state. */
@@ -104,7 +106,7 @@ export async function launchCaxriApp(
     options: LaunchCaxriOptions,
 ): Promise<{ app: ElectronApplication; page: Page }> {
     await assertBuildIsFresh();
-    const { userDataDir, testRootPath, env = {}, executablePath } = options;
+    const { userDataDir, testRootPath, env = {}, executablePath, windowMode = 'hidden' } = options;
     let lease: DesktopLeaseHandle = await acquireDesktopLease(
         projectRoot,
         executablePath ? 'performance benchmark' : 'Electron E2E',
@@ -120,6 +122,7 @@ export async function launchCaxriApp(
                 ...process.env,
                 ...env,
                 CAXRI_E2E: '1',
+                CAXRI_E2E_WINDOW_MODE: windowMode,
                 CAXRI_USER_DATA_DIR: userDataDir,
                 CAXRI_TEST_ROOT_PATH: testRootPath,
             },

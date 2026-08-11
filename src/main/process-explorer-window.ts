@@ -13,6 +13,7 @@ import type { StructuredLogger } from '../shared/node/logger';
 import type { ThemeTokens } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
+import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
     currentDirectory: string;
@@ -22,6 +23,7 @@ interface ProcessExplorerWindowOptions {
     rendererUrl?: string;
     sampler: ProcessExplorerSampler;
     theme: () => Promise<ThemeTokens>;
+    windowMode: E2EWindowMode;
 }
 
 export class ProcessExplorerWindowController {
@@ -55,8 +57,10 @@ export class ProcessExplorerWindowController {
     open(): void {
         if (this.window && !this.window.isDestroyed()) {
             if (this.window.isMinimized()) this.window.restore();
-            this.window.show();
-            this.window.focus();
+            if (this.options.windowMode === 'visible') {
+                this.window.show();
+                this.window.focus();
+            }
             return;
         }
         const rendererUrl = this.resolveRendererUrl();
@@ -78,7 +82,9 @@ export class ProcessExplorerWindowController {
         });
         this.rendererCrashTimestampsMs = [];
         this.window = window;
-        window.once('ready-to-show', () => window.show());
+        window.once('ready-to-show', () => {
+            if (this.options.windowMode === 'visible') window.show();
+        });
         window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         window.webContents.on('will-navigate', (event, url) => {
             /**
