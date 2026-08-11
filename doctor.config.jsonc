@@ -37,6 +37,13 @@
                 "files": ["src/runtime/files/listing.ts"],
                 "rules": ["react-doctor/server-sequential-independent-await"],
             },
+            {
+                // Runtime domains deliberately expose index.ts boundaries. Cross-domain consumers
+                // must import those roots instead of reaching into implementation modules; the
+                // structure contract enforces this architecture rule.
+                "files": ["src/runtime/bootstrap.ts", "src/runtime/terminal/index.ts"],
+                "rules": ["react-doctor/no-barrel-import"],
+            },
         ],
     },
 }

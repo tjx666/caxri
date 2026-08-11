@@ -2,9 +2,12 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import parcelWatcher from '@parcel/watcher';
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultKeybindings } from '../../shared/commands';
+import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/configuration-contract';
 import { findKeybindingConflicts } from '../../shared/configuration';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
@@ -265,6 +268,41 @@ describe('ConfigurationService', () => {
         await service.close();
     });
 
+    it('keeps bounded defaults when disk configuration sources are oversized at startup', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-startup-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const oversizedSource = ' '.repeat(MAX_CONFIGURATION_SOURCE_BYTES + 1);
+        await Promise.all(
+            ['settings.jsonc', 'keybindings.jsonc', 'theme.json'].map((name) =>
+                writeFile(join(configDirectory, name), oversizedSource, 'utf8'),
+            ),
+        );
+        const events: RuntimeEvent[] = [];
+        const service = new ConfigurationService(directory, (event) => events.push(event));
+
+        await expect(service.initialize()).resolves.toBeUndefined();
+
+        expect(service.getSettings().source.length).toBeLessThan(MAX_CONFIGURATION_SOURCE_BYTES);
+        expect(service.getKeybindings().source.length).toBeLessThan(MAX_CONFIGURATION_SOURCE_BYTES);
+        expect(service.getTheme().source.length).toBeLessThan(MAX_CONFIGURATION_SOURCE_BYTES);
+        expect(service.getErrors()).toHaveLength(3);
+        for (const eventName of [
+            'settings.changed',
+            'keybindings.changed',
+            'theme.changed',
+        ] as const) {
+            const payload = events.find((event) => event.event === eventName)?.payload as
+                { error?: string; source: string } | undefined;
+            expect(payload?.error).toContain('configuration source limit');
+            expect(Buffer.byteLength(payload?.source ?? '', 'utf8')).toBeLessThanOrEqual(
+                MAX_CONFIGURATION_SOURCE_BYTES,
+            );
+        }
+        await service.close();
+    });
+
     it('merges file-tree exclusions with defaults without hiding dependency directories', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-files-exclude-'));
         temporaryDirectories.push(directory);
@@ -327,6 +365,102 @@ describe('ConfigurationService', () => {
             ]);
         } finally {
             await service.close();
+        }
+    });
+
+    it('keeps last-known-good sources after oversized external replacements', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-reload-'));
+        temporaryDirectories.push(directory);
+        const events: RuntimeEvent[] = [];
+        const service = new ConfigurationService(directory, (event) => events.push(event));
+        await service.initialize();
+        const cases = [
+            {
+                event: 'settings.changed' as const,
+                getSource: () => service.getSettings().source,
+                path: service.settingsPath,
+            },
+            {
+                event: 'keybindings.changed' as const,
+                getSource: () => service.getKeybindings().source,
+                path: service.keybindingsPath,
+            },
+            {
+                event: 'theme.changed' as const,
+                getSource: () => service.getTheme().source,
+                path: service.themePath,
+            },
+        ];
+
+        try {
+            for (const testCase of cases) {
+                events.length = 0;
+                const previousSource = testCase.getSource();
+                const temporaryPath = `${testCase.path}.external.tmp`;
+                await writeFile(
+                    temporaryPath,
+                    ' '.repeat(MAX_CONFIGURATION_SOURCE_BYTES + 1),
+                    'utf8',
+                );
+                await rename(temporaryPath, testCase.path);
+
+                await expect
+                    .poll(
+                        () => {
+                            const payload = events.find((event) => event.event === testCase.event)
+                                ?.payload as { error?: string; source: string } | undefined;
+                            return payload?.error;
+                        },
+                        { timeout: 5_000 },
+                    )
+                    .toContain('configuration source limit');
+                expect(testCase.getSource()).toBe(previousSource);
+                const payload = events.find((event) => event.event === testCase.event)?.payload as
+                    { error?: string; source: string } | undefined;
+                expect(payload?.source).toBe(previousSource);
+            }
+        } finally {
+            await service.close();
+        }
+    });
+
+    it('reports an unchanged oversized source only once while fallback polling', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-poll-'));
+        temporaryDirectories.push(directory);
+        const events: RuntimeEvent[] = [];
+        const subscribe = vi
+            .spyOn(parcelWatcher, 'subscribe')
+            .mockRejectedValueOnce(new Error('watcher unavailable'));
+        const service = new ConfigurationService(directory, (event) => events.push(event));
+
+        try {
+            await service.initialize();
+            events.length = 0;
+            const temporaryPath = `${service.settingsPath}.external.tmp`;
+            await writeFile(temporaryPath, ' '.repeat(MAX_CONFIGURATION_SOURCE_BYTES + 1), 'utf8');
+            await rename(temporaryPath, service.settingsPath);
+
+            await expect
+                .poll(
+                    () =>
+                        events.filter(
+                            (event) =>
+                                event.event === 'settings.changed' &&
+                                event.payload.error !== undefined,
+                        ).length,
+                    { timeout: 5_000 },
+                )
+                .toBe(1);
+            await new Promise((resolve) => setTimeout(resolve, 750));
+            expect(
+                events.filter(
+                    (event) =>
+                        event.event === 'settings.changed' && event.payload.error !== undefined,
+                ),
+            ).toHaveLength(1);
+        } finally {
+            await service.close();
+            subscribe.mockRestore();
         }
     });
 

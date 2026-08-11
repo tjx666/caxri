@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
+import { mkdir, open, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
 
 import { defaultAgentProviderSettings } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
+import {
+    configurationSourceSchema,
+    MAX_CONFIGURATION_SOURCE_BYTES,
+} from '../shared/configuration-contract';
 import {
     findKeybindingConflicts,
     keybindingsFileSchema,
@@ -35,6 +39,16 @@ interface WatcherSubscription {
 interface PreparedConfiguration {
     apply(): void;
     source: string;
+}
+
+class ConfigurationSourceReadError extends Error {
+    constructor(
+        message: string,
+        readonly revision: string,
+    ) {
+        super(message);
+        this.name = 'ConfigurationSourceReadError';
+    }
 }
 
 const WATCH_SETTLE_DELAY_MS = 100;
@@ -119,6 +133,50 @@ async function atomicWrite(path: string, source: string): Promise<void> {
     }
 }
 
+async function readBoundedConfigurationSource(path: string): Promise<string> {
+    const file = await open(path, 'r');
+    try {
+        const metadata = await file.stat();
+        const revision = [
+            metadata.dev,
+            metadata.ino,
+            metadata.size,
+            metadata.mtimeMs,
+            metadata.ctimeMs,
+        ].join(':');
+        if (!metadata.isFile()) {
+            throw new ConfigurationSourceReadError(
+                'Configuration source is not a regular file',
+                revision,
+            );
+        }
+        if (metadata.size > MAX_CONFIGURATION_SOURCE_BYTES) {
+            throw new ConfigurationSourceReadError(
+                `Configuration source exceeds the ${MAX_CONFIGURATION_SOURCE_BYTES} byte configuration source limit`,
+                revision,
+            );
+        }
+
+        /** The extra byte detects growth between stat and read without loading the full file. */
+        const buffer = Buffer.allocUnsafe(MAX_CONFIGURATION_SOURCE_BYTES + 1);
+        let bytesRead = 0;
+        while (bytesRead < buffer.length) {
+            const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+            if (result.bytesRead === 0) break;
+            bytesRead += result.bytesRead;
+        }
+        if (bytesRead > MAX_CONFIGURATION_SOURCE_BYTES) {
+            throw new ConfigurationSourceReadError(
+                `Configuration source exceeds the ${MAX_CONFIGURATION_SOURCE_BYTES} byte configuration source limit`,
+                revision,
+            );
+        }
+        return buffer.subarray(0, bytesRead).toString('utf8');
+    } finally {
+        await file.close();
+    }
+}
+
 export class ConfigurationService {
     readonly settingsPath: string;
     readonly keybindingsPath: string;
@@ -133,6 +191,7 @@ export class ConfigurationService {
     private watcher?: WatcherSubscription;
     private readonly watchTimers = new Map<string, NodeJS.Timeout>();
     private readonly observedSources = new Map<string, string>();
+    private readonly rejectedSourceRevisions = new Map<string, string>();
     private readonly errors = new Map<ConfigurationKind, string>();
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private closed = false;
@@ -202,16 +261,16 @@ export class ConfigurationService {
         const path = this.pathFor(kind);
         let source: string;
         try {
-            source = await readFile(path, 'utf8');
+            source = await readBoundedConfigurationSource(path);
+            this.rejectedSourceRevisions.delete(path);
         } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-            source =
-                kind === 'settings'
-                    ? this.settingsSource
-                    : kind === 'keybindings'
-                      ? this.keybindingsSource
-                      : this.themeSource;
-            await atomicWrite(path, source);
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                source = this.sourceFor(kind);
+                await atomicWrite(path, source);
+                return;
+            }
+            this.rememberRejectedSource(path, error);
+            this.recordConfigurationError(kind, error);
             return;
         }
         try {
@@ -221,18 +280,36 @@ export class ConfigurationService {
             this.observedSources.set(path, prepared.source);
             this.errors.delete(kind);
         } catch (error) {
-            const message = errorMessage(error, 'Configuration parse failed');
-            this.errors.set(kind, message);
-            this.logger?.write('warn', 'configuration.load_failed', {
-                fields: { kind, error: message },
-            });
-            this.emitChange(kind, this.sourceFor(kind), message);
+            this.recordConfigurationError(kind, error);
         }
+    }
+
+    private recordConfigurationError(kind: ConfigurationKind, error: unknown): void {
+        const fileName = basename(this.pathFor(kind));
+        const detail = errorMessage(error, 'Configuration load failed');
+        const message = detail.startsWith(`${fileName}:`) ? detail : `${fileName}: ${detail}`;
+        this.errors.set(kind, message);
+        this.logger?.write('warn', 'configuration.load_failed', {
+            fields: { kind, error: message },
+        });
+        this.emitChange(kind, this.sourceFor(kind), message);
+    }
+
+    /** Suppresses repeated polling errors without retaining any rejected source bytes. */
+    private rememberRejectedSource(path: string, error: unknown): boolean {
+        if (!(error instanceof ConfigurationSourceReadError)) {
+            this.rejectedSourceRevisions.delete(path);
+            return false;
+        }
+        const repeated = this.rejectedSourceRevisions.get(path) === error.revision;
+        this.rejectedSourceRevisions.set(path, error.revision);
+        return repeated;
     }
 
     private prepare(kind: ConfigurationKind, source: string): PreparedConfiguration {
         const path = this.pathFor(kind);
         try {
+            configurationSourceSchema.parse(source);
             if (kind === 'settings') {
                 const settings = settingsFileSchema.parse(parseJsonc(source));
                 return {
@@ -328,7 +405,8 @@ export class ConfigurationService {
         const kind = this.kindForPath(path);
         if (!kind) return;
         try {
-            const source = await readFile(path, 'utf8');
+            const source = await readBoundedConfigurationSource(path);
+            this.rejectedSourceRevisions.delete(path);
             if (source === this.observedSources.get(path)) return;
             this.observedSources.set(path, source);
             const prepared = this.prepare(kind, source);
@@ -342,9 +420,8 @@ export class ConfigurationService {
             this.emitChange(kind, prepared.source);
             if (kind === 'settings') this.notifySettings();
         } catch (error) {
-            const message = errorMessage(error, 'Configuration parse failed');
-            this.errors.set(kind, message);
-            this.emitChange(kind, this.sourceFor(kind), message);
+            if (this.rememberRejectedSource(path, error)) return;
+            this.recordConfigurationError(kind, error);
         }
     }
 
@@ -363,6 +440,7 @@ export class ConfigurationService {
         const path = this.pathFor(kind);
         await atomicWrite(path, prepared.source);
         this.observedSources.set(path, prepared.source);
+        this.rejectedSourceRevisions.delete(path);
         prepared.apply();
         this.errors.delete(kind);
         this.emitChange(kind, prepared.source);

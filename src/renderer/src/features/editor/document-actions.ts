@@ -2,6 +2,7 @@ import {
     editorTabPathsToClose,
     openEditorTabState,
     pinEditorTabState,
+    reconcileEditorTabDirtiness,
     updateEditorTabState,
     type EditorTabCloseMode,
 } from '@shared/editor-state';
@@ -74,13 +75,26 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
     const session = getSelectedSession();
     const current = getSessionState();
     if (!session || !current) return;
-    const opened = openEditorTabState(current, path, options.preview === true);
-    if (opened.replacedPath)
-        useSessionViewStore.getState().evictDocument(session.id, opened.replacedPath);
+    const view = useSessionViewStore.getState();
+    const previousActiveWork = view.activeWork[session.id];
+    const pathWasOpen = current.openTabs.some((tab) => tab.path === path);
+    const reconciled = reconcileEditorTabDirtiness(current, view.documents[session.id]);
+    const opened = openEditorTabState(reconciled, path, options.preview === true);
+    const replacedDocument = opened.replacedPath
+        ? view.documents[session.id]?.[opened.replacedPath]
+        : undefined;
+    if (opened.replacedPath) view.evictDocument(session.id, opened.replacedPath);
     const item: WorkItem = { kind: 'editor', path };
-    useSessionViewStore.getState().setActiveWork(session.id, item);
+    view.setActiveWork(session.id, item);
     const next = activateWorkState(opened.state, item);
-    if (next !== current) patchSessionState(next);
+    /** Session persistence rollback must also undo the Renderer-owned half of preview replacement. */
+    if (next !== current)
+        patchSessionState(next, undefined, () => {
+            const currentView = useSessionViewStore.getState();
+            if (!pathWasOpen) currentView.evictDocument(session.id, path);
+            if (replacedDocument) currentView.cacheDocument(session.id, replacedDocument);
+            currentView.setActiveWork(session.id, previousActiveWork);
+        });
 }
 
 /** Reads a file into the Session document cache without changing the focused WorkItem. */

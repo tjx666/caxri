@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import type { FileEntry } from '@shared/types';
 
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Input, InputGroup } from '../../components/ui/input';
 import { FileTypeIcon } from '../../icons/files/FileTypeIcon';
 import { cn } from '../../lib/utils';
 import { useCaxriQuery } from '../../queries/client';
@@ -157,7 +158,7 @@ function PathBrowserContent({
             showCloseButton={false}
         >
             <DialogTitle className="sr-only">Open File by Path</DialogTitle>
-            <div className="flex h-11 items-center border-b border-border bg-background px-3">
+            <InputGroup appearance="toolbar" size="palette">
                 <button
                     aria-label="Parent directory"
                     className="mr-1 grid size-7 flex-none place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground disabled:opacity-40"
@@ -171,7 +172,7 @@ function PathBrowserContent({
                 <span className="min-w-0 flex-none truncate text-[12px] text-muted">
                     {root ? relativeDirectory(root, directory) : ''}
                 </span>
-                <input
+                <Input
                     ref={inputRef}
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
@@ -179,9 +180,11 @@ function PathBrowserContent({
                     aria-controls={listboxId}
                     aria-expanded="true"
                     aria-label="File path"
-                    className="h-full min-w-[80px] flex-1 border-0 bg-transparent px-1 text-[13px] text-foreground outline-none"
+                    appearance="embedded"
+                    className="min-w-[80px] flex-1 px-1 text-foreground"
                     placeholder="Filter this directory…"
                     role="combobox"
+                    size="palette"
                     value={query}
                     onChange={(event) => {
                         const value = event.target.value;
@@ -190,7 +193,7 @@ function PathBrowserContent({
                     }}
                     onKeyDown={handleKeyDown}
                 />
-            </div>
+            </InputGroup>
             <div className="max-h-[360px] min-h-[180px] overflow-auto p-1">
                 {isPending && <p className="p-6 text-center text-muted">Loading…</p>}
                 {isError && (

@@ -18,9 +18,9 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '../../shared/types';
-import { discoverExecutable } from '../agents/discovery';
+import { discoverExecutable } from '../agents';
 import { runtimeProcessEnvironment } from '../executables';
-import type { CaxriDatabase } from '../db/repository';
+import type { CaxriDatabase } from '../db';
 import type { ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';

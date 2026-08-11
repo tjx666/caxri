@@ -29,7 +29,7 @@ jobs:
       - run: npm ci
       - run: bun run lint
       - run: bun run knip
-      - run: bun run doctor
+      - run: bun run doctor -- --scope changed
       - run: bun run typecheck
       - run: bun run format:check
       - run: bun run format:md:check

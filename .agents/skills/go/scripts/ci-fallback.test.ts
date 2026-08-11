@@ -75,6 +75,7 @@ describe('Go local CI fallback', () => {
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
+        expect(commands).toContain('bun run doctor -- --scope changed');
     });
 
     it('rejects fallback without every admission boundary', () => {

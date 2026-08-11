@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import './theme.css';
 /*
  * shadcn's default overlay animation layer (base-nova style). Provides the `animate-in` /
  * `animate-out` keyframe utilities plus fade/zoom/slide parameter classes consumed by
@@ -7,74 +7,7 @@
  */
 @import 'tw-animate-css';
 
-/*
- * DESIGN.md principle 5: unregister Tailwind's default palette so literal color utilities
- * (e.g. `bg-blue-500`) fail to compile — every color must resolve through a runtime theme
- * token, making "no hardcoded hex in component CSS" (principle 4) a build-time guarantee.
- */
-@theme {
-    --color-*: initial;
-}
-
-/*
- * Bridge Tailwind color utilities to the runtime theme CSS variables (DESIGN.md "Color
- * roles" table). `applyCssTheme` (`lib/theme-css.ts`) overwrites the underlying
- * `--background` etc. custom properties on `<html>` when a user imports a theme; because
- * utilities like `bg-surface` resolve through this indirection, the whole app restyles
- * live with no Tailwind rebuild — the standard shadcn "CSS variables as the palette"
- * pattern. `--selection` is a real runtime token too (raw theme color, not a semantic
- * role in DESIGN.md's table), so it stays a plain CSS variable referenced via arbitrary
- * values (`bg-[var(--selection)]`) instead of a registered Tailwind color.
- */
-@theme inline {
-    --color-background: var(--background);
-    --color-surface: var(--surface);
-    --color-elevated: var(--elevated);
-    --color-border: var(--border);
-    --color-foreground: var(--foreground);
-    --color-muted: var(--muted);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-success: var(--success);
-    --color-warning: var(--warning);
-    --color-danger: var(--danger);
-    --color-overlay: var(--overlay);
-    --color-shadow: var(--shadow);
-    --color-indicator: var(--indicator);
-}
-
 :root {
-    --background: #282a36;
-    --surface: #21222c;
-    --elevated: #343746;
-    --foreground: #f8f8f2;
-    --muted: #6272a4;
-    --border: #44475a;
-    --selection: #44475a;
-    --accent: #bd93f9;
-    --success: #50fa7b;
-    --warning: #f1fa8c;
-    --danger: #ff5555;
-
-    /*
-     * Derived roles. Themes only ship the raw colors above; `applyCssTheme` overrides those
-     * custom properties on this same element, so every `color-mix` below re-resolves for an
-     * imported theme without any JavaScript knowing these tokens exist. Keep every derivation
-     * here — a literal color anywhere else is a future light-theme bug.
-     */
-
-    /*
-     * Ink on an accent (or danger) fill tracks the window background: dark themes pair a light
-     * accent with dark ink, light themes pair a dark accent with light ink. Mixing in a little
-     * foreground keeps it from reading as a hole punched through the fill.
-     */
-    --accent-foreground: color-mix(in srgb, var(--background) 88%, var(--foreground));
-    --overlay: color-mix(in srgb, var(--background) 60%, transparent);
-    /* Elevation shadow: translucent black, derived once so no rule spells out an alpha again. */
-    --shadow: rgb(0 0 0 / 0.45);
-    /* Neutral "this tab is current" underline — the accent is reserved for the focused pane. */
-    --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);
-
     /*
      * Motion tokens — the single timing source for every layer of the motion stack
      * (DESIGN.md "Motion"): CSS transitions read them directly, tw-animate overlay classes
@@ -93,43 +26,6 @@
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     --motion-ease-enter: ease-out;
     --motion-ease-exit: ease-in;
-
-    color: var(--foreground);
-    background: var(--background);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-synthesis: none;
-}
-
-* {
-    box-sizing: border-box;
-}
-html,
-body,
-#root {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
-}
-/*
- * Base UI text size lives on `body`, not `:root`/`html` — Tailwind's spacing/sizing scale is
- * rem-based against the *root* (html) font-size, and DESIGN.md's 4px-grid spacing and row
- * heights (28/36/44px) are only correct utility output at the standard 16px root. Setting the
- * 13px base here instead keeps that rem math intact while still cascading 13px text everywhere.
- */
-body {
-    font-size: 13px;
-}
-button,
-input,
-textarea,
-select {
-    font: inherit;
-}
-@layer base {
-    button {
-        color: inherit;
-    }
 }
 
 /**
