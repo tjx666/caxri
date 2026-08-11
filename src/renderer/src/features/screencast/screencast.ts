@@ -4,6 +4,7 @@ import { commandDefinitions } from '@shared/commands';
 import type { Keybinding } from '@shared/types';
 
 import { buildShortcutMap, keyboardEventShortcut } from '../../lib/keybindings';
+import { pushToast } from '../../stores/toasts';
 
 export interface ScreencastKeyboardInput {
     altKey: boolean;
@@ -84,6 +85,19 @@ export const useScreencastStore = create<ScreencastState>((set) => ({
     toggle: () => set((state) => ({ enabled: !state.enabled })),
 }));
 
+/** Pure so it stays testable without a DOM `window` (the toast store's timers require one). */
+export function screencastToggleToastMessage(enabled: boolean): string {
+    return enabled ? 'Screencast Mode on' : 'Screencast Mode off';
+}
+
+/**
+ * The overlay's ripples are the only in-context feedback while Screencast Mode is active, and they
+ * only appear after a click or keystroke — the toggle itself was previously silent. A toast confirms
+ * the transition immediately; the persistent status-bar chip (see `StatusBar.tsx`) covers the rest
+ * of the active session.
+ */
 export function toggleScreencastMode(): void {
     useScreencastStore.getState().toggle();
+    const enabled = useScreencastStore.getState().enabled;
+    pushToast('info', screencastToggleToastMessage(enabled));
 }

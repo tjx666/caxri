@@ -91,6 +91,13 @@ describe('bug report target selection', () => {
         ).toBe('codex');
     });
 
+    it('reports no live target when the Session has no running Agent Terminal', () => {
+        expect(runningAgentTargets([], 'session-1')).toEqual([]);
+        expect(
+            runningAgentTargets([terminal('exited', { processId: undefined })], 'session-1'),
+        ).toEqual([]);
+    });
+
     it('discloses Codex clipboard-backed screenshot delivery before capture', () => {
         const notice = bugReportImageFallback('codex');
 

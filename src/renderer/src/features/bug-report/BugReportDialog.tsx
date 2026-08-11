@@ -288,6 +288,12 @@ function BugReportDialogContent() {
                             {contextError}
                         </p>
                     )}
+                    {!contextError && targets.length === 0 && (
+                        <p className="m-0 rounded border border-border bg-elevated px-3 py-2 text-[12px] text-muted">
+                            No running Agent in this Session — you can still copy the report to
+                            paste manually.
+                        </p>
+                    )}
                     <label className="grid gap-1 text-[12px]">
                         <span>Actual behavior</span>
                         <Textarea

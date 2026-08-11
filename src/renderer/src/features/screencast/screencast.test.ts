@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { Keybinding } from '@shared/types';
 
-import { describeScreencastKey, type ScreencastKeyboardInput } from './screencast';
+import {
+    describeScreencastKey,
+    screencastToggleToastMessage,
+    useScreencastStore,
+    type ScreencastKeyboardInput,
+} from './screencast';
 
 const keybindings: Keybinding[] = [
     { key: 'cmd+k', command: 'terminal.clear' },
@@ -78,5 +83,24 @@ describe('describeScreencastKey', () => {
                 editable: true,
             }),
         ).toBeUndefined();
+    });
+});
+
+describe('screencastToggleToastMessage', () => {
+    it('names the resulting state so the toast reads as a confirmation, not a command', () => {
+        expect(screencastToggleToastMessage(true)).toBe('Screencast Mode on');
+        expect(screencastToggleToastMessage(false)).toBe('Screencast Mode off');
+    });
+});
+
+describe('useScreencastStore', () => {
+    it('flips `enabled` on each toggle', () => {
+        useScreencastStore.setState({ enabled: false });
+
+        useScreencastStore.getState().toggle();
+        expect(useScreencastStore.getState().enabled).toBe(true);
+
+        useScreencastStore.getState().toggle();
+        expect(useScreencastStore.getState().enabled).toBe(false);
     });
 });

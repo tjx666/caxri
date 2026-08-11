@@ -1,5 +1,6 @@
 import {
     Braces,
+    Cast,
     FileDiff,
     GitBranch,
     GitCommitHorizontal,
@@ -38,6 +39,7 @@ import {
     editorStatusKey,
     useEditorStatusStore,
 } from '../editor/editor-status';
+import { useScreencastStore } from '../screencast/screencast';
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
@@ -208,6 +210,7 @@ const DEGRADED_STATES: Partial<Record<RuntimeStatus, { label: string; className:
 function StatusItem({
     ariaLabel,
     children,
+    className,
     href,
     icon: Icon,
     onClick,
@@ -215,6 +218,7 @@ function StatusItem({
 }: {
     ariaLabel: string;
     children: ReactNode;
+    className?: string;
     href?: string;
     icon: LucideIcon;
     onClick?: () => void;
@@ -228,7 +232,7 @@ function StatusItem({
     );
     return href ? (
         <a
-            className={statusItemClassName}
+            className={cn(statusItemClassName, className)}
             href={href}
             target="_blank"
             rel="noreferrer"
@@ -240,13 +244,37 @@ function StatusItem({
     ) : (
         <button
             type="button"
-            className={statusItemClassName}
+            className={cn(statusItemClassName, className)}
             aria-label={ariaLabel}
             title={title}
             onClick={onClick}
         >
             {content}
         </button>
+    );
+}
+
+/**
+ * Screencast Mode has no other persistent cue while active — see `screencast.ts`'s
+ * `toggleScreencastMode` for the paired toast. Muted tokens keep it quiet per DESIGN.md's status
+ * bar redline (only degraded Runtime state earns a loud chip); clicking replays the same toggle
+ * command a keybinding or the command palette would run.
+ */
+const screencastChipClassName = 'text-muted';
+
+function ScreencastModeChip() {
+    const enabled = useScreencastStore((state) => state.enabled);
+    if (!enabled) return null;
+    return (
+        <StatusItem
+            icon={Cast}
+            ariaLabel="Screencast Mode is on — click to turn it off"
+            title="Screencast Mode is on — click to turn it off"
+            className={screencastChipClassName}
+            onClick={() => executeCommand('developer.toggleScreencastMode')}
+        >
+            Screencast
+        </StatusItem>
     );
 }
 
@@ -455,6 +483,7 @@ export function StatusBar() {
                         {degraded.label}
                     </span>
                 )}
+                <ScreencastModeChip />
                 {sessionId &&
                     activeWork?.kind === 'editor' &&
                     !parseGitDiffTab(activeWork.path) && (
