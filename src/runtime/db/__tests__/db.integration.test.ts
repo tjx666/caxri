@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 
 import { CaxriDb } from '../index';
 import { CURRENT_SCHEMA_VERSION } from '../connection';
+import { migrationManifest, PRESERVED_SCHEMA_VERSION } from '../migrations/manifest';
 
 const temporaryDirectories: string[] = [];
 
@@ -29,6 +30,7 @@ describe('CaxriDb', () => {
         const db = new CaxriDb(join(directory, 'state.db'));
 
         expect(db.database.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
+        expect(db.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         expect(
             (db.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
                 (column) => column.name,
@@ -198,6 +200,50 @@ describe('CaxriDb', () => {
         rebuilt.close();
     });
 
+    it('migrates the preservation-floor schema without losing metadata', async () => {
+        const directory = await tempDir('caxri-db-preservation-floor-');
+        const databasePath = join(directory, 'state.db');
+        const floorDatabase = new Database(databasePath);
+        floorDatabase.pragma('foreign_keys = ON');
+        for (const migration of migrationManifest.slice(0, 2)) {
+            floorDatabase.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
+        }
+        floorDatabase
+            .prepare(
+                `INSERT INTO projects
+                 (id, root_path, display_title, created_at, last_opened_at)
+                 VALUES ('project-floor', ?, 'Preserved Project', 1, 1)`,
+            )
+            .run(directory);
+        floorDatabase
+            .prepare(
+                `INSERT INTO sessions
+                 (id, project_id, created_at, last_opened_at, primary_agent_terminal_id,
+                  last_activity_state, layout_version, display_title, archived_at)
+                 VALUES ('session-floor', 'project-floor', 1, 1, NULL, 'idle', 2,
+                         'Preserved Session', NULL)`,
+            )
+            .run();
+        floorDatabase.pragma(`user_version = ${PRESERVED_SCHEMA_VERSION}`);
+        floorDatabase.close();
+
+        const upgraded = new CaxriDb(databasePath);
+
+        expect(upgraded.projects.get('project-floor')).toMatchObject({
+            displayTitle: 'Preserved Project',
+            orderIndex: 0,
+        });
+        expect(upgraded.sessions.get('session-floor')).toMatchObject({
+            displayTitle: 'Preserved Session',
+            titleMode: 'automatic',
+        });
+        expect(upgraded.database.pragma('user_version', { simple: true })).toBe(
+            CURRENT_SCHEMA_VERSION,
+        );
+        expect(upgraded.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        upgraded.close();
+    });
+
     it('migrates the previous preserved schema without losing metadata or snapshots', async () => {
         const directory = await tempDir('caxri-db-preserved-upgrade-');
         const databasePath = join(directory, 'state.db');
@@ -232,6 +278,10 @@ describe('CaxriDb', () => {
 
         const upgraded = new CaxriDb(databasePath);
 
+        expect(upgraded.database.pragma('user_version', { simple: true })).toBe(
+            CURRENT_SCHEMA_VERSION,
+        );
+        expect(upgraded.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         expect(upgraded.projects.list()).toEqual([
             expect.objectContaining({ id: project.id, orderIndex: 0 }),
             expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),
