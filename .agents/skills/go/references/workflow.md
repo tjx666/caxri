@@ -49,7 +49,10 @@ then repair one cohesive batch.
   head has no product P0/P1.
 - After round three, allow one targeted verification of its P0/P1 repairs. If it
   exposes another architecture-level P0/P1, request a material architecture or
-  scope decision; never start round four.
+  scope decision; never start round four. An explicitly authorized repair may
+  receive one final targeted verification recorded with `--authorization`; never
+  run a third targeted verification in that post-round-three sequence. Delivery
+  repairs retain their own single targeted check after the latest full baseline.
 - P2/P3, stale evidence, PR copy, and workflow bookkeeping do not keep product
   review open. Record debt or fix delivery metadata in its owning phase.
 - A report against an old head is advisory. It can reopen work only when its

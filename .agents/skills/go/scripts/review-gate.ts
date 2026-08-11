@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const reviewModeSchema = z.enum(['full', 'targeted', 'verification']);
 
 const reviewDecisionSchema = z.object({
+    authorization: z.string().min(1).optional(),
     completedAt: z.string(),
     headSha: z.string().min(1),
     mode: reviewModeSchema,
@@ -26,6 +27,7 @@ interface ReviewContext {
 }
 
 interface ReviewDecisionInput {
+    authorization?: string;
     freeze: boolean;
     headSha: string;
     mode: ReviewMode;
@@ -62,11 +64,35 @@ export function recordReviewDecision(
         if (fullRounds === 0) {
             throw new Error('Targeted verification requires a prior full Goal-range review');
         }
+        if (state.phase === 'deep_review' && fullRounds < MAX_FULL_REVIEW_ROUNDS) {
+            throw new Error(
+                'Deep-review targeted verification is allowed only after the third full review',
+            );
+        }
         const lastFullIndex = state.reviewGate.rounds.findLastIndex(({ mode }) => mode === 'full');
-        if (
-            state.reviewGate.rounds.slice(lastFullIndex + 1).some(({ mode }) => mode === 'targeted')
-        ) {
+        const targetedDecisions = state.reviewGate.rounds
+            .slice(lastFullIndex + 1)
+            .filter(({ mode }) => mode === 'targeted');
+        if (fullRounds < MAX_FULL_REVIEW_ROUNDS && targetedDecisions.length > 0) {
             throw new Error('Only one targeted verification is allowed after each full review');
+        }
+        if (targetedDecisions.length >= 2) {
+            throw new Error(
+                'A Go run allows at most two targeted verifications after a full review',
+            );
+        }
+        if (targetedDecisions.length === 1) {
+            const previous = targetedDecisions[0];
+            if (previous.productP0 === 0 && previous.productP1 === 0) {
+                throw new Error(
+                    'An extra targeted verification is invalid when the prior targeted verification found no product P0/P1',
+                );
+            }
+            if (!input.authorization?.trim()) {
+                throw new Error(
+                    'A second targeted verification requires explicit user authorization after the first found product P0/P1',
+                );
+            }
         }
     } else {
         if (fullRounds === 0) {
@@ -100,6 +126,7 @@ export function recordReviewDecision(
     }
 
     const decision = reviewDecisionSchema.parse({
+        authorization: input.authorization?.trim() || undefined,
         completedAt: recordedAt,
         headSha: input.headSha,
         mode: input.mode,
