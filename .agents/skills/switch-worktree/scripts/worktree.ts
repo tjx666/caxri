@@ -106,8 +106,18 @@ export async function installWorktreeDependencies(
     const manifestNames = ['package.json', 'package-lock.json'] as const;
     const manifests = new Map<string, Buffer | undefined>();
     for (const name of manifestNames) {
+        const manifestPath = join(path, name);
         try {
-            manifests.set(name, await readFile(join(path, name)));
+            const stats = await lstat(manifestPath);
+            if (stats.isSymbolicLink())
+                throw new CommandError(
+                    `Refusing dependency install with symbolic link manifest: ${manifestPath}`,
+                );
+            if (!stats.isFile())
+                throw new CommandError(
+                    `Refusing dependency install with non-file manifest: ${manifestPath}`,
+                );
+            manifests.set(name, await readFile(manifestPath));
         } catch (error) {
             if (errorCode(error) !== 'ENOENT') throw error;
             manifests.set(name, undefined);
