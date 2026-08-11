@@ -13,6 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
 import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
@@ -378,6 +379,24 @@ function SettingsDialogView({
     // affordance. Focusing the popup container itself instead avoids that, while Tab
     // still moves focus into the dialog's controls normally.
     const popupRef = useRef<HTMLDivElement>(null);
+    const dirtySourceErrorKinds = dirtyKinds.filter((kind) => sourceErrors[kind] !== undefined);
+    const hasDirtyKeybindingConflicts =
+        dirtyKinds.includes('keybindings') && draftKeybindingConflicts.length > 0;
+    const applyDisabled =
+        saving ||
+        dirtyKinds.length === 0 ||
+        dirtySourceErrorKinds.length > 0 ||
+        hasDirtyKeybindingConflicts;
+    // Explains *why* Apply is disabled so a blocked user isn't left guessing; derived from the
+    // same state that computes `applyDisabled` above.
+    const applyDisabledReason =
+        !saving && dirtyKinds.length > 0
+            ? dirtySourceErrorKinds.length > 0
+                ? 'Fix source errors before applying'
+                : hasDirtyKeybindingConflicts
+                  ? `Resolve ${draftKeybindingConflicts.length} shortcut ${draftKeybindingConflicts.length === 1 ? 'conflict' : 'conflicts'} before applying`
+                  : undefined
+            : undefined;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
@@ -525,18 +544,17 @@ function SettingsDialogView({
                     >
                         <FileJson size={14} /> Open Config File
                     </Button>
-                    <Button
-                        disabled={
-                            saving ||
-                            dirtyKinds.length === 0 ||
-                            dirtyKinds.some((kind) => sourceErrors[kind] !== undefined) ||
-                            (dirtyKinds.includes('keybindings') &&
-                                draftKeybindingConflicts.length > 0)
-                        }
-                        onClick={() => void applyAll()}
-                    >
-                        <Save size={14} /> Apply
-                    </Button>
+                    {applyDisabledReason ? (
+                        <Tooltip content={applyDisabledReason}>
+                            <Button disabled={applyDisabled} onClick={() => void applyAll()}>
+                                <Save size={14} /> Apply
+                            </Button>
+                        </Tooltip>
+                    ) : (
+                        <Button disabled={applyDisabled} onClick={() => void applyAll()}>
+                            <Save size={14} /> Apply
+                        </Button>
+                    )}
                 </footer>
             </DialogContent>
         </Dialog>

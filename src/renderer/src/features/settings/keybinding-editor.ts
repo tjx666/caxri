@@ -20,6 +20,22 @@ const defaultByCommand = new Map(
     defaultKeybindings.map((binding) => [binding.command, binding.key]),
 );
 
+const modifierKeyNames = new Set(['Alt', 'Control', 'Meta', 'Shift']);
+
+/** A lone modifier key press only arms further recording; it never forms a shortcut by itself. */
+export function isModifierKey(key: string): boolean {
+    return modifierKeyNames.has(key);
+}
+
+/**
+ * `Tab`/`Shift+Tab` must keep moving focus even while the shortcut recorder is active, so the
+ * recorder never captures them as part of a shortcut. Without this, Tab would get trapped on the
+ * recording button and the browser's normal focus order would break.
+ */
+export function isFocusNavigationKey(key: string): boolean {
+    return key === 'Tab';
+}
+
 /** Builds lossless source-order rows, followed by catalog commands that have no binding. */
 export function buildKeybindingRows(keybindings: readonly Keybinding[]): KeybindingRow[] {
     const occurrences = new Map<string, number>();
