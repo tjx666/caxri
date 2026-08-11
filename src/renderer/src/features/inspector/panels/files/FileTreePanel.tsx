@@ -419,12 +419,14 @@ function FileTreeItem({
                 <ContextMenuItem onClick={() => rememberFile(projectId, entry.path, 'copy')}>
                     Copy
                 </ContextMenuItem>
-                <ContextMenuItem
-                    disabled={!canPaste || fileOperationsPending}
-                    onClick={() => void pasteIntoEntry()}
-                >
-                    Paste
-                </ContextMenuItem>
+                {canPaste && (
+                    <ContextMenuItem
+                        disabled={fileOperationsPending}
+                        onClick={() => void pasteIntoEntry()}
+                    >
+                        Paste
+                    </ContextMenuItem>
+                )}
                 <ContextMenuItem
                     disabled={fileOperationsPending}
                     onClick={() => void duplicateEntry()}
@@ -699,17 +701,17 @@ export function FileTreePanel() {
                         >
                             New Folder
                         </ContextMenuItem>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem
-                            disabled={
-                                !clipboard ||
-                                clipboard.projectId !== projectId ||
-                                Boolean(pendingOperation)
-                            }
-                            onClick={() => void pasteIntoProjectRoot()}
-                        >
-                            Paste
-                        </ContextMenuItem>
+                        {clipboard && clipboard.projectId === projectId && (
+                            <>
+                                <ContextMenuSeparator />
+                                <ContextMenuItem
+                                    disabled={Boolean(pendingOperation)}
+                                    onClick={() => void pasteIntoProjectRoot()}
+                                >
+                                    Paste
+                                </ContextMenuItem>
+                            </>
+                        )}
                     </ContextMenuContent>
                 </ContextMenu>
             )}
