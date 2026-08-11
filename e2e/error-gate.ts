@@ -164,5 +164,3 @@ export function allowE2EErrors(allowances: readonly E2EErrorAllowance[]): void {
     if (!gate) throw new Error('allowE2EErrors must run inside the shared E2E test fixture');
     gate.allow(allowances);
 }
-
-export type { E2EErrorAllowance, E2EErrorSource };

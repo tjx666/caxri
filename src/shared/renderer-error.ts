@@ -3,7 +3,7 @@ export const RENDERER_ERROR_CHANNELS = {
     workbench: 'caxri:renderer-error',
 } as const;
 
-export const RENDERER_ERROR_KINDS = ['page-exception', 'unhandled-rejection'] as const;
+const RENDERER_ERROR_KINDS = ['page-exception', 'unhandled-rejection'] as const;
 export type RendererErrorKind = (typeof RENDERER_ERROR_KINDS)[number];
 
 export function isRendererErrorKind(value: unknown): value is RendererErrorKind {
