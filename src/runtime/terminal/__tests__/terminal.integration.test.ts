@@ -488,6 +488,71 @@ describe('TerminalManager', () => {
         }
     });
 
+    it('waits for the receiving Renderer grid before spawning a visible restored Terminal', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-restore-grid-wait-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        const spawn = vi.fn<typeof spawnPty>(() => fake.process);
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
+        );
+
+        try {
+            const starting = manager.start(created.terminal, { waitForAttachedSizeMs: 1_000 });
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect(spawn).not.toHaveBeenCalled();
+
+            await manager.attach(created.terminal.id, { cols: 132, rows: 41 });
+            await starting;
+
+            expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cols: 132, rows: 41 });
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('cancels a pending restore grid wait during Runtime shutdown', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-restore-grid-shutdown-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
+        );
+        let shouldStart = true;
+        const starting = manager.start(created.terminal, {
+            shouldStart: () => shouldStart,
+            waitForAttachedSizeMs: 100,
+        });
+
+        try {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            shouldStart = false;
+            manager.shutdown('orderly');
+
+            const completedBeforeTimeout = await Promise.race([
+                starting.then(() => true),
+                new Promise<false>((resolve) => setTimeout(() => resolve(false), 20)),
+            ]);
+            expect(completedBeforeTimeout).toBe(true);
+            expect(spawn).not.toHaveBeenCalled();
+        } finally {
+            shouldStart = false;
+            await starting;
+            database.close();
+        }
+    });
+
     it('detaches every Renderer view without stopping its PTY', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detach-all-'));
         temporaryDirectories.push(directory);

@@ -23,6 +23,15 @@ async function latestAgentGrid(path: string, generation: number): Promise<string
         ?.slice(`${generation}:`.length);
 }
 
+async function firstAgentGrid(path: string, generation: number): Promise<string | undefined> {
+    const text = await readFile(path, 'utf8').catch(() => '');
+    return text
+        .trim()
+        .split('\n')
+        .find((line) => line.startsWith(`${generation}:`))
+        ?.slice(`${generation}:`.length);
+}
+
 async function hasExpectedAgentScreen(
     page: Page,
     generation: number,
@@ -210,6 +219,7 @@ render();
             await running.app.close();
             running = await launchCaxri(launchOptions);
             await expect(running.page.locator('.process-running')).toBeVisible();
+            await expect.poll(() => firstAgentGrid(gridLog, 2)).toBe(expectedGrid);
             await expect.poll(() => latestAgentGrid(gridLog, 2)).toBe(expectedGrid);
             await expect
                 .poll(() => hasExpectedAgentScreen(running.page, 2, expectedGrid))
