@@ -19,6 +19,7 @@ import {
     terminalKeyboardInput,
 } from './terminal-keyboard';
 import { registerTerminalLinks } from './terminal-links';
+import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import { TerminalReplayCoordinator } from './terminal-replay';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
 import {
@@ -64,6 +65,7 @@ export function useTerminalPaneRuntime({
     const replayRef = useRef<TerminalReplayCoordinator | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const attachedEpochRef = useRef(attachEpoch);
+    const previousProcessStateRef = useRef(processState);
     const latestRef = useRef({
         active,
         copyOnSelect,
@@ -253,14 +255,12 @@ export function useTerminalPaneRuntime({
         const initialize = async (): Promise<void> => {
             let payload = '';
             try {
-                const attachmentIsLive = latestRef.current.processState === 'running';
                 const attachment = await caxri.request(
                     'terminal.attach',
-                    attachmentIsLive && initialSize
-                        ? { terminalId, ...initialSize }
-                        : { terminalId },
+                    initialSize ? { terminalId, ...initialSize } : { terminalId },
                 );
-                if (attachmentIsLive && initialSize) lastSentSize = initialSize;
+                if (latestRef.current.processState === 'running' && initialSize)
+                    lastSentSize = initialSize;
                 payload = attachment?.payload ?? '';
             } catch (error) {
                 if (!disposed) onError(errorMessage(error, 'Terminal attachment failed'));
@@ -320,12 +320,31 @@ export function useTerminalPaneRuntime({
 
     useEffect(() => {
         const xterm = xtermRef.current;
+        const replay = replayRef.current;
+        const previousProcessState = previousProcessStateRef.current;
+        previousProcessStateRef.current = processState;
         if (!xterm) return;
         const isRunning = processState === 'running';
         xterm.options.disableStdin = !isRunning;
         if (active && isRunning) requestAnimationFrame(() => xterm.focus());
         else xterm.blur();
-    }, [active, processState]);
+        if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
+        /** The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.
+         *  Reattach once at the measured grid so Runtime resizes its parsed screen behind an ordering
+         *  barrier, then replace any stale persisted snapshot ahead of later live output. */
+        void replay
+            .reattach(async () => {
+                const attachment = await caxri.request('terminal.attach', {
+                    terminalId,
+                    cols: xterm.cols,
+                    rows: xterm.rows,
+                });
+                return attachment?.payload ?? '';
+            })
+            .catch((error: unknown) =>
+                onError(errorMessage(error, 'Terminal recovery reconciliation failed')),
+            );
+    }, [active, processState, terminalId]);
 
     useEffect(() => {
         if (!xtermRef.current) return;

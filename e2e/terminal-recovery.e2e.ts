@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +11,34 @@ async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.focus();
     await input.pressSequentially(command);
     await input.press('Enter');
+}
+
+async function latestAgentGrid(path: string, generation: number): Promise<string | undefined> {
+    const text = await readFile(path, 'utf8').catch(() => '');
+    return text
+        .trim()
+        .split('\n')
+        .filter((line) => line.startsWith(`${generation}:`))
+        .at(-1)
+        ?.slice(`${generation}:`.length);
+}
+
+async function hasExpectedAgentScreen(
+    page: Page,
+    generation: number,
+    grid: string,
+): Promise<boolean> {
+    const [cols, rows] = grid.split('x').map(Number);
+    if (!cols || !rows) return false;
+    const renderedRows = await page.locator('.xterm-rows > div').allTextContents();
+    const horizontal = '─'.repeat(cols - 2);
+    return (
+        renderedRows.length === rows &&
+        renderedRows[0] === `┌${horizontal}┐` &&
+        renderedRows[1]?.startsWith(`│GEN ${generation} GRID ${grid} 中`) === true &&
+        renderedRows[1]?.endsWith('│') === true &&
+        renderedRows.at(-1) === `└${horizontal}┘`
+    );
 }
 
 test('normal exit stays neutral and restart preserves one durable Terminal', async () => {
@@ -102,3 +130,93 @@ test('startup failure uses a compact danger status without covering output', asy
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+for (const agent of [
+    { kind: 'codex', name: 'Codex' },
+    { kind: 'claude', name: 'Claude Code' },
+] as const) {
+    test(`restored ${agent.name} Terminal renders its cursor-addressed first screen at the visible grid`, async () => {
+        const testDirectory = await mkdtemp(join(tmpdir(), `caxri-${agent.kind}-grid-e2e-`));
+        const userData = join(testDirectory, 'user-data');
+        const root = join(testDirectory, 'project');
+        const bin = join(testDirectory, 'bin');
+        const generationFile = join(testDirectory, 'generation');
+        const gridLog = join(testDirectory, 'grid.log');
+        const executable = join(bin, agent.kind);
+        await Promise.all([mkdir(root, { recursive: true }), mkdir(bin, { recursive: true })]);
+        await writeFile(
+            executable,
+            `#!${process.execPath}
+const fs = require('node:fs');
+if (process.argv.includes('--version')) {
+  console.log(${JSON.stringify(`${agent.kind}-grid-test 1.0`)});
+  process.exit(0);
+}
+const generationPath = ${JSON.stringify(generationFile)};
+const gridLog = ${JSON.stringify(gridLog)};
+const generation = fs.existsSync(generationPath)
+  ? Number(fs.readFileSync(generationPath, 'utf8')) + 1
+  : 1;
+fs.writeFileSync(generationPath, String(generation));
+const escape = '\\x1b';
+let redrawTimer;
+function render() {
+  const cols = process.stdout.columns || 100;
+  const rows = process.stdout.rows || 30;
+  const grid = cols + 'x' + rows;
+  fs.appendFileSync(gridLog, generation + ':' + grid + '\\n');
+  const label = 'GEN ' + generation + ' GRID ' + grid + ' ';
+  const horizontal = '─'.repeat(Math.max(0, cols - 2));
+  const contentPadding = ' '.repeat(Math.max(0, cols - 2 - label.length - 2));
+  process.stdout.write(
+    escape + '[?1049h' + escape + '[2J' +
+    escape + '[1;1H┌' + horizontal + '┐' +
+    escape + '[2;1H│' + label + '中' + contentPadding + '│' +
+    escape + '[' + rows + ';1H└' + horizontal + '┘' +
+    escape + '[3;2H'
+  );
+}
+function scheduleRender() {
+  clearTimeout(redrawTimer);
+  redrawTimer = setTimeout(render, 10);
+}
+process.on('SIGWINCH', scheduleRender);
+process.stdin.resume();
+render();
+`,
+            'utf8',
+        );
+        await chmod(executable, 0o700);
+        const launchOptions = {
+            userDataDir: userData,
+            testRootPath: root,
+            env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+        };
+
+        let running = await launchCaxri(launchOptions);
+        try {
+            await createProjectSession(running.page, agent.kind);
+            await expect(running.page.locator('.process-running')).toBeVisible();
+            await running.app.evaluate(({ BrowserWindow }) =>
+                BrowserWindow.getAllWindows()[0]?.setBounds({ width: 800, height: 600 }),
+            );
+            await expect.poll(() => latestAgentGrid(gridLog, 1)).toMatch(/^(?!100x30)\d+x\d+$/);
+            const expectedGrid = await latestAgentGrid(gridLog, 1);
+            if (!expectedGrid) throw new Error(`${agent.name} did not report its visible grid`);
+            await expect
+                .poll(() => hasExpectedAgentScreen(running.page, 1, expectedGrid))
+                .toBe(true);
+
+            await running.app.close();
+            running = await launchCaxri(launchOptions);
+            await expect(running.page.locator('.process-running')).toBeVisible();
+            await expect.poll(() => latestAgentGrid(gridLog, 2)).toBe(expectedGrid);
+            await expect
+                .poll(() => hasExpectedAgentScreen(running.page, 2, expectedGrid))
+                .toBe(true);
+        } finally {
+            await running.app.close().catch(() => undefined);
+            await rm(testDirectory, { recursive: true, force: true });
+        }
+    });
+}
