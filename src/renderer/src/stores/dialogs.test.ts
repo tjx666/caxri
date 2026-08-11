@@ -5,6 +5,7 @@ import { useDialogStore } from './dialogs';
 describe('modal registration', () => {
     beforeEach(() => {
         useDialogStore.setState({
+            archivedSessionsOpen: false,
             settingsOpen: false,
             paletteOpen: false,
             pathBrowserOpen: false,
@@ -12,6 +13,14 @@ describe('modal registration', () => {
             pendingProjectId: undefined,
             openModalIds: new Set(),
         });
+    });
+
+    it('opens and closes the archived Sessions manager', () => {
+        useDialogStore.getState().setArchivedSessionsOpen(true);
+        expect(useDialogStore.getState().archivedSessionsOpen).toBe(true);
+
+        useDialogStore.getState().setArchivedSessionsOpen(false);
+        expect(useDialogStore.getState().archivedSessionsOpen).toBe(false);
     });
 
     it('reports no modal open when the registry is empty', () => {
