@@ -165,7 +165,7 @@ describe('file mutation reconciliation', () => {
                 ],
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
-                    openTabs: [{ path: previousPath, dirty: false }],
+                    openTabs: [{ path: previousPath, dirty: true }],
                     activeTab: { kind: 'editor' as const, path: previousPath },
                     inspectorMode: 'files' as const,
                     layout: {},
@@ -173,6 +173,18 @@ describe('file mutation reconciliation', () => {
                 terminals: [],
             } as unknown as BootstrapState,
         });
+        for (const sessionId of ['session-a', 'session-b']) {
+            useSessionViewStore.getState().cacheDocument(sessionId, {
+                path: previousPath,
+                content: `${sessionId} dirty body`,
+                dirty: true,
+                mtimeMs: 1,
+                size: 20,
+            });
+            useSessionViewStore
+                .getState()
+                .setActiveWork(sessionId, { kind: 'editor', path: previousPath });
+        }
         const operation: FileMutationOperation = {
             id: 'operation-retry-move',
             kind: 'move',
@@ -206,7 +218,19 @@ describe('file mutation reconciliation', () => {
         );
         expect(
             useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: false }], [{ path: previousPath, dirty: false }]]);
+        ).toEqual([[{ path: nextPath, dirty: true }], [{ path: nextPath, dirty: true }]]);
+        expect(useSessionViewStore.getState().activeWork).toEqual({
+            'session-a': { kind: 'editor', path: nextPath },
+            'session-b': { kind: 'editor', path: nextPath },
+        });
+        expect(useSessionViewStore.getState().documents).toMatchObject({
+            'session-a': {
+                [nextPath]: { content: 'session-a dirty body', dirty: true, path: nextPath },
+            },
+            'session-b': {
+                [nextPath]: { content: 'session-b dirty body', dirty: true, path: nextPath },
+            },
+        });
 
         await vi.runOnlyPendingTimersAsync();
         await vi.waitFor(() => {
@@ -216,6 +240,16 @@ describe('file mutation reconciliation', () => {
         });
         expect(
             useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: false }], [{ path: nextPath, dirty: false }]]);
+        ).toEqual([[{ path: nextPath, dirty: true }], [{ path: nextPath, dirty: true }]]);
+        expect(
+            Object.values(useSessionViewStore.getState().documents).map((documents) =>
+                Object.keys(documents),
+            ),
+        ).toEqual([[nextPath], [nextPath]]);
+        expect(
+            Object.values(useSessionViewStore.getState().documents).map(
+                (documents) => documents[nextPath]?.content,
+            ),
+        ).toEqual(['session-a dirty body', 'session-b dirty body']);
     });
 });
