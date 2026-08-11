@@ -118,6 +118,23 @@ export function SettingsForm({ settings, onFieldChange }: SettingsFormProps) {
                         </span>
                     </span>
                 </label>
+                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <span>
+                        Copy on select
+                        <span className="block text-[11px] text-muted">
+                            Automatically copy Terminal selections to the clipboard
+                        </span>
+                    </span>
+                    <input
+                        aria-label="Copy on select"
+                        checked={settings['terminal.copyOnSelect']}
+                        className="size-4 flex-none accent-[var(--accent)]"
+                        type="checkbox"
+                        onChange={(event) =>
+                            onFieldChange('terminal.copyOnSelect', event.target.checked)
+                        }
+                    />
+                </label>
                 <label className="mb-4 block text-foreground">
                     <span>
                         New Terminal working directory

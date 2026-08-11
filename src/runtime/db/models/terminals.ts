@@ -5,6 +5,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import type {
     AgentProvider,
     ProcessState,
+    TerminalFailureReason,
     TerminalKind,
     TerminalRecord,
 } from '../../../shared/types';
@@ -26,6 +27,7 @@ interface TerminalRow {
     layoutNodeId: string;
     agentSessionId: string | null;
     lastProcessState: string;
+    failureReason: string | null;
     createdAt: number;
     updatedAt: number;
 }
@@ -43,6 +45,7 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         layoutNodeId: row.layoutNodeId,
         agentSessionId: row.agentSessionId ?? undefined,
         lastProcessState: row.lastProcessState as ProcessState,
+        failureReason: (row.failureReason as TerminalFailureReason | null) ?? undefined,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
     };
@@ -134,10 +137,20 @@ export class TerminalsModel {
         return this.db.delete(terminals).where(eq(terminals.id, id)).run().changes === 1;
     }
 
-    updateState(id: string, state: ProcessState, now = Date.now()): void {
+    /** `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it. */
+    updateState(
+        id: string,
+        state: ProcessState,
+        failureReason?: TerminalFailureReason,
+        now = Date.now(),
+    ): void {
         this.db
             .update(terminals)
-            .set({ lastProcessState: state, updatedAt: now })
+            .set({
+                lastProcessState: state,
+                failureReason: state === 'failed' ? (failureReason ?? null) : null,
+                updatedAt: now,
+            })
             .where(eq(terminals.id, id))
             .run();
     }

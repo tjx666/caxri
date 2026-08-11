@@ -61,6 +61,8 @@ export const terminals = sqliteTable(
         layoutNodeId: text('layout_node_id').notNull(),
         agentSessionId: text('agent_session_id'),
         lastProcessState: text('last_process_state').notNull(),
+        /** Set only alongside `lastProcessState = 'failed'`; see `TerminalFailureReason`. */
+        failureReason: text('failure_reason'),
         createdAt: integer('created_at').notNull(),
         updatedAt: integer('updated_at').notNull(),
     },

@@ -12,6 +12,7 @@ import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
+    TerminalFailureReason,
     TerminalKind,
     TerminalRecord,
     TerminalResourceUsage,
@@ -127,6 +128,12 @@ export class TerminalManager {
         options?: TerminalStartOptions,
     ): Promise<TerminalRecord> {
         const startedAt = performance.now();
+        /**
+         * Tracks which spawn stage is in flight so the `catch` below can attach a precise
+         * `TerminalFailureReason` instead of pattern-matching the thrown error's message. Defaults
+         * to the last stage (`spawn_failed`) since a `pty.spawn` failure has no distinct guard.
+         */
+        let failureReason: TerminalFailureReason = 'spawn_failed';
         try {
             const launch =
                 record.kind === 'shell'
@@ -135,6 +142,7 @@ export class TerminalManager {
                           executable: agentProviderCatalog[record.kind].executableName,
                           args: [],
                       });
+            failureReason = 'executable_not_found';
             const executable = await this.resolveExecutable(record.kind, launch);
             const args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
             if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
@@ -158,7 +166,9 @@ export class TerminalManager {
                 this.database.updateTerminalState(record.id, 'interrupted');
                 return this.database.getTerminal(record.id)!;
             }
+            failureReason = 'working_directory_unavailable';
             await this.assertWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
+            failureReason = 'spawn_failed';
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -199,7 +209,7 @@ export class TerminalManager {
             return this.database.getTerminal(record.id)!;
         } catch (error) {
             if (this.database.getTerminal(record.id))
-                this.database.updateTerminalState(record.id, 'failed');
+                this.database.updateTerminalState(record.id, 'failed', failureReason);
             this.logger.write('error', 'pty.spawn_failed', {
                 durationMs: performance.now() - startedAt,
                 fields: {

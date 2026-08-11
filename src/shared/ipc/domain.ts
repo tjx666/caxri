@@ -35,6 +35,16 @@ const processStateSchema = z.enum([
     'failed',
     'interrupted',
 ]);
+/**
+ * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of
+ * codes (not free text) so the Renderer maps each one to actionable copy in
+ * `terminal-exit-presentation.ts` without trusting Runtime-authored strings.
+ */
+const terminalFailureReasonSchema = z.enum([
+    'working_directory_unavailable',
+    'executable_not_found',
+    'spawn_failed',
+]);
 
 export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
@@ -42,6 +52,7 @@ export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
+export type TerminalFailureReason = z.infer<typeof terminalFailureReasonSchema>;
 export type { InspectorMode } from '../inspector';
 
 export const projectRecordSchema = z.object({
@@ -90,6 +101,8 @@ export const terminalRecordSchema = z.object({
     layoutNodeId: z.string(),
     agentSessionId: z.string().optional(),
     lastProcessState: processStateSchema,
+    /** Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`. */
+    failureReason: terminalFailureReasonSchema.optional(),
     createdAt: z.number(),
     updatedAt: z.number(),
     /** Live Runtime metadata; absent when the PTY is not running. */
@@ -130,6 +143,7 @@ export const sessionStateSchema = z.object({
 export const SETTINGS_BOUNDS = {
     'terminal.fontSize': { min: 9, max: 32, default: 13 },
     'terminal.scrollback': { min: 100, max: 10_000, default: 2_000 },
+    'terminal.copyOnSelect': { default: true },
     'files.maxFileBytes': {
         min: 1_024,
         max: MAX_CONFIGURABLE_FILE_BYTES,
@@ -161,6 +175,7 @@ export const appSettingsSchema = z.object({
     'terminal.defaultWorkingDirectory': z.string().nullable(),
     'terminal.fontSize': z.number(),
     'terminal.scrollback': z.number(),
+    'terminal.copyOnSelect': z.boolean(),
     'files.exclude': z.record(z.string(), z.boolean()),
     'files.maxFileBytes': z.number(),
 });

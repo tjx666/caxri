@@ -1,6 +1,6 @@
 import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
 
-import type { ProcessState } from '@shared/types';
+import type { ProcessState, TerminalFailureReason } from '@shared/types';
 
 import { Button } from '../../components/ui/button';
 import { CommandTooltip } from '../../components/ui/tooltip';
@@ -29,15 +29,17 @@ const terminalRecoveryMessageClassName =
     'terminal-recovery-message inline-flex items-center gap-2 overflow-hidden whitespace-nowrap text-ellipsis';
 
 function TerminalRecoveryBar({
+    failureReason,
     processState,
     resumesAgentSession,
     terminalId,
 }: {
+    failureReason: TerminalFailureReason | undefined;
     processState: ProcessState;
     resumesAgentSession: boolean;
     terminalId: string;
 }) {
-    const exitPresentation = getTerminalExitPresentation(processState);
+    const exitPresentation = getTerminalExitPresentation(processState, failureReason);
     if (!exitPresentation) return null;
     const ExitIcon =
         exitPresentation.icon === 'completed'
@@ -101,6 +103,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
     const fontSize = settings?.['terminal.fontSize'] ?? 13;
     const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
+    const copyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
     const processState = terminal?.lastProcessState ?? 'starting';
     const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
     const terminalTheme = theme?.terminal;
@@ -108,6 +111,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const containerRef = useTerminalPaneRuntime({
         active,
         attachEpoch,
+        copyOnSelect,
         fontSize,
         isCodex,
         processState,
@@ -132,6 +136,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         >
             <div ref={containerRef} className="terminal-surface min-h-0 w-full flex-1" />
             <TerminalRecoveryBar
+                failureReason={terminal?.failureReason}
                 processState={processState}
                 resumesAgentSession={resumesAgentSession}
                 terminalId={terminalId}

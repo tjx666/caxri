@@ -30,6 +30,7 @@ import {
 interface TerminalPaneRuntimeOptions {
     active: boolean;
     attachEpoch: number;
+    copyOnSelect: boolean;
     fontSize: number;
     isCodex: boolean;
     processState: ProcessState;
@@ -47,6 +48,7 @@ const onError = (message: string): void => pushToast('error', message);
 export function useTerminalPaneRuntime({
     active,
     attachEpoch,
+    copyOnSelect,
     fontSize,
     isCodex,
     processState,
@@ -64,6 +66,7 @@ export function useTerminalPaneRuntime({
     const attachedEpochRef = useRef(attachEpoch);
     const latestRef = useRef({
         active,
+        copyOnSelect,
         fontSize,
         isCodex,
         processState,
@@ -77,6 +80,7 @@ export function useTerminalPaneRuntime({
     useEffect(() => {
         latestRef.current = {
             active,
+            copyOnSelect,
             fontSize,
             isCodex,
             processState,
@@ -88,6 +92,7 @@ export function useTerminalPaneRuntime({
         };
     }, [
         active,
+        copyOnSelect,
         fontSize,
         isCodex,
         processState,
@@ -149,7 +154,9 @@ export function useTerminalPaneRuntime({
                 });
             },
             openUrl(url) {
-                window.open(url, '_blank', 'noopener,noreferrer');
+                const opened = window.open(url, '_blank', 'noopener,noreferrer');
+                /** A popup blocker (or an OS-level prompt) can silently return null instead of throwing. */
+                if (!opened) onError(`Popup blocked: allow popups for Caxri to open ${url}`);
             },
         });
         xterm.attachCustomKeyEventHandler((event) => {
@@ -228,6 +235,7 @@ export function useTerminalPaneRuntime({
             },
         );
         const selectionDisposable = xterm.onSelectionChange(() => {
+            if (!latestRef.current.copyOnSelect) return;
             void selectionClipboard.copy(xterm.getSelection());
         });
         const unsubscribe = caxri.onEvent((event) => {

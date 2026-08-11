@@ -90,6 +90,7 @@ const defaultSettings: AppSettings = {
     'terminal.defaultWorkingDirectory': null,
     'terminal.fontSize': SETTINGS_BOUNDS['terminal.fontSize'].default,
     'terminal.scrollback': SETTINGS_BOUNDS['terminal.scrollback'].default,
+    'terminal.copyOnSelect': SETTINGS_BOUNDS['terminal.copyOnSelect'].default,
     'files.exclude': { ...DEFAULT_FILES_EXCLUDE },
     'files.maxFileBytes': SETTINGS_BOUNDS['files.maxFileBytes'].default,
 };

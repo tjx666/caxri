@@ -300,7 +300,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 } catch {
                     const current = database.getTerminal(terminal.id);
                     if (current?.lastProcessState === 'interrupted') {
-                        database.updateTerminalState(terminal.id, 'failed');
+                        database.updateTerminalState(
+                            terminal.id,
+                            'failed',
+                            'working_directory_unavailable',
+                        );
                         logger.write('warn', 'terminal.restore_cwd_rejected', {
                             fields: { terminalId: terminal.id },
                         });

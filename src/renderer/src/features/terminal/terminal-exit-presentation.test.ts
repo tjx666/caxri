@@ -22,4 +22,24 @@ describe('getTerminalExitPresentation', () => {
             expect(getTerminalExitPresentation(state)).toBeUndefined();
         },
     );
+
+    it.each([
+        ['working_directory_unavailable', 'Working directory no longer exists'],
+        ['executable_not_found', 'Agent CLI executable was not found'],
+        ['spawn_failed', 'Terminal process could not be started'],
+    ] as const)('maps failure reason %s to actionable copy', (failureReason, label) => {
+        expect(getTerminalExitPresentation('failed', failureReason)).toEqual({
+            icon: 'failed',
+            label,
+            tone: 'danger',
+        });
+    });
+
+    it('falls back to the generic message when a failed Terminal has no failure reason', () => {
+        expect(getTerminalExitPresentation('failed', undefined)).toEqual({
+            icon: 'failed',
+            label: 'Terminal failed to start',
+            tone: 'danger',
+        });
+    });
 });

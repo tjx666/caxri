@@ -75,6 +75,7 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
         .min(SETTINGS_BOUNDS['terminal.scrollback'].min)
         .max(SETTINGS_BOUNDS['terminal.scrollback'].max)
         .default(SETTINGS_BOUNDS['terminal.scrollback'].default),
+    'terminal.copyOnSelect': z.boolean().default(SETTINGS_BOUNDS['terminal.copyOnSelect'].default),
     'files.exclude': filesExcludeSchema,
     'files.maxFileBytes': z
         .number()

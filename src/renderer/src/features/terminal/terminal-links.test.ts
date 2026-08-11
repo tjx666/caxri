@@ -141,8 +141,19 @@ describe('registerTerminalLinks', () => {
             start: { x: 6, y: 1 },
             end: { x: 24, y: 1 },
         });
-        links?.[0].activate({} as MouseEvent, links[0].text);
+        links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
+    });
+
+    it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {
+        const text = 'https://example.com';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openUrl } = baseContext();
+        registerTerminalLinks(terminal.terminal, context);
+
+        const links = await terminal.links();
+        links?.[0].activate({} as MouseEvent, links[0].text);
+        expect(openUrl).not.toHaveBeenCalled();
     });
 
     it('opens file links with their resolved path and location and handles OSC 8 file URLs', async () => {
@@ -152,14 +163,14 @@ describe('registerTerminalLinks', () => {
         const unregister = registerTerminalLinks(terminal.terminal, context);
 
         const links = await terminal.links();
-        links?.[0].activate({} as MouseEvent, links[0].text);
+        links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
         expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', {
             line: 12,
             column: 3,
         });
 
         terminal.terminal.options.linkHandler?.activate(
-            {} as MouseEvent,
+            { metaKey: true } as MouseEvent,
             'file:///repo/other.ts:8',
             { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
         );
