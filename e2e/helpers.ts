@@ -314,6 +314,12 @@ export async function createProjectSession(
         })
         .click();
     await expect(page.locator('.session-card')).toHaveCount(1);
+    /**
+     * Base UI retains the closed portal until its exit animation finishes. Waiting here keeps
+     * callers from changing media state mid-animation and leaving an overlay that intercepts the
+     * next interaction.
+     */
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
 /** Reveals the quiet titlebar action before activating it, matching pointer use at rest. */
@@ -325,7 +331,10 @@ export async function openAddProjectDialog(page: Page): Promise<void> {
 
 export async function createShellSession(page: Page): Promise<void> {
     await createProjectSession(page, 'shell');
-    await expect(page.locator('.xterm-helper-textarea')).toBeVisible();
+    const terminalInput = page.locator('.xterm-helper-textarea');
+    await expect(terminalInput).toBeVisible();
+    /** The initial Terminal focus effect is part of creation completing, not caller setup. */
+    await expect(terminalInput).toBeFocused();
 }
 
 export async function createAdditionalShellSession(page: Page): Promise<void> {
