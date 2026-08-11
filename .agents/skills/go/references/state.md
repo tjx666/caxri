@@ -135,9 +135,8 @@ event history.
   `--freeze` rejects any decision with a nonzero product P0 or P1 count.
 - A `verification` decision is reserved for workflow, test-infrastructure,
   evidence, or PR-metadata-only commits. It requires a prior full review, zero
-  product P0/P1, and `--freeze`; the ledger permits three per Go run by default.
-  One fourth freeze requires the user's explicit authorization for that exact
-  exception, recorded with `--verification-cap-authorization`; a fifth is rejected.
+  product P0/P1, and `--freeze`; the ledger permits one bookkeeping freeze during
+  `deep_review` plus at most three repair freezes during `delivery` per Go run.
 - The fallback admission command rejects an unfrozen or stale PR head. The
   ledger retains full Electron E2E history across head changes and rejects a
   third full run; a prior passing run can be repeated only after human
