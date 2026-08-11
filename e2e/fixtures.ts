@@ -18,5 +18,8 @@ export const test = base.extend<E2EFixtures>({
     ],
 });
 
+/** Unguarded only so `error-gate.e2e.ts` can assert the shared gate's own teardown failures. */
+export const errorGateSelfTest = base;
+
 export { expect };
-export type { ElectronApplication, Locator, Page } from '@playwright/test';
+export type { ElectronApplication, Locator, Page, TestInfo } from '@playwright/test';
