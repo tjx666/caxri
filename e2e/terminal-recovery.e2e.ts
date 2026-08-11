@@ -78,7 +78,7 @@ test('startup failure uses a compact danger status without covering output', asy
     try {
         await createProjectSession(running.page, 'codex');
         const failed = running.page.locator('[data-terminal-exit-state="failed"]');
-        await expect(failed).toContainText('Terminal failed to start');
+        await expect(failed).toContainText('Agent CLI executable was not found');
         await expect(failed).toHaveClass(/terminal-recovery-danger/);
         await expect(failed.getByRole('button', { name: 'Restart Terminal' })).toBeVisible();
 
