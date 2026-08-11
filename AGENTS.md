@@ -151,6 +151,13 @@ Launch Caxri headlessly, without the interactive directory picker, using environ
 - `CAXRI_TEST_ROOT_PATH=<dir>` stubs the directory-picker grant with a fixed Project root (see `src/main/test-root.ts`); only honored when `CAXRI_E2E=1` and the app is unpackaged.
 - `CAXRI_TEST_ROOT_PATHS=<JSON array>` queues multiple deterministic directory-picker roots for
   multi-Project tests; the Acceptance adapter sets it when `--test-root` is repeated.
+- Shared E2E launch helpers default Agent discovery to `blocked` and isolate provider state beneath
+  the test user-data directory. Agent specs must explicitly select a shared `fake` fixture or the
+  single-provider `real` mode, except negative tests that deliberately prove the `blocked` default;
+  never rely on a developer's `PATH`, `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` by accident.
+- The real-Agent smoke is manual and Codex-only: run `bun run test:e2e:real-agent`. It requires an
+  authenticated Codex CLI, sends one bounded natural-language read-only prompt in a temporary
+  Project, disables screenshots/traces, and never falls back to another provider.
 
 Structured logs land in `logs/main.jsonl` and `logs/runtime.jsonl` in development; packaged/test launches write under the active Electron user-data directory instead.
 

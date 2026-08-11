@@ -71,6 +71,7 @@ test('startup failure uses a compact danger status without covering output', asy
     await mkdir(root, { recursive: true });
 
     const running = await launchCaxri({
+        agentMode: { mode: 'blocked' },
         userDataDir: userData,
         testRootPath: root,
         env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },

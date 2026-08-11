@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -238,8 +239,12 @@ test('Info inspector lists only the current Session Terminals', async () => {
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
         await expect(
