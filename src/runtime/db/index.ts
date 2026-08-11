@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import type { ShutdownReason } from '../session-policy';
 import {
     type CaxriDrizzleDatabase,
+    CURRENT_SCHEMA_VERSION,
     markShutdown as markTerminalsShutdown,
     openDatabase,
 } from './connection';
@@ -13,7 +14,6 @@ import { SnapshotsModel } from './models/snapshots';
 import { TerminalsModel } from './models/terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
-export { CURRENT_SCHEMA_VERSION } from './connection';
 export { CaxriDatabase } from './repository';
 
 export interface CaxriDbOptions {
@@ -46,6 +46,7 @@ export class CaxriDb {
         this.terminals = new TerminalsModel(this.db);
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);
+        this.appState.set('schemaVersion', CURRENT_SCHEMA_VERSION);
     }
 
     transaction<T>(work: () => T): T {
