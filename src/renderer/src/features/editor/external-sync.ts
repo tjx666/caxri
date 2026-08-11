@@ -9,6 +9,8 @@ import { getSelectedSession, getSessionState, selectSelectedSession } from '../.
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
+import { useFileOperationStore } from '../inspector/panels/files/file-operation-state';
+import { ExternalSyncDeferral } from './external-sync-deferral';
 
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
@@ -71,6 +73,7 @@ function onFilesChanged(sessionId: string, changedPaths: readonly string[]): voi
  * ignored while another Session held the center pane, so the buffers can be arbitrarily stale.
  */
 function reconcileSelectedSession(sessionId: string): void {
+    if (getSelectedSession()?.id !== sessionId) return;
     const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
     const paths: string[] = [];
     for (const tab of getSessionState()?.openTabs ?? [])
@@ -93,32 +96,50 @@ function reconcileSelectedSession(sessionId: string): void {
  * state-to-ref mirror and no `setState` dispatcher to thread through App.
  */
 export function useExternalDocumentSync(): void {
-    useEffect(() => {
-        const unsubscribeEvents = caxri.onEvent((event) => {
-            if (event.event !== 'files.changed') return;
-            const sessionId = getSelectedSession()?.id;
-            if (!sessionId || event.payload.sessionId !== sessionId) return;
-            const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
-            const changedPaths: string[] = [];
-            if (event.payload.overflow) {
-                for (const tab of getSessionState()?.openTabs ?? [])
-                    if (!isGitDiffTabPath(tab.path)) changedPaths.push(tab.path);
-            } else {
-                for (const change of event.payload.changes)
-                    if (change.kind !== 'delete' && cached[change.path])
-                        changedPaths.push(change.path);
-            }
-            onFilesChanged(sessionId, changedPaths);
-        });
-        const unsubscribeSelection = useWorkbenchStore.subscribe((state, previous) => {
-            const sessionId = selectSelectedSession(state.bootstrap)?.id;
-            const previousSessionId = selectSelectedSession(previous.bootstrap)?.id;
-            if (!sessionId || !previousSessionId || sessionId === previousSessionId) return;
-            reconcileSelectedSession(sessionId);
-        });
-        return () => {
-            unsubscribeEvents();
-            unsubscribeSelection();
-        };
-    }, []);
+    useEffect(subscribeExternalDocumentSync, []);
+}
+
+/** Installs one shared boundary across watcher events, managed mutations, and Session selection. */
+export function subscribeExternalDocumentSync(): () => void {
+    const deferral = new ExternalSyncDeferral();
+    const deferProject = (projectId: string): boolean =>
+        deferral.deferIfPending(projectId, useFileOperationStore.getState().operations);
+    const unsubscribeEvents = caxri.onEvent((event) => {
+        if (event.event !== 'files.changed') return;
+        const session = getSelectedSession();
+        if (!session || event.payload.sessionId !== session.id) return;
+        const sessionId = session.id;
+        const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
+        const changedPaths: string[] = [];
+        if (event.payload.overflow) {
+            for (const tab of getSessionState()?.openTabs ?? [])
+                if (!isGitDiffTabPath(tab.path)) changedPaths.push(tab.path);
+        } else {
+            for (const change of event.payload.changes)
+                if (change.kind !== 'delete' && cached[change.path]) changedPaths.push(change.path);
+        }
+        /** A managed rename or move can emit a watcher batch before editor paths are remapped.
+         * Reconcile the current paths after the operation settles instead of reading a path
+         * that stopped existing midway through the mutation. */
+        if (deferProject(session.projectId)) return;
+        onFilesChanged(sessionId, changedPaths);
+    });
+    const unsubscribeOperations = useFileOperationStore.subscribe((state) => {
+        for (const projectId of deferral.flushReady(state.operations)) {
+            const selected = getSelectedSession();
+            if (selected?.projectId === projectId) reconcileSelectedSession(selected.id);
+        }
+    });
+    const unsubscribeSelection = useWorkbenchStore.subscribe((state, previous) => {
+        const session = selectSelectedSession(state.bootstrap);
+        const previousSession = selectSelectedSession(previous.bootstrap);
+        if (!session || !previousSession || session.id === previousSession.id) return;
+        if (deferProject(session.projectId)) return;
+        reconcileSelectedSession(session.id);
+    });
+    return () => {
+        unsubscribeEvents();
+        unsubscribeOperations();
+        unsubscribeSelection();
+    };
 }
