@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { lstat, mkdir, readFile, rm } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import { inspectDesktopLease } from './desktop-lease';
@@ -88,11 +88,32 @@ export async function installWorktreeDependencies(
     path: string,
     stdoutToStderr = false,
 ): Promise<void> {
-    const exitCode = await runInherited('ni', [], {
-        cwd: path,
-        env: process.env,
-        stdoutToStderr,
-    });
+    const manifestNames = ['package.json', 'package-lock.json'] as const;
+    const manifests = new Map<string, Buffer | undefined>();
+    for (const name of manifestNames) {
+        try {
+            manifests.set(name, await readFile(join(path, name)));
+        } catch (error) {
+            if (errorCode(error) !== 'ENOENT') throw error;
+            manifests.set(name, undefined);
+        }
+    }
+    let exitCode: number;
+    try {
+        exitCode = await runInherited('ni', [], {
+            cwd: path,
+            env: process.env,
+            stdoutToStderr,
+        });
+    } finally {
+        /** npm versions can rewrite lockfile metadata during a no-change install. A managed
+         * worktree must preserve the caller's exact manifests, including pre-existing edits. */
+        for (const [name, source] of manifests) {
+            const manifestPath = join(path, name);
+            if (source) await writeFile(manifestPath, source);
+            else await rm(manifestPath, { force: true });
+        }
+    }
     if (exitCode !== 0) throw new CommandError(`ni failed with exit code ${exitCode}`);
 }
 
