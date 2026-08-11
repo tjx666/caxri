@@ -103,7 +103,10 @@ accessible names and hover tooltips.
 (Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows
 indented 16px. Selection = `--elevated` fill (radius 6), no border and no accent — the
 sidebar stays entirely neutral so the focused pane keeps the screen's one accent.
-Activity dots keep color + gain `title`/`aria-label` text.
+Activity dots and the Session hover/focus card share one color, short-label, explanation, and
+`aria-label` mapping. The Portal card opens to the Sidebar's right after a short hover delay (or
+immediately on keyboard focus), collision-shifts within the viewport, and shows only the full title,
+Project, primary Agent, activity explanation, `Last opened`, and unread-attention metadata.
 All non-archived Project and Session names and navigation icons use `--foreground`, including
 inactive rows; the `--elevated` selected fill, not dimmed neighbors, communicates selection.
 Project ordering uses the whole Project heading as its drag source. While dragging, dim only the
@@ -124,7 +127,7 @@ pick the least-powerful layer that covers the scenario, and one element is only 
 one layer:
 
 1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`) — every
-   overlay: dialogs, selects, context menus, tooltips, and future shadcn components. Fade plus
+   overlay: dialogs, selects, context menus, tooltips, preview cards, and future shadcn components. Fade plus
    ~95% zoom on enter/exit, gated by Base UI popup state attributes. We deliberately do not
    import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants exist to bridge
    Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute variants are
