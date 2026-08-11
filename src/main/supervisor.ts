@@ -13,6 +13,7 @@ import {
     type RuntimeMessage,
 } from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
+import { e2eAgentPolicyEnvironment, type E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
@@ -74,6 +75,7 @@ export class RuntimeSupervisor extends EventEmitter {
         logger: StructuredLogger,
         private readonly logLevel: 'debug' | 'info' = 'debug',
         private readonly agentHooksPath?: string,
+        private readonly e2eAgentPolicy?: E2EAgentPolicy,
     ) {
         super();
         /** Shares Main's own logger so Runtime stdio and Main records interleave in one main.jsonl file. */
@@ -108,6 +110,7 @@ export class RuntimeSupervisor extends EventEmitter {
                     CAXRI_APP_VERSION: process.env.CAXRI_APP_VERSION ?? 'unknown',
                     CAXRI_GIT_COMMIT: process.env.CAXRI_GIT_COMMIT ?? 'unknown',
                     ...(this.agentHooksPath ? { CAXRI_AGENT_HOOKS_PATH: this.agentHooksPath } : {}),
+                    ...e2eAgentPolicyEnvironment(this.e2eAgentPolicy),
                 },
                 stdio: 'pipe',
             });

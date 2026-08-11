@@ -23,6 +23,7 @@ import {
     requestEnvelopeSchema,
     type CaxriReply,
 } from '../shared/ipc/transport';
+import { resolveE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
@@ -71,6 +72,15 @@ const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isP
 const e2eWindowMode = resolveE2EWindowMode({
     isE2E: process.env.CAXRI_E2E === '1',
     requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
+});
+const e2eAgentPolicy = resolveE2EAgentPolicy({
+    isE2E: process.env.CAXRI_E2E === '1',
+    requestedMode: process.env.CAXRI_E2E_AGENT_MODE,
+    requestedProvider: process.env.CAXRI_E2E_AGENT_PROVIDER,
+    requestedExecutables: {
+        claude: process.env.CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE,
+        codex: process.env.CAXRI_E2E_FAKE_CODEX_EXECUTABLE,
+    },
 });
 
 function sendEvent(event: RuntimeEvent): void {
@@ -596,7 +606,18 @@ void app.whenReady().then(async () => {
     mainLogger = new StructuredLogger(logDirectory, 'main', logLevel);
     mainLogger.write('info', 'app.ready', { durationMs: performance.now() - bootStartedAt });
     if (process.env.CAXRI_E2E === '1') {
-        mainLogger.write('info', 'e2e.launch', { fields: { windowMode: e2eWindowMode } });
+        mainLogger.write('info', 'e2e.launch', {
+            fields: {
+                agentMode: e2eAgentPolicy?.mode ?? 'blocked',
+                agentProvider:
+                    e2eAgentPolicy?.mode === 'real'
+                        ? e2eAgentPolicy.provider
+                        : e2eAgentPolicy?.mode === 'fake'
+                          ? Object.keys(e2eAgentPolicy.executables).sort().join(',')
+                          : null,
+                windowMode: e2eWindowMode,
+            },
+        });
     }
     updateService = new UpdateService({
         currentVersion: caxriVersion,
@@ -623,6 +644,7 @@ void app.whenReady().then(async () => {
         process.env.CAXRI_E2E === '1'
             ? undefined
             : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
+        e2eAgentPolicy,
     );
     processExplorer = new ProcessExplorerWindowController({
         currentDirectory,

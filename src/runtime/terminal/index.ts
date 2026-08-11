@@ -10,6 +10,12 @@ import {
 import { CaxriError, errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
+import {
+    assertE2EAgentInput,
+    assertE2EAgentLaunch,
+    assertE2EShellLaunch,
+    readE2EAgentPolicy,
+} from '../../shared/node/e2e-agent-policy';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     TerminalFailureReason,
@@ -143,6 +149,7 @@ export class TerminalManager {
          */
         let failureReason: TerminalFailureReason = 'spawn_failed';
         try {
+            const e2eAgentPolicy = readE2EAgentPolicy();
             const launch =
                 record.kind === 'shell'
                     ? undefined
@@ -150,6 +157,8 @@ export class TerminalManager {
                           executable: agentProviderCatalog[record.kind].executableName,
                           args: [],
                       });
+            if (record.kind === 'shell') assertE2EShellLaunch(e2eAgentPolicy);
+            else assertE2EAgentLaunch(e2eAgentPolicy, record.kind, launch!);
             failureReason = 'executable_not_found';
             const executable = await this.resolveExecutable(record.kind, launch);
             const args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
@@ -377,6 +386,8 @@ export class TerminalManager {
         const live = this.terminals.get(terminalId);
         /** Input can already be queued across IPC when a PTY exits; dropping that stale input is an expected lifecycle race. */
         if (!live) return false;
+        if (live.record.kind !== 'shell')
+            assertE2EAgentInput(readE2EAgentPolicy(), live.record.kind);
         live.metricInputBytes += Buffer.byteLength(data, 'utf8');
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
         live.process.write(data);

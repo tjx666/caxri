@@ -1,9 +1,10 @@
-import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import {
     createAdditionalShellSession,
     createProjectSession,
@@ -49,17 +50,16 @@ test('Session attention persists until the selected Session is visibly focused',
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-attention-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    const config = join(testDirectory, 'claude');
-    const bin = join(testDirectory, 'bin');
-    const executable = join(bin, 'claude');
+    const config = join(userData, 'e2e-agents', 'claude');
     await Promise.all([
         mkdir(root, { recursive: true }),
         mkdir(join(config, 'sessions'), { recursive: true }),
-        mkdir(bin, { recursive: true }),
     ]);
-    await writeFile(
-        executable,
-        `#!/bin/sh
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: {
+                executableSource: `#!/bin/sh
 if [ "$1" = "--version" ]; then
   printf 'claude-test 1.0\\n'
   exit 0
@@ -73,17 +73,14 @@ while true; do
   sleep 0.05
 done
 `,
-        'utf8',
-    );
-    await chmod(executable, 0o700);
+            },
+        },
+    });
     const launchOptions = {
+        agentMode,
         userDataDir: userData,
         testRootPath: root,
         windowMode: 'visible' as const,
-        env: {
-            PATH: `${bin}:${process.env.PATH ?? ''}`,
-            CLAUDE_CONFIG_DIR: config,
-        },
     };
     let running = await launchCaxri(launchOptions);
     try {

@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import { expect, test } from '@playwright/test';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest, selectedSessionId } from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -26,8 +27,12 @@ test('Agent identities stay consistent across every shared surface', async () =>
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: {}, codex: {} },
+    });
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
         const createDialog = running.page.getByRole('dialog');
