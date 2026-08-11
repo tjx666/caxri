@@ -29,7 +29,11 @@ import {
     selectSession,
     unarchiveSession,
 } from '../session/session-actions';
-import { hasProjectDragType, type ProjectDropTarget } from './project-order';
+import {
+    hasProjectDragType,
+    resolveProjectHeadingClick,
+    type ProjectDropTarget,
+} from './project-order';
 
 /** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
 const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
@@ -157,7 +161,10 @@ function ActiveSessionRow({
                     <>
                         <input
                             ref={focusRenameInput}
-                            className="session-rename min-w-0 flex-1 rounded border border-border bg-background px-1 text-foreground outline-none focus:border-accent"
+                            className={cn(
+                                'session-rename min-w-0 flex-1 rounded border border-border bg-background px-1 text-foreground outline-none focus:border-accent',
+                                renameError && 'border-danger focus:border-danger',
+                            )}
                             aria-label={`Rename ${session.displayTitle}`}
                             aria-invalid={Boolean(renameError)}
                             aria-describedby={renameError ? renameErrorId : undefined}
@@ -177,7 +184,11 @@ function ActiveSessionRow({
                             }}
                         />
                         {renameError && (
-                            <span id={renameErrorId} role="alert" className="sr-only">
+                            <span
+                                id={renameErrorId}
+                                role="alert"
+                                className="session-rename-error absolute top-full left-0 z-10 mt-0.5 whitespace-nowrap text-[11px] text-danger"
+                            >
                                 {renameError}
                             </span>
                         )}
@@ -403,8 +414,9 @@ export function ProjectGroup({
                     className="project-select flex min-h-7 min-w-0 flex-1 items-center px-1 text-inherit text-left border-0 bg-transparent cursor-pointer"
                     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                     onClick={() => {
-                        if (!active) onSelect();
-                        onToggle();
+                        const effect = resolveProjectHeadingClick(active, expanded);
+                        if (effect.select) onSelect();
+                        if (effect.toggle) onToggle();
                     }}
                     onKeyDown={(event) => {
                         if (!event.altKey) return;

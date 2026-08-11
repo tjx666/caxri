@@ -113,6 +113,24 @@ export function projectOrderAfterDrop(
     return reordered;
 }
 
+export interface ProjectHeadingClickEffect {
+    select: boolean;
+    toggle: boolean;
+}
+
+/**
+ * Decouples selecting a Project from expanding/collapsing it: clicking an already-active Project
+ * still toggles disclosure as before, but clicking an inactive Project only ever selects it and
+ * auto-expands when collapsed, never collapses an already-expanded Project on selection.
+ */
+export function resolveProjectHeadingClick(
+    active: boolean,
+    expanded: boolean,
+): ProjectHeadingClickEffect {
+    if (!active) return { select: true, toggle: !expanded };
+    return { select: false, toggle: true };
+}
+
 export function adjacentProjectOrder(
     projectIds: readonly string[],
     projectId: string,
