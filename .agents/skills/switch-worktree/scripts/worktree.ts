@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import { inspectDesktopLease } from './desktop-lease';
@@ -84,6 +84,21 @@ async function commandSucceeds(command: string, args: string[], cwd: string): Pr
     }
 }
 
+async function restoreManifest(path: string, source: Buffer | undefined): Promise<void> {
+    if (!source) {
+        await rm(path, { force: true });
+        return;
+    }
+    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+        await writeFile(temporary, source);
+        /** Same-directory rename replaces a symlink entry instead of following it to another file. */
+        await rename(temporary, path);
+    } finally {
+        await rm(temporary, { force: true });
+    }
+}
+
 export async function installWorktreeDependencies(
     path: string,
     stdoutToStderr = false,
@@ -110,8 +125,7 @@ export async function installWorktreeDependencies(
          * worktree must preserve the caller's exact manifests, including pre-existing edits. */
         for (const [name, source] of manifests) {
             const manifestPath = join(path, name);
-            if (source) await writeFile(manifestPath, source);
-            else await rm(manifestPath, { force: true });
+            await restoreManifest(manifestPath, source);
         }
     }
     if (exitCode !== 0) throw new CommandError(`ni failed with exit code ${exitCode}`);
