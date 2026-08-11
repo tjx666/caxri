@@ -232,6 +232,28 @@ describe('file mutation reconciliation', () => {
             },
         });
 
+        const sessionB = useWorkbenchStore
+            .getState()
+            .bootstrap?.sessionStates.find((state) => state.sessionId === 'session-b');
+        expect(sessionB).toBeDefined();
+        useSessionViewStore.getState().cacheDocument('session-b', {
+            path: previousPath,
+            content: 'new source body',
+            dirty: true,
+            mtimeMs: 2,
+            size: 15,
+        });
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-b', { kind: 'editor', path: previousPath });
+        await expect(
+            useWorkbenchStore.getState().patchSessionState({
+                ...sessionB!,
+                openTabs: [...sessionB!.openTabs, { path: previousPath, dirty: true }],
+                activeTab: { kind: 'editor', path: previousPath },
+            }),
+        ).resolves.toBe(true);
+
         await vi.runOnlyPendingTimersAsync();
         await vi.waitFor(() => {
             expect(mocks.request).toHaveBeenCalledWith('files.operation.acknowledge', {
@@ -240,16 +262,25 @@ describe('file mutation reconciliation', () => {
         });
         expect(
             useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: true }], [{ path: nextPath, dirty: true }]]);
-        expect(
-            Object.values(useSessionViewStore.getState().documents).map((documents) =>
-                Object.keys(documents),
-            ),
-        ).toEqual([[nextPath], [nextPath]]);
-        expect(
-            Object.values(useSessionViewStore.getState().documents).map(
-                (documents) => documents[nextPath]?.content,
-            ),
-        ).toEqual(['session-a dirty body', 'session-b dirty body']);
+        ).toEqual([
+            [{ path: nextPath, dirty: true }],
+            [
+                { path: nextPath, dirty: true },
+                { path: previousPath, dirty: true },
+            ],
+        ]);
+        expect(useSessionViewStore.getState().activeWork).toEqual({
+            'session-a': { kind: 'editor', path: nextPath },
+            'session-b': { kind: 'editor', path: previousPath },
+        });
+        expect(useSessionViewStore.getState().documents).toMatchObject({
+            'session-a': {
+                [nextPath]: { content: 'session-a dirty body', dirty: true, path: nextPath },
+            },
+            'session-b': {
+                [nextPath]: { content: 'session-b dirty body', dirty: true, path: nextPath },
+                [previousPath]: { content: 'new source body', dirty: true, path: previousPath },
+            },
+        });
     });
 });
