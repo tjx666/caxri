@@ -1,8 +1,18 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import {
+    chmod,
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rm,
+    symlink,
+    unlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -107,11 +117,7 @@ describe('switch-worktree creation and diagnostics', () => {
 
         const context = await repositoryContext(fixture.root);
         expect(created.path).toBe(worktreeDirectory(context, 'feat/example'));
-        expect(created.path).toMatch(
-            new RegExp(
-                `^${join(dirname(context.primaryRoot), 'caxri-worktrees')}/feat-example-[a-f0-9]{8}$`,
-            ),
-        );
+        expect(basename(created.path)).toMatch(/^feat-example-[a-f0-9]{8}$/);
         expect(created.path).not.toContain('%');
         expect(created.branch).toBe('feat/example');
         expect(created.dependencies).toBe('ready');
@@ -277,7 +283,7 @@ describe('switch-worktree creation and diagnostics', () => {
         output.mockRestore();
     });
 
-    it('restores exact manifests after dependency installation metadata churn', async () => {
+    it('restores exact manifests without following installer-created symlinks', async () => {
         const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-install-'));
         temporaryDirectories.push(temporary);
         const binaryDirectory = join(temporary, 'bin');
@@ -285,24 +291,32 @@ describe('switch-worktree creation and diagnostics', () => {
         const niPath = join(binaryDirectory, 'ni');
         await writeFile(
             niPath,
-            '#!/bin/sh\nprintf "\\ninstall metadata" >> package-lock.json\nmkdir node_modules\n',
+            '#!/bin/sh\nrm package-lock.json\nln -s "$CAXRI_TEST_EXTERNAL_TARGET" package-lock.json\nmkdir node_modules\n',
             'utf8',
         );
         await chmod(niPath, 0o755);
         const packageSource = '{"name":"fixture"}\n';
         const lockSource = '{"lockfileVersion":3}\n';
+        const externalTarget = join(temporary, 'external-target.txt');
         await writeFile(join(temporary, 'package.json'), packageSource, 'utf8');
         await writeFile(join(temporary, 'package-lock.json'), lockSource, 'utf8');
+        await writeFile(externalTarget, 'preserve external target\n', 'utf8');
         const previousPath = process.env.PATH;
+        const previousExternalTarget = process.env.CAXRI_TEST_EXTERNAL_TARGET;
         try {
             process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            process.env.CAXRI_TEST_EXTERNAL_TARGET = externalTarget;
             await installWorktreeDependencies(temporary);
         } finally {
             process.env.PATH = previousPath;
+            if (previousExternalTarget === undefined) delete process.env.CAXRI_TEST_EXTERNAL_TARGET;
+            else process.env.CAXRI_TEST_EXTERNAL_TARGET = previousExternalTarget;
         }
 
         expect(await readFile(join(temporary, 'package.json'), 'utf8')).toBe(packageSource);
         expect(await readFile(join(temporary, 'package-lock.json'), 'utf8')).toBe(lockSource);
+        expect((await lstat(join(temporary, 'package-lock.json'))).isSymbolicLink()).toBe(false);
+        expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
         expect(await pathExists(join(temporary, 'node_modules'))).toBe(true);
     });
 });
