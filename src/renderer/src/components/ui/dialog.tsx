@@ -1,7 +1,7 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 import { useEffect, useId } from 'react';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, Ref } from 'react';
 
 import { cn } from '@/lib/utils';
 import { useDialogStore } from '@/stores/dialogs';
@@ -65,7 +65,11 @@ export function DialogContent({
     children,
     showCloseButton = true,
     ...props
-}: DialogPrimitive.Popup.Props & { backdropClassName?: string; showCloseButton?: boolean }) {
+}: DialogPrimitive.Popup.Props & {
+    backdropClassName?: string;
+    ref?: Ref<HTMLDivElement>;
+    showCloseButton?: boolean;
+}) {
     return (
         <DialogPortal>
             <DialogOverlay className={backdropClassName} />
@@ -76,7 +80,10 @@ export function DialogContent({
                     // property (not `transform`), so it composes independently of the
                     // `enter`/`exit` keyframes below (which animate `transform`) instead
                     // of being clobbered by them.
-                    'fixed top-1/2 left-1/2 z-[51] w-[min(520px,calc(100vw-32px))] max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)]',
+                    // `outline-none` also covers the popup container itself being focused
+                    // (e.g. via `initialFocus`), where the browser would otherwise draw a
+                    // default focus ring around the whole dialog.
+                    'fixed top-1/2 left-1/2 z-[51] w-[min(520px,calc(100vw-32px))] max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] outline-none',
                     'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
                     'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
                     className,

@@ -371,9 +371,20 @@ function SettingsDialogView({
     updateThemeColor,
     view,
 }: ReturnType<typeof useSettingsDialogController>) {
+    // Base UI's default `initialFocus` moves focus to the first tabbable element inside
+    // the popup — the selected ChromeTabs tab button. When the dialog opens via a
+    // keyboard shortcut that focus is keyboard-driven, so the tab's `focus-visible`
+    // outline draws around it, which reads as a stray box rather than an intentional
+    // affordance. Focusing the popup container itself instead avoids that, while Tab
+    // still moves focus into the dialog's controls normally.
+    const popupRef = useRef<HTMLDivElement>(null);
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
+            <DialogContent
+                ref={popupRef}
+                initialFocus={popupRef}
+                className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden"
+            >
                 <DialogHeader>
                     <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>
