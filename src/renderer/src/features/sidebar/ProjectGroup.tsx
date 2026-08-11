@@ -1,12 +1,7 @@
 import { Archive, Circle, FolderClosed, FolderOpen, Plus } from 'lucide-react';
 import type { DragEvent } from 'react';
 
-import type {
-    AgentActivityState,
-    ProjectRecord,
-    SessionRecord,
-    TerminalRecord,
-} from '@shared/types';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
 
 import { DisclosureMotion } from '../../components/DisclosureMotion';
 import { Button } from '../../components/ui/button';
@@ -15,21 +10,13 @@ import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { cn } from '../../lib/utils';
 import { archiveSession, selectSession } from '../session/session-actions';
+import { SessionActivityCard } from './SessionActivityCard';
+import { sessionActivityPresentation } from './session-activity';
 import {
     hasProjectDragType,
     resolveProjectHeadingClick,
     type ProjectDropTarget,
 } from './project-order';
-
-/** Every activity color needs a text twin, so the dot carries the same wording as a tooltip. */
-const ACTIVITY_LABELS: Record<AgentActivityState, string> = {
-    completed: 'Finished',
-    failed: 'Failed',
-    idle: 'Idle',
-    running: 'Working',
-    unknown: 'No activity reported',
-    waiting: 'Waiting for you',
-};
 
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
@@ -77,6 +64,7 @@ interface ActiveSessionRowProps {
     onCancelRename: () => void;
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
+    project: ProjectRecord;
     renameError?: string;
     renameValue: string;
     renaming: boolean;
@@ -92,6 +80,7 @@ function ActiveSessionRow({
     onCancelRename,
     onCommitRename,
     onRenameValueChange,
+    project,
     renameError,
     renameValue,
     renaming,
@@ -99,92 +88,102 @@ function ActiveSessionRow({
     session,
     terminal,
 }: ActiveSessionRowProps) {
-    const activityLabel = ACTIVITY_LABELS[session.lastActivityState];
+    const activity = sessionActivityPresentation(session.lastActivityState);
     const renameErrorId = `session-rename-error-${session.id}`;
+    const sessionCard = (
+        <div
+            data-session-id={session.id}
+            className={cn(
+                sessionCardClassName,
+                'pr-8',
+                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground',
+                selected && 'active bg-elevated',
+                renaming && 'cursor-text',
+            )}
+            role={renaming ? undefined : 'button'}
+            tabIndex={renaming ? undefined : 0}
+            onClick={() => {
+                if (!renaming && !selected) void selectSession(session.id);
+            }}
+            onDoubleClick={onBeginRename}
+            onKeyDown={(event) => {
+                if (!renaming && event.key === 'Enter') {
+                    event.preventDefault();
+                    onBeginRename();
+                } else if (!renaming && event.key === ' ') {
+                    event.preventDefault();
+                    if (!selected) void selectSession(session.id);
+                }
+            }}
+        >
+            <span
+                role="img"
+                aria-label={activity.ariaLabel}
+                title={activity.label}
+                className={cn(
+                    `activity activity-${session.lastActivityState}`,
+                    'flex flex-none items-center',
+                    activity.indicatorClassName,
+                )}
+            >
+                <Circle size={7} fill="currentColor" />
+            </span>
+            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
+            {renaming ? (
+                <>
+                    <Input
+                        ref={focusRenameInput}
+                        appearance="workbench"
+                        className="session-rename flex-1 text-foreground"
+                        aria-label={`Rename ${session.displayTitle}`}
+                        aria-invalid={Boolean(renameError)}
+                        aria-describedby={renameError ? renameErrorId : undefined}
+                        value={renameValue}
+                        onBlur={onBlurRename}
+                        onChange={(event) => onRenameValueChange(event.target.value)}
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                onCommitRename();
+                            } else if (event.key === 'Escape') {
+                                event.preventDefault();
+                                onCancelRename();
+                            }
+                        }}
+                        size="compact"
+                    />
+                    {renameError && (
+                        <span
+                            id={renameErrorId}
+                            role="alert"
+                            className="session-rename-error absolute top-full left-0 z-10 mt-0.5 whitespace-nowrap text-[11px] text-danger"
+                        >
+                            {renameError}
+                        </span>
+                    )}
+                </>
+            ) : (
+                <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                    <strong className="font-medium">{session.displayTitle}</strong>
+                </span>
+            )}
+            <UnreadAttentionIndicator session={session} />
+        </div>
+    );
     return (
         <div className="session-row group/session-row relative">
-            <div
-                data-session-id={session.id}
-                className={cn(
-                    sessionCardClassName,
-                    'pr-8',
-                    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground',
-                    selected && 'active bg-elevated',
-                    renaming && 'cursor-text',
-                )}
-                role={renaming ? undefined : 'button'}
-                tabIndex={renaming ? undefined : 0}
-                onClick={() => {
-                    if (!renaming && !selected) void selectSession(session.id);
-                }}
-                onDoubleClick={onBeginRename}
-                onKeyDown={(event) => {
-                    if (!renaming && event.key === 'Enter') {
-                        event.preventDefault();
-                        onBeginRename();
-                    } else if (!renaming && event.key === ' ') {
-                        event.preventDefault();
-                        if (!selected) void selectSession(session.id);
-                    }
-                }}
-            >
-                <span
-                    role="img"
-                    aria-label={activityLabel}
-                    title={activityLabel}
-                    className={cn(
-                        `activity activity-${session.lastActivityState}`,
-                        'flex flex-none items-center text-muted',
-                        session.lastActivityState === 'running' && 'text-success',
-                        session.lastActivityState === 'waiting' && 'text-warning',
-                        session.lastActivityState === 'failed' && 'text-danger',
-                    )}
-                >
-                    <Circle size={7} fill="currentColor" />
-                </span>
-                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
-                {renaming ? (
-                    <>
-                        <Input
-                            ref={focusRenameInput}
-                            appearance="workbench"
-                            className="session-rename flex-1 text-foreground"
-                            aria-label={`Rename ${session.displayTitle}`}
-                            aria-invalid={Boolean(renameError)}
-                            aria-describedby={renameError ? renameErrorId : undefined}
-                            value={renameValue}
-                            onBlur={onBlurRename}
-                            onChange={(event) => onRenameValueChange(event.target.value)}
-                            onClick={(event) => event.stopPropagation()}
-                            onDoubleClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter') {
-                                    event.preventDefault();
-                                    onCommitRename();
-                                } else if (event.key === 'Escape') {
-                                    event.preventDefault();
-                                    onCancelRename();
-                                }
-                            }}
-                            size="compact"
-                        />
-                        {renameError && (
-                            <span
-                                id={renameErrorId}
-                                role="alert"
-                                className="session-rename-error absolute top-full left-0 z-10 mt-0.5 whitespace-nowrap text-[11px] text-danger"
-                            >
-                                {renameError}
-                            </span>
-                        )}
-                    </>
-                ) : (
-                    <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                        <strong className="font-medium">{session.displayTitle}</strong>
-                    </span>
-                )}
-                <UnreadAttentionIndicator session={session} />
-            </div>
+            {renaming ? (
+                sessionCard
+            ) : (
+                <SessionActivityCard
+                    project={project}
+                    session={session}
+                    terminal={terminal}
+                    trigger={sessionCard}
+                />
+            )}
             <Tooltip content="Archive Session">
                 <button
                     type="button"
@@ -386,6 +385,7 @@ export function ProjectGroup({
                                 onCancelRename={onCancelRename}
                                 onCommitRename={onCommitRename}
                                 onRenameValueChange={onRenameValueChange}
+                                project={project}
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
