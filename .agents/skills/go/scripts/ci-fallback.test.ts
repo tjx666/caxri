@@ -71,11 +71,17 @@ describe('Go local CI fallback', () => {
             );
         const commands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
             .map((match) => match[1])
-            .filter((command) => command !== 'npm ci');
+            .filter(
+                (command) =>
+                    command !== 'npm ci' && !command.startsWith('git switch --create "ci-pr-'),
+            );
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
         expect(commands).toContain('bun run doctor -- --scope changed');
+        expect(checksJob).toContain(
+            'git switch --create "ci-pr-${{ github.event.pull_request.number }}"',
+        );
     });
 
     it('rejects fallback without every admission boundary', () => {
