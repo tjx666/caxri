@@ -50,7 +50,12 @@ async function clickTerminalText(page: Page, text: string): Promise<void> {
     const y = bounds.y + bounds.height / 2;
     await page.mouse.move(x, y);
     await page.waitForTimeout(50);
-    await page.mouse.click(x, y);
+    await page.keyboard.down('Meta');
+    try {
+        await page.mouse.click(x, y);
+    } finally {
+        await page.keyboard.up('Meta');
+    }
 }
 
 test('Terminal links open Project files and confirm URLs through Main', async () => {

@@ -20,6 +20,7 @@ import type {
 
 import { DisclosureMotion } from '../../components/DisclosureMotion';
 import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { cn } from '../../lib/utils';
@@ -159,12 +160,10 @@ function ActiveSessionRow({
                 <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
                 {renaming ? (
                     <>
-                        <input
+                        <Input
                             ref={focusRenameInput}
-                            className={cn(
-                                'session-rename min-w-0 flex-1 rounded border border-border bg-background px-1 text-foreground outline-none focus:border-accent',
-                                renameError && 'border-danger focus:border-danger',
-                            )}
+                            appearance="workbench"
+                            className="session-rename flex-1 text-foreground"
                             aria-label={`Rename ${session.displayTitle}`}
                             aria-invalid={Boolean(renameError)}
                             aria-describedby={renameError ? renameErrorId : undefined}
@@ -182,6 +181,7 @@ function ActiveSessionRow({
                                     onCancelRename();
                                 }
                             }}
+                            size="compact"
                         />
                         {renameError && (
                             <span

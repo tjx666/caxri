@@ -25,7 +25,7 @@ import {
     type ShutdownReason,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
-import type { AgentLifecycleSignal } from '../agents/hooks/contract';
+import type { AgentLifecycleSignal } from '../agents';
 import {
     CaxriDb,
     type CaxriDbOptions,

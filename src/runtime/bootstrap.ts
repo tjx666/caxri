@@ -15,16 +15,20 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../shared/types';
-import { defaultAgentEnvironment, type AgentEnvironment } from './agents/contract';
-import { AgentCoordinator } from './agents/coordinator';
-import { AgentHookManager } from './agents/hooks';
-import { AgentService, createLocalAgentAdapters, type AgentAdapter } from './agents/service';
+import {
+    AgentCoordinator,
+    AgentHookManager,
+    AgentService,
+    createLocalAgentAdapters,
+    defaultAgentEnvironment,
+    type AgentAdapter,
+    type AgentEnvironment,
+} from './agents';
 import { ConfigurationService } from './configuration';
-import { CURRENT_SCHEMA_VERSION } from './db';
-import { CaxriDatabase } from './db/repository';
+import { CaxriDatabase } from './db';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
-import { FileService } from './files/service';
+import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
 import {
@@ -95,7 +99,6 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     });
     const configuration = new ConfigurationService(userDataPath, send, logger);
     await configuration.initialize();
-    database.setAppState('schemaVersion', CURRENT_SCHEMA_VERSION);
     database.setAppState('activeThemeId', configuration.getTheme().value.id);
 
     const git = new GitService(new ProjectRootResolver(database), logger);

@@ -208,9 +208,14 @@ test('Settings source mode preserves drafts and blocks stale UI for invalid sour
         await dialog.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(dialog.getByLabel('theme.json source')).toBeVisible();
         await dialog.getByRole('tab', { name: 'Settings', exact: true }).click();
-        await expect(
-            dialog.getByLabel('settings.jsonc source').locator('.view-lines'),
-        ).toContainText('keep-source-comment');
+        const restoredSettingsSource = dialog.getByLabel('settings.jsonc source');
+        await restoredSettingsSource
+            .locator('.monaco-editor')
+            .click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+ArrowDown');
+        await expect(restoredSettingsSource.locator('.view-lines')).toContainText(
+            'keep-source-comment',
+        );
 
         await running.page.keyboard.press('Escape');
         await running.page.keyboard.press('Meta+,');

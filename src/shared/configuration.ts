@@ -15,6 +15,7 @@ import {
     type KeybindingConflict,
 } from './types';
 import { normalizeShortcut } from './shortcuts';
+import { MAX_KEYBINDINGS } from './configuration-contract';
 
 const MAX_FILES_EXCLUDE_PATTERNS = 100;
 
@@ -86,7 +87,7 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
         .default(SETTINGS_BOUNDS['files.maxFileBytes'].default),
 });
 
-export const keybindingsFileSchema = z.array(keybindingSchema);
+export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 
 /** Finds normalized chords assigned to more than one distinct command. */
 export function findKeybindingConflicts(keybindings: readonly Keybinding[]): KeybindingConflict[] {

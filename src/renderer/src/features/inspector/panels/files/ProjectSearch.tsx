@@ -5,6 +5,7 @@ import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 
 import { DisclosureMotion } from '../../../../components/DisclosureMotion';
+import { Input, InputGroup } from '../../../../components/ui/input';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
@@ -285,21 +286,23 @@ export function ProjectSearch({
     return (
         <div className="project-search flex min-h-0 flex-1 flex-col">
             <div className="search-controls flex flex-col gap-1.5 border-b border-border p-2">
-                <div className="flex h-7 items-center gap-1 rounded border border-border bg-background px-2 focus-within:border-accent">
+                <InputGroup appearance="workbench" size="dense">
                     <SearchModeIcon
                         size={14}
                         className="shrink-0 text-muted"
                         data-search-mode-icon={mode}
                     />
-                    <input
+                    <Input
                         ref={inputRef}
-                        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none placeholder:text-muted"
+                        appearance="embedded"
+                        className="flex-1 text-foreground"
                         aria-label={
                             mode === 'name' ? 'Find Project files' : 'Search Project contents'
                         }
                         placeholder={mode === 'name' ? 'Find files' : 'Search text'}
                         value={query}
                         onChange={(event) => setQuery(event.currentTarget.value)}
+                        size="dense"
                     />
                     {(result.isFetching || (active && !settled)) && (
                         <LoaderCircle size={13} className="shrink-0 animate-spin text-muted" />
@@ -353,7 +356,7 @@ export function ProjectSearch({
                             </Tooltip>
                         </>
                     )}
-                </div>
+                </InputGroup>
                 <div className="search-mode-segments grid w-full grid-cols-2 gap-0.5 rounded-md bg-elevated p-0.5">
                     {(['name', 'content'] as const).map((value) => (
                         <button
@@ -374,18 +377,22 @@ export function ProjectSearch({
                     <div className="flex flex-col gap-1.5 pt-0.5">
                         <label className="flex flex-col gap-1 text-[11px] text-muted">
                             <span>Files to include</span>
-                            <input
-                                className="h-7 min-w-0 rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none placeholder:text-muted focus:border-accent"
+                            <Input
+                                appearance="workbench"
+                                className="text-foreground"
                                 placeholder="Files to include (e.g. *.ts, src/**)"
+                                size="dense"
                                 value={include}
                                 onChange={(event) => setInclude(event.currentTarget.value)}
                             />
                         </label>
                         <label className="flex flex-col gap-1 text-[11px] text-muted">
                             <span>Files to exclude</span>
-                            <input
-                                className="h-7 min-w-0 rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none placeholder:text-muted focus:border-accent"
+                            <Input
+                                appearance="workbench"
+                                className="text-foreground"
                                 placeholder="Files to exclude (e.g. *.min.js, dist/**)"
+                                size="dense"
                                 value={exclude}
                                 onChange={(event) => setExclude(event.currentTarget.value)}
                             />

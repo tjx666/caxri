@@ -5,6 +5,7 @@ import type { GitCommit, GitRepositorySummary } from '@shared/types';
 
 import { DisclosureMotion } from '../../../../components/DisclosureMotion';
 import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
 import { caxri } from '../../../../lib/caxri';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery } from '../../../../queries/client';
@@ -127,7 +128,7 @@ function CommitRow({
                 <span className="flex max-w-full gap-1 overflow-hidden">
                     {commit.decorations.map((decoration) => (
                         <span
-                            className="truncate rounded bg-elevated px-1 text-[9px] text-muted"
+                            className="truncate rounded bg-elevated px-1 text-[10px] text-muted"
                             key={decoration}
                         >
                             {decoration}
@@ -219,10 +220,12 @@ export function CommitHistory({
                 {() => (
                     <div>
                         <div className="border-y border-border p-1.5">
-                            <input
-                                className="h-6 w-full rounded border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-accent"
+                            <Input
+                                appearance="workbench"
+                                className="w-full text-foreground"
                                 aria-label={`History path for ${repository.name}`}
                                 placeholder="History path (optional)"
+                                size="compact"
                                 value={path}
                                 onChange={(event) => setPath(event.currentTarget.value)}
                             />

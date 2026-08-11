@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'rea
 import type { FileEntry } from '@shared/types';
 
 import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -112,12 +113,14 @@ function InlineFileName({
     return (
         <form onSubmit={(event) => void submit(event)}>
             <div className="flex h-7 items-center pr-2" style={{ paddingLeft: 23 + depth * 12 }}>
-                <input
+                <Input
                     ref={inputRef}
                     aria-invalid={Boolean(error)}
                     aria-label={label}
-                    className="h-6 min-w-0 flex-1 rounded-sm border border-accent bg-surface px-1 text-[12px] text-foreground outline-none"
+                    appearance="inline"
+                    className="flex-1 text-foreground"
                     disabled={pending}
+                    size="compact"
                     value={value}
                     onChange={(event) => setValue(event.target.value)}
                     onKeyDown={(event) => {

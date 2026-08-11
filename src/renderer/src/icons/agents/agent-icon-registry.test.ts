@@ -1,23 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
+import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
+
 import { agentIconRegistry, resolveAgentIcon } from './agent-icon-registry';
 
 describe('agentIconRegistry', () => {
+    it.each(agentProviderIds)('derives the %s label from the provider catalog', (provider) => {
+        expect(resolveAgentIcon(provider)).toMatchObject({
+            id: provider,
+            label: agentProviderCatalog[provider].displayName,
+        });
+    });
+
     it.each([
-        ['claude', 'Claude Code', 'color-asset'],
-        ['codex', 'Codex', 'color-asset'],
         ['grok', 'Grok', 'mask-asset'],
         ['opencode', 'OpenCode', 'mask-asset'],
         ['shell', 'Shell', 'shell'],
         ['unknown', 'Unknown Agent', 'unknown'],
-    ] as const)('maps %s to one shared identity definition', (identity, label, kind) => {
+    ] as const)('keeps the local %s identity definition', (identity, label, kind) => {
         expect(resolveAgentIcon(identity)).toMatchObject({ id: identity, kind, label });
     });
 
     it('contains every supported and reserved identity exactly once', () => {
         expect(Object.keys(agentIconRegistry)).toEqual([
-            'claude',
-            'codex',
+            ...agentProviderIds,
             'grok',
             'opencode',
             'shell',
