@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -483,6 +484,216 @@ describe('AgentCoordinator', () => {
             coordinator.observeOutput(created.terminal.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(3);
             expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('keeps a validated Codex hook completion authoritative over later metadata probes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-attention-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                attentionKind: 'waiting',
+                status: 'waiting',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'codex-session',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal.id, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'codex',
+                terminalId: created.terminal.id,
+            });
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'codex',
+                terminalId: created.terminal.id,
+            });
+
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+
+            coordinator.observeOutput(created.terminal.id);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+            expect(database.getTerminal(created.terminal.id)?.agentSessionId).toBe('codex-session');
+
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'codex',
+                terminalId: created.terminal.id,
+            });
+            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('keeps metadata attention available until a hook delivers attention', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-fallback-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                attentionKind: 'completed',
+                status: 'completed',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'claude-session',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal.id, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId: created.terminal.id,
+            });
+            coordinator.observeOutput(created.terminal.id);
+
+            await expect
+                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .toBe(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                hasUnread: true,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('restores metadata attention fallback at the start of every later turn', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-next-turn-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                attentionKind: 'completed',
+                status: 'completed',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'codex-session',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal.id, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'codex',
+                terminalId: created.terminal.id,
+            });
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'codex',
+                terminalId: created.terminal.id,
+            });
+            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'codex',
+                terminalId: created.terminal.id,
+            });
+            coordinator.observeOutput(created.terminal.id);
+
+            await expect
+                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .toBe(2);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                hasUnread: true,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('does not let a lifecycle signal promote an unverified Shell Terminal', () => {
+        const directory = join(tmpdir(), `caxri-agent-hook-shell-${randomUUID()}`);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(() => Promise.reject(new Error('not used'))),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal.id, 'launch-1');
+
+            expect(
+                coordinator.observeLifecycleSignal({
+                    launchId: 'launch-1',
+                    phase: 'turnFinished',
+                    provider: 'codex',
+                    terminalId: created.terminal.id,
+                }),
+            ).toBe(false);
+            expect(database.getTerminal(created.terminal.id)).toMatchObject({
+                kind: 'shell',
+                provider: undefined,
+            });
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+            });
         } finally {
             coordinator.close();
             database.close();

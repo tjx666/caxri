@@ -20,6 +20,7 @@ const logger = new StructuredLogger(
     process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
 );
 const runtime = await createRuntime({
+    agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     userDataPath,
     logger,
     send: (event: RuntimeEvent) => parentPort.postMessage(event),

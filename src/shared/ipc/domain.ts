@@ -167,7 +167,32 @@ const agentLaunchSettingsSchema: z.ZodType<AgentLaunchSettings> = z.object({
 });
 
 const agentProviderSettingsSchema: z.ZodType<Record<AgentProvider, AgentProviderSettings>> =
-    z.record(agentProviderSchema, z.object({ launch: agentLaunchSettingsSchema }));
+    z.record(
+        agentProviderSchema,
+        z.object({
+            hooks: z.object({ enabled: z.boolean() }),
+            launch: agentLaunchSettingsSchema,
+        }),
+    );
+
+const agentHookHealthKindSchema = z.enum([
+    'unsupported',
+    'notInstalled',
+    'installedPending',
+    'active',
+    'stale',
+    'newer',
+    'drifted',
+    'conflict',
+    'error',
+]);
+
+const agentHookHealthSchema = z.object({
+    kind: agentHookHealthKindSchema,
+    message: z.string().max(1_024).optional(),
+});
+
+export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookHealthSchema);
 
 export const appSettingsSchema = z.object({
     'session.defaultAgent': terminalKindSchema.nullable(),
@@ -629,6 +654,8 @@ export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type AppSettings = z.infer<typeof appSettingsSchema>;
+export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;
+export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;
 export type Keybinding = z.infer<typeof keybindingSchema>;
 export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;

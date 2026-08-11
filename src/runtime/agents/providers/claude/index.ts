@@ -10,6 +10,7 @@ import {
     type AgentSnapshotContext,
     type LocalAgentState,
 } from '../../contract';
+import { claudeHookAdapter } from './hooks';
 
 interface ClaudeSessionMetadata {
     cwd?: unknown;
@@ -129,6 +130,7 @@ function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
 }
 
 export const claudeProvider: AgentProviderDescriptor = {
+    hooks: claudeHookAdapter,
     id: 'claude',
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),

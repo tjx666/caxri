@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 import type { AgentProvider } from '../../shared/agents';
 import type { AgentActivityState, ProcessState } from '../../shared/types';
+import type { AgentHookAdapter } from './hooks/contract';
 
 export interface AgentSnapshotContext {
     /** Keeps repeated probes bound to the Agent session already correlated with this Terminal. */
@@ -45,11 +46,12 @@ export function defaultAgentEnvironment(
  * One self-contained descriptor per Agent provider. `displayName` and `executableName` live in the
  * shared catalog (`src/shared/agents.ts`); this interface only carries provider-specific behavior
  * so `service.ts`, `discovery.ts`, and `coordinator.ts` can iterate providers instead of hard-coding
- * a `claude`/`codex` branch each. A descriptor is pure provider-local state reading: it never touches
- * executable discovery or version probing, so adding a new provider only means adding a new
- * `providers/<id>/` module plus one registry line, with zero edits to this contract.
+ * a `claude`/`codex` branch each. Provider-local state reads stay pure, and an optional hook adapter
+ * describes only that provider's configuration representation; generic Runtime code owns every
+ * filesystem mutation, bridge process, and lifecycle signal.
  */
 export interface AgentProviderDescriptor {
+    hooks?: AgentHookAdapter;
     id: AgentProvider;
     readState(
         context: AgentSnapshotContext,

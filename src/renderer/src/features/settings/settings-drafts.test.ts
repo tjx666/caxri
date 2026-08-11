@@ -74,6 +74,7 @@ describe('parseConfigSource', () => {
         expect(result.value['terminal.fontSize']).toBe(18);
         expect(result.value['terminal.scrollback']).toBe(2000);
         expect(result.value['agents.providers'].claude.launch.executable).toBe('claude');
+        expect(result.value['agents.providers'].claude.hooks.enabled).toBe(false);
     });
 });
 

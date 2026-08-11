@@ -35,6 +35,7 @@ const agentProviderSettingsSchema = z
     .partialRecord(
         z.enum(agentProviderIds),
         z.object({
+            hooks: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
             launch: agentLaunchSettingsSchema,
         }),
     )

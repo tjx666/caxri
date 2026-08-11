@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+    agentHookHealthMapSchema,
     appSettingsSchema,
     bootstrapStateSchema,
     fileDocumentSchema,
@@ -528,6 +529,7 @@ export const methods = {
         result: projectStatusOverviewSchema,
     },
     'settings.get': { owner: 'runtime', params: noParams, result: settingsResult },
+    'agentHooks.get': { owner: 'runtime', params: noParams, result: agentHookHealthMapSchema },
     'settings.update': {
         owner: 'runtime',
         params: z.object({ source: configurationSource }),

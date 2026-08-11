@@ -62,6 +62,11 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await running.page.keyboard.press('Escape');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
         await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
+        await expect(dialog.getByLabel('Claude Code lifecycle hooks')).not.toBeChecked();
+        await expect(dialog.getByLabel('Codex lifecycle hooks')).not.toBeChecked();
+        await expect(
+            dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
+        ).toHaveText('Disabled');
         await expect(dialog.getByLabel('New Terminal working directory')).toHaveValue('');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
         for (const provider of ['claude', 'codex']) {
@@ -84,6 +89,13 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         expect(workingDirectoryWidth).toBeGreaterThan(scalarWidth + 100);
 
         await dialog.getByLabel('Terminal font size').fill('14');
+        await dialog.getByLabel('Claude Code lifecycle hooks').check();
+        await expect(
+            dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
+        ).toHaveText('Pending Apply · will enable');
+        await expect(dialog.locator('[data-agent-provider="claude"]')).toContainText(
+            'Restart Agent Terminals opened before lifecycle hooks were enabled.',
+        );
         await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
         await expect
             .poll(async () => {
@@ -93,6 +105,20 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 return settings.value['terminal.fontSize'];
             })
             .toBe(14);
+        const providerSettings = await pageRequest<{
+            value: {
+                'agents.providers': {
+                    claude: {
+                        hooks: { enabled: boolean };
+                        launch: { executable: string };
+                    };
+                };
+            };
+        }>(running.page, 'settings.get');
+        expect(providerSettings.value['agents.providers'].claude).toEqual({
+            hooks: { enabled: true },
+            launch: { executable: 'claude', args: [] },
+        });
 
         const actions = dialog.locator('.dialog-actions');
         const dialogBox = await dialog.boundingBox();

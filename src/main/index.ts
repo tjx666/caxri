@@ -612,6 +612,9 @@ void app.whenReady().then(async () => {
         logDirectory,
         mainLogger,
         logLevel,
+        process.env.CAXRI_E2E === '1'
+            ? undefined
+            : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
     );
     processExplorer = new ProcessExplorerWindowController({
         currentDirectory,

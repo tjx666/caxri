@@ -134,6 +134,7 @@ export class ConfigurationService {
     private readonly watchTimers = new Map<string, NodeJS.Timeout>();
     private readonly observedSources = new Map<string, string>();
     private readonly errors = new Map<ConfigurationKind, string>();
+    private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private closed = false;
 
     constructor(
@@ -339,6 +340,7 @@ export class ConfigurationService {
             prepared.apply();
             this.errors.delete(kind);
             this.emitChange(kind, prepared.source);
+            if (kind === 'settings') this.notifySettings();
         } catch (error) {
             const message = errorMessage(error, 'Configuration parse failed');
             this.errors.set(kind, message);
@@ -364,6 +366,7 @@ export class ConfigurationService {
         prepared.apply();
         this.errors.delete(kind);
         this.emitChange(kind, prepared.source);
+        if (kind === 'settings') this.notifySettings();
     }
 
     getErrors(): string[] {
@@ -372,6 +375,15 @@ export class ConfigurationService {
 
     getSettings(): { value: AppSettings; source: string } {
         return { value: this.settings, source: this.settingsSource };
+    }
+
+    subscribeSettings(listener: (settings: AppSettings) => void): () => void {
+        this.settingsListeners.add(listener);
+        return () => this.settingsListeners.delete(listener);
+    }
+
+    private notifySettings(): void {
+        for (const listener of this.settingsListeners) listener(this.settings);
     }
 
     getKeybindings(): { value: Keybinding[]; source: string; conflicts: KeybindingConflict[] } {
@@ -408,6 +420,7 @@ export class ConfigurationService {
         this.closed = true;
         for (const timer of this.watchTimers.values()) clearTimeout(timer);
         this.watchTimers.clear();
+        this.settingsListeners.clear();
         const watcher = this.watcher;
         this.watcher = undefined;
         await watcher?.unsubscribe();

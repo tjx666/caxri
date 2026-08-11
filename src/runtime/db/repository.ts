@@ -17,6 +17,7 @@ import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
     DEFAULT_SESSION_TITLE,
+    decideAgentLifecycleUpdate,
     decideAgentMetadataUpdate,
     defaultTerminalTitle,
     processActivityState,
@@ -24,6 +25,7 @@ import {
     type ShutdownReason,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
+import type { AgentLifecycleSignal } from '../agents/hooks/contract';
 import {
     CaxriDb,
     type CaxriDbOptions,
@@ -148,6 +150,30 @@ export class CaxriDatabase {
                     decision.sessionPatch.attentionKind,
                 );
             this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
+            return true;
+        });
+    }
+
+    /** Applies a validated hook signal without touching Terminal-owned Agent session identity. */
+    updateAgentLifecycle(signal: AgentLifecycleSignal): boolean {
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(signal.terminalId);
+            if (!terminal) return false;
+            const session = this.db.sessions.get(terminal.sessionId);
+            if (!session) return false;
+            const decision = decideAgentLifecycleUpdate(
+                terminal,
+                session,
+                signal.provider,
+                signal.phase,
+            );
+            if (!decision) return false;
+            this.db.sessions.setDisplayTitleAndActivity(
+                session.id,
+                session.displayTitle,
+                decision.lastActivityState,
+                decision.attentionKind,
+            );
             return true;
         });
     }

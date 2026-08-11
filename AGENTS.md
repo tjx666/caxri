@@ -98,7 +98,7 @@ step-by-step workflows beyond this summary.
 - Keep the editor intentionally narrow: open/edit/save/in-file search/diff only.
 - Style the Renderer with Tailwind v4 utilities backed by the semantic runtime theme tokens. Color utilities must reference tokens only (`bg-surface`, `text-muted`); the default palette is unregistered, and literal color utilities are forbidden. See the styling principle in `DESIGN.md`.
 - Preserve the explicit external-change rule: disk changes replace dirty editor buffers without prompting.
-- Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state.
+- Read Agent state only through capability-detected metadata indexes; never parse transcripts for UI metadata or write third-party Agent state. The sole write exception is an explicitly enabled provider lifecycle-hook adapter: it may atomically maintain only Caxri-marked entries in that provider's documented user hook file, must preserve foreign entries, and must leave newer Caxri schemas untouched.
 - Let the first Agent Terminal own the Session title, and keep the Info inspector scoped to Terminals actually started in that Session.
 - Use structured argv arrays for Git and PTY launches; never concatenate an untrusted command string.
 - Keep a Runtime domain flat only while its implementation has at most two production modules. At three or more cohesive modules, move it under `src/runtime/<domain>/` with an `index.ts` boundary and a domain-local `__tests__/` directory; Runtime imports remain relative.

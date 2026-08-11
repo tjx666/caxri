@@ -60,6 +60,53 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
+    it('injects and revokes a fresh lifecycle environment for each PTY generation', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-lifecycle-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const spawned: ReturnType<typeof createFakePty>[] = [];
+        const spawn = vi.fn<typeof spawnPty>(() => {
+            const fake = createFakePty();
+            spawned.push(fake);
+            return fake.process;
+        });
+        let generation = 0;
+        const retired = vi.fn();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                lifecycleEnvironment: () => ({
+                    CAXRI_HOOK_LAUNCH_ID: `launch-${(generation += 1)}`,
+                    CAXRI_HOOK_TOKEN: `token-${generation}`,
+                }),
+                onLifecycleRetired: retired,
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                spawn,
+            },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            expect(spawn.mock.calls[0]?.[2].env).toMatchObject({
+                CAXRI_HOOK_LAUNCH_ID: 'launch-1',
+                CAXRI_HOOK_TOKEN: 'token-1',
+            });
+
+            await manager.restart(created.terminal.id);
+            expect(retired).toHaveBeenCalledWith(created.terminal.id);
+            expect(spawn.mock.calls[1]?.[2].env).toMatchObject({
+                CAXRI_HOOK_LAUNCH_ID: 'launch-2',
+                CAXRI_HOOK_TOKEN: 'token-2',
+            });
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
     it('composes configured Agent argv with resume args and uses the filtered login environment', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-launch-'));
         temporaryDirectories.push(directory);

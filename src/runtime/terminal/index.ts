@@ -70,6 +70,10 @@ export interface TerminalManagerOptions {
     ) => Promise<string>;
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
+    /** Adds generation-scoped, non-secret integration variables immediately before PTY spawn. */
+    lifecycleEnvironment?: (record: TerminalRecord) => NodeJS.ProcessEnv;
+    /** Revokes lifecycle integration for a PTY generation before its durable record can be reused. */
+    onLifecycleRetired?: (terminalId: string) => void;
     /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
     onOutputActivity?: (terminalId: string, processId: number) => void;
     snapshotIntervalMs?: number;
@@ -97,6 +101,8 @@ export class TerminalManager {
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
     private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
     private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
+    private readonly lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
+    private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
@@ -111,6 +117,8 @@ export class TerminalManager {
         this.resolveExecutableOverride = options.resolveExecutable;
         this.agentLaunchSettings = options.agentLaunchSettings;
         this.agentEnvironment = options.agentEnvironment ?? runtimeProcessEnvironment;
+        this.lifecycleEnvironment = options.lifecycleEnvironment;
+        this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
@@ -152,14 +160,6 @@ export class TerminalManager {
                     ),
                 );
             }
-            const env =
-                record.kind === 'shell'
-                    ? terminalEnvironment()
-                    : {
-                          ...(await this.agentEnvironment()),
-                          TERM: 'xterm-256color',
-                          COLORTERM: 'truecolor',
-                      };
             if (options?.shouldStart && !options.shouldStart()) {
                 if (!this.database.getTerminal(record.id))
                     throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
@@ -169,6 +169,16 @@ export class TerminalManager {
             failureReason = 'working_directory_unavailable';
             await this.assertWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
             failureReason = 'spawn_failed';
+            const env = {
+                ...(record.kind === 'shell'
+                    ? terminalEnvironment()
+                    : {
+                          ...(await this.agentEnvironment()),
+                          TERM: 'xterm-256color',
+                          COLORTERM: 'truecolor',
+                      }),
+                ...this.lifecycleEnvironment?.(record),
+            };
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -208,6 +218,7 @@ export class TerminalManager {
             });
             return this.database.getTerminal(record.id)!;
         } catch (error) {
+            this.onLifecycleRetired?.(record.id);
             if (this.database.getTerminal(record.id))
                 this.database.updateTerminalState(record.id, 'failed', failureReason);
             this.logger.write('error', 'pty.spawn_failed', {
@@ -458,6 +469,7 @@ export class TerminalManager {
         if (options.persist) this.persistSnapshot(live);
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
+        this.onLifecycleRetired?.(live.record.id);
         live.screen.dispose();
         return true;
     }
