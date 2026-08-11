@@ -68,6 +68,9 @@ describe('E2E Agent policy', () => {
 
         expect(() => assertE2EAgentLaunch(policy, 'codex', safeLaunch)).not.toThrow();
         expect(() =>
+            assertE2EAgentLaunch(policy, 'codex', safeLaunch, 'persisted-session'),
+        ).toThrow('does not resume persisted Agent sessions');
+        expect(() =>
             assertE2EAgentLaunch(policy, 'codex', {
                 ...safeLaunch,
                 args: ['--dangerously-bypass-approvals-and-sandbox', 'run'],
