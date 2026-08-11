@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -158,6 +158,16 @@ describe('switch-worktree creation and diagnostics', () => {
         expect(switched.branch).toBe('feat/dormant');
         expect(switched.dependencies).toBe('ready');
         expect(installs).toBe(2);
+    });
+
+    it('materializes existing branches under portable worktree directory names', async () => {
+        const fixture = await createFixture();
+        for (const branch of ['feat/foo%2Fbar', 'feat/windows<bad>|"name"']) {
+            await git(fixture.root, 'branch', branch, 'origin/main');
+            const switched = await switchWorktree(fixture.root, branch, fakeInstall);
+            expect(basename(switched.path)).toMatch(/^[A-Za-z0-9._-]+$/);
+            expect(basename(switched.path).toLowerCase()).not.toContain('%2f');
+        }
     });
 
     it('repairs a managed checkout when its first dependency installation fails', async () => {

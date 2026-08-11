@@ -105,9 +105,12 @@ export async function listWorktrees(context: RepositoryContext): Promise<Worktre
 
 export function worktreeDirectory(context: RepositoryContext, branch: string): string {
     const parent = join(dirname(context.primaryRoot), `${basename(context.primaryRoot)}-worktrees`);
-    const readable = branch.replaceAll('/', '-').slice(0, 80);
+    /** A portable allowlist excludes percent-encoded separators and Windows-invalid path bytes. */
+    const readable = branch
+        .replaceAll('/', '-')
+        .replaceAll(/[^A-Za-z0-9._-]+/g, '-')
+        .slice(0, 80);
     const digest = createHash('sha256').update(branch).digest('hex').slice(0, 8);
-    /** Literal percent-encoded slashes make Node ESM reject module URLs inside the worktree. */
     return join(parent, `${readable}-${digest}`);
 }
 
