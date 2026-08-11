@@ -408,7 +408,27 @@ describe('Go state ledger', () => {
                 p1: 0,
                 scope: 'Excess delivery repair',
             }),
-        ).toThrow('three delivery-stage');
+        ).toThrow('requires explicit user authorization');
+        recordReviewDecision(migrated, {
+            authorization: 'User approved one final delivery verification.',
+            freeze: true,
+            headSha: 'delivery-head-4',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Authorized final delivery repair',
+        });
+        expect(() =>
+            recordReviewDecision(migrated, {
+                authorization: 'User approved another delivery verification.',
+                freeze: true,
+                headSha: 'delivery-head-5',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Disallowed fifth delivery repair',
+            }),
+        ).toThrow('four delivery-stage');
     });
 
     it('replays every v4 delivery and deep-review cycle while backfilling phases', () => {
@@ -538,7 +558,7 @@ describe('Go state ledger', () => {
                 p1: 0,
                 scope: 'Excess delivery repair',
             }),
-        ).toThrow('three delivery-stage');
+        ).toThrow('requires explicit user authorization');
 
         transitionState(migrated, 'deep_review');
         expect(() =>

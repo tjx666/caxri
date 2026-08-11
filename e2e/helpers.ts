@@ -358,6 +358,7 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
     await expect(
         page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`),
     ).toBeFocused();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
 export async function typeTerminal(page: Page, command: string): Promise<void> {
