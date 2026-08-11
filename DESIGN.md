@@ -22,6 +22,12 @@ reference this file; deviations require updating this spec first.
    not compile, which makes rule 4 a build-time guarantee instead of a convention.
    Non-color scales (spacing, type, radius) use stock Tailwind defaults.
 
+`src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap source imported
+by both `styles.css` (main workbench) and `process-explorer.css`; entry files contain only their
+window-specific rules. `components.json` points shadcn at that shared source. Its `baseColor: zinc`
+is immutable initialization metadata for the chosen shadcn style, not a live palette: the shared
+`@theme` unregisters every default color and exposes only the semantic roles below.
+
 ## Tokens
 
 ### Color roles (semantic layer over theme colors)

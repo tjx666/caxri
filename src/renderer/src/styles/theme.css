@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+/*
+ * DESIGN.md principle 5: unregister Tailwind's default palette so literal color utilities
+ * (e.g. `bg-blue-500`) fail to compile — every color must resolve through a runtime theme
+ * token, making "no hardcoded hex in component CSS" (principle 4) a build-time guarantee in
+ * both Renderer entries.
+ */
+@theme {
+    --color-*: initial;
+}
+
+/*
+ * Single semantic bridge for the workbench and Process Explorer. `applyCssTheme`
+ * (`lib/theme-css.ts`) overwrites the underlying custom properties on `<html>` in either
+ * window, so Tailwind utilities resolve through the same live runtime theme. `--selection`
+ * remains a raw theme color referenced as `bg-[var(--selection)]`, not a semantic role.
+ */
+@theme inline {
+    --color-background: var(--background);
+    --color-surface: var(--surface);
+    --color-elevated: var(--elevated);
+    --color-border: var(--border);
+    --color-foreground: var(--foreground);
+    --color-muted: var(--muted);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-danger: var(--danger);
+    --color-overlay: var(--overlay);
+    --color-shadow: var(--shadow);
+    --color-indicator: var(--indicator);
+}
+
+:root {
+    --background: #282a36;
+    --surface: #21222c;
+    --elevated: #343746;
+    --foreground: #f8f8f2;
+    --muted: #6272a4;
+    --border: #44475a;
+    --selection: #44475a;
+    --accent: #bd93f9;
+    --success: #50fa7b;
+    --warning: #f1fa8c;
+    --danger: #ff5555;
+
+    /* Derived roles re-resolve when `applyCssTheme` replaces the raw colors above. */
+    --accent-foreground: color-mix(in srgb, var(--background) 88%, var(--foreground));
+    --overlay: color-mix(in srgb, var(--background) 60%, transparent);
+    --shadow: rgb(0 0 0 / 0.45);
+    --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);
+
+    color: var(--foreground);
+    background: var(--background);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-synthesis: none;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+/* Keep Tailwind's rem sizing rooted at 16px while the application text inherits 13px. */
+body {
+    font-size: 13px;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+@layer base {
+    button {
+        color: inherit;
+    }
+}
