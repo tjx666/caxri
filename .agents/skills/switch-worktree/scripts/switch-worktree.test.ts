@@ -319,6 +319,36 @@ describe('switch-worktree creation and diagnostics', () => {
         expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
         expect(await pathExists(join(temporary, 'node_modules'))).toBe(true);
     });
+
+    it('refuses pre-existing manifest symlinks before launching ni', async () => {
+        const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-symlink-install-'));
+        temporaryDirectories.push(temporary);
+        const binaryDirectory = join(temporary, 'bin');
+        await mkdir(binaryDirectory);
+        const niPath = join(binaryDirectory, 'ni');
+        const niMarker = join(temporary, 'ni-ran');
+        await writeFile(niPath, '#!/bin/sh\ntouch "$CAXRI_TEST_NI_MARKER"\n', 'utf8');
+        await chmod(niPath, 0o755);
+        const externalTarget = join(temporary, 'external-target.txt');
+        await writeFile(join(temporary, 'package.json'), '{"name":"fixture"}\n', 'utf8');
+        await writeFile(externalTarget, 'preserve external target\n', 'utf8');
+        await symlink(externalTarget, join(temporary, 'package-lock.json'));
+        const previousPath = process.env.PATH;
+        const previousNiMarker = process.env.CAXRI_TEST_NI_MARKER;
+        try {
+            process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            process.env.CAXRI_TEST_NI_MARKER = niMarker;
+            await expect(installWorktreeDependencies(temporary)).rejects.toThrow(/symbolic link/i);
+        } finally {
+            process.env.PATH = previousPath;
+            if (previousNiMarker === undefined) delete process.env.CAXRI_TEST_NI_MARKER;
+            else process.env.CAXRI_TEST_NI_MARKER = previousNiMarker;
+        }
+
+        expect((await lstat(join(temporary, 'package-lock.json'))).isSymbolicLink()).toBe(true);
+        expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
+        expect(await pathExists(niMarker)).toBe(false);
+    });
 });
 
 describe('switch-worktree shared ownership', () => {
