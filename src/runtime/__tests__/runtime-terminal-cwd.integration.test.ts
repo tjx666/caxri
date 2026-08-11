@@ -204,6 +204,7 @@ describe('Runtime Terminal cwd authorization', () => {
 
         const runtimeB = await createRuntime({
             userDataPath,
+            terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => undefined,
             terminal: {
@@ -257,6 +258,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const events: RuntimeEvent[] = [];
         const runtimeB = await createRuntime({
             userDataPath,
+            terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: (event) => events.push(event),
             terminal: {
