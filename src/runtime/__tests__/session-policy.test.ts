@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import type { SessionRecord, SessionState, TerminalRecord } from '../../shared/types';
 import { createTerminalLayout, splitTerminal } from '../../shared/terminal-layout';
 import {
@@ -58,10 +59,10 @@ describe('defaultTerminalTitle', () => {
         expect(DEFAULT_SESSION_TITLE).toBe('Untitled');
     });
 
-    it('maps each Terminal kind to its default title', () => {
+    it('derives every managed provider title from the catalog while Shell stays local', () => {
         expect(defaultTerminalTitle('shell')).toBe('Shell');
-        expect(defaultTerminalTitle('claude')).toBe('Claude Code');
-        expect(defaultTerminalTitle('codex')).toBe('Codex');
+        for (const provider of agentProviderIds)
+            expect(defaultTerminalTitle(provider)).toBe(agentProviderCatalog[provider].displayName);
     });
 });
 
