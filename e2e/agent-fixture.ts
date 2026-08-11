@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import type { AgentProvider } from '../src/shared/agents';
 
-export interface FakeAgentInputCapture {
+interface FakeAgentInputCapture {
     encoding: 'hex' | 'raw' | 'utf8';
     /** Mirrors encoded input to the fake Terminal for interaction assertions. */
     echoPrefix?: string;

@@ -15,8 +15,8 @@ function keyOf(error: E2EErrorEvent): string {
 }
 
 function formatCounts(counts: ReadonlyMap<string, number>): string {
-    return [...counts]
-        .sort(([left], [right]) => left.localeCompare(right))
+    return Array.from(counts)
+        .toSorted(([left], [right]) => left.localeCompare(right))
         .map(([key, count]) => `${key} x${count}`)
         .join(', ');
 }

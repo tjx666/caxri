@@ -86,7 +86,7 @@ export interface LaunchCaxriOptions {
     agentMode?: E2EAgentMode;
 }
 
-export type E2EAgentMode =
+type E2EAgentMode =
     | { mode: 'blocked' }
     | {
           mode: 'fake';

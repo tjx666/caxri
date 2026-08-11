@@ -20,4 +20,3 @@ export const test = base.extend<E2EFixtures>({
 
 export { expect };
 export type { ElectronApplication, Locator, Page } from '@playwright/test';
-export type { E2EErrorAllowance, E2EErrorSource } from './error-gate.ts';
