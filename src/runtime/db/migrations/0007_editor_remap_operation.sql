@@ -1,0 +1,1 @@
+ALTER TABLE `session_state` ADD `editor_remap_operation_id` text;

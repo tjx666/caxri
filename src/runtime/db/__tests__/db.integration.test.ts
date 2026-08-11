@@ -267,12 +267,13 @@ describe('CaxriDb', () => {
             payload: 'restored',
             updatedAt: 123,
         });
-        const terminalColumns = previous.database.pragma('table_info(terminals)') as Array<{
+        const sessionStateColumns = previous.database.pragma('table_info(session_state)') as Array<{
             name: string;
         }>;
-        for (const column of ['failure_reason'])
-            if (terminalColumns.some((candidate) => candidate.name === column))
-                previous.database.exec(`ALTER TABLE terminals DROP COLUMN ${column}`);
+        if (sessionStateColumns.some((candidate) => candidate.name === 'editor_remap_operation_id'))
+            previous.database.exec(
+                'ALTER TABLE session_state DROP COLUMN editor_remap_operation_id',
+            );
         previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
@@ -404,9 +405,11 @@ describe('CaxriDb', () => {
         db.sessions.updateState({
             ...db.sessions.getState(session.id),
             activeTab: structuredActiveTab,
+            editorRemapOperationId: 'operation-1',
         });
 
         expect(db.sessions.getState(session.id).activeTab).toEqual(structuredActiveTab);
+        expect(db.sessions.getState(session.id).editorRemapOperationId).toBe('operation-1');
         db.close();
     });
 

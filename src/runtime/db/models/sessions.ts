@@ -85,6 +85,7 @@ interface SessionStateRow {
     stateVersion: number;
     openTabsJson: string;
     activeTabJson: string | null;
+    editorRemapOperationId: string | null;
     inspectorMode: string;
     layoutJson: string;
 }
@@ -106,6 +107,7 @@ function parseSessionState(
             sessionId: row.sessionId,
             openTabs: JSON.parse(row.openTabsJson) as unknown,
             activeTab: row.activeTabJson ? (JSON.parse(row.activeTabJson) as unknown) : undefined,
+            editorRemapOperationId: row.editorRemapOperationId ?? undefined,
             inspectorMode: row.inspectorMode,
             layout: JSON.parse(row.layoutJson) as unknown,
         };
@@ -329,6 +331,7 @@ export class SessionsModel {
                 stateVersion: sessionStateTable.stateVersion,
                 openTabsJson: sessionStateTable.openTabsJson,
                 activeTabJson: sessionStateTable.activeTabJson,
+                editorRemapOperationId: sessionStateTable.editorRemapOperationId,
                 inspectorMode: sessionStateTable.inspectorMode,
                 layoutJson: sessionStateTable.layoutJson,
             })
@@ -363,6 +366,7 @@ export class SessionsModel {
                 durableState.activeTab === undefined
                     ? null
                     : JSON.stringify(durableState.activeTab),
+            editorRemapOperationId: durableState.editorRemapOperationId ?? null,
             inspectorMode: durableState.inspectorMode,
             layoutJson: JSON.stringify(durableState.layout),
         };
@@ -375,6 +379,7 @@ export class SessionsModel {
                     openTabsJson: values.openTabsJson,
                     stateVersion: values.stateVersion,
                     activeTabJson: values.activeTabJson,
+                    editorRemapOperationId: values.editorRemapOperationId,
                     inspectorMode: values.inspectorMode,
                     layoutJson: values.layoutJson,
                 },

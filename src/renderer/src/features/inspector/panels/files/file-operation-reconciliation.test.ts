@@ -213,8 +213,15 @@ describe('file mutation reconciliation', () => {
             updatedAt: 2,
         };
 
-        await expect(reconcileFileMutation(operation)).rejects.toThrow(
-            'Moved editor state could not be saved',
+        await expect(reconcileFileMutation(operation)).resolves.toBeUndefined();
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({
+                kind: 'info',
+                message: 'File change is still synchronizing in the background',
+            }),
+        );
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'error' }),
         );
         expect(
             useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
@@ -281,6 +288,95 @@ describe('file mutation reconciliation', () => {
                 [nextPath]: { content: 'session-b dirty body', dirty: true, path: nextPath },
                 [previousPath]: { content: 'new source body', dirty: true, path: previousPath },
             },
+        });
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+        );
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'error' }),
+        );
+    });
+
+    it('does not replay a remap whose durable checkpoint survived Renderer reload', async () => {
+        const operationId = 'operation-reloaded-move';
+        const previousPath = '/project/source.txt';
+        const nextPath = '/project/destination/source.txt';
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        openTabs: [
+                            { path: nextPath, dirty: false },
+                            { path: previousPath, dirty: false },
+                        ],
+                        activeTab: { kind: 'editor', path: previousPath },
+                        inspectorMode: 'files',
+                        layout: {},
+                        editorRemapOperationId: operationId,
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: nextPath,
+            content: 'moved body',
+            dirty: false,
+            mtimeMs: 1,
+            size: 10,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: previousPath,
+            content: 'new source body',
+            dirty: false,
+            mtimeMs: 2,
+            size: 15,
+        });
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-a', { kind: 'editor', path: previousPath });
+
+        await reconcileFileMutation({
+            id: operationId,
+            kind: 'move',
+            sessionId: 'session-a',
+            phase: 'completed',
+            input: {
+                path: previousPath,
+                directory: '/project/destination',
+                conflict: 'reject',
+            },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        });
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.openTabs).toEqual([
+            { path: nextPath, dirty: false },
+            { path: previousPath, dirty: false },
+        ]);
+        expect(useSessionViewStore.getState().activeWork['session-a']).toEqual({
+            kind: 'editor',
+            path: previousPath,
+        });
+        expect(useSessionViewStore.getState().documents['session-a']).toMatchObject({
+            [nextPath]: { content: 'moved body', path: nextPath },
+            [previousPath]: { content: 'new source body', path: previousPath },
         });
     });
 });

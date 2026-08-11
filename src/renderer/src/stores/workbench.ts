@@ -29,6 +29,7 @@ interface WorkbenchState {
         failureLabel?: string,
         onLatestFailure?: () => void,
         failureMode?: SessionStateFailureMode,
+        reportFailure?: boolean,
     ): Promise<boolean>;
 }
 
@@ -190,6 +191,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         failureLabel = 'Session layout could not be saved',
         onLatestFailure,
         failureMode = 'rollback',
+        reportFailure = true,
     ) {
         const bootstrap = get().bootstrap;
         if (!bootstrap) return Promise.resolve(false);
@@ -241,7 +243,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                     });
                 }
                 if (isLatestRevision) onLatestFailure?.();
-                pushToast('error', describeFailure(error, failureLabel));
+                if (reportFailure) pushToast('error', describeFailure(error, failureLabel));
                 return false;
             });
     },
@@ -261,7 +263,11 @@ export function patchSessionState(
  */
 export function persistSessionState(
     next: SessionState,
-    options: { failureLabel?: string; retainOnFailure?: boolean } = {},
+    options: {
+        failureLabel?: string;
+        reportFailure?: boolean;
+        retainOnFailure?: boolean;
+    } = {},
 ): Promise<boolean> {
     return useWorkbenchStore
         .getState()
@@ -270,6 +276,7 @@ export function persistSessionState(
             options.failureLabel,
             undefined,
             options.retainOnFailure ? 'retain' : 'rollback',
+            options.reportFailure,
         );
 }
 
