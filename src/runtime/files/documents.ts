@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, rm } from 'node:fs/promises';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
 import { CaxriError } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
@@ -113,6 +113,26 @@ export class DocumentService {
                 stats.mode & 0o777,
             );
             try {
+                const openedReplacementStats = await replacement.stat();
+                const currentReplacementStats = await lstat(temporaryPath);
+                const resolvedTemporaryPath = await realpath(temporaryPath);
+                const temporaryRelativePath = relative(resolved.root, resolvedTemporaryPath);
+                /**
+                 * `O_NOFOLLOW` covers only the final component. Revalidate the opened temporary
+                 * inode and its canonical parent before writing editor content, so a parent
+                 * directory swapped to an outside symlink cannot receive the replacement bytes.
+                 */
+                if (
+                    currentReplacementStats.isSymbolicLink() ||
+                    !currentReplacementStats.isFile() ||
+                    currentReplacementStats.dev !== openedReplacementStats.dev ||
+                    currentReplacementStats.ino !== openedReplacementStats.ino ||
+                    currentReplacementStats.nlink > 1 ||
+                    isAbsolute(temporaryRelativePath) ||
+                    temporaryRelativePath === '..' ||
+                    temporaryRelativePath.startsWith(`..${sep}`)
+                )
+                    throw new CaxriError('IO', 'Temporary file changed during save');
                 await replacement.writeFile(content, 'utf8');
                 /**
                  * The replacement must be durable before rename: otherwise a successful save can

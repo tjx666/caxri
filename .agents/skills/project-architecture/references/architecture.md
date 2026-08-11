@@ -96,10 +96,13 @@ The Settings dialog opens in full-width structured UI mode. Its in-app source mo
 
 Themes normalize into one semantic token structure consumed by CSS variables, xterm, and Monaco. Dracula is vendored as the first-run default. Importers support Caxri JSON, one VS Code JSON theme, iTerm2 `.itermcolors` plist, and Warp YAML; unsupported tokens become warnings and missing non-terminal tokens inherit from the active theme.
 
-Node has no atomic inode-compare-and-replace primitive, so an uncooperative external process can
-still win the save path's final revalidation-to-rename race. The rename replaces a late symlink
-itself rather than following it; this narrow pathname race is the same explicit Node-only local
-filesystem tradeoff as create, rename, move, Trash, and PTY cwd launch.
+An Editor save revalidates the opened replacement inode and its canonical Project containment
+before writing document bytes; `O_NOFOLLOW` alone would not stop a swapped parent-directory
+symlink. Node has no atomic inode-compare-and-replace or directory-handle-relative write primitive,
+so an uncooperative external process can still win the narrow temporary-path validation-to-write
+or final target revalidation-to-rename race. The rename replaces a late symlink itself rather than
+following it; these narrow pathname races are the same explicit Node-only local filesystem tradeoff
+as create, rename, move, Trash, and PTY cwd launch.
 
 ## Git and Agent adapters
 

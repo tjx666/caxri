@@ -2,6 +2,8 @@ import {
     chmod,
     link,
     mkdtemp,
+    mkdir,
+    open,
     readdir,
     readFile,
     realpath,
@@ -101,4 +103,50 @@ describe('DocumentService', () => {
             expect((await readdir(root)).some((entry) => entry.endsWith('.caxri-tmp'))).toBe(false);
         },
     );
+
+    it('does not write replacement bytes through a swapped parent symlink', async () => {
+        const testRoot = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+        temporaryDirectories.push(testRoot);
+        const root = join(testRoot, 'project');
+        const parent = join(root, 'nested');
+        const originalParent = join(root, 'nested.original');
+        const outside = join(testRoot, 'outside');
+        const path = join(parent, 'document.txt');
+        await mkdir(parent, { recursive: true });
+        await mkdir(outside);
+        await writeFile(path, 'previous', 'utf8');
+        let openCount = 0;
+        let outsideContentDuringWrite: string | undefined;
+        const service = new DocumentService(
+            () => Promise.resolve({ path, root }),
+            new StructuredLogger(join(testRoot, 'logs')),
+            () => 1_024,
+            {
+                openFile: async (...args) => {
+                    openCount += 1;
+                    if (openCount === 2) {
+                        await rename(parent, originalParent);
+                        await symlink(outside, parent, 'dir');
+                    }
+                    return open(...args);
+                },
+                beforeReplaceValidation: async () => {
+                    const [outsideEntry] = await readdir(outside);
+                    if (outsideEntry)
+                        outsideContentDuringWrite = await readFile(
+                            join(outside, outsideEntry),
+                            'utf8',
+                        );
+                },
+            },
+        );
+
+        await expect(service.write('session-1', path, 'editor-secret')).rejects.toThrow(
+            'Temporary file changed during save',
+        );
+
+        expect(outsideContentDuringWrite).toBeUndefined();
+        expect(await readFile(join(originalParent, 'document.txt'), 'utf8')).toBe('previous');
+        expect(await readdir(outside)).toEqual([]);
+    });
 });
