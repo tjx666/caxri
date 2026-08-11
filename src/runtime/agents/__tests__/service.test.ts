@@ -107,6 +107,49 @@ describe('Agent adapter fallback', () => {
         );
     });
 
+    it('does not share a provider probe across Terminal process generations', async () => {
+        const first = Promise.withResolvers<Awaited<ReturnType<AgentAdapter['snapshot']>>>();
+        const second = Promise.withResolvers<Awaited<ReturnType<AgentAdapter['snapshot']>>>();
+        const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
+            context.startedAt === 1 ? first.promise : second.promise,
+        );
+        const service = new AgentService(undefined, {
+            claude: { provider: 'claude', snapshot },
+            codex: { provider: 'codex', snapshot },
+        });
+        const firstProbe = service.snapshot('claude', {
+            agentSessionId: 'same-agent-session',
+            processState: 'stopped',
+            rootPath: '/project',
+            startedAt: 1,
+        });
+        await vi.waitFor(() => expect(snapshot).toHaveBeenCalledOnce());
+        const secondProbe = service.snapshot('claude', {
+            agentSessionId: 'same-agent-session',
+            processState: 'running',
+            rootPath: '/project',
+            startedAt: 2,
+        });
+
+        await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
+        first.resolve({
+            provider: 'claude',
+            attentionKind: 'completed',
+            status: 'completed',
+            observedAt: 1,
+            available: true,
+        });
+        second.resolve({
+            provider: 'claude',
+            status: 'running',
+            observedAt: 2,
+            available: true,
+        });
+
+        await expect(firstProbe).resolves.toMatchObject({ status: 'completed' });
+        await expect(secondProbe).resolves.toMatchObject({ status: 'running' });
+    });
+
     it('discovers Claude Code and Codex independently for one Project', async () => {
         const claudeSnapshot = vi.fn<AgentAdapter['snapshot']>(() =>
             Promise.resolve({

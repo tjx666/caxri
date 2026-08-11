@@ -14,6 +14,7 @@ import sessionArchiveMigrationSql from './migrations/0001_slim_marvel_boy.sql?ra
 import sessionStateVersionMigrationSql from './migrations/0002_complex_ironclad.sql?raw';
 import sessionTitleModeMigrationSql from './migrations/0003_pretty_ezekiel.sql?raw';
 import projectOrderMigrationSql from './migrations/0004_wonderful_gladiator.sql?raw';
+import sessionAttentionMigrationSql from './migrations/0005_dazzling_the_professor.sql?raw';
 import * as schema from './schema';
 import { sessions, terminals } from './schema';
 import { shutdownOutcome, type ShutdownReason } from '../session-policy';
@@ -25,7 +26,7 @@ import { shutdownOutcome, type ShutdownReason } from '../session-policy';
  * two places that must stay in sync: the SQLite `user_version`
  * pragma (managed below) and the `schemaVersion` app-state row (written by `bootstrap.ts`).
  */
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 
 const PRESERVED_SCHEMA_VERSION = 7;
 
@@ -52,6 +53,7 @@ function installCurrentSchema(database: Database.Database): void {
         sessionStateVersionMigrationSql,
         sessionTitleModeMigrationSql,
         projectOrderMigrationSql,
+        sessionAttentionMigrationSql,
     ])
         runGeneratedSql(database, sql);
 }
@@ -60,6 +62,7 @@ const preservingMigrations = [
     { version: 8, sql: sessionStateVersionMigrationSql },
     { version: 9, sql: sessionTitleModeMigrationSql },
     { version: 10, sql: projectOrderMigrationSql },
+    { version: 11, sql: sessionAttentionMigrationSql },
 ] as const;
 
 /** Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes. */

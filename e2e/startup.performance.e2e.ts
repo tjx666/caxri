@@ -83,7 +83,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         );
 
         const gitStartedAt = performance.now();
-        await page.getByRole('button', { name: 'Git', exact: true }).click();
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
         await page.locator('.git-heading').waitFor();
         const gitReadyMs = performance.now() - gitStartedAt;
 
@@ -109,7 +109,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             await Promise.all([restoredTerminalSurface, restoredTerminalReady, restoredGit]);
 
         const restoredFilesStartedAt = performance.now();
-        await restoredPage.getByRole('button', { name: 'Files', exact: true }).click();
+        await restoredPage.getByRole('tab', { name: 'Files', exact: true }).click();
         await restoredPage.locator('.inspector .tree-row').first().waitFor();
         const restoredFilesReadyMs = performance.now() - restoredFilesStartedAt;
 

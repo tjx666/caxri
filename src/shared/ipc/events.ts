@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
     fileChangeSchema,
+    fileMutationOperationSchema,
     identifierSchema,
     runtimeStatusSchema,
     updateStateSchema,
@@ -70,7 +71,9 @@ export const runtimeEventPayloads = {
         sessionId: z.string(),
         changes: z.array(fileChangeSchema),
         overflow: z.boolean(),
+        gitIgnoreRulesChanged: z.literal(true).optional(),
     }),
+    'files.operationChanged': fileMutationOperationSchema,
     'settings.changed': configurationChangedSchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,

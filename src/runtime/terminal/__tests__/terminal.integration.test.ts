@@ -10,6 +10,7 @@ import { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentLaunchSettings } from '../../../shared/agents';
 import type { TerminalKind } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
+import { MAX_SNAPSHOT_BYTES } from '../../snapshot';
 import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
@@ -301,9 +302,11 @@ describe('TerminalManager', () => {
         );
 
         await manager.start(created.terminal);
-        manager.attach(created.terminal.id);
+        await manager.attach(created.terminal.id);
         fake.emitData('queued exactly once');
-        expect(manager.attach(created.terminal.id)?.payload).toContain('queued exactly once');
+        expect((await manager.attach(created.terminal.id))?.payload).toContain(
+            'queued exactly once',
+        );
         await new Promise((resolve) => setTimeout(resolve, 30));
 
         try {
@@ -342,6 +345,31 @@ describe('TerminalManager', () => {
         }
     });
 
+    it('resizes the Runtime screen to the Renderer grid before serializing an attachment', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-attach-size-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            await manager.attach(created.terminal.id, { cols: 80, rows: 24 });
+
+            expect(fake.resize).toHaveBeenCalledOnce();
+            expect(fake.resize).toHaveBeenCalledWith(80, 24);
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
     it('detaches every Renderer view without stopping its PTY', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detach-all-'));
         temporaryDirectories.push(directory);
@@ -359,7 +387,7 @@ describe('TerminalManager', () => {
         );
 
         await manager.start(created.terminal);
-        manager.attach(created.terminal.id);
+        await manager.attach(created.terminal.id);
         fake.emitData('discard with closing view');
         manager.detachAllViews();
         await new Promise((resolve) => setTimeout(resolve, 30));
@@ -396,13 +424,14 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
+        const onOutputActivity = vi.fn();
         const manager = new TerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
             new StructuredLogger(join(directory, 'logs')),
-            { snapshotIntervalMs: 50 },
+            { onOutputActivity, snapshotIntervalMs: 50 },
         );
 
         await manager.start(created.terminal);
@@ -410,8 +439,9 @@ describe('TerminalManager', () => {
         await expect
             .poll(() => database.getSnapshot(created.terminal.id)?.payload)
             .toContain('DETACHED_ONLY');
+        expect(onOutputActivity).toHaveBeenCalledWith(created.terminal.id, expect.any(Number));
         expect(output).not.toContain('DETACHED_ONLY');
-        expect(manager.attach(created.terminal.id)?.payload).toContain('DETACHED_ONLY');
+        expect((await manager.attach(created.terminal.id))?.payload).toContain('DETACHED_ONLY');
 
         manager.write(created.terminal.id, "printf 'ATTACHED_OUTPUT\\n'\r");
         await expect.poll(() => output).toContain('ATTACHED_OUTPUT');
@@ -423,6 +453,35 @@ describe('TerminalManager', () => {
         expect(output).not.toContain('DETACHED_AGAIN');
 
         manager.shutdown('orderly');
+        database.close();
+    });
+
+    it('reattaches from the current cursor-addressed screen after raw output exceeds retention', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-screen-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/echo'), spawn: () => fake.process },
+        );
+
+        await manager.start(created.terminal);
+        await manager.attach(created.terminal.id);
+        manager.detachView(created.terminal.id);
+        fake.emitData('\u001B[2J\u001B[HRETAINED_HEADER');
+        const cursorUpdate = '\u001B[2;1Hprogress';
+        fake.emitData(
+            cursorUpdate.repeat(Math.ceil((MAX_SNAPSHOT_BYTES + 65_536) / cursorUpdate.length)),
+        );
+
+        const snapshot = await manager.attach(created.terminal.id);
+        expect(snapshot?.payload.includes('RETAINED_HEADER')).toBe(true);
+
+        manager.close(created.terminal.id);
         database.close();
     });
 
@@ -450,7 +509,7 @@ describe('TerminalManager', () => {
             new StructuredLogger(join(directory, 'logs')),
         );
         await Promise.all([manager.start(created.terminal), manager.start(created.terminal)]);
-        manager.attach(created.terminal.id);
+        await manager.attach(created.terminal.id);
         manager.write(created.terminal.id, "printf 'CAXRI_INTEGRATION_OK\\n'\r");
         await marker;
         manager.resize(created.terminal.id, 120, 40);
@@ -496,7 +555,7 @@ describe('TerminalManager', () => {
         );
 
         await manager.start(created.terminal);
-        manager.attach(created.terminal.id);
+        await manager.attach(created.terminal.id);
         await manager.restart(created.terminal.id);
         manager.write(created.terminal.id, "printf 'CAXRI_RESTART_OK\\n'\r");
         await expect.poll(() => output).toContain('CAXRI_RESTART_OK');

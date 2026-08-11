@@ -330,6 +330,55 @@ describe('AgentCoordinator', () => {
         }
     });
 
+    it('ignores an old Agent probe that resolves after a fresh restart begins', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-stale-probe-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.updateAgentMetadata(created.terminal.id, {
+            provider: 'codex',
+            status: 'running',
+            observedAt: Date.now(),
+            available: true,
+            sessionId: 'old-agent-session',
+        });
+        const pendingSnapshot = Promise.withResolvers<{
+            provider: 'codex';
+            status: 'running';
+            observedAt: number;
+            available: true;
+            sessionId: string;
+        }>();
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() => pendingSnapshot.promise);
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.probeTerminal(created.terminal.id);
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledOnce());
+            coordinator.prepareTerminalStart(created.terminal.id);
+            expect(database.getTerminal(created.terminal.id)?.agentSessionId).toBeUndefined();
+
+            pendingSnapshot.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'old-agent-session',
+            });
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            expect(database.getTerminal(created.terminal.id)?.agentSessionId).toBeUndefined();
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('probes Agent Terminal output, ignores Shell output, and stops after a Terminal is closed', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-coordinator-'));
         temporaryDirectories.push(directory);
@@ -383,6 +432,57 @@ describe('AgentCoordinator', () => {
             coordinator.observeOutput(created.terminal.id);
             await new Promise((resolve) => setTimeout(resolve, 30));
             expect(snapshot).toHaveBeenCalledTimes(1);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('publishes one unread generation for each reliable Claude attention transition', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-attention-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        let status: 'running' | 'waiting' = 'running';
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                ...(status === 'waiting' ? { attentionKind: 'waiting' as const } : {}),
+                status,
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'claude-session',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeOutput(created.terminal.id);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+            });
+
+            status = 'waiting';
+            coordinator.observeOutput(created.terminal.id);
+            await expect
+                .poll(() => database.getSession(created.session.id)?.attentionEpoch)
+                .toBe(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                lastAttentionKind: 'waiting',
+                hasUnread: true,
+            });
+
+            coordinator.observeOutput(created.terminal.id);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(3);
+            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
         } finally {
             coordinator.close();
             database.close();

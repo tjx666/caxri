@@ -38,6 +38,55 @@ export interface PerformanceSummary {
     maximumMs: number;
 }
 
+interface ErrorIdentifierRecord {
+    id: string;
+    timestamp: string;
+}
+
+/** Selects identifiers only; error messages, stacks, and structured fields never leave the logs. */
+export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
+    const records: ErrorIdentifierRecord[] = [];
+    for (const line of logs.split('\n')) {
+        if (!line) continue;
+        try {
+            const record = JSON.parse(line) as {
+                correlationId?: unknown;
+                event?: unknown;
+                level?: unknown;
+                process?: unknown;
+                timestamp?: unknown;
+            };
+            if (
+                record.level !== 'error' ||
+                (record.process !== 'main' && record.process !== 'runtime') ||
+                typeof record.event !== 'string' ||
+                typeof record.timestamp !== 'string'
+            )
+                continue;
+            const id =
+                typeof record.correlationId === 'string' && record.correlationId
+                    ? `${record.process}:${record.correlationId}`
+                    : `${record.process}:${record.event}:${record.timestamp}`;
+            records.push({ id, timestamp: record.timestamp });
+        } catch {
+            // Ignore truncated lines left by an interrupted log write.
+        }
+    }
+    const boundedLimit = Math.min(5, Math.max(0, Math.trunc(limit)));
+    if (boundedLimit === 0) return [];
+    const recent = records.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const record of recent.toReversed()) {
+        if (!seen.has(record.id)) {
+            seen.add(record.id);
+            unique.push(record.id);
+        }
+        if (unique.length === boundedLimit) break;
+    }
+    return unique.reverse();
+}
+
 /** Builds a content-free timing summary from already structured operation logs. */
 export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
     const aggregates = new Map<string, PerformanceAggregate>();
@@ -85,6 +134,27 @@ export class DiagnosticsService {
         private readonly startedAt: number,
     ) {}
 
+    async reportContext(): Promise<{
+        appVersion: string;
+        architecture: string;
+        commit: string;
+        platform: string;
+        recentErrorIds: string[];
+    }> {
+        const logDirectory = dirname(this.logger.path);
+        const logNames = (await readdir(logDirectory)).filter((name) => name.endsWith('.jsonl'));
+        const logs = await Promise.all(
+            logNames.map((name) => readFile(join(logDirectory, name), 'utf8').catch(() => '')),
+        );
+        return {
+            appVersion: process.env.CAXRI_APP_VERSION ?? 'unknown',
+            architecture: process.arch,
+            commit: process.env.CAXRI_GIT_COMMIT ?? 'unknown',
+            platform: process.platform,
+            recentErrorIds: summarizeRecentErrorIds(logs.join('\n')),
+        };
+    }
+
     async export(destination: string): Promise<{ path: string }> {
         const projects = this.database.listProjects().map((project) => ({
             id: project.id,
@@ -98,6 +168,10 @@ export class DiagnosticsService {
             createdAt: session.createdAt,
             lastOpenedAt: session.lastOpenedAt,
             lastActivityState: session.lastActivityState,
+            attentionEpoch: session.attentionEpoch,
+            readAttentionEpoch: session.readAttentionEpoch,
+            lastAttentionKind: session.lastAttentionKind,
+            hasUnread: session.hasUnread,
             layoutVersion: session.layoutVersion,
         }));
         const terminals = this.database.listTerminals().map((terminal) => ({

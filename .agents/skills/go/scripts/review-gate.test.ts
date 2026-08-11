@@ -134,7 +134,8 @@ describe('Go review gate', () => {
         });
         verification('verification-1');
         verification('verification-2');
-        expect(() => verification('verification-3')).toThrow('at most two verification-only');
+        verification('verification-3');
+        expect(() => verification('verification-4')).toThrow('at most three verification-only');
     });
 
     it('allows only one targeted verification after the third full review', () => {

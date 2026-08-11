@@ -11,11 +11,13 @@ import {
     deleteSelectedSession,
     selectAdjacentSession,
 } from '../features/session/session-actions';
+import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     clearActiveTerminal,
     closeTerminal,
     createTerminal,
     restartActiveTerminal,
+    startNewAgentSession,
 } from '../features/terminal/terminal-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
 import { isEditableEventTarget } from '../lib/keybindings';
@@ -58,6 +60,10 @@ const commandContext: CommandContext = {
             const terminalId = activeTerminalId();
             if (terminalId) restartActiveTerminal(terminalId);
         },
+        startNewAgentSession: () => {
+            const terminalId = activeTerminalId();
+            if (terminalId) startNewAgentSession(terminalId);
+        },
         closeActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) closeTerminal(terminalId);
@@ -88,8 +94,13 @@ const commandContext: CommandContext = {
     },
     sidebar: { toggle: () => usePanelLayoutStore.getState().toggleSidebar() },
     dialogs: {
-        openSettings: () => useDialogStore.getState().setSettingsOpen(true),
+        openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
+        openPathBrowser: () => {
+            const bootstrap = getBootstrap();
+            if (getSelectedSession() && selectSelectedProject(bootstrap))
+                useDialogStore.getState().setPathBrowserOpen(true);
+        },
     },
     windows: {
         openProcessExplorer: () => {
@@ -97,6 +108,10 @@ const commandContext: CommandContext = {
                 caxri.request('processExplorer.open'),
             );
         },
+    },
+    developer: {
+        reportBug: () => useDialogStore.getState().openBugReport(),
+        toggleScreencastMode,
     },
     diagnostics: {
         export: () => {

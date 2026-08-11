@@ -7,6 +7,7 @@ describe('modal registration', () => {
         useDialogStore.setState({
             settingsOpen: false,
             paletteOpen: false,
+            pathBrowserOpen: false,
             pendingRoot: undefined,
             pendingProjectId: undefined,
             openModalIds: new Set(),

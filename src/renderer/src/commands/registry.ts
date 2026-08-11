@@ -7,13 +7,24 @@ import type { InspectorMode } from '@shared/types';
 export interface CommandContext {
     project: { create(): void; removeSelected(): void };
     session: { create(): void; deleteSelected(): void; selectAdjacent(delta: 1 | -1): void };
-    terminal: { create(): void; clearActive(): void; restartActive(): void; closeActive(): void };
+    terminal: {
+        create(): void;
+        clearActive(): void;
+        restartActive(): void;
+        startNewAgentSession(): void;
+        closeActive(): void;
+    };
     workbench: { closeActiveTab(): void };
     editor: { saveActive(): void };
     inspector: { searchFiles(): void; setMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };
-    dialogs: { openSettings(): void; openPalette(): void };
+    dialogs: {
+        openSettings(view?: 'ui' | 'source'): void;
+        openPalette(): void;
+        openPathBrowser(): void;
+    };
     windows: { openProcessExplorer(): void };
+    developer: { reportBug(): void; toggleScreencastMode(): void };
     diagnostics: { export(): void };
     updates: { check(): void };
 }

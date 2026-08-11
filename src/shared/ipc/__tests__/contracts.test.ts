@@ -6,6 +6,7 @@ import {
     errorCodes,
     fromWireError,
     internalMethods,
+    MAX_FILE_BROWSE_ENTRIES,
     methods,
     parseCaxriResult,
     parseRuntimeMessage,
@@ -44,6 +45,27 @@ describe('method table', () => {
         expect(methods['app.bootstrap'].params.safeParse(undefined).success).toBe(true);
         expect(methods['terminal.runningCount'].params.safeParse(undefined).success).toBe(true);
         expect(methods['files.read'].params.safeParse(undefined).success).toBe(false);
+    });
+
+    it('defaults Terminal restart to resuming the bound Agent session', () => {
+        expect(methods['terminal.restart'].params.parse({ terminalId: 'terminal-1' })).toEqual({
+            terminalId: 'terminal-1',
+            mode: 'resume',
+        });
+    });
+
+    it('requires both grid dimensions when attaching a live Terminal', () => {
+        expect(
+            methods['terminal.attach'].params.safeParse({ terminalId: 'terminal-1', cols: 80 })
+                .success,
+        ).toBe(false);
+        expect(
+            methods['terminal.attach'].params.safeParse({
+                terminalId: 'terminal-1',
+                cols: 80,
+                rows: 24,
+            }).success,
+        ).toBe(true);
     });
 
     it('rejects invalid Main and Runtime results as internal contract failures', () => {
@@ -192,8 +214,34 @@ describe('files.write contract', () => {
     });
 });
 
+describe('files.browse contract', () => {
+    it('bounds both the refinement query and returned directory entries', () => {
+        const base = { sessionId: 'session-1', directory: '/project' };
+        expect(
+            methods['files.browse'].params.safeParse({ ...base, query: 'x'.repeat(255) }).success,
+        ).toBe(true);
+        expect(
+            methods['files.browse'].params.safeParse({ ...base, query: 'x'.repeat(256) }).success,
+        ).toBe(false);
+
+        const entries = Array.from({ length: MAX_FILE_BROWSE_ENTRIES + 1 }, (_, index) => ({
+            kind: 'file' as const,
+            name: `file-${index}`,
+            path: `/project/file-${index}`,
+            size: 1,
+        }));
+        expect(methods['files.browse'].result.safeParse({ entries, truncated: true }).success).toBe(
+            false,
+        );
+    });
+});
+
 describe('file mutation contracts', () => {
-    const base = { sessionId: 'session-1', path: '/project/note.txt' };
+    const base = {
+        operationId: 'operation-1',
+        sessionId: 'session-1',
+        path: '/project/note.txt',
+    };
 
     it('keeps filesystem mutations narrow and gives Trash to Main only', () => {
         expect(methods['files.create'].owner).toBe('runtime');
@@ -209,6 +257,7 @@ describe('file mutation contracts', () => {
     it('defaults creation to a file and drag movement to conflict rejection', () => {
         expect(
             methods['files.create'].params.parse({
+                operationId: 'operation-1',
                 sessionId: 'session-1',
                 directory: '/project',
                 name: 'note.txt',
@@ -216,11 +265,23 @@ describe('file mutation contracts', () => {
         ).toMatchObject({ kind: 'file' });
         expect(
             methods['files.move'].params.parse({
+                operationId: 'operation-2',
                 sessionId: 'session-1',
                 path: '/project/note.txt',
                 directory: '/project/archive',
             }),
         ).toMatchObject({ conflict: 'reject' });
+    });
+
+    it('requires a durable operation ID for mutations that may outlive their IPC waiter', () => {
+        expect(
+            methods['files.create'].params.safeParse({
+                sessionId: 'session-1',
+                directory: '/project',
+                name: 'note.txt',
+            }).success,
+        ).toBe(false);
+        expect(methods['files.operation.list'].params.safeParse(undefined).success).toBe(true);
     });
 
     it.each(['', '.', '..', '../escape', 'nested/file', 'nested\\file', 'null\0byte'])(

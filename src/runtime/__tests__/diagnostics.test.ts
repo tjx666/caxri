@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { redactLogValue, redactSecrets } from '../../shared/node/redaction';
-import { normalizeHome, summarizePerformanceLogs } from '../diagnostics';
+import { normalizeHome, summarizePerformanceLogs, summarizeRecentErrorIds } from '../diagnostics';
 
 describe('diagnostics redaction', () => {
     it('redacts secret-like keys and values', () => {
@@ -53,5 +53,46 @@ describe('diagnostics performance summary', () => {
             { event: 'files.list', count: 2, averageMs: 6, minimumMs: 4, maximumMs: 8 },
             { event: 'runtime.ready', count: 1, averageMs: 12, minimumMs: 12, maximumMs: 12 },
         ]);
+    });
+});
+
+describe('bug report diagnostics summary', () => {
+    it('returns only bounded error identifiers without log messages or fields', () => {
+        expect(
+            summarizeRecentErrorIds(
+                [
+                    JSON.stringify({
+                        timestamp: '2026-08-11T00:00:00.000Z',
+                        process: 'runtime',
+                        level: 'error',
+                        event: 'ipc.request_failed',
+                        correlationId: 'correlation-1',
+                        fields: { error: 'token=private', source: 'secret.ts' },
+                    }),
+                    JSON.stringify({
+                        timestamp: '2026-08-11T00:00:01.000Z',
+                        process: 'main',
+                        level: 'error',
+                        event: 'window.close_failed',
+                        fields: { error: 'private output' },
+                    }),
+                ].join('\n'),
+                2,
+            ),
+        ).toEqual(['runtime:correlation-1', 'main:window.close_failed:2026-08-11T00:00:01.000Z']);
+    });
+
+    it('returns no identifiers when the requested limit is zero', () => {
+        expect(
+            summarizeRecentErrorIds(
+                JSON.stringify({
+                    timestamp: '2026-08-11T00:00:00.000Z',
+                    process: 'runtime',
+                    level: 'error',
+                    event: 'ipc.request_failed',
+                }),
+                0,
+            ),
+        ).toEqual([]);
     });
 });

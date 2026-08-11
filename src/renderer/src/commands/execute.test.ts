@@ -37,6 +37,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 create: record('terminal.create'),
                 clearActive: record('terminal.clear'),
                 restartActive: record('terminal.restart'),
+                startNewAgentSession: record('terminal.startNewAgentSession'),
                 closeActive: record('terminal.close'),
             },
             workbench: { closeActiveTab: record('workbench.closeActiveTab') },
@@ -50,8 +51,13 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             dialogs: {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
+                openPathBrowser: record('dialogs.openPathBrowser'),
             },
             windows: { openProcessExplorer: record('windows.openProcessExplorer') },
+            developer: {
+                reportBug: record('developer.reportBug'),
+                toggleScreencastMode: record('developer.toggleScreencastMode'),
+            },
             diagnostics: { export: record('diagnostics.export') },
             updates: { check: record('updates.check') },
         },
@@ -104,6 +110,15 @@ describe('executeCommand', () => {
         expect(calls).toEqual(
             inspectorModeRegistrations.map(({ mode }) => `inspector.setMode(${mode})`),
         );
+    });
+
+    it('deep-links the Settings source command without changing the regular UI command', () => {
+        const { calls, context } = recordingContext();
+
+        executeCommand('settings.open', undefined, context);
+        executeCommand('settings.openSource', undefined, context);
+
+        expect(calls).toEqual(['dialogs.openSettings', 'dialogs.openSettings(source)']);
     });
 
     it('shows exactly one error toast for an unknown command instead of throwing', () => {

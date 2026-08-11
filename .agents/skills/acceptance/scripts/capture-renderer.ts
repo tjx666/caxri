@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isOwnedLauncher, runtimeStateSchema } from './runtime-state';
+import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
 interface CdpTarget {
     type: string;
@@ -315,8 +315,8 @@ async function main(): Promise<void> {
         return;
     }
     const runtime = runtimeStateSchema.parse(JSON.parse(await readFile(RUNTIME_PATH, 'utf8')));
-    if (!(await isOwnedLauncher(runtime))) {
-        throw new Error('Acceptance runtime state does not belong to a live owned launcher');
+    if (!(await isOwnedRuntime(runtime))) {
+        throw new Error('Acceptance runtime state does not belong to a live owned process');
     }
     const port = resolveOwnedCapturePort(runtime.port, options.port);
     if (options.command === 'frames') await captureFrames(options, port);

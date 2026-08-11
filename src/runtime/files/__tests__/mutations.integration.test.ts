@@ -31,6 +31,7 @@ interface Fixture {
 }
 
 const fixtures: Fixture[] = [];
+const temporaryDirectories: string[] = [];
 async function createFixture(prefix: string, options: FileServiceOptions = {}): Promise<Fixture> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     const rootInput = join(directory, 'project');
@@ -59,9 +60,47 @@ afterEach(async () => {
             await rm(directory, { recursive: true, force: true });
         }),
     );
+    await Promise.all(
+        temporaryDirectories
+            .splice(0)
+            .map((directory) => rm(directory, { recursive: true, force: true })),
+    );
 });
 
 describe('FileMutationService', () => {
+    it('retries a post-create identity journal failure through the full service boundary', async () => {
+        let writes = 0;
+        const journalDirectory = await mkdtemp(join(tmpdir(), 'caxri-create-journal-'));
+        temporaryDirectories.push(journalDirectory);
+        const fixture = await createFixture('caxri-file-create-journal-retry-', {
+            mutationJournalPath: join(journalDirectory, 'operations.json'),
+            mutationJournal: {
+                completionRetryBaseMs: 1,
+                writeJournal: async (path, source) => {
+                    writes += 1;
+                    if (writes === 3) throw new Error('journal temporarily unavailable');
+                    await writeFile(path, source, 'utf8');
+                },
+            },
+        });
+        const operationId = 'create-journal-retry';
+        const target = join(fixture.root, 'created.txt');
+
+        await expect(
+            fixture.service.create({
+                operationId,
+                sessionId: fixture.sessionId,
+                directory: fixture.root,
+                name: 'created.txt',
+                kind: 'file',
+            }),
+        ).rejects.toThrow('journal temporarily unavailable');
+        await expect
+            .poll(async () => (await fixture.service.getMutationOperation(operationId))?.phase)
+            .toBe('completed');
+        await expect(readFile(target, 'utf8')).resolves.toBe('');
+    });
+
     it('creates, renames, and moves files and directories under the Project root', async () => {
         const { root, service, sessionId } = await createFixture('caxri-file-mutations-');
         const source = join(root, 'source.txt');
@@ -121,6 +160,31 @@ describe('FileMutationService', () => {
         await expect(
             service.authorizeTrash({ sessionId, path: join(movedFolder.path, 'nested.txt') }),
         ).resolves.toMatchObject({ kind: 'file', name: 'nested.txt' });
+    });
+
+    it('retains a completed mutation until its durable result is acknowledged', async () => {
+        const { root, service, sessionId } = await createFixture('caxri-file-mutation-result-');
+        const operationId = 'operation-durable-create';
+
+        const result = await service.create({
+            operationId,
+            sessionId,
+            directory: root,
+            name: 'durable.txt',
+            kind: 'file',
+        });
+
+        const operation = await service.getMutationOperation(operationId);
+        expect(operation).toMatchObject({
+            id: operationId,
+            phase: 'completed',
+            result,
+        });
+        if (operation?.kind !== 'create') throw new Error('Expected a durable create operation');
+        expect(typeof operation.expectedResult?.device).toBe('string');
+        expect(typeof operation.expectedResult?.inode).toBe('string');
+        await service.acknowledgeMutationOperation(operationId);
+        await expect(service.getMutationOperation(operationId)).resolves.toBeUndefined();
     });
 
     it('copies recursively and auto-renames copy and cut-paste conflicts', async () => {
@@ -298,6 +362,35 @@ describe('FileMutationService', () => {
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(access(join(root, 'linked-folder copy'))).rejects.toThrow();
         await expect(readFile(outside, 'utf8')).resolves.toBe('secret');
+    });
+
+    it('revalidates a rename source after its staged record is durable', async () => {
+        let source = '';
+        let preserved = '';
+        const fixture = await createFixture('caxri-file-staged-rename-race-', {
+            mutations: {
+                afterMutationStage: async () => {
+                    await rename(source, preserved);
+                    await writeFile(source, 'replacement', 'utf8');
+                },
+            },
+        });
+        source = join(fixture.root, 'source.txt');
+        preserved = join(fixture.root, 'preserved.txt');
+        const target = join(fixture.root, 'target.txt');
+        await writeFile(source, 'original', 'utf8');
+
+        await expect(
+            fixture.service.rename({
+                operationId: 'operation-staged-race',
+                sessionId: fixture.sessionId,
+                path: source,
+                name: 'target.txt',
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(readFile(preserved, 'utf8')).resolves.toBe('original');
+        await expect(readFile(source, 'utf8')).resolves.toBe('replacement');
+        await expect(access(target)).rejects.toThrow();
     });
 
     it('bounds recursive copies by entry count, total bytes, and duration', async () => {

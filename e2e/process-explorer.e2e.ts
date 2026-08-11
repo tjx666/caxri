@@ -28,11 +28,16 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             label: 'Open Process Explorer',
         });
 
-        await running.page.keyboard.press('Meta+Shift+P');
-        await running.page
-            .getByPlaceholder('Search projects, sessions, and commands…')
-            .fill('Process Explorer');
-        await running.page.getByText('Open Process Explorer', { exact: true }).click();
+        const memoryAction = running.page.getByRole('button', {
+            name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
+        });
+        await expect(memoryAction).toHaveAttribute(
+            'title',
+            /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
+        );
+        await memoryAction.focus();
+        await expect(memoryAction).toBeFocused();
+        await memoryAction.press('Enter');
         await expect.poll(() => running.app.windows().length).toBe(2);
         const processPage = running.app.windows().find((page) => page !== running.page)!;
         await processPage.waitForLoadState('domcontentloaded');
@@ -90,12 +95,14 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         );
 
         await running.page.bringToFront();
-        await running.page.keyboard.press('Meta+Shift+P');
-        await running.page
-            .getByPlaceholder('Search projects, sessions, and commands…')
-            .fill('Process Explorer');
-        await running.page.getByText('Open Process Explorer', { exact: true }).click();
+        const childProcessAction = running.page.getByRole('button', {
+            name: /^Open Process Explorer — Terminal: \d+ child processes?$/,
+        });
+        await childProcessAction.focus();
+        await expect(childProcessAction).toBeFocused();
+        await childProcessAction.press('Space');
         await expect.poll(() => running.app.windows().length).toBe(2);
+        await expect.poll(() => processPage.evaluate(() => document.hasFocus())).toBe(true);
 
         await processPage.close();
         await expect.poll(() => running.app.windows().length).toBe(1);

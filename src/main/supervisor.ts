@@ -33,20 +33,14 @@ type StdioStream = 'stdout' | 'stderr';
 const RUNTIME_READY_TIMEOUT_MS = 15_000;
 const RUNTIME_STABILITY_WINDOW_MS = 30_000;
 const DEFAULT_RUNTIME_REQUEST_TIMEOUT_MS = 20_000;
-const NON_EXPIRING_RUNTIME_METHODS = new Set<RuntimeMethod>([
-    'files.copy',
-    'files.create',
-    'files.move',
-    'files.rename',
-    'files.write',
-]);
+const NON_EXPIRING_RUNTIME_METHODS = new Set<RuntimeMethod>(['files.copy', 'files.write']);
 /** Caps a single logged Runtime stdio line so a runaway native crash cannot log-bomb main.jsonl. */
 const MAX_STDIO_LINE_LENGTH = 4_096;
 
 /**
- * File mutations continue inside Runtime after Main stops awaiting them, so Main must not report a
- * timeout while they can still complete. Runtime instead bounds their queue and recursive-copy
- * workload before accepting more work.
+ * Copy and save have no durable completion journal, so Main keeps awaiting Runtime's authoritative
+ * result. Create, rename, and move use ordinary request deadlines because their operation IDs and
+ * staged records let the Renderer reconcile a later completion safely.
  */
 function defaultRequestTimeout(method: RuntimeMethod): number | undefined {
     return NON_EXPIRING_RUNTIME_METHODS.has(method)

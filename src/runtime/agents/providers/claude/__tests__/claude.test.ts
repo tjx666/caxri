@@ -84,6 +84,7 @@ describe('Claude Code provider', () => {
         await expect(
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
         ).resolves.toMatchObject({
+            attentionKind: undefined,
             available: true,
             sessionId: 'claude-session-1',
             status: 'running',
@@ -97,8 +98,22 @@ describe('Claude Code provider', () => {
                 processState: 'running',
             }),
         ).resolves.toMatchObject({
+            attentionKind: 'waiting',
             sessionId: 'claude-session-2',
             title: 'Keep this Terminal',
+        });
+        await expect(
+            service.snapshot('claude', {
+                agentSessionId: 'claude-session-1',
+                rootPath: root,
+                processState: 'running',
+                startedAt: Date.now(),
+            }),
+        ).resolves.toMatchObject({
+            attentionKind: undefined,
+            sessionId: 'claude-session-1',
+            status: 'running',
+            title: 'Repair terminal lifecycle',
         });
     });
 });

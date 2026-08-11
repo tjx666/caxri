@@ -1,8 +1,14 @@
 import { create } from 'zustand';
 
+type SettingsView = 'ui' | 'source';
+
 interface DialogState {
     settingsOpen: boolean;
+    settingsRequest: { id: number; view: SettingsView };
     paletteOpen: boolean;
+    pathBrowserOpen: boolean;
+    bugReportOpen: boolean;
+    bugReportRequestId: number;
     /** Directory granted by the native picker, awaiting the default-Agent choice. */
     pendingRoot?: string;
     /** Existing Project awaiting the default-Agent choice for a new Session. */
@@ -11,7 +17,7 @@ interface DialogState {
      * IDs of currently mounted-and-open modals, registered by `useModalRegistration`
      * (see `components/ui/dialog.tsx`) from every consumer of the shared `Dialog`
      * primitive. `isModalOpen` used to be a hand-maintained OR of one boolean per
-     * dialog (settingsOpen, paletteOpen, pendingRoot, pendingProjectId); a future
+     * dialog (settingsOpen, paletteOpen, pathBrowserOpen, pendingRoot, pendingProjectId); a future
      * modal that forgot to add its field there would silently let app-wide shortcuts
      * fire behind it. Registration is mount/open driven instead, so any dialog built
      * on the shared primitive participates automatically and cannot drift out of sync.
@@ -19,8 +25,12 @@ interface DialogState {
      * double-invoked effects idempotent.
      */
     openModalIds: Set<string>;
+    openSettings(view?: SettingsView): void;
     setSettingsOpen(open: boolean): void;
     setPaletteOpen(open: boolean): void;
+    setPathBrowserOpen(open: boolean): void;
+    openBugReport(): void;
+    setBugReportOpen(open: boolean): void;
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
@@ -34,12 +44,28 @@ interface DialogState {
 
 export const useDialogStore = create<DialogState>((set, get) => ({
     settingsOpen: false,
+    settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
+    pathBrowserOpen: false,
+    bugReportOpen: false,
+    bugReportRequestId: 0,
     pendingRoot: undefined,
     pendingProjectId: undefined,
     openModalIds: new Set(),
+    openSettings: (view = 'ui') =>
+        set((state) => ({
+            settingsOpen: true,
+            settingsRequest: { id: state.settingsRequest.id + 1, view },
+        })),
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+    setPathBrowserOpen: (pathBrowserOpen) => set({ pathBrowserOpen }),
+    openBugReport: () =>
+        set((state) => ({
+            bugReportOpen: true,
+            bugReportRequestId: state.bugReportRequestId + 1,
+        })),
+    setBugReportOpen: (bugReportOpen) => set({ bugReportOpen }),
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
@@ -66,4 +92,8 @@ export const setSettingsOpen = (open: boolean): void =>
     useDialogStore.getState().setSettingsOpen(open);
 export const setPaletteOpen = (open: boolean): void =>
     useDialogStore.getState().setPaletteOpen(open);
+export const setPathBrowserOpen = (open: boolean): void =>
+    useDialogStore.getState().setPathBrowserOpen(open);
+export const setBugReportOpen = (open: boolean): void =>
+    useDialogStore.getState().setBugReportOpen(open);
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();

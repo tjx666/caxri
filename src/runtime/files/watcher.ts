@@ -1,5 +1,5 @@
 import { lstat, readdir } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
 
@@ -89,10 +89,14 @@ export class WatcherService {
     private pendingEvents = new Map<string, FileChange['kind']>();
     private droppedEvents = 0;
     private eventTimer?: NodeJS.Timeout;
+    private gitIgnoreRulePollTimer?: NodeJS.Timeout;
+    private gitIgnoreRulePollInFlight = false;
+    private gitIgnoreRulesChanged = false;
     private pollTimer?: NodeJS.Timeout;
     private pollInFlight = false;
     private pollingActive = false;
     private readonly listedDirectories = new Map<string, true>();
+    private readonly gitIgnoreRuleFingerprints = new Map<string, string>();
     private readonly polledDirectories = new Map<string, Map<string, string>>();
     private readonly recentChangeFingerprints = new Map<string, string>();
     private readonly maxPolledDirectories: number;
@@ -131,6 +135,35 @@ export class WatcherService {
         else void this.initializePolledDirectory(path, this.watchGeneration);
     }
 
+    /** Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree. */
+    async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {
+        if (sessionId !== this.watchedSessionId) return;
+        const generation = this.watchGeneration;
+        const maximum = this.maxPolledDirectories * 3;
+        const additions = [...new Set(paths)]
+            .filter(
+                (path) =>
+                    isAbsolute(path) &&
+                    !this.gitIgnoreRuleFingerprints.has(path) &&
+                    this.gitIgnoreRuleFingerprints.size < maximum,
+            )
+            .slice(0, Math.max(0, maximum - this.gitIgnoreRuleFingerprints.size));
+        const fingerprints = await mapWithConcurrency(
+            additions,
+            MAX_CONCURRENT_POLL_DIRECTORIES,
+            async (path) => [path, await this.readPathFingerprint(path)] as const,
+        );
+        if (generation !== this.watchGeneration || sessionId !== this.watchedSessionId) return;
+        for (const [path, fingerprint] of fingerprints)
+            this.gitIgnoreRuleFingerprints.set(path, fingerprint);
+        if (this.gitIgnoreRuleFingerprints.size === 0 || this.gitIgnoreRulePollTimer) return;
+        this.gitIgnoreRulePollTimer = setInterval(
+            () => void this.pollGitIgnoreRuleFiles(sessionId, generation),
+            this.pollIntervalMs,
+        );
+        this.gitIgnoreRulePollTimer.unref();
+    }
+
     watchSession(sessionId?: string): Promise<void> {
         if (sessionId === this.watchedSessionId) return this.watchSetup ?? Promise.resolve();
         const generation = ++this.watchGeneration;
@@ -139,10 +172,15 @@ export class WatcherService {
         this.eventTimer = undefined;
         this.pendingEvents.clear();
         this.droppedEvents = 0;
+        this.gitIgnoreRulesChanged = false;
+        if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
+        this.gitIgnoreRulePollTimer = undefined;
+        this.gitIgnoreRulePollInFlight = false;
         if (this.pollTimer) clearInterval(this.pollTimer);
         this.pollTimer = undefined;
         this.pollingActive = false;
         this.listedDirectories.clear();
+        this.gitIgnoreRuleFingerprints.clear();
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
         this.watchedRoot = undefined;
@@ -299,6 +337,15 @@ export class WatcherService {
         } else {
             this.droppedEvents += 1;
         }
+        this.scheduleEventBatch(sessionId);
+    }
+
+    private queueGitIgnoreRuleChange(sessionId: string): void {
+        this.gitIgnoreRulesChanged = true;
+        this.scheduleEventBatch(sessionId);
+    }
+
+    private scheduleEventBatch(sessionId: string): void {
         this.eventTimer ??= setTimeout(() => {
             const changes = [...this.pendingEvents].map(([eventPath, eventKind]) => ({
                 path: eventPath,
@@ -306,19 +353,60 @@ export class WatcherService {
             }));
             this.emit({
                 event: 'files.changed',
-                payload: { sessionId, changes, overflow: this.droppedEvents > 0 },
+                payload: {
+                    sessionId,
+                    changes,
+                    overflow: this.droppedEvents > 0,
+                    ...(this.gitIgnoreRulesChanged ? { gitIgnoreRulesChanged: true as const } : {}),
+                },
             });
             this.logger.write(this.droppedEvents > 0 ? 'warn' : 'debug', 'watcher.batch', {
                 fields: {
                     sessionId,
                     count: this.pendingEvents.size,
                     droppedEvents: this.droppedEvents,
+                    gitIgnoreRulesChanged: this.gitIgnoreRulesChanged,
                 },
             });
             this.pendingEvents.clear();
             this.droppedEvents = 0;
+            this.gitIgnoreRulesChanged = false;
             this.eventTimer = undefined;
         }, WATCH_BATCH_DELAY_MS);
+    }
+
+    private async readPathFingerprint(path: string): Promise<string> {
+        try {
+            return fileSignature(await lstat(path));
+        } catch {
+            return MISSING_PATH_FINGERPRINT;
+        }
+    }
+
+    private async pollGitIgnoreRuleFiles(sessionId: string, generation: number): Promise<void> {
+        if (this.gitIgnoreRulePollInFlight || generation !== this.watchGeneration) return;
+        this.gitIgnoreRulePollInFlight = true;
+        try {
+            const fingerprints = await mapWithConcurrency(
+                [...this.gitIgnoreRuleFingerprints],
+                MAX_CONCURRENT_POLL_DIRECTORIES,
+                async ([path, previous]) => ({
+                    current: await this.readPathFingerprint(path),
+                    path,
+                    previous,
+                }),
+            );
+            if (generation !== this.watchGeneration) return;
+            let changed = false;
+            for (const fingerprint of fingerprints) {
+                if (fingerprint.current === fingerprint.previous) continue;
+                this.gitIgnoreRuleFingerprints.set(fingerprint.path, fingerprint.current);
+                changed = true;
+            }
+            if (changed) this.queueGitIgnoreRuleChange(sessionId);
+        } finally {
+            if (generation === this.watchGeneration) this.gitIgnoreRulePollInFlight = false;
+        }
     }
 
     /**
@@ -418,11 +506,13 @@ export class WatcherService {
         this.watchGeneration += 1;
         this.pollingActive = false;
         if (this.eventTimer) clearTimeout(this.eventTimer);
+        if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
         if (this.pollTimer) clearInterval(this.pollTimer);
         const watcher = this.watcher;
         const setup = this.watchSetup;
         this.watcher = undefined;
         this.listedDirectories.clear();
+        this.gitIgnoreRuleFingerprints.clear();
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
         await Promise.allSettled([watcher?.unsubscribe(), setup]);

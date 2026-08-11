@@ -42,6 +42,10 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         lastOpenedAt: 0,
         primaryAgentTerminalId: undefined,
         lastActivityState: 'idle',
+        attentionEpoch: 0,
+        readAttentionEpoch: 0,
+        lastAttentionKind: undefined,
+        hasUnread: false,
         layoutVersion: 2,
         displayTitle: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
@@ -236,6 +240,53 @@ describe('decideAgentMetadataUpdate', () => {
                 lastActivityState: 'running',
             },
         });
+    });
+
+    it('emits only reliable primary-Agent attention state transitions', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+        const current = session({
+            primaryAgentTerminalId: primary.id,
+            lastActivityState: 'running',
+        });
+
+        expect(
+            decideAgentMetadataUpdate(primary, current, {
+                provider: 'claude',
+                attentionKind: 'waiting',
+                available: true,
+                observedAt: 0,
+                status: 'waiting',
+            })?.sessionPatch,
+        ).toMatchObject({ attentionKind: 'waiting', lastActivityState: 'waiting' });
+        expect(
+            decideAgentMetadataUpdate(
+                primary,
+                session({
+                    primaryAgentTerminalId: primary.id,
+                    lastActivityState: 'waiting',
+                    lastAttentionKind: 'waiting',
+                }),
+                {
+                    provider: 'claude',
+                    attentionKind: 'waiting',
+                    available: true,
+                    observedAt: 0,
+                    status: 'waiting',
+                },
+            ),
+        ).toBeUndefined();
+        expect(
+            decideAgentMetadataUpdate(
+                terminal({ id: 'codex-1', provider: 'codex' }),
+                session({ primaryAgentTerminalId: 'codex-1', lastActivityState: 'running' }),
+                {
+                    provider: 'codex',
+                    available: true,
+                    observedAt: 0,
+                    status: 'completed',
+                },
+            )?.sessionPatch?.attentionKind,
+        ).toBeUndefined();
     });
 
     it('removes leading image placeholders from an Agent-generated Session title', () => {

@@ -28,6 +28,20 @@ describe('command registry', () => {
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
         );
+        expect(commandDefinitions).toContainEqual(
+            expect.objectContaining({
+                id: 'developer.toggleScreencastMode',
+                title: 'Toggle Screencast Mode',
+                category: 'Developer',
+            }),
+        );
+        expect(commandDefinitions).toContainEqual(
+            expect.objectContaining({
+                id: 'developer.reportBug',
+                title: 'Report Bug to Agent',
+                category: 'Developer',
+            }),
+        );
     });
 
     it('owns unique native-menu placements and returns them in presentation order', () => {
