@@ -15,6 +15,15 @@ const acceptanceLoopReference = readFileSync(
 );
 
 describe('Go Acceptance planning contract', () => {
+    it('files new issues as Next unless work is already underway', () => {
+        expect(fileIssueSkill).toContain('--field Status --value "Next"');
+        expect(fileIssueSkill).toContain(
+            'Use `In Progress` instead of `Next` only when implementation or verification is already underway',
+        );
+        expect(fileIssueSkill).not.toContain('--field Status --value "Backlog"');
+        expect(fileIssueSkill).not.toContain('--field Status --value "Todo"');
+    });
+
     it('keeps UX design and Acceptance planning explicit in every issue', () => {
         expect(fileIssueSkill).toContain('`UX 设计` and `Acceptance 方案` in every issue');
         expect(fileIssueSkill).toContain('**UX 设计**');
