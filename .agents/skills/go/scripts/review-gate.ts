@@ -42,6 +42,7 @@ interface ReviewDecisionInput {
 const MAX_FULL_REVIEW_ROUNDS = 3;
 const MAX_PRE_DELIVERY_VERIFICATION_DECISIONS = 1;
 const MAX_DELIVERY_VERIFICATION_DECISIONS = 3;
+const MAX_AUTHORIZED_DELIVERY_VERIFICATION_DECISIONS = 4;
 
 export function createEmptyReviewGate(): ReviewGate {
     return { frozenHeadSha: null, rounds: [] };
@@ -125,10 +126,19 @@ export function recordReviewDecision(
         }
         if (
             reviewPhase === 'delivery' &&
-            deliveryDecisions >= MAX_DELIVERY_VERIFICATION_DECISIONS
+            deliveryDecisions >= MAX_AUTHORIZED_DELIVERY_VERIFICATION_DECISIONS
         ) {
             throw new Error(
-                'A Go run can record at most three delivery-stage verification-only freezes',
+                'A Go run can record at most four delivery-stage verification-only freezes',
+            );
+        }
+        if (
+            reviewPhase === 'delivery' &&
+            deliveryDecisions >= MAX_DELIVERY_VERIFICATION_DECISIONS &&
+            !input.authorization?.trim()
+        ) {
+            throw new Error(
+                'A fourth delivery-stage verification-only freeze requires explicit user authorization',
             );
         }
     }

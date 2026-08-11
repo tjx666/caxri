@@ -171,10 +171,11 @@ describe('Go review gate', () => {
         expect(state.reviewGate.rounds.filter(({ mode }) => mode === 'full')).toHaveLength(1);
     });
 
-    it('separates one pre-delivery freeze from three delivery-stage repair freezes', () => {
+    it('requires explicit authorization for one final delivery-stage repair freeze', () => {
         const state = reviewing();
-        const verification = (headSha: string) =>
+        const verification = (headSha: string, authorization?: string) =>
             recordReviewDecision(state, {
+                authorization,
                 freeze: true,
                 headSha,
                 mode: 'verification',
@@ -199,12 +200,16 @@ describe('Go review gate', () => {
         verification('delivery-1');
         verification('delivery-2');
         verification('delivery-3');
-        expect(() => verification('delivery-4')).toThrow('three delivery-stage');
+        expect(() => verification('delivery-4')).toThrow('requires explicit user authorization');
+        verification('delivery-4', 'User approved one final delivery verification.');
+        expect(() =>
+            verification('delivery-5', 'User approved another delivery verification.'),
+        ).toThrow('four delivery-stage');
         expect(
             state.reviewGate.rounds
                 .filter(({ mode }) => mode === 'verification')
                 .map(({ phase }) => phase),
-        ).toEqual(['deep_review', 'delivery', 'delivery', 'delivery']);
+        ).toEqual(['deep_review', 'delivery', 'delivery', 'delivery', 'delivery']);
     });
 
     it('conservatively charges unphased freezes to the current delivery budget', () => {
@@ -247,7 +252,7 @@ describe('Go review gate', () => {
                 p1: 0,
                 scope: 'Conservatively blocked delivery verification',
             }),
-        ).toThrow('three delivery-stage');
+        ).toThrow('requires explicit user authorization');
     });
 
     it('allows one explicitly authorized final targeted verification after the first finds P0/P1', () => {

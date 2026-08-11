@@ -134,7 +134,10 @@ After all issue commits:
    existing full product-review baseline, zero product P0/P1, and freezes the
    exact head without consuming another product review. Batch these repairs; a
    Go run permits one verification-only freeze during `deep_review` and at most
-   three delivery-stage repair freezes.
+   three routine delivery-stage repair freezes. If later exhaustive validation
+   exposes one more independent delivery-infrastructure failure, explicit user
+   authorization may permit exactly one final fourth freeze; record that
+   authorization in the ledger and never allow a fifth.
 6. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
 7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
