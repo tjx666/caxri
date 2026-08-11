@@ -352,6 +352,41 @@ describe('switch-worktree creation and diagnostics', () => {
 });
 
 describe('switch-worktree shared ownership', () => {
+    it('publishes complete repository lock owner metadata atomically', async () => {
+        const fixture = await createFixture();
+        const context = await repositoryContext(fixture.root);
+        const lockPath = join(context.stateDir, 'operation.lock');
+        const readyToPublish = Promise.withResolvers<void>();
+        const allowPublish = Promise.withResolvers<void>();
+        const taskEntered = Promise.withResolvers<void>();
+        const allowTaskExit = Promise.withResolvers<void>();
+
+        const operation = withRepositoryLock(
+            context,
+            async () => {
+                taskEntered.resolve();
+                await allowTaskExit.promise;
+            },
+            {
+                beforeLockPublish: async () => {
+                    readyToPublish.resolve();
+                    await allowPublish.promise;
+                },
+            },
+        );
+        await readyToPublish.promise;
+        expect(await pathExists(lockPath)).toBe(false);
+
+        allowPublish.resolve();
+        await taskEntered.promise;
+        await expect(readFile(join(lockPath, 'owner.json'), 'utf8')).resolves.toContain(
+            `"pid": ${process.pid}`,
+        );
+        allowTaskExit.resolve();
+        await expect(operation).resolves.toBeUndefined();
+        expect(await pathExists(lockPath)).toBe(false);
+    });
+
     it('waits for repository lock owner metadata to become visible', async () => {
         const fixture = await createFixture();
         const context = await repositoryContext(fixture.root);

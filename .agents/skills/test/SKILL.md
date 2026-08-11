@@ -53,7 +53,12 @@ Use this workflow only when focused E2E coverage is insufficient:
    owns platform-neutral gates; the macOS `e2e` job runs `bun run test:e2e` only after those checks
    succeed.
 6. If CI fails, inspect the failing job with `gh run view <run-id> --log-failed`, fix the same branch, push again, and wait for the replacement checks. Never weaken or skip the suite to obtain a pass.
-7. Report the PR and workflow links plus the final checks and E2E conclusions. Do not merge or close the PR unless the user authorized that action.
+7. Treat a hosted-only timing failure as missing determinism at the owning async boundary. Re-run
+   only the exact failed cases against a production build with one worker and `--repeat-each=3`.
+   Add a deterministic delay seam or wait for an observable product invariant; preserve CI viewport
+   and long temporary-path conditions when they matter. Do not substitute machine-wide throttling or
+   a timeout-only change for a causal reproduction.
+8. Report the PR and workflow links plus the final checks and E2E conclusions. Do not merge or close the PR unless the user authorized that action.
 
 ## Guarded local fallback for external CI failure
 

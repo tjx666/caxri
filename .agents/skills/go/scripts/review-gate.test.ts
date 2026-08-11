@@ -202,14 +202,16 @@ describe('Go review gate', () => {
         verification('delivery-3');
         expect(() => verification('delivery-4')).toThrow('requires explicit user authorization');
         verification('delivery-4', 'User approved one final delivery verification.');
+        expect(() => verification('delivery-5')).toThrow('requires explicit user authorization');
+        verification('delivery-5', 'User approved one systemic CI-parity verification.');
         expect(() =>
-            verification('delivery-5', 'User approved another delivery verification.'),
-        ).toThrow('four delivery-stage');
+            verification('delivery-6', 'User approved another delivery verification.'),
+        ).toThrow('five delivery-stage');
         expect(
             state.reviewGate.rounds
                 .filter(({ mode }) => mode === 'verification')
                 .map(({ phase }) => phase),
-        ).toEqual(['deep_review', 'delivery', 'delivery', 'delivery', 'delivery']);
+        ).toEqual(['deep_review', 'delivery', 'delivery', 'delivery', 'delivery', 'delivery']);
     });
 
     it('conservatively charges unphased freezes to the current delivery budget', () => {
