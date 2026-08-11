@@ -64,6 +64,11 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('settings.openSource', (ctx) => ctx.dialogs.openSettings('source'), {
         allowInEditable: true,
     }),
+    fromCatalog(
+        'settings.manageTrustedDomains',
+        (ctx) => ctx.dialogs.openSettings('trusted-domains'),
+        { allowInEditable: true },
+    ),
     fromCatalog('updates.check', (ctx) => ctx.updates.check()),
     fromCatalog('pathBrowser.open', (ctx) => ctx.dialogs.openPathBrowser(), {
         allowInEditable: true,

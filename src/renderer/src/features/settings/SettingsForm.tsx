@@ -13,10 +13,12 @@ import {
 } from '../../components/ui/select';
 import { cn, settingsFieldRowClassName } from '../../lib/utils';
 import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
+import { TrustedDomainsForm } from './TrustedDomainsForm';
 
 interface SettingsFormProps {
     agentHookHealth?: AgentHookHealthMap;
     appliedSettings: AppSettings;
+    trustedDomainsFocusRequestId?: number;
     settings: AppSettings;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
@@ -54,6 +56,7 @@ function hookHealthLabel(
 export function SettingsForm({
     agentHookHealth,
     appliedSettings,
+    trustedDomainsFocusRequestId,
     settings,
     onFieldChange,
 }: SettingsFormProps) {
@@ -184,6 +187,11 @@ export function SettingsForm({
                         }
                     />
                 </label>
+                <TrustedDomainsForm
+                    focusRequestId={trustedDomainsFocusRequestId}
+                    rules={settings['security.trustedDomains']}
+                    onChange={(rules) => onFieldChange('security.trustedDomains', rules)}
+                />
                 <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
                     <span>Maximum editable file size</span>
                     <span className="relative w-40 flex-none">

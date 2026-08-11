@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type SettingsView = 'ui' | 'source';
+export type SettingsView = 'ui' | 'source' | 'trusted-domains';
 
 interface DialogState {
     archivedSessionsOpen: boolean;

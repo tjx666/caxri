@@ -47,7 +47,7 @@ async function clickTerminalText(page: Page, text: string): Promise<void> {
     const x = bounds.x + bounds.width / 2;
     const y = bounds.y + bounds.height / 2;
     await page.mouse.move(x, y);
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(100);
     await page.keyboard.down('Meta');
     try {
         await page.mouse.click(x, y);
@@ -141,7 +141,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             const target = globalThis as typeof globalThis & {
                 caxriExternalLinkProbe?: { response: number };
             };
-            target.caxriExternalLinkProbe!.response = 1;
+            target.caxriExternalLinkProbe!.response = 2;
         });
         await typeTerminal(running.page, `printf '%s\\n' '${canceledUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(canceledUrl);
