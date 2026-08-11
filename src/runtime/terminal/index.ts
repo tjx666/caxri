@@ -158,7 +158,13 @@ export class TerminalManager {
                           args: [],
                       });
             if (record.kind === 'shell') assertE2EShellLaunch(e2eAgentPolicy);
-            else assertE2EAgentLaunch(e2eAgentPolicy, record.kind, launch!);
+            else
+                assertE2EAgentLaunch(
+                    e2eAgentPolicy,
+                    record.kind,
+                    launch!,
+                    options?.resumeAgentSessionId,
+                );
             failureReason = 'executable_not_found';
             const executable = await this.resolveExecutable(record.kind, launch);
             const args = record.kind === 'shell' ? ['-l'] : [...launch!.args];

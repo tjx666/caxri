@@ -88,10 +88,16 @@ export function assertE2EAgentLaunch(
     policy: E2EAgentPolicy | undefined,
     provider: AgentProvider,
     launch: AgentLaunchSettings,
+    resumeAgentSessionId?: string,
 ): void {
     if (policy?.mode !== 'real') return;
     if (provider !== policy.provider)
         throw new CaxriError('UNAVAILABLE', `${provider} is not enabled for this real Agent E2E`);
+    if (resumeAgentSessionId)
+        throw new CaxriError(
+            'VALIDATION',
+            'Real Agent E2E does not resume persisted Agent sessions',
+        );
     const prompt = launch.args.at(-1);
     const prefix = launch.args.slice(0, -1);
     if (
