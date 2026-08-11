@@ -63,9 +63,14 @@ Read [references/intake.md](references/intake.md) in full.
    an ordinary decision gate into the active Goal.
 5. Split selected work into independently verifiable GitHub issues. Reuse an
    existing issue when it already owns the work; otherwise invoke the
-   repository's `file-issue` skill.
+   repository's `file-issue` skill. Every admitted issue must contain explicit
+   `UX 设计` and `Acceptance 方案` sections, including a reason when no direct UI
+   claim exists.
 6. Freeze dependencies, priorities, execution order, issue completion criteria,
-   and stable Acceptance check ids. Produce one compact execution plan.
+   UX decisions, stable Acceptance check ids, and the issue-level Acceptance
+   coverage contract. Do not pre-author the final case execution plan; a fresh
+   tester subagent derives it from the stable delivered head. Produce one compact
+   execution plan.
 7. Initialize the ledger. When the runtime provides `create_goal`, call it with
    the concrete objective and do not set a token budget unless the user explicitly
    requested one. In a compatible client without that tool, transition the ledger
@@ -129,7 +134,8 @@ After all issue commits:
 6. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
 7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
-   Acceptance matrix. A narrow Acceptance must never certify a broader PR.
+   issue-level Acceptance coverage contract. A narrow Acceptance must never
+   certify a broader PR.
 8. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
 9. Route code failures through repair, focused validation, one targeted review, commit,
    and push. A zero-step hosted-runner billing or infrastructure failure remains
@@ -147,12 +153,20 @@ and repair routing.
 ## Phase 3: Acceptance loop
 
 After the PR head is review-clean and either its required checks are green or an
-exact-head local fallback has passed, invoke the project-local `acceptance`
-skill. Its only product surface is isolated macOS Electron desktop.
+exact-head local fallback has passed, have a fresh context-isolated tester
+subagent independently draft the final Acceptance plan, then invoke the
+project-local `acceptance` skill. Its only product surface is isolated macOS
+Electron desktop.
 
 Read [references/acceptance-loop.md](references/acceptance-loop.md) before the
-first round. The Go intake plan already authorizes the planned Acceptance cases;
-do not add another routine confirmation gate.
+first round. Give the planner the original requirement, admitted issue bodies,
+stable check ids, exact PR head and diff, and the relevant product and Acceptance
+contracts. Do not give it a builder-authored plan or expected verdicts. The root
+agent adjudicates coverage and feasibility without weakening a check to fit the
+implementation. If subagent execution is unavailable, pause before Acceptance
+and ask for direction instead of silently substituting the builder's own plan.
+The issue-level contracts already authorize the resulting in-scope cases; do not
+add another routine confirmation gate.
 
 - Publish failures discovered after round execution starts; never silently fix
   and erase the failed snapshot.

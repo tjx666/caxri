@@ -9,10 +9,35 @@ Electron desktop.
 1. Read `.agents/acceptance/PROJECT.md` and resolve its current build, CDP, and
    isolated-profile commands.
 2. Confirm LobeHub CLI authentication.
-3. Reuse the stable check ids frozen during Go intake.
-4. Write the frozen plan before executing cases.
-5. Use the Acceptance report scaffold to initialize a fresh round directory
-   under the current Go ledger directory.
+3. Assemble a bounded planner packet containing the original business
+   requirement, admitted issue bodies, their UX and Acceptance sections, stable
+   check ids, the exact PR head and diff summary, and the relevant product,
+   design, and Acceptance evidence contracts.
+4. Spawn one fresh context-isolated tester subagent named
+   `acceptance_plan_tester`. Keep it read-only, forbid nested delegation, and do
+   not give it a builder-authored case plan, implementation rationale, intended
+   verdicts, or prior evidence selection.
+5. Require the tester to inspect the current source and independently return:
+   - a report-compatible `plan[]` using the frozen stable ids;
+   - an issue-to-check coverage map;
+   - required fixtures, failure injection, and setup assumptions;
+   - coverage gaps, duplicate checks, or claims that cannot be proven with the
+     proposed evidence.
+6. Direct the tester to start from user journeys and plausible failure modes.
+   Prefer real UI screenshots or video whenever the result is visible; use DOM,
+   structured logs, or text only for claims the UI cannot faithfully expose.
+   A visual check must prove the behavior or state, not merely that an element
+   exists.
+7. Adjudicate the proposal against the original requirement, every admitted
+   issue, and the exact PR diff. Resolve missing coverage before freezing the
+   plan; do not weaken an expected result to match the implementation. If a
+   material product choice or scope expansion is required, return to the owning
+   workflow phase instead of improvising it in Acceptance.
+8. If subagent execution is unavailable, pause and ask the user for direction.
+   Do not silently let the builder author the plan and call it independent.
+9. Write the adjudicated frozen plan before executing cases.
+10. Use the Acceptance report scaffold to initialize a fresh round directory
+    under the current Go ledger directory.
 
 The first requirement is one immutable sentence describing the whole business
 goal, not the current repair. Write the requirement and all human-facing report

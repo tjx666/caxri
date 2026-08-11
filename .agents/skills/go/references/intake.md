@@ -76,7 +76,7 @@ If no relevant implementation is available, record that briefly and continue.
 
 Do not infer that every sentence is a separate issue. Merge requirements that
 share one root cause or atomic delivery, while preserving issue-specific
-Acceptance checks.
+Acceptance checks and UX outcomes.
 
 ## Discuss only material boundaries
 
@@ -113,6 +113,8 @@ For each selected issue, record:
 
 - GitHub issue number and title;
 - user-visible outcome and non-goals;
+- an explicit UX design covering the user path, visible states, copy, keyboard,
+  and accessibility behavior, or a reason no direct UI claim exists;
 - macOS Electron location or an explicit reason the requirement is not a product
   surface claim;
 - dependencies and priority;
@@ -121,13 +123,21 @@ For each selected issue, record:
 - the authority and threat-model boundary, accepted reference-product residual
   risks, and any explicitly stronger guarantee;
 - focused validation;
-- stable Acceptance check ids and required evidence;
+- stable Acceptance check ids, the issue-authored Acceptance outline, and
+  required evidence constraints;
 - whether the check is visual, temporal, or non-visual.
 
 Reuse live issues when their current scope matches. Invoke `file-issue` for new
-issues so repository issue conventions are preserved. Do not file a speculative
-issue before resolving a material decision. New issue titles and human-facing
-content use Simplified Chinese while technical identifiers remain English.
+issues so repository issue conventions are preserved. Update a reused issue
+before admission when either its `UX 设计` or `Acceptance 方案` is missing or no
+longer matches the selected scope. Do not file a speculative issue before
+resolving a material decision. New issue titles and human-facing content use
+Simplified Chinese while technical identifiers remain English.
+
+Freeze the issue-level Acceptance contract here: what must be demonstrated,
+where it is observable, stable ids, and evidence constraints. Do not freeze the
+final step-by-step case plan during intake. After the PR head is stable, a fresh
+tester subagent derives that plan independently from the delivered behavior.
 
 ## Present one plan
 
@@ -136,10 +146,10 @@ Output one compact plan containing:
 1. selected issues in execution order;
 2. excluded, deferred, and already-satisfied requirements;
 3. dependencies and risk hotspots;
-4. validation and Acceptance matrix;
+4. focused validation and the issue-level Acceptance coverage contract;
 5. remote mutations authorized by the explicit `$go` invocation;
 6. the exact delivery base and confirmation that the branch/PR scope matches the
-   Acceptance matrix;
+   issue-level Acceptance coverage contract;
 7. any remaining external blocker.
 
 Once material boundaries are settled, create the durable ledger, call

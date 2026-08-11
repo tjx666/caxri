@@ -3,19 +3,19 @@
 Use these phases as durable checkpoints. Update the run ledger after each
 transition rather than reconstructing progress from the conversation.
 
-| Phase                | Entry condition             | Exit condition                                    | Allowed return                     |
-| -------------------- | --------------------------- | ------------------------------------------------- | ---------------------------------- |
-| `intake`             | `$go` explicitly invoked    | Requirements classified                           | none                               |
-| `planning`           | Material decisions resolved | Issues and Acceptance matrix frozen; Goal created | `intake` only before Goal creation |
-| `issue_execution`    | Goal or ledger active       | Every queued issue has a reviewed commit          | same phase for repair              |
-| `deep_review`        | Issue queue complete        | Exact head review-clean and frozen                | `issue_execution`                  |
-| `delivery`           | Frozen review-clean branch  | PR checks and review clear                        | `deep_review`                      |
-| `acceptance`         | Deliverable head stable     | Passing round published                           | `issue_execution` or `deep_review` |
-| `waiting_acceptance` | Passing round published     | Human accepts or rejects                          | `acceptance`                       |
-| `merge`              | Human accepted current head | PR merged and issues verified                     | `deep_review` if code changes      |
-| `self_improvement`   | Delivery merged             | Findings classified                               | none                               |
-| `reporting`          | Remote state refreshed      | Final report delivered                            | none                               |
-| `complete`           | No required work remains    | Terminal                                          | none                               |
+| Phase                | Entry condition                      | Exit condition                                                   | Allowed return                     |
+| -------------------- | ------------------------------------ | ---------------------------------------------------------------- | ---------------------------------- |
+| `intake`             | `$go` explicitly invoked             | Requirements classified                                          | none                               |
+| `planning`           | Material decisions resolved          | Issues and issue-level Acceptance contracts frozen; Goal created | `intake` only before Goal creation |
+| `issue_execution`    | Goal or ledger active                | Every queued issue has a reviewed commit                         | same phase for repair              |
+| `deep_review`        | Issue queue complete                 | Exact head review-clean and frozen                               | `issue_execution`                  |
+| `delivery`           | Frozen review-clean branch           | PR checks and review clear                                       | `deep_review`                      |
+| `acceptance`         | Stable head and tester-authored plan | Passing round published                                          | `issue_execution` or `deep_review` |
+| `waiting_acceptance` | Passing round published              | Human accepts or rejects                                         | `acceptance`                       |
+| `merge`              | Human accepted current head          | PR merged and issues verified                                    | `deep_review` if code changes      |
+| `self_improvement`   | Delivery merged                      | Findings classified                                              | none                               |
+| `reporting`          | Remote state refreshed               | Final report delivered                                           | none                               |
+| `complete`           | No required work remains             | Terminal                                                         | none                               |
 
 ## Per-issue loop
 
@@ -27,8 +27,10 @@ queued → progressing → implement → focused validation → light review
 
 Create a behavior-level failing regression first when the bug is cheaply
 reproducible. Keep commits cohesive and independently explainable. A shared root
-cause may satisfy multiple issues, but the ledger and Acceptance matrix must
-retain each issue's observable outcome.
+cause may satisfy multiple issues, but the ledger and issue-level Acceptance
+contracts must retain each issue's observable outcome. A fresh tester subagent
+turns those contracts into the final case plan only after the delivered head is
+stable.
 
 ## Aggregate review budget
 
