@@ -153,7 +153,9 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
 
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Duplicate' }).click();
-        await expect.poll(() => readFile(join(root, 'draft copy.txt'), 'utf8')).toBe('draft\n');
+        await expect
+            .poll(() => readFile(join(root, 'draft copy.txt'), 'utf8').catch(() => undefined))
+            .toBe('draft\n');
 
         const sourceFolderRow = fileList.getByRole('button', {
             name: 'source-folder',
