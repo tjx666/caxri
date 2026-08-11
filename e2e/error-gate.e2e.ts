@@ -4,9 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { test as rawTest, type TestInfo } from '@playwright/test';
-
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, errorGateSelfTest, expect, test, type TestInfo } from './fixtures.ts';
 
 import { launchCaxri, pageReply } from './helpers.ts';
 import { runWithE2EErrorGate } from './error-gate.ts';
@@ -107,7 +105,7 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
     }
 });
 
-rawTest(
+errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Main error after usable UI',
     async ({ browserName }, testInfo) => {
         void browserName;
@@ -127,7 +125,7 @@ test('issue-104-error-gate: consumes one exact Main error after usable UI', asyn
     await observeIpcFailure(testInfo, 'main-allowed', 'e2e.invalid', {}, 'VALIDATION');
 });
 
-rawTest(
+errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Runtime error after usable UI',
     async ({ browserName }, testInfo) => {
         void browserName;
