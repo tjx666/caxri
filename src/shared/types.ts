@@ -47,6 +47,7 @@ export {
     type SessionAttentionKind,
     type SessionTitleMode,
     type SessionState,
+    type TerminalFailureReason,
     type TerminalKind,
     type TerminalRecord,
     type TerminalResourceUsage,

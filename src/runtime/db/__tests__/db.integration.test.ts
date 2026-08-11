@@ -221,12 +221,12 @@ describe('CaxriDb', () => {
             payload: 'restored',
             updatedAt: 123,
         });
-        const columns = previous.database.pragma('table_info(sessions)') as Array<{
+        const terminalColumns = previous.database.pragma('table_info(terminals)') as Array<{
             name: string;
         }>;
-        for (const column of ['attention_epoch', 'read_attention_epoch', 'last_attention_kind'])
-            if (columns.some((candidate) => candidate.name === column))
-                previous.database.exec(`ALTER TABLE sessions DROP COLUMN ${column}`);
+        for (const column of ['failure_reason'])
+            if (terminalColumns.some((candidate) => candidate.name === column))
+                previous.database.exec(`ALTER TABLE terminals DROP COLUMN ${column}`);
         previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
@@ -245,7 +245,10 @@ describe('CaxriDb', () => {
             readAttentionEpoch: 0,
             titleMode: 'automatic',
         });
-        expect(upgraded.terminals.get(terminal.id)).toMatchObject({ id: terminal.id });
+        expect(upgraded.terminals.get(terminal.id)).toMatchObject({
+            id: terminal.id,
+            failureReason: undefined,
+        });
         expect(upgraded.snapshots.get(terminal.id)).toMatchObject({
             terminalId: terminal.id,
             payload: 'restored',

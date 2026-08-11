@@ -8,6 +8,7 @@ import type {
     ProjectRecord,
     SessionRecord,
     SessionState,
+    TerminalFailureReason,
     TerminalKind,
     TerminalRecord,
     TerminalSnapshot,
@@ -403,11 +404,15 @@ export class CaxriDatabase {
         }
     }
 
-    updateTerminalState(id: string, state: ProcessState): void {
+    updateTerminalState(
+        id: string,
+        state: ProcessState,
+        failureReason?: TerminalFailureReason,
+    ): void {
         this.db.transaction(() => {
             const terminal = this.db.terminals.get(id);
             if (!terminal) return;
-            this.db.terminals.updateState(id, state);
+            this.db.terminals.updateState(id, state, failureReason);
             if (terminal.provider)
                 this.db.sessions.setActivityStateByPrimaryTerminal(id, processActivityState(state));
         });

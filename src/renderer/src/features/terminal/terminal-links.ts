@@ -152,7 +152,21 @@ export function resolveTerminalFilePath(
     return normalizeAbsolutePath(`${base}/${filePath}`);
 }
 
-function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): void {
+/**
+ * Matches VS Code/iTerm2: a link only activates while the platform's "open" modifier is held,
+ * instead of on a bare click. Caxri ships only on macOS (Cmd); Ctrl is also accepted so an
+ * external/non-Mac keyboard layout still works without per-platform detection.
+ */
+function hasLinkActivationModifier(event: MouseEvent): boolean {
+    return event.metaKey || event.ctrlKey;
+}
+
+function activateLink(
+    event: MouseEvent,
+    match: TerminalLinkMatch,
+    context: TerminalLinkContext,
+): void {
+    if (!hasLinkActivationModifier(event)) return;
     if (match.kind === 'url') {
         context.openUrl(match.target);
         return;
@@ -224,7 +238,7 @@ function linksForLogicalLine(logicalLine: LogicalLine, context: TerminalLinkCont
         if (!start || !end) return [];
         return [
             {
-                activate: () => activateLink(match, context),
+                activate: (event) => activateLink(event, match, context),
                 decorations: { pointerCursor: true, underline: true },
                 range: { start, end },
                 text: match.text,
@@ -246,11 +260,11 @@ export function registerTerminalLinks(
         },
     });
     terminal.options.linkHandler = {
-        activate(_event, text) {
+        activate(event, text) {
             const match = findTerminalLinks(text).find(
                 (candidate) => candidate.startIndex === 0 && candidate.endIndex === text.length,
             );
-            if (match) activateLink(match, context);
+            if (match) activateLink(event, match, context);
         },
         /** File URLs are allowed into the handler, then constrained by the Runtime-rooted read. */
         allowNonHttpProtocols: true,

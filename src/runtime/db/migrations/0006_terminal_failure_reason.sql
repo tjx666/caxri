@@ -1,0 +1,1 @@
+ALTER TABLE `terminals` ADD `failure_reason` text;
