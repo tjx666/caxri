@@ -25,12 +25,13 @@ import { deleteSession, unarchiveSession } from './session-actions';
 import { deriveArchivedSessionView, type ArchivedSessionFilters } from './archived-sessions';
 
 const NO_RECORDS: never[] = [];
+const archivedTimestampFormatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+});
 
 function archivedTimestamp(value: number): string {
-    return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(value);
+    return archivedTimestampFormatter.format(value);
 }
 
 export function ArchivedSessionsDialog() {

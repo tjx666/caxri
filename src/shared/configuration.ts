@@ -62,6 +62,7 @@ const trustedDomainsSchema = z
     .default([])
     .transform((values, context) => {
         const normalized: string[] = [];
+        const seen = new Set<string>();
         for (const [index, value] of values.entries()) {
             const rule = normalizeTrustedDomainRule(value);
             if (!rule) {
@@ -72,7 +73,10 @@ const trustedDomainsSchema = z
                 });
                 continue;
             }
-            if (!normalized.includes(rule)) normalized.push(rule);
+            if (!seen.has(rule)) {
+                seen.add(rule);
+                normalized.push(rule);
+            }
         }
         return normalized;
     });
