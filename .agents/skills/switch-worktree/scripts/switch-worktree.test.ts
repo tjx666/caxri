@@ -26,6 +26,7 @@ import {
     createWorktree,
     devWorktree,
     doctorWorktree,
+    installWorktreeDependencies,
     listWorktreeStatus,
     prepareDevWorktree,
     removeWorktree,
@@ -106,9 +107,12 @@ describe('switch-worktree creation and diagnostics', () => {
 
         const context = await repositoryContext(fixture.root);
         expect(created.path).toBe(worktreeDirectory(context, 'feat/example'));
-        expect(created.path).toContain(
-            `${join(dirname(fixture.root), 'caxri-worktrees')}/feat%2Fexample`,
+        expect(created.path).toMatch(
+            new RegExp(
+                `^${join(dirname(context.primaryRoot), 'caxri-worktrees')}/feat-example-[a-f0-9]{8}$`,
+            ),
         );
+        expect(created.path).not.toContain('%');
         expect(created.branch).toBe('feat/example');
         expect(created.dependencies).toBe('ready');
         expect(created.managed).toBe(true);
@@ -261,6 +265,35 @@ describe('switch-worktree creation and diagnostics', () => {
         expect(parsed.branch).toBe('feat/json-output');
         expect(parsed.path).toContain('caxri-worktrees');
         output.mockRestore();
+    });
+
+    it('restores exact manifests after dependency installation metadata churn', async () => {
+        const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-install-'));
+        temporaryDirectories.push(temporary);
+        const binaryDirectory = join(temporary, 'bin');
+        await mkdir(binaryDirectory);
+        const niPath = join(binaryDirectory, 'ni');
+        await writeFile(
+            niPath,
+            '#!/bin/sh\nprintf "\\ninstall metadata" >> package-lock.json\nmkdir node_modules\n',
+            'utf8',
+        );
+        await chmod(niPath, 0o755);
+        const packageSource = '{"name":"fixture"}\n';
+        const lockSource = '{"lockfileVersion":3}\n';
+        await writeFile(join(temporary, 'package.json'), packageSource, 'utf8');
+        await writeFile(join(temporary, 'package-lock.json'), lockSource, 'utf8');
+        const previousPath = process.env.PATH;
+        try {
+            process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            await installWorktreeDependencies(temporary);
+        } finally {
+            process.env.PATH = previousPath;
+        }
+
+        expect(await readFile(join(temporary, 'package.json'), 'utf8')).toBe(packageSource);
+        expect(await readFile(join(temporary, 'package-lock.json'), 'utf8')).toBe(lockSource);
+        expect(await pathExists(join(temporary, 'node_modules'))).toBe(true);
     });
 });
 
