@@ -88,6 +88,66 @@ describe('Go review gate', () => {
         ).toThrow('requires a prior full Goal-range review');
     });
 
+    it('reserves deep-review targeted verification for repairs after the third full round', () => {
+        const state = reviewing();
+        for (const headSha of ['head-1', 'head-2']) {
+            recordReviewDecision(state, {
+                freeze: false,
+                headSha,
+                mode: 'full',
+                p0: 0,
+                p1: 1,
+                scope: 'Goal range',
+            });
+        }
+
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'premature-targeted',
+                mode: 'targeted',
+                p0: 0,
+                p1: 0,
+                scope: 'Premature targeted verification',
+            }),
+        ).toThrow('only after the third full review');
+    });
+
+    it('keeps one targeted repair available during delivery before the full-round ceiling', () => {
+        const state = reviewing();
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'product-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            scope: 'Goal range',
+        });
+        state.phase = 'delivery';
+
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'delivery-repair',
+            mode: 'targeted',
+            p0: 0,
+            p1: 0,
+            scope: 'CI repair',
+        });
+        expect(state.reviewGate.frozenHeadSha).toBe('delivery-repair');
+
+        expect(() =>
+            recordReviewDecision(state, {
+                authorization: 'User approved another verification.',
+                freeze: true,
+                headSha: 'delivery-repair-2',
+                mode: 'targeted',
+                p0: 0,
+                p1: 0,
+                scope: 'Disallowed repeated delivery repair',
+            }),
+        ).toThrow('Only one targeted verification is allowed after each full review');
+    });
+
     it('freezes a verification-only delta without consuming another product review', () => {
         const state = reviewing();
         recordReviewDecision(state, {
@@ -187,7 +247,64 @@ describe('Go review gate', () => {
         ).toThrow('only after the default three-freeze limit');
     });
 
-    it('allows only one targeted verification after the third full review', () => {
+    it('allows one explicitly authorized final targeted verification after the first finds P0/P1', () => {
+        const state = reviewing();
+        for (const headSha of ['head-1', 'head-2', 'head-3']) {
+            recordReviewDecision(state, {
+                freeze: false,
+                headSha,
+                mode: 'full',
+                p0: 0,
+                p1: 1,
+                scope: 'Goal range',
+            });
+        }
+        recordReviewDecision(state, {
+            freeze: false,
+            headSha: 'targeted-1',
+            mode: 'targeted',
+            p0: 0,
+            p1: 1,
+            scope: 'Round-three P1 repair',
+        });
+
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'targeted-2',
+                mode: 'targeted',
+                p0: 0,
+                p1: 0,
+                scope: 'Unexpected follow-up',
+            }),
+        ).toThrow('requires explicit user authorization');
+
+        recordReviewDecision(state, {
+            authorization: 'User approved one final targeted verification.',
+            freeze: true,
+            headSha: 'targeted-2',
+            mode: 'targeted',
+            p0: 0,
+            p1: 0,
+            scope: 'Authorized architecture repair',
+        });
+        expect(state.reviewGate.frozenHeadSha).toBe('targeted-2');
+        expect(state.reviewGate.rounds.at(-1)?.authorization).toContain('User approved');
+
+        expect(() =>
+            recordReviewDecision(state, {
+                authorization: 'User approved another verification.',
+                freeze: true,
+                headSha: 'targeted-3',
+                mode: 'targeted',
+                p0: 0,
+                p1: 0,
+                scope: 'Disallowed third targeted verification',
+            }),
+        ).toThrow('at most two targeted verifications');
+    });
+
+    it('rejects an extra targeted verification when the prior targeted decision was clean', () => {
         const state = reviewing();
         for (const headSha of ['head-1', 'head-2', 'head-3']) {
             recordReviewDecision(state, {
@@ -201,22 +318,23 @@ describe('Go review gate', () => {
         }
         recordReviewDecision(state, {
             freeze: true,
-            headSha: 'targeted-1',
+            headSha: 'targeted-clean',
             mode: 'targeted',
             p0: 0,
             p1: 0,
-            scope: 'Round-three P1 repair',
+            scope: 'Clean targeted verification',
         });
 
         expect(() =>
             recordReviewDecision(state, {
+                authorization: 'User approved another verification.',
                 freeze: true,
-                headSha: 'targeted-2',
+                headSha: 'targeted-extra',
                 mode: 'targeted',
                 p0: 0,
                 p1: 0,
-                scope: 'Unexpected follow-up',
+                scope: 'Unnecessary extra verification',
             }),
-        ).toThrow('Only one targeted verification');
+        ).toThrow('prior targeted verification found no product P0/P1');
     });
 });

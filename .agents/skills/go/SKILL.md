@@ -120,8 +120,11 @@ After all issue commits:
 3. Run at most three full Goal-range review rounds. After the third round, use
    at most one targeted verification for its remaining P0/P1 repairs; a further
    architecture-level P0/P1 requires a user decision instead of a fourth full
-   review. Ignore reports for an older head unless their product P0/P1 reproduces
-   on the current head.
+   review. When the user explicitly authorizes that repair, allow one final
+   targeted verification and record the authorization in the ledger; never run
+   a third targeted verification in that post-round-three sequence. Ignore
+   reports for an older head unless their product P0/P1 reproduces on the
+   current head.
 4. When the current head has no product P0/P1, record and freeze it with
    `state.ts review --freeze`. A clean first or second round may freeze
    immediately; three rounds are a ceiling, not a target. P2/P3 findings become
