@@ -1,12 +1,14 @@
 import { z } from 'zod';
 
 export const reviewModeSchema = z.enum(['full', 'targeted', 'verification']);
+const reviewPhaseSchema = z.enum(['deep_review', 'delivery', 'unknown']);
 
 const reviewDecisionSchema = z.object({
     authorization: z.string().min(1).optional(),
     completedAt: z.string(),
     headSha: z.string().min(1),
     mode: reviewModeSchema,
+    phase: reviewPhaseSchema,
     productP0: z.number().int().nonnegative(),
     productP1: z.number().int().nonnegative(),
     scope: z.string().min(1),
@@ -38,8 +40,8 @@ interface ReviewDecisionInput {
 }
 
 const MAX_FULL_REVIEW_ROUNDS = 3;
-const MAX_VERIFICATION_DECISIONS = 3;
-const MAX_AUTHORIZED_VERIFICATION_DECISIONS = MAX_VERIFICATION_DECISIONS + 1;
+const MAX_PRE_DELIVERY_VERIFICATION_DECISIONS = 1;
+const MAX_DELIVERY_VERIFICATION_DECISIONS = 3;
 
 export function createEmptyReviewGate(): ReviewGate {
     return { frozenHeadSha: null, rounds: [] };
@@ -50,9 +52,10 @@ export function recordReviewDecision(
     input: ReviewDecisionInput,
     recordedAt = new Date().toISOString(),
 ): ReviewGate {
-    if (!['deep_review', 'delivery'].includes(state.phase)) {
+    if (state.phase !== 'deep_review' && state.phase !== 'delivery') {
         throw new Error('Review decisions can be recorded only during deep review or delivery');
     }
+    const reviewPhase = state.phase;
     const fullRounds = state.reviewGate.rounds.filter(({ mode }) => mode === 'full').length;
     if (input.mode === 'full') {
         if (fullRounds >= MAX_FULL_REVIEW_ROUNDS) {
@@ -102,22 +105,30 @@ export function recordReviewDecision(
             throw new Error('Verification-only review decisions must freeze the head');
         const verificationDecisions = state.reviewGate.rounds.filter(
             ({ mode }) => mode === 'verification',
-        ).length;
-        if (verificationDecisions >= MAX_VERIFICATION_DECISIONS) {
-            const authorization = input.verificationCapAuthorization?.trim();
-            if (!authorization) {
-                throw new Error(
-                    'A Go run can record at most three verification-only head freezes without explicit user authorization',
-                );
-            }
-            if (verificationDecisions >= MAX_AUTHORIZED_VERIFICATION_DECISIONS) {
-                throw new Error(
-                    'A Go run can record only one explicitly authorized verification-cap exception',
-                );
-            }
-        } else if (input.verificationCapAuthorization) {
+        );
+        const uncertainDecisions = verificationDecisions.filter(
+            ({ phase }) => !phase || phase === 'unknown',
+        );
+        const preDeliveryDecisions =
+            verificationDecisions.filter(({ phase }) => phase === 'deep_review').length +
+            uncertainDecisions.length;
+        const deliveryDecisions =
+            verificationDecisions.filter(({ phase }) => phase === 'delivery').length +
+            uncertainDecisions.length;
+        if (
+            reviewPhase === 'deep_review' &&
+            preDeliveryDecisions >= MAX_PRE_DELIVERY_VERIFICATION_DECISIONS
+        ) {
             throw new Error(
-                'Verification-cap authorization is valid only after the default three-freeze limit is reached',
+                'A Go run can record at most one pre-delivery verification-only freeze',
+            );
+        }
+        if (
+            reviewPhase === 'delivery' &&
+            deliveryDecisions >= MAX_DELIVERY_VERIFICATION_DECISIONS
+        ) {
+            throw new Error(
+                'A Go run can record at most three delivery-stage verification-only freezes',
             );
         }
     }
@@ -130,6 +141,7 @@ export function recordReviewDecision(
         completedAt: recordedAt,
         headSha: input.headSha,
         mode: input.mode,
+        phase: reviewPhase,
         productP0: input.p0,
         productP1: input.p1,
         scope: input.scope,

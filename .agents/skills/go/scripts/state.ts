@@ -31,7 +31,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const STATE_ROOT = join(RECORDS_ROOT, 'go');
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const MAX_EVENTS = 120;
 
 const PHASES = [

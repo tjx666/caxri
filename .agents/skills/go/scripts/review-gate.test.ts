@@ -171,7 +171,7 @@ describe('Go review gate', () => {
         expect(state.reviewGate.rounds.filter(({ mode }) => mode === 'full')).toHaveLength(1);
     });
 
-    it('bounds verification-only freezes and requires a full review baseline', () => {
+    it('separates one pre-delivery freeze from three delivery-stage repair freezes', () => {
         const state = reviewing();
         const verification = (headSha: string) =>
             recordReviewDecision(state, {
@@ -192,38 +192,22 @@ describe('Go review gate', () => {
             p1: 0,
             scope: 'Goal range',
         });
-        verification('verification-1');
-        verification('verification-2');
-        verification('verification-3');
-        expect(() => verification('verification-4')).toThrow('at most three verification-only');
+        verification('pre-delivery');
+        expect(() => verification('extra-pre-delivery')).toThrow('one pre-delivery');
 
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'verification-4',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Explicitly authorized verification-only delta',
-            verificationCapAuthorization: 'User explicitly authorized one exception.',
-        });
-        expect(state.reviewGate.rounds.at(-1)).toMatchObject({
-            headSha: 'verification-4',
-            verificationCapAuthorization: 'User explicitly authorized one exception.',
-        });
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'verification-5',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Second exception',
-                verificationCapAuthorization: 'User authorized another exception.',
-            }),
-        ).toThrow('only one explicitly authorized verification-cap exception');
+        state.phase = 'delivery';
+        verification('delivery-1');
+        verification('delivery-2');
+        verification('delivery-3');
+        expect(() => verification('delivery-4')).toThrow('three delivery-stage');
+        expect(
+            state.reviewGate.rounds
+                .filter(({ mode }) => mode === 'verification')
+                .map(({ phase }) => phase),
+        ).toEqual(['deep_review', 'delivery', 'delivery', 'delivery']);
     });
 
-    it('rejects premature verification-cap authorization', () => {
+    it('conservatively charges unphased freezes to the current delivery budget', () => {
         const state = reviewing();
         recordReviewDecision(state, {
             freeze: false,
@@ -233,18 +217,37 @@ describe('Go review gate', () => {
             p1: 0,
             scope: 'Goal range',
         });
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'legacy-pre-delivery',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Legacy verification-only delta',
+        });
+        state.phase = 'delivery';
+        for (const headSha of ['legacy-delivery-1', 'legacy-delivery-2']) {
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha,
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Legacy verification-only delta',
+            });
+        }
+        for (const decision of state.reviewGate.rounds) Reflect.deleteProperty(decision, 'phase');
 
         expect(() =>
             recordReviewDecision(state, {
                 freeze: true,
-                headSha: 'verification-1',
+                headSha: 'next-delivery',
                 mode: 'verification',
                 p0: 0,
                 p1: 0,
-                scope: 'Verification-only delta',
-                verificationCapAuthorization: 'Unneeded authorization.',
+                scope: 'Conservatively blocked delivery verification',
             }),
-        ).toThrow('only after the default three-freeze limit');
+        ).toThrow('three delivery-stage');
     });
 
     it('allows one explicitly authorized final targeted verification after the first finds P0/P1', () => {
