@@ -32,12 +32,14 @@ import {
     subscribeWorkbenchEvents,
     useWorkbenchStore,
 } from './workbench';
+import { useSessionViewStore } from './session-view';
 
 afterEach(() => {
     mocks.request.mockClear();
     mocks.onEvent.mockClear();
     mocks.reset();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
+    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
 });
 
 describe('workbench Runtime events', () => {
@@ -143,6 +145,80 @@ describe('workbench Runtime events', () => {
 });
 
 describe('workbench Session state', () => {
+    it('rehydrates dirty tabs from live document bodies after a Runtime snapshot refresh', async () => {
+        const cleanState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [{ path: '/project/unsaved.ts', dirty: false }],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessionStates: [cleanState],
+        } as unknown as BootstrapState;
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/unsaved.ts',
+            content: 'unsaved body',
+            dirty: true,
+            mtimeMs: 1,
+            size: 12,
+        });
+        mocks.request.mockResolvedValueOnce(bootstrap);
+
+        await refreshWorkbench();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
+            { path: '/project/unsaved.ts', dirty: true },
+        ]);
+    });
+
+    it('clears snapshot dirtiness when no recoverable document body survives', async () => {
+        const staleState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [{ path: '/project/lost.ts', dirty: true }],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        mocks.request.mockResolvedValueOnce({
+            configurationErrors: [],
+            sessionStates: [staleState],
+        });
+
+        await refreshWorkbench();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
+            { path: '/project/lost.ts', dirty: false },
+        ]);
+    });
+
+    it('keeps transient dirtiness optimistic while persisting only clean tab metadata', async () => {
+        const cleanState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [{ path: '/project/file.ts', dirty: false, preview: true }],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessionStates: [cleanState],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockResolvedValueOnce(cleanState);
+        const dirtyState: SessionState = {
+            ...cleanState,
+            openTabs: [{ path: '/project/file.ts', dirty: true }],
+        };
+
+        await useWorkbenchStore.getState().patchSessionState(dirtyState);
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([dirtyState]);
+        expect(mocks.request).toHaveBeenCalledWith('session.updateState', {
+            ...dirtyState,
+            openTabs: [{ path: '/project/file.ts', dirty: false }],
+        });
+    });
+
     it('keeps an optimistic change when an older bootstrap request resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',

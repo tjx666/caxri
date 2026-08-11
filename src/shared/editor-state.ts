@@ -29,6 +29,30 @@ export function setSessionDocument(
     };
 }
 
+/** Durable Session state records tab placement only because unsaved document bodies are Renderer-owned. */
+export function withoutEditorTabDirtiness(state: SessionState): SessionState {
+    if (!state.openTabs.some((tab) => tab.dirty)) return state;
+    return {
+        ...state,
+        openTabs: state.openTabs.map((tab) => ({ ...tab, dirty: false })),
+    };
+}
+
+/** Rebuilds transient tab dirtiness exclusively from the document bodies that still exist. */
+export function reconcileEditorTabDirtiness(
+    state: SessionState,
+    documents: Readonly<Record<string, EditorDocument>> | undefined,
+): SessionState {
+    let changed = false;
+    const openTabs = state.openTabs.map((tab) => {
+        const dirty = documents?.[tab.path]?.dirty === true;
+        if (tab.dirty === dirty && (!dirty || !tab.preview)) return tab;
+        changed = true;
+        return dirty ? { path: tab.path, dirty: true } : { ...tab, dirty: false };
+    });
+    return changed ? { ...state, openTabs } : state;
+}
+
 /**
  * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is
  * `activeTab`, owned exclusively by `activateWork` in App.tsx — this function never touches it.

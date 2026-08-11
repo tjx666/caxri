@@ -360,6 +360,55 @@ describe('CaxriDb', () => {
         db.close();
     });
 
+    it('never persists dirty tabs without their Renderer-owned document bodies', async () => {
+        const directory = await tempDir('caxri-db-clean-tabs-');
+        const db = new CaxriDb(join(directory, 'state.db'));
+        const project = db.projects.create(directory);
+        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = db.terminals.insert({
+            sessionId: session.id,
+            kind: 'shell',
+            cwd: directory,
+            title: 'Shell',
+        });
+        db.sessions.insertInitialState(session.id, terminal.id);
+
+        db.sessions.updateState({
+            ...db.sessions.getState(session.id),
+            openTabs: [{ path: '/project/unsaved.ts', dirty: true }],
+        });
+
+        expect(db.sessions.getState(session.id).openTabs).toEqual([
+            { path: '/project/unsaved.ts', dirty: false },
+        ]);
+        expect(
+            JSON.parse(
+                (
+                    db.database
+                        .prepare('SELECT open_tabs_json FROM session_state WHERE session_id = ?')
+                        .get(session.id) as { open_tabs_json: string }
+                ).open_tabs_json,
+            ),
+        ).toEqual([{ path: '/project/unsaved.ts', dirty: false }]);
+
+        db.database
+            .prepare('UPDATE session_state SET open_tabs_json = ? WHERE session_id = ?')
+            .run(JSON.stringify([{ path: '/project/legacy.ts', dirty: true }]), session.id);
+        expect(db.sessions.getState(session.id).openTabs).toEqual([
+            { path: '/project/legacy.ts', dirty: false },
+        ]);
+        expect(
+            JSON.parse(
+                (
+                    db.database
+                        .prepare('SELECT open_tabs_json FROM session_state WHERE session_id = ?')
+                        .get(session.id) as { open_tabs_json: string }
+                ).open_tabs_json,
+            ),
+        ).toEqual([{ path: '/project/legacy.ts', dirty: false }]);
+        db.close();
+    });
+
     it('loads all Session states in one ordered query', async () => {
         const directory = await tempDir('caxri-db-session-states-');
         const db = new CaxriDb(join(directory, 'state.db'));

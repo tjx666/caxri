@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
 
 import { sessionStateSchema } from '../../../shared/ipc/domain';
+import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
 import type {
     AgentActivityState,
@@ -144,7 +145,11 @@ export class SessionsModel {
 
     private readState(row: SessionStateRow): SessionState {
         const parsed = parseSessionState(row);
-        if ('state' in parsed) return parsed.state;
+        if ('state' in parsed) {
+            const normalized = withoutEditorTabDirtiness(parsed.state);
+            if (normalized !== parsed.state) this.updateState(normalized);
+            return normalized;
+        }
         const repaired = this.defaultState(row.sessionId);
         this.updateState(repaired);
         this.onStateRepair?.({
@@ -349,13 +354,17 @@ export class SessionsModel {
     }
 
     updateState(state: SessionState): void {
+        const durableState = withoutEditorTabDirtiness(state);
         const values = {
-            sessionId: state.sessionId,
+            sessionId: durableState.sessionId,
             stateVersion: CURRENT_SESSION_STATE_VERSION,
-            openTabsJson: JSON.stringify(state.openTabs),
-            activeTabJson: state.activeTab === undefined ? null : JSON.stringify(state.activeTab),
-            inspectorMode: state.inspectorMode,
-            layoutJson: JSON.stringify(state.layout),
+            openTabsJson: JSON.stringify(durableState.openTabs),
+            activeTabJson:
+                durableState.activeTab === undefined
+                    ? null
+                    : JSON.stringify(durableState.activeTab),
+            inspectorMode: durableState.inspectorMode,
+            layoutJson: JSON.stringify(durableState.layout),
         };
         this.db
             .insert(sessionStateTable)
