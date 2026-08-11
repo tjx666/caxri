@@ -268,5 +268,6 @@ export async function trashFile(sessionId: string, path: string): Promise<boolea
     if (!result || 'canceled' in result) return false;
     closeOpenEditorsUnderPath(sessionId, result.path);
     await invalidateDirectory(sessionId, parentDirectoryPath(result.path));
+    pushToast('success', `Moved '${result.name}' to Trash`);
     return true;
 }

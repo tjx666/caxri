@@ -69,7 +69,7 @@ interface TreeProps {
 }
 
 const treeRowClassName =
-    'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[selected=true]:bg-elevated data-[cut=true]:opacity-50';
+    'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-elevated data-[cut=true]:opacity-50';
 const captionActionClassName =
     'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
 
@@ -333,7 +333,9 @@ function FileTreeItem({
             title={
                 entry.kind === 'symlink'
                     ? 'Symlink browsing and changes are disabled for safety'
-                    : entry.path
+                    : entry.gitIgnored
+                      ? `${entry.path} (Git ignored)`
+                      : entry.path
             }
             onClick={() => {
                 setSelectedPath(entry.path);
