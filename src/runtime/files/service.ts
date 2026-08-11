@@ -5,7 +5,7 @@ import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
-import type { CaxriDatabase } from '../db/repository';
+import type { CaxriDatabase } from '../db';
 import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
 import { DocumentService, type OpenFile } from './documents';
 import { ListingService, type GitIgnoreDecorator, type OpenDirectory } from './listing';

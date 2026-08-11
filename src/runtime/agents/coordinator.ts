@@ -4,7 +4,7 @@ import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
-import type { CaxriDatabase } from '../db/repository';
+import type { CaxriDatabase } from '../db';
 import type { AgentLifecycleSignal } from './hooks/contract';
 import { detectForegroundAgentProvider } from './process-detection';
 import type { AgentService } from './service';

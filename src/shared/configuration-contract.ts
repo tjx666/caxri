@@ -9,7 +9,7 @@ export const MAX_KEYBINDINGS = 1_024;
 const textEncoder = new TextEncoder();
 
 /** Measures the actual UTF-8 wire size instead of JavaScript UTF-16 code units. */
-export function configurationSourceByteLength(source: string): number {
+function configurationSourceByteLength(source: string): number {
     return textEncoder.encode(source).byteLength;
 }
 

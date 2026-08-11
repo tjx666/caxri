@@ -8,7 +8,7 @@ import { ZipArchive } from 'archiver';
 import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue, redactSecrets } from '../shared/node/redaction';
 import type { AppSettings } from '../shared/types';
-import type { CaxriDatabase } from './db/repository';
+import type { CaxriDatabase } from './db';
 
 export function normalizeHome(path: string): string {
     const home = homedir();
