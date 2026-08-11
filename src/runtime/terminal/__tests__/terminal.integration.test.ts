@@ -463,6 +463,31 @@ describe('TerminalManager', () => {
         }
     });
 
+    it('starts an attached interrupted Terminal at the Renderer grid instead of the fallback grid', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-restore-size-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        const spawn = vi.fn<typeof spawnPty>(() => fake.process);
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
+        );
+
+        try {
+            await manager.attach(created.terminal.id, { cols: 132, rows: 41 });
+            await manager.start(created.terminal);
+
+            expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cols: 132, rows: 41 });
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
     it('detaches every Renderer view without stopping its PTY', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detach-all-'));
         temporaryDirectories.push(directory);
