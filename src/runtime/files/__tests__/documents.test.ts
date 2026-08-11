@@ -149,4 +149,40 @@ describe('DocumentService', () => {
         expect(await readFile(join(originalParent, 'document.txt'), 'utf8')).toBe('previous');
         expect(await readdir(outside)).toEqual([]);
     });
+
+    it('does not remove an outside file through a swapped temporary parent', async () => {
+        const testRoot = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+        temporaryDirectories.push(testRoot);
+        const root = join(testRoot, 'project');
+        const parent = join(root, 'nested');
+        const originalParent = join(root, 'nested.original');
+        const outside = join(testRoot, 'outside');
+        const path = join(parent, 'document.txt');
+        let outsideTemporaryPath = '';
+        await mkdir(parent, { recursive: true });
+        await mkdir(outside);
+        await writeFile(path, 'previous', 'utf8');
+        const service = new DocumentService(
+            () => Promise.resolve({ path, root }),
+            new StructuredLogger(join(testRoot, 'logs')),
+            () => 1_024,
+            {
+                beforeReplaceValidation: async () => {
+                    const temporaryName = (await readdir(parent)).find((entry) =>
+                        entry.endsWith('.caxri-tmp'),
+                    );
+                    if (!temporaryName) throw new Error('Expected a temporary replacement file');
+                    await rename(parent, originalParent);
+                    await symlink(outside, parent, 'dir');
+                    outsideTemporaryPath = join(outside, temporaryName);
+                    await writeFile(outsideTemporaryPath, 'outside-file', 'utf8');
+                },
+            },
+        );
+
+        await expect(service.write('session-1', path, 'replacement')).rejects.toThrow();
+
+        expect(await readFile(outsideTemporaryPath, 'utf8')).toBe('outside-file');
+        expect(await readFile(join(originalParent, 'document.txt'), 'utf8')).toBe('previous');
+    });
 });
