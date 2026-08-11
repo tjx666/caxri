@@ -1,5 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
@@ -7,60 +6,19 @@ import {
     assertE2EErrorPolicy,
     type E2EErrorAllowance,
     type E2EErrorEvent,
-    type E2EErrorSource,
 } from '../src/shared/node/e2e-error-policy.ts';
-
-interface StructuredErrorRecord {
-    event?: unknown;
-    fields?: Record<string, unknown>;
-    level?: unknown;
-    process?: unknown;
-}
-
-const fatalLogEvents = new Set([
-    'process_explorer.render_process_gone',
-    'window.render_process_gone',
-]);
+import {
+    parseE2ELogErrors,
+    readE2ELogSnapshots,
+    type E2ELogSnapshot,
+} from '../src/shared/node/e2e-error-log.ts';
 let activeGate: E2EErrorGate | undefined;
-
-function fallbackCode(event: string): string {
-    return event.replaceAll(/[^A-Za-z0-9]+/g, '_').toUpperCase();
-}
-
-function errorFromLog(record: StructuredErrorRecord): E2EErrorEvent | undefined {
-    if (record.process !== 'main' && record.process !== 'runtime') return undefined;
-    if (typeof record.event !== 'string') return undefined;
-    if (record.level !== 'error' && record.level !== 'fatal' && !fatalLogEvents.has(record.event))
-        return undefined;
-    return {
-        source: record.process,
-        event: record.event,
-        code:
-            typeof record.fields?.code === 'string'
-                ? record.fields.code
-                : fallbackCode(record.event),
-    };
-}
-
-function parseLogErrors(contents: string, source: E2EErrorSource): E2EErrorEvent[] {
-    const errors: E2EErrorEvent[] = [];
-    for (const line of contents.split('\n')) {
-        if (!line) continue;
-        try {
-            const error = errorFromLog(JSON.parse(line) as StructuredErrorRecord);
-            if (error) errors.push(error);
-        } catch {
-            errors.push({ source, event: 'e2e.log_invalid', code: 'INVALID_JSONL' });
-        }
-    }
-    return errors;
-}
 
 class E2EErrorGate {
     private readonly allowances: E2EErrorAllowance[] = [];
     private readonly attachedPages = new WeakSet<Page>();
     private readonly directErrors: E2EErrorEvent[] = [];
-    private readonly logSnapshots = new Map<string, string>();
+    private readonly logSnapshots = new Map<string, E2ELogSnapshot>();
     private readonly launches = new Set<string>();
     private readonly pendingAttachments: Promise<void>[] = [];
     private attachmentIndex = 0;
@@ -100,19 +58,13 @@ class E2EErrorGate {
 
     /** Captures and attaches log bodies synchronously before tests remove their temporary profile. */
     private captureLogs(userDataDir: string): void {
-        for (const processName of ['main', 'runtime'] as const) {
-            const path = join(userDataDir, 'logs', `${processName}.jsonl`);
-            let contents: string;
-            try {
-                contents = readFileSync(path, 'utf8');
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-                throw error;
-            }
-            if (this.logSnapshots.get(path) === contents) continue;
-            this.logSnapshots.set(path, contents);
+        for (const snapshot of readE2ELogSnapshots(userDataDir)) {
+            const { contents, path, source } = snapshot;
+            if (this.logSnapshots.get(path)?.contents === contents) continue;
+            this.logSnapshots.set(path, snapshot);
             this.attachmentIndex += 1;
-            const attachmentName = `caxri-${processName}-${this.attachmentIndex.toString().padStart(2, '0')}.jsonl`;
+            const rotation = path.endsWith('.jsonl.1') ? '-rotated' : '';
+            const attachmentName = `caxri-${source}${rotation}-${this.attachmentIndex.toString().padStart(2, '0')}.jsonl`;
             const attachmentPath = this.testInfo.outputPath(attachmentName);
             writeFileSync(attachmentPath, contents, { encoding: 'utf8', mode: 0o600 });
             this.pendingAttachments.push(
@@ -127,9 +79,7 @@ class E2EErrorGate {
     async finish(): Promise<void> {
         for (const userDataDir of this.launches) this.captureLogs(userDataDir);
         await Promise.all(this.pendingAttachments);
-        const logErrors = [...this.logSnapshots].flatMap(([path, contents]) =>
-            parseLogErrors(contents, path.endsWith('/runtime.jsonl') ? 'runtime' : 'main'),
-        );
+        const logErrors = parseE2ELogErrors([...this.logSnapshots.values()]);
         assertE2EErrorPolicy([...this.directErrors, ...logErrors], this.allowances);
     }
 }
