@@ -10,7 +10,13 @@ import { ShortcutBadge } from '../../components/ShortcutBadge';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { keyboardEventShortcut } from '../../lib/keybindings';
-import { buildKeybindingRows, filterKeybindingRows, type KeybindingRow } from './keybinding-editor';
+import {
+    buildKeybindingRows,
+    filterKeybindingRows,
+    isFocusNavigationKey,
+    isModifierKey,
+    type KeybindingRow,
+} from './keybinding-editor';
 
 interface KeybindingsFormProps {
     keybindings: Keybinding[];
@@ -25,7 +31,6 @@ interface RecordingState {
 }
 
 const titleByCommand = new Map(commandDefinitions.map((command) => [command.id, command.title]));
-const modifierKeys = new Set(['Alt', 'Control', 'Meta', 'Shift']);
 
 /** Searchable, keyboard-operable command list backed by the lossless JSONC draft. */
 export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: KeybindingsFormProps) {
@@ -71,6 +76,12 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
         row: KeybindingRow,
     ): void => {
         if (recording?.rowId !== row.id) return;
+        if (isFocusNavigationKey(event.key)) {
+            // Let Tab/Shift+Tab pass through un-captured so focus keeps moving normally;
+            // recording just cancels instead of trapping the key.
+            setRecording(undefined);
+            return;
+        }
         event.preventDefault();
         event.stopPropagation();
         if (event.key === 'Escape') {
@@ -81,8 +92,14 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
             commitRecording(row);
             return;
         }
-        if (modifierKeys.has(event.key)) return;
+        if (isModifierKey(event.key)) return;
         setRecording({ rowId: row.id, pending: keyboardEventShortcut(event.nativeEvent) });
+    };
+
+    const cancelRecordingOnBlur = (row: KeybindingRow): void => {
+        // Guards against the recording button getting stuck on "Press shortcut" when focus
+        // leaves it by any means other than a captured key (e.g. a pointer click elsewhere).
+        setRecording((current) => (current?.rowId === row.id ? undefined : current));
     };
 
     const resetRow = (row: KeybindingRow): void => {
@@ -119,7 +136,7 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                     />
                 </label>
                 <p className="mt-2 text-[11px] text-muted">
-                    {visibleRows.length} of {rows.length} commands and bindings
+                    {visibleRows.length} of {rows.length} shortcuts
                 </p>
             </div>
             <ul className="structured-editor m-0 min-h-0 list-none overflow-auto p-2">
@@ -151,6 +168,8 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                                 {conflict && (
                                     <p
                                         id={conflictId}
+                                        role="status"
+                                        aria-live="polite"
                                         className="mt-1 flex items-center gap-1 text-[10px] text-danger"
                                     >
                                         <AlertTriangle aria-hidden="true" size={11} />
@@ -172,6 +191,7 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                                 data-keybinding-command={row.command}
                                 size="sm"
                                 variant="secondary"
+                                onBlur={() => cancelRecordingOnBlur(row)}
                                 onClick={() => setRecording({ rowId: row.id })}
                                 onKeyDown={(event) => handleRecordingKey(event, row)}
                             >
@@ -179,7 +199,7 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                                     recording.pending ? (
                                         <ShortcutBadge shortcut={recording.pending} />
                                     ) : (
-                                        'Press shortcut'
+                                        'Press shortcut · Esc to cancel'
                                     )
                                 ) : row.key ? (
                                     <ShortcutBadge shortcut={row.key} />
@@ -215,7 +235,14 @@ export function KeybindingsForm({ keybindings, onAdd, onChange, onRemove }: Keyb
                     );
                 })}
                 {visibleRows.length === 0 && (
-                    <p className="p-6 text-center text-muted">No keyboard shortcuts found.</p>
+                    <div className="flex flex-col items-center gap-2 p-6 text-center text-muted">
+                        <p>No keyboard shortcuts found.</p>
+                        {query && (
+                            <Button size="sm" variant="ghost" onClick={() => setQuery('')}>
+                                Clear search
+                            </Button>
+                        )}
+                    </div>
                 )}
             </ul>
         </div>

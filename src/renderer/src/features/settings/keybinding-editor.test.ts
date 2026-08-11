@@ -7,6 +7,8 @@ import {
     appendKeybindingSource,
     buildKeybindingRows,
     filterKeybindingRows,
+    isFocusNavigationKey,
+    isModifierKey,
     removeKeybindingSource,
     updateKeybindingSource,
 } from './keybinding-editor';
@@ -49,6 +51,22 @@ describe('keybinding rows', () => {
         expect(filterKeybindingRows(rows, 'project')).not.toHaveLength(0);
         expect(filterKeybindingRows(rows, 'cmd+shift+t')).toHaveLength(1);
         expect(filterKeybindingRows(rows, '⇧⌘T')).toHaveLength(1);
+    });
+});
+
+describe('recording key classification', () => {
+    it('treats Tab as a focus-navigation key that must never be captured', () => {
+        expect(isFocusNavigationKey('Tab')).toBe(true);
+        expect(isFocusNavigationKey('a')).toBe(false);
+        expect(isFocusNavigationKey('Enter')).toBe(false);
+    });
+
+    it('identifies lone modifier presses that only arm further recording', () => {
+        for (const key of ['Alt', 'Control', 'Meta', 'Shift']) {
+            expect(isModifierKey(key)).toBe(true);
+        }
+        expect(isModifierKey('Tab')).toBe(false);
+        expect(isModifierKey('a')).toBe(false);
     });
 });
 
