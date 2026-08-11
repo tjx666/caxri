@@ -17,7 +17,10 @@
 - Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Common editor highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
-- Build/package: `bun run build`, `bun run package`, `bun run package:dmg`
+- Build/package: `bun run build`, `bun run package`, `bun run package:dmg`; for a locally requested
+  versioned installer, use
+  `bun run .agents/skills/release/scripts/package-local-dmg.ts --version <semver>` so temporary
+  manifest changes are restored and the DMG is verified.
 - GitHub Release: follow `RELEASING.md`; only a pushed `main` commit whose subject exactly matches
   `release: v<package-version>` enters release CI, and the macOS release workflow runs only after
   that commit's CI checks and full E2E suite succeed.

@@ -9,6 +9,18 @@ Inspect the current branch and worktree, repository remotes, open issues, relate
 pull requests, and available authentication. Separate live facts from user prose
 or stale local memory. Preserve unrelated changes.
 
+Start with the bounded repository snapshot instead of printing complete issue or
+Project bodies into context:
+
+```bash
+bun run .agents/skills/go/scripts/intake-snapshot.ts --repo tjx666/caxri --project 2
+```
+
+Repeat `--issue <number>` to refresh a previously frozen open or closed set. The
+snapshot returns compact Git, issue, PR, and Project metadata plus intake-matrix
+placeholders. Read the body only for issues admitted to the Goal; never replace
+source inspection or requirement classification with the generated placeholders.
+
 Compare `origin/main...HEAD` with the candidate Goal before reusing the current
 branch or PR. Record the delivery base, commits, files, and issue ownership. If
 the branch contains changes outside the frozen Goal that do not already have
