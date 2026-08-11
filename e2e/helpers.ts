@@ -242,6 +242,8 @@ export async function launchCaxriApp(
         projectRoot,
         executablePath ? 'performance benchmark' : 'Electron E2E',
     );
+    let releasePromise: Promise<void> | undefined;
+    const releaseLease = (): Promise<void> => (releasePromise ??= releaseDesktopLease(lease));
     let app: ElectronApplication;
     try {
         lease = await beginDesktopLeaseHandoff(lease);
@@ -251,27 +253,20 @@ export async function launchCaxriApp(
             cwd: projectRoot,
             env: launchEnvironment,
         });
-        registerE2ELaunch(app, userDataDir);
+        registerE2ELaunch(app, userDataDir, releaseLease);
         const electronPid = app.process().pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
         lease = await transferDesktopLease(lease, electronPid);
     } catch (error) {
-        await releaseDesktopLease(lease);
+        await releaseLease();
         throw error;
     }
-    app.once('close', () => {
-        void releaseDesktopLease(lease).catch((error: unknown) => {
-            console.error(
-                `Could not release Caxri desktop lease: ${error instanceof Error ? error.message : String(error)}`,
-            );
-        });
-    });
     try {
         const page = await app.firstWindow();
         return { app, page };
     } catch (error) {
         await app.close().catch(() => undefined);
-        await releaseDesktopLease(lease).catch(() => undefined);
+        await releaseLease().catch(() => undefined);
         throw error;
     }
 }
