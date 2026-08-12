@@ -112,6 +112,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const fontSize = settings?.['terminal.fontSize'] ?? 13;
     const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
     const copyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
+    const gpuAcceleration = settings?.['terminal.gpuAcceleration'] ?? 'off';
     const osc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
     const processState = terminal?.lastProcessState ?? 'starting';
     const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
@@ -127,6 +128,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             attachEpoch,
             copyOnSelect,
             fontSize,
+            gpuAcceleration,
             isCodex,
             osc52ClipboardWrite,
             processState,

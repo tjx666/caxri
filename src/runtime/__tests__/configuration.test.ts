@@ -54,6 +54,7 @@ describe('ConfigurationService', () => {
             'security.trustedDomains': [],
             'terminal.defaultWorkingDirectory': null,
             'terminal.fontSize': 15,
+            'terminal.gpuAcceleration': 'off',
         });
         expect(await readFile(service.settingsPath, 'utf8')).toBe(original);
         await service.close();

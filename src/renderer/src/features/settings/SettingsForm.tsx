@@ -133,6 +133,36 @@ export function SettingsForm({
                         </span>
                     </span>
                 </label>
+                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <label htmlFor="terminal-gpu-acceleration">
+                        Terminal GPU acceleration
+                        <span className="block text-[11px] text-muted">
+                            WebGL falls back to DOM rendering without restarting the Terminal
+                        </span>
+                    </label>
+                    <Select
+                        value={settings['terminal.gpuAcceleration']}
+                        onValueChange={(value) =>
+                            onFieldChange(
+                                'terminal.gpuAcceleration',
+                                value as AppSettings['terminal.gpuAcceleration'],
+                            )
+                        }
+                    >
+                        <SelectTrigger
+                            id="terminal-gpu-acceleration"
+                            aria-label="Terminal GPU acceleration"
+                            className="w-40 flex-none bg-background"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="auto">Auto</SelectItem>
+                            <SelectItem value="on">On</SelectItem>
+                            <SelectItem value="off">Off</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
                 <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
                     <span>Terminal scrollback lines</span>
                     <span className="relative w-40 flex-none">
