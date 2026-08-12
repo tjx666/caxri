@@ -28,6 +28,12 @@ export class TerminalRestoreSupervisor {
         operations: readonly TerminalRestoreOperation[],
     ): Promise<boolean[]> {
         if (this.closed) return Promise.resolve([]);
+        if (
+            this.activeSessionId === sessionId &&
+            this.activeAbortController &&
+            !this.activeAbortController.signal.aborted
+        )
+            return Promise.resolve([]);
         this.activeAbortController?.abort();
         const abortController = new AbortController();
         this.activeAbortController = abortController;
@@ -40,7 +46,11 @@ export class TerminalRestoreSupervisor {
             this.activeSessionId === sessionId &&
             this.generations.get(sessionId) === generation;
 
-        if (operations.length === 0) return Promise.resolve([]);
+        if (operations.length === 0) {
+            this.activeAbortController = undefined;
+            this.activeSessionId = undefined;
+            return Promise.resolve([]);
+        }
 
         return Promise.all(
             operations.map((operation) =>
@@ -49,7 +59,11 @@ export class TerminalRestoreSupervisor {
                     return operation(isCurrent, abortController.signal);
                 }),
             ),
-        );
+        ).finally(() => {
+            if (this.activeAbortController !== abortController) return;
+            this.activeAbortController = undefined;
+            this.activeSessionId = undefined;
+        });
     }
 
     cancel(sessionId: string): void {
