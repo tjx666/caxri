@@ -18,6 +18,33 @@ import {
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
+const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
+
+async function stubMessageBoxResponse(app: ElectronApplication, response: number): Promise<void> {
+    await app.evaluate(({ dialog }, nextResponse) => {
+        Reflect.set(globalThis, '__caxriE2EMessageBoxCallCount', 0);
+        dialog.showMessageBox = () => {
+            const calls = Number(Reflect.get(globalThis, '__caxriE2EMessageBoxCallCount') ?? 0);
+            Reflect.set(globalThis, '__caxriE2EMessageBoxCallCount', calls + 1);
+            return Promise.resolve({ response: nextResponse, checkboxChecked: false });
+        };
+    }, response);
+}
+
+/**
+ * A row that remains visible does not prove its canceled deletion request completed. Wait until
+ * Main consumes the native-dialog response before replacing the stub for a subsequent request.
+ */
+async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
+    await expect
+        .poll(() =>
+            app.evaluate(
+                (_electron, key) => Number(Reflect.get(globalThis, key) ?? 0),
+                MESSAGE_BOX_CALL_COUNT_KEY,
+            ),
+        )
+        .toBe(1);
+}
 
 /**
  * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The
@@ -587,16 +614,13 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await expect(deleteButton).toBeVisible();
 
         // Cancel keeps the archived row.
-        await running.app.evaluate(({ dialog }) => {
-            dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
-        });
+        await stubMessageBoxResponse(running.app, 1);
         await deleteButton.click();
+        await waitForMessageBoxCall(running.app);
         await expect(archivedRow).toHaveCount(1);
 
         // Confirm removes the archived row and the now-empty Archived group.
-        await running.app.evaluate(({ dialog }) => {
-            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
-        });
+        await stubMessageBoxResponse(running.app, 0);
         await deleteButton.click();
 
         await expect(archivedRow).toHaveCount(0);
