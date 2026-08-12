@@ -180,6 +180,7 @@ test('Process Explorer bounds renderer crash recovery and reopens cleanly', asyn
         await createShellSession(running.page);
         await openProcessExplorer(running);
         const windowId = await processExplorerWindowId(running.app);
+        await waitForReadyProcessExplorer(running.app, windowId);
 
         for (let crashCount = 1; crashCount <= 3; crashCount += 1) {
             await forceProcessExplorerCrash(running.app, windowId);
