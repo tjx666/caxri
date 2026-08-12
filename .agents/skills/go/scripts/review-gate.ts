@@ -116,8 +116,7 @@ export function recordReviewDecision(
         const deliveryDecisions =
             verificationDecisions.filter(({ phase }) => phase === 'delivery').length +
             uncertainDecisions.length;
-        const verificationAuthorization =
-            input.verificationCapAuthorization?.trim() || input.authorization?.trim();
+        const verificationAuthorization = input.verificationCapAuthorization?.trim();
         if (
             input.verificationCapAuthorization &&
             (reviewPhase !== 'delivery' || deliveryDecisions < MAX_DELIVERY_VERIFICATION_DECISIONS)

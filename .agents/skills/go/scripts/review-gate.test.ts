@@ -211,11 +211,18 @@ describe('Go review gate', () => {
             'User approved',
         );
         expect(() => verification('delivery-5')).toThrow('requires explicit user authorization');
-        verification('delivery-5', 'User approved one systemic CI-parity verification.');
-        expect(() => verification('delivery-6')).toThrow('requires explicit user authorization');
-        verification('delivery-6', 'User approved one final hosted E2E fixture verification.');
         expect(() =>
-            verification('delivery-7', 'User approved another delivery verification.'),
+            verification('delivery-5', 'Generic authorization must not satisfy the cap.'),
+        ).toThrow('requires explicit user authorization');
+        verification('delivery-5', undefined, 'User approved one systemic CI-parity verification.');
+        expect(() => verification('delivery-6')).toThrow('requires explicit user authorization');
+        verification(
+            'delivery-6',
+            undefined,
+            'User approved one final hosted E2E fixture verification.',
+        );
+        expect(() =>
+            verification('delivery-7', undefined, 'User approved another delivery verification.'),
         ).toThrow('six delivery-stage');
         expect(
             state.reviewGate.rounds
