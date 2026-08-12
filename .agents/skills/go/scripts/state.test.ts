@@ -410,13 +410,13 @@ describe('Go state ledger', () => {
             }),
         ).toThrow('requires explicit user authorization');
         recordReviewDecision(migrated, {
-            authorization: 'User approved one final delivery verification.',
             freeze: true,
             headSha: 'delivery-head-4',
             mode: 'verification',
             p0: 0,
             p1: 0,
             scope: 'Authorized final delivery repair',
+            verificationCapAuthorization: 'User approved one final delivery verification.',
         });
         expect(() =>
             recordReviewDecision(migrated, {
@@ -429,13 +429,13 @@ describe('Go state ledger', () => {
             }),
         ).toThrow('requires explicit user authorization');
         recordReviewDecision(migrated, {
-            authorization: 'User approved one systemic CI-parity verification.',
             freeze: true,
             headSha: 'delivery-head-5',
             mode: 'verification',
             p0: 0,
             p1: 0,
             scope: 'Authorized systemic delivery repair',
+            verificationCapAuthorization: 'User approved one systemic CI-parity verification.',
         });
         expect(() =>
             recordReviewDecision(migrated, {
@@ -448,23 +448,24 @@ describe('Go state ledger', () => {
             }),
         ).toThrow('requires explicit user authorization');
         recordReviewDecision(migrated, {
-            authorization: 'User approved one final hosted E2E fixture verification.',
             freeze: true,
             headSha: 'delivery-head-6',
             mode: 'verification',
             p0: 0,
             p1: 0,
             scope: 'Authorized final hosted E2E fixture repair',
+            verificationCapAuthorization:
+                'User approved one final hosted E2E fixture verification.',
         });
         expect(() =>
             recordReviewDecision(migrated, {
-                authorization: 'User approved another delivery verification.',
                 freeze: true,
                 headSha: 'delivery-head-7',
                 mode: 'verification',
                 p0: 0,
                 p1: 0,
                 scope: 'Disallowed seventh delivery repair',
+                verificationCapAuthorization: 'User approved another delivery verification.',
             }),
         ).toThrow('six delivery-stage');
     });
