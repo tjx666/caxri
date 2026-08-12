@@ -7,6 +7,7 @@ import {
     findPublishedDriftComment,
     isMaterialExpectationDrift,
     publishExpectationDriftComment,
+    publishExpectationDriftViaGh,
 } from './issue-drift';
 import { createResumeCheckpoint } from './resume';
 import { createInitialState, recordPullRequest, upsertIssue } from './state';
@@ -120,6 +121,42 @@ describe('Go issue expectation drift', () => {
                 record.fingerprint,
             ),
         ).toBe('https://github.com/tjx666/caxri/issues/113#issuecomment-recovered');
+    });
+
+    it('reads GitHub comments in bounded pages and stops at the matching marker', async () => {
+        const state = driftState();
+        const record = materialAssessment(state).record!;
+        const firstPage = Array.from({ length: 100 }, (_, index) => ({
+            body: `comment ${index}`,
+            html_url: `https://github.com/tjx666/caxri/issues/113#issuecomment-${index}`,
+        }));
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(JSON.stringify(firstPage))
+            .mockResolvedValueOnce(
+                JSON.stringify([
+                    {
+                        body: buildExpectationDriftComment(record),
+                        html_url: 'https://github.com/tjx666/caxri/issues/113#issuecomment-bounded',
+                    },
+                ]),
+            );
+
+        await expect(
+            publishExpectationDriftViaGh(
+                { body: 'unused', fingerprint: record.fingerprint, issueNumber: 113 },
+                runner,
+            ),
+        ).resolves.toEqual({
+            url: 'https://github.com/tjx666/caxri/issues/113#issuecomment-bounded',
+        });
+        expect(runner).toHaveBeenCalledTimes(2);
+        expect(runner.mock.calls[0][1]).toEqual(
+            expect.arrayContaining([expect.stringContaining('page=1')]),
+        );
+        expect(runner.mock.calls[1][1]).toEqual(
+            expect.arrayContaining([expect.stringContaining('page=2')]),
+        );
     });
 
     it('retains detected state when publication fails so resume can retry', async () => {

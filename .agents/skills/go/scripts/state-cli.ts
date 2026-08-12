@@ -45,6 +45,7 @@ import {
     statePathForRunId,
     writeInitialState,
     writeState,
+    withStateLock,
 } from './state-storage';
 import { completeValidation, startValidation, validationKindSchema } from './validation-gate';
 
@@ -211,221 +212,231 @@ export async function runStateCli(argv: string[]): Promise<void> {
     if (command === 'init') return initialize(options);
     const supplied = one(options, 'state', true)!;
     const path = await resolveStatePath(supplied);
-    const state = await readState(path);
-    if (command === 'resume') {
-        const checkpoint = createResumeCheckpoint(state);
-        console.log(
-            options.json ? JSON.stringify(checkpoint, null, 2) : formatResumeCheckpoint(checkpoint),
-        );
-        return;
-    }
-    if (command === 'show') {
-        console.log(JSON.stringify(state, null, 2));
-        return;
-    }
-    if (command === 'notes') {
-        if (options.json) console.log(JSON.stringify(state.notes, null, 2));
-        else
-            for (const [kind, notes] of Object.entries(state.notes)) {
-                console.log(`${kind}:`);
-                for (const note of notes) console.log(`- ${note.text}`);
+    return withStateLock(path, async () => {
+        const state = await readState(path);
+        if (command === 'resume') {
+            const checkpoint = createResumeCheckpoint(state);
+            console.log(
+                options.json
+                    ? JSON.stringify(checkpoint, null, 2)
+                    : formatResumeCheckpoint(checkpoint),
+            );
+            return;
+        }
+        if (command === 'show') {
+            console.log(JSON.stringify(state, null, 2));
+            return;
+        }
+        if (command === 'notes') {
+            if (options.json) console.log(JSON.stringify(state.notes, null, 2));
+            else {
+                for (const [kind, notes] of Object.entries(state.notes)) {
+                    console.log(`${kind}:`);
+                    for (const note of notes) console.log(`- ${note.text}`);
+                }
+                if (state.retention.archive) {
+                    console.log(
+                        `archive: ${state.retention.archive.entryCount} entries/${state.retention.archive.byteLength} bytes, sha256=${state.retention.archive.sha256}`,
+                    );
+                }
             }
-        return;
-    }
-    if (command === 'validate') {
-        console.log('Go state is valid');
-        return;
-    }
+            return;
+        }
+        if (command === 'validate') {
+            console.log('Go state is valid');
+            return;
+        }
 
-    if (command === 'phase') {
-        transitionState(
-            state,
-            phaseSchema.parse(one(options, 'phase', true)),
-            one(options, 'reason'),
-        );
-    } else if (command === 'issue') {
-        const status = one(options, 'status');
-        upsertIssue(state, {
-            checks: many(options, 'check'),
-            commits: many(options, 'commit'),
-            dependencies: many(options, 'dependency').map(Number),
-            number: integer(options, 'number', true)!,
-            priority: one(options, 'priority'),
-            status: status ? issueStatusSchema.parse(status) : undefined,
-            title: one(options, 'title'),
-            validations: many(options, 'validation'),
-        });
-    } else if (command === 'drift-assess') {
-        const kind = driftKindSchema.parse(one(options, 'kind', true));
-        const assessment = assessExpectationDrift(state, {
-            acceptanceImpact: one(options, 'acceptance-impact'),
-            decision: one(options, 'decision'),
-            decisionRequired: options['decision-required'] === true,
-            driftKey: one(options, 'drift-key', true)!,
-            evidence: one(options, 'evidence'),
-            expectation: one(options, 'expectation'),
-            headSha: one(options, 'head-sha', true)!,
-            issueNumber: integer(options, 'number', true)!,
-            kind,
-        });
-        addEvent(
-            state,
-            'issue_drift',
-            `#${String(integer(options, 'number', true))} ${kind} -> ${assessment.record?.id ?? 'none'}`,
-        );
-    } else if (command === 'drift-comment') {
-        const issueNumber = integer(options, 'number', true)!;
-        const record = await publishExpectationDriftComment(
-            state,
-            { issueNumber, recordId: one(options, 'record-id', true)! },
-            publishExpectationDriftViaGh,
-        );
-        addEvent(state, 'issue_drift', `#${issueNumber} ${record.id} -> ${record.commentUrl}`);
-    } else if (command === 'worktree') {
-        recordWorktree(state, {
-            baseSha: one(options, 'base-sha', true)!,
-            branch: one(options, 'branch'),
-            mainCheckoutPath: one(options, 'main-checkout-path', true)!,
-            path: one(options, 'worktree-path', true)!,
-        });
-    } else if (command === 'pr') {
-        const status = one(options, 'status');
-        recordPullRequest(state, {
-            branch: one(options, 'branch'),
-            headSha: one(options, 'head-sha'),
-            number: integer(options, 'number'),
-            status: status ? pullRequestStatusSchema.parse(status) : undefined,
-            url: one(options, 'url'),
-        });
-    } else if (command === 'review-policy') {
-        overrideReviewPolicy(
-            state,
-            reviewPolicyModeSchema.parse(one(options, 'mode', true)),
-            one(options, 'source', true)!,
-        );
-        addEvent(
-            state,
-            'review_policy',
-            `${state.reviewPolicy.mode}: ${state.reviewPolicy.source}`,
-        );
-    } else if (command === 'review') {
-        recordReviewDecision(state, {
-            baselineHeadSha: one(options, 'baseline-head-sha'),
-            baselineReviewId: one(options, 'baseline-review-id'),
-            freeze: options.freeze === true,
-            headSha: one(options, 'head-sha', true)!,
-            mode: reviewModeSchema.parse(one(options, 'mode', true)),
-            p0: integer(options, 'p0', true)!,
-            p1: integer(options, 'p1', true)!,
-            parentReviewId: one(options, 'parent-review-id'),
-            reviewedRange: one(options, 'reviewed-range', true)!,
-            scope: one(options, 'scope', true)!,
-        });
-        const review = state.reviewGate.rounds.at(-1)!;
-        addEvent(state, 'review', `${review.id} ${review.mode} ${review.reviewedRange}`);
-    } else if (command === 'validation-start') {
-        const validation = startValidation(state, {
-            command: one(options, 'command', true)!,
-            headSha: one(options, 'head-sha', true)!,
-            kind: validationKindSchema.parse(one(options, 'kind', true)),
-            lineageId: one(options, 'lineage-id', true)!,
-            logPath: one(options, 'log-path', true)!,
-            sessionId: one(options, 'session-id', true)!,
-        });
-        addEvent(state, 'validation', `${validation.id} -> pending`);
-    } else if (command === 'validation-complete') {
-        const validation = completeValidation(state, {
-            exitCode: integer(options, 'exit-code', true)!,
-            id: one(options, 'id', true)!,
-        });
-        addEvent(state, 'validation', `${validation.id} -> ${validation.result}`);
-    } else if (command === 'checkpoint') {
-        recordCostCheckpoint(state, {
-            commitCount: measured(options, 'commit-count'),
-            elapsedSeconds: measured(options, 'elapsed-seconds'),
-            fileCount: measured(options, 'file-count'),
-            tokens: measured(options, 'tokens'),
-        });
-    } else if (command === 'scope-admit') {
-        const result = routeWorkflowWork(state, {
-            blocking: options.blocking === true,
-            title: one(options, 'title', true)!,
-        });
-        addEvent(state, 'scope', `${result}: ${one(options, 'title', true)}`);
-        console.log(result);
-    } else if (command === 'report-generate') {
-        await generateHandoffReport(
-            state,
-            runDirectoryForStatePath(path),
-            one(options, 'head-sha', true)!,
-        );
-    } else if (command === 'report-delivered') {
-        recordHandoffDelivery(state, {
-            acceptanceUrl: one(options, 'acceptance-url'),
-            headSha: one(options, 'head-sha', true)!,
-        });
-    } else if (command === 'finalization-generate') {
-        await generateFinalization(state, runDirectoryForStatePath(path), {
-            headSha: one(options, 'head-sha', true)!,
-            issues: parseFinalIssues(many(options, 'issue')),
-            mergeSha: one(options, 'merge-sha', true)!,
-        });
-    } else if (command === 'finalization-delivered') {
-        await recordFinalizationDelivery(state, runDirectoryForStatePath(path));
-    } else if (command === 'acceptance-publish') {
-        await publishAcceptanceRound(
-            state,
-            {
+        if (command === 'phase') {
+            transitionState(
+                state,
+                phaseSchema.parse(one(options, 'phase', true)),
+                one(options, 'reason'),
+            );
+        } else if (command === 'issue') {
+            const status = one(options, 'status');
+            upsertIssue(state, {
+                checks: many(options, 'check'),
+                commits: many(options, 'commit'),
+                dependencies: many(options, 'dependency').map(Number),
+                number: integer(options, 'number', true)!,
+                priority: one(options, 'priority'),
+                status: status ? issueStatusSchema.parse(status) : undefined,
+                title: one(options, 'title'),
+                validations: many(options, 'validation'),
+            });
+        } else if (command === 'drift-assess') {
+            const kind = driftKindSchema.parse(one(options, 'kind', true));
+            const assessment = assessExpectationDrift(state, {
+                acceptanceImpact: one(options, 'acceptance-impact'),
+                decision: one(options, 'decision'),
+                decisionRequired: options['decision-required'] === true,
+                driftKey: one(options, 'drift-key', true)!,
+                evidence: one(options, 'evidence'),
+                expectation: one(options, 'expectation'),
                 headSha: one(options, 'head-sha', true)!,
-                reportDirectory: one(options, 'report-dir', true)!,
-            },
-            undefined,
-            undefined,
-            () => writeState(path, state),
-        );
-    } else if (command === 'acceptance-orphan') {
-        recordOrphanedAcceptance(state, {
-            acceptanceId: one(options, 'acceptance-id', true)!,
-            reason: one(options, 'reason', true)!,
-            verifyRunId: one(options, 'verify-run-id'),
-        });
-    } else if (command === 'ci-fallback-admit') {
-        admitCiFallback(state, {
-            authorization: one(options, 'authorization'),
-            failureDetail: one(options, 'failure-detail', true)!,
-            failureJob: one(options, 'failure-job', true)!,
-            failureKind: ciFailureKindSchema.parse(one(options, 'failure-kind', true)),
-            failureRunUrl: one(options, 'failure-url', true)!,
-            headSha: one(options, 'head-sha', true)!,
-            verifiedZeroSteps: options['verified-zero-steps'] === true,
-        });
-    } else if (command === 'ci-fallback-result') {
-        recordCiFallbackResult(state, {
-            electronE2eCommand: one(options, 'e2e-command', true)!,
-            electronE2eResult: ciFallbackResultSchema.parse(one(options, 'e2e-result', true)),
-            headSha: one(options, 'head-sha', true)!,
-            platformCommands: many(options, 'platform-command'),
-            platformResult: ciFallbackResultSchema.parse(one(options, 'platform-result', true)),
-        });
-    } else if (command === 'acceptance') {
-        const status = one(options, 'status');
-        recordAcceptance(state, {
-            acceptedHeadSha: one(options, 'accepted-head-sha'),
-            id: one(options, 'id'),
-            round: integer(options, 'round'),
-            status: status ? acceptanceStatusSchema.parse(status) : undefined,
-            url: one(options, 'url'),
-            waivedHeadSha: one(options, 'waived-head-sha'),
-            waiverReason: one(options, 'waiver-reason'),
-        });
-    } else if (command === 'note') {
-        recordNote(state, {
-            kind: noteKindSchema.parse(one(options, 'kind', true)),
-            text: one(options, 'text', true)!,
-        });
-    } else {
-        throw new Error(`Unknown command: ${command}`);
-    }
-    await writeState(path, state);
-    if (command !== 'scope-admit') console.log(path.startsWith(PROJECT_ROOT) ? path : supplied);
+                issueNumber: integer(options, 'number', true)!,
+                kind,
+            });
+            addEvent(
+                state,
+                'issue_drift',
+                `#${String(integer(options, 'number', true))} ${kind} -> ${assessment.record?.id ?? 'none'}`,
+            );
+        } else if (command === 'drift-comment') {
+            const issueNumber = integer(options, 'number', true)!;
+            const record = await publishExpectationDriftComment(
+                state,
+                { issueNumber, recordId: one(options, 'record-id', true)! },
+                publishExpectationDriftViaGh,
+            );
+            addEvent(state, 'issue_drift', `#${issueNumber} ${record.id} -> ${record.commentUrl}`);
+        } else if (command === 'worktree') {
+            recordWorktree(state, {
+                baseSha: one(options, 'base-sha', true)!,
+                branch: one(options, 'branch'),
+                mainCheckoutPath: one(options, 'main-checkout-path', true)!,
+                path: one(options, 'worktree-path', true)!,
+            });
+        } else if (command === 'pr') {
+            const status = one(options, 'status');
+            recordPullRequest(state, {
+                branch: one(options, 'branch'),
+                headSha: one(options, 'head-sha'),
+                number: integer(options, 'number'),
+                status: status ? pullRequestStatusSchema.parse(status) : undefined,
+                url: one(options, 'url'),
+            });
+        } else if (command === 'review-policy') {
+            overrideReviewPolicy(
+                state,
+                reviewPolicyModeSchema.parse(one(options, 'mode', true)),
+                one(options, 'source', true)!,
+            );
+            addEvent(
+                state,
+                'review_policy',
+                `${state.reviewPolicy.mode}: ${state.reviewPolicy.source}`,
+            );
+        } else if (command === 'review') {
+            recordReviewDecision(state, {
+                baselineHeadSha: one(options, 'baseline-head-sha'),
+                baselineReviewId: one(options, 'baseline-review-id'),
+                freeze: options.freeze === true,
+                headSha: one(options, 'head-sha', true)!,
+                mode: reviewModeSchema.parse(one(options, 'mode', true)),
+                p0: integer(options, 'p0', true)!,
+                p1: integer(options, 'p1', true)!,
+                parentReviewId: one(options, 'parent-review-id'),
+                reviewedRange: one(options, 'reviewed-range', true)!,
+                scope: one(options, 'scope', true)!,
+            });
+            const review = state.reviewGate.rounds.at(-1)!;
+            addEvent(state, 'review', `${review.id} ${review.mode} ${review.reviewedRange}`);
+        } else if (command === 'validation-start') {
+            const validation = startValidation(state, {
+                command: one(options, 'command', true)!,
+                headSha: one(options, 'head-sha', true)!,
+                kind: validationKindSchema.parse(one(options, 'kind', true)),
+                lineageId: one(options, 'lineage-id', true)!,
+                logPath: one(options, 'log-path', true)!,
+                sessionId: one(options, 'session-id', true)!,
+            });
+            addEvent(state, 'validation', `${validation.id} -> pending`);
+        } else if (command === 'validation-complete') {
+            const validation = completeValidation(state, {
+                exitCode: integer(options, 'exit-code', true)!,
+                id: one(options, 'id', true)!,
+            });
+            addEvent(state, 'validation', `${validation.id} -> ${validation.result}`);
+        } else if (command === 'checkpoint') {
+            recordCostCheckpoint(state, {
+                commitCount: measured(options, 'commit-count'),
+                elapsedSeconds: measured(options, 'elapsed-seconds'),
+                fileCount: measured(options, 'file-count'),
+                tokens: measured(options, 'tokens'),
+            });
+        } else if (command === 'scope-admit') {
+            const result = routeWorkflowWork(state, {
+                blocking: options.blocking === true,
+                title: one(options, 'title', true)!,
+            });
+            addEvent(state, 'scope', `${result}: ${one(options, 'title', true)}`);
+            console.log(result);
+        } else if (command === 'report-generate') {
+            await generateHandoffReport(
+                state,
+                runDirectoryForStatePath(path),
+                one(options, 'head-sha', true)!,
+            );
+        } else if (command === 'report-delivered') {
+            recordHandoffDelivery(state, {
+                acceptanceUrl: one(options, 'acceptance-url'),
+                headSha: one(options, 'head-sha', true)!,
+            });
+        } else if (command === 'finalization-generate') {
+            await generateFinalization(state, runDirectoryForStatePath(path), {
+                headSha: one(options, 'head-sha', true)!,
+                issues: parseFinalIssues(many(options, 'issue')),
+                mergeSha: one(options, 'merge-sha', true)!,
+            });
+        } else if (command === 'finalization-delivered') {
+            await recordFinalizationDelivery(state, runDirectoryForStatePath(path));
+        } else if (command === 'acceptance-publish') {
+            await publishAcceptanceRound(
+                state,
+                {
+                    headSha: one(options, 'head-sha', true)!,
+                    reportDirectory: one(options, 'report-dir', true)!,
+                },
+                undefined,
+                undefined,
+                () => writeState(path, state),
+            );
+        } else if (command === 'acceptance-orphan') {
+            recordOrphanedAcceptance(state, {
+                acceptanceId: one(options, 'acceptance-id', true)!,
+                reason: one(options, 'reason', true)!,
+                verifyRunId: one(options, 'verify-run-id'),
+            });
+        } else if (command === 'ci-fallback-admit') {
+            admitCiFallback(state, {
+                authorization: one(options, 'authorization'),
+                failureDetail: one(options, 'failure-detail', true)!,
+                failureJob: one(options, 'failure-job', true)!,
+                failureKind: ciFailureKindSchema.parse(one(options, 'failure-kind', true)),
+                failureRunUrl: one(options, 'failure-url', true)!,
+                headSha: one(options, 'head-sha', true)!,
+                verifiedZeroSteps: options['verified-zero-steps'] === true,
+            });
+        } else if (command === 'ci-fallback-result') {
+            recordCiFallbackResult(state, {
+                electronE2eCommand: one(options, 'e2e-command', true)!,
+                electronE2eResult: ciFallbackResultSchema.parse(one(options, 'e2e-result', true)),
+                headSha: one(options, 'head-sha', true)!,
+                platformCommands: many(options, 'platform-command'),
+                platformResult: ciFallbackResultSchema.parse(one(options, 'platform-result', true)),
+            });
+        } else if (command === 'acceptance') {
+            const status = one(options, 'status');
+            recordAcceptance(state, {
+                acceptedHeadSha: one(options, 'accepted-head-sha'),
+                id: one(options, 'id'),
+                round: integer(options, 'round'),
+                status: status ? acceptanceStatusSchema.parse(status) : undefined,
+                url: one(options, 'url'),
+                waivedHeadSha: one(options, 'waived-head-sha'),
+                waiverReason: one(options, 'waiver-reason'),
+            });
+        } else if (command === 'note') {
+            recordNote(state, {
+                kind: noteKindSchema.parse(one(options, 'kind', true)),
+                text: one(options, 'text', true)!,
+            });
+        } else {
+            throw new Error(`Unknown command: ${command}`);
+        }
+        await writeState(path, state);
+        if (command !== 'scope-admit') console.log(path.startsWith(PROJECT_ROOT) ? path : supplied);
+    });
 }
