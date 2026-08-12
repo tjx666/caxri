@@ -57,10 +57,9 @@ export function TerminalSearchBar({
     };
 
     return (
-        <div
+        <search
             aria-label="Terminal buffer search"
             className="terminal-search absolute top-2 right-2 z-[4] flex max-w-[calc(100%-1rem)] items-center gap-1 rounded border border-border bg-surface p-1 shadow-lg"
-            role="search"
         >
             <InputGroup appearance="workbench" className="w-56" size="dense">
                 <Input
@@ -148,6 +147,6 @@ export function TerminalSearchBar({
                     <X size={14} />
                 </button>
             </Tooltip>
-        </div>
+        </search>
     );
 }

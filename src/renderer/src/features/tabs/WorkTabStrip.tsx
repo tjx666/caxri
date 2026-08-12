@@ -187,13 +187,10 @@ export function WorkTabStrip() {
     const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     const [editorMotionStates] = useState(() => new Map<string, EditorTabMotionState>());
     useEffect(() => {
-        retainTerminalProgress(
-            new Set(
-                sessionTerminals
-                    .filter((terminal) => terminal.lastProcessState === 'running')
-                    .map((terminal) => terminal.id),
-            ),
-        );
+        const runningTerminalIds = new Set<string>();
+        for (const terminal of sessionTerminals)
+            if (terminal.lastProcessState === 'running') runningTerminalIds.add(terminal.id);
+        retainTerminalProgress(runningTerminalIds);
     }, [selectedSessionId, sessionTerminals]);
     const editorMotionState = useMemo(
         () =>
