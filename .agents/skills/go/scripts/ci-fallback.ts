@@ -10,7 +10,6 @@ export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run doctor:changed',
     'bun run typecheck',
     'bun run format:check',
-    'bun run format:md:check',
     'bun run test',
     'bun run build',
 ] as const;

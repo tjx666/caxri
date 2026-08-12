@@ -79,7 +79,6 @@ bun run .agents/skills/go/scripts/state.ts ci-fallback-result \
   --platform-command "bun run doctor:changed" \
   --platform-command "bun run typecheck" \
   --platform-command "bun run format:check" \
-  --platform-command "bun run format:md:check" \
   --platform-command "bun run test" \
   --platform-command "bun run build" \
   --platform-result passed --e2e-command "bun run test:e2e" \

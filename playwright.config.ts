@@ -5,6 +5,7 @@ export default defineConfig({
     testMatch: '**/*.e2e.ts',
     timeout: 90_000,
     expect: { timeout: 15_000 },
+    maxFailures: process.env.CI ? 3 : 0,
     workers: 1,
     reporter: [['list']],
     use: {
