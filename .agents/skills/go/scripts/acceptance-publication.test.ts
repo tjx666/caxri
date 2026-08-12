@@ -3,7 +3,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { publishAcceptanceRound, recordOrphanedAcceptance } from './acceptance-publication';
+import {
+    commandCapture,
+    publishAcceptanceRound,
+    recordOrphanedAcceptance,
+} from './acceptance-publication';
 import { createResumeCheckpoint } from './resume';
 import { createInitialState } from './state';
 
@@ -161,6 +165,16 @@ describe('Go Acceptance round publication', () => {
             roundIndex: 1,
             verifyRunId: 'run-1',
         });
+    });
+
+    it('bounds a stalled external publication command', async () => {
+        await expect(
+            commandCapture(
+                process.execPath,
+                ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'],
+                50,
+            ),
+        ).rejects.toThrow('timed out after 50ms');
     });
 
     it('forces every later round to append to the frozen Acceptance id', async () => {

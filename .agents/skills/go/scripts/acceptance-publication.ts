@@ -7,6 +7,8 @@ import { z } from 'zod';
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const MAX_CLI_OUTPUT_BYTES = 5 * 1024 * 1024;
+const CLI_TIMEOUT_MS = 60_000;
+const CLI_KILL_GRACE_MS = 2_000;
 const ACCEPTANCE_URL_ROOT = 'https://app.lobehub.com/acceptance';
 
 const publishedVerdictSchema = z.enum(['fail', 'partial', 'pass', 'legacy-unavailable']);
@@ -155,12 +157,33 @@ async function discoverPublishedRun(
         : null;
 }
 
-function commandCapture(command: string, args: string[]): Promise<string> {
+export function commandCapture(
+    command: string,
+    args: string[],
+    timeoutMs = CLI_TIMEOUT_MS,
+): Promise<string> {
     return new Promise((resolveCapture, rejectCapture) => {
         const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
         let tooLarge = false;
+        let timedOut = false;
+        let settled = false;
+        const finish = (error?: Error, output?: string): void => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeout);
+            if (error) rejectCapture(error);
+            else resolveCapture(output ?? '');
+        };
+        const timeout = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGTERM');
+            const forceKill = setTimeout(() => child.kill('SIGKILL'), CLI_KILL_GRACE_MS);
+            forceKill.unref();
+            finish(new Error(`${command} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        timeout.unref();
         const append = (target: 'stderr' | 'stdout', chunk: Buffer): void => {
             const next = (target === 'stdout' ? stdout : stderr) + chunk.toString();
             if (Buffer.byteLength(next) > MAX_CLI_OUTPUT_BYTES) {
@@ -173,12 +196,13 @@ function commandCapture(command: string, args: string[]): Promise<string> {
         };
         child.stdout.on('data', (chunk: Buffer) => append('stdout', chunk));
         child.stderr.on('data', (chunk: Buffer) => append('stderr', chunk));
-        child.once('error', rejectCapture);
+        child.once('error', (error) => finish(error));
         child.once('close', (code) => {
+            if (timedOut) return;
             if (tooLarge) {
-                rejectCapture(new Error(`${command} output exceeded the bounded capture limit`));
-            } else if (code === 0) resolveCapture(stdout.trim());
-            else rejectCapture(new Error(`${command} exited ${String(code)}: ${stderr.trim()}`));
+                finish(new Error(`${command} output exceeded the bounded capture limit`));
+            } else if (code === 0) finish(undefined, stdout.trim());
+            else finish(new Error(`${command} exited ${String(code)}`));
         });
     });
 }

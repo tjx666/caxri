@@ -9,6 +9,7 @@ import {
     resolveOwnedCapturePort,
     selectRendererTarget,
 } from './capture-renderer';
+import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 
 const temporaryDirectories: string[] = [];
 
@@ -44,18 +45,40 @@ describe('Acceptance Renderer capture', () => {
         const path = join(directory, 'fixture.json');
         await writeFile(
             path,
-            JSON.stringify({
-                columns: 8,
-                domRowCount: 1,
-                firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 1 },
-                generation: 'fixture-1',
-                lines: ['│中🙂   │'],
-                rows: 1,
-            }),
+            JSON.stringify(
+                createTerminalFixturePreflightReceipt(
+                    {
+                        columns: 8,
+                        domRowCount: 1,
+                        firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 1 },
+                        generation: 'fixture-1',
+                        lines: ['│中🙂   │'],
+                        rows: 1,
+                    },
+                    'terminal-layout',
+                ),
+            ),
         );
 
         await expect(requireCapturePreflight(path)).rejects.toThrow(
             'Frame capture blocked by fixture preflight',
+        );
+
+        const forged = createTerminalFixturePreflightReceipt(
+            {
+                columns: 8,
+                domRowCount: 1,
+                firstGridMarker: { columns: 8, generation: 'fixture-2', rows: 1 },
+                generation: 'fixture-2',
+                lines: ['│12345 │'],
+                rows: 1,
+            },
+            'terminal-layout',
+        );
+        forged.result.lines[0].width = 7;
+        await writeFile(path, JSON.stringify(forged));
+        await expect(requireCapturePreflight(path)).rejects.toThrow(
+            'does not match its observed fixture',
         );
     });
 

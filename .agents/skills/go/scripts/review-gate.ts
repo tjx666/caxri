@@ -16,7 +16,7 @@ const reviewDecisionSchema = z.object({
     completedAt: z.string(),
     headSha: z.string().min(1),
     id: z.string().min(1),
-    legacyMode: z.enum(['targeted', 'verification']).nullable().default(null),
+    legacyMode: z.enum(['full', 'targeted', 'verification']).nullable().default(null),
     mode: reviewModeSchema,
     parentReviewId: z.string().min(1).nullable(),
     phase: reviewPhaseSchema,

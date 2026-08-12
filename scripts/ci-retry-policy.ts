@@ -20,6 +20,7 @@ export interface BaseRunEvidence {
 }
 
 export interface RetryPolicyInput {
+    baseRunChangedFiles: string[];
     baseRun?: BaseRunEvidence;
     changedFiles: string[];
     currentTree: string;
@@ -141,6 +142,10 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
     if (hint.validatedTree !== input.currentTree) return full('validated tree does not match HEAD');
     const protectedFile = input.changedFiles.find(isProtectedRetryPath);
     if (protectedFile) return full(`protected configuration changed: ${protectedFile}`);
+    const protectedBaseRunFile = input.baseRunChangedFiles.find(isProtectedRetryPath);
+    if (protectedBaseRunFile) {
+        return full(`base run includes protected configuration: ${protectedBaseRunFile}`);
+    }
     return {
         baseRunId: hint.baseRunId,
         e2eTests: hint.e2eTests,
@@ -258,6 +263,7 @@ async function main(): Promise<void> {
     let baseRun: BaseRunEvidence | undefined;
     let isAncestor = false;
     let changedFiles: string[] = [];
+    let baseRunChangedFiles: string[] = [];
     if (parsed.hint) {
         try {
             baseRun = await loadBaseRun(repository, parsed.hint.baseRunId);
@@ -268,6 +274,15 @@ async function main(): Promise<void> {
             )
                 .split('\n')
                 .filter(Boolean);
+            baseRunChangedFiles = (
+                await capture('git', [
+                    'diff',
+                    '--name-only',
+                    `${event.pull_request?.base?.sha ?? ''}...${baseRun.headSha}`,
+                ])
+            )
+                .split('\n')
+                .filter(Boolean);
         } catch (error) {
             parsed.error = `verification failed: ${error instanceof Error ? error.message : String(error)}`;
         }
@@ -275,6 +290,7 @@ async function main(): Promise<void> {
     await writeDecision(
         evaluateRetryPolicy({
             baseRun,
+            baseRunChangedFiles,
             changedFiles,
             currentTree: await capture('git', ['rev-parse', 'HEAD^{tree}']),
             eventName: process.env.GITHUB_EVENT_NAME ?? '',

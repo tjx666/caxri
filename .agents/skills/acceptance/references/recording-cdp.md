@@ -14,7 +14,7 @@ from another shell:
 FRAME_DIR=$(mktemp -d)
 bun run .agents/skills/acceptance/scripts/capture-renderer.ts frames \
   --out-dir "$FRAME_DIR" \
-  --fixture-preflight "$FIXTURE_JSON" \
+  --fixture-preflight "$FIXTURE_PREFLIGHT_RECEIPT" \
   --count 40 \
   --interval-ms 250
 ```
@@ -25,10 +25,10 @@ DevTools and ambiguous targets, and refuses to overwrite an existing frame
 sequence. For a secondary window such as Process Explorer, add
 `--url-contains process-explorer.html`.
 
-`--fixture-preflight` is mandatory. It must describe the observed fixture
-generation, first grid marker, DOM row count, grid size, and rendered lines.
-The capture helper re-runs the preflight before creating the first frame and
-refuses capture when the fixture is blocked.
+`--fixture-preflight` is mandatory and points to the receipt written by
+`fixture-preflight.ts --output`. The receipt preserves the observed fixture generation, first grid
+marker, DOM row count, grid size, rendered lines, and ready/blocked result. The capture helper
+refuses capture before the first frame when that receipt is blocked.
 
 ## Assemble and validate the clip
 

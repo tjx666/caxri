@@ -5,7 +5,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
-import { preflightTerminalFixture, terminalFixtureSchema } from './fixture-preflight';
+import {
+    createTerminalFixturePreflightReceipt,
+    terminalFixturePreflightReceiptSchema,
+    type TerminalFixturePreflightReceipt,
+} from './fixture-preflight';
 
 interface CdpTarget {
     type: string;
@@ -124,10 +128,15 @@ export async function requireCapturePreflight(path: string): Promise<void> {
         throw new Error('Fixture preflight input must be a direct regular file');
     }
     const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
-    const result = preflightTerminalFixture(terminalFixtureSchema.parse(raw));
-    if (result.status !== 'ready') {
+    const receipt: TerminalFixturePreflightReceipt =
+        terminalFixturePreflightReceiptSchema.parse(raw);
+    const verified = createTerminalFixturePreflightReceipt(receipt.fixture, receipt.caseId);
+    if (JSON.stringify(receipt) !== JSON.stringify(verified)) {
+        throw new Error('Fixture preflight receipt does not match its observed fixture');
+    }
+    if (receipt.result.status !== 'ready') {
         throw new Error(
-            `Frame capture blocked by fixture preflight: ${result.errors.map(({ code }) => code).join(', ')}`,
+            `Frame capture blocked by fixture preflight: ${receipt.result.errors.map(({ code }) => code).join(', ')}`,
         );
     }
 }

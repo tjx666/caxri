@@ -70,14 +70,15 @@ function migrateV5(state: Record<string, unknown>): Record<string, unknown> {
             continue;
         }
         const id = `review-${String(reviewRounds.length + 1).padStart(3, '0')}`;
+        const importedAdditionalFull = Boolean(baseline) && mode === 'full';
         const migrated = {
             baselineHeadSha: baseline ? baseline.headSha : null,
             baselineReviewId: baseline ? baseline.id : null,
             completedAt,
             headSha,
             id,
-            legacyMode: mode === 'targeted' ? 'targeted' : null,
-            mode: mode === 'targeted' ? 'light' : 'full',
+            legacyMode: mode === 'targeted' ? 'targeted' : importedAdditionalFull ? 'full' : null,
+            mode: mode === 'targeted' || importedAdditionalFull ? 'light' : 'full',
             parentReviewId: parent ? parent.id : null,
             phase:
                 decision.phase === 'deep_review' || decision.phase === 'delivery'

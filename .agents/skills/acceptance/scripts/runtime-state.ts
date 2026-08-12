@@ -34,6 +34,7 @@ interface PrepareUserDataOptions {
     caseId?: string;
     caseMode?: z.infer<typeof acceptanceCaseModeSchema>;
     cleanupReusable: boolean;
+    profileId?: string;
     reuseUserDataDir?: string;
 }
 
@@ -81,6 +82,7 @@ export async function prepareAcceptanceUserData({
     caseId,
     caseMode = 'isolated',
     cleanupReusable,
+    profileId,
     reuseUserDataDir,
 }: PrepareUserDataOptions): Promise<
     Pick<RuntimeState, 'acceptanceCase' | 'ownedUserData' | 'userDataDir'>
@@ -103,7 +105,10 @@ export async function prepareAcceptanceUserData({
     if (!caseId || normalizedCaseMode !== 'restart') {
         throw new Error('Reusable Acceptance user data requires a named restart case');
     }
-    const candidate = await resolveSafeAcceptanceUserDataDir(reuseUserDataDir, normalizedCaseId);
+    const candidate = await resolveSafeAcceptanceUserDataDir(
+        reuseUserDataDir,
+        normalizeCaseId(profileId ?? normalizedCaseId),
+    );
     return {
         acceptanceCase: { id: normalizedCaseId, mode: 'restart' },
         ownedUserData: cleanupReusable,

@@ -164,8 +164,8 @@ export function assertFinalizationComplete(state: FinalizationContext): void {
 export async function verifyFinalizationArtifact(
     state: FinalizationContext,
     runDirectory: string,
-): Promise<void> {
-    if (!state.finalization) return;
+): Promise<boolean> {
+    if (!state.finalization) return false;
     const path = join(runDirectory, state.finalization.path);
     const metadata = await lstat(path).catch(() => {
         throw new Error('Persisted finalization receipt is missing');
@@ -175,7 +175,21 @@ export async function verifyFinalizationArtifact(
     }
     const raw = await readFile(path, 'utf8');
     const persisted = finalizationSchema.parse(JSON.parse(raw));
-    if (JSON.stringify(persisted) !== JSON.stringify(state.finalization)) {
-        throw new Error('Persisted finalization receipt does not match the ledger');
+    if (JSON.stringify(persisted) === JSON.stringify(state.finalization)) return false;
+
+    /**
+     * Delivery writes the immutable artifact before the ledger. If the process stops between
+     * those two atomic replacements, accept only the single monotonic `deliveredAt` transition
+     * and let state storage persist the recovered ledger before continuing.
+     */
+    const pendingReceipt = { ...persisted, deliveredAt: null };
+    if (
+        state.finalization.deliveredAt === null &&
+        persisted.deliveredAt !== null &&
+        JSON.stringify(pendingReceipt) === JSON.stringify(state.finalization)
+    ) {
+        state.finalization = persisted;
+        return true;
     }
+    throw new Error('Persisted finalization receipt does not match the ledger');
 }

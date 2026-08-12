@@ -50,6 +50,7 @@ contains:
     "method": "启动隔离的 Caxri 并检查稳定后的终端布局",
     "expected": "终端视口周围不出现应用背景色条",
     "requiredEvidence": ["screenshot", "dom_snapshot"],
+    "fixturePreflight": "terminal",
     "stateIsolation": { "mode": "isolated" }
   }
 ]
@@ -96,6 +97,10 @@ Replace each generated `cases[]` placeholder with the observed result:
 
 `status` is `pass`, `fail`, or `blocked`. A blocked case is not a pass. Every
 status needs evidence, and every artifact path is relative to the round directory.
+For isolated and restart cases, include the adapter-generated
+`assets/<case-id>-state-isolation.json`; finalization requires completed cleanup and, for restart,
+one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
+include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
 ## Finalize before publication
 

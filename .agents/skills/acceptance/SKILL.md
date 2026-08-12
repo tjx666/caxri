@@ -61,7 +61,7 @@ Read [references/report.md](references/report.md) before authoring the report an
 ## Execute the desktop round
 
 1. Build and launch from the adapter. Run every state-mutating case in a fresh
-   launch with `--case-id <stable-id>`. Only a declared restart case may use
+   launch with `--report-dir <round> --case-id <stable-id>`. Only a declared restart case may use
    `--case-mode restart --reuse-user-data`; its final launch must pass
    `--cleanup-reused-user-data`. Confirm the CDP target is the Caxri renderer,
    not DevTools or a stale resident build.
@@ -74,10 +74,13 @@ Read [references/report.md](references/report.md) before authoring the report an
    - behavior over time: GIF or video following
      [references/recording-cdp.md](references/recording-cdp.md);
    - non-visual behavior: separate reasoning and execution text artifacts.
-     Before recording a Terminal or visual fixture, run `fixture-preflight.ts`
-     against its observed generation, first grid marker, DOM row count, borders,
-     and rendered lines. `fixture_blocked` is infrastructure evidence and can
-     never be converted to a product pass or fail.
+     A Terminal fixture plan must declare `fixturePreflight: terminal`. Before any screenshot or
+     recording of that fixture, run `fixture-preflight.ts --case-id <stable-id> --output
+<round>/assets/<case-id>-fixture-preflight.json` against its observed generation, first grid
+     marker, DOM row count, borders, and rendered lines, then include the receipt in
+     `cases[].evidence`. Finalization rejects a missing or blocked receipt, so direct screenshot
+     capture cannot bypass preflight. `fixture_blocked` is infrastructure evidence and can never
+     be converted to a product pass or fail.
 4. Replace each generated `cases[]` placeholder as observations are made. Every
    planned check remains visible; never delete one to make coverage look
    complete.

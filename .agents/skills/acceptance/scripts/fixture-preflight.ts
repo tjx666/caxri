@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import stringWidth from 'string-width';
@@ -30,6 +30,20 @@ export interface FixturePreflightResult {
     lines: Array<{ index: number; width: number }>;
     status: 'fixture_blocked' | 'ready';
 }
+
+export const terminalFixturePreflightReceiptSchema = z.object({
+    caseId: z.string().min(1),
+    fixture: terminalFixtureSchema,
+    kind: z.literal('terminal-fixture-preflight'),
+    result: z.object({
+        errors: z.array(z.object({ code: z.string(), detail: z.string() })),
+        lines: z.array(z.object({ index: z.number().int().nonnegative(), width: z.number() })),
+        status: z.enum(['fixture_blocked', 'ready']),
+    }),
+    schemaVersion: z.literal(1),
+});
+
+export type TerminalFixturePreflightReceipt = z.infer<typeof terminalFixturePreflightReceiptSchema>;
 
 /**
  * Validates the rendered fixture before recording starts. `string-width` follows terminal cell
@@ -86,7 +100,20 @@ function help(): string {
     return `Validate a Terminal Acceptance fixture before evidence capture
 
 Usage:
-  bun run .agents/skills/acceptance/scripts/fixture-preflight.ts --input fixture.json`;
+  bun run .agents/skills/acceptance/scripts/fixture-preflight.ts --input fixture.json --case-id ID [--output receipt.json]`;
+}
+
+export function createTerminalFixturePreflightReceipt(
+    fixture: TerminalFixture,
+    caseId = 'unscoped',
+): TerminalFixturePreflightReceipt {
+    return terminalFixturePreflightReceiptSchema.parse({
+        caseId,
+        fixture,
+        kind: 'terminal-fixture-preflight',
+        result: preflightTerminalFixture(fixture),
+        schemaVersion: 1,
+    });
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -97,11 +124,25 @@ async function main(argv: string[]): Promise<void> {
     const inputIndex = argv.indexOf('--input');
     const input = inputIndex >= 0 ? argv[inputIndex + 1] : undefined;
     if (!input || input.startsWith('--')) throw new Error('Missing --input');
+    const caseIdIndex = argv.indexOf('--case-id');
+    const caseId = caseIdIndex >= 0 ? argv[caseIdIndex + 1] : undefined;
+    if (!caseId || caseId.startsWith('--')) throw new Error('Missing --case-id');
+    const outputIndex = argv.indexOf('--output');
+    const output = outputIndex >= 0 ? argv[outputIndex + 1] : undefined;
+    if (outputIndex >= 0 && (!output || output.startsWith('--'))) {
+        throw new Error('Missing --output value');
+    }
     const path = isAbsolute(input) ? input : resolve(input);
     const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
-    const result = preflightTerminalFixture(terminalFixtureSchema.parse(raw));
-    console.log(JSON.stringify(result, null, 2));
-    if (result.status === 'fixture_blocked') process.exitCode = 2;
+    const receipt = createTerminalFixturePreflightReceipt(terminalFixtureSchema.parse(raw), caseId);
+    if (output) {
+        const outputPath = isAbsolute(output) ? output : resolve(output);
+        const temporary = `${outputPath}.${process.pid}.tmp`;
+        await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+        await rename(temporary, outputPath);
+    }
+    console.log(JSON.stringify(receipt, null, 2));
+    if (receipt.result.status === 'fixture_blocked') process.exitCode = 2;
 }
 
 const invokedPath =
