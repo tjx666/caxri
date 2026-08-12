@@ -48,8 +48,46 @@ Code references (`path:line`) are welcome when they anchor the diagnosis or desi
   Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in English.
   This applies to every issue comment, not only comments created during filing.
 - Never pass the body inline with `--body` and `\n` escapes — that ships literal `\n` into the issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
-- Apply one label from the repo's existing vocabulary (`bug`, `enhancement`, `documentation`, `question`); don't invent new labels without asking.
 - Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the 问题 section. Do not close or edit the parent.
+
+## Labels
+
+Fetch the live repository labels before drafting instead of assuming the catalog is unchanged:
+
+```bash
+gh label list --repo tjx666/caxri --limit 200 --json name,description,color
+```
+
+Apply exactly one type label:
+
+- `bug` — existing behavior is incorrect.
+- `enhancement` — new or improved behavior.
+- `documentation` — documentation is the primary deliverable.
+- `question` — a decision or investigation is the primary deliverable.
+
+Then apply every directly relevant scope label, normally one to three:
+
+| Label            | Use when the issue primarily changes                                             |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `skill`          | Repository skills, agent workflows, harnesses, or their automation               |
+| `unit-testing`   | Vitest unit/integration infrastructure or test-suite architecture                |
+| `e2e-testing`    | Playwright Electron E2E infrastructure, fixtures, reliability, or suite workflow |
+| `terminal`       | Terminal UI, xterm behavior, PTY lifecycle, or Terminal process integration      |
+| `editor`         | Editor tabs, Monaco behavior, editing, save, diff, or in-file search             |
+| `files-explorer` | Files inspector, tree navigation, file search, or file operations                |
+| `git`            | Repository discovery, worktrees, status, history, diff, or Git operations        |
+| `agent`          | Agent provider discovery, launch, lifecycle, identity, state, or integration     |
+| `acceptance`     | Acceptance planning, evidence, fixtures, publication, or decision workflow       |
+| `ci`             | GitHub Actions, CI gates, caching, runner behavior, duration, or cost            |
+
+Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression
+coverage. Apply them only when the testing system itself is part of the issue scope. Likewise, omit
+a surface label when that surface is only incidental evidence. Labels do not encode priority;
+continue to use the Project `Priority` field for that.
+
+Use only labels returned by the live query. Creating or changing repository labels requires a
+separate explicit request; do not silently invent one during issue filing. Pass multiple labels with
+repeated `--label` flags and verify the complete label set after creation.
 
 ## Project tracking
 
@@ -73,4 +111,5 @@ Treat explicit invocation as execution authorization. When the user invokes `$fi
 
 Stop before creating only when the user explicitly asks for a draft, preview, or review, or when a missing decision would materially change the issue. In draft-only mode, present the title, label, and full body without creating anything.
 
-After creation, fetch the issue and Project item once to verify the title, body, label, Status, and Priority rather than treating command exit statuses as the complete outcome.
+After creation, fetch the issue and Project item once to verify the title, body, complete label set,
+Status, and Priority rather than treating command exit statuses as the complete outcome.
