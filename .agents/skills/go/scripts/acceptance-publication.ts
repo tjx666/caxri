@@ -81,7 +81,7 @@ const ingestResultSchema = z.object({
 const acceptanceRunListSchema = z.array(
     z.object({
         acceptanceId: z.string().min(1),
-        context: z.object({ commit: z.string().min(1), testedAt: z.string().min(1) }).passthrough(),
+        context: z.looseObject({ commit: z.string().min(1), testedAt: z.string().min(1) }),
         id: z.string().min(1),
         plan: z.array(z.object({ id: z.string().min(1) })),
         roundIndex: z.number().int().positive(),
@@ -97,7 +97,7 @@ const acceptanceViewSchema = z.object({
             report: z.object({ verdict: z.enum(['failed', 'passed', 'uncertain']) }),
             run: z.object({
                 acceptanceId: z.string().min(1),
-                context: z.object({ commit: z.string().min(1) }).passthrough(),
+                context: z.looseObject({ commit: z.string().min(1) }),
                 id: z.string().min(1),
                 roundIndex: z.number().int().positive(),
             }),

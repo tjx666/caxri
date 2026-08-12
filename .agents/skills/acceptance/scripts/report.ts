@@ -43,45 +43,36 @@ const stateIsolationSchema = z.discriminatedUnion('mode', [
         profileId: z.string().min(1),
     }),
 ]);
-const planItemSchema = z
-    .object({
-        category: z.string().min(1),
-        expected: z.string().min(1),
-        fixturePreflight: z.literal('terminal').optional(),
-        id: z.string().min(1),
-        method: z.string().min(1),
-        requiredEvidence: z.array(requiredEvidenceSchema).min(1),
-        stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
-        title: z.string().min(1),
-        verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
-    })
-    .passthrough();
-const evidenceSchema = z.union([
-    z.string().min(1),
-    z.object({ path: z.string().min(1) }).passthrough(),
-]);
-const caseSchema = z
-    .object({
-        category: z.string().min(1),
-        evidence: z.array(evidenceSchema).min(1),
-        id: z.string().min(1),
-        name: z.string().min(1),
-        observation: z.string().min(1),
-        status: z.enum(CASE_STATUSES),
-        surface: z.literal('desktop'),
-    })
-    .passthrough();
-const resultSchema = z
-    .object({
-        cases: z.array(caseSchema).min(1),
-        entry: z.string().min(1),
-        plan: z.array(planItemSchema).min(1),
-        requirement: z.string().min(1),
-        summary: z.object({ conclusion: z.string().optional() }).passthrough().optional(),
-        surfaces: z.array(z.literal('desktop')).min(1),
-        title: z.string().min(1),
-    })
-    .passthrough();
+const planItemSchema = z.looseObject({
+    category: z.string().min(1),
+    expected: z.string().min(1),
+    fixturePreflight: z.literal('terminal').optional(),
+    id: z.string().min(1),
+    method: z.string().min(1),
+    requiredEvidence: z.array(requiredEvidenceSchema).min(1),
+    stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
+    title: z.string().min(1),
+    verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
+});
+const evidenceSchema = z.union([z.string().min(1), z.looseObject({ path: z.string().min(1) })]);
+const caseSchema = z.looseObject({
+    category: z.string().min(1),
+    evidence: z.array(evidenceSchema).min(1),
+    id: z.string().min(1),
+    name: z.string().min(1),
+    observation: z.string().min(1),
+    status: z.enum(CASE_STATUSES),
+    surface: z.literal('desktop'),
+});
+const resultSchema = z.looseObject({
+    cases: z.array(caseSchema).min(1),
+    entry: z.string().min(1),
+    plan: z.array(planItemSchema).min(1),
+    requirement: z.string().min(1),
+    summary: z.looseObject({ conclusion: z.string().optional() }).optional(),
+    surfaces: z.array(z.literal('desktop')).min(1),
+    title: z.string().min(1),
+});
 
 type PlanItem = z.infer<typeof planItemSchema>;
 type PlanItemInput = z.input<typeof planItemSchema>;
