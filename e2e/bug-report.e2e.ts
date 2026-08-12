@@ -15,7 +15,12 @@ test('Bug report preview sends one redacted multiline prompt to the selected liv
     await Promise.all([mkdir(root, { recursive: true }), writeFile(capture, '')]);
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
-        providers: { claude: { inputCapture: { path: capture, encoding: 'raw' } } },
+        providers: {
+            claude: {
+                inputCapture: { path: capture, encoding: 'raw' },
+                startupOutput: 'FAKE_CLAUDE_INPUT_READY\r\n',
+            },
+        },
     });
 
     const running = await launchCaxri({
@@ -25,6 +30,7 @@ test('Bug report preview sends one redacted multiline prompt to the selected liv
     });
     try {
         await createProjectSession(running.page, 'claude');
+        await expect(running.page.locator('.xterm-rows')).toContainText('FAKE_CLAUDE_INPUT_READY');
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         await palette
@@ -84,7 +90,12 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
     await Promise.all([mkdir(root), writeFile(capture, '')]);
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
-        providers: { codex: { inputCapture: { path: capture, encoding: 'raw' } } },
+        providers: {
+            codex: {
+                inputCapture: { path: capture, encoding: 'raw' },
+                startupOutput: 'FAKE_CODEX_INPUT_READY\r\n',
+            },
+        },
     });
 
     const running = await launchCaxri({
@@ -94,6 +105,7 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
     });
     try {
         await createProjectSession(running.page, 'codex');
+        await expect(running.page.locator('.xterm-rows')).toContainText('FAKE_CODEX_INPUT_READY');
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         await palette

@@ -12,11 +12,16 @@ import {
     waitForNewTerminalId,
 } from './helpers.ts';
 
-interface TextBounds {
+interface CharacterBounds {
     height: number;
     width: number;
     x: number;
     y: number;
+}
+
+interface TextBounds {
+    end: CharacterBounds;
+    start: CharacterBounds;
 }
 
 async function terminalTextBounds(
@@ -27,38 +32,45 @@ async function terminalTextBounds(
     return page
         .locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`)
         .evaluate((rows, target) => {
-            for (const row of rows.children) {
-                const rowText = row.textContent ?? '';
-                const targetStart = rowText.indexOf(target);
-                if (targetStart < 0) continue;
-                const targetEnd = targetStart + target.length;
-                const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-                let offset = 0;
-                let start: { node: Node; offset: number } | undefined;
-                let end: { node: Node; offset: number } | undefined;
-                for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                    const length = node.textContent?.length ?? 0;
-                    if (!start && targetStart >= offset && targetStart <= offset + length)
-                        start = { node, offset: targetStart - offset };
-                    if (targetEnd >= offset && targetEnd <= offset + length) {
-                        end = { node, offset: targetEnd - offset };
-                        break;
+            const rowElements = [...rows.children];
+            const renderedText = rowElements.map((row) => row.textContent ?? '').join('');
+            const targetStart = renderedText.indexOf(target);
+            if (targetStart < 0) throw new Error(`Terminal text not found: ${target}`);
+
+            const characterBounds = (targetOffset: number): CharacterBounds => {
+                let renderedOffset = 0;
+                for (const row of rowElements) {
+                    const rowText = row.textContent ?? '';
+                    if (targetOffset >= renderedOffset + rowText.length) {
+                        renderedOffset += rowText.length;
+                        continue;
                     }
-                    offset += length;
+                    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+                    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                        const length = node.textContent?.length ?? 0;
+                        if (targetOffset < renderedOffset + length) {
+                            const offset = targetOffset - renderedOffset;
+                            const range = document.createRange();
+                            range.setStart(node, offset);
+                            range.setEnd(node, offset + 1);
+                            const bounds = range.getBoundingClientRect();
+                            return {
+                                height: bounds.height,
+                                width: bounds.width,
+                                x: bounds.x,
+                                y: bounds.y,
+                            };
+                        }
+                        renderedOffset += length;
+                    }
                 }
-                if (!start || !end) continue;
-                const range = document.createRange();
-                range.setStart(start.node, start.offset);
-                range.setEnd(end.node, end.offset);
-                const bounds = range.getBoundingClientRect();
-                return {
-                    height: bounds.height,
-                    width: bounds.width,
-                    x: bounds.x,
-                    y: bounds.y,
-                };
-            }
-            throw new Error(`Terminal text not found: ${target}`);
+                throw new Error(`Terminal text bounds not found: ${target}`);
+            };
+
+            return {
+                end: characterBounds(targetStart + target.length - 1),
+                start: characterBounds(targetStart),
+            };
         }, text);
 }
 
@@ -70,9 +82,11 @@ async function selectTerminalText(
 ): Promise<void> {
     const start = await terminalTextBounds(page, terminalId, firstLine);
     const end = await terminalTextBounds(page, terminalId, lastLine);
-    await page.mouse.move(start.x + 2, start.y + start.height / 2);
+    await page.mouse.move(start.start.x + 2, start.start.y + start.start.height / 2);
     await page.mouse.down();
-    await page.mouse.move(end.x + end.width - 2, end.y + end.height / 2, { steps: 8 });
+    await page.mouse.move(end.end.x + end.end.width - 2, end.end.y + end.end.height / 2, {
+        steps: 8,
+    });
     await page.mouse.up();
 }
 
@@ -130,7 +144,10 @@ test('Terminal selection copies exact text and stays isolated across split panes
 
         await running.app.evaluate(({ clipboard }) => clipboard.writeText('KEEP_ON_EMPTY'));
         const firstBounds = await terminalTextBounds(running.page, firstTerminalId, 'FIRST Ω 中');
-        await running.page.mouse.click(firstBounds.x + 2, firstBounds.y + firstBounds.height / 2);
+        await running.page.mouse.click(
+            firstBounds.start.x + 2,
+            firstBounds.start.y + firstBounds.start.height / 2,
+        );
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
             .toBe('KEEP_ON_EMPTY');

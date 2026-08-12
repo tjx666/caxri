@@ -295,15 +295,50 @@ export async function launchCaxri(
 }
 
 /**
- * Opens the "Add Project" dialog, waits for it to render, and picks the
- * given default Terminal kind. This is the shared subset used by every spec
- * that creates a Project; specs that also need the Terminal surface ready
- * (eg. to type into it) should use {@link createShellSession} instead.
+ * Waits until Project creation has converged across Runtime state and the visible workbench.
+ * A dialog closing or a Session card rendering alone is insufficient: hosted runners can expose
+ * either before the selected Session and its first durable Terminal are available together.
+ */
+export async function waitForCreatedSession(
+    page: Page,
+    previousSessionId?: string,
+): Promise<string> {
+    let createdSessionId: string | undefined;
+    await expect
+        .poll(async () => {
+            const state = await pageRequest<{
+                selectedSessionId?: string;
+                sessions: Array<{ id: string }>;
+                terminals: Array<{ sessionId: string }>;
+            }>(page, 'app.bootstrap');
+            const candidate = state.selectedSessionId;
+            if (
+                !candidate ||
+                candidate === previousSessionId ||
+                !state.sessions.some(({ id }) => id === candidate) ||
+                !state.terminals.some(({ sessionId }) => sessionId === candidate) ||
+                (await page.getByRole('dialog').count()) > 0 ||
+                (await sessionCard(page, candidate).count()) === 0
+            ) {
+                return undefined;
+            }
+            createdSessionId = candidate;
+            return candidate;
+        })
+        .toBeTruthy();
+    return createdSessionId!;
+}
+
+/**
+ * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after
+ * the new Session satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell
+ * surface should use {@link createShellSession} instead.
  */
 export async function createProjectSession(
     page: Page,
     kind: 'shell' | 'claude' | 'codex' = 'shell',
-): Promise<void> {
+): Promise<string> {
+    const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     await openAddProjectDialog(page);
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page
@@ -313,13 +348,7 @@ export async function createProjectSession(
             exact: true,
         })
         .click();
-    await expect(page.locator('.session-card')).toHaveCount(1);
-    /**
-     * Base UI retains the closed portal until its exit animation finishes. Waiting here keeps
-     * callers from changing media state mid-animation and leaving an overlay that intercepts the
-     * next interaction.
-     */
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    return waitForCreatedSession(page, previous.selectedSessionId);
 }
 
 /** Reveals the quiet titlebar action before activating it, matching pointer use at rest. */
