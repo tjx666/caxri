@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
 import {
     SearchAddon,
     type ISearchOptions,
@@ -24,6 +25,7 @@ import {
     terminalKeyboardInput,
 } from './terminal-keyboard';
 import { registerTerminalLinks } from './terminal-links';
+import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import { TerminalReplayCoordinator } from './terminal-replay';
 import {
@@ -44,6 +46,7 @@ interface TerminalPaneRuntimeOptions {
     copyOnSelect: boolean;
     fontSize: number;
     isCodex: boolean;
+    osc52ClipboardWrite: boolean;
     processState: ProcessState;
     projectRoot: string;
     scrollback: number;
@@ -69,6 +72,7 @@ export function useTerminalPaneRuntime({
     copyOnSelect,
     fontSize,
     isCodex,
+    osc52ClipboardWrite,
     processState,
     projectRoot,
     scrollback,
@@ -92,6 +96,7 @@ export function useTerminalPaneRuntime({
         copyOnSelect,
         fontSize,
         isCodex,
+        osc52ClipboardWrite,
         processState,
         projectRoot,
         scrollback,
@@ -106,6 +111,7 @@ export function useTerminalPaneRuntime({
             copyOnSelect,
             fontSize,
             isCodex,
+            osc52ClipboardWrite,
             processState,
             projectRoot,
             scrollback,
@@ -118,6 +124,7 @@ export function useTerminalPaneRuntime({
         copyOnSelect,
         fontSize,
         isCodex,
+        osc52ClipboardWrite,
         processState,
         projectRoot,
         scrollback,
@@ -160,8 +167,16 @@ export function useTerminalPaneRuntime({
          *  Terminal text outside xterm's Unicode- and wrap-aware search engine. */
         const search = new SearchAddon({ highlightLimit: TERMINAL_SEARCH_HIGHLIGHT_LIMIT + 1 });
         const unicode11 = new Unicode11Addon();
+        const osc52Clipboard = new ControlledOsc52Clipboard({
+            enabled: () => latestRef.current.osc52ClipboardWrite,
+            onWriteFailure: () =>
+                onError('OSC 52 clipboard write was denied. Check macOS clipboard permissions.'),
+            writeClipboard: (text) => navigator.clipboard.writeText(text),
+        });
+        const clipboard = new ClipboardAddon(osc52Clipboard, osc52Clipboard);
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
+        xterm.loadAddon(clipboard);
         xterm.loadAddon(unicode11);
         xterm.unicode.activeVersion = '11';
         xterm.open(container);
