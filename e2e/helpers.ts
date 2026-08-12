@@ -1,4 +1,5 @@
-import { join, resolve } from 'node:path';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import { expect, type ElectronApplication, type Page } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -11,6 +12,8 @@ import {
     type DesktopLeaseHandle,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
+import type { AgentProvider } from '../src/shared/agents.ts';
+import { registerE2ELaunch } from './error-gate.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';
@@ -42,6 +45,12 @@ const watchedBuildInputExtensions = new Set([
     '.woff',
     '.woff2',
 ]);
+const e2eAgentEnvironmentKeys = [
+    'CAXRI_E2E_AGENT_MODE',
+    'CAXRI_E2E_AGENT_PROVIDER',
+    'CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE',
+    'CAXRI_E2E_FAKE_CODEX_EXECUTABLE',
+] as const;
 
 /**
  * Guards against testing stale build output. Focused e2e runs (eg.
@@ -65,12 +74,110 @@ export interface LaunchCaxriOptions {
     testRootPath: string;
     /**
      * Extra environment variables layered over `process.env` and the Caxri
-     * E2E defaults below. Use this to prepend `PATH` with fake agent CLIs,
-     * set `CODEX_SQLITE_HOME`, or force a missing `SHELL`/`PATH` scenario.
+     * E2E defaults below. Agent executables and provider state belong in
+     * `agentMode`; use this only for a scenario-specific shell or tool environment.
      */
     env?: NodeJS.ProcessEnv;
     /** Launches a packaged build instead of `.` (used by the startup benchmark). */
     executablePath?: string;
+    /** Hidden by default; use visible only for native focus, pointer, or desktop behavior. */
+    windowMode?: 'hidden' | 'visible';
+    /** Blocks host Agents by default; fake and real modes require an explicit per-spec choice. */
+    agentMode?: E2EAgentMode;
+}
+
+type E2EAgentMode =
+    | { mode: 'blocked' }
+    | {
+          mode: 'fake';
+          environment: NodeJS.ProcessEnv;
+          executables: Partial<Record<AgentProvider, string>>;
+      }
+    | { mode: 'real'; provider?: AgentProvider };
+
+async function e2eAgentEnvironment(
+    userDataDir: string,
+    agentMode: E2EAgentMode,
+    sourceEnvironment: NodeJS.ProcessEnv,
+): Promise<NodeJS.ProcessEnv> {
+    if (agentMode.mode === 'real') {
+        return {
+            CAXRI_E2E_AGENT_MODE: 'real',
+            CAXRI_E2E_AGENT_PROVIDER: agentMode.provider ?? 'codex',
+        };
+    }
+    const fixtureRoot = join(userDataDir, 'e2e-agents');
+    const home = join(fixtureRoot, 'home');
+    const codexState = join(fixtureRoot, 'codex');
+    const claudeState = join(fixtureRoot, 'claude');
+    const xdg = join(fixtureRoot, 'xdg');
+    const isolatedEnvironment: NodeJS.ProcessEnv = {
+        HOME: home,
+        CODEX_HOME: codexState,
+        CODEX_SQLITE_HOME: codexState,
+        CLAUDE_CONFIG_DIR: claudeState,
+        XDG_CACHE_HOME: join(xdg, 'cache'),
+        XDG_CONFIG_HOME: join(xdg, 'config'),
+        XDG_DATA_HOME: join(xdg, 'data'),
+    };
+    await Promise.all([
+        mkdir(home, { recursive: true }),
+        mkdir(codexState, { recursive: true }),
+        mkdir(claudeState, { recursive: true }),
+        mkdir(xdg, { recursive: true }),
+    ]);
+
+    const fakeExecutables = agentMode.mode === 'fake' ? agentMode.executables : {};
+    if (agentMode.mode === 'fake') {
+        for (const executable of Object.values(agentMode.executables)) {
+            if (executable && !isAbsolute(executable))
+                throw new Error('Fake Agent executables must use absolute paths');
+        }
+        Object.assign(isolatedEnvironment, agentMode.environment);
+    }
+
+    const shellBin = join(fixtureRoot, 'shell-bin');
+    await mkdir(shellBin, { recursive: true });
+    for (const provider of ['claude', 'codex'] as const) {
+        const target = fakeExecutables[provider];
+        const executable = join(shellBin, provider);
+        await writeFile(
+            executable,
+            target
+                ? `#!/bin/sh\nexec ${shellQuote(target)} "$@"\n`
+                : `#!/bin/sh\nprintf 'Caxri E2E blocked ${provider}\\n' >&2\nexit 127\n`,
+            'utf8',
+        );
+        await chmod(executable, 0o700);
+    }
+    const shellPath = `${shellBin}:${sourceEnvironment.PATH ?? process.env.PATH ?? '/usr/bin:/bin'}`;
+    const profile = `export PATH=${shellQuote(shellPath)}\n`;
+    const isolatedHome = isolatedEnvironment.HOME;
+    if (!isolatedHome || !isAbsolute(isolatedHome))
+        throw new Error('Isolated E2E Agent HOME must be an absolute path');
+    await Promise.all([
+        writeFile(join(isolatedHome, '.zprofile'), profile, { encoding: 'utf8', mode: 0o600 }),
+        writeFile(join(isolatedHome, '.bash_profile'), profile, {
+            encoding: 'utf8',
+            mode: 0o600,
+        }),
+        writeFile(join(isolatedHome, '.profile'), profile, { encoding: 'utf8', mode: 0o600 }),
+    ]);
+    return {
+        ...isolatedEnvironment,
+        PATH: shellPath,
+        CAXRI_E2E_AGENT_MODE: agentMode.mode,
+        ...(fakeExecutables.claude
+            ? { CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE: fakeExecutables.claude }
+            : {}),
+        ...(fakeExecutables.codex
+            ? { CAXRI_E2E_FAKE_CODEX_EXECUTABLE: fakeExecutables.codex }
+            : {}),
+    };
+}
+
+function shellQuote(value: string): string {
+    return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
 /** Waits for the asynchronous New Terminal action to become observable through Runtime state. */
@@ -104,11 +211,39 @@ export async function launchCaxriApp(
     options: LaunchCaxriOptions,
 ): Promise<{ app: ElectronApplication; page: Page }> {
     await assertBuildIsFresh();
-    const { userDataDir, testRootPath, env = {}, executablePath } = options;
+    const {
+        userDataDir,
+        testRootPath,
+        env = {},
+        executablePath,
+        windowMode = 'hidden',
+        agentMode = { mode: 'blocked' },
+    } = options;
+    const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, env);
+    const launchEnvironmentSource: NodeJS.ProcessEnv = {
+        ...process.env,
+        ...env,
+        ...agentEnvironment,
+        CAXRI_E2E: '1',
+        CAXRI_E2E_WINDOW_MODE: windowMode,
+        CAXRI_USER_DATA_DIR: userDataDir,
+        CAXRI_TEST_ROOT_PATH: testRootPath,
+    };
+    /** Prevent ambient internal test switches from adding an undeclared fake provider. */
+    for (const key of e2eAgentEnvironmentKeys) {
+        if (!(key in agentEnvironment)) delete launchEnvironmentSource[key];
+    }
+    const launchEnvironment = Object.fromEntries(
+        Object.entries(launchEnvironmentSource).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+        ),
+    );
     let lease: DesktopLeaseHandle = await acquireDesktopLease(
         projectRoot,
         executablePath ? 'performance benchmark' : 'Electron E2E',
     );
+    let releasePromise: Promise<void> | undefined;
+    const releaseLease = (): Promise<void> => (releasePromise ??= releaseDesktopLease(lease));
     let app: ElectronApplication;
     try {
         lease = await beginDesktopLeaseHandoff(lease);
@@ -116,34 +251,22 @@ export async function launchCaxriApp(
             ...(executablePath ? { executablePath } : {}),
             args: executablePath ? ['--disable-gpu'] : ['.', '--disable-gpu'],
             cwd: projectRoot,
-            env: {
-                ...process.env,
-                ...env,
-                CAXRI_E2E: '1',
-                CAXRI_USER_DATA_DIR: userDataDir,
-                CAXRI_TEST_ROOT_PATH: testRootPath,
-            },
+            env: launchEnvironment,
         });
+        registerE2ELaunch(app, userDataDir, releaseLease);
         const electronPid = app.process().pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
         lease = await transferDesktopLease(lease, electronPid);
     } catch (error) {
-        await releaseDesktopLease(lease);
+        await releaseLease();
         throw error;
     }
-    app.once('close', () => {
-        void releaseDesktopLease(lease).catch((error: unknown) => {
-            console.error(
-                `Could not release Caxri desktop lease: ${error instanceof Error ? error.message : String(error)}`,
-            );
-        });
-    });
     try {
         const page = await app.firstWindow();
         return { app, page };
     } catch (error) {
         await app.close().catch(() => undefined);
-        await releaseDesktopLease(lease).catch(() => undefined);
+        await releaseLease().catch(() => undefined);
         throw error;
     }
 }
@@ -191,6 +314,12 @@ export async function createProjectSession(
         })
         .click();
     await expect(page.locator('.session-card')).toHaveCount(1);
+    /**
+     * Base UI retains the closed portal until its exit animation finishes. Waiting here keeps
+     * callers from changing media state mid-animation and leaving an overlay that intercepts the
+     * next interaction.
+     */
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
 /** Reveals the quiet titlebar action before activating it, matching pointer use at rest. */
@@ -202,7 +331,10 @@ export async function openAddProjectDialog(page: Page): Promise<void> {
 
 export async function createShellSession(page: Page): Promise<void> {
     await createProjectSession(page, 'shell');
-    await expect(page.locator('.xterm-helper-textarea')).toBeVisible();
+    const terminalInput = page.locator('.xterm-helper-textarea');
+    await expect(terminalInput).toBeVisible();
+    /** The initial Terminal focus effect is part of creation completing, not caller setup. */
+    await expect(terminalInput).toBeFocused();
 }
 
 export async function createAdditionalShellSession(page: Page): Promise<void> {

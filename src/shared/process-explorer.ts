@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { RendererErrorKind } from './renderer-error';
 import type { ThemeTokens } from './types';
 
 const processExplorerEntrySchema = z.object({
@@ -20,6 +21,8 @@ export type ProcessExplorerSnapshot = z.infer<typeof processExplorerSnapshotSche
 
 /** Narrow bridge exposed only to the dedicated Process Explorer renderer. */
 export interface ProcessExplorerBridge {
+    /** Reports only a fault class; private exception values never cross the preload boundary. */
+    reportError(kind: RendererErrorKind): void;
     snapshot(): Promise<ProcessExplorerSnapshot>;
     theme(): Promise<ThemeTokens>;
 }

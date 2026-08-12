@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
 import { createShellSession, launchCaxri, runtimeStatus } from './helpers.ts';
 
@@ -16,7 +16,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        windowMode: 'visible',
+    });
     try {
         await createShellSession(running.page);
         const menuItem = await running.app.evaluate(({ Menu }) => {

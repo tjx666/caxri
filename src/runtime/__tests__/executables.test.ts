@@ -19,20 +19,22 @@ describe('ExecutableResolver', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-resolver-'));
         temporaryDirectories.push(directory);
         const loginBin = join(directory, 'login-bin');
+        const sourceBin = join(directory, 'source-bin');
         await mkdir(loginBin);
+        await mkdir(sourceBin);
         const executable = join(loginBin, 'codex');
         await writeFile(executable, '#!/bin/sh\nexit 0\n');
         await chmod(executable, 0o700);
         const run = vi.fn(() =>
             Promise.resolve({
-                stdout: `shell startup noise\n__CAXRI_LOGIN_PATH__${loginBin}:/usr/bin\n`,
+                stdout: `shell startup noise\n__CAXRI_LOGIN_PATH__${loginBin}:${sourceBin}\n`,
                 stderr: '',
             }),
         );
         const resolver = new ExecutableResolver(
             () => ({
                 HOME: directory,
-                PATH: '/usr/bin',
+                PATH: sourceBin,
                 SHELL: '/bin/zsh',
                 GITHUB_TOKEN: 'must-not-leak',
                 CAXRI_E2E: 'must-not-leak',
@@ -43,7 +45,7 @@ describe('ExecutableResolver', () => {
         await expect(resolver.resolve('codex')).resolves.toBe(executable);
         await expect(resolver.resolve('codex')).resolves.toBe(executable);
         await expect(resolver.environment()).resolves.toEqual(
-            expect.objectContaining({ HOME: directory, PATH: `${loginBin}:/usr/bin` }),
+            expect.objectContaining({ HOME: directory, PATH: `${loginBin}:${sourceBin}` }),
         );
         expect(await resolver.environment()).not.toHaveProperty('GITHUB_TOKEN');
         expect(await resolver.environment()).not.toHaveProperty('CAXRI_E2E');
@@ -55,9 +57,11 @@ describe('ExecutableResolver', () => {
         temporaryDirectories.push(directory);
         const firstBin = join(directory, 'first');
         const secondBin = join(directory, 'second');
+        const sourceBin = join(directory, 'source');
         const executableName = 'caxri-stale-test-executable';
         await mkdir(firstBin);
         await mkdir(secondBin);
+        await mkdir(sourceBin);
         const first = join(firstBin, executableName);
         const second = join(secondBin, executableName);
         await writeFile(first, '#!/bin/sh\n');
@@ -66,7 +70,7 @@ describe('ExecutableResolver', () => {
         await chmod(second, 0o700);
         let loginBin = firstBin;
         const resolver = new ExecutableResolver(
-            () => ({ PATH: '/usr/bin', SHELL: '/bin/zsh' }),
+            () => ({ PATH: sourceBin, SHELL: '/bin/zsh' }),
             () =>
                 Promise.resolve({
                     stdout: `__CAXRI_LOGIN_PATH__${loginBin}\n`,

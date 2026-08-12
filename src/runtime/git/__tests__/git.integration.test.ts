@@ -49,6 +49,8 @@ describe('GitService', () => {
             subject: 'add source',
             uncommitted: false,
         });
+        await rm(path);
+        await expect(git.blame({ sessionId: session.id, path, line: 2 })).resolves.toBeNull();
         database.close();
     });
 

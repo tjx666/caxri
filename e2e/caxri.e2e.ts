@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -238,8 +239,12 @@ test('Info inspector lists only the current Session Terminals', async () => {
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
         await expect(
@@ -301,6 +306,10 @@ test('Project Status inspector renders and refreshes the current repository tree
 });
 
 test('Git inspector shows child repositories, submodule state, and changed-file trees', async () => {
+    allowE2EErrors([
+        { source: 'main', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-repositories-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -454,6 +463,10 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
 });
 
 test('removing a Project deletes only Caxri metadata', async () => {
+    allowE2EErrors([
+        { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-remove-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -480,6 +493,14 @@ test('removing a Project deletes only Caxri metadata', async () => {
 });
 
 test('canceling the Agent choice revokes the selected Project root grant', async () => {
+    allowE2EErrors([
+        {
+            source: 'main',
+            event: 'ipc.request_failed',
+            code: 'PATH_DENIED',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-grant-cancel-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

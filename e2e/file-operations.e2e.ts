@@ -2,11 +2,15 @@ import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
+    allowE2EErrors([
+        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 1 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -149,7 +153,9 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
 
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Duplicate' }).click();
-        await expect.poll(() => readFile(join(root, 'draft copy.txt'), 'utf8')).toBe('draft\n');
+        await expect
+            .poll(() => readFile(join(root, 'draft copy.txt'), 'utf8').catch(() => undefined))
+            .toBe('draft\n');
 
         const sourceFolderRow = fileList.getByRole('button', {
             name: 'source-folder',

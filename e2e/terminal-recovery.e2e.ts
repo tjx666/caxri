@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from '@playwright/test';
+import { allowE2EErrors, expect, test, type Page } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 
@@ -65,12 +65,21 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
 });
 
 test('startup failure uses a compact danger status without covering output', async () => {
+    allowE2EErrors([
+        {
+            source: 'runtime',
+            event: 'pty.spawn_failed',
+            code: 'UNAVAILABLE',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-failed-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
     const running = await launchCaxri({
+        agentMode: { mode: 'blocked' },
         userDataDir: userData,
         testRootPath: root,
         env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },

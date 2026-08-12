@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { agentProviderCatalog, agentProviderIds, type AgentProvider } from '../../shared/agents';
+import { readE2EAgentPolicy, selectE2EAgentExecutable } from '../../shared/node/e2e-agent-policy';
 import {
     clearRuntimeExecutableCache,
     resolveRuntimeExecutable,
@@ -26,10 +27,16 @@ export async function discoverExecutable(
     name: AgentProvider,
     requestedExecutable = executableNames[name],
 ): Promise<string | undefined> {
-    const requestKey = `${name}:${requestedExecutable}`;
+    const selectedExecutable = selectE2EAgentExecutable(
+        readE2EAgentPolicy(),
+        name,
+        requestedExecutable,
+    );
+    if (!selectedExecutable) return undefined;
+    const requestKey = `${name}:${selectedExecutable}`;
     const pending = executableRequests.get(requestKey);
     if (pending) return pending;
-    const request = resolveRuntimeExecutable(requestedExecutable).finally(() =>
+    const request = resolveRuntimeExecutable(selectedExecutable).finally(() =>
         executableRequests.delete(requestKey),
     );
     executableRequests.set(requestKey, request);

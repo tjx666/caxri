@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -20,15 +21,9 @@ test('Agent output refreshes the Session title without opening Info', async () =
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-title-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    const bin = join(testDirectory, 'bin');
-    const state = join(testDirectory, 'codex-state');
-    const executable = join(bin, 'codex');
+    const state = join(userData, 'e2e-agents', 'codex');
     const database = join(state, 'state_9.sqlite');
-    await Promise.all([
-        mkdir(root, { recursive: true }),
-        mkdir(bin, { recursive: true }),
-        mkdir(state, { recursive: true }),
-    ]);
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(state, { recursive: true })]);
     const canonicalRoot = await realpath(root);
     await execFileAsync('sqlite3', [
         database,
@@ -51,9 +46,11 @@ test('Agent output refreshes the Session title without opening Info', async () =
             0
         );`,
     ]);
-    await writeFile(
-        executable,
-        `#!/bin/sh
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                executableSource: `#!/bin/sh
 if [ "$1" = "--version" ]; then
   printf 'codex-test 1.0\\n'
   exit 0
@@ -65,17 +62,14 @@ while IFS= read -r line; do
   printf 'received %s\\n' "$line"
 done
 `,
-        'utf8',
-    );
-    await chmod(executable, 0o700);
+            },
+        },
+    });
 
     const { app, page } = await launchCaxri({
+        agentMode,
         userDataDir: userData,
         testRootPath: root,
-        env: {
-            PATH: `${bin}:${process.env.PATH ?? ''}`,
-            CODEX_SQLITE_HOME: state,
-        },
     });
     try {
         await openAddProjectDialog(page);
@@ -118,22 +112,22 @@ done
 test('starting Claude through a Shell alias promotes the Terminal to Claude Code', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-shell-claude-e2e-'));
     const userData = join(testDirectory, 'user-data');
-    const home = join(testDirectory, 'home');
+    const home = join(userData, 'e2e-agents', 'home');
     const root = join(testDirectory, 'project');
-    const bin = join(testDirectory, 'bin');
-    const state = join(testDirectory, 'claude-state');
+    const bin = join(userData, 'e2e-agents', 'bin');
+    const state = join(userData, 'e2e-agents', 'claude');
     const sessions = join(state, 'sessions');
-    const executable = join(bin, 'claude');
     await Promise.all([
         mkdir(root, { recursive: true }),
         mkdir(home, { recursive: true }),
-        mkdir(bin, { recursive: true }),
         mkdir(sessions, { recursive: true }),
     ]);
     const canonicalRoot = await realpath(root);
-    await writeFile(
-        executable,
-        `#!/bin/zsh
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: {
+                executableSource: `#!/bin/zsh
 if [ "$1" = "--version" ]; then
   printf 'claude-test 1.0\\n'
   exit 0
@@ -145,18 +139,17 @@ printf 'Fake Claude ready\\n'
 # foreground-process probes are bounded and only run when Terminal output arrives.
 exec -a claude /bin/zsh -c 'while :; do printf "tick\\n"; sleep 1; done'
 `,
-        'utf8',
-    );
-    await chmod(executable, 0o700);
+            },
+        },
+    });
     await writeFile(join(home, '.zshrc'), 'alias ccy=claude\n', 'utf8');
 
     const { app, page } = await launchCaxri({
+        agentMode,
         userDataDir: userData,
         testRootPath: root,
         env: {
-            HOME: home,
             PATH: `${bin}:${process.env.PATH ?? ''}`,
-            CLAUDE_CONFIG_DIR: state,
             // CI runners default SHELL to /bin/bash, which never reads the .zshrc that defines
             // the alias; pin zsh so the promotion flow under test is deterministic everywhere.
             SHELL: '/bin/zsh',

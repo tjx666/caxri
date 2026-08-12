@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures.ts';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import {
     createProjectSession,
     createShellSession,
@@ -107,31 +108,22 @@ test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', 
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-input-shortcuts-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    const bin = join(testDirectory, 'bin');
-    const executable = join(bin, 'codex');
-    await Promise.all([mkdir(root), mkdir(bin)]);
-    await writeFile(
-        executable,
-        `#!${process.execPath}
-if (process.argv[2] === '--version') {
-  process.stdout.write('codex-test 1.0\\n');
-  process.exit(0);
-}
-process.stdin.setRawMode?.(true);
-process.stdin.resume();
-process.stdout.write('FAKE_CODEX_READY\\r\\n');
-process.stdin.on('data', (chunk) => {
-  process.stdout.write(\`INPUT_HEX:\${chunk.toString('hex')}\\r\\n\`);
-});
-`,
-        'utf8',
-    );
-    await chmod(executable, 0o700);
+    const capture = join(testDirectory, 'agent-input.hex');
+    await Promise.all([mkdir(root), writeFile(capture, '')]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                startupOutput: 'FAKE_CODEX_READY\r\n',
+                inputCapture: { path: capture, encoding: 'hex', echoPrefix: 'INPUT_HEX:' },
+            },
+        },
+    });
 
     const running = await launchCaxri({
+        agentMode,
         userDataDir: userData,
         testRootPath: root,
-        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
     });
     try {
         await createProjectSession(running.page, 'codex');

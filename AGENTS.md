@@ -126,6 +126,14 @@ step-by-step workflows beyond this summary.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
 - Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
+- Every Electron spec imports `test` and `expect` from `e2e/fixtures.ts`, never directly from
+  `@playwright/test`. The automatic fixture treats Renderer exceptions/console errors and
+  structured Main/Runtime error events as failures and attaches both JSONL logs before a temporary
+  user-data directory can be removed.
+- A scenario that deliberately produces an error must call `allowE2EErrors(...)` with an exact
+  `source`/`event`/`code`/`count` tuple. Wildcards, message matching, duplicate allowances, and
+  allowances that are not consumed all fail the test.
+- Focused Electron E2E launches use hidden native windows by default. A spec that verifies native focus or pointer behavior must pass `windowMode: 'visible'`; the Acceptance adapter always does so for the real desktop surface.
 - Electron E2E helpers, Acceptance, and performance benchmarks acquire one repository-wide desktop
   lease before launch. Never bypass their launch helpers or run a second desktop task concurrently;
   use `$switch-worktree`'s `desktop` command for any additional Electron desktop workflow.
@@ -150,6 +158,13 @@ Launch Caxri headlessly, without the interactive directory picker, using environ
 - `CAXRI_TEST_ROOT_PATH=<dir>` stubs the directory-picker grant with a fixed Project root (see `src/main/test-root.ts`); only honored when `CAXRI_E2E=1` and the app is unpackaged.
 - `CAXRI_TEST_ROOT_PATHS=<JSON array>` queues multiple deterministic directory-picker roots for
   multi-Project tests; the Acceptance adapter sets it when `--test-root` is repeated.
+- Shared E2E launch helpers default Agent discovery to `blocked` and isolate provider state beneath
+  the test user-data directory. Agent specs must explicitly select a shared `fake` fixture or the
+  single-provider `real` mode, except negative tests that deliberately prove the `blocked` default;
+  never rely on a developer's `PATH`, `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` by accident.
+- The real-Agent smoke is manual and Codex-only: run `bun run test:e2e:real-agent`. It requires an
+  authenticated Codex CLI, sends one bounded natural-language read-only prompt in a temporary
+  Project, disables screenshots/traces, and never falls back to another provider.
 
 Structured logs land in `logs/main.jsonl` and `logs/runtime.jsonl` in development; packaged/test launches write under the active Electron user-data directory instead.
 
