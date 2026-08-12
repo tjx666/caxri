@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { TerminalScreenState } from '../screen';
 
 describe('TerminalScreenState', () => {
+    it('uses Unicode 11 widths consistently across CJK, combining, Nerd, and emoji glyphs', async () => {
+        const screen = new TerminalScreenState('', 6, 2);
+
+        screen.write('界é🤦X\rZ');
+        const snapshot = await screen.snapshot();
+
+        expect(snapshot.payload).toBe('界é🤦Z');
+        screen.dispose();
+    });
+
     it('keeps writes and coalesced resizes ordered before a snapshot barrier', async () => {
         const screen = new TerminalScreenState('', 20, 4);
 
