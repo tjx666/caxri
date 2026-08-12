@@ -1,9 +1,8 @@
 #!/usr/bin/env bun
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,6 +11,7 @@ import {
     getProcessIdentity,
     isAlive,
     isOwnedRuntime,
+    prepareAcceptanceUserData,
     removeOwnedUserData,
     runtimeStateSchema,
     type RuntimeState,
@@ -88,12 +88,22 @@ function stringOption(options: ParsedOptions, key: string): string | undefined {
     return value;
 }
 
+function booleanOption(options: ParsedOptions, key: string): boolean {
+    const values = options[key] ?? [];
+    if (values.length > 1) throw new Error(`--${key} may only be provided once`);
+    if (values.some((value) => value !== true)) throw new Error(`--${key} does not take a value`);
+    return values.length === 1;
+}
+
 function help(): string {
     return `Start an isolated Caxri Electron acceptance instance
 
 Options:
   --port N               CDP port (default: 9222)
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
+  --reuse-user-data PATH Reuse an existing caxri-acceptance-user-* temp profile across restarts
+  --cleanup-reused-user-data
+                         Remove the validated reusable profile when this launch stops
   --help                 Show this message`;
 }
 
@@ -202,7 +212,10 @@ async function main(): Promise<void> {
         const testRootPath = testRootPaths[0];
         const launcherIdentity = await getProcessIdentity(process.pid);
         if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
-        const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-'));
+        const { ownedUserData, userDataDir } = await prepareAcceptanceUserData({
+            cleanupReusable: booleanOption(options, 'cleanup-reused-user-data'),
+            reuseUserDataDir: stringOption(options, 'reuse-user-data'),
+        });
 
         desktopLease = await beginDesktopLeaseHandoff(desktopLease);
         const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
@@ -249,7 +262,7 @@ async function main(): Promise<void> {
                 electronPid,
                 launcherIdentity,
                 launcherPid: process.pid,
-                ownedUserData: true,
+                ownedUserData,
                 port,
                 startedAt: new Date().toISOString(),
                 testRootPath,
@@ -278,7 +291,7 @@ async function main(): Promise<void> {
             await unlink(RUNTIME_PATH).catch((error: unknown) => {
                 if (errorCode(error) !== 'ENOENT') throw error;
             });
-            await removeOwnedUserData({ ownedUserData: true, userDataDir });
+            await removeOwnedUserData({ ownedUserData, userDataDir });
         }
     } finally {
         await releaseDesktopLease(desktopLease);
