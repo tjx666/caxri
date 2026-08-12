@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createResumeCheckpoint } from './resume';
+import { recordPublishedAcceptance } from './acceptance-publication';
 import { assessExpectationDrift } from './issue-drift';
 import { recordReviewDecision } from './review-gate';
 import {
@@ -93,6 +94,23 @@ function attachReport(
         sections: [...REQUIRED_SECTIONS],
         sha256: '0'.repeat(64),
     };
+}
+
+function publishRound(
+    state: ReturnType<typeof createInitialState>,
+    roundIndex: number,
+    headSha = 'head-1',
+) {
+    recordPublishedAcceptance(state, {
+        acceptanceId: 'acc-1',
+        checkIds: ['issue-111-go-state'],
+        headSha,
+        publishedAt: `2026-08-12T00:0${roundIndex}:00.000Z`,
+        roundIndex,
+        url: 'https://app.lobehub.com/acceptance/acc-1',
+        verdict: 'pass',
+        verifyRunId: `run-${roundIndex}`,
+    });
 }
 
 describe('Go state ledger', () => {
@@ -254,12 +272,7 @@ describe('Go state ledger', () => {
     it('fails closed before waiting when the exact-head report is absent or undelivered', () => {
         const state = readyDelivery();
         transitionState(state, 'acceptance');
-        recordAcceptance(state, {
-            id: 'acc-1',
-            round: 1,
-            status: 'pending',
-            url: 'https://app.lobehub.com/acceptance/acc-1',
-        });
+        publishRound(state, 1);
         transitionState(state, 'acceptance_handoff');
 
         expect(createResumeCheckpoint(state).nextAction).toBe(
@@ -280,27 +293,33 @@ describe('Go state ledger', () => {
         expect(() => transitionState(state, 'waiting_acceptance')).not.toThrow();
     });
 
-    it('restores rejected Acceptance and merges only the accepted exact head', () => {
+    it('rejects pending Acceptance state without verified publication lineage', () => {
         const state = readyDelivery();
         transitionState(state, 'acceptance');
         recordAcceptance(state, {
-            id: 'acc-1',
+            id: 'acc-unverified',
             round: 1,
             status: 'pending',
-            url: 'https://app.lobehub.com/acceptance/acc-1',
+            url: 'https://app.lobehub.com/acceptance/acc-unverified',
         });
+
+        expect(() => validateState(state)).toThrow('no verified publication lineage');
+        expect(() => transitionState(state, 'acceptance_handoff')).toThrow(
+            'no verified publication lineage',
+        );
+    });
+
+    it('restores rejected Acceptance and merges only the accepted exact head', () => {
+        const state = readyDelivery();
+        transitionState(state, 'acceptance');
+        publishRound(state, 1);
         transitionState(state, 'acceptance_handoff');
         attachReport(state, { delivered: true });
         transitionState(state, 'waiting_acceptance');
         recordAcceptance(state, { status: 'rejected' });
         transitionState(state, 'acceptance');
 
-        recordAcceptance(state, {
-            id: 'acc-2',
-            round: 2,
-            status: 'pending',
-            url: 'https://app.lobehub.com/acceptance/acc-2',
-        });
+        publishRound(state, 2);
         transitionState(state, 'acceptance_handoff');
         attachReport(state, { delivered: true });
         transitionState(state, 'waiting_acceptance');
@@ -437,10 +456,23 @@ describe('Go state ledger', () => {
 
         const migrated = validateState(legacy);
         expect(migrated).toMatchObject({
-            acceptance: { id: 'acc-legacy', waivedHeadSha: null },
+            acceptance: {
+                id: 'acc-legacy',
+                publication: {
+                    history: [
+                        {
+                            acceptanceId: 'acc-legacy',
+                            headSha: 'legacy-repair',
+                            roundIndex: 1,
+                            verifyRunId: 'legacy-unavailable',
+                        },
+                    ],
+                },
+                waivedHeadSha: null,
+            },
             handoffReport: null,
             phase: 'acceptance_handoff',
-            schemaVersion: 7,
+            schemaVersion: 8,
         });
         expect(
             migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
@@ -473,7 +505,7 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 7,
+            schemaVersion: 8,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });

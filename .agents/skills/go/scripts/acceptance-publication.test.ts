@@ -1,0 +1,393 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { publishAcceptanceRound, recordOrphanedAcceptance } from './acceptance-publication';
+import { createResumeCheckpoint } from './resume';
+import { createInitialState } from './state';
+
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const TEST_ROOT = join(
+    PROJECT_ROOT,
+    '.records',
+    '__test__',
+    `acceptance-publication-${process.pid}`,
+);
+
+function publicationState(runId: string, headSha = 'head-1') {
+    const state = createInitialState({ objective: 'Publish Acceptance', runId });
+    state.phase = 'acceptance';
+    state.status = 'active';
+    state.pullRequest.headSha = headSha;
+    return state;
+}
+
+function report(
+    headSha: string,
+    checkIds = ['acceptance-round-lineage'],
+    verdict: 'fail' | 'partial' | 'pass' = 'pass',
+) {
+    return {
+        cases: checkIds.map((id) => ({ id })),
+        commit: headSha,
+        createdAt: '2026-08-12T00:00:00.000Z',
+        plan: checkIds.map((id) => ({ id })),
+        requirement: '同一交付只保留一个稳定的 Acceptance lineage。',
+        summary: { verdict },
+    };
+}
+
+async function writeRound(
+    round: number,
+    headSha: string,
+    checkIds?: string[],
+    verdict?: 'fail' | 'partial' | 'pass',
+): Promise<string> {
+    const directory = join(TEST_ROOT, `round-${round}`);
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+        join(directory, 'result.json'),
+        `${JSON.stringify(report(headSha, checkIds, verdict), null, 2)}\n`,
+    );
+    return directory;
+}
+
+function ingestJson(roundIndex: number, acceptanceId = 'acc-1', verifyRunId = `run-${roundIndex}`) {
+    return JSON.stringify({ acceptanceId, roundIndex, verifyRunId });
+}
+
+function runListJson(input?: {
+    acceptanceId?: string;
+    checkIds?: string[];
+    headSha?: string;
+    roundIndex?: number;
+    verifyRunId?: string;
+}) {
+    if (!input) return '[]';
+    const roundIndex = input.roundIndex ?? 1;
+    return JSON.stringify([
+        {
+            acceptanceId: input.acceptanceId ?? 'acc-1',
+            context: {
+                commit: input.headSha ?? 'head-1',
+                testedAt: '2026-08-12T00:00:00.000Z',
+            },
+            id: input.verifyRunId ?? `run-${roundIndex}`,
+            plan: (input.checkIds ?? ['acceptance-round-lineage']).map((id) => ({ id })),
+            roundIndex,
+            source: 'agent-testing',
+        },
+    ]);
+}
+
+function viewJson(
+    input: {
+        acceptanceId?: string;
+        checkIds?: string[];
+        headSha?: string;
+        roundIndex?: number;
+        verdict?: 'failed' | 'passed' | 'uncertain';
+        verifyRunId?: string;
+    } = {},
+) {
+    const acceptanceId = input.acceptanceId ?? 'acc-1';
+    const roundIndex = input.roundIndex ?? 1;
+    const verifyRunId = input.verifyRunId ?? `run-${roundIndex}`;
+    return JSON.stringify({
+        acceptance: { id: acceptanceId },
+        checks: (input.checkIds ?? ['acceptance-round-lineage']).map((id) => ({
+            id,
+            resultRound: roundIndex,
+        })),
+        rounds: [
+            {
+                report: { verdict: input.verdict ?? 'passed' },
+                run: {
+                    acceptanceId,
+                    context: { commit: input.headSha ?? `head-${roundIndex}` },
+                    id: verifyRunId,
+                    roundIndex,
+                },
+            },
+        ],
+    });
+}
+
+describe('Go Acceptance round publication', () => {
+    beforeEach(async () => {
+        await rm(TEST_ROOT, { force: true, recursive: true });
+    });
+
+    afterAll(async () => {
+        await rm(TEST_ROOT, { force: true, recursive: true });
+    });
+
+    it('creates round one, reads it back, and freezes the stable lineage', async () => {
+        const state = publicationState('publish-one');
+        const directory = await writeRound(1, 'head-1');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(viewJson());
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({
+            acceptanceId: 'acc-1',
+            headSha: 'head-1',
+            roundIndex: 1,
+            verifyRunId: 'run-1',
+        });
+
+        expect(runner.mock.calls[1][1]).toEqual(
+            expect.arrayContaining(['--requirement', report('head-1').requirement]),
+        );
+        expect(runner.mock.calls[1][1]).not.toContain('--acceptance');
+        expect(state.acceptance).toMatchObject({
+            id: 'acc-1',
+            round: 1,
+            status: 'pending',
+            url: 'https://app.lobehub.com/acceptance/acc-1',
+        });
+        expect(state.acceptance.publication.history).toHaveLength(1);
+        expect(createResumeCheckpoint(state).acceptance.publication.history[0]).toMatchObject({
+            acceptanceId: 'acc-1',
+            roundIndex: 1,
+            verifyRunId: 'run-1',
+        });
+    });
+
+    it('forces every later round to append to the frozen Acceptance id', async () => {
+        const state = publicationState('publish-two');
+        await writeRound(1, 'head-1');
+        await publishAcceptanceRound(
+            state,
+            {
+                headSha: 'head-1',
+                reportDirectory: join(TEST_ROOT, 'round-1'),
+            },
+            vi
+                .fn()
+                .mockResolvedValueOnce(runListJson())
+                .mockResolvedValueOnce(ingestJson(1))
+                .mockResolvedValueOnce(viewJson()),
+        );
+        state.pullRequest.headSha = 'head-2';
+        const directory = await writeRound(2, 'head-2');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(2))
+            .mockResolvedValueOnce(viewJson({ headSha: 'head-2', roundIndex: 2 }));
+
+        await publishAcceptanceRound(
+            state,
+            { headSha: 'head-2', reportDirectory: directory },
+            runner,
+        );
+
+        const ingestArgs = runner.mock.calls[1][1] as string[];
+        expect(ingestArgs.slice(ingestArgs.indexOf('--acceptance'), -1)).toContain('acc-1');
+        expect(state.acceptance.publication.history.map(({ roundIndex }) => roundIndex)).toEqual([
+            1, 2,
+        ]);
+    });
+
+    it('matches a fixture-blocked partial report to the remote uncertain verdict', async () => {
+        const state = publicationState('partial');
+        const directory = await writeRound(1, 'head-1', undefined, 'partial');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(viewJson({ verdict: 'uncertain' }));
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ verdict: 'partial' });
+    });
+
+    it('rejects a round that is not bound to the current PR head before ingest', async () => {
+        const state = publicationState('stale-head', 'current-head');
+        const directory = await writeRound(1, 'stale-head');
+        const runner = vi.fn();
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'stale-head', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow('exact current PR head');
+        expect(runner).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['empty ingest output', '', runListJson(), 'empty JSON output'],
+        ['wrong acceptance id', ingestJson(1, 'acc-wrong'), viewJson(), 'different Acceptance'],
+        ['wrong round', ingestJson(2), viewJson(), 'unexpected round index'],
+        [
+            'wrong readback head',
+            ingestJson(1),
+            viewJson({ headSha: 'wrong-head' }),
+            'does not match the exact head',
+        ],
+        [
+            'wrong readback checks',
+            ingestJson(1),
+            viewJson({ checkIds: ['different-check'] }),
+            'check ids do not match',
+        ],
+        [
+            'wrong readback verdict',
+            ingestJson(1),
+            viewJson({ verdict: 'failed' }),
+            'verdict does not match',
+        ],
+    ] as const)('fails closed for %s', async (_name, ingest, afterIngest, expected) => {
+        const state = publicationState('publish-fail');
+        const directory = await writeRound(1, 'head-1');
+        if (_name === 'wrong acceptance id') state.acceptance.id = 'acc-1';
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingest)
+            .mockResolvedValueOnce(afterIngest);
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow(expected);
+        expect(state.acceptance.publication.history).toEqual([]);
+        expect(state.acceptance.round).toBe(0);
+    });
+
+    it('keeps network interruption unpublished and preserves orphaned standalone history', async () => {
+        const state = publicationState('publish-audit');
+        const directory = await writeRound(1, 'head-1');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockRejectedValueOnce(new Error('network interrupted'))
+            .mockResolvedValueOnce(runListJson());
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow('network interrupted');
+        expect(state.acceptance.publication.history).toEqual([]);
+
+        recordOrphanedAcceptance(state, {
+            acceptanceId: 'acc-orphan',
+            reason: '第二轮曾误建为 standalone，保留不可变审计历史。',
+            verifyRunId: 'run-orphan',
+        });
+        recordOrphanedAcceptance(state, {
+            acceptanceId: 'acc-orphan',
+            reason: '第二轮曾误建为 standalone，保留不可变审计历史。',
+            verifyRunId: 'run-orphan',
+        });
+        expect(state.acceptance.publication.orphanedStandalones).toEqual([
+            expect.objectContaining({
+                acceptanceId: 'acc-orphan',
+                verifyRunId: 'run-orphan',
+            }),
+        ]);
+    });
+
+    it('persists an unresolved ingest and retries only its remote readback', async () => {
+        const state = publicationState('readback-recovery');
+        const directory = await writeRound(1, 'head-1');
+        const persistPending = vi.fn(() => Promise.resolve());
+        const interrupted = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockRejectedValueOnce(new Error('view network interrupted'));
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                interrupted,
+                '2026-08-12T01:00:00.000Z',
+                persistPending,
+            ),
+        ).rejects.toThrow('view network interrupted');
+        expect(persistPending).toHaveBeenCalledOnce();
+        expect(state.acceptance.publication.pendingAttempt).toMatchObject({
+            acceptanceId: 'acc-1',
+            roundIndex: 1,
+            verifyRunId: 'run-1',
+        });
+        expect(createResumeCheckpoint(state)).toMatchObject({
+            blockers: ['Acceptance publication is waiting for exact remote readback'],
+            nextAction: 'Retry readback for the pending Acceptance publication',
+        });
+
+        const retry = vi.fn().mockResolvedValueOnce(viewJson());
+        await expect(
+            publishAcceptanceRound(state, { headSha: 'head-1', reportDirectory: directory }, retry),
+        ).resolves.toMatchObject({ verifyRunId: 'run-1' });
+        expect(retry).toHaveBeenCalledWith('lobehub', ['acceptance', 'view', 'acc-1', '--json']);
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+        expect(state.acceptance.publication.history).toHaveLength(1);
+    });
+
+    it('recovers remote success with missing ingest stdout and never creates another round', async () => {
+        const state = publicationState('missing-stdout');
+        const directory = await writeRound(1, 'head-1');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce('')
+            .mockResolvedValueOnce(runListJson({ roundIndex: 1 }))
+            .mockResolvedValueOnce(viewJson());
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ acceptanceId: 'acc-1', verifyRunId: 'run-1' });
+        expect(
+            runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
+        ).toHaveLength(1);
+        expect(state.acceptance.publication.history).toHaveLength(1);
+    });
+
+    it('discovers a prior response-lost round before retrying ingest', async () => {
+        const state = publicationState('response-lost-retry');
+        const directory = await writeRound(1, 'head-1');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson({ roundIndex: 1 }))
+            .mockResolvedValueOnce(viewJson());
+
+        await publishAcceptanceRound(
+            state,
+            { headSha: 'head-1', reportDirectory: directory },
+            runner,
+        );
+        expect(
+            runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
+        ).toHaveLength(0);
+        expect(state.acceptance.publication.history).toHaveLength(1);
+    });
+});

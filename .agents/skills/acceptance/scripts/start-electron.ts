@@ -101,7 +101,9 @@ function help(): string {
 Options:
   --port N               CDP port (default: 9222)
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
-  --reuse-user-data PATH Reuse an existing caxri-acceptance-user-* temp profile across restarts
+  --case-id ID           Stable lowercase id for this isolated Acceptance case
+  --case-mode MODE       isolated (default) or restart
+  --reuse-user-data PATH Reuse this case's caxri-acceptance-user-<case-id>-* profile across restarts
   --cleanup-reused-user-data
                          Remove the validated reusable profile when this launch stops
   --help                 Show this message`;
@@ -212,7 +214,9 @@ async function main(): Promise<void> {
         const testRootPath = testRootPaths[0];
         const launcherIdentity = await getProcessIdentity(process.pid);
         if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
-        const { ownedUserData, userDataDir } = await prepareAcceptanceUserData({
+        const { acceptanceCase, ownedUserData, userDataDir } = await prepareAcceptanceUserData({
+            caseId: stringOption(options, 'case-id'),
+            caseMode: stringOption(options, 'case-mode') as 'isolated' | 'restart' | undefined,
             cleanupReusable: booleanOption(options, 'cleanup-reused-user-data'),
             reuseUserDataDir: stringOption(options, 'reuse-user-data'),
         });
@@ -257,6 +261,7 @@ async function main(): Promise<void> {
                 throw new Error('Could not establish Acceptance Electron identity');
             desktopLease = await transferDesktopLease(desktopLease, electronPid);
             const runtime: RuntimeState = {
+                acceptanceCase,
                 cdpUrl: `http://127.0.0.1:${port}`,
                 electronIdentity,
                 electronPid,

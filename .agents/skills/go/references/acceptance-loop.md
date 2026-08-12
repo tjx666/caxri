@@ -36,6 +36,9 @@ Electron desktop.
 8. If subagent execution is unavailable, pause and ask the user for direction.
    Do not silently let the builder author the plan and call it independent.
 9. Write the adjudicated frozen plan before executing cases.
+   Default `stateIsolation` to `isolated`; state-mutating checks must use their
+   own named launch/profile. A restart check explicitly names the reusable
+   profile and final cleanup owner.
 10. Use the Acceptance report scaffold to initialize a fresh round directory
     under the current Go ledger directory.
 
@@ -71,11 +74,19 @@ be ingested:
 Do not publish every focused test failure from implementation. The immutable
 history begins when the Acceptance plan is frozen and round execution starts.
 
+Before Terminal or visual capture, run the Acceptance fixture preflight. It
+uses terminal cell width rather than UTF-16 length and verifies generation,
+first grid marker, DOM rows, grid dimensions, and both border columns. A failed
+preflight is `fixture_blocked`; it is never a product verdict.
+
 ## Human review state
 
 After a passing round:
 
 1. Store the acceptance id, URL, round index, and `pending` state in the ledger.
+   Inside Go, publish only through `state.ts acceptance-publish`; it forces
+   `--acceptance` after round one and reads the remote round back before updating
+   the ledger. Record accidental standalone history with `acceptance-orphan`.
 2. Transition to `acceptance_handoff`. Run the read-only workflow and cost audit,
    then generate `handoff-report.md` for the exact PR head.
 3. Deliver the report's complete summary with the stable Acceptance URL. Record

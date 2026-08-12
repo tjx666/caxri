@@ -46,6 +46,9 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
             if (state.pullRequest.status === 'ready') return 'Transition to acceptance';
             return 'Finish PR delivery and required review';
         case 'acceptance':
+            if (state.acceptance.publication.pendingAttempt) {
+                return 'Retry readback for the pending Acceptance publication';
+            }
             return 'Execute and publish the next immutable Acceptance round';
         case 'acceptance_handoff':
             if (!state.handoffReport) return 'Generate the exact-head handoff report';
@@ -92,6 +95,9 @@ export function createResumeCheckpoint(state: GoState) {
             ? ['Current PR head is not review-clean and frozen']
             : []),
         ...(state.acceptance.status === 'blocked' ? ['Acceptance is blocked'] : []),
+        ...(state.acceptance.publication.pendingAttempt
+            ? ['Acceptance publication is waiting for exact remote readback']
+            : []),
         ...(['acceptance_handoff', 'waiting_acceptance', 'finalization'].includes(state.phase) &&
         !state.handoffReport
             ? ['Exact-head handoff report is missing']

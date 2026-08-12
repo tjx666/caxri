@@ -29,6 +29,15 @@ const requiredEvidenceSchema = z.union([
     z.enum(REQUIRED_EVIDENCE_TYPES),
     z.object({ hint: z.string().optional(), type: z.enum(REQUIRED_EVIDENCE_TYPES) }),
 ]);
+const stateIsolationSchema = z.discriminatedUnion('mode', [
+    z.object({ mode: z.literal('isolated') }),
+    z.object({ checkpointId: z.string().min(1), mode: z.literal('readonly_checkpoint') }),
+    z.object({
+        cleanupOwner: z.literal('final_launch'),
+        mode: z.literal('restart'),
+        profileId: z.string().min(1),
+    }),
+]);
 const planItemSchema = z
     .object({
         category: z.string().min(1),
@@ -36,6 +45,7 @@ const planItemSchema = z
         id: z.string().min(1),
         method: z.string().min(1),
         requiredEvidence: z.array(requiredEvidenceSchema).min(1),
+        stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
         title: z.string().min(1),
         verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
     })
@@ -68,6 +78,7 @@ const resultSchema = z
     .passthrough();
 
 type PlanItem = z.infer<typeof planItemSchema>;
+type PlanItemInput = z.input<typeof planItemSchema>;
 type AcceptanceCase = z.infer<typeof caseSchema>;
 type CaseStatus = (typeof CASE_STATUSES)[number];
 type RequiredEvidenceType = (typeof REQUIRED_EVIDENCE_TYPES)[number];
@@ -79,7 +90,7 @@ export interface InitializeReportInput {
     commit?: string;
     directory: string;
     entry: string;
-    plan: PlanItem[];
+    plan: PlanItemInput[];
     pullRequest?: number;
     requirement: string;
     title: string;
