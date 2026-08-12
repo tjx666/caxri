@@ -17,6 +17,7 @@ import {
     closeTerminal,
     createTerminal,
     findInActiveTerminal,
+    navigateActiveTerminalCommand,
     restartActiveTerminal,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
@@ -62,6 +63,11 @@ const commandContext: CommandContext = {
             if (terminalId) findInActiveTerminal(terminalId);
         },
         hasActive: () => Boolean(activeTerminalId()),
+        navigateCommand: (direction) => {
+            const terminalId = activeTerminalId();
+            if (terminalId)
+                navigateActiveTerminalCommand(terminalId, direction === -1 ? 'previous' : 'next');
+        },
         restartActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) restartActiveTerminal(terminalId);

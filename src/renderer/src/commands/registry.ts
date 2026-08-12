@@ -14,6 +14,7 @@ export interface CommandContext {
         clearActive(): void;
         findActive(): void;
         hasActive(): boolean;
+        navigateCommand(direction: 1 | -1): void;
         restartActive(): void;
         startNewAgentSession(): void;
         closeActive(): void;

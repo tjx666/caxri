@@ -88,6 +88,10 @@ export interface TerminalManagerOptions {
     snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
+    shellIntegration?: (
+        executable: string,
+        environment: NodeJS.ProcessEnv,
+    ) => { args: string[]; environment: NodeJS.ProcessEnv } | undefined;
 }
 
 export interface TerminalWorkingDirectoryIdentity {
@@ -125,6 +129,7 @@ export class TerminalManager {
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
+    private readonly shellIntegration?: TerminalManagerOptions['shellIntegration'];
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -141,6 +146,7 @@ export class TerminalManager {
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
+        this.shellIntegration = options.shellIntegration;
     }
 
     start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
@@ -179,7 +185,7 @@ export class TerminalManager {
                 );
             failureReason = 'executable_not_found';
             const executable = await this.resolveExecutable(record.kind, launch);
-            const args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
+            let args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
             if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
                 args.push(
                     ...agentProviderCatalog[record.kind].resumeArguments(
@@ -202,7 +208,7 @@ export class TerminalManager {
             failureReason = 'working_directory_unavailable';
             await this.assertWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
             failureReason = 'spawn_failed';
-            const env = {
+            let env = {
                 ...(record.kind === 'shell'
                     ? terminalEnvironment()
                     : {
@@ -212,6 +218,24 @@ export class TerminalManager {
                       }),
                 ...this.lifecycleEnvironment?.(record),
             };
+            if (record.kind === 'shell') {
+                try {
+                    const integrated = this.shellIntegration?.(executable, env);
+                    if (integrated) {
+                        args = integrated.args;
+                        env = integrated.environment;
+                    }
+                } catch (error) {
+                    /** Shell integration is optional decoration metadata; startup must retain the
+                     *  ordinary login-shell path if its resolver becomes unavailable. */
+                    this.logger.write('warn', 'pty.shell_integration_unavailable', {
+                        fields: {
+                            terminalId: record.id,
+                            error: errorMessage(error, 'unknown'),
+                        },
+                    });
+                }
+            }
             const storedSnapshot = this.database.getSnapshot(record.id);
             const initialImageRecovery = new TerminalImageRecoveryFilter();
             const initialSnapshot = `${initialImageRecovery.push(

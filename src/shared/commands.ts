@@ -90,6 +90,18 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Search the active Terminal buffer',
     },
     {
+        id: 'terminal.previousCommand',
+        title: 'Go to Previous Terminal Command',
+        category: 'Terminal',
+        description: 'Scroll the active Terminal to the previous command boundary',
+    },
+    {
+        id: 'terminal.nextCommand',
+        title: 'Go to Next Terminal Command',
+        category: 'Terminal',
+        description: 'Scroll the active Terminal to the next command boundary',
+    },
+    {
         id: 'terminal.restart',
         title: 'Restart Terminal',
         category: 'Terminal',
@@ -252,6 +264,8 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+t', command: 'terminal.new' },
     { key: 'cmd+k', command: 'terminal.clear' },
     { key: 'cmd+f', command: 'terminal.find' },
+    { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
+    { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },

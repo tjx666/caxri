@@ -38,6 +38,7 @@ import {
     TerminalRestoreSupervisor,
     type TerminalWorkingDirectoryIdentity,
 } from './terminal';
+import { ShellIntegrationService } from './terminal/shell-integration';
 import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
@@ -147,6 +148,14 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
         hookSettingsReconcile = agentHooks.reconcile(settings['agents.providers']);
     });
+    const shellIntegration = await ShellIntegrationService.create(userDataPath).catch(
+        (error: unknown) => {
+            logger.write('warn', 'pty.shell_integration_unavailable', {
+                fields: { error: error instanceof Error ? error.message : String(error) },
+            });
+            return undefined;
+        },
+    );
     /**
      * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
      * composition root, instead of hiding a provider check inside a shared event sink.
@@ -159,6 +168,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         onLifecycleRetired: (terminalId) => agentHooks.endTerminalLaunch(terminalId),
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
+        shellIntegration: (executable, environment) =>
+            shellIntegration?.resolve(executable, environment),
     });
     const terminalRestores = new TerminalRestoreSupervisor();
     const projectStatus = new ProjectStatusService(git, logger);

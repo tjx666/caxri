@@ -4,6 +4,7 @@ const INHERITED_ENVIRONMENT_KEYS = [
     'LOGNAME',
     'PATH',
     'SHELL',
+    'ZDOTDIR',
     'LANG',
     'LC_ALL',
     'LC_CTYPE',

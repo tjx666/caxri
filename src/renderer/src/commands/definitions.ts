@@ -49,6 +49,14 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
         when: (ctx) => ctx.terminal.hasActive(),
     }),
+    fromCatalog('terminal.previousCommand', (ctx) => ctx.terminal.navigateCommand(-1), {
+        allowInEditable: true,
+        when: (ctx) => ctx.terminal.hasActive(),
+    }),
+    fromCatalog('terminal.nextCommand', (ctx) => ctx.terminal.navigateCommand(1), {
+        allowInEditable: true,
+        when: (ctx) => ctx.terminal.hasActive(),
+    }),
     fromCatalog('terminal.restart', (ctx) => ctx.terminal.restartActive()),
     fromCatalog('terminal.startNewAgentSession', (ctx) => ctx.terminal.startNewAgentSession()),
     fromCatalog('terminal.close', (ctx) => ctx.terminal.closeActive(), { allowInEditable: true }),
