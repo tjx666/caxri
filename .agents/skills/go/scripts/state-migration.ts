@@ -1,4 +1,5 @@
 import { createEmptyCiFallback, createEmptyValidationBudget } from './ci-fallback';
+import { createEmptyAcceptancePublication } from './acceptance-publication';
 import { createEmptyReviewGate, createReviewPolicy } from './review-gate';
 import {
     createEmptyIssueExpectationDrift,
@@ -152,6 +153,40 @@ function migrateV6(state: Record<string, unknown>): Record<string, unknown> {
     };
 }
 
+function migrateV7(state: Record<string, unknown>): Record<string, unknown> {
+    const acceptance = isRecord(state.acceptance) ? state.acceptance : {};
+    const pullRequest = isRecord(state.pullRequest) ? state.pullRequest : {};
+    const publication = createEmptyAcceptancePublication();
+    if (
+        typeof acceptance.id === 'string' &&
+        acceptance.id &&
+        typeof acceptance.round === 'number' &&
+        acceptance.round > 0
+    ) {
+        publication.history.push({
+            acceptanceId: acceptance.id,
+            checkIds: [],
+            headSha:
+                typeof pullRequest.headSha === 'string'
+                    ? pullRequest.headSha
+                    : 'legacy-unavailable',
+            publishedAt: typeof state.updatedAt === 'string' ? state.updatedAt : 'legacy',
+            roundIndex: acceptance.round,
+            url:
+                typeof acceptance.url === 'string'
+                    ? acceptance.url
+                    : `https://app.lobehub.com/acceptance/${acceptance.id}`,
+            verdict: 'legacy-unavailable',
+            verifyRunId: 'legacy-unavailable',
+        });
+    }
+    return {
+        ...state,
+        acceptance: { ...acceptance, publication },
+        schemaVersion: 8,
+    };
+}
+
 export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (!isRecord(state)) return state;
     let migrated = state;
@@ -201,5 +236,6 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
     }
     if (migrated.schemaVersion === 5 && schemaVersion >= 6) migrated = migrateV5(migrated);
     if (migrated.schemaVersion === 6 && schemaVersion >= 7) migrated = migrateV6(migrated);
+    if (migrated.schemaVersion === 7 && schemaVersion >= 8) migrated = migrateV7(migrated);
     return migrated;
 }

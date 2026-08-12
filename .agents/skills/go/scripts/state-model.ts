@@ -3,6 +3,11 @@ import { z } from 'zod';
 
 import { validateHumanText } from '../../acceptance/scripts/validate-report';
 import {
+    acceptancePublicationSchema,
+    assertPublishedAcceptanceLineage,
+    createEmptyAcceptancePublication,
+} from './acceptance-publication';
+import {
     assertDeliveryCanAdvance,
     ciFallbackSchema,
     createEmptyCiFallback,
@@ -27,7 +32,7 @@ import { createRunBudget, ensurePhaseCheckpoint, runBudgetSchema } from './run-b
 import { migrateState } from './state-migration';
 import { validationsSchema } from './validation-gate';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 const MAX_EVENTS = 120;
 
 export const PHASES = [
@@ -109,6 +114,7 @@ export const goStateSchema = z.object({
     acceptance: z.object({
         acceptedHeadSha: z.string().nullable(),
         id: z.string().nullable(),
+        publication: acceptancePublicationSchema,
         round: z.number().int().nonnegative(),
         status: acceptanceStatusSchema,
         url: z.string().nullable(),
@@ -247,6 +253,7 @@ export function createInitialState({
         acceptance: {
             acceptedHeadSha: null,
             id: null,
+            publication: createEmptyAcceptancePublication(),
             round: 0,
             status: 'not_started',
             url: null,
@@ -314,6 +321,7 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
         ) {
             throw new Error('Acceptance handoff requires a published pending Acceptance round');
         }
+        assertPublishedAcceptanceLineage(state, state.pullRequest.headSha ?? undefined);
     }
     if (state.phase === 'acceptance_handoff' && phase === 'waiting_acceptance') {
         if (state.acceptance.status !== 'pending') {
@@ -327,6 +335,7 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
             throw new Error('Merge requires the exact accepted or explicitly waived PR head');
         }
         if (state.acceptance.status === 'waived') assertHandoffReady(state, headSha, false);
+        else assertPublishedAcceptanceLineage(state, headSha);
     }
     if (state.phase === 'merge' && phase === 'finalization') {
         if (state.pullRequest.status !== 'merged') {
@@ -462,9 +471,19 @@ export function recordAcceptance(state: GoState, input: AcceptanceInput): GoStat
     if (input.status === 'waived' && (!input.waivedHeadSha || !input.waiverReason?.trim())) {
         throw new Error('Acceptance waiver requires exact head and explicit reason');
     }
+    if (input.id && state.acceptance.id && input.id !== state.acceptance.id) {
+        throw new Error('Acceptance id cannot leave the frozen publication lineage');
+    }
+    if (input.url && state.acceptance.url && input.url !== state.acceptance.url) {
+        throw new Error('Acceptance URL cannot leave the frozen publication lineage');
+    }
+    if (input.round !== undefined && input.round < state.acceptance.round) {
+        throw new Error('Acceptance round cannot move backwards');
+    }
     state.acceptance = {
         acceptedHeadSha: input.acceptedHeadSha ?? state.acceptance.acceptedHeadSha,
         id: input.id ?? state.acceptance.id,
+        publication: state.acceptance.publication,
         round: input.round ?? state.acceptance.round,
         status: input.status ?? state.acceptance.status,
         url: input.url ?? state.acceptance.url,
@@ -526,8 +545,14 @@ export function validateState(state: unknown): GoState {
     if (parsed.acceptance.status === 'accepted' && !parsed.acceptance.acceptedHeadSha) {
         throw new Error('Invalid Go state: accepted Acceptance requires --accepted-head-sha');
     }
+    if (parsed.acceptance.status === 'accepted') {
+        assertPublishedAcceptanceLineage(parsed, parsed.acceptance.acceptedHeadSha ?? undefined);
+    }
     if (parsed.acceptance.status === 'waived' && !parsed.acceptance.waivedHeadSha) {
         throw new Error('Invalid Go state: waived Acceptance requires --waived-head-sha');
+    }
+    if (parsed.acceptance.status === 'pending') {
+        assertPublishedAcceptanceLineage(parsed, parsed.pullRequest.headSha ?? undefined);
     }
     if (parsed.phase === 'waiting_acceptance') {
         assertHandoffReady(parsed, parsed.pullRequest.headSha ?? '');

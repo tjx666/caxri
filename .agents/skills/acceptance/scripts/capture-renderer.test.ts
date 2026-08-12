@@ -1,10 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     parseCaptureOptions,
+    requireCapturePreflight,
     resolveOwnedCapturePort,
     selectRendererTarget,
 } from './capture-renderer';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+    await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
+});
 
 describe('Acceptance Renderer capture', () => {
     it('parses bounded frame capture options', () => {
@@ -15,12 +25,38 @@ describe('Acceptance Renderer capture', () => {
                 '9222',
                 '--out-dir',
                 './frames',
+                '--fixture-preflight',
+                './fixture.json',
                 '--count',
                 '8',
                 '--interval-ms',
                 '100',
             ]),
         ).toMatchObject({ command: 'frames', count: 8, intervalMs: 100, port: 9222 });
+    });
+
+    it('requires and enforces fixture preflight before frame capture', async () => {
+        expect(() => parseCaptureOptions(['frames', '--out-dir', './frames'])).toThrow(
+            '--fixture-preflight is required',
+        );
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-capture-preflight-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'fixture.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                columns: 8,
+                domRowCount: 1,
+                firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 1 },
+                generation: 'fixture-1',
+                lines: ['│中🙂   │'],
+                rows: 1,
+            }),
+        );
+
+        await expect(requireCapturePreflight(path)).rejects.toThrow(
+            'Frame capture blocked by fixture preflight',
+        );
     });
 
     it('selects the Caxri Renderer instead of DevTools', () => {
@@ -69,7 +105,15 @@ describe('Acceptance Renderer capture', () => {
 
     it('bounds frame count before capture starts', () => {
         expect(() =>
-            parseCaptureOptions(['frames', '--out-dir', './frames', '--count', '601']),
+            parseCaptureOptions([
+                'frames',
+                '--out-dir',
+                './frames',
+                '--fixture-preflight',
+                './fixture.json',
+                '--count',
+                '601',
+            ]),
         ).toThrow('--count must be an integer between 1 and 600');
     });
 

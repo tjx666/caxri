@@ -4,6 +4,7 @@ import {
     ciFailureKindSchema,
     recordCiFallbackResult,
 } from './ci-fallback';
+import { publishAcceptanceRound, recordOrphanedAcceptance } from './acceptance-publication';
 import { generateFinalization, recordFinalizationDelivery } from './finalization';
 import { generateHandoffReport, recordHandoffDelivery } from './handoff-report';
 import {
@@ -150,6 +151,8 @@ Commands:
   finalization-generate --state PATH --head-sha SHA --merge-sha SHA
          --issue NUMBER:CLOSED:Done
   finalization-delivered --state PATH
+  acceptance-publish --state PATH --report-dir DIR --head-sha SHA
+  acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]
   ci-fallback-admit | ci-fallback-result | acceptance | note | notes | resume | show | validate`;
 }
 
@@ -369,6 +372,23 @@ export async function runStateCli(argv: string[]): Promise<void> {
         });
     } else if (command === 'finalization-delivered') {
         await recordFinalizationDelivery(state, runDirectoryForStatePath(path));
+    } else if (command === 'acceptance-publish') {
+        await publishAcceptanceRound(
+            state,
+            {
+                headSha: one(options, 'head-sha', true)!,
+                reportDirectory: one(options, 'report-dir', true)!,
+            },
+            undefined,
+            undefined,
+            () => writeState(path, state),
+        );
+    } else if (command === 'acceptance-orphan') {
+        recordOrphanedAcceptance(state, {
+            acceptanceId: one(options, 'acceptance-id', true)!,
+            reason: one(options, 'reason', true)!,
+            verifyRunId: one(options, 'verify-run-id'),
+        });
     } else if (command === 'ci-fallback-admit') {
         admitCiFallback(state, {
             authorization: one(options, 'authorization'),

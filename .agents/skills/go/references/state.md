@@ -99,6 +99,20 @@ bun run .agents/skills/go/scripts/state.ts scope-admit \
 
 ## Handoff and finalization
 
+Publish a finalized round through the exact-lineage wrapper:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts acceptance-publish \
+  --state "$STATE" --report-dir "$REPORT_DIR" --head-sha def5678
+```
+
+The command stores the stable Acceptance id/URL, immutable run id, round index,
+head, check ids, and verdict only after an exact remote readback. For an earlier
+accidental standalone, use `acceptance-orphan` to retain its id, run id, and
+reason without replacing the frozen lineage. When ingest succeeds but readback
+fails, `resume` points to the persisted pending attempt and the same command
+retries only remote readback.
+
 After a passing Acceptance round, move to `acceptance_handoff`, generate the
 report, deliver the same summary with its stable Acceptance URL, and only then
 record delivery and enter `waiting_acceptance`:
@@ -138,6 +152,9 @@ bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
 ```
 
 - Update state only through the script; writes are atomic.
+- Do not call raw `lobehub acceptance run ingest` inside Go. A `pending`
+  Acceptance without verified publication history, or with a stale exact head,
+  cannot enter handoff or survive ledger validation.
 - Treat GitHub and LobeHub as authoritative and refresh at delivery boundaries.
 - Recording a changed PR head invalidates fallback evidence, report/finalization
   receipts, and any freeze that does not already bind the replacement head.

@@ -144,6 +144,11 @@ step-by-step workflows beyond this summary.
   `source`/`event`/`code`/`count` tuple. Wildcards, message matching, duplicate allowances, and
   allowances that are not consumed all fail the test.
 - Focused Electron E2E launches use hidden native windows by default. A spec that verifies native focus or pointer behavior must pass `windowMode: 'visible'`; the Acceptance adapter always does so for the real desktop surface.
+- Acceptance plans default every case to an isolated profile. Run each state-mutating case in a
+  separately named launch; only a declared restart case may reuse one validated temp profile, and
+  its final launch owns cleanup. Terminal/visual fixtures must pass the cell-width/grid/generation
+  preflight before recording. Go-owned rounds publish only through the exact-lineage wrapper, not a
+  raw `lobehub acceptance run ingest` command.
 - For a hosted-only timing failure, reproduce only the exact failed cases against the production
   build with one worker and `--repeat-each=3`. Make slowness deterministic at the owning async
   boundary or wait for an observable product invariant; preserve relevant CI viewport and temporary

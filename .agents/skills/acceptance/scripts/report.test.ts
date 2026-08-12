@@ -103,6 +103,7 @@ describe('Acceptance report scaffold', () => {
             requirement,
             title: '验收 Caxri 终端布局',
         });
+        expect(result.plan[0]).toMatchObject({ stateIsolation: { mode: 'isolated' } });
         expect(result).not.toHaveProperty('summary');
         await expect(access(join(directory, 'assets'))).resolves.toBeUndefined();
         await expect(readFile(join(dirname(directory), 'requirement.txt'), 'utf8')).resolves.toBe(
