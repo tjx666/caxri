@@ -116,6 +116,16 @@ export function recordReviewDecision(
         const deliveryDecisions =
             verificationDecisions.filter(({ phase }) => phase === 'delivery').length +
             uncertainDecisions.length;
+        const verificationAuthorization =
+            input.verificationCapAuthorization?.trim() || input.authorization?.trim();
+        if (
+            input.verificationCapAuthorization &&
+            (reviewPhase !== 'delivery' || deliveryDecisions < MAX_DELIVERY_VERIFICATION_DECISIONS)
+        ) {
+            throw new Error(
+                'Verification-cap authorization is valid only after the default three delivery-stage freezes',
+            );
+        }
         if (
             reviewPhase === 'deep_review' &&
             preDeliveryDecisions >= MAX_PRE_DELIVERY_VERIFICATION_DECISIONS
@@ -135,7 +145,7 @@ export function recordReviewDecision(
         if (
             reviewPhase === 'delivery' &&
             deliveryDecisions >= MAX_DELIVERY_VERIFICATION_DECISIONS &&
-            !input.authorization?.trim()
+            !verificationAuthorization
         ) {
             throw new Error(
                 'Every delivery-stage verification-only freeze after the third requires explicit user authorization',
