@@ -32,7 +32,7 @@ Git hooks use the repository-owned `.githooks` directory through Git's native `c
 Authoritative validation commands:
 
 ```bash
-bun run check
+bun run --silent check
 bun run lint
 bun run format:md:check
 bun run typecheck
