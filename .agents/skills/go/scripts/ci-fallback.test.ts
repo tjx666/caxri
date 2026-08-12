@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 import {
     admitCiFallback,
@@ -16,6 +17,15 @@ import { createInitialState, recordPullRequest, transitionState, validateState }
 
 const headSha = 'abc123';
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const fullChecksCondition = "needs.retry-policy.outputs.checks_scope == 'full'";
+
+interface HostedWorkflow {
+    jobs?: {
+        checks?: {
+            steps?: Array<{ if?: string; run?: string; uses?: string }>;
+        };
+    };
+}
 
 function blockedDelivery() {
     const state = createInitialState({
@@ -83,21 +93,24 @@ function reviewDeliveryDelta(
 describe('Go local CI fallback', () => {
     it('matches every executable step in the hosted checks job', async () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
-        const checksJob = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}e2e:/)?.[1] ?? '';
-        const nonSetupActions = [...checksJob.matchAll(/^\s+- uses: (.+)$/gm)]
-            .map((match) => match[1])
+        const steps = parse(workflow) as HostedWorkflow;
+        const checkSteps = steps.jobs?.checks?.steps ?? [];
+        const nonSetupActions = checkSteps
+            .flatMap((step) => (step.uses ? [step.uses] : []))
             .filter(
                 (action) =>
                     !/^(actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun)@/.test(action),
             );
-        const commands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
-            .map((match) => match[1])
-            .filter((command) => !command.startsWith('npm ci'));
+        const commands = checkSteps
+            .filter((step) => step.if === fullChecksCondition && step.run)
+            .map((step) =>
+                step.run!.includes('-- bun run lint --concurrency') ? 'bun run lint' : step.run!,
+            );
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
         expect(commands).toContain('bun run doctor:changed');
-        expect(checksJob).toContain(
+        expect(workflow).toContain(
             "CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}",
         );
     });
