@@ -165,7 +165,7 @@ describe('file mutation reconciliation', () => {
                 ],
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
-                    openTabs: [{ path: previousPath, dirty: false }],
+                    openTabs: [{ path: previousPath, dirty: true }],
                     activeTab: { kind: 'editor' as const, path: previousPath },
                     inspectorMode: 'files' as const,
                     layout: {},
@@ -173,6 +173,18 @@ describe('file mutation reconciliation', () => {
                 terminals: [],
             } as unknown as BootstrapState,
         });
+        for (const sessionId of ['session-a', 'session-b']) {
+            useSessionViewStore.getState().cacheDocument(sessionId, {
+                path: previousPath,
+                content: `${sessionId} dirty body`,
+                dirty: true,
+                mtimeMs: 1,
+                size: 20,
+            });
+            useSessionViewStore
+                .getState()
+                .setActiveWork(sessionId, { kind: 'editor', path: previousPath });
+        }
         const operation: FileMutationOperation = {
             id: 'operation-retry-move',
             kind: 'move',
@@ -201,12 +213,53 @@ describe('file mutation reconciliation', () => {
             updatedAt: 2,
         };
 
-        await expect(reconcileFileMutation(operation)).rejects.toThrow(
-            'Moved editor state could not be saved',
+        await expect(reconcileFileMutation(operation)).resolves.toBeUndefined();
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({
+                kind: 'info',
+                message: 'File change is still synchronizing in the background',
+            }),
+        );
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'error' }),
         );
         expect(
             useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: false }], [{ path: previousPath, dirty: false }]]);
+        ).toEqual([[{ path: nextPath, dirty: true }], [{ path: nextPath, dirty: true }]]);
+        expect(useSessionViewStore.getState().activeWork).toEqual({
+            'session-a': { kind: 'editor', path: nextPath },
+            'session-b': { kind: 'editor', path: nextPath },
+        });
+        expect(useSessionViewStore.getState().documents).toMatchObject({
+            'session-a': {
+                [nextPath]: { content: 'session-a dirty body', dirty: true, path: nextPath },
+            },
+            'session-b': {
+                [nextPath]: { content: 'session-b dirty body', dirty: true, path: nextPath },
+            },
+        });
+
+        const sessionB = useWorkbenchStore
+            .getState()
+            .bootstrap?.sessionStates.find((state) => state.sessionId === 'session-b');
+        expect(sessionB).toBeDefined();
+        useSessionViewStore.getState().cacheDocument('session-b', {
+            path: previousPath,
+            content: 'new source body',
+            dirty: true,
+            mtimeMs: 2,
+            size: 15,
+        });
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-b', { kind: 'editor', path: previousPath });
+        await expect(
+            useWorkbenchStore.getState().patchSessionState({
+                ...sessionB!,
+                openTabs: [...sessionB!.openTabs, { path: previousPath, dirty: true }],
+                activeTab: { kind: 'editor', path: previousPath },
+            }),
+        ).resolves.toBe(true);
 
         await vi.runOnlyPendingTimersAsync();
         await vi.waitFor(() => {
@@ -216,6 +269,192 @@ describe('file mutation reconciliation', () => {
         });
         expect(
             useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: false }], [{ path: nextPath, dirty: false }]]);
+        ).toEqual([
+            [{ path: nextPath, dirty: true }],
+            [
+                { path: nextPath, dirty: true },
+                { path: previousPath, dirty: true },
+            ],
+        ]);
+        expect(useSessionViewStore.getState().activeWork).toEqual({
+            'session-a': { kind: 'editor', path: nextPath },
+            'session-b': { kind: 'editor', path: previousPath },
+        });
+        expect(useSessionViewStore.getState().documents).toMatchObject({
+            'session-a': {
+                [nextPath]: { content: 'session-a dirty body', dirty: true, path: nextPath },
+            },
+            'session-b': {
+                [nextPath]: { content: 'session-b dirty body', dirty: true, path: nextPath },
+                [previousPath]: { content: 'new source body', dirty: true, path: previousPath },
+            },
+        });
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+        );
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'error' }),
+        );
+    });
+
+    it('does not replay a remap whose durable checkpoint survived Renderer reload', async () => {
+        const operationId = 'operation-reloaded-move';
+        const previousPath = '/project/source.txt';
+        const nextPath = '/project/destination/source.txt';
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        openTabs: [
+                            { path: nextPath, dirty: false },
+                            { path: previousPath, dirty: false },
+                        ],
+                        activeTab: { kind: 'editor', path: previousPath },
+                        inspectorMode: 'files',
+                        layout: {},
+                        editorRemapOperationId: operationId,
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: nextPath,
+            content: 'moved body',
+            dirty: false,
+            mtimeMs: 1,
+            size: 10,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: previousPath,
+            content: 'new source body',
+            dirty: false,
+            mtimeMs: 2,
+            size: 15,
+        });
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-a', { kind: 'editor', path: previousPath });
+
+        await reconcileFileMutation({
+            id: operationId,
+            kind: 'move',
+            sessionId: 'session-a',
+            phase: 'completed',
+            input: {
+                path: previousPath,
+                directory: '/project/destination',
+                conflict: 'reject',
+            },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        });
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.openTabs).toEqual([
+            { path: nextPath, dirty: false },
+            { path: previousPath, dirty: false },
+        ]);
+        expect(useSessionViewStore.getState().activeWork['session-a']).toEqual({
+            kind: 'editor',
+            path: previousPath,
+        });
+        expect(useSessionViewStore.getState().documents['session-a']).toMatchObject({
+            [nextPath]: { content: 'moved body', path: nextPath },
+            [previousPath]: { content: 'new source body', path: previousPath },
+        });
+    });
+
+    it('does not report success until the durable operation acknowledgement succeeds', async () => {
+        vi.useFakeTimers();
+        let acknowledgeAttempts = 0;
+        mocks.request.mockImplementation((method) => {
+            if (method === 'files.operation.acknowledge') {
+                acknowledgeAttempts += 1;
+                return acknowledgeAttempts === 1
+                    ? Promise.reject(new Error('temporary journal failure'))
+                    : Promise.resolve(null);
+            }
+            return Promise.resolve(null);
+        });
+        const previousPath = '/project/source.txt';
+        const nextPath = '/project/destination/source.txt';
+        const operation: FileMutationOperation = {
+            id: 'operation-ack-retry',
+            kind: 'move',
+            sessionId: 'session-a',
+            phase: 'completed',
+            input: {
+                path: previousPath,
+                directory: '/project/destination',
+                conflict: 'reject',
+            },
+            expectedResult: {
+                device: '1',
+                inode: '2',
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        openTabs: [],
+                        inspectorMode: 'files',
+                        layout: {},
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+
+        await reconcileFileMutation(operation);
+
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'success' }),
+        );
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({
+                kind: 'info',
+                message: 'File change is still synchronizing in the background',
+            }),
+        );
+        expect(useFileOperationStore.getState().operations).toHaveLength(1);
+
+        await vi.runOnlyPendingTimersAsync();
+        await vi.waitFor(() => expect(acknowledgeAttempts).toBe(2));
+
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+        );
+        expect(useFileOperationStore.getState().operations).toEqual([]);
     });
 });

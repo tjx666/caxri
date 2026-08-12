@@ -9,6 +9,7 @@ import sessionTitleModeMigrationSql from './0003_pretty_ezekiel.sql?raw';
 import projectOrderMigrationSql from './0004_wonderful_gladiator.sql?raw';
 import sessionAttentionMigrationSql from './0005_dazzling_the_professor.sql?raw';
 import terminalFailureReasonMigrationSql from './0006_terminal_failure_reason.sql?raw';
+import editorRemapOperationMigrationSql from './0007_editor_remap_operation.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -52,6 +53,7 @@ export const migrationManifest = [
     { tag: '0004_wonderful_gladiator', sql: projectOrderMigrationSql },
     { tag: '0005_dazzling_the_professor', sql: sessionAttentionMigrationSql },
     { tag: '0006_terminal_failure_reason', sql: terminalFailureReasonMigrationSql },
+    { tag: '0007_editor_remap_operation', sql: editorRemapOperationMigrationSql },
 ] as const;
 
 assertMigrationManifestMatchesJournal(

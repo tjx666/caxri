@@ -93,6 +93,7 @@ export const sessionState = sqliteTable('session_state', {
     stateVersion: integer('state_version').notNull().default(CURRENT_SESSION_STATE_VERSION),
     openTabsJson: text('open_tabs_json').notNull(),
     activeTabJson: text('active_tab_json'),
+    editorRemapOperationId: text('editor_remap_operation_id'),
     inspectorMode: text('inspector_mode').notNull(),
     layoutJson: text('layout_json').notNull(),
 });

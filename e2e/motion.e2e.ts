@@ -227,6 +227,8 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
+        /** The default-Terminal dialog retains its closed overlay until the exit animation ends. */
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
         await settleMediaPreference(running.page);
 

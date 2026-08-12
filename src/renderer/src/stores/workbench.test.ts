@@ -307,6 +307,54 @@ describe('workbench Session state', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
     });
 
+    it('pins a retained optimistic state across a failed write and stale bootstrap refresh', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            openTabs: [{ path: '/project/source.ts', dirty: true }],
+            activeTab: { kind: 'editor', path: '/project/source.ts' },
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/renamed.ts',
+            content: 'dirty body',
+            dirty: true,
+            mtimeMs: 1,
+            size: 10,
+        });
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'session.updateState')
+                return Promise.reject(new Error('temporary persistence failure'));
+            if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        const movedState: SessionState = {
+            ...filesState,
+            openTabs: [{ path: '/project/renamed.ts', dirty: true }],
+            activeTab: { kind: 'editor', path: '/project/renamed.ts' },
+            editorRemapOperationId: 'operation-1',
+        };
+
+        await expect(
+            useWorkbenchStore
+                .getState()
+                .patchSessionState(movedState, undefined, undefined, 'retain'),
+        ).resolves.toBe(false);
+        await refreshWorkbench();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([movedState]);
+
+        mocks.request.mockResolvedValueOnce(movedState);
+        await useWorkbenchStore
+            .getState()
+            .patchSessionState(movedState, undefined, undefined, 'retain');
+    });
+
     it('does not let a stale, failed patch clobber a newer confirmed patch', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
