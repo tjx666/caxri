@@ -21,12 +21,12 @@ snapshot returns compact Git, issue, PR, and Project metadata plus intake-matrix
 placeholders. Read the body only for issues admitted to the Goal; never replace
 source inspection or requirement classification with the generated placeholders.
 
-Compare `origin/main...HEAD` with the candidate Goal before reusing the current
-branch or PR. Record the delivery base, commits, files, and issue ownership. If
-the branch contains changes outside the frozen Goal that do not already have
-their own complete review and Acceptance coverage, create a clean branch or
-worktree for the new Goal. Never append a narrow requirement to a broad PR and
-then validate only the narrow requirement.
+After classification, start the admitted Goal with `scripts/start.ts`. It
+fetches and pins the latest `origin/main`, creates the dedicated adjacent
+worktree/branch, and verifies that the main checkout branch, HEAD, and working
+tree did not change. Record the base SHA, branch, main checkout, and worktree in
+the ledger; resume only there. Never append a narrow requirement to an existing
+broad branch or PR and then validate only the narrow requirement.
 
 For each apparent issue, search open and closed issue titles and bodies, related
 PRs, and current source behavior. Record the reused owner or one sentence of
@@ -151,6 +151,7 @@ Output one compact plan containing:
 6. the exact delivery base and confirmation that the branch/PR scope matches the
    issue-level Acceptance coverage contract;
 7. any remaining external blocker.
+8. the frozen aggregate review policy, normally `full-once`.
 
 Once material boundaries are settled, create the durable ledger, call
 `create_goal` when available, and begin. In a compatible client without that

@@ -48,6 +48,13 @@ step-by-step workflows beyond this summary.
   issues. A verified zero-step GitHub Actions payment or spending-limit failure automatically
   authorizes the exact-head local CI fallback defined below; do not ask again. It does not
   authorize destructive data operations, releases, secrets, account changes, or unrelated work.
+- Start a new `$go` run through `.agents/skills/go/scripts/start.ts`: it pins the latest
+  `origin/main`, creates a dedicated adjacent worktree, and records that worktree in the ledger.
+  Resume in the recorded worktree; keep the main checkout branch, HEAD, and working tree unchanged.
+- A Go ledger permits one aggregate full deep review. Later code changes require an exact-lineage
+  light delta review; CI, fixture, evidence, gates, and remote-state checks are validation records,
+  not additional review rounds. Persist and deliver the exact-head handoff report before waiting
+  for human Acceptance, and require a delivered finalization receipt before completion.
 - Caxri Acceptance has one product surface: isolated macOS Electron desktop. Command output and
   focused tests are supporting evidence only.
 - User-facing Acceptance prose uses Simplified Chinese. Keep code, identifiers, paths, commands,
