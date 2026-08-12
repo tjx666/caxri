@@ -9,6 +9,7 @@ import {
     isAlive,
     isOwnedLauncher,
     isOwnedRuntime,
+    prepareAcceptanceUserData,
     removeOwnedUserData,
     runtimeStateSchema,
 } from './runtime-state';
@@ -77,6 +78,36 @@ describe('Acceptance runtime ownership', () => {
         } finally {
             await rm(owned, { force: true, recursive: true });
             await rm(unowned, { force: true, recursive: true });
+        }
+    });
+
+    it('reuses only prefixed temp profiles and cleans them up only when requested', async () => {
+        const reusable = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-restart-'));
+        const unsafe = await mkdtemp(join(tmpdir(), 'caxri-unowned-user-'));
+
+        try {
+            await expect(
+                prepareAcceptanceUserData({
+                    cleanupReusable: false,
+                    reuseUserDataDir: reusable,
+                }),
+            ).resolves.toMatchObject({ ownedUserData: false });
+            await expect(
+                prepareAcceptanceUserData({ cleanupReusable: true, reuseUserDataDir: unsafe }),
+            ).rejects.toThrow('Reusable Acceptance user data');
+            await expect(prepareAcceptanceUserData({ cleanupReusable: true })).rejects.toThrow(
+                '--cleanup-reused-user-data requires --reuse-user-data',
+            );
+
+            const finalLaunch = await prepareAcceptanceUserData({
+                cleanupReusable: true,
+                reuseUserDataDir: reusable,
+            });
+            await removeOwnedUserData(finalLaunch);
+            await expect(access(reusable)).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+            await rm(reusable, { force: true, recursive: true });
+            await rm(unsafe, { force: true, recursive: true });
         }
     });
 });
