@@ -14,6 +14,7 @@ import {
 import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
 import type { AgentProvider } from '../src/shared/agents.ts';
 import { registerE2ELaunch } from './error-gate.ts';
+import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';
@@ -53,10 +54,9 @@ const e2eAgentEnvironmentKeys = [
 ] as const;
 
 /**
- * Guards against testing stale build output. Focused e2e runs (eg.
- * `bunx playwright test e2e/foo.e2e.ts`) intentionally skip the `bun run build`
- * step for iteration speed, which otherwise lets a spec silently launch a
- * previously built `out/main/index.js` and pass against old code.
+ * Guards against testing stale build output. The standard focused entrypoint
+ * (`bun run --silent check e2e/foo.e2e.ts --e2e`) builds first, while direct Playwright invocations may
+ * skip that step and otherwise silently launch a previously built `out/main/index.js`.
  */
 async function assertBuildIsFresh(): Promise<void> {
     await assertBuildOutputsFresh({
@@ -220,6 +220,7 @@ export async function launchCaxriApp(
         agentMode = { mode: 'blocked' },
     } = options;
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, env);
+    const workerIsolation = resolveE2EWorkerIsolation(process.env);
     const launchEnvironmentSource: NodeJS.ProcessEnv = {
         ...process.env,
         ...env,
@@ -228,6 +229,9 @@ export async function launchCaxriApp(
         CAXRI_E2E_WINDOW_MODE: windowMode,
         CAXRI_USER_DATA_DIR: userDataDir,
         CAXRI_TEST_ROOT_PATH: testRootPath,
+        ...(workerIsolation.workerNamespace
+            ? { CAXRI_E2E_WORKER_NAMESPACE: workerIsolation.workerNamespace }
+            : {}),
     };
     /** Prevent ambient internal test switches from adding an undeclared fake provider. */
     for (const key of e2eAgentEnvironmentKeys) {
@@ -241,6 +245,11 @@ export async function launchCaxriApp(
     let lease: DesktopLeaseHandle = await acquireDesktopLease(
         projectRoot,
         executablePath ? 'performance benchmark' : 'Electron E2E',
+        process.pid,
+        {
+            coordinatorToken: workerIsolation.coordinatorToken,
+            namespace: workerIsolation.leaseNamespace,
+        },
     );
     let releasePromise: Promise<void> | undefined;
     const releaseLease = (): Promise<void> => (releasePromise ??= releaseDesktopLease(lease));

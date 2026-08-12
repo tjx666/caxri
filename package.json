@@ -53,7 +53,9 @@
             ".agents/skills/acceptance/scripts/report.ts",
             ".agents/skills/acceptance/scripts/start-electron.ts",
             ".agents/skills/acceptance/scripts/stop-electron.ts",
-            ".agents/skills/go/scripts/state.ts"
+            ".agents/skills/go/scripts/state.ts",
+            "scripts/run-e2e-failure-isolation.ts",
+            "scripts/run-e2e-pools.ts"
         ],
         "ignore": [
             ".agents/skills/deep-review/scripts/vitest.config.ts"
