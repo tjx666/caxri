@@ -349,7 +349,9 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     const paneBounds = pane.getBoundingClientRect();
                     const screen = pane.querySelector('.xterm-screen')?.getBoundingClientRect();
                     const scrollbar = pane
-                        .querySelector('.xterm-scrollable-element > .scrollbar.vertical')
+                        .querySelector(
+                            '.xterm-scrollable-element > .xterm-scrollbar.xterm-vertical',
+                        )
                         ?.getBoundingClientRect();
                     if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
                     return {
