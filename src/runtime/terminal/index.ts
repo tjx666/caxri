@@ -30,6 +30,7 @@ import type { CaxriDatabase } from '../db';
 import type { ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
+import { TerminalImageRecoveryFilter } from './image-recovery';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
 
@@ -54,6 +55,7 @@ export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): No
 }
 
 interface LiveTerminal {
+    imageRecovery: TerminalImageRecoveryFilter;
     process: pty.IPty;
     record: TerminalRecord;
     screen: TerminalScreenState;
@@ -209,7 +211,20 @@ export class TerminalManager {
                       }),
                 ...this.lifecycleEnvironment?.(record),
             };
-            const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
+            const storedSnapshot = this.database.getSnapshot(record.id);
+            const initialImageRecovery = new TerminalImageRecoveryFilter();
+            const initialSnapshot = `${initialImageRecovery.push(
+                storedSnapshot?.payload ?? '',
+            )}${initialImageRecovery.finish()}`;
+            const snapshot = new TerminalSnapshotBuffer(initialSnapshot);
+            if (storedSnapshot && initialSnapshot !== storedSnapshot.payload) {
+                this.database.saveSnapshot({
+                    terminalId: record.id,
+                    encodingVersion: 1,
+                    ...snapshot.read(),
+                    updatedAt: Date.now(),
+                });
+            }
             const initialSize = this.attachedSizes.get(record.id) ?? { cols: 100, rows: 30 };
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -224,6 +239,7 @@ export class TerminalManager {
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
             const live: LiveTerminal = {
+                imageRecovery: new TerminalImageRecoveryFilter(),
                 process: child,
                 record,
                 screen: new TerminalScreenState(
@@ -237,7 +253,7 @@ export class TerminalManager {
                             }),
                     },
                 ),
-                snapshot: new TerminalSnapshotBuffer(initialSnapshot),
+                snapshot,
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,
                 metricOutputBytes: 0,
@@ -317,8 +333,9 @@ export class TerminalManager {
         }, 16);
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
-        live.screen.write(data);
-        live.snapshot.append(data);
+        const recoveryData = live.imageRecovery.push(data);
+        live.screen.write(recoveryData);
+        live.snapshot.append(recoveryData);
         if (this.attached.has(live.record.id)) {
             const droppedBytes = live.outputQueue.appendBounded(data);
             live.droppedBytes += droppedBytes;
@@ -548,7 +565,12 @@ export class TerminalManager {
         this.clearTerminalTimers(live);
         this.flushOutput(live);
         this.flushMetrics(live);
-        if (options.persist) this.persistSnapshot(live);
+        if (options.persist) {
+            const recoveryTail = live.imageRecovery.finish();
+            live.screen.write(recoveryTail);
+            live.snapshot.append(recoveryTail);
+            this.persistSnapshot(live);
+        }
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
         this.attachedSizes.delete(live.record.id);

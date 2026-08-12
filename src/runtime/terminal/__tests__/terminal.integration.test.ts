@@ -11,6 +11,7 @@ import type { TerminalKind } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
 import { MAX_SNAPSHOT_BYTES } from '../../snapshot';
 import { TerminalManager } from '..';
+import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../image-recovery';
 
 const temporaryDirectories: string[] = [];
 
@@ -313,6 +314,79 @@ describe('TerminalManager', () => {
             manager.close(created.terminal.id);
             database.close();
             vi.useRealTimers();
+        }
+    });
+
+    it('renders image bytes live but persists only a content-free recovery placeholder', async () => {
+        vi.useFakeTimers();
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-image-recovery-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const fake = createFakePty();
+        let output = '';
+        const manager = new TerminalManager(
+            database,
+            (event) => {
+                if (event.event === 'terminal.output') output += event.payload.data;
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                snapshotIntervalMs: 50,
+                spawn: () => fake.process,
+            },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            await manager.attach(created.terminal.id);
+            const image = '\x1b]1337;File=inline=1:PNG_SECRET\x07';
+            fake.emitData(`before${image}after`);
+            await vi.advanceTimersByTimeAsync(50);
+
+            expect(output).toContain(image);
+            expect(database.getSnapshot(created.terminal.id)?.payload).toBe(
+                `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
+            );
+            expect(database.getSnapshot(created.terminal.id)?.payload).not.toContain('PNG_SECRET');
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+            vi.useRealTimers();
+        }
+    });
+
+    it('sanitizes a legacy image-bearing snapshot before restoring it', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-image-migration-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        database.saveSnapshot({
+            byteCount: 43,
+            encodingVersion: 1,
+            lineCount: 1,
+            payload: 'before\x1b]1337;File=inline=1:OLD_SECRET\x07after',
+            terminalId: created.terminal.id,
+            updatedAt: Date.now(),
+        });
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        try {
+            await manager.start(created.terminal);
+
+            expect(database.getSnapshot(created.terminal.id)?.payload).toBe(
+                `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
+            );
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
         }
     });
 
