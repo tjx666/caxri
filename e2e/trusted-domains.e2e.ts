@@ -105,6 +105,18 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
             },
         ]);
 
+        await running.page.evaluate(() => window.open('https://example.com/passive'));
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriTrustedDomainProbe?: { opened: string[] };
+                    };
+                    return target.caxriTrustedDomainProbe?.opened;
+                }),
+            )
+            .toEqual([firstUrl, secondUrl]);
+
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         await palette

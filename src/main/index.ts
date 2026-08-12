@@ -162,14 +162,6 @@ async function handleExternalUrl(
     );
 }
 
-function handlePassiveExternalUrl(url: string, window: BrowserWindow): void {
-    void handleExternalUrl(url, { allowTrust: false, window }).catch((error) =>
-        mainLogger?.write('error', 'external.open_failed', {
-            fields: { error: errorMessage(error, 'Unable to open external link') },
-        }),
-    );
-}
-
 function createWindow(initialState: PersistedWindowState): BrowserWindow {
     const window = new BrowserWindow({
         ...initialState.bounds,
@@ -249,15 +241,12 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             void updateService.check();
         }
     });
-    window.webContents.setWindowOpenHandler(({ url }) => {
-        handlePassiveExternalUrl(url, window);
-        return { action: 'deny' };
-    });
+    /** Passive page content never inherits authority from an explicitly trusted Terminal link. */
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event, url) => {
         const currentUrl = window.webContents.getURL();
         if (url === currentUrl) return;
         event.preventDefault();
-        handlePassiveExternalUrl(url, window);
     });
     /** Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults. */
     window.webContents.on('console-message', (details) => {
