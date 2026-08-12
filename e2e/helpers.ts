@@ -397,6 +397,70 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.press('Enter');
 }
 
+async function terminalTextBounds(page: Page, text: string) {
+    return page.locator('.xterm-rows').evaluate((rows, target) => {
+        let matched: { x: number; y: number; width: number; height: number } | undefined;
+        for (const row of rows.children) {
+            const rowText = row.textContent ?? '';
+            const targetStart = rowText.indexOf(target);
+            if (targetStart < 0) continue;
+            const range = document.createRange();
+            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+            let offset = 0;
+            let start: { node: Node; offset: number } | undefined;
+            let end: { node: Node; offset: number } | undefined;
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                const length = node.textContent?.length ?? 0;
+                if (!start && targetStart >= offset && targetStart <= offset + length)
+                    start = { node, offset: targetStart - offset };
+                const targetEnd = targetStart + target.length;
+                if (targetEnd >= offset && targetEnd <= offset + length) {
+                    end = { node, offset: targetEnd - offset };
+                    break;
+                }
+                offset += length;
+            }
+            if (!start || !end) continue;
+            range.setStart(start.node, start.offset);
+            range.setEnd(end.node, end.offset);
+            const bounds = range.getBoundingClientRect();
+            matched = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+        }
+        return matched ?? null;
+    }, text);
+}
+
+/**
+ * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches
+ * an empty provider result when output replaces a blank row beneath a stationary pointer.
+ */
+export async function clickTerminalLink(page: Page, text: string): Promise<void> {
+    await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
+    const bounds = await terminalTextBounds(page, text);
+    if (!bounds) throw new Error(`Terminal text not found: ${text}`);
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    const rows = page.locator('.xterm-rows > div');
+    const [firstRow, lastRow] = await Promise.all([
+        rows.first().boundingBox(),
+        rows.last().boundingBox(),
+    ]);
+    if (!firstRow || !lastRow) throw new Error('Terminal rows not found');
+    const firstY = firstRow.y + firstRow.height / 2;
+    const lastY = lastRow.y + lastRow.height / 2;
+    const resetRow = Math.abs(y - firstY) > Math.abs(y - lastY) ? firstRow : lastRow;
+    await page.mouse.move(resetRow.x + 2, resetRow.y + resetRow.height / 2);
+    await expect(page.locator('.xterm-cursor-pointer')).toHaveCount(0);
+    await page.mouse.move(x, y);
+    await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
+    await page.keyboard.down('Meta');
+    try {
+        await page.mouse.click(x, y);
+    } finally {
+        await page.keyboard.up('Meta');
+    }
+}
+
 export type PageReply<T> =
     { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
 
