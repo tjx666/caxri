@@ -1,0 +1,321 @@
+import { createHash } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { z } from 'zod';
+
+import { validateHumanText } from '../../acceptance/scripts/validate-report';
+
+export const materialDriftKindSchema = z.enum([
+    'disproven_root_cause',
+    'partial_root_cause',
+    'architecture_change',
+    'acceptance_change',
+    'scope_change',
+    'already_satisfied',
+]);
+export const nonMaterialDriftKindSchema = z.enum([
+    'equivalent_refactor',
+    'test_split',
+    'formatting',
+    'internal_detail',
+]);
+export const driftKindSchema = z.union([materialDriftKindSchema, nonMaterialDriftKindSchema]);
+export const expectationDriftStatusSchema = z.enum([
+    'none',
+    'detected',
+    'commented',
+    'decision_required',
+]);
+
+const driftRecordSchema = z.object({
+    acceptanceImpact: z.string().min(1),
+    classification: materialDriftKindSchema,
+    commentUrl: z.url().nullable(),
+    commentedAt: z.string().nullable(),
+    decision: z.string().min(1),
+    decisionRequired: z.boolean(),
+    detectedAt: z.string(),
+    driftKey: z.string().min(1),
+    evidence: z.string().min(1),
+    expectation: z.string().min(1),
+    fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
+    headSha: z.string().min(1),
+    id: z.string().min(1),
+    supersededBy: z.string().min(1).nullable(),
+});
+
+export const issueExpectationDriftSchema = z.object({
+    assessedAt: z.string().nullable(),
+    assessmentHeadSha: z.string().min(1).nullable(),
+    records: z.array(driftRecordSchema),
+    status: expectationDriftStatusSchema,
+});
+
+export type IssueExpectationDrift = z.infer<typeof issueExpectationDriftSchema>;
+export type DriftRecord = z.infer<typeof driftRecordSchema>;
+
+interface DriftIssue {
+    expectationDrift: IssueExpectationDrift;
+    number: number;
+}
+
+interface DriftContext {
+    issues: DriftIssue[];
+}
+
+export interface AssessDriftInput {
+    acceptanceImpact?: string;
+    decision?: string;
+    decisionRequired?: boolean;
+    driftKey: string;
+    evidence?: string;
+    expectation?: string;
+    headSha: string;
+    issueNumber: number;
+    kind: z.infer<typeof driftKindSchema>;
+}
+
+type CommentPublisher = (input: {
+    body: string;
+    fingerprint: string;
+    issueNumber: number;
+}) => Promise<{ url: string }>;
+
+export function createEmptyIssueExpectationDrift(): IssueExpectationDrift {
+    return { assessedAt: null, assessmentHeadSha: null, records: [], status: 'none' };
+}
+
+/** Missing drift state predates the public-decision gate and remains resumable. */
+export function createImportedIssueExpectationDrift(): IssueExpectationDrift {
+    return {
+        assessedAt: 'legacy-unavailable',
+        assessmentHeadSha: null,
+        records: [],
+        status: 'none',
+    };
+}
+
+export function isMaterialExpectationDrift(
+    kind: z.infer<typeof driftKindSchema>,
+): kind is z.infer<typeof materialDriftKindSchema> {
+    return materialDriftKindSchema.safeParse(kind).success;
+}
+
+function issueFor(state: DriftContext, issueNumber: number): DriftIssue {
+    const issue = state.issues.find(({ number }) => number === issueNumber);
+    if (!issue) throw new Error(`Unknown issue: #${issueNumber}`);
+    return issue;
+}
+
+function activeRecords(drift: IssueExpectationDrift): DriftRecord[] {
+    return drift.records.filter(({ supersededBy }) => supersededBy === null);
+}
+
+function refreshStatus(drift: IssueExpectationDrift): void {
+    const active = activeRecords(drift);
+    if (active.some(({ decisionRequired }) => decisionRequired)) {
+        drift.status = 'decision_required';
+    } else if (active.some(({ commentUrl }) => commentUrl === null)) {
+        drift.status = 'detected';
+    } else if (drift.records.length > 0) {
+        drift.status = 'commented';
+    } else {
+        drift.status = 'none';
+    }
+}
+
+function fingerprint(input: AssessDriftInput): string {
+    return createHash('sha256')
+        .update(
+            JSON.stringify({
+                acceptanceImpact: input.acceptanceImpact,
+                decision: input.decision,
+                decisionRequired: Boolean(input.decisionRequired),
+                driftKey: input.driftKey,
+                evidence: input.evidence,
+                expectation: input.expectation,
+                headSha: input.headSha,
+                kind: input.kind,
+            }),
+        )
+        .digest('hex');
+}
+
+export function assessExpectationDrift(
+    state: DriftContext,
+    input: AssessDriftInput,
+    assessedAt = new Date().toISOString(),
+): { material: boolean; record: DriftRecord | null } {
+    const issue = issueFor(state, input.issueNumber);
+    issue.expectationDrift.assessedAt = assessedAt;
+    issue.expectationDrift.assessmentHeadSha = input.headSha;
+    if (!isMaterialExpectationDrift(input.kind)) {
+        if (activeRecords(issue.expectationDrift).length > 0) {
+            throw new Error('A non-material assessment cannot clear an active material drift');
+        }
+        refreshStatus(issue.expectationDrift);
+        return { material: false, record: null };
+    }
+
+    const expectation = validateHumanText(input.expectation, 'issue drift expectation');
+    const evidence = validateHumanText(input.evidence, 'issue drift evidence');
+    const decision = validateHumanText(input.decision, 'issue drift decision');
+    const acceptanceImpact = validateHumanText(
+        input.acceptanceImpact,
+        'issue drift Acceptance impact',
+    );
+    const nextFingerprint = fingerprint(input);
+    const current = activeRecords(issue.expectationDrift).find(
+        ({ driftKey }) => driftKey === input.driftKey,
+    );
+    if (current?.fingerprint === nextFingerprint) return { material: true, record: current };
+
+    const revision =
+        issue.expectationDrift.records.filter(({ driftKey }) => driftKey === input.driftKey)
+            .length + 1;
+    const id = `${input.driftKey}-r${revision}`;
+    if (current) current.supersededBy = id;
+    const record = driftRecordSchema.parse({
+        acceptanceImpact,
+        classification: input.kind,
+        commentUrl: null,
+        commentedAt: null,
+        decision,
+        decisionRequired: Boolean(input.decisionRequired),
+        detectedAt: assessedAt,
+        driftKey: input.driftKey,
+        evidence,
+        expectation,
+        fingerprint: nextFingerprint,
+        headSha: input.headSha,
+        id,
+        supersededBy: null,
+    });
+    issue.expectationDrift.records.push(record);
+    refreshStatus(issue.expectationDrift);
+    return { material: true, record };
+}
+
+export function buildExpectationDriftComment(record: DriftRecord): string {
+    const body = `## 实现决策回写
+
+- **原预期**：${record.expectation}
+- **实际发现**：${record.evidence}
+- **处理决定**：${record.decision}
+- **验收影响**：${record.acceptanceImpact}
+
+关联 head：\`${record.headSha}\`
+`;
+    validateHumanText(body, 'issue drift comment');
+    return `${body}\n<!-- caxri-go-drift:${record.fingerprint} -->\n`;
+}
+
+export async function publishExpectationDriftComment(
+    state: DriftContext,
+    input: { issueNumber: number; recordId: string },
+    publish: CommentPublisher,
+    commentedAt = new Date().toISOString(),
+): Promise<DriftRecord> {
+    const issue = issueFor(state, input.issueNumber);
+    const record = issue.expectationDrift.records.find(({ id }) => id === input.recordId);
+    if (!record) throw new Error(`Unknown issue drift record: ${input.recordId}`);
+    if (record.supersededBy) throw new Error('Superseded issue drift cannot be published');
+    if (record.commentUrl) return record;
+    const published = await publish({
+        body: buildExpectationDriftComment(record),
+        fingerprint: record.fingerprint,
+        issueNumber: input.issueNumber,
+    });
+    record.commentUrl = z.url().parse(published.url);
+    record.commentedAt = commentedAt;
+    refreshStatus(issue.expectationDrift);
+    return record;
+}
+
+export function assertIssueExpectationDriftReady(
+    issue: DriftIssue,
+    expectedHeadSha?: string,
+): void {
+    const drift = issue.expectationDrift;
+    if (!drift.assessedAt) {
+        throw new Error(`Issue #${issue.number} requires an expectation-drift assessment`);
+    }
+    if (drift.status === 'detected') {
+        throw new Error(`Issue #${issue.number} has material expectation drift without a comment`);
+    }
+    if (drift.status === 'decision_required') {
+        throw new Error(`Issue #${issue.number} expectation drift requires a user decision`);
+    }
+    if (
+        expectedHeadSha &&
+        drift.assessedAt !== 'legacy-unavailable' &&
+        drift.assessmentHeadSha !== expectedHeadSha
+    ) {
+        throw new Error(
+            `Issue #${issue.number} expectation drift assessment does not match the required head`,
+        );
+    }
+}
+
+function capture(command: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+        child.once('error', reject);
+        child.once('close', (code) => {
+            if (code === 0) resolve(stdout.trim());
+            else reject(new Error(`${command} exited ${String(code)}: ${stderr.trim()}`));
+        });
+    });
+}
+
+export function findPublishedDriftComment(pages: unknown, fingerprintValue: string): string | null {
+    const marker = `<!-- caxri-go-drift:${fingerprintValue} -->`;
+    const existing = z
+        .array(z.array(z.object({ body: z.string(), html_url: z.url() })))
+        .parse(pages)
+        .flat()
+        .find(({ body }) => body.includes(marker));
+    return existing?.html_url ?? null;
+}
+
+export async function publishExpectationDriftViaGh(input: {
+    body: string;
+    fingerprint: string;
+    issueNumber: number;
+}): Promise<{ url: string }> {
+    const pages: unknown = JSON.parse(
+        await capture('gh', [
+            'api',
+            '--paginate',
+            '--slurp',
+            `repos/tjx666/caxri/issues/${input.issueNumber}/comments?per_page=100`,
+        ]),
+    );
+    const existingUrl = findPublishedDriftComment(pages, input.fingerprint);
+    if (existingUrl) return { url: existingUrl };
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-issue-drift-'));
+    const bodyPath = join(directory, 'comment.md');
+    try {
+        await writeFile(bodyPath, input.body, 'utf8');
+        const output = await capture('gh', [
+            'issue',
+            'comment',
+            String(input.issueNumber),
+            '--repo',
+            'tjx666/caxri',
+            '--body-file',
+            bodyPath,
+        ]);
+        const url = output.match(/https:\/\/github\.com\/\S+/u)?.[0];
+        if (!url) throw new Error('GitHub did not return the created issue comment URL');
+        return { url };
+    } finally {
+        await rm(directory, { force: true, recursive: true });
+    }
+}

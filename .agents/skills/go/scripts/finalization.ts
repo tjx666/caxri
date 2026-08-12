@@ -2,6 +2,8 @@ import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 
+import { assertIssueExpectationDriftReady, type IssueExpectationDrift } from './issue-drift';
+
 const finalIssueSchema = z.object({
     number: z.number().int().positive(),
     projectStatus: z.literal('Done'),
@@ -30,9 +32,20 @@ interface FinalizationContext {
     acceptance: { acceptedHeadSha: string | null; status: string; waivedHeadSha?: string | null };
     finalization: FinalizationReceipt | null;
     handoffReport: { deliveredAt: string | null; headSha: string } | null;
-    issues: Array<{ number: number; status: string }>;
+    issues: Array<{
+        commits: string[];
+        expectationDrift: IssueExpectationDrift;
+        number: number;
+        status: string;
+    }>;
     phase: string;
     pullRequest: { headSha: string | null; number: number | null; status: string };
+}
+
+function assertFinalizationDriftReady(state: FinalizationContext, headSha: string): void {
+    for (const issue of state.issues.filter(({ status }) => status !== 'deferred')) {
+        assertIssueExpectationDriftReady(issue, headSha);
+    }
 }
 
 export async function generateFinalization(
@@ -70,6 +83,7 @@ export async function generateFinalization(
     if (intendedIssues.some(({ status }) => status !== 'complete')) {
         throw new Error('Finalization requires every intended ledger issue to be complete');
     }
+    assertFinalizationDriftReady(state, input.headSha);
     const suppliedNumbers = input.issues.map(({ number }) => number).sort((a, b) => a - b);
     if (
         JSON.stringify(suppliedNumbers) !==
@@ -103,6 +117,7 @@ export async function recordFinalizationDelivery(
         throw new Error('Finalization can be delivered only during finalization');
     }
     if (!state.finalization) throw new Error('Finalization receipt has not been generated');
+    assertFinalizationDriftReady(state, state.finalization.headSha);
     state.finalization.deliveredAt = deliveredAt;
     const path = join(runDirectory, state.finalization.path);
     const temporary = `${path}.${process.pid}.tmp`;
@@ -118,6 +133,7 @@ export function assertFinalizationComplete(state: FinalizationContext): void {
     if (!state.finalization?.deliveredAt) {
         throw new Error('Completion requires the delivered finalization receipt');
     }
+    assertFinalizationDriftReady(state, state.finalization.headSha);
     if (state.finalization.headSha !== state.handoffReport.headSha) {
         throw new Error('Finalization and handoff report must bind the same exact head');
     }

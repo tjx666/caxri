@@ -1,5 +1,9 @@
 import { createEmptyCiFallback, createEmptyValidationBudget } from './ci-fallback';
 import { createEmptyReviewGate, createReviewPolicy } from './review-gate';
+import {
+    createEmptyIssueExpectationDrift,
+    createImportedIssueExpectationDrift,
+} from './issue-drift';
 import { createRunBudget } from './run-budget';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -122,6 +126,32 @@ function migrateV5(state: Record<string, unknown>): Record<string, unknown> {
     };
 }
 
+function migrateV6(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyIssues: unknown[] = Array.isArray(state.issues) ? state.issues : [];
+    const issues = legacyIssues.map((issue) =>
+        isRecord(issue) && !('expectationDrift' in issue)
+            ? {
+                  ...issue,
+                  expectationDrift:
+                      issue.status === 'complete' || issue.status === 'deferred'
+                          ? createImportedIssueExpectationDrift()
+                          : createEmptyIssueExpectationDrift(),
+              }
+            : issue,
+    );
+    const handoffReport = isRecord(state.handoffReport) ? state.handoffReport : null;
+    const reportNeedsRegeneration = handoffReport !== null && !('evidence' in handoffReport);
+    const legacyPhase = typeof state.phase === 'string' ? state.phase : 'intake';
+    return {
+        ...state,
+        handoffReport: reportNeedsRegeneration ? null : state.handoffReport,
+        issues,
+        phase: reportNeedsRegeneration && legacyPhase === 'complete' ? 'finalization' : legacyPhase,
+        schemaVersion: 7,
+        status: reportNeedsRegeneration && legacyPhase === 'complete' ? 'active' : state.status,
+    };
+}
+
 export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (!isRecord(state)) return state;
     let migrated = state;
@@ -170,5 +200,6 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
         migrated = migrateReviewDecisionPhases(migrated);
     }
     if (migrated.schemaVersion === 5 && schemaVersion >= 6) migrated = migrateV5(migrated);
+    if (migrated.schemaVersion === 6 && schemaVersion >= 7) migrated = migrateV6(migrated);
     return migrated;
 }

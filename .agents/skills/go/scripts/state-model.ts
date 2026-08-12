@@ -12,6 +12,11 @@ import {
 import { assertFinalizationComplete, finalizationSchema } from './finalization';
 import { assertHandoffReady, handoffReportSchema } from './handoff-report';
 import {
+    assertIssueExpectationDriftReady,
+    createEmptyIssueExpectationDrift,
+    issueExpectationDriftSchema,
+} from './issue-drift';
+import {
     assertReviewHeadFrozen,
     createEmptyReviewGate,
     createReviewPolicy,
@@ -22,7 +27,7 @@ import { createRunBudget, ensurePhaseCheckpoint, runBudgetSchema } from './run-b
 import { migrateState } from './state-migration';
 import { validationsSchema } from './validation-gate';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 const MAX_EVENTS = 120;
 
 export const PHASES = [
@@ -86,6 +91,7 @@ const issueSchema = z.object({
     acceptanceCheckIds: z.array(z.string()),
     commits: z.array(z.string()),
     dependencies: z.array(z.number().int().positive()),
+    expectationDrift: issueExpectationDriftSchema,
     number: z.number().int().positive(),
     priority: z.string().nullable(),
     status: issueStatusSchema,
@@ -277,6 +283,12 @@ function decisionHead(state: GoState): string | null {
         : state.acceptance.acceptedHeadSha;
 }
 
+function assertAllIssueExpectationDriftReady(state: GoState, expectedHeadSha: string): void {
+    for (const issue of state.issues.filter(({ status }) => status !== 'deferred')) {
+        assertIssueExpectationDriftReady(issue, expectedHeadSha);
+    }
+}
+
 export function transitionState(state: GoState, phase: Phase, reason = ''): GoState {
     const allowed = PHASE_TRANSITIONS[state.phase];
     if (!allowed.has(phase))
@@ -284,7 +296,10 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
     ensurePhaseCheckpoint(state);
     if (state.phase === 'deep_review' && phase === 'delivery') assertReviewHeadFrozen(state);
     if (state.phase === 'delivery' && ['acceptance', 'acceptance_handoff'].includes(phase)) {
-        assertReviewHeadFrozen(state, state.pullRequest.headSha ?? undefined);
+        const headSha = state.pullRequest.headSha;
+        if (!headSha) throw new Error('Acceptance requires the exact pull request head');
+        assertAllIssueExpectationDriftReady(state, headSha);
+        assertReviewHeadFrozen(state, headSha);
         assertDeliveryCanAdvance(state);
         if (phase === 'acceptance_handoff' && state.acceptance.status !== 'waived') {
             throw new Error('Only an explicit Acceptance waiver can skip directly to handoff');
@@ -343,6 +358,7 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
             acceptanceCheckIds: [],
             commits: [],
             dependencies: [],
+            expectationDrift: createEmptyIssueExpectationDrift(),
             number: input.number,
             priority: input.priority ?? null,
             status: input.status ?? 'queued',
@@ -353,11 +369,18 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
     }
     if (input.title) issue.title = input.title;
     if (input.priority) issue.priority = input.priority;
-    if (input.status) issue.status = input.status;
+    const candidateCommits = [...issue.commits];
+    uniqueAppend(candidateCommits, input.commits ?? []);
+    if (input.status === 'complete') {
+        const committedHead = candidateCommits.at(-1);
+        if (!committedHead) throw new Error(`Issue #${issue.number} completion requires a commit`);
+        assertIssueExpectationDriftReady(issue, committedHead);
+    }
     uniqueAppend(issue.dependencies, input.dependencies ?? []);
-    uniqueAppend(issue.commits, input.commits ?? []);
+    uniqueAppend(issue.commits, candidateCommits);
     uniqueAppend(issue.acceptanceCheckIds, input.checks ?? []);
     uniqueAppend(issue.validations, input.validations ?? []);
+    if (input.status) issue.status = input.status;
     addEvent(state, 'issue', `#${issue.number} -> ${issue.status}`);
     return state;
 }
@@ -365,6 +388,11 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
 export function recordPullRequest(state: GoState, input: PullRequestInput): GoState {
     if (input.number !== undefined && (!Number.isInteger(input.number) || input.number <= 0)) {
         throw new Error('PR number must be positive');
+    }
+    if (input.status === 'ready') {
+        const headSha = input.headSha ?? state.pullRequest.headSha;
+        if (!headSha) throw new Error('PR readiness requires the exact head');
+        assertAllIssueExpectationDriftReady(state, headSha);
     }
     const headChanged = Boolean(
         input.headSha && state.pullRequest.headSha && input.headSha !== state.pullRequest.headSha,

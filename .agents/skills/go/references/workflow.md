@@ -31,6 +31,15 @@ reproducible. Keep commits cohesive and independently explainable. A shared root
 cause may satisfy multiple issues, but the ledger and issue-level Acceptance
 contracts retain each observable outcome.
 
+Before completion, compare the observed implementation and evidence with the
+issue's public expectation. Record an explicit assessment for the issue commit.
+Material root-cause, architecture, Acceptance, scope, compatibility, or
+already-satisfied drift must be published through the structured GitHub comment
+before completion. Equivalent refactors, test splits, formatting, and internal
+details remain `none` and do not create noise. A publication failure stays
+`detected` for resume. A scope-changing discovery stays `decision_required`
+after its discovery comment; comments never expand the frozen Goal.
+
 ## Aggregate review policy and lineage
 
 Freeze `reviewPolicy` before the aggregate review. The default is `full-once`;
@@ -88,6 +97,7 @@ scope decision, run `checkpoint` and `scope-admit`.
 | Other zero-step hosted infrastructure failure     | Request separate authorization before fallback                                              |
 | Durable product technical debt                    | Record it and create a follow-up issue before completion                                    |
 | Non-blocking workflow improvement after threshold | Route through `scope-admit` to a follow-up                                                  |
+| Issue expectation differs materially              | Append a structured issue comment; request a decision before scope expansion                |
 
 ## Guarded local CI fallback
 

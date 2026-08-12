@@ -99,15 +99,27 @@ For each queued issue in dependency order:
    before fixing it. Finish source edits before updating tests when project
    instructions require that order.
 4. Implement the smallest cohesive solution and run only affected validation.
-5. Invoke `deep-review` in light mode for the issue's current diff. Collect and
+5. Compare the implementation, validation, and repair evidence with the issue's
+   recorded diagnosis, solution, and Acceptance contract. Record an explicit
+   expectation-drift assessment for the current issue head. Material drift
+   requires a concise Simplified Chinese GitHub comment with `原预期`, `实际发现`,
+   `处理决定`, and `验收影响`; equivalent refactors, test splits, formatting, and
+   internal details record `none` without posting. A changed decision appends a
+   new comment revision; never edit or duplicate the old comment. Scope-changing
+   drift remains `decision_required` after its discovery comment and requires
+   user direction.
+6. Invoke `deep-review` in light mode for the issue's current diff. Collect and
    adjudicate the whole result before editing; do not repair findings as
    reviewers arrive.
-6. Repair valid product P0/P1 findings, run focused validation, and use at most
+7. Repair valid product P0/P1 findings, run focused validation, and use at most
    one light delta recheck. Record P2/P3 findings as debt unless they directly
    violate the frozen issue outcome. Do not start another light-review loop once
    the delta recheck has no product P0/P1.
-7. Create one cohesive English commit. Record the commit, validation, and stable
-   Acceptance ids in the ledger. Continue immediately to the next issue.
+8. Create one cohesive English commit. Reassess drift against the committed
+   head, publish any required comment, then record the commit, validation, and
+   stable Acceptance ids in the ledger. Issue completion fails closed when the
+   assessment is missing, stale, unpublished, or awaiting a decision. Continue
+   immediately to the next issue.
 
 Do not capture final Acceptance evidence yet; later cross-issue repairs can make
 it stale.
@@ -146,7 +158,9 @@ After all issue commits:
    uninvalidated passing exact-head gate, and stop when the lineage repair budget
    is exhausted.
 6. Push the branch and create a PR whose body maps issues to behavior and uses
-   closing keywords for issues that should close on merge.
+   closing keywords for issues that should close on merge. The PR cannot become
+   ready until every in-scope issue's material drift is commented and every
+   scope decision is resolved.
 7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
    issue-level Acceptance coverage contract. A narrow Acceptance must never
    certify a broader PR.
