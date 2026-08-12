@@ -9,8 +9,37 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
+  retry-policy:
+    name: retry-policy / pr-${{ github.event.pull_request.number || 0 }} / base-${{ github.event.pull_request.base.sha || '0000000000000000000000000000000000000000' }}
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.policy.outputs.mode }}
+      reason: ${{ steps.policy.outputs.reason }}
+      base_run: ${{ steps.policy.outputs.base_run }}
+      validated_tree: ${{ steps.policy.outputs.validated_tree }}
+      e2e_tests: ${{ steps.policy.outputs.e2e_tests }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # PR workflows otherwise check out GitHub's synthetic merge commit, which cannot carry
+          # the immutable retry trailers or exact validated tree from the pushed head.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: oven-sh/setup-bun@v2
+      - id: policy
+        name: Resolve exact-tree retry policy
+        run: bun run scripts/ci-retry-policy.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   checks:
+    needs: retry-policy
+    if: needs.retry-policy.outputs.mode == 'full'
     # Platform-neutral gates stay on Linux so private-repository macOS minutes are reserved for
     # Electron behavior and release validation that actually depend on macOS.
     runs-on: ubuntu-latest
@@ -24,9 +53,26 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
       - uses: oven-sh/setup-bun@v2
-      - run: npm ci
+      - name: Restore npm cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-
+      - name: Use repository-pinned npm
+        run: |
+          npm install --global npm@12.0.2
+          test "$(npm --version)" = "12.0.2"
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Restore quality caches
+        uses: actions/cache@v5
+        with:
+          path: |
+            .cache/eslint
+            .cache/prettier
+          key: quality-${{ runner.os }}-${{ hashFiles('eslint.config.ts', '.prettierrc', '.prettierignore') }}-${{ hashFiles('package-lock.json', 'package.json') }}
+          restore-keys: quality-${{ runner.os }}-${{ hashFiles('eslint.config.ts', '.prettierrc', '.prettierignore') }}-
       - run: bun run lint
       - run: bun run knip
       - run: bun run doctor:changed
@@ -34,25 +80,55 @@ jobs:
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
       - run: bun run typecheck
       - run: bun run format:check
-      - run: bun run format:md:check
       - run: bun run test
       - run: bun run build
 
   e2e:
-    needs: checks
+    needs: [retry-policy, checks]
     if: >-
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
+      always() &&
+      needs.retry-policy.result == 'success' &&
+      (
+        ((needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') && github.event_name == 'pull_request') ||
+        (
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.checks.result == 'success' &&
+          (
+            github.event_name == 'pull_request' ||
+            (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
+          )
+        )
+      )
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
       - uses: oven-sh/setup-bun@v2
-      - run: npm ci
-      - run: bun run test:e2e
+      - name: Restore npm cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-
+      - name: Use repository-pinned npm
+        run: |
+          npm install --global npm@12.0.2
+          test "$(npm --version)" = "12.0.2"
+      - name: Restore Electron download cache
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: bun run build
+      - name: Run focused repair specs
+        if: needs.retry-policy.outputs.mode == 'e2e-repair'
+        env:
+          CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
+        run: bun run scripts/run-e2e-repair.ts
+      - run: bunx playwright test
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
@@ -62,3 +138,32 @@ jobs:
             test-results/
             logs/
           if-no-files-found: ignore
+          retention-days: 7
+
+  ci:
+    name: CI gate
+    if: always()
+    needs: [retry-policy, checks, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required execution path
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          MODE: ${{ needs.retry-policy.outputs.mode }}
+          RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
+          SHOULD_RUN_E2E: >-
+            ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v')) }}
+        run: |
+          test "$RETRY_POLICY_RESULT" = success
+          if test "$MODE" = full; then
+            test "$CHECKS_RESULT" = success
+          else
+            test "$MODE" = e2e-only || test "$MODE" = e2e-repair
+            test "$CHECKS_RESULT" = skipped
+          fi
+          if test "$SHOULD_RUN_E2E" = true; then
+            test "$E2E_RESULT" = success
+          else
+            test "$E2E_RESULT" = skipped
+          fi

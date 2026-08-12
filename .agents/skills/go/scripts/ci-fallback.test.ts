@@ -67,11 +67,11 @@ describe('Go local CI fallback', () => {
             .map((match) => match[1])
             .filter(
                 (action) =>
-                    !/^(actions\/checkout|actions\/setup-node|oven-sh\/setup-bun)@/.test(action),
+                    !/^(actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun)@/.test(action),
             );
         const commands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
             .map((match) => match[1])
-            .filter((command) => command !== 'npm ci');
+            .filter((command) => !command.startsWith('npm ci'));
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);

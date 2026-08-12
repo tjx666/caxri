@@ -61,6 +61,26 @@ machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed hosted run red while diagnosing it.
 
+## Controlled PR retries
+
+For a new repair commit after a base run's Linux `checks` passed and macOS `e2e` failed, first run
+the complete platform-neutral command sequence from `.github/workflows/ci.yml` on the clean commit.
+Then amend only commit metadata with this immutable receipt, using the exact tree printed before the
+amend:
+
+```text
+CI-Mode: e2e-only
+CI-Base-Run: <failed-run-id>
+CI-Validated-Tree: <git rev-parse HEAD^{tree}>
+```
+
+Use `CI-Mode: e2e-repair` plus one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` JSON trailer when one or
+more named specs should fail fast before the complete E2E suite. The CI policy admits the shortcut
+only for the same PR, base SHA, workflow, ancestor head, and exact tree; malformed, stale, missing,
+or protected-configuration evidence falls back to full CI. A focused pass is diagnostic only and
+always continues to the complete suite on the same macOS runner. For the same SHA, prefer
+`gh run rerun <run-id> --failed` without adding trailers.
+
 ## Remote full suite
 
 Never run `bun run test:e2e` locally during an ordinary run. When focused coverage is insufficient,

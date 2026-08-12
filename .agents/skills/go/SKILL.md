@@ -113,6 +113,9 @@ After all issue commits:
    changed-file checks, `knip`, `doctor`, builds, and focused Electron E2E. Then
    invoke the repository's `deep-review` skill in full deep mode over the whole
    Goal range.
+   Before the first ready PR push, run the exact platform-neutral command list
+   exported by `scripts/ci-fallback.ts`; its contract test keeps that list in
+   lockstep with every executable `checks` step in `.github/workflows/ci.yml`.
 2. Collect all reports for the round before adjudication. Repair valid product
    P0/P1 findings as one cohesive batch and run only affected validation.
    Delivery evidence, PR prose, and workflow bookkeeping never reopen product

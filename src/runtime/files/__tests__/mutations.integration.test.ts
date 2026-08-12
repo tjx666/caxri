@@ -579,10 +579,11 @@ describe('FileMutationService', () => {
             path: source,
             directory: fixture.root,
         });
+        const timedOut = expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
         await transferStarted;
         await vi.advanceTimersByTimeAsync(10);
 
-        await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
+        await timedOut;
         await expect(copying).rejects.toThrow('partial copy was kept');
         await expect(readFile(target, 'utf8')).resolves.toBe('partial');
     });
@@ -620,10 +621,11 @@ describe('FileMutationService', () => {
             path: source,
             directory: fixture.root,
         });
+        const timedOut = expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
         await transferStarted;
         await vi.advanceTimersByTimeAsync(10);
 
-        await expect(copying).rejects.toMatchObject({ code: 'TIMEOUT' });
+        await timedOut;
         await expect(readFile(foreignPath, 'utf8')).resolves.toBe('foreign');
         await expect(readFile(join(target, 'nested.txt'), 'utf8')).resolves.toBe('partial');
     });
