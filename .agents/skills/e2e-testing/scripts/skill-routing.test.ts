@@ -1,0 +1,51 @@
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { describe, expect, it } from 'vitest';
+
+const skillDirectory = join(dirname(fileURLToPath(import.meta.url)), '..');
+const skillsDirectory = join(skillDirectory, '..');
+const repositoryRoot = join(skillsDirectory, '..', '..');
+const unitSkill = readFileSync(join(skillsDirectory, 'unit-test', 'SKILL.md'), 'utf8');
+const e2eSkill = readFileSync(join(skillDirectory, 'SKILL.md'), 'utf8');
+
+function contractFiles(directory: string): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        if (
+            entry.isDirectory() &&
+            new Set(['.git', '.records', 'competitors', 'dist', 'node_modules', 'release']).has(
+                entry.name,
+            )
+        ) {
+            return [];
+        }
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) return contractFiles(path);
+        return /\.(?:md|ya?ml)$/.test(entry.name) ? [path] : [];
+    });
+}
+
+describe('testing skill routing', () => {
+    it('exposes separate and mutually exclusive unit and Electron workflows', () => {
+        expect(unitSkill).toContain('name: unit-test');
+        expect(unitSkill).toContain('does not own Playwright');
+        expect(e2eSkill).toContain('name: e2e-testing');
+        expect(e2eSkill).toContain('Do not use as the default Vitest workflow');
+        expect(e2eSkill).toContain('--workers=1 --repeat-each=3');
+        expect(e2eSkill).toContain('long temporary-path conditions');
+        expect(e2eSkill).toContain('observable product invariant');
+    });
+
+    it('removes the legacy combined skill and routes repository contracts explicitly', () => {
+        expect(existsSync(join(skillsDirectory, 'test'))).toBe(false);
+        const legacyPath = ['.agents', 'skills', 'test', 'SKILL.md'].join('/');
+        const legacyInvocation = ['$', 'test'].join('');
+        for (const path of contractFiles(repositoryRoot)) {
+            const source = readFileSync(path, 'utf8');
+            expect(source, path).not.toContain(legacyPath);
+            expect(source, path).not.toContain('the `test` skill');
+            expect(source, path).not.toContain(legacyInvocation);
+        }
+    });
+});

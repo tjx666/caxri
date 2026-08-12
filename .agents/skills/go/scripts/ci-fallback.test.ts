@@ -31,6 +31,7 @@ function blockedDelivery() {
         mode: 'full',
         p0: 0,
         p1: 0,
+        reviewedRange: 'origin/main...abc123',
         scope: 'Goal range',
     });
     transitionState(state, 'delivery');
@@ -59,6 +60,26 @@ function admit(state: ReturnType<typeof blockedDelivery>) {
     );
 }
 
+function reviewDeliveryDelta(
+    state: ReturnType<typeof blockedDelivery>,
+    parentHeadSha: string,
+    nextHeadSha: string,
+) {
+    const parent = state.reviewGate.rounds.at(-1)!;
+    return recordReviewDecision(state, {
+        baselineHeadSha: 'abc123',
+        baselineReviewId: 'review-001',
+        freeze: true,
+        headSha: nextHeadSha,
+        mode: 'light',
+        p0: 0,
+        p1: 0,
+        parentReviewId: parent.id,
+        reviewedRange: `${parentHeadSha}..${nextHeadSha}`,
+        scope: 'Delivery repair delta',
+    });
+}
+
 describe('Go local CI fallback', () => {
     it('matches every executable step in the hosted checks job', async () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
@@ -67,11 +88,11 @@ describe('Go local CI fallback', () => {
             .map((match) => match[1])
             .filter(
                 (action) =>
-                    !/^(actions\/checkout|actions\/setup-node|oven-sh\/setup-bun)@/.test(action),
+                    !/^(actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun)@/.test(action),
             );
         const commands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
             .map((match) => match[1])
-            .filter((command) => command !== 'npm ci');
+            .filter((command) => !command.startsWith('npm ci'));
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
@@ -218,7 +239,7 @@ describe('Go local CI fallback', () => {
         expect(state.ciFallback.status).toBe('not_requested');
         expect(state.reviewGate.frozenHeadSha).toBeNull();
         expect(state.events.findLast(({ type }) => type === 'ci_fallback')).toMatchObject({
-            detail: `Invalidated admitted fallback for ${headSha}`,
+            detail: `Invalidated fallback for ${headSha}`,
             type: 'ci_fallback',
         });
         expect(validateState(state)).toEqual(state);
@@ -226,14 +247,7 @@ describe('Go local CI fallback', () => {
 
     it('preserves a replacement head freeze recorded before the PR update', () => {
         const state = blockedDelivery();
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'reviewed-replacement',
-            mode: 'targeted',
-            p0: 0,
-            p1: 0,
-            scope: 'Delivery repair',
-        });
+        reviewDeliveryDelta(state, headSha, 'reviewed-replacement');
 
         recordPullRequest(state, { headSha: 'reviewed-replacement', status: 'checks_pending' });
 
@@ -317,14 +331,7 @@ describe('Go local CI fallback', () => {
         });
 
         recordPullRequest(state, { headSha: 'second-head', status: 'checks_blocked' });
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'second-head',
-            mode: 'targeted',
-            p0: 0,
-            p1: 0,
-            scope: 'First E2E repair',
-        });
+        reviewDeliveryDelta(state, headSha, 'second-head');
         admitCiFallback(state, {
             failureDetail: 'The job was not started because the spending limit was reached.',
             failureJob: 'checks',
@@ -342,14 +349,7 @@ describe('Go local CI fallback', () => {
         });
 
         recordPullRequest(state, { headSha: 'third-head', status: 'checks_blocked' });
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'third-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Second E2E repair',
-        });
+        reviewDeliveryDelta(state, 'second-head', 'third-head');
         expect(() =>
             admitCiFallback(state, {
                 failureDetail: 'The job was not started because the spending limit was reached.',
@@ -374,14 +374,7 @@ describe('Go local CI fallback', () => {
         });
 
         recordPullRequest(state, { headSha: 'replacement-head', status: 'checks_blocked' });
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'replacement-head',
-            mode: 'targeted',
-            p0: 0,
-            p1: 0,
-            scope: 'Replacement head',
-        });
+        reviewDeliveryDelta(state, headSha, 'replacement-head');
         const input = {
             failureDetail: 'The job was not started because the spending limit was reached.',
             failureJob: 'checks',

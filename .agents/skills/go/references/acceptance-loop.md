@@ -36,6 +36,9 @@ Electron desktop.
 8. If subagent execution is unavailable, pause and ask the user for direction.
    Do not silently let the builder author the plan and call it independent.
 9. Write the adjudicated frozen plan before executing cases.
+   Default `stateIsolation` to `isolated`; state-mutating checks must use their
+   own named launch/profile. A restart check explicitly names the reusable
+   profile and final cleanup owner.
 10. Use the Acceptance report scaffold to initialize a fresh round directory
     under the current Go ledger directory.
 
@@ -71,17 +74,26 @@ be ingested:
 Do not publish every focused test failure from implementation. The immutable
 history begins when the Acceptance plan is frozen and round execution starts.
 
+Before Terminal or visual capture, run the Acceptance fixture preflight. It
+uses terminal cell width rather than UTF-16 length and verifies generation,
+first grid marker, DOM rows, grid dimensions, and both border columns. A failed
+preflight is `fixture_blocked`; it is never a product verdict.
+
 ## Human review state
 
 After a passing round:
 
 1. Store the acceptance id, URL, round index, and `pending` state in the ledger.
-2. Transition the local workflow to `waiting_acceptance`; keep the Codex Goal
-   active.
-3. Run `state.ts resume --state "$STATE" --json` and give the user the stable
-   Acceptance URL plus its compact `workflowObservations`. Do not duplicate the
-   full post-merge technical-debt, workflow, or token-efficiency audit here.
-4. End the current turn. Do not keep
+   Inside Go, publish only through `state.ts acceptance-publish`; it forces
+   `--acceptance` after round one and reads the remote round back before updating
+   the ledger. Record accidental standalone history with `acceptance-orphan`.
+2. Transition to `acceptance_handoff`. Run the read-only workflow and cost audit,
+   then generate `handoff-report.md` for the exact PR head.
+3. Deliver the report's complete summary with the stable Acceptance URL. Record
+   `deliveredAt` only after the user-facing handoff, then transition to
+   `waiting_acceptance`; keep the Codex Goal active.
+4. Run `state.ts resume --state "$STATE" --json` to confirm the report receipt
+   and pending decision, then end the current turn. Do not keep
    a shell poller running, short-poll from the agent loop, or narrate unchanged
    pending state.
 5. On a later user or automatic continuation, query the filtered `status` and
@@ -104,3 +116,9 @@ On rejection:
 
 On acceptance, merge only the exact accepted PR head. A conflict resolution or
 any other code change requires review and a new Acceptance round.
+
+When the frozen issue set has no Caxri product or desktop claim, an explicit
+user instruction may waive Acceptance for one exact head. Record the reason and
+head, transition `delivery → acceptance_handoff`, generate the report, and skip
+the desktop planner/round. The waiver does not bypass review, CI, report,
+finalization, merge, or issue-state gates.

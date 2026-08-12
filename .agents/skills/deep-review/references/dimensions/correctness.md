@@ -32,7 +32,7 @@ Check whether the change satisfies the stated behavior under real inputs and fai
 ## Rule sources
 
 - `AGENTS.md` testing workflow
-- `.agents/skills/test/SKILL.md`
+- `.agents/skills/unit-test/SKILL.md` and `.agents/skills/e2e-testing/SKILL.md`
 - `.agents/skills/debug/SKILL.md` when the change is a bug fix
 
 ## Not violations

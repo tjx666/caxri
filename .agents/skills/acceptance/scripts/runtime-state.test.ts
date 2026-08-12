@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -82,24 +82,33 @@ describe('Acceptance runtime ownership', () => {
     });
 
     it('reuses only prefixed temp profiles and cleans them up only when requested', async () => {
-        const reusable = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-restart-'));
+        const reusable = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-12-restart-case-'));
         const unsafe = await mkdtemp(join(tmpdir(), 'caxri-unowned-user-'));
 
         try {
             await expect(
                 prepareAcceptanceUserData({
+                    caseId: 'restart-case',
+                    caseMode: 'restart',
                     cleanupReusable: false,
                     reuseUserDataDir: reusable,
                 }),
             ).resolves.toMatchObject({ ownedUserData: false });
             await expect(
-                prepareAcceptanceUserData({ cleanupReusable: true, reuseUserDataDir: unsafe }),
+                prepareAcceptanceUserData({
+                    caseId: 'restart-case',
+                    caseMode: 'restart',
+                    cleanupReusable: true,
+                    reuseUserDataDir: unsafe,
+                }),
             ).rejects.toThrow('Reusable Acceptance user data');
             await expect(prepareAcceptanceUserData({ cleanupReusable: true })).rejects.toThrow(
                 '--cleanup-reused-user-data requires --reuse-user-data',
             );
 
             const finalLaunch = await prepareAcceptanceUserData({
+                caseId: 'restart-case',
+                caseMode: 'restart',
                 cleanupReusable: true,
                 reuseUserDataDir: reusable,
             });
@@ -109,5 +118,72 @@ describe('Acceptance runtime ownership', () => {
             await rm(reusable, { force: true, recursive: true });
             await rm(unsafe, { force: true, recursive: true });
         }
+    });
+
+    it('rejects prefix-overlapping restart case identities', async () => {
+        const reusable = await mkdtemp(
+            join(tmpdir(), 'caxri-acceptance-user-16-settings-restart-'),
+        );
+        try {
+            await expect(
+                prepareAcceptanceUserData({
+                    caseId: 'settings',
+                    caseMode: 'restart',
+                    cleanupReusable: false,
+                    reuseUserDataDir: reusable,
+                }),
+            ).rejects.toThrow('Reusable Acceptance user data');
+            await expect(
+                prepareAcceptanceUserData({
+                    caseId: 'settings-restart',
+                    caseMode: 'restart',
+                    cleanupReusable: false,
+                    reuseUserDataDir: reusable,
+                }),
+            ).resolves.toMatchObject({
+                acceptanceCase: { id: 'settings-restart', mode: 'restart' },
+            });
+        } finally {
+            await rm(reusable, { force: true, recursive: true });
+        }
+    });
+
+    it('keeps mutable cases order-independent and removes every owned profile', async () => {
+        const profiles: Awaited<ReturnType<typeof prepareAcceptanceUserData>>[] = [];
+        const runOrder = async (caseIds: string[]) => {
+            const observations: string[] = [];
+            for (const caseId of caseIds) {
+                const profile = await prepareAcceptanceUserData({
+                    caseId,
+                    cleanupReusable: false,
+                });
+                profiles.push(profile);
+                const marker = join(profile.userDataDir, 'case-state.txt');
+                await writeFile(marker, caseId);
+                observations.push(await readFile(marker, 'utf8'));
+            }
+            return observations.sort();
+        };
+        try {
+            await expect(runOrder(['settings-case', 'session-case'])).resolves.toEqual([
+                'session-case',
+                'settings-case',
+            ]);
+            await expect(runOrder(['session-case', 'settings-case'])).resolves.toEqual([
+                'session-case',
+                'settings-case',
+            ]);
+            expect(new Set(profiles.map(({ userDataDir }) => userDataDir)).size).toBe(4);
+            expect(
+                profiles.every(({ acceptanceCase }) => acceptanceCase?.mode === 'isolated'),
+            ).toBe(true);
+        } finally {
+            await Promise.all(profiles.map((profile) => removeOwnedUserData(profile)));
+        }
+        await Promise.all(
+            profiles.map(({ userDataDir }) =>
+                expect(access(userDataDir)).rejects.toMatchObject({ code: 'ENOENT' }),
+            ),
+        );
     });
 });

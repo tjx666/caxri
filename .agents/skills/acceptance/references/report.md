@@ -49,7 +49,9 @@ contains:
     "verifier": "agent",
     "method": "启动隔离的 Caxri 并检查稳定后的终端布局",
     "expected": "终端视口周围不出现应用背景色条",
-    "requiredEvidence": ["screenshot", "dom_snapshot"]
+    "requiredEvidence": ["screenshot", "dom_snapshot"],
+    "fixturePreflight": "terminal",
+    "stateIsolation": { "mode": "isolated" }
   }
 ]
 ```
@@ -95,6 +97,10 @@ Replace each generated `cases[]` placeholder with the observed result:
 
 `status` is `pass`, `fail`, or `blocked`. A blocked case is not a pass. Every
 status needs evidence, and every artifact path is relative to the round directory.
+For isolated and restart cases, include the adapter-generated
+`assets/<case-id>-state-isolation.json`; finalization requires completed cleanup and, for restart,
+one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
+include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
 ## Finalize before publication
 
@@ -145,6 +151,28 @@ lobehub acceptance run ingest "$REPORT_DIR" \
   --source agent-testing \
   --acceptance "$ACCEPTANCE_ID" \
   --json
+```
+
+When Go owns the delivery, replace both raw ingest commands with the fail-closed
+wrapper after `finalize`:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts acceptance-publish \
+  --state "$STATE" --report-dir "$REPORT_DIR" --head-sha "$HEAD_SHA"
+```
+
+The wrapper persists `acceptanceId`, stable URL, immutable run id, round index,
+exact head, check ids, and verdict only after `lobehub acceptance view` returns
+the same lineage. Empty stdout, network interruption, wrong id/index/head/checks,
+or verdict mismatch leaves the ledger unpublished. If ingest returns an immutable
+run before readback fails, resume stores that attempt and retries only `view`; it
+never ingests the same local round twice. If a round was accidentally created as
+a separate standalone, preserve it in the audit trail:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts acceptance-orphan \
+  --state "$STATE" --acceptance-id "$ORPHAN_ID" \
+  --verify-run-id "$ORPHAN_RUN_ID" --reason "误建 standalone，保留不可变历史。"
 ```
 
 Before a repair, read only the decision fields needed for routing, then fetch

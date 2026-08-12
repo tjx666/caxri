@@ -68,6 +68,11 @@ Capture settled Renderer state to an explicit path:
 agent-browser --cdp "$PORT" screenshot "$ARTIFACT_PATH"
 ```
 
+This direct screenshot command is valid only for a case with no fixture preflight. When the frozen
+plan declares `fixturePreflight: terminal`, first write the ready preflight receipt to the case's
+fixed `assets/<case-id>-fixture-preflight.json` path and include it in `cases[].evidence`.
+`report.ts finalize` rejects the screenshot verdict if that receipt is missing or blocked.
+
 Capture a required `dom_snapshot` as a real `.html` artifact from the smallest
 semantic subtree that supports the observation. Choose a selector specific to
 the check instead of serializing the entire page:
