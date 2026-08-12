@@ -18,11 +18,13 @@ describe('CI workflow contract', () => {
     });
 
     it('runs focused repair specs before the complete E2E suite and exposes one stable gate', () => {
+        const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
         const focusedIndex = workflow.indexOf('run: bun run scripts/run-e2e-repair.ts');
         const fullIndex = workflow.indexOf('run: bunx playwright test');
 
         expect(focusedIndex).toBeGreaterThan(0);
         expect(fullIndex).toBeGreaterThan(focusedIndex);
+        expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
         expect(workflow).toContain('name: CI gate');
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
     });

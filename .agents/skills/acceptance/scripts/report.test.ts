@@ -3,7 +3,16 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
-import { finalizeReport, initializeReport, type InitializeReportInput } from './report';
+import {
+    beginCaseLifecycle,
+    completeCaseLifecycle,
+    finalizeReport,
+    initializeReport,
+    markCaseLifecycleReady,
+    type InitializeReportInput,
+    validateAcceptanceCaseLaunch,
+} from './report';
+import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /** The production path guard requires fixtures under the real project `.records/` root. */
@@ -64,6 +73,22 @@ async function initialize(directory: string, input: Partial<InitializeReportInpu
     });
 }
 
+async function writeIsolatedLifecycle(directory: string, caseId = 'terminal-layout') {
+    const launchId = await beginCaseLifecycle(directory, {
+        caseId,
+        profileIdentity: `profile-${caseId}`,
+        stateIsolation: { mode: 'isolated' },
+    });
+    await markCaseLifecycleReady(directory, { caseId, launchId });
+    await completeCaseLifecycle(directory, {
+        caseId,
+        cleanupCompleted: true,
+        cleanupRequested: true,
+        launchId,
+    });
+    return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
+}
+
 afterEach(async () => {
     await Promise.all(
         acceptanceRoots.splice(0).map((directory) => rm(directory, { recursive: true })),
@@ -119,10 +144,11 @@ describe('Acceptance report scaffold', () => {
         await initialize(directory);
         const resultPath = join(directory, 'result.json');
         const result = parseReport(await readFile(resultPath, 'utf8'));
+        const lifecycleEvidence = await writeIsolatedLifecycle(directory);
         result.cases[0] = {
             category: '终端布局',
             datasets: [{ id: 'terminal-layout-metrics' }],
-            evidence: ['assets/terminal.png', 'assets/terminal-dom.html'],
+            evidence: ['assets/terminal.png', 'assets/terminal-dom.html', lifecycleEvidence],
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -283,9 +309,10 @@ describe('Acceptance report scaffold', () => {
         });
         const resultPath = join(directory, 'result.json');
         const result = parseReport(await readFile(resultPath, 'utf8'));
+        const lifecycleEvidence = await writeIsolatedLifecycle(directory);
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal-notes.md'],
+            evidence: ['assets/terminal-notes.md', lifecycleEvidence],
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -306,6 +333,116 @@ describe('Acceptance report scaffold', () => {
         ] as unknown as InitializeReportInput['plan'];
         await expect(initialize(nextDirectory, { plan: transcriptPlan })).rejects.toThrow(
             'Invalid option: expected one of',
+        );
+    });
+
+    it('binds launch mode and restart profile identity to the frozen plan', () => {
+        expect(() =>
+            validateAcceptanceCaseLaunch(
+                { mode: 'isolated' },
+                {
+                    caseMode: 'restart',
+                    cleanupReusable: false,
+                    reuseUserData: true,
+                },
+            ),
+        ).toThrow('cannot reuse');
+        expect(
+            validateAcceptanceCaseLaunch(
+                { cleanupOwner: 'final_launch', mode: 'restart', profileId: 'profile-1' },
+                { caseMode: 'restart', cleanupReusable: true, reuseUserData: true },
+            ),
+        ).toEqual({ profileId: 'profile-1' });
+    });
+
+    it('allows an isolated case to retry after a cleaned launch that never became ready', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        const failedLaunch = await beginCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            profileIdentity: 'failed-profile',
+            stateIsolation: { mode: 'isolated' },
+        });
+        await completeCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: true,
+            cleanupRequested: true,
+            launchId: failedLaunch,
+        });
+
+        await expect(
+            beginCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                profileIdentity: 'replacement-profile',
+                stateIsolation: { mode: 'isolated' },
+            }),
+        ).resolves.toEqual(expect.any(String));
+    });
+
+    it('blocks a Terminal fixture verdict without a ready preflight receipt', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, {
+            plan: [
+                {
+                    ...plan[0],
+                    fixturePreflight: 'terminal',
+                    requiredEvidence: ['screenshot'],
+                },
+            ],
+        });
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        const lifecycleEvidence = await writeIsolatedLifecycle(directory);
+        const preflightEvidence = 'assets/terminal-layout-fixture-preflight.json';
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/terminal.png', lifecycleEvidence, preflightEvidence],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '终端视口周围没有露出应用背景。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'assets/terminal.png'), 'image'),
+            writeFile(
+                join(directory, preflightEvidence),
+                JSON.stringify(
+                    createTerminalFixturePreflightReceipt(
+                        {
+                            columns: 8,
+                            domRowCount: 1,
+                            firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 1 },
+                            generation: 'fixture-1',
+                            lines: ['│中🙂   │'],
+                            rows: 1,
+                        },
+                        'terminal-layout',
+                    ),
+                ),
+            ),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'fixture preflight is blocked',
+        );
+
+        const forged = createTerminalFixturePreflightReceipt(
+            {
+                columns: 8,
+                domRowCount: 1,
+                firstGridMarker: { columns: 8, generation: 'fixture-2', rows: 1 },
+                generation: 'fixture-2',
+                lines: ['│12345 │'],
+                rows: 1,
+            },
+            'terminal-layout',
+        );
+        forged.fixture.lines = ['│中🙂   │'];
+        await writeFile(join(directory, preflightEvidence), JSON.stringify(forged));
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'fixture preflight is blocked',
         );
     });
 });

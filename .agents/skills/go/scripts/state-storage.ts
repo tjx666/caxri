@@ -105,7 +105,8 @@ export async function readState(path: string): Promise<GoState> {
     const state = validateState(raw);
     const runDirectory = dirname(path);
     await verifyHandoffReportArtifact(state, runDirectory);
-    await verifyFinalizationArtifact(state, runDirectory);
+    const recoveredFinalizationDelivery = await verifyFinalizationArtifact(state, runDirectory);
+    if (recoveredFinalizationDelivery) await writeState(path, state);
     return state;
 }
 

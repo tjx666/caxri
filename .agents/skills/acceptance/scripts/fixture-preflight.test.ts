@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { preflightTerminalFixture, type TerminalFixture } from './fixture-preflight';
+import {
+    createTerminalFixturePreflightReceipt,
+    preflightTerminalFixture,
+    type TerminalFixture,
+} from './fixture-preflight';
 
 function fixture(overrides: Partial<TerminalFixture> = {}): TerminalFixture {
     return {
@@ -38,6 +42,7 @@ describe('Acceptance Terminal fixture preflight', () => {
             detail: 'Line 2 occupies 9 cells instead of 8',
         });
         expect(result).not.toHaveProperty('verdict');
+        expect(createTerminalFixturePreflightReceipt(fixture()).result.status).toBe('ready');
     });
 
     it('blocks stale generation, grid, DOM rows, and incomplete borders together', () => {

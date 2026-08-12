@@ -51,6 +51,7 @@ interface ReviewDecision {
     baselineReviewId: string | null;
     headSha: string;
     id: string;
+    legacyMode?: string | null;
     mode: string;
     parentReviewId: string | null;
     productP0: number;
@@ -176,8 +177,8 @@ export function buildHandoffReport(state: ReportContext, headSha: string): strin
         return `#${number} ${title} (${commits.join(', ') || 'no commit'}); drift=${expectationDrift.status}${comments ? `; comments=${comments}` : ''}`;
     });
     const reviewLines = state.reviewGate.rounds.map(
-        ({ id, mode, parentReviewId, productP0, productP1, reviewedRange }) =>
-            `${id}: ${mode}, range=${reviewedRange}, parent=${parentReviewId ?? 'baseline'}, product P0=${productP0}, product P1=${productP1}`,
+        ({ id, legacyMode, mode, parentReviewId, productP0, productP1, reviewedRange }) =>
+            `${id}: ${mode}${legacyMode ? ` (imported legacy ${legacyMode})` : ''}, range=${reviewedRange}, parent=${parentReviewId ?? 'baseline'}, product P0=${productP0}, product P1=${productP1}`,
     );
     const costLines = state.runBudget.checkpoints.map(
         ({

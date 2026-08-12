@@ -176,7 +176,7 @@ describe('Go persisted handoff artifacts', () => {
         });
         await recordFinalizationDelivery(state, directory, '2026-08-12T02:00:00.000Z');
 
-        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBeUndefined();
+        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBe(false);
         expect(
             JSON.parse(await readFile(join(directory, 'finalization.json'), 'utf8')),
         ).toMatchObject({
@@ -299,5 +299,31 @@ describe('Go persisted handoff artifacts', () => {
         await expect(verifyFinalizationArtifact(state, directory)).rejects.toThrow(
             'must be a direct regular file',
         );
+    });
+
+    it('recovers a finalization delivery interrupted before the ledger write', async () => {
+        const state = createInitialState({ objective: 'Finalize Goal', runId: 'final-recovery' });
+        state.phase = 'finalization';
+        state.status = 'active';
+        completeIssue(state, 111, 'Go state');
+        state.pullRequest = { headSha: 'head-1', number: 120, status: 'merged', url: null };
+        state.acceptance = {
+            ...state.acceptance,
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'No product behavior changed.',
+        };
+        await generateFinalization(state, directory, {
+            headSha: 'head-1',
+            issues: [{ number: 111, projectStatus: 'Done', state: 'CLOSED' }],
+            mergeSha: 'merge-1',
+        });
+        const pendingLedgerReceipt = structuredClone(state.finalization);
+        await recordFinalizationDelivery(state, directory, '2026-08-12T03:00:00.000Z');
+        state.finalization = pendingLedgerReceipt;
+
+        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBe(true);
+        expect(state.finalization?.deliveredAt).toBe('2026-08-12T03:00:00.000Z');
+        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBe(false);
     });
 });

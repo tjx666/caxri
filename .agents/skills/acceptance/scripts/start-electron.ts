@@ -3,7 +3,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -23,6 +23,13 @@ import {
     transferDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
 import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
+import {
+    beginCaseLifecycle,
+    completeCaseLifecycle,
+    loadAcceptanceCasePlan,
+    markCaseLifecycleReady,
+    validateAcceptanceCaseLaunch,
+} from './report';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -102,8 +109,9 @@ Options:
   --port N               CDP port (default: 9222)
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
   --case-id ID           Stable lowercase id for this isolated Acceptance case
+  --report-dir DIR       Frozen round containing this case plan and lifecycle evidence
   --case-mode MODE       isolated (default) or restart
-  --reuse-user-data PATH Reuse this case's caxri-acceptance-user-<case-id>-* profile across restarts
+  --reuse-user-data PATH Reuse this case's frozen caxri-acceptance-user-<profile-id>-* profile
   --cleanup-reused-user-data
                          Remove the validated reusable profile when this launch stops
   --help                 Show this message`;
@@ -212,91 +220,132 @@ async function main(): Promise<void> {
             ),
         );
         const testRootPath = testRootPaths[0];
+        const caseId = stringOption(options, 'case-id');
+        const reportDirectory = stringOption(options, 'report-dir');
+        if (!caseId || !reportDirectory) {
+            throw new Error('Acceptance launch requires --case-id and --report-dir');
+        }
+        const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as
+            'isolated' | 'restart';
+        const reuseUserDataDir = stringOption(options, 'reuse-user-data');
+        const cleanupReusable = booleanOption(options, 'cleanup-reused-user-data');
+        const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
+        const { profileId } = validateAcceptanceCaseLaunch(plannedCase.item.stateIsolation, {
+            caseMode,
+            cleanupReusable,
+            reuseUserData: Boolean(reuseUserDataDir),
+        });
         const launcherIdentity = await getProcessIdentity(process.pid);
         if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
         const { acceptanceCase, ownedUserData, userDataDir } = await prepareAcceptanceUserData({
-            caseId: stringOption(options, 'case-id'),
-            caseMode: stringOption(options, 'case-mode') as 'isolated' | 'restart' | undefined,
-            cleanupReusable: booleanOption(options, 'cleanup-reused-user-data'),
-            reuseUserDataDir: stringOption(options, 'reuse-user-data'),
+            caseId,
+            caseMode,
+            cleanupReusable,
+            profileId,
+            reuseUserDataDir,
         });
-
-        desktopLease = await beginDesktopLeaseHandoff(desktopLease);
-        const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
-            cwd: PROJECT_ROOT,
-            env: {
-                ...process.env,
-                CAXRI_E2E: '1',
-                CAXRI_E2E_WINDOW_MODE: 'visible',
-                CAXRI_TEST_ROOT_PATH: testRootPath,
-                CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
-                CAXRI_USER_DATA_DIR: userDataDir,
-            },
-            stdio: 'inherit',
+        const lifecycleLaunchId = await beginCaseLifecycle(plannedCase.directory, {
+            caseId,
+            profileIdentity: profileId ?? basename(userDataDir),
+            stateIsolation: plannedCase.item.stateIsolation,
+        }).catch(async (error: unknown) => {
+            await removeOwnedUserData({ ownedUserData, userDataDir });
+            throw error;
         });
-        const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-            (resolveExit, rejectExit) => {
-                child.once('error', rejectExit);
-                child.once('exit', (code, signal) => resolveExit({ code, signal }));
-            },
-        );
-        let stopping = false;
-        const stop = (): void => {
-            if (stopping) return;
-            stopping = true;
-            if (isAlive(child.pid)) child.kill('SIGTERM');
-            const forceTimer = setTimeout(() => {
-                if (isAlive(child.pid)) child.kill('SIGKILL');
-            }, 5_000);
-            forceTimer.unref();
-        };
-        process.on('SIGINT', stop);
-        process.on('SIGTERM', stop);
 
         try {
-            const electronPid = child.pid;
-            if (!electronPid) throw new Error('Could not establish Acceptance Electron PID');
-            const electronIdentity = await getProcessIdentity(electronPid);
-            if (!electronIdentity)
-                throw new Error('Could not establish Acceptance Electron identity');
-            desktopLease = await transferDesktopLease(desktopLease, electronPid);
-            const runtime: RuntimeState = {
-                acceptanceCase,
-                cdpUrl: `http://127.0.0.1:${port}`,
-                electronIdentity,
-                electronPid,
-                launcherIdentity,
-                launcherPid: process.pid,
-                ownedUserData,
-                port,
-                startedAt: new Date().toISOString(),
-                testRootPath,
-                testRootPaths,
-                userDataDir,
+            desktopLease = await beginDesktopLeaseHandoff(desktopLease);
+            const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
+                cwd: PROJECT_ROOT,
+                env: {
+                    ...process.env,
+                    CAXRI_E2E: '1',
+                    CAXRI_E2E_WINDOW_MODE: 'visible',
+                    CAXRI_TEST_ROOT_PATH: testRootPath,
+                    CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
+                    CAXRI_USER_DATA_DIR: userDataDir,
+                },
+                stdio: 'inherit',
+            });
+            const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+                (resolveExit, rejectExit) => {
+                    child.once('error', rejectExit);
+                    child.once('exit', (code, signal) => resolveExit({ code, signal }));
+                },
+            );
+            let stopping = false;
+            const stop = (): void => {
+                if (stopping) return;
+                stopping = true;
+                if (isAlive(child.pid)) child.kill('SIGTERM');
+                const forceTimer = setTimeout(() => {
+                    if (isAlive(child.pid)) child.kill('SIGKILL');
+                }, 5_000);
+                forceTimer.unref();
             };
-            await writeRuntime(runtime);
-            await Promise.race([
-                waitForCdp(port, child),
-                childExit.then<never>(({ code, signal }) => {
-                    throw new Error(
-                        `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
-                    );
-                }),
-            ]);
-            console.log(JSON.stringify({ ...runtime, status: 'ready' }));
-            const { code, signal } = await childExit;
-            if (!stopping && code !== 0) {
-                throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
+            process.on('SIGINT', stop);
+            process.on('SIGTERM', stop);
+            try {
+                const electronPid = child.pid;
+                if (!electronPid) throw new Error('Could not establish Acceptance Electron PID');
+                const electronIdentity = await getProcessIdentity(electronPid);
+                if (!electronIdentity)
+                    throw new Error('Could not establish Acceptance Electron identity');
+                desktopLease = await transferDesktopLease(desktopLease, electronPid);
+                const runtime: RuntimeState = {
+                    acceptanceCase,
+                    cdpUrl: `http://127.0.0.1:${port}`,
+                    electronIdentity,
+                    electronPid,
+                    launcherIdentity,
+                    launcherPid: process.pid,
+                    ownedUserData,
+                    port,
+                    startedAt: new Date().toISOString(),
+                    testRootPath,
+                    testRootPaths,
+                    userDataDir,
+                };
+                await writeRuntime(runtime);
+                await Promise.race([
+                    waitForCdp(port, child),
+                    childExit.then<never>(({ code, signal }) => {
+                        throw new Error(
+                            `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
+                        );
+                    }),
+                ]);
+                await markCaseLifecycleReady(plannedCase.directory, {
+                    caseId,
+                    launchId: lifecycleLaunchId,
+                });
+                console.log(JSON.stringify({ ...runtime, status: 'ready' }));
+                const { code, signal } = await childExit;
+                if (!stopping && code !== 0) {
+                    throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
+                }
+            } finally {
+                stop();
+                await childExit.catch(() => undefined);
+                process.off('SIGINT', stop);
+                process.off('SIGTERM', stop);
+                await unlink(RUNTIME_PATH).catch((error: unknown) => {
+                    if (errorCode(error) !== 'ENOENT') throw error;
+                });
             }
         } finally {
-            stop();
-            await childExit.catch(() => undefined);
-            process.off('SIGINT', stop);
-            process.off('SIGTERM', stop);
-            await unlink(RUNTIME_PATH).catch((error: unknown) => {
-                if (errorCode(error) !== 'ENOENT') throw error;
-            });
-            await removeOwnedUserData({ ownedUserData, userDataDir });
+            let cleanupCompleted = false;
+            try {
+                await removeOwnedUserData({ ownedUserData, userDataDir });
+                cleanupCompleted = ownedUserData;
+            } finally {
+                await completeCaseLifecycle(plannedCase.directory, {
+                    caseId,
+                    cleanupCompleted,
+                    cleanupRequested: ownedUserData,
+                    launchId: lifecycleLaunchId,
+                });
+            }
         }
     } finally {
         await releaseDesktopLease(desktopLease);

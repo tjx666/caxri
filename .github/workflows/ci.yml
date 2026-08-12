@@ -102,6 +102,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # PR E2E must execute the same exact pushed head whose immutable receipt and tree were
+          # validated by retry-policy. The PR base identity is checked separately by that policy.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22

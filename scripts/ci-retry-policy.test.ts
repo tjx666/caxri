@@ -20,6 +20,7 @@ const eligible: RetryPolicyInput = {
         repository: 'tjx666/caxri',
         workflowPath: '.github/workflows/ci.yml',
     },
+    baseRunChangedFiles: ['src/runtime/base.ts'],
     changedFiles: ['src/runtime/index.ts'],
     currentTree: tree,
     eventName: 'pull_request',
@@ -68,6 +69,7 @@ describe('CI retry policy', () => {
                 baseRun: { ...eligible.baseRun!, checksConclusion: 'failure' },
             },
             { ...eligible, changedFiles: ['package-lock.json'] },
+            { ...eligible, baseRunChangedFiles: ['.github/workflows/ci.yml'] },
         ]) {
             expect(evaluateRetryPolicy(input).mode).toBe('full');
         }

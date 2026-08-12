@@ -486,6 +486,67 @@ describe('Go state ledger', () => {
         );
     });
 
+    it('normalizes additional historical full reviews into an auditable light lineage', () => {
+        const current = createInitialState({ objective: 'Migrate reviews', runId: 'legacy-fulls' });
+        const legacy = {
+            ...current,
+            reviewGate: {
+                frozenHeadSha: 'legacy-repair',
+                rounds: [
+                    {
+                        completedAt: '2026-08-11T00:00:00.000Z',
+                        headSha: 'legacy-base',
+                        mode: 'full',
+                        phase: 'deep_review',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'First legacy full review',
+                    },
+                    {
+                        completedAt: '2026-08-11T00:10:00.000Z',
+                        headSha: 'legacy-repair',
+                        mode: 'full',
+                        phase: 'delivery',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'Second legacy full review',
+                    },
+                ],
+            },
+            schemaVersion: 5,
+        } as Record<string, unknown>;
+        for (const key of [
+            'finalization',
+            'handoffReport',
+            'reviewPolicy',
+            'runBudget',
+            'validations',
+            'worktree',
+        ]) {
+            Reflect.deleteProperty(legacy, key);
+        }
+
+        const migrated = validateState(legacy);
+        expect(
+            migrated.reviewGate.rounds.map(({ legacyMode, mode, reviewedRange }) => ({
+                legacyMode,
+                mode,
+                reviewedRange,
+            })),
+        ).toEqual([
+            {
+                legacyMode: null,
+                mode: 'full',
+                reviewedRange: 'legacy:First legacy full review',
+            },
+            {
+                legacyMode: 'full',
+                mode: 'light',
+                reviewedRange: 'legacy-base..legacy-repair',
+            },
+        ]);
+    });
+
     it('migrates schema version 2 ledgers through the current schema', () => {
         const current = createInitialState({ objective: 'Resume old ledger', runId: 'legacy-v2' });
         const legacy = { ...current, schemaVersion: 2 } as Record<string, unknown>;
