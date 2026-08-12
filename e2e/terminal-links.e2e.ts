@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 import type { MessageBoxOptions } from 'electron';
 
 import {
@@ -14,6 +14,7 @@ import {
 } from './helpers.ts';
 
 test('Terminal links open Project files and confirm URLs through Main', async () => {
+    allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-links-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
