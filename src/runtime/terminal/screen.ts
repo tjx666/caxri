@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { createRequire } from 'node:module';
 
 import type * as SerializeAddonModule from '@xterm/addon-serialize';
+import type * as Unicode11AddonModule from '@xterm/addon-unicode11';
 import type * as HeadlessModule from '@xterm/headless';
 import type { Terminal as HeadlessTerminal } from '@xterm/headless';
 
@@ -11,6 +12,7 @@ import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapsh
  *  CommonJS entry points whose named exports Node ESM cannot load directly. */
 const runtimeRequire = createRequire(import.meta.url);
 const { SerializeAddon } = runtimeRequire('@xterm/addon-serialize') as typeof SerializeAddonModule;
+const { Unicode11Addon } = runtimeRequire('@xterm/addon-unicode11') as typeof Unicode11AddonModule;
 const { Terminal } = runtimeRequire('@xterm/headless') as typeof HeadlessModule;
 
 type ScreenOperation =
@@ -65,8 +67,10 @@ export class TerminalScreenState {
             rows,
             scrollback: MAX_SNAPSHOT_LINES,
         });
-        /** addon-serialize declares the browser Terminal activation type, but its public buffer API
-         *  is shared with @xterm/headless and is the supported Node.js composition. */
+        /** These addons declare the browser Terminal activation type, but their Unicode and buffer
+         *  APIs are shared with @xterm/headless and are the supported Node.js composition. */
+        this.terminal.loadAddon(new Unicode11Addon());
+        this.terminal.unicode.activeVersion = '11';
         this.terminal.loadAddon(this.serialize);
         this.write(initialSnapshot);
     }

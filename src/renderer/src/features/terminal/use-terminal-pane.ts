@@ -1,5 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
 
@@ -125,7 +126,7 @@ export function useTerminalPaneRuntime({
         if (!fontsReady || !container) return;
         const latest = latestRef.current;
         const xterm = new Terminal({
-            allowProposedApi: false,
+            allowProposedApi: true,
             convertEol: false,
             cursorBlink: true,
             disableStdin: latest.processState !== 'running',
@@ -136,8 +137,11 @@ export function useTerminalPaneRuntime({
         });
         const fit = new FitAddon();
         const search = new SearchAddon();
+        const unicode11 = new Unicode11Addon();
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
+        xterm.loadAddon(unicode11);
+        xterm.unicode.activeVersion = '11';
         xterm.open(container);
         const unregisterLinks = registerTerminalLinks(xterm, {
             get cwd() {
