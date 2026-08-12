@@ -43,6 +43,20 @@ bun run .agents/skills/go/scripts/state.ts review \
   --state "$STATE" --head-sha abc1234 --mode full \
   --p0 0 --p1 0 --scope "Goal-range product review" --freeze
 
+# If the first post-round-three targeted verification exposes another architecture
+# P0/P1 and the user authorizes its repair plus one final targeted verification:
+bun run .agents/skills/go/scripts/state.ts review \
+  --state "$STATE" --head-sha def5678 --mode targeted \
+  --p0 0 --p1 0 --scope "Authorized architecture repair" --freeze \
+  --authorization "User explicitly authorized one final targeted verification"
+
+# After the three routine delivery verification freezes, every additional
+# delivery-infrastructure repair requires its own explicit authorization:
+bun run .agents/skills/go/scripts/state.ts review \
+  --state "$STATE" --head-sha fed9876 --mode verification \
+  --p0 0 --p1 0 --scope "Authorized delivery-infrastructure repair" --freeze \
+  --verification-cap-authorization "User explicitly authorized this exact exception"
+
 # A required hosted check could not start because of external infrastructure.
 bun run .agents/skills/go/scripts/state.ts pr \
   --state "$STATE" --status checks_blocked --head-sha abc1234
@@ -119,14 +133,19 @@ event history.
   clean exact-head full, targeted, or eligible verification decision before
   considering a new fallback.
 - Full Goal-range review decisions are limited to three per run. Record at most
-  one targeted P0/P1 repair verification after each full round; do not disguise
-  a full review as targeted. `--freeze` rejects any decision with a nonzero
-  product P0 or P1 count.
+  one targeted P0/P1 repair verification after each full round. If that
+  verification exposes another architecture-level P0/P1, a user-authorized
+  repair may receive one final targeted verification recorded with
+  `--authorization`; a third in that post-round-three sequence is forbidden.
+  Before the full-review ceiling, delivery repairs retain one targeted decision
+  after the latest full baseline. Do not disguise a full review as targeted.
+  `--freeze` rejects any decision with a nonzero product P0 or P1 count.
 - A `verification` decision is reserved for workflow, test-infrastructure,
   evidence, or PR-metadata-only commits. It requires a prior full review, zero
-  product P0/P1, and `--freeze`; the ledger permits three per Go run by default.
-  One fourth freeze requires the user's explicit authorization for that exact
-  exception, recorded with `--verification-cap-authorization`; a fifth is rejected.
+  product P0/P1, and `--freeze`; the ledger permits one bookkeeping freeze during
+  `deep_review` plus three routine repair freezes during `delivery`. Up to three
+  additional delivery freezes each require exact user authorization recorded with
+  `--verification-cap-authorization`; a seventh delivery freeze is rejected.
 - The fallback admission command rejects an unfrozen or stale PR head. The
   ledger retains full Electron E2E history across head changes and rejects a
   third full run; a prior passing run can be repeated only after human

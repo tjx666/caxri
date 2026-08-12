@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 
-type SettingsView = 'ui' | 'source';
+export type SettingsView = 'ui' | 'source' | 'trusted-domains';
 
 interface DialogState {
+    archivedSessionsOpen: boolean;
     settingsOpen: boolean;
     settingsRequest: { id: number; view: SettingsView };
     paletteOpen: boolean;
@@ -25,6 +26,7 @@ interface DialogState {
      * double-invoked effects idempotent.
      */
     openModalIds: Set<string>;
+    setArchivedSessionsOpen(open: boolean): void;
     openSettings(view?: SettingsView): void;
     setSettingsOpen(open: boolean): void;
     setPaletteOpen(open: boolean): void;
@@ -43,6 +45,7 @@ interface DialogState {
 }
 
 export const useDialogStore = create<DialogState>((set, get) => ({
+    archivedSessionsOpen: false,
     settingsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
@@ -52,6 +55,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     pendingRoot: undefined,
     pendingProjectId: undefined,
     openModalIds: new Set(),
+    setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
     openSettings: (view = 'ui') =>
         set((state) => ({
             settingsOpen: true,
@@ -90,6 +94,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 
 export const setSettingsOpen = (open: boolean): void =>
     useDialogStore.getState().setSettingsOpen(open);
+export const setArchivedSessionsOpen = (open: boolean): void =>
+    useDialogStore.getState().setArchivedSessionsOpen(open);
 export const setPaletteOpen = (open: boolean): void =>
     useDialogStore.getState().setPaletteOpen(open);
 export const setPathBrowserOpen = (open: boolean): void =>

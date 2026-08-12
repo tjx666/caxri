@@ -103,31 +103,40 @@ accessible names and hover tooltips.
 (Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows
 indented 16px. Selection = `--elevated` fill (radius 6), no border and no accent — the
 sidebar stays entirely neutral so the focused pane keeps the screen's one accent.
-Activity dots keep color + gain `title`/`aria-label` text.
+Activity dots and the Session hover/focus card share one color, short-label, explanation, and
+`aria-label` mapping. The Portal card opens to the Sidebar's right after a short hover delay (or
+immediately on keyboard focus), collision-shifts within the viewport, and shows only the full title,
+Project, primary Agent, activity explanation, `Last opened`, and unread-attention metadata.
 All non-archived Project and Session names and navigation icons use `--foreground`, including
 inactive rows; the `--elevated` selected fill, not dimmed neighbors, communicates selection.
 Project ordering uses the whole Project heading as its drag source. While dragging, dim only the
 source group and show a 2px `--accent` insertion line with a circular leading cap between Project
 groups; Session rows are never drop targets. `Option+Up` / `Option+Down` on a focused Project name
 provides the keyboard-equivalent reorder and announces the resulting position.
+Archived Sessions use one stable Sidebar footer entry with a global count. Search, filters,
+Project-grouped results, restore, and delete live in a full-width management dialog; Project
+disclosures contain active Sessions only, so low-frequency history never fragments navigation.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
-the pattern — keep). Tab height 36px.
+the pattern — keep). Tab height 36px. A clean preview Editor owns one transient, Session-scoped
+motion identity: replacing its path updates the same DOM tab instantly, pinning preserves that
+identity, and only the next real tab receives the existing enter animation. Session bootstrap and
+switching still mount without structural motion; actual close keeps the exit animation.
 
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack;
 pick the least-powerful layer that covers the scenario, and one element is only ever driven by
 one layer:
 
 1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`) — every
-   overlay: dialogs, selects, context menus, tooltips, and future shadcn components. Fade plus
+   overlay: dialogs, selects, context menus, tooltips, preview cards, and future shadcn components. Fade plus
    ~95% zoom on enter/exit, gated by Base UI popup state attributes. We deliberately do not
    import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants exist to bridge
    Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute variants are
    equivalent (see upstream debate in shadcn-ui/ui#10267).
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
-   user-triggered disclosure: Sidebar Project and Archived Sessions, Files search groups, Git
+   user-triggered disclosure: Sidebar Project, Files search groups, Git
    directory/repository/history, Project Status sections. The measured Inspector/Settings chrome
    tab indicator also uses a native transform/width transition. `components/DisclosureMotion.tsx`
    is the thin presence wrapper: it mounts content in the commit that flips `data-expanded` and

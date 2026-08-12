@@ -8,6 +8,7 @@ import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod } from '../shared/ipc/methods';
 import type { StructuredLogger } from '../shared/node/logger';
+import { resolveActiveWork } from '../shared/work-item';
 import type {
     AgentProvider,
     BootstrapState,
@@ -40,6 +41,7 @@ import {
 import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
+const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 
 /**
  * Everything the Runtime cannot discover for itself. The entry point supplies the real Electron
@@ -60,6 +62,8 @@ export interface RuntimeDeps {
     agentRefreshDelayMs?: number;
     /** PTY launch seam so an in-process test never spawns a real shell. */
     terminal?: TerminalManagerOptions;
+    /** Visible Terminal restore grid grace period. Tests may set zero when no Renderer will attach. */
+    terminalRestoreGridWaitMs?: number;
     /** Agent adapter seam so an in-process test never executes an Agent CLI. */
     agentAdapters?: Record<AgentProvider, AgentAdapter>;
     /** Shared provider-home seam for metadata and hook-config tests. */
@@ -311,12 +315,19 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
      * work, and the generation is checked again after executable discovery immediately before spawn.
      */
     async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
-        const interrupted = database
-            .listTerminals(sessionId)
-            .filter((terminal) => terminal.lastProcessState === 'interrupted');
+        const sessionTerminals = database.listTerminals(sessionId);
+        const activeWork = resolveActiveWork({
+            sessionState: database.getSessionState(sessionId),
+            sessionTerminals,
+        });
+        const visibleTerminalId =
+            activeWork?.kind === 'terminal' ? activeWork.terminalId : undefined;
+        const interrupted = sessionTerminals.filter(
+            (terminal) => terminal.lastProcessState === 'interrupted',
+        );
         const restored = await terminalRestores.restore(
             sessionId,
-            interrupted.map((terminal) => async (isCurrent) => {
+            interrupted.map((terminal) => async (isCurrent, abortSignal) => {
                 const resumeAgentSessionId = terminal.provider
                     ? terminal.agentSessionId
                     : undefined;
@@ -328,6 +339,12 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                         expectedWorkingDirectory,
                         resumeAgentSessionId,
                         shouldStart: isCurrent,
+                        abortSignal,
+                        waitForAttachedSizeMs:
+                            terminal.id === visibleTerminalId
+                                ? (deps.terminalRestoreGridWaitMs ??
+                                  VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS)
+                                : undefined,
                     });
                     if (restarted.lastProcessState !== 'running') return false;
                 } catch {
@@ -408,6 +425,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return state;
         },
         'app.openConfigFile': () => mainOwned('app.openConfigFile'),
+        'external.open': () => mainOwned('external.open'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
@@ -662,6 +680,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
             await hookSettingsReconcile;
+            return configuration.getSettings();
+        },
+        'settings.trustDomain': async ({ domain }) => {
+            await configuration.trustDomain(domain);
             return configuration.getSettings();
         },
         'keybindings.get': () => configuration.getKeybindings(),

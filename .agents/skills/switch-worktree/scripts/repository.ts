@@ -24,6 +24,11 @@ interface LockOwner {
     startedAt: string;
 }
 
+export interface RepositoryLockOptions {
+    /** Test seam for pausing after owner metadata is durable but before the lock is published. */
+    beforeLockPublish?: () => Promise<void>;
+}
+
 const WORKTREE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function validateWorktreeIdentity(value: string, path: string): string | undefined {
@@ -152,7 +157,7 @@ async function readLockOwner(path: string): Promise<LockOwner | undefined> {
     try {
         source = await readFile(join(path, 'owner.json'), 'utf8');
     } catch (error) {
-        /** The lock directory becomes visible just before its atomically-written owner record. */
+        /** Older launchers could expose the directory before its owner record was durable. */
         if (errorCode(error) === 'ENOENT') return undefined;
         throw error;
     }
@@ -167,6 +172,7 @@ async function readLockOwner(path: string): Promise<LockOwner | undefined> {
 export async function withRepositoryLock<T>(
     context: RepositoryContext,
     task: () => Promise<T>,
+    options: RepositoryLockOptions = {},
 ): Promise<T> {
     await mkdir(context.stateDir, { recursive: true });
     const lockPath = join(context.stateDir, 'operation.lock');
@@ -174,31 +180,40 @@ export async function withRepositoryLock<T>(
     const identity = await getProcessIdentity(process.pid);
     if (!identity) throw new CommandError('Could not establish the worktree launcher identity');
 
+    const pendingPath = join(
+        context.stateDir,
+        `operation-lock-${process.pid}-${randomUUID()}.pending`,
+    );
     const deadline = Date.now() + 10_000;
     let acquired = false;
-    while (!acquired) {
-        if (await pathExists(cleanupPath)) {
-            if (Date.now() >= deadline) {
-                throw new CommandError('Timed out waiting for stale worktree lock cleanup');
+    try {
+        await mkdir(pendingPath);
+        await writeJsonAtomic(join(pendingPath, 'owner.json'), {
+            identity,
+            pid: process.pid,
+            startedAt: new Date().toISOString(),
+        });
+        await options.beforeLockPublish?.();
+        while (!acquired) {
+            if (await pathExists(cleanupPath)) {
+                if (Date.now() >= deadline) {
+                    throw new CommandError('Timed out waiting for stale worktree lock cleanup');
+                }
+                await new Promise<void>((resolveWait) => setTimeout(resolveWait, 25));
+                continue;
             }
-            await new Promise<void>((resolveWait) => setTimeout(resolveWait, 25));
-            continue;
-        }
-        try {
-            await mkdir(lockPath);
-            try {
-                await writeJsonAtomic(join(lockPath, 'owner.json'), {
-                    identity,
-                    pid: process.pid,
-                    startedAt: new Date().toISOString(),
-                });
-            } catch (error) {
-                await rm(lockPath, { force: true, recursive: true });
-                throw error;
+            if (!(await pathExists(lockPath))) {
+                try {
+                    /** Publish a directory whose durable owner record already exists. A killed
+                     *  worker can leave an unreferenced pending directory, but never an ownerless
+                     *  repository lock that poisons every later Electron test. */
+                    await rename(pendingPath, lockPath);
+                    acquired = true;
+                    continue;
+                } catch (error) {
+                    if (!['EEXIST', 'ENOTEMPTY'].includes(errorCode(error) ?? '')) throw error;
+                }
             }
-            acquired = true;
-        } catch (error) {
-            if (errorCode(error) !== 'EEXIST') throw error;
             const owner = await readLockOwner(lockPath);
             if (!owner) {
                 if (Date.now() >= deadline)
@@ -233,6 +248,8 @@ export async function withRepositoryLock<T>(
                 await rm(cleanupPath);
             }
         }
+    } finally {
+        if (!acquired) await rm(pendingPath, { force: true, recursive: true });
     }
     try {
         return await task();

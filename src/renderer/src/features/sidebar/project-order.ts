@@ -119,14 +119,16 @@ export interface ProjectHeadingClickEffect {
 }
 
 /**
- * Decouples selecting a Project from expanding/collapsing it: clicking an already-active Project
- * still toggles disclosure as before, but clicking an inactive Project only ever selects it and
- * auto-expands when collapsed, never collapses an already-expanded Project on selection.
+ * Decouples selecting a Project from expanding/collapsing it. An inactive Project with a selectable
+ * Session preserves navigation-first behavior, while an empty Project must still produce a visible
+ * disclosure change instead of attempting a no-op selection.
  */
 export function resolveProjectHeadingClick(
     active: boolean,
     expanded: boolean,
+    hasSelectableSession: boolean,
 ): ProjectHeadingClickEffect {
+    if (!hasSelectableSession) return { select: false, toggle: true };
     if (!active) return { select: true, toggle: !expanded };
     return { select: false, toggle: true };
 }

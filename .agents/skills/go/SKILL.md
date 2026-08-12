@@ -120,8 +120,11 @@ After all issue commits:
 3. Run at most three full Goal-range review rounds. After the third round, use
    at most one targeted verification for its remaining P0/P1 repairs; a further
    architecture-level P0/P1 requires a user decision instead of a fourth full
-   review. Ignore reports for an older head unless their product P0/P1 reproduces
-   on the current head.
+   review. When the user explicitly authorizes that repair, allow one final
+   targeted verification and record the authorization in the ledger; never run
+   a third targeted verification in that post-round-three sequence. Ignore
+   reports for an older head unless their product P0/P1 reproduces on the
+   current head.
 4. When the current head has no product P0/P1, record and freeze it with
    `state.ts review --freeze`. A clean first or second round may freeze
    immediately; three rounds are a ceiling, not a target. P2/P3 findings become
@@ -130,10 +133,11 @@ After all issue commits:
    record a `verification` decision after focused validation. It requires an
    existing full product-review baseline, zero product P0/P1, and freezes the
    exact head without consuming another product review. Batch these repairs; a
-   Go run permits at most three verification-only freezes by default. If late hosted evidence
-   exposes another agent-owned verification defect, one fourth freeze is allowed only after the
-   user explicitly authorizes that exact exception; record the authorization through
-   `--verification-cap-authorization`. A fifth verification freeze is never allowed.
+   Go run permits one verification-only freeze during `deep_review` and at most
+   three routine delivery-stage repair freezes. If later exhaustive validation
+   exposes independent delivery-infrastructure failures, explicit user
+   authorization may permit up to three additional freezes; record the
+   authorization on each decision and never allow a seventh.
 6. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
 7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its

@@ -3,6 +3,7 @@ import { mkdir, open, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
+import { applyEdits, modify } from 'jsonc-parser';
 
 import { defaultAgentProviderSettings } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
@@ -15,7 +16,7 @@ import {
     keybindingsFileSchema,
     settingsFileSchema,
 } from '../shared/configuration';
-import { errorMessage } from '../shared/ipc/errors';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
@@ -27,6 +28,7 @@ import {
     type KeybindingConflict,
     type ThemeTokens,
 } from '../shared/types';
+import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
 
@@ -53,6 +55,7 @@ class ConfigurationSourceReadError extends Error {
 
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
+const JSONC_FORMATTING_OPTIONS = { tabSize: 2, insertSpaces: true, eol: '\n' };
 const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+n', command: 'session.create' },
@@ -101,6 +104,7 @@ function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[
 const defaultSettings: AppSettings = {
     'session.defaultAgent': null,
     'agents.providers': structuredClone(defaultAgentProviderSettings),
+    'security.trustedDomains': [],
     'terminal.defaultWorkingDirectory': null,
     'terminal.fontSize': SETTINGS_BOUNDS['terminal.fontSize'].default,
     'terminal.scrollback': SETTINGS_BOUNDS['terminal.scrollback'].default,
@@ -194,6 +198,7 @@ export class ConfigurationService {
     private readonly rejectedSourceRevisions = new Map<string, string>();
     private readonly errors = new Map<ConfigurationKind, string>();
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
+    private settingsMutationTail: Promise<void> = Promise.resolve();
     private closed = false;
 
     constructor(
@@ -476,8 +481,36 @@ export class ConfigurationService {
         return { value: this.theme, source: this.themeSource };
     }
 
+    /** Serializes read-modify-write Settings operations so concurrent trust prompts cannot lose rules. */
+    private mutateSettings(operation: () => Promise<void>): Promise<void> {
+        const result = this.settingsMutationTail.then(operation);
+        this.settingsMutationTail = result.catch(() => undefined);
+        return result;
+    }
+
     updateSettings(source: string): Promise<void> {
-        return this.update('settings', source);
+        return this.mutateSettings(() => this.update('settings', source));
+    }
+
+    trustDomain(input: string): Promise<void> {
+        return this.mutateSettings(async () => {
+            const domain = normalizeTrustedDomainRule(input);
+            if (!domain) throw new CaxriError('VALIDATION', 'Invalid trusted domain');
+            const current = this.settings['security.trustedDomains'];
+            if (current.includes(domain)) return;
+            if (current.length >= MAX_TRUSTED_DOMAINS)
+                throw new CaxriError(
+                    'CAPACITY',
+                    `Trusted Domains supports at most ${MAX_TRUSTED_DOMAINS} rules`,
+                );
+            const source = applyEdits(
+                this.settingsSource,
+                modify(this.settingsSource, ['security.trustedDomains'], [...current, domain], {
+                    formattingOptions: JSONC_FORMATTING_OPTIONS,
+                }),
+            );
+            await this.update('settings', source);
+        });
     }
 
     updateKeybindings(source: string): Promise<void> {

@@ -51,6 +51,7 @@ describe('ConfigurationService', () => {
                     launch: { executable: 'codex', args: [] },
                 },
             },
+            'security.trustedDomains': [],
             'terminal.defaultWorkingDirectory': null,
             'terminal.fontSize': 15,
         });
@@ -87,6 +88,64 @@ describe('ConfigurationService', () => {
             ),
         ).rejects.toThrow();
         expect(service.getSettings()).toEqual(before);
+        await service.close();
+    });
+
+    it('atomically adds a normalized trusted domain without discarding Settings comments', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-trusted-domains-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigurationService(directory, () => undefined);
+        await service.initialize();
+        const source = `{
+  // Keep this explanation when Main trusts an origin.
+  "terminal.fontSize": 15,
+}
+`;
+        await service.updateSettings(source);
+
+        await service.trustDomain('HTTPS://Example.COM.:443');
+        await service.trustDomain('https://example.com');
+
+        expect(service.getSettings().value['security.trustedDomains']).toEqual([
+            'https://example.com',
+        ]);
+        expect(await readFile(service.settingsPath, 'utf8')).toContain(
+            '// Keep this explanation when Main trusts an origin.',
+        );
+        expect(await readFile(service.settingsPath, 'utf8')).toContain(
+            '"security.trustedDomains": [',
+        );
+
+        const before = service.getSettings();
+        await expect(service.trustDomain('*')).rejects.toThrow('Invalid trusted domain');
+        expect(service.getSettings()).toEqual(before);
+        await expect(
+            service.updateSettings(
+                JSON.stringify({
+                    ...before.value,
+                    'security.trustedDomains': ['*'],
+                }),
+            ),
+        ).rejects.toThrow('security.trustedDomains');
+        expect(service.getSettings()).toEqual(before);
+        await service.close();
+    });
+
+    it('serializes concurrent trusted-domain writes so neither rule is lost', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-trusted-concurrency-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigurationService(directory, () => undefined);
+        await service.initialize();
+
+        await Promise.all([
+            service.trustDomain('https://one.example.com'),
+            service.trustDomain('https://two.example.com'),
+        ]);
+
+        expect(service.getSettings().value['security.trustedDomains']).toEqual([
+            'https://one.example.com',
+            'https://two.example.com',
+        ]);
         await service.close();
     });
 

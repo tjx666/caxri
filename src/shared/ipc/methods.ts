@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { configurationSourceSchema, MAX_KEYBINDINGS } from '../configuration-contract';
+import { MAX_TRUSTED_DOMAIN_LENGTH } from '../trusted-domains';
 
 import {
     agentHookHealthMapSchema,
@@ -100,6 +101,14 @@ const fileName = z
     );
 /** Main returns this instead of a Runtime result when the user dismisses a confirmation dialog. */
 const canceled = z.object({ canceled: z.literal(true) });
+const externalOpenResult = z.discriminatedUnion('status', [
+    z.object({ status: z.literal('opened') }),
+    z.object({ status: z.literal('canceled') }),
+    z.object({
+        status: z.literal('rejected'),
+        reason: z.enum(['invalid_url', 'unsupported_protocol', 'credentials_not_allowed']),
+    }),
+]);
 
 /**
  * The single source of truth for every Renderer-callable method: which process handles it, the Zod
@@ -133,6 +142,11 @@ export const methods = {
         owner: 'main',
         params: z.object({ kind: z.enum(['settings', 'keybindings', 'theme']) }),
         result: z.null(),
+    },
+    'external.open': {
+        owner: 'main',
+        params: z.object({ url: z.string().min(1).max(16_384) }),
+        result: externalOpenResult,
     },
     'processExplorer.open': { owner: 'main', params: noParams, result: z.null() },
     'dialog.selectDirectory': {
@@ -581,6 +595,11 @@ export const internalMethods = {
             keybindings: z.string(),
             theme: z.string(),
         }),
+    },
+    'settings.trustDomain': {
+        owner: 'runtime',
+        params: z.object({ domain: z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH) }),
+        result: settingsResult,
     },
     'diagnostics.exportPath': {
         owner: 'runtime',

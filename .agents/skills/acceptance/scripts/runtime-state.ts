@@ -1,11 +1,12 @@
-import { rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { resolve, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 
 const execFileAsync = promisify(execFile);
+const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 
 export const runtimeStateSchema = z.object({
     cdpUrl: z.string(),
@@ -22,6 +23,52 @@ export const runtimeStateSchema = z.object({
 });
 
 export type RuntimeState = z.infer<typeof runtimeStateSchema>;
+
+interface PrepareUserDataOptions {
+    cleanupReusable: boolean;
+    reuseUserDataDir?: string;
+}
+
+async function resolveSafeAcceptanceUserDataDir(path: string): Promise<string> {
+    const [temporaryRoot, candidate] = await Promise.all([realpath(tmpdir()), realpath(path)]);
+    const relativeCandidate = relative(temporaryRoot, candidate);
+    const candidateStat = await stat(candidate);
+    if (
+        !candidateStat.isDirectory() ||
+        !relativeCandidate ||
+        relativeCandidate === '..' ||
+        relativeCandidate.startsWith(`..${sep}`) ||
+        isAbsolute(relativeCandidate) ||
+        !basename(candidate).startsWith(ACCEPTANCE_USER_DATA_PREFIX)
+    ) {
+        throw new Error(
+            `Reusable Acceptance user data must be a ${ACCEPTANCE_USER_DATA_PREFIX}* directory beneath ${temporaryRoot}`,
+        );
+    }
+    return candidate;
+}
+
+/**
+ * Creates the default disposable profile or validates a caller-owned profile used across a
+ * bounded restart check. Reusable profiles must already exist beneath the OS temp directory and
+ * keep the Acceptance prefix so an arbitrary developer profile can never enter the cleanup path.
+ */
+export async function prepareAcceptanceUserData({
+    cleanupReusable,
+    reuseUserDataDir,
+}: PrepareUserDataOptions): Promise<Pick<RuntimeState, 'ownedUserData' | 'userDataDir'>> {
+    if (!reuseUserDataDir) {
+        if (cleanupReusable)
+            throw new Error('--cleanup-reused-user-data requires --reuse-user-data');
+        return {
+            ownedUserData: true,
+            userDataDir: await mkdtemp(join(tmpdir(), ACCEPTANCE_USER_DATA_PREFIX)),
+        };
+    }
+
+    const candidate = await resolveSafeAcceptanceUserDataDir(reuseUserDataDir);
+    return { ownedUserData: cleanupReusable, userDataDir: candidate };
+}
 
 export function errorCode(error: unknown): string | undefined {
     if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
@@ -85,8 +132,9 @@ export async function isOwnedRuntime(
 export async function removeOwnedUserData(
     runtime: Pick<RuntimeState, 'ownedUserData' | 'userDataDir'>,
 ): Promise<void> {
-    const safePrefix = `${resolve(tmpdir())}${sep}caxri-acceptance-user-`;
-    if (runtime.ownedUserData && resolve(runtime.userDataDir).startsWith(safePrefix)) {
-        await rm(runtime.userDataDir, { force: true, recursive: true });
-    }
+    if (!runtime.ownedUserData) return;
+    const safePath = await resolveSafeAcceptanceUserDataDir(runtime.userDataDir).catch(
+        () => undefined,
+    );
+    if (safePath) await rm(safePath, { force: true, recursive: true });
 }

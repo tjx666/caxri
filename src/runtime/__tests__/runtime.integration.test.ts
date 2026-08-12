@@ -443,6 +443,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         spawnSpy.mockImplementation(() => createFakePty());
         const runtimeB = await createRuntime({
             userDataPath,
+            terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => undefined,
             terminal: { resolveExecutable, spawn: spawnSpy },
@@ -506,6 +507,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const events: RuntimeEvent[] = [];
         const runtimeB = await createRuntime({
             userDataPath,
+            terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: (event) => events.push(event),
             terminal: { resolveExecutable, spawn: spawnSpy },
@@ -564,6 +566,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         freshSpawnSpy.mockImplementation(() => createFakePty());
         const runtimeB = await createRuntime({
             userDataPath,
+            terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => undefined,
             terminal: { resolveExecutable, spawn: freshSpawnSpy },

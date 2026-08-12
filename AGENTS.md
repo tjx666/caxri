@@ -134,6 +134,10 @@ step-by-step workflows beyond this summary.
   `source`/`event`/`code`/`count` tuple. Wildcards, message matching, duplicate allowances, and
   allowances that are not consumed all fail the test.
 - Focused Electron E2E launches use hidden native windows by default. A spec that verifies native focus or pointer behavior must pass `windowMode: 'visible'`; the Acceptance adapter always does so for the real desktop surface.
+- For a hosted-only timing failure, reproduce only the exact failed cases against the production
+  build with one worker and `--repeat-each=3`. Make slowness deterministic at the owning async
+  boundary or wait for an observable product invariant; preserve relevant CI viewport and temporary
+  path conditions. Do not rely on machine-wide throttling or a timeout-only fix.
 - Electron E2E helpers, Acceptance, and performance benchmarks acquire one repository-wide desktop
   lease before launch. Never bypass their launch helpers or run a second desktop task concurrently;
   use `$switch-worktree`'s `desktop` command for any additional Electron desktop workflow.

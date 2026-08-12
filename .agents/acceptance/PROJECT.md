@@ -30,6 +30,11 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   The final root remains selected after the queue is exhausted, so Acceptance never falls through
   to a native dialog.
 
+- **Restart with the same isolated profile:** create an empty temporary directory whose basename
+  starts with `caxri-acceptance-user-`, pass it through `--reuse-user-data PATH` on both launches,
+  and add `--cleanup-reused-user-data` only to the final launch. The adapter resolves the real path,
+  requires it to remain beneath the OS temp directory, and refuses arbitrary developer profiles.
+
 - **Stop:** `bun run .agents/skills/acceptance/scripts/stop-electron.ts`. Stop only the
   process recorded in the runtime file.
 - **Already-running detection:** the adapter compares the recorded launcher PID

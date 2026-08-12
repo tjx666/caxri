@@ -49,7 +49,10 @@ then repair one cohesive batch.
   head has no product P0/P1.
 - After round three, allow one targeted verification of its P0/P1 repairs. If it
   exposes another architecture-level P0/P1, request a material architecture or
-  scope decision; never start round four.
+  scope decision; never start round four. An explicitly authorized repair may
+  receive one final targeted verification recorded with `--authorization`; never
+  run a third targeted verification in that post-round-three sequence. Delivery
+  repairs retain their own single targeted check after the latest full baseline.
 - P2/P3, stale evidence, PR copy, and workflow bookkeeping do not keep product
   review open. Record debt or fix delivery metadata in its owning phase.
 - A report against an old head is advisory. It can reopen work only when its
@@ -57,9 +60,10 @@ then repair one cohesive batch.
 - Workflow, verification-infrastructure, evidence, and PR-metadata-only commits
   use a `verification` decision after focused validation. It requires a prior
   full product-review baseline, zero product P0/P1, and exact-head freeze. Batch
-  them; the ledger permits three per Go run by default. Late hosted evidence may justify one
-  fourth verification freeze only with explicit user authorization recorded in the decision;
-  the ledger always rejects a fifth.
+  them. The ledger permits one bookkeeping freeze during `deep_review` plus three
+  routine repair freezes during `delivery`. Up to three additional delivery
+  freezes each require exact user authorization recorded with
+  `--verification-cap-authorization`; a seventh delivery freeze is rejected.
 
 Record every full, targeted, or verification decision through `state.ts review`. Use
 `--freeze` only with zero product P0/P1; the ledger invalidates the freeze when

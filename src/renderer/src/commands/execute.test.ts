@@ -112,13 +112,18 @@ describe('executeCommand', () => {
         );
     });
 
-    it('deep-links the Settings source command without changing the regular UI command', () => {
+    it('deep-links the Settings source and Trusted Domains commands', () => {
         const { calls, context } = recordingContext();
 
         executeCommand('settings.open', undefined, context);
         executeCommand('settings.openSource', undefined, context);
+        executeCommand('settings.manageTrustedDomains', undefined, context);
 
-        expect(calls).toEqual(['dialogs.openSettings', 'dialogs.openSettings(source)']);
+        expect(calls).toEqual([
+            'dialogs.openSettings',
+            'dialogs.openSettings(source)',
+            'dialogs.openSettings(trusted-domains)',
+        ]);
     });
 
     it('shows exactly one error toast for an unknown command instead of throwing', () => {

@@ -295,15 +295,50 @@ export async function launchCaxri(
 }
 
 /**
- * Opens the "Add Project" dialog, waits for it to render, and picks the
- * given default Terminal kind. This is the shared subset used by every spec
- * that creates a Project; specs that also need the Terminal surface ready
- * (eg. to type into it) should use {@link createShellSession} instead.
+ * Waits until Project creation has converged across Runtime state and the visible workbench.
+ * A dialog closing or a Session card rendering alone is insufficient: hosted runners can expose
+ * either before the selected Session and its first durable Terminal are available together.
+ */
+export async function waitForCreatedSession(
+    page: Page,
+    previousSessionId?: string,
+): Promise<string> {
+    let createdSessionId: string | undefined;
+    await expect
+        .poll(async () => {
+            const state = await pageRequest<{
+                selectedSessionId?: string;
+                sessions: Array<{ id: string }>;
+                terminals: Array<{ sessionId: string }>;
+            }>(page, 'app.bootstrap');
+            const candidate = state.selectedSessionId;
+            if (
+                !candidate ||
+                candidate === previousSessionId ||
+                !state.sessions.some(({ id }) => id === candidate) ||
+                !state.terminals.some(({ sessionId }) => sessionId === candidate) ||
+                (await page.getByRole('dialog').count()) > 0 ||
+                (await sessionCard(page, candidate).count()) === 0
+            ) {
+                return undefined;
+            }
+            createdSessionId = candidate;
+            return candidate;
+        })
+        .toBeTruthy();
+    return createdSessionId!;
+}
+
+/**
+ * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after
+ * the new Session satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell
+ * surface should use {@link createShellSession} instead.
  */
 export async function createProjectSession(
     page: Page,
     kind: 'shell' | 'claude' | 'codex' = 'shell',
-): Promise<void> {
+): Promise<string> {
+    const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     await openAddProjectDialog(page);
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await page
@@ -313,13 +348,7 @@ export async function createProjectSession(
             exact: true,
         })
         .click();
-    await expect(page.locator('.session-card')).toHaveCount(1);
-    /**
-     * Base UI retains the closed portal until its exit animation finishes. Waiting here keeps
-     * callers from changing media state mid-animation and leaving an overlay that intercepts the
-     * next interaction.
-     */
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    return waitForCreatedSession(page, previous.selectedSessionId);
 }
 
 /** Reveals the quiet titlebar action before activating it, matching pointer use at rest. */
@@ -358,6 +387,7 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
     await expect(
         page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`),
     ).toBeFocused();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
 export async function typeTerminal(page: Page, command: string): Promise<void> {
@@ -365,6 +395,70 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.focus();
     await input.pressSequentially(command);
     await input.press('Enter');
+}
+
+async function terminalTextBounds(page: Page, text: string) {
+    return page.locator('.xterm-rows').evaluate((rows, target) => {
+        let matched: { x: number; y: number; width: number; height: number } | undefined;
+        for (const row of rows.children) {
+            const rowText = row.textContent ?? '';
+            const targetStart = rowText.indexOf(target);
+            if (targetStart < 0) continue;
+            const range = document.createRange();
+            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+            let offset = 0;
+            let start: { node: Node; offset: number } | undefined;
+            let end: { node: Node; offset: number } | undefined;
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                const length = node.textContent?.length ?? 0;
+                if (!start && targetStart >= offset && targetStart <= offset + length)
+                    start = { node, offset: targetStart - offset };
+                const targetEnd = targetStart + target.length;
+                if (targetEnd >= offset && targetEnd <= offset + length) {
+                    end = { node, offset: targetEnd - offset };
+                    break;
+                }
+                offset += length;
+            }
+            if (!start || !end) continue;
+            range.setStart(start.node, start.offset);
+            range.setEnd(end.node, end.offset);
+            const bounds = range.getBoundingClientRect();
+            matched = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+        }
+        return matched ?? null;
+    }, text);
+}
+
+/**
+ * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches
+ * an empty provider result when output replaces a blank row beneath a stationary pointer.
+ */
+export async function clickTerminalLink(page: Page, text: string): Promise<void> {
+    await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
+    const bounds = await terminalTextBounds(page, text);
+    if (!bounds) throw new Error(`Terminal text not found: ${text}`);
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    const rows = page.locator('.xterm-rows > div');
+    const [firstRow, lastRow] = await Promise.all([
+        rows.first().boundingBox(),
+        rows.last().boundingBox(),
+    ]);
+    if (!firstRow || !lastRow) throw new Error('Terminal rows not found');
+    const firstY = firstRow.y + firstRow.height / 2;
+    const lastY = lastRow.y + lastRow.height / 2;
+    const resetRow = Math.abs(y - firstY) > Math.abs(y - lastY) ? firstRow : lastRow;
+    await page.mouse.move(resetRow.x + 2, resetRow.y + resetRow.height / 2);
+    await expect(page.locator('.xterm-cursor-pointer')).toHaveCount(0);
+    await page.mouse.move(x, y);
+    await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
+    await page.keyboard.down('Meta');
+    try {
+        await page.mouse.click(x, y);
+    } finally {
+        await page.keyboard.up('Meta');
+    }
 }
 
 export type PageReply<T> =

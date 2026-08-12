@@ -11,6 +11,7 @@ import { CommandPalette } from './features/palette/CommandPalette';
 import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
 import { ScreencastOverlay } from './features/screencast/ScreencastOverlay';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
+import { ArchivedSessionsDialog } from './features/session/ArchivedSessionsDialog';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { SettingsDialog } from './features/settings/SettingsDialog';
 import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
@@ -147,6 +148,7 @@ export function App() {
                 {inspectorVisible && <Inspector />}
                 <StatusBar />
                 <CreateSessionDialog />
+                <ArchivedSessionsDialog />
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />

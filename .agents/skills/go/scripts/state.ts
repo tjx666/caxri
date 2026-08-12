@@ -31,7 +31,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const STATE_ROOT = join(RECORDS_ROOT, 'go');
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const MAX_EVENTS = 120;
 
 const PHASES = [
@@ -638,7 +638,8 @@ Commands:
   pr --state PATH [--number N] [--url URL] [--status STATUS] [--branch NAME]
      [--head-sha SHA]
   review --state PATH --head-sha SHA --mode full|targeted|verification --p0 N --p1 N
-         --scope TEXT [--freeze] [--verification-cap-authorization TEXT]
+         --scope TEXT [--freeze] [--authorization TEXT]
+         [--verification-cap-authorization TEXT]
   ci-fallback-admit --state PATH --head-sha SHA --failure-kind billing|infrastructure
                     --failure-url URL --failure-job NAME --failure-detail TEXT
                     [--authorization TEXT] --verified-zero-steps
@@ -733,6 +734,7 @@ async function main(argv: string[]): Promise<void> {
         });
     } else if (command === 'review') {
         recordReviewDecision(state, {
+            authorization: one(options, 'authorization'),
             freeze: options.freeze === true,
             headSha: one(options, 'head-sha', true) ?? '',
             mode: reviewModeSchema.parse(one(options, 'mode', true)),
