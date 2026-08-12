@@ -14,7 +14,7 @@ const gridMarkerSchema = z.object({
     rows: z.number().int().positive(),
 });
 
-export const terminalFixtureSchema = z.object({
+const terminalFixtureSchema = z.object({
     columns: z.number().int().positive(),
     domRowCount: z.number().int().nonnegative(),
     firstGridMarker: gridMarkerSchema,

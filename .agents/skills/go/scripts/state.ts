@@ -1,8 +1,6 @@
 #!/usr/bin/env bun
 
 export * from './state-model';
-export { statePathForRunId, writeInitialState } from './state-storage';
-
 import { runStateCli } from './state-cli';
 
 if (import.meta.main) {

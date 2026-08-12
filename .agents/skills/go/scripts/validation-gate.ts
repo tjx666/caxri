@@ -15,7 +15,7 @@ const validationLogPathSchema = z
 export const validationKindSchema = z.enum(['ci', 'evidence', 'fixture', 'gates', 'remote_state']);
 const validationResultSchema = z.enum(['pending', 'passed', 'failed']);
 
-export const validationRecordSchema = z.object({
+const validationRecordSchema = z.object({
     attempt: z.number().int().positive(),
     command: z.string().min(1),
     completedAt: z.string().nullable(),
