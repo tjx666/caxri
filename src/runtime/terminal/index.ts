@@ -30,7 +30,7 @@ import type { CaxriDatabase } from '../db';
 import type { ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
-import { TerminalImageRecoveryFilter } from './image-recovery';
+import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
 
@@ -56,6 +56,7 @@ export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): No
 
 interface LiveTerminal {
     imageRecovery: TerminalImageRecoveryFilter;
+    imageOutput: TerminalImageOutputFilter;
     process: pty.IPty;
     record: TerminalRecord;
     screen: TerminalScreenState;
@@ -240,6 +241,7 @@ export class TerminalManager {
             }
             const live: LiveTerminal = {
                 imageRecovery: new TerminalImageRecoveryFilter(),
+                imageOutput: new TerminalImageOutputFilter(),
                 process: child,
                 record,
                 screen: new TerminalScreenState(
@@ -337,7 +339,7 @@ export class TerminalManager {
         live.screen.write(recoveryData);
         live.snapshot.append(recoveryData);
         if (this.attached.has(live.record.id)) {
-            const droppedBytes = live.outputQueue.appendBounded(data);
+            const droppedBytes = live.imageOutput.push(data, live.outputQueue);
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
@@ -524,6 +526,7 @@ export class TerminalManager {
         if (!live) return;
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
+        live.imageOutput.finish();
         live.droppedBytes = 0;
     }
 
@@ -563,6 +566,7 @@ export class TerminalManager {
     private retireLiveTerminal(live: LiveTerminal, options: { persist: boolean }): boolean {
         if (this.terminals.get(live.record.id) !== live) return false;
         this.clearTerminalTimers(live);
+        live.droppedBytes += live.imageOutput.finish();
         this.flushOutput(live);
         this.flushMetrics(live);
         if (options.persist) {

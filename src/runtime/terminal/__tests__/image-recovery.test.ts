@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { TerminalOutputQueue } from '../buffer';
 import {
     TERMINAL_IMAGE_RECOVERY_PLACEHOLDER,
+    TerminalImageOutputFilter,
     TerminalImageRecoveryFilter,
 } from '../image-recovery';
 
@@ -75,5 +77,51 @@ describe('TerminalImageRecoveryFilter', () => {
         expect(filter.push('\x1bPqUNFINISHED_SECRET')).toBe('');
 
         expect(filter.finish()).toBe(TERMINAL_IMAGE_RECOVERY_PLACEHOLDER);
+    });
+});
+
+describe('TerminalImageOutputFilter', () => {
+    it.each([
+        ['IIP', '\x1b]1337;File=inline=1:SECRET\x07'],
+        ['C1 SIXEL', '\x90qSECRET\x9c'],
+        ['multipart IIP', '\x1b]1337;FilePart=SECRET\x1b\\'],
+    ])('delivers a chunked %s control atomically', (_name, sequence) => {
+        const filter = new TerminalImageOutputFilter();
+        const output = new TerminalOutputQueue(128);
+        const split = Math.floor(sequence.length / 2);
+
+        expect(filter.push(`before${sequence.slice(0, split)}`, output)).toBe(0);
+        expect(output.drain()).toBe('before');
+        expect(filter.push(`${sequence.slice(split)}after`, output)).toBe(0);
+        expect(output.drain()).toBe(`${sequence}after`);
+    });
+
+    it.each([
+        ['IIP', '\x1b]1337;File=inline=1:SECRET\x07'],
+        ['C1 SIXEL', '\x90qSECRET\x9c'],
+        ['multipart IIP', '\x1b]1337;FilePart=SECRET\x1b\\'],
+    ])(
+        'drops a complete %s control rather than truncating it at backpressure',
+        (_name, sequence) => {
+            const filter = new TerminalImageOutputFilter();
+            const output = new TerminalOutputQueue(32);
+            expect(output.appendBounded('x'.repeat(24))).toBe(0);
+
+            const droppedBytes = filter.push(`${sequence}after`, output);
+
+            expect(droppedBytes).toBe(Buffer.byteLength(sequence));
+            expect(output.drain()).toBe(`${'x'.repeat(24)}after`);
+        },
+    );
+
+    it('discards an oversized control through its terminator and resumes ordinary output', () => {
+        const filter = new TerminalImageOutputFilter(16);
+        const output = new TerminalOutputQueue(128);
+
+        const firstDropped = filter.push('\x1b]1337;File=inline=1:TOO_LARGE', output);
+        const secondDropped = filter.push('_SECRET\x1b\\after', output);
+
+        expect(firstDropped + secondDropped).toBeGreaterThan(16);
+        expect(output.drain()).toBe('after');
     });
 });
