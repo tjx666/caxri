@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
-import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 
 import { createWorktree } from '../../switch-worktree/scripts/worktree';
+import { captureCommand } from './command-runner';
 
 interface StartInput {
     branch: string;
@@ -37,19 +37,7 @@ export interface GoStartResult {
 }
 
 async function capture(command: string, args: string[], cwd: string): Promise<string> {
-    return await new Promise((resolveOutput, reject) => {
-        const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
-        child.once('error', reject);
-        child.once('close', (code) =>
-            code === 0
-                ? resolveOutput(stdout.trim())
-                : reject(new Error(`${command} exited ${String(code)}: ${stderr.trim()}`)),
-        );
-    });
+    return captureCommand(command, args, { cwd });
 }
 
 async function checkoutSnapshot(

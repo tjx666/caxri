@@ -1,5 +1,15 @@
 import { spawn } from 'node:child_process';
-import { access, mkdir, mkdtemp, readdir, rm, symlink } from 'node:fs/promises';
+import {
+    access,
+    mkdir,
+    mkdtemp,
+    readFile,
+    readdir,
+    rename,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -9,8 +19,10 @@ import { recordPublishedAcceptance } from './acceptance-publication';
 import { assessExpectationDrift } from './issue-drift';
 import { recordReviewDecision } from './review-gate';
 import {
+    addEvent,
     createInitialState,
     recordAcceptance,
+    recordNote,
     recordPullRequest,
     recordWorktree,
     transitionState,
@@ -19,9 +31,12 @@ import {
 } from './state';
 import {
     prepareRunDirectory,
+    readState,
     resolveStatePath,
     statePathForRunId,
     writeInitialState,
+    writeState,
+    withStateLock,
 } from './state-storage';
 
 const REQUIRED_SECTIONS = [
@@ -129,6 +144,7 @@ describe('Go state ledger', () => {
             await prepareRunDirectory(statePath);
             expect((await readdir(runDirectory)).sort()).toEqual([
                 'acceptance',
+                'artifacts',
                 'ci-artifacts',
                 'reviews',
                 'validation',
@@ -191,7 +207,7 @@ describe('Go state ledger', () => {
             await symlink(targetDirectory, linkedDirectory, 'dir');
 
             await expect(resolveStatePath(linkedPath)).rejects.toThrow(
-                'run directory must be a direct directory',
+                'state parent must be a direct directory',
             );
         } finally {
             await rm(linkedDirectory, { force: true });
@@ -472,7 +488,7 @@ describe('Go state ledger', () => {
             },
             handoffReport: null,
             phase: 'acceptance_handoff',
-            schemaVersion: 8,
+            schemaVersion: 9,
         });
         expect(
             migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
@@ -566,7 +582,7 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 8,
+            schemaVersion: 9,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });
@@ -601,6 +617,156 @@ describe('Go state ledger', () => {
         try {
             await writeInitialState(path, state);
             await expect(writeInitialState(path, state)).rejects.toThrow('Go run already exists');
+        } finally {
+            await rm(directory, { force: true, recursive: true });
+        }
+    });
+
+    it('fails closed when another process owns the state writer lock', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-go-lock-'));
+        const path = join(directory, 'state.json');
+        const state = createInitialState({ objective: 'Serialize writers', runId: 'writer-lock' });
+        let release!: () => void;
+        let entered!: () => void;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        const acquired = new Promise<void>((resolve) => (entered = resolve));
+        try {
+            await writeInitialState(path, state);
+            const owner = withStateLock(path, async () => {
+                entered();
+                await held;
+            });
+            await acquired;
+
+            await expect(withStateLock(path, () => Promise.resolve())).rejects.toThrow(
+                'already locked by another writer',
+            );
+            release();
+            await owner;
+            await expect(access(join(directory, 'state.lock'))).rejects.toThrow();
+        } finally {
+            release?.();
+            await rm(directory, { force: true, recursive: true });
+        }
+    });
+
+    it('bounds and redacts structured notes before persistence', () => {
+        const state = createInitialState({ objective: 'Protect notes', runId: 'safe-notes' });
+        recordNote(state, {
+            kind: 'technical_debt',
+            text: 'Remote probe failed with token=private-value',
+        });
+
+        expect(state.notes.technical_debt[0]).toMatchObject({
+            kind: 'technical_debt',
+            redacted: true,
+            text: 'Remote probe failed with token=[REDACTED]',
+        });
+        expect(() => recordNote(state, { kind: 'workflow', text: 'x'.repeat(4_097) })).toThrow(
+            'Note text exceeds 4096 characters',
+        );
+    });
+
+    it('archives overflow history with a count and digest while keeping state bounded', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-go-retention-'));
+        const path = join(directory, 'state.json');
+        const state = createInitialState({ objective: 'Bound history', runId: 'retention' });
+        try {
+            await mkdir(join(directory, 'artifacts'));
+            await writeInitialState(path, state);
+            for (let index = 0; index < 160; index += 1) {
+                addEvent(state, 'phase', `phase transition ${index}`);
+            }
+            for (let index = 0; index < 35; index += 1) {
+                recordNote(state, {
+                    kind: 'workflow',
+                    text: `流程观察 ${index}${index === 0 ? ' token=private-history-value' : ''}`,
+                });
+            }
+
+            await writeState(path, state);
+            const persisted = await readState(path);
+            expect(persisted.events.length).toBeLessThanOrEqual(120);
+            expect(persisted.notes.workflow.length).toBeLessThanOrEqual(20);
+            const archive = persisted.retention.archive!;
+            expect(archive.byteLength).toBeGreaterThan(0);
+            expect(archive.counts.events).toBeGreaterThan(0);
+            expect(archive.counts['notes.workflow']).toBeGreaterThan(0);
+            expect(archive.path).toMatch(/^artifacts\/ledger-history-[0-9a-f]{64}\.json$/u);
+            expect(archive.sha256).toMatch(/^[0-9a-f]{64}$/u);
+            expect(archive.entryCount).toBeGreaterThan(0);
+            const archiveSource = await readFile(join(directory, archive.path), 'utf8');
+            expect(archiveSource).toContain('流程观察 0 token=[REDACTED]');
+            expect(archiveSource).not.toContain('private-history-value');
+        } finally {
+            await rm(directory, { force: true, recursive: true });
+        }
+    });
+
+    it('does not duplicate overflow when a state replacement is retried', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-go-retention-retry-'));
+        const path = join(directory, 'state.json');
+        const state = createInitialState({ objective: 'Retry history', runId: 'retention-retry' });
+        try {
+            await mkdir(join(directory, 'artifacts'));
+            await writeInitialState(path, state);
+            for (let index = 0; index < 25; index += 1) {
+                recordNote(state, { kind: 'workflow', text: `重试观察 ${index}` });
+            }
+            await writeState(path, state);
+            const persisted = await readState(path);
+            const firstCount = persisted.retention.archive!.entryCount;
+            const archiveSource = JSON.parse(
+                await readFile(join(directory, persisted.retention.archive!.path), 'utf8'),
+            ) as { entries: Array<{ value: (typeof persisted.notes.workflow)[number] }> };
+            persisted.notes.workflow.unshift(
+                ...archiveSource.entries.slice(0, 5).map(({ value }) => value),
+            );
+
+            await writeState(path, persisted);
+            expect((await readState(path)).retention.archive!.entryCount).toBe(firstCount);
+        } finally {
+            await rm(directory, { force: true, recursive: true });
+        }
+    });
+
+    it('does not follow a replaced run directory while updating state', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-go-path-race-'));
+        const runDirectory = join(root, 'run');
+        const savedDirectory = join(root, 'saved-run');
+        const outsideDirectory = join(root, 'outside');
+        const path = join(runDirectory, 'state.json');
+        const outsidePath = join(outsideDirectory, 'state.json');
+        const state = createInitialState({ objective: 'Reject path race', runId: 'path-race' });
+        try {
+            await mkdir(runDirectory);
+            await mkdir(outsideDirectory);
+            await writeInitialState(path, state);
+            await writeFile(outsidePath, 'outside sentinel', 'utf8');
+            await rename(runDirectory, savedDirectory);
+            await symlink(outsideDirectory, runDirectory, 'dir');
+
+            await expect(writeState(path, state)).rejects.toThrow('direct directory');
+            expect(await readFile(outsidePath, 'utf8')).toBe('outside sentinel');
+        } finally {
+            await rm(root, { force: true, recursive: true });
+        }
+    });
+
+    it('uses an unpredictable exclusive temporary file for state replacement', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-go-temp-race-'));
+        const outsidePath = join(directory, 'outside.txt');
+        const path = join(directory, 'state.json');
+        const state = createInitialState({ objective: 'Protect temp files', runId: 'temp-race' });
+        try {
+            await writeInitialState(path, state);
+            await writeFile(outsidePath, 'outside sentinel', 'utf8');
+            await symlink(outsidePath, `${path}.${process.pid}.tmp`);
+            state.objective = 'Updated safely';
+
+            await writeState(path, state);
+            expect(await readFile(outsidePath, 'utf8')).toBe('outside sentinel');
+            expect((await readState(path)).objective).toBe('Updated safely');
         } finally {
             await rm(directory, { force: true, recursive: true });
         }
