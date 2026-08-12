@@ -18,6 +18,8 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   ```bash
   bun run .agents/skills/acceptance/scripts/start-electron.ts \
     --port 9222 \
+    --report-dir "$REPORT_DIR" \
+    --case-id issue-42-terminal-layout \
     --test-root "$PWD"
   ```
 
@@ -31,9 +33,18 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   to a native dialog.
 
 - **Restart with the same isolated profile:** create an empty temporary directory whose basename
-  starts with `caxri-acceptance-user-`, pass it through `--reuse-user-data PATH` on both launches,
-  and add `--cleanup-reused-user-data` only to the final launch. The adapter resolves the real path,
-  requires it to remain beneath the OS temp directory, and refuses arbitrary developer profiles.
+  starts with `caxri-acceptance-user-<profile-id-length>-<profile-id>-`, pass the same `--case-id`,
+  `--case-mode restart`, and `--reuse-user-data PATH` on both launches, and add
+  `--cleanup-reused-user-data` only to the final launch. The adapter resolves the real path,
+  binds it to the named restart case, requires it to remain beneath the OS temp directory, and
+  refuses arbitrary developer profiles.
+
+- **Case isolation:** the report plan records `stateIsolation`. Start every `isolated` mutating
+  case in its own launch/profile regardless of execution order. Only a declared restart case can
+  reuse a profile; do not rely on another case's selected Session, archive state, settings, or
+  cleanup side effects. The adapter reads `--report-dir`, rejects a launch that differs from the
+  frozen plan, and maintains the case's `assets/<case-id>-state-isolation.json` receipt. Include
+  that receipt in `cases[].evidence`; finalization verifies exact profile reuse and cleanup.
 
 - **Stop:** `bun run .agents/skills/acceptance/scripts/stop-electron.ts`. Stop only the
   process recorded in the runtime file.

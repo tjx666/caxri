@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { assertReviewHeadFrozen, type ReviewGate } from './review-gate';
+import { assertReviewHeadFrozen, type ReviewGate, type ReviewPolicy } from './review-gate';
 
 export const ciFailureKindSchema = z.enum(['billing', 'infrastructure']);
 export const ciFallbackResultSchema = z.enum(['passed', 'failed']);
@@ -10,7 +10,6 @@ export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run doctor:changed',
     'bun run typecheck',
     'bun run format:check',
-    'bun run format:md:check',
     'bun run test',
     'bun run build',
 ] as const;
@@ -80,6 +79,7 @@ interface DeliveryContext {
     phase: string;
     pullRequest: { headSha: string | null; status: string };
     reviewGate: ReviewGate;
+    reviewPolicy: ReviewPolicy;
     validationBudget: ValidationBudget;
 }
 

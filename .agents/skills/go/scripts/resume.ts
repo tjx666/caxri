@@ -10,9 +10,17 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
         case 'planning':
             return 'Freeze the issue queue and Acceptance matrix, then create the Goal';
         case 'issue_execution':
-            return currentIssue
-                ? `Continue issue #${currentIssue.number}: ${currentIssue.title}`
-                : 'Transition to deep_review';
+            if (!currentIssue) return 'Transition to deep_review';
+            if (currentIssue.expectationDrift.status === 'detected') {
+                return `Publish the material expectation-drift comment for issue #${currentIssue.number}`;
+            }
+            if (currentIssue.expectationDrift.status === 'decision_required') {
+                return `Request the recorded scope decision for issue #${currentIssue.number}`;
+            }
+            if (!currentIssue.expectationDrift.assessedAt) {
+                return `Assess expectation drift for issue #${currentIssue.number}`;
+            }
+            return `Continue issue #${currentIssue.number}: ${currentIssue.title}`;
         case 'deep_review':
             if (state.reviewGate.frozenHeadSha)
                 return 'Transition the frozen review-clean head to delivery';
@@ -38,7 +46,17 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
             if (state.pullRequest.status === 'ready') return 'Transition to acceptance';
             return 'Finish PR delivery and required review';
         case 'acceptance':
+            if (state.acceptance.publication.pendingAttempt) {
+                return 'Retry readback for the pending Acceptance publication';
+            }
             return 'Execute and publish the next immutable Acceptance round';
+        case 'acceptance_handoff':
+            if (!state.handoffReport) return 'Generate the exact-head handoff report';
+            if (!state.handoffReport.deliveredAt)
+                return 'Deliver the persisted report summary and stable Acceptance URL';
+            return state.acceptance.status === 'waived'
+                ? 'Transition the explicitly waived head to merge'
+                : 'Transition to waiting_acceptance';
         case 'waiting_acceptance':
             if (state.acceptance.status === 'accepted') return 'Transition to merge';
             if (state.acceptance.status === 'rejected')
@@ -46,12 +64,15 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
             return 'Yield to the user and query Acceptance once on the next continuation';
         case 'merge':
             return state.pullRequest.status === 'merged'
-                ? 'Verify intended issue closure and remote project state'
+                ? 'Transition to finalization and verify every remote outcome'
                 : 'Merge the exact accepted PR head';
-        case 'self_improvement':
-            return 'Classify technical debt and workflow findings';
-        case 'reporting':
-            return 'Refresh remote state and deliver the final report';
+        case 'finalization':
+            if (!state.handoffReport) return 'Generate the missing durable handoff report';
+            if (!state.finalization)
+                return 'Generate finalization.json from refreshed remote state';
+            if (!state.handoffReport.deliveredAt || !state.finalization.deliveredAt)
+                return 'Deliver the report and finalization receipts to the user';
+            return 'Transition to complete';
         case 'complete':
             return 'No remaining action';
     }
@@ -74,12 +95,33 @@ export function createResumeCheckpoint(state: GoState) {
             ? ['Current PR head is not review-clean and frozen']
             : []),
         ...(state.acceptance.status === 'blocked' ? ['Acceptance is blocked'] : []),
+        ...(state.acceptance.publication.pendingAttempt
+            ? ['Acceptance publication is waiting for exact remote readback']
+            : []),
+        ...(['acceptance_handoff', 'waiting_acceptance', 'finalization'].includes(state.phase) &&
+        !state.handoffReport
+            ? ['Exact-head handoff report is missing']
+            : []),
+        ...(state.validations.some(({ result }) => result === 'pending')
+            ? ['A validation command has no final exit code']
+            : []),
+        ...state.issues.flatMap(({ expectationDrift, number }) =>
+            expectationDrift.status === 'detected'
+                ? [`Issue #${number} has unpublished material expectation drift`]
+                : expectationDrift.status === 'decision_required'
+                  ? [`Issue #${number} expectation drift requires a user decision`]
+                  : [],
+        ),
     ];
     const lastTransition = state.events.findLast((event) => event.type === 'phase') ?? null;
-    const workflowObservations = ['acceptance', 'waiting_acceptance'].includes(state.phase)
+    const workflowObservations = [
+        'acceptance',
+        'acceptance_handoff',
+        'waiting_acceptance',
+    ].includes(state.phase)
         ? state.notes.workflow.slice(-MAX_HANDOFF_WORKFLOW_OBSERVATIONS).map(({ text }) => text)
         : [];
-    const reportingPhase = ['self_improvement', 'reporting'].includes(state.phase);
+    const reportingPhase = ['acceptance_handoff', 'finalization'].includes(state.phase);
     const auditNotes = reportingPhase
         ? {
               tokenWaste: state.notes.token_waste
@@ -103,6 +145,7 @@ export function createResumeCheckpoint(state: GoState) {
                   number: currentIssue.number,
                   status: currentIssue.status,
                   title: currentIssue.title,
+                  expectationDrift: currentIssue.expectationDrift,
               }
             : null,
         lastTransition,
@@ -110,7 +153,11 @@ export function createResumeCheckpoint(state: GoState) {
         objective: state.objective,
         phase: state.phase,
         pullRequest: state.pullRequest,
+        finalization: state.finalization,
+        handoffReport: state.handoffReport,
         reviewGate: state.reviewGate,
+        reviewPolicy: state.reviewPolicy,
+        runBudget: state.runBudget,
         remainingIssues: remainingIssues.map(({ number, status, title }) => ({
             number,
             status,
@@ -119,6 +166,8 @@ export function createResumeCheckpoint(state: GoState) {
         status: state.status,
         updatedAt: state.updatedAt,
         validationBudget: state.validationBudget,
+        validations: state.validations,
+        worktree: state.worktree,
         workflowObservations,
     };
 }
@@ -140,6 +189,11 @@ export function formatResumeCheckpoint(
             `pr: #${checkpoint.pullRequest.number} ${checkpoint.pullRequest.status} @ ${checkpoint.pullRequest.headSha ?? 'unknown'}`,
         );
     }
+    if (checkpoint.worktree) {
+        lines.push(
+            `worktree: ${checkpoint.worktree.path} @ ${checkpoint.worktree.baseSha} (${checkpoint.branch ?? 'no branch'})`,
+        );
+    }
     if (checkpoint.acceptance.id) {
         lines.push(
             `acceptance: ${checkpoint.acceptance.status} round ${checkpoint.acceptance.round}${checkpoint.acceptance.acceptedHeadSha ? ` @ ${checkpoint.acceptance.acceptedHeadSha}` : ''}`,
@@ -150,6 +204,26 @@ export function formatResumeCheckpoint(
     }
     if (checkpoint.reviewGate.frozenHeadSha) {
         lines.push(`review-frozen-head: ${checkpoint.reviewGate.frozenHeadSha}`);
+    }
+    lines.push(`review-policy: ${checkpoint.reviewPolicy.mode}`);
+    if (checkpoint.handoffReport) {
+        lines.push(
+            `handoff-report: ${checkpoint.handoffReport.deliveredAt ? 'delivered' : 'generated'} @ ${checkpoint.handoffReport.headSha}`,
+        );
+    }
+    if (checkpoint.finalization) {
+        lines.push(
+            `finalization: ${checkpoint.finalization.deliveredAt ? 'delivered' : 'generated'} @ ${checkpoint.finalization.mergeSha}`,
+        );
+    }
+    const pendingValidations = checkpoint.validations.filter(({ result }) => result === 'pending');
+    if (pendingValidations.length > 0) {
+        lines.push(
+            ...pendingValidations.map(
+                ({ command, id, logPath, sessionId }) =>
+                    `pending-validation: ${id} session=${sessionId} log=${logPath} command=${command}`,
+            ),
+        );
     }
     if (checkpoint.validationBudget.fullElectronE2eRuns.length > 0) {
         lines.push(

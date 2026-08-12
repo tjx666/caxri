@@ -1,22 +1,38 @@
 import { spawn } from 'node:child_process';
-import { access, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { createResumeCheckpoint } from './resume';
+import { recordPublishedAcceptance } from './acceptance-publication';
+import { assessExpectationDrift } from './issue-drift';
+import { recordReviewDecision } from './review-gate';
 import {
     createInitialState,
     recordAcceptance,
-    recordNote,
     recordPullRequest,
-    statePathForRunId,
+    recordWorktree,
     transitionState,
     upsertIssue,
     validateState,
-    writeInitialState,
 } from './state';
-import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
-import { recordReviewDecision } from './review-gate';
+import {
+    prepareRunDirectory,
+    resolveStatePath,
+    statePathForRunId,
+    writeInitialState,
+} from './state-storage';
+
+const REQUIRED_SECTIONS = [
+    'delivery',
+    'review',
+    'technical-debt',
+    'workflow',
+    'cost',
+    'automation',
+    'boundaries',
+] as const;
 
 function freezeReview(state: ReturnType<typeof createInitialState>, headSha: string) {
     recordReviewDecision(state, {
@@ -25,7 +41,75 @@ function freezeReview(state: ReturnType<typeof createInitialState>, headSha: str
         mode: 'full',
         p0: 0,
         p1: 0,
+        reviewedRange: `origin/main...${headSha}`,
         scope: 'Goal range',
+    });
+}
+
+function readyDelivery(headSha = 'head-1') {
+    const state = createInitialState({ objective: 'Test Go delivery', runId: 'state-test' });
+    transitionState(state, 'planning');
+    transitionState(state, 'issue_execution');
+    upsertIssue(state, { number: 111, status: 'progressing', title: 'Improve Go' });
+    assessExpectationDrift(state, {
+        driftKey: 'final-assessment',
+        headSha,
+        issueNumber: 111,
+        kind: 'internal_detail',
+    });
+    upsertIssue(state, { commits: [headSha], number: 111, status: 'complete' });
+    transitionState(state, 'deep_review');
+    freezeReview(state, headSha);
+    transitionState(state, 'delivery');
+    recordPullRequest(state, {
+        headSha,
+        number: 120,
+        status: 'ready',
+        url: 'https://github.com/tjx666/caxri/pull/120',
+    });
+    return state;
+}
+
+function attachReport(
+    state: ReturnType<typeof createInitialState>,
+    options: { delivered?: boolean; headSha?: string } = {},
+) {
+    state.handoffReport = {
+        deliveredAt: options.delivered ? '2026-08-12T01:00:00.000Z' : null,
+        evidence: {
+            actionsUse: 'hosted=ready; localFallback=not_requested',
+            commitFileMetrics: 'unavailable',
+            costCheckpointCount: state.runBudget.checkpoints.length || 1,
+            issueDriftAssessmentCount: 1,
+            issueDriftCommentCount: 0,
+            reviewBaselineId: 'review-001',
+            reviewDecisionCount: 1,
+            reviewLineageComplete: true,
+            reviewPolicyMode: 'full-once',
+            validationRepairCount: 0,
+        },
+        generatedAt: '2026-08-12T00:59:00.000Z',
+        headSha: options.headSha ?? state.pullRequest.headSha!,
+        path: 'handoff-report.md',
+        sections: [...REQUIRED_SECTIONS],
+        sha256: '0'.repeat(64),
+    };
+}
+
+function publishRound(
+    state: ReturnType<typeof createInitialState>,
+    roundIndex: number,
+    headSha = 'head-1',
+) {
+    recordPublishedAcceptance(state, {
+        acceptanceId: 'acc-1',
+        checkIds: ['issue-111-go-state'],
+        headSha,
+        publishedAt: `2026-08-12T00:0${roundIndex}:00.000Z`,
+        roundIndex,
+        url: 'https://app.lobehub.com/acceptance/acc-1',
+        verdict: 'pass',
+        verifyRunId: `run-${roundIndex}`,
     });
 }
 
@@ -37,6 +121,23 @@ describe('Go state ledger', () => {
         expect(statePathForRunId('valid-run')).toMatch(/\.records\/go\/valid-run\/state\.json$/);
     });
 
+    it('creates the stable run directory layout without session transcripts', async () => {
+        const runId = `layout-${Date.now()}-${process.pid}`;
+        const statePath = statePathForRunId(runId);
+        const runDirectory = dirname(statePath);
+        try {
+            await prepareRunDirectory(statePath);
+            expect((await readdir(runDirectory)).sort()).toEqual([
+                'acceptance',
+                'ci-artifacts',
+                'reviews',
+                'validation',
+            ]);
+        } finally {
+            await rm(runDirectory, { force: true, recursive: true });
+        }
+    });
+
     it('does not follow a symlinked run directory during CLI initialization', async () => {
         const outsideDirectory = await mkdtemp(join(tmpdir(), 'caxri-go-symlink-'));
         const runId = `symlink-${outsideDirectory.split('/').at(-1)}`;
@@ -46,7 +147,6 @@ describe('Go state ledger', () => {
         try {
             await mkdir(dirname(runDirectory), { recursive: true });
             await symlink(outsideDirectory, runDirectory, 'dir');
-
             const child = spawn(
                 'bun',
                 [
@@ -73,550 +173,431 @@ describe('Go state ledger', () => {
         }
     });
 
-    it('tracks delivery state and rejects invalid transitions', () => {
-        const state = createInitialState({
-            branch: 'feat/go',
-            objective: 'Deliver two issues',
-            runId: 'test-run',
-        });
+    it('rejects an existing run directory symlinked to another internal ledger', async () => {
+        const suffix = `${Date.now()}-${process.pid}`;
+        const targetPath = statePathForRunId(`internal-target-${suffix}`);
+        const linkedPath = statePathForRunId(`internal-link-${suffix}`);
+        const targetDirectory = dirname(targetPath);
+        const linkedDirectory = dirname(linkedPath);
+        try {
+            await prepareRunDirectory(targetPath);
+            await writeInitialState(
+                targetPath,
+                createInitialState({
+                    objective: 'Target ledger',
+                    runId: `internal-target-${suffix}`,
+                }),
+            );
+            await symlink(targetDirectory, linkedDirectory, 'dir');
 
-        expect(state.phase).toBe('intake');
-        expect(state.status).toBe('planning');
-        transitionState(state, 'planning', 'requirements resolved');
-        transitionState(state, 'issue_execution', 'goal created');
-
-        upsertIssue(state, {
-            checks: ['issue-42-layout'],
-            number: 42,
-            priority: 'P0',
-            status: 'progressing',
-            title: 'Fix terminal layout',
-        });
-        upsertIssue(state, {
-            checks: ['issue-42-layout'],
-            commits: ['abc1234', 'abc1234'],
-            number: 42,
-            status: 'complete',
-            validations: ['focused test passed'],
-        });
-
-        expect(state.issues[0].acceptanceCheckIds).toEqual(['issue-42-layout']);
-        expect(state.issues[0].commits).toEqual(['abc1234']);
-        expect(state.issues[0].status).toBe('complete');
-
-        transitionState(state, 'deep_review');
-        freezeReview(state, 'pr-head-123');
-        transitionState(state, 'delivery');
-        recordPullRequest(state, {
-            headSha: 'pr-head-123',
-            number: 123,
-            status: 'checks_blocked',
-            url: 'https://github.com/example/repo/pull/123',
-        });
-        expect(state.pullRequest.status).toBe('checks_blocked');
-        recordPullRequest(state, { status: 'ready' });
-        transitionState(state, 'acceptance');
-        recordAcceptance(state, {
-            id: 'acc_test',
-            round: 1,
-            status: 'pending',
-            url: 'https://app.lobehub.com/acceptance/acc_test',
-        });
-        transitionState(state, 'waiting_acceptance');
-        recordNote(state, { kind: 'workflow', text: '在综合 review 后再捕获最终证据。' });
-        recordNote(state, { kind: 'workflow', text: '在综合 review 后再捕获最终证据。' });
-
-        expect(state.notes.workflow).toHaveLength(1);
-        expect(createResumeCheckpoint(state)).toMatchObject({
-            acceptance: { status: 'pending' },
-            blockers: [],
-            currentIssue: null,
-            nextAction: 'Yield to the user and query Acceptance once on the next continuation',
-            phase: 'waiting_acceptance',
-            pullRequest: { number: 123, status: 'ready' },
-            remainingIssues: [],
-        });
-        expect(formatResumeCheckpoint(createResumeCheckpoint(state))).toContain(
-            'acceptance: pending round 1\n',
-        );
-        expect(formatResumeCheckpoint(createResumeCheckpoint(state))).not.toContain(
-            'acceptance: pending round 1 @ pr-head-123',
-        );
-        expect(validateState(state)).toEqual(state);
-        expect(() => transitionState(state, 'complete')).toThrow('Invalid phase transition');
+            await expect(resolveStatePath(linkedPath)).rejects.toThrow(
+                'run directory must be a direct directory',
+            );
+        } finally {
+            await rm(linkedDirectory, { force: true });
+            await rm(targetDirectory, { force: true, recursive: true });
+        }
     });
 
-    it('rejects invalid issue dependencies', () => {
-        const state = createInitialState({ objective: 'Validate dependencies', runId: 'test-run' });
+    it('pins one isolated worktree and resumes that same path', () => {
+        const state = createInitialState({ objective: 'Isolate Go', runId: 'worktree-test' });
+        recordWorktree(
+            state,
+            {
+                baseSha: 'base-1',
+                branch: 'codex/go-test',
+                mainCheckoutPath: '/repo',
+                path: '/repo-worktrees/go-test',
+            },
+            '2026-08-12T00:00:00.000Z',
+        );
+        recordWorktree(state, {
+            baseSha: 'base-1',
+            branch: 'codex/go-test',
+            mainCheckoutPath: '/repo',
+            path: '/repo-worktrees/go-test',
+        });
 
+        expect(createResumeCheckpoint(state).worktree).toMatchObject({
+            baseSha: 'base-1',
+            path: '/repo-worktrees/go-test',
+        });
+        expect(state.branch).toBe('codex/go-test');
         expect(() =>
-            upsertIssue(state, {
-                dependencies: [Number.NaN],
-                number: 43,
-                title: 'Invalid dependency',
+            recordWorktree(state, {
+                baseSha: 'base-2',
+                mainCheckoutPath: '/repo',
+                path: '/repo-worktrees/other',
             }),
-        ).toThrow('positive integers');
+        ).toThrow('cannot switch to a different worktree');
     });
 
-    it('requires an explicit review-clean head freeze before delivery', () => {
-        const state = createInitialState({ objective: 'Freeze delivery', runId: 'freeze-test' });
+    it('records one cost checkpoint when each phase ends', () => {
+        const state = createInitialState({ objective: 'Track phases', runId: 'phase-test' });
         transitionState(state, 'planning');
         transitionState(state, 'issue_execution');
+
+        expect(state.runBudget.checkpoints.map(({ phase }) => phase)).toEqual([
+            'intake',
+            'planning',
+        ]);
+        expect(state.runBudget.checkpoints[0]).toMatchObject({
+            elapsedSeconds: 'unavailable',
+            tokens: 'unavailable',
+        });
+    });
+
+    it('requires a review-clean head and completed issues before delivery', () => {
+        const state = createInitialState({ objective: 'Protect delivery', runId: 'delivery-test' });
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        upsertIssue(state, { number: 111, status: 'progressing', title: 'Improve Go' });
         transitionState(state, 'deep_review');
 
+        expect(() => validateState(state)).toThrow('unfinished issues #111');
+        assessExpectationDrift(state, {
+            driftKey: 'final-assessment',
+            headSha: 'head-1',
+            issueNumber: 111,
+            kind: 'internal_detail',
+        });
+        upsertIssue(state, { commits: ['head-1'], number: 111, status: 'complete' });
         expect(() => transitionState(state, 'delivery')).toThrow(
             'explicitly frozen review-clean head',
         );
-        freezeReview(state, 'frozen-head');
+        freezeReview(state, 'head-1');
         expect(() => transitionState(state, 'delivery')).not.toThrow();
     });
 
-    it('requires completed issues and the exact accepted PR head before merge', () => {
-        const state = createInitialState({ objective: 'Protect merge', runId: 'merge-test' });
-        transitionState(state, 'planning');
-        transitionState(state, 'issue_execution');
-        upsertIssue(state, { number: 44, status: 'queued', title: 'Finish delivery' });
-
-        transitionState(state, 'deep_review');
-        expect(() => validateState(state)).toThrow('unfinished issues #44');
-
-        upsertIssue(state, { commits: ['abc123'], number: 44, status: 'complete' });
-        expect(validateState(state).phase).toBe('deep_review');
-        freezeReview(state, 'abc123');
-        transitionState(state, 'delivery');
-        recordPullRequest(state, { headSha: 'abc123', number: 124, status: 'ready' });
+    it('fails closed before waiting when the exact-head report is absent or undelivered', () => {
+        const state = readyDelivery();
         transitionState(state, 'acceptance');
-        recordAcceptance(state, { round: 1, status: 'pending' });
-        transitionState(state, 'waiting_acceptance');
-        transitionState(state, 'merge');
-        expect(() => validateState(state)).toThrow('exact human-accepted PR head');
+        publishRound(state, 1);
+        transitionState(state, 'acceptance_handoff');
 
+        expect(createResumeCheckpoint(state).nextAction).toBe(
+            'Generate the exact-head handoff report',
+        );
+        expect(() => transitionState(state, 'waiting_acceptance')).toThrow(
+            'generated handoff report',
+        );
+        attachReport(state);
+        expect(() => transitionState(state, 'waiting_acceptance')).toThrow(
+            'has not been delivered',
+        );
+        attachReport(state, { delivered: true, headSha: 'stale-head' });
+        expect(() => transitionState(state, 'waiting_acceptance')).toThrow(
+            'does not match the exact head',
+        );
+        attachReport(state, { delivered: true });
+        expect(() => transitionState(state, 'waiting_acceptance')).not.toThrow();
+    });
+
+    it('rejects pending Acceptance state without verified publication lineage', () => {
+        const state = readyDelivery();
+        transitionState(state, 'acceptance');
         recordAcceptance(state, {
-            acceptedHeadSha: 'different-head',
-            status: 'accepted',
+            id: 'acc-unverified',
+            round: 1,
+            status: 'pending',
+            url: 'https://app.lobehub.com/acceptance/acc-unverified',
         });
-        expect(() => validateState(state)).toThrow('exact human-accepted PR head');
 
-        recordAcceptance(state, { acceptedHeadSha: 'abc123', status: 'accepted' });
-        expect(validateState(state).phase).toBe('merge');
+        expect(() => validateState(state)).toThrow('no verified publication lineage');
+        expect(() => transitionState(state, 'acceptance_handoff')).toThrow(
+            'no verified publication lineage',
+        );
     });
 
-    it('summarizes only actionable resume state', () => {
-        const state = createInitialState({ objective: 'Resume compactly', runId: 'resume-test' });
-        transitionState(state, 'planning');
-        transitionState(state, 'issue_execution');
-        upsertIssue(state, { number: 45, status: 'complete', title: 'Finished issue' });
-        upsertIssue(state, { number: 46, status: 'progressing', title: 'Current issue' });
-
-        const checkpoint = createResumeCheckpoint(state);
-
-        expect(checkpoint.currentIssue).toEqual({
-            number: 46,
-            status: 'progressing',
-            title: 'Current issue',
-        });
-        expect(checkpoint.nextAction).toBe('Continue issue #46: Current issue');
-        expect(checkpoint.remainingIssues).toHaveLength(1);
-        expect(checkpoint).not.toHaveProperty('events');
-        expect(checkpoint).not.toHaveProperty('notes');
-    });
-
-    it('surfaces a compact workflow summary only at the Acceptance handoff', () => {
-        const state = createInitialState({
-            objective: 'Summarize learnings',
-            runId: 'handoff-test',
-        });
-        transitionState(state, 'planning');
-        transitionState(state, 'issue_execution');
-        expect(() =>
-            recordNote(state, { kind: 'workflow', text: 'English workflow observation.' }),
-        ).toThrow('workflow note must be primarily Chinese');
-        recordNote(state, { kind: 'workflow', text: '丢弃最早的一条观察。' });
-        recordNote(state, { kind: 'workflow', text: '保持稳定的 check id。' });
-        recordNote(state, { kind: 'workflow', text: '只冻结一次 requirement。' });
-        recordNote(state, { kind: 'workflow', text: '逐一检查每张 screenshot。' });
-
-        expect(createResumeCheckpoint(state).workflowObservations).toEqual([]);
-        transitionState(state, 'deep_review');
-        freezeReview(state, 'handoff-head');
-        transitionState(state, 'delivery');
-        recordPullRequest(state, { headSha: 'handoff-head', status: 'ready' });
+    it('restores rejected Acceptance and merges only the accepted exact head', () => {
+        const state = readyDelivery();
+        transitionState(state, 'acceptance');
+        publishRound(state, 1);
+        transitionState(state, 'acceptance_handoff');
+        attachReport(state, { delivered: true });
+        transitionState(state, 'waiting_acceptance');
+        recordAcceptance(state, { status: 'rejected' });
         transitionState(state, 'acceptance');
 
-        const checkpoint = createResumeCheckpoint(state);
-        expect(checkpoint.workflowObservations).toEqual([
-            '保持稳定的 check id。',
-            '只冻结一次 requirement。',
-            '逐一检查每张 screenshot。',
+        publishRound(state, 2);
+        transitionState(state, 'acceptance_handoff');
+        attachReport(state, { delivered: true });
+        transitionState(state, 'waiting_acceptance');
+        recordAcceptance(state, { acceptedHeadSha: 'head-1', status: 'accepted' });
+        expect(() => transitionState(state, 'merge')).not.toThrow();
+    });
+
+    it('supports an explicit non-product Acceptance waiver without weakening final reporting', () => {
+        const state = readyDelivery();
+        recordAcceptance(state, {
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'User explicitly waived desktop Acceptance for skill-only changes.',
+        });
+        transitionState(state, 'acceptance_handoff');
+
+        expect(() => transitionState(state, 'merge')).toThrow('generated handoff report');
+        attachReport(state);
+        expect(() => transitionState(state, 'merge')).not.toThrow();
+    });
+
+    it('blocks Acceptance handoff when drift is detected after PR readiness', () => {
+        const state = readyDelivery();
+        recordAcceptance(state, {
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'No product or UI behavior changed.',
+        });
+        assessExpectationDrift(state, {
+            acceptanceImpact: '原验证计划需要增加一条稳定检查。',
+            decision: '保留冻结范围，并在继续交付前记录实现决定。',
+            driftKey: 'late-discovery',
+            evidence: 'PR ready 后发现原架构假设不完整。',
+            expectation: '原预期认为现有状态门禁已经覆盖所有恢复路径。',
+            headSha: 'head-1',
+            issueNumber: 111,
+            kind: 'partial_root_cause',
+        });
+
+        expect(() => transitionState(state, 'acceptance_handoff')).toThrow('without a comment');
+    });
+
+    it('cannot complete without delivered handoff and finalization receipts', () => {
+        const state = readyDelivery();
+        recordAcceptance(state, {
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'No product or UI behavior changed.',
+        });
+        transitionState(state, 'acceptance_handoff');
+        attachReport(state);
+        transitionState(state, 'merge');
+        recordPullRequest(state, { status: 'merged' });
+        transitionState(state, 'finalization');
+
+        expect(() => transitionState(state, 'complete')).toThrow('delivered handoff report');
+        attachReport(state, { delivered: true });
+        expect(() => transitionState(state, 'complete')).toThrow('delivered finalization receipt');
+        state.finalization = {
+            deliveredAt: '2026-08-12T02:00:00.000Z',
+            headSha: 'head-1',
+            issues: [{ number: 111, projectStatus: 'Done', state: 'CLOSED' }],
+            mergeSha: 'merge-1',
+            path: 'finalization.json',
+            pullRequestNumber: 120,
+            verifiedAt: '2026-08-12T01:59:00.000Z',
+        };
+        expect(() => transitionState(state, 'complete')).not.toThrow();
+    });
+
+    it('migrates pre-v6 review and Acceptance lineage without losing evidence', () => {
+        const current = createInitialState({ objective: 'Migrate ledger', runId: 'legacy-v5' });
+        const legacy = {
+            ...current,
+            acceptance: {
+                acceptedHeadSha: null,
+                id: 'acc-legacy',
+                round: 1,
+                status: 'pending',
+                url: 'https://app.lobehub.com/acceptance/acc-legacy',
+            },
+            phase: 'waiting_acceptance',
+            pullRequest: {
+                headSha: 'legacy-repair',
+                number: 109,
+                status: 'ready',
+                url: 'https://github.com/tjx666/caxri/pull/109',
+            },
+            reviewGate: {
+                frozenHeadSha: 'legacy-repair',
+                rounds: [
+                    {
+                        completedAt: '2026-08-11T00:00:00.000Z',
+                        headSha: 'legacy-base',
+                        mode: 'full',
+                        phase: 'deep_review',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'Legacy Goal review',
+                    },
+                    {
+                        completedAt: '2026-08-11T00:10:00.000Z',
+                        headSha: 'legacy-repair',
+                        mode: 'targeted',
+                        phase: 'delivery',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'Legacy repair',
+                    },
+                    {
+                        completedAt: '2026-08-11T00:20:00.000Z',
+                        headSha: 'legacy-repair',
+                        mode: 'verification',
+                        phase: 'delivery',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'Legacy evidence check',
+                    },
+                ],
+            },
+            schemaVersion: 5,
+            status: 'waiting_acceptance',
+        } as Record<string, unknown>;
+        for (const key of [
+            'finalization',
+            'handoffReport',
+            'reviewPolicy',
+            'runBudget',
+            'validations',
+            'worktree',
+        ]) {
+            Reflect.deleteProperty(legacy, key);
+        }
+
+        const migrated = validateState(legacy);
+        expect(migrated).toMatchObject({
+            acceptance: {
+                id: 'acc-legacy',
+                publication: {
+                    history: [
+                        {
+                            acceptanceId: 'acc-legacy',
+                            headSha: 'legacy-repair',
+                            roundIndex: 1,
+                            verifyRunId: 'legacy-unavailable',
+                        },
+                    ],
+                },
+                waivedHeadSha: null,
+            },
+            handoffReport: null,
+            phase: 'acceptance_handoff',
+            schemaVersion: 8,
+        });
+        expect(
+            migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
+        ).toEqual([
+            { legacyMode: null, mode: 'full' },
+            { legacyMode: 'targeted', mode: 'light' },
         ]);
-        expect(formatResumeCheckpoint(checkpoint)).toContain(
-            'workflow observations:\n- 保持稳定的 check id。\n- 只冻结一次 requirement。\n- 逐一检查每张 screenshot。',
+        expect(migrated.validations).toHaveLength(1);
+        expect(createResumeCheckpoint(migrated).nextAction).toBe(
+            'Generate the exact-head handoff report',
         );
     });
 
-    it('surfaces accumulated workflow and token-waste notes during final reporting', () => {
-        const state = createInitialState({ objective: 'Report audit notes', runId: 'audit-test' });
-        transitionState(state, 'planning');
-        transitionState(state, 'issue_execution');
-        transitionState(state, 'deep_review');
-        freezeReview(state, 'audit-head');
-        transitionState(state, 'delivery');
-        recordPullRequest(state, { headSha: 'audit-head', status: 'ready' });
-        transitionState(state, 'acceptance');
-        recordAcceptance(state, {
-            acceptedHeadSha: 'audit-head',
-            status: 'accepted',
-        });
-        transitionState(state, 'waiting_acceptance');
-        recordNote(state, { kind: 'token_waste', text: 'Repeated a large status query.' });
-        recordNote(state, { kind: 'workflow', text: '把重复证据捕获步骤做成脚本。' });
-        transitionState(state, 'merge');
-        transitionState(state, 'self_improvement');
+    it('normalizes additional historical full reviews into an auditable light lineage', () => {
+        const current = createInitialState({ objective: 'Migrate reviews', runId: 'legacy-fulls' });
+        const legacy = {
+            ...current,
+            reviewGate: {
+                frozenHeadSha: 'legacy-repair',
+                rounds: [
+                    {
+                        completedAt: '2026-08-11T00:00:00.000Z',
+                        headSha: 'legacy-base',
+                        mode: 'full',
+                        phase: 'deep_review',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'First legacy full review',
+                    },
+                    {
+                        completedAt: '2026-08-11T00:10:00.000Z',
+                        headSha: 'legacy-repair',
+                        mode: 'full',
+                        phase: 'delivery',
+                        productP0: 0,
+                        productP1: 0,
+                        scope: 'Second legacy full review',
+                    },
+                ],
+            },
+            schemaVersion: 5,
+        } as Record<string, unknown>;
+        for (const key of [
+            'finalization',
+            'handoffReport',
+            'reviewPolicy',
+            'runBudget',
+            'validations',
+            'worktree',
+        ]) {
+            Reflect.deleteProperty(legacy, key);
+        }
 
-        const checkpoint = createResumeCheckpoint(state);
-        expect(checkpoint.auditNotes).toEqual({
-            tokenWaste: ['Repeated a large status query.'],
-            truncated: false,
-            workflow: ['把重复证据捕获步骤做成脚本。'],
-        });
-        expect(formatResumeCheckpoint(checkpoint)).toContain(
-            'report audit notes:\n- token_waste: Repeated a large status query.\n- workflow: 把重复证据捕获步骤做成脚本。',
-        );
+        const migrated = validateState(legacy);
+        expect(
+            migrated.reviewGate.rounds.map(({ legacyMode, mode, reviewedRange }) => ({
+                legacyMode,
+                mode,
+                reviewedRange,
+            })),
+        ).toEqual([
+            {
+                legacyMode: null,
+                mode: 'full',
+                reviewedRange: 'legacy:First legacy full review',
+            },
+            {
+                legacyMode: 'full',
+                mode: 'light',
+                reviewedRange: 'legacy-base..legacy-repair',
+            },
+        ]);
     });
 
-    it('migrates schema version 2 ledgers with an empty fallback record', () => {
-        const current = createInitialState({
-            objective: 'Resume old ledger',
-            runId: 'legacy-test',
-        });
+    it('migrates schema version 2 ledgers through the current schema', () => {
+        const current = createInitialState({ objective: 'Resume old ledger', runId: 'legacy-v2' });
         const legacy = { ...current, schemaVersion: 2 } as Record<string, unknown>;
-        delete legacy.ciFallback;
+        for (const key of [
+            'ciFallback',
+            'finalization',
+            'handoffReport',
+            'reviewGate',
+            'reviewPolicy',
+            'runBudget',
+            'validationBudget',
+            'validations',
+            'worktree',
+        ]) {
+            Reflect.deleteProperty(legacy, key);
+        }
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            reviewGate: { frozenHeadSha: null, rounds: [] },
-            schemaVersion: 5,
+            schemaVersion: 8,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });
 
-    it('imports a pre-v4 delivery review as an unfrozen baseline', () => {
-        const current = createInitialState({ objective: 'Migrate delivery', runId: 'legacy-v3' });
-        transitionState(current, 'planning');
-        transitionState(current, 'issue_execution');
-        transitionState(current, 'deep_review');
-        freezeReview(current, 'legacy-head');
-        transitionState(current, 'delivery');
-        recordPullRequest(current, { headSha: 'legacy-head', status: 'checks_blocked' });
-        const legacy = { ...current, schemaVersion: 3 } as Record<string, unknown>;
-        delete legacy.reviewGate;
-        delete legacy.validationBudget;
+    it('requires resumed v6 work to assess drift while preserving completed history', () => {
+        const current = createInitialState({ objective: 'Resume v6 ledger', runId: 'legacy-v6' });
+        upsertIssue(current, { number: 113, status: 'progressing', title: 'Track drift' });
+        upsertIssue(current, { number: 112, status: 'progressing', title: 'Preserve history' });
+        current.issues[1].commits.push('legacy-head');
+        current.issues[1].status = 'complete';
+        const legacy = { ...current, schemaVersion: 6 } as Record<string, unknown>;
+        legacy.issues = current.issues.map((issue) => {
+            const legacyIssue: Record<string, unknown> = { ...issue };
+            delete legacyIssue.expectationDrift;
+            return legacyIssue;
+        });
 
-        expect(validateState(legacy)).toMatchObject({
-            reviewGate: {
-                frozenHeadSha: null,
-                rounds: [{ headSha: 'legacy-head', mode: 'full' }],
-            },
-            schemaVersion: 5,
+        const resumed = validateState(legacy);
+        expect(resumed.issues[0].expectationDrift).toEqual({
+            assessedAt: null,
+            assessmentHeadSha: null,
+            records: [],
+            status: 'none',
         });
-    });
-
-    it('backfills v4 review phases around the recorded delivery transition', () => {
-        const current = createInitialState({
-            objective: 'Migrate review phases',
-            runId: 'legacy-v4',
-        });
-        transitionState(current, 'planning');
-        transitionState(current, 'issue_execution');
-        transitionState(current, 'deep_review');
-        freezeReview(current, 'product-head');
-        recordReviewDecision(current, {
-            freeze: true,
-            headSha: 'pre-delivery-head',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Pre-delivery bookkeeping',
-        });
-        transitionState(current, 'delivery');
-        for (const headSha of ['delivery-head-1', 'delivery-head-2']) {
-            recordReviewDecision(current, {
-                freeze: true,
-                headSha,
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Delivery repair',
-            });
-        }
-        const deliveryTransitionIndex = current.events.findIndex(
-            ({ detail, type }) => type === 'phase' && detail.startsWith('deep_review -> delivery'),
-        );
-        current.events.splice(
-            deliveryTransitionIndex,
-            0,
-            {
-                at: current.reviewGate.rounds[0].completedAt,
-                detail: 'full review for product-head: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-            {
-                at: current.reviewGate.rounds[1].completedAt,
-                detail: 'verification review for pre-delivery-head: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-        );
-        current.events.push(
-            {
-                at: current.reviewGate.rounds[2].completedAt,
-                detail: 'verification review for delivery-head-1: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-            {
-                at: current.reviewGate.rounds[3].completedAt,
-                detail: 'verification review for delivery-head-2: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-        );
-        for (const decision of current.reviewGate.rounds) {
-            Reflect.deleteProperty(decision, 'phase');
-        }
-        const legacy = { ...current, schemaVersion: 4 } as Record<string, unknown>;
-
-        const migrated = validateState(legacy);
-        expect(migrated.schemaVersion).toBe(5);
-        expect(migrated.reviewGate.rounds.map(({ phase }) => phase)).toEqual([
-            'deep_review',
-            'deep_review',
-            'delivery',
-            'delivery',
-        ]);
-        recordReviewDecision(migrated, {
-            freeze: true,
-            headSha: 'delivery-head-3',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Final delivery repair',
-        });
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'delivery-head-4',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Excess delivery repair',
-            }),
-        ).toThrow('requires explicit user authorization');
-        recordReviewDecision(migrated, {
-            freeze: true,
-            headSha: 'delivery-head-4',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Authorized final delivery repair',
-            verificationCapAuthorization: 'User approved one final delivery verification.',
-        });
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'delivery-head-5',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Unauthorized fifth delivery repair',
-            }),
-        ).toThrow('requires explicit user authorization');
-        recordReviewDecision(migrated, {
-            freeze: true,
-            headSha: 'delivery-head-5',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Authorized systemic delivery repair',
-            verificationCapAuthorization: 'User approved one systemic CI-parity verification.',
-        });
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'delivery-head-6',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Unauthorized sixth delivery repair',
-            }),
-        ).toThrow('requires explicit user authorization');
-        recordReviewDecision(migrated, {
-            freeze: true,
-            headSha: 'delivery-head-6',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Authorized final hosted E2E fixture repair',
-            verificationCapAuthorization:
-                'User approved one final hosted E2E fixture verification.',
-        });
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'delivery-head-7',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Disallowed seventh delivery repair',
-                verificationCapAuthorization: 'User approved another delivery verification.',
-            }),
-        ).toThrow('six delivery-stage');
-    });
-
-    it('replays every v4 delivery and deep-review cycle while backfilling phases', () => {
-        const current = createInitialState({
-            objective: 'Migrate review cycles',
-            runId: 'legacy-v4-cycles',
-        });
-        transitionState(current, 'planning');
-        transitionState(current, 'issue_execution');
-        transitionState(current, 'deep_review');
-        freezeReview(current, 'product-head');
-        recordReviewDecision(current, {
-            freeze: true,
-            headSha: 'pre-delivery-head',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Pre-delivery bookkeeping',
-        });
-        transitionState(current, 'delivery');
-        recordReviewDecision(current, {
-            freeze: true,
-            headSha: 'delivery-head',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Delivery repair',
-        });
-        transitionState(current, 'deep_review');
-        current.reviewGate.rounds.push({
-            ...current.reviewGate.rounds[1],
-            headSha: 'returned-deep-review-head',
-            scope: 'Legacy returned deep-review repair',
-        });
-        current.reviewGate.frozenHeadSha = 'returned-deep-review-head';
-        current.events = [
-            { at: '1', detail: 'issue_execution -> deep_review', type: 'phase' },
-            {
-                at: '2',
-                detail: 'full review for product-head: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-            {
-                at: '3',
-                detail: 'verification review for pre-delivery-head: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-            { at: '4', detail: 'deep_review -> delivery', type: 'phase' },
-            {
-                at: '5',
-                detail: 'verification review for delivery-head: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-            { at: '6', detail: 'delivery -> deep_review', type: 'phase' },
-            {
-                at: '7',
-                detail: 'verification review for returned-deep-review-head: P0=0 P1=0 (frozen)',
-                type: 'review',
-            },
-        ];
-        for (const decision of current.reviewGate.rounds) {
-            Reflect.deleteProperty(decision, 'phase');
-        }
-
-        const migrated = validateState({ ...current, schemaVersion: 4 });
-        expect(migrated.reviewGate.rounds.map(({ phase }) => phase)).toEqual([
-            'deep_review',
-            'deep_review',
-            'delivery',
-            'deep_review',
-        ]);
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'another-deep-review-head',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Excess returned deep-review repair',
-            }),
-        ).toThrow('one pre-delivery');
-    });
-
-    it('charges v4 reviews with missing review events to both phase budgets', () => {
-        const current = createInitialState({
-            objective: 'Migrate truncated review evidence',
-            runId: 'legacy-v4-truncated',
-        });
-        transitionState(current, 'planning');
-        transitionState(current, 'issue_execution');
-        transitionState(current, 'deep_review');
-        freezeReview(current, 'product-head');
-        recordReviewDecision(current, {
-            freeze: true,
-            headSha: 'verification-1',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Legacy verification',
-        });
-        transitionState(current, 'delivery');
-        for (const headSha of ['verification-2', 'verification-3']) {
-            recordReviewDecision(current, {
-                freeze: true,
-                headSha,
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Legacy verification',
-            });
-        }
-        for (const decision of current.reviewGate.rounds) {
-            Reflect.deleteProperty(decision, 'phase');
-        }
-        const migrated = validateState({ ...current, schemaVersion: 4 });
-        expect(
-            migrated.reviewGate.rounds
-                .filter(({ mode }) => mode === 'verification')
-                .map(({ phase }) => phase),
-        ).toEqual(['unknown', 'unknown', 'unknown']);
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'delivery-4',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Excess delivery repair',
-            }),
-        ).toThrow('requires explicit user authorization');
-
-        transitionState(migrated, 'deep_review');
-        expect(() =>
-            recordReviewDecision(migrated, {
-                freeze: true,
-                headSha: 'deep-review-2',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Excess pre-delivery repair',
-            }),
-        ).toThrow('one pre-delivery');
+        expect(resumed.issues[1].expectationDrift.assessedAt).toBe('legacy-unavailable');
     });
 
     it('does not overwrite an existing run ledger', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-go-state-'));
         const path = join(directory, 'state.json');
         const state = createInitialState({ objective: 'Keep resume history', runId: 'same-run' });
-
         try {
             await writeInitialState(path, state);
             await expect(writeInitialState(path, state)).rejects.toThrow('Go run already exists');

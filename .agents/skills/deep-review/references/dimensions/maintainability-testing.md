@@ -41,7 +41,7 @@ Check whether the implementation fits Caxri's existing language, helpers, and va
 
 - `AGENTS.md` code conventions and testing workflow
 - `.agents/skills/quality-check/SKILL.md`
-- `.agents/skills/test/SKILL.md`
+- `.agents/skills/unit-test/SKILL.md` and `.agents/skills/e2e-testing/SKILL.md`
 - The closest existing domain implementation
 
 ## Not violations

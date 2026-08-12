@@ -1,10 +1,15 @@
 #!/usr/bin/env bun
 
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
+import {
+    createTerminalFixturePreflightReceipt,
+    terminalFixturePreflightReceiptSchema,
+    type TerminalFixturePreflightReceipt,
+} from './fixture-preflight';
 
 interface CdpTarget {
     type: string;
@@ -15,6 +20,7 @@ interface CdpTarget {
 interface FrameOptions {
     command: 'frames';
     count: number;
+    fixturePreflight: string;
     intervalMs: number;
     outDir: string;
     port?: number;
@@ -40,7 +46,7 @@ const CDP_TIMEOUT_MS = 10_000;
 const HELP = `Capture the owned isolated Caxri Renderer through CDP.
 
 Usage:
-  capture-renderer.ts frames --out-dir DIR [--port PORT] [--url-contains TEXT] [--count 40] [--interval-ms 250]
+  capture-renderer.ts frames --out-dir DIR --fixture-preflight FIXTURE_JSON [--port PORT] [--url-contains TEXT] [--count 40] [--interval-ms 250]
   capture-renderer.ts dom --output FILE --selector SELECTOR [--port PORT] [--url-contains TEXT]
 `;
 
@@ -70,7 +76,14 @@ export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
     const allowedOptions =
         command === 'dom'
             ? new Set(['--output', '--port', '--selector', '--url-contains'])
-            : new Set(['--count', '--interval-ms', '--out-dir', '--port', '--url-contains']);
+            : new Set([
+                  '--count',
+                  '--fixture-preflight',
+                  '--interval-ms',
+                  '--out-dir',
+                  '--port',
+                  '--url-contains',
+              ]);
     for (let index = 1; index < args.length; index += 2) {
         const option = args[index];
         if (!option?.startsWith('--')) throw new Error(`Unexpected argument: ${option}`);
@@ -92,9 +105,12 @@ export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
 
     const outDir = values.get('--out-dir');
     if (!outDir) throw new Error('--out-dir is required');
+    const fixturePreflight = values.get('--fixture-preflight');
+    if (!fixturePreflight) throw new Error('--fixture-preflight is required for frame capture');
     return {
         command,
         count: boundedPositiveInteger(values.get('--count') ?? '40', '--count', MAX_FRAME_COUNT),
+        fixturePreflight: resolve(fixturePreflight),
         intervalMs: boundedPositiveInteger(
             values.get('--interval-ms') ?? '250',
             '--interval-ms',
@@ -104,6 +120,25 @@ export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
         port,
         urlContains,
     };
+}
+
+export async function requireCapturePreflight(path: string): Promise<void> {
+    const metadata = await lstat(path);
+    if (metadata.isSymbolicLink() || !metadata.isFile()) {
+        throw new Error('Fixture preflight input must be a direct regular file');
+    }
+    const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
+    const receipt: TerminalFixturePreflightReceipt =
+        terminalFixturePreflightReceiptSchema.parse(raw);
+    const verified = createTerminalFixturePreflightReceipt(receipt.fixture, receipt.caseId);
+    if (JSON.stringify(receipt) !== JSON.stringify(verified)) {
+        throw new Error('Fixture preflight receipt does not match its observed fixture');
+    }
+    if (receipt.result.status !== 'ready') {
+        throw new Error(
+            `Frame capture blocked by fixture preflight: ${receipt.result.errors.map(({ code }) => code).join(', ')}`,
+        );
+    }
 }
 
 export function selectRendererTarget(targets: CdpTarget[], urlContains?: string): CdpTarget {
@@ -241,6 +276,7 @@ async function connect(port: number, urlContains?: string): Promise<CdpClient> {
 }
 
 async function captureFrames(options: FrameOptions, port: number): Promise<void> {
+    await requireCapturePreflight(options.fixturePreflight);
     await mkdir(options.outDir, { recursive: true });
     const existingFrames = (await readdir(options.outDir)).filter((name) =>
         /^frame_\d+\.png$/.test(name),

@@ -7,8 +7,14 @@ import { z } from 'zod';
 
 const execFileAsync = promisify(execFile);
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
+const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
+const acceptanceCaseSchema = z.object({
+    id: z.string().min(1),
+    mode: acceptanceCaseModeSchema,
+});
 
 export const runtimeStateSchema = z.object({
+    acceptanceCase: acceptanceCaseSchema.nullable().optional(),
     cdpUrl: z.string(),
     electronIdentity: z.string().min(1).nullable(),
     electronPid: z.number().int().positive().nullable(),
@@ -25,11 +31,29 @@ export const runtimeStateSchema = z.object({
 export type RuntimeState = z.infer<typeof runtimeStateSchema>;
 
 interface PrepareUserDataOptions {
+    caseId?: string;
+    caseMode?: z.infer<typeof acceptanceCaseModeSchema>;
     cleanupReusable: boolean;
+    profileId?: string;
     reuseUserDataDir?: string;
 }
 
-async function resolveSafeAcceptanceUserDataDir(path: string): Promise<string> {
+function normalizeCaseId(caseId: string | undefined): string {
+    const value = caseId ?? 'unscoped';
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u.test(value)) {
+        throw new Error('Acceptance case id must use lowercase letters, digits, and hyphens');
+    }
+    return value;
+}
+
+function profilePrefix(caseId: string): string {
+    return `${ACCEPTANCE_USER_DATA_PREFIX}${caseId.length}-${caseId}-`;
+}
+
+async function resolveSafeAcceptanceUserDataDir(
+    path: string,
+    expectedCaseId?: string,
+): Promise<string> {
     const [temporaryRoot, candidate] = await Promise.all([realpath(tmpdir()), realpath(path)]);
     const relativeCandidate = relative(temporaryRoot, candidate);
     const candidateStat = await stat(candidate);
@@ -39,7 +63,8 @@ async function resolveSafeAcceptanceUserDataDir(path: string): Promise<string> {
         relativeCandidate === '..' ||
         relativeCandidate.startsWith(`..${sep}`) ||
         isAbsolute(relativeCandidate) ||
-        !basename(candidate).startsWith(ACCEPTANCE_USER_DATA_PREFIX)
+        !basename(candidate).startsWith(ACCEPTANCE_USER_DATA_PREFIX) ||
+        (expectedCaseId && !basename(candidate).startsWith(profilePrefix(expectedCaseId)))
     ) {
         throw new Error(
             `Reusable Acceptance user data must be a ${ACCEPTANCE_USER_DATA_PREFIX}* directory beneath ${temporaryRoot}`,
@@ -54,20 +79,41 @@ async function resolveSafeAcceptanceUserDataDir(path: string): Promise<string> {
  * keep the Acceptance prefix so an arbitrary developer profile can never enter the cleanup path.
  */
 export async function prepareAcceptanceUserData({
+    caseId,
+    caseMode = 'isolated',
     cleanupReusable,
+    profileId,
     reuseUserDataDir,
-}: PrepareUserDataOptions): Promise<Pick<RuntimeState, 'ownedUserData' | 'userDataDir'>> {
+}: PrepareUserDataOptions): Promise<
+    Pick<RuntimeState, 'acceptanceCase' | 'ownedUserData' | 'userDataDir'>
+> {
+    const normalizedCaseId = normalizeCaseId(caseId);
+    const normalizedCaseMode = acceptanceCaseModeSchema.parse(caseMode);
     if (!reuseUserDataDir) {
         if (cleanupReusable)
             throw new Error('--cleanup-reused-user-data requires --reuse-user-data');
+        if (normalizedCaseMode === 'restart') {
+            throw new Error('A restart Acceptance case requires --reuse-user-data');
+        }
         return {
+            acceptanceCase: { id: normalizedCaseId, mode: 'isolated' },
             ownedUserData: true,
-            userDataDir: await mkdtemp(join(tmpdir(), ACCEPTANCE_USER_DATA_PREFIX)),
+            userDataDir: await mkdtemp(join(tmpdir(), profilePrefix(normalizedCaseId))),
         };
     }
 
-    const candidate = await resolveSafeAcceptanceUserDataDir(reuseUserDataDir);
-    return { ownedUserData: cleanupReusable, userDataDir: candidate };
+    if (!caseId || normalizedCaseMode !== 'restart') {
+        throw new Error('Reusable Acceptance user data requires a named restart case');
+    }
+    const candidate = await resolveSafeAcceptanceUserDataDir(
+        reuseUserDataDir,
+        normalizeCaseId(profileId ?? normalizedCaseId),
+    );
+    return {
+        acceptanceCase: { id: normalizedCaseId, mode: 'restart' },
+        ownedUserData: cleanupReusable,
+        userDataDir: candidate,
+    };
 }
 
 export function errorCode(error: unknown): string | undefined {

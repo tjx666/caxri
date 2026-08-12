@@ -1,5 +1,11 @@
 import { createEmptyCiFallback, createEmptyValidationBudget } from './ci-fallback';
-import { createEmptyReviewGate } from './review-gate';
+import { createEmptyAcceptancePublication } from './acceptance-publication';
+import { createEmptyReviewGate, createReviewPolicy } from './review-gate';
+import {
+    createEmptyIssueExpectationDrift,
+    createImportedIssueExpectationDrift,
+} from './issue-drift';
+import { createRunBudget } from './run-budget';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -14,13 +20,13 @@ function migrateReviewDecisionPhases(state: Record<string, unknown>): Record<str
     for (const event of events) {
         if (!isRecord(event) || typeof event.detail !== 'string') continue;
         if (event.type === 'phase') {
-            const targetPhase = /^[a-z_]+ -> ([a-z_]+)/.exec(event.detail)?.[1];
+            const targetPhase = /^[a-z_]+ -> ([a-z_]+)/u.exec(event.detail)?.[1];
             activeReviewPhase =
                 targetPhase === 'deep_review' || targetPhase === 'delivery'
                     ? targetPhase
                     : undefined;
         } else if (event.type === 'review' && activeReviewPhase) {
-            const headSha = / review for ([^:]+):/.exec(event.detail)?.[1];
+            const headSha = / review for ([^:]+):/u.exec(event.detail)?.[1];
             if (headSha) reviewPhaseByHead.set(headSha, activeReviewPhase);
         }
     }
@@ -28,10 +34,158 @@ function migrateReviewDecisionPhases(state: Record<string, unknown>): Record<str
         if (!isRecord(decision)) return decision;
         if (decision.phase === 'deep_review' || decision.phase === 'delivery') return decision;
         const headSha = typeof decision.headSha === 'string' ? decision.headSha : '';
-        const phase = reviewPhaseByHead.get(headSha) ?? 'unknown';
-        return { ...decision, phase };
+        return { ...decision, phase: reviewPhaseByHead.get(headSha) ?? 'unknown' };
     });
     return { ...state, reviewGate: { ...reviewGate, rounds: migratedRounds }, schemaVersion: 5 };
+}
+
+function migrateV5(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyGate = isRecord(state.reviewGate) ? state.reviewGate : {};
+    const legacyRounds = Array.isArray(legacyGate.rounds) ? legacyGate.rounds.filter(isRecord) : [];
+    const reviewRounds: Record<string, unknown>[] = [];
+    const validations: Record<string, unknown>[] = [];
+    let baseline: Record<string, unknown> | undefined;
+    let parent: Record<string, unknown> | undefined;
+    for (const decision of legacyRounds) {
+        const headSha = typeof decision.headSha === 'string' ? decision.headSha : 'legacy-head';
+        const mode = typeof decision.mode === 'string' ? decision.mode : 'full';
+        const completedAt =
+            typeof decision.completedAt === 'string' ? decision.completedAt : 'legacy';
+        const scope = typeof decision.scope === 'string' ? decision.scope : 'Legacy review';
+        if (mode === 'verification') {
+            validations.push({
+                attempt: validations.length + 1,
+                command: `legacy verification: ${scope}`,
+                completedAt,
+                exitCode: 0,
+                headSha,
+                id: `validation-${String(validations.length + 1).padStart(3, '0')}`,
+                kind: 'evidence',
+                lineageId: 'legacy-review-verification',
+                logPath: 'validation/legacy-unavailable.log',
+                result: 'passed',
+                sessionId: 'legacy-unavailable',
+                startedAt: completedAt,
+            });
+            continue;
+        }
+        const id = `review-${String(reviewRounds.length + 1).padStart(3, '0')}`;
+        const importedAdditionalFull = Boolean(baseline) && mode === 'full';
+        const migrated = {
+            baselineHeadSha: baseline ? baseline.headSha : null,
+            baselineReviewId: baseline ? baseline.id : null,
+            completedAt,
+            headSha,
+            id,
+            legacyMode: mode === 'targeted' ? 'targeted' : importedAdditionalFull ? 'full' : null,
+            mode: mode === 'targeted' || importedAdditionalFull ? 'light' : 'full',
+            parentReviewId: parent ? parent.id : null,
+            phase:
+                decision.phase === 'deep_review' || decision.phase === 'delivery'
+                    ? decision.phase
+                    : 'unknown',
+            productP0: typeof decision.productP0 === 'number' ? decision.productP0 : 0,
+            productP1: typeof decision.productP1 === 'number' ? decision.productP1 : 0,
+            reviewedRange: parent ? `${String(parent.headSha)}..${headSha}` : `legacy:${scope}`,
+            scope,
+        };
+        reviewRounds.push(migrated);
+        baseline ??= migrated;
+        parent = migrated;
+    }
+    const acceptance = isRecord(state.acceptance) ? state.acceptance : {};
+    const legacyPhase = typeof state.phase === 'string' ? state.phase : 'intake';
+    const phase =
+        legacyPhase === 'waiting_acceptance'
+            ? 'acceptance_handoff'
+            : ['self_improvement', 'reporting', 'complete'].includes(legacyPhase)
+              ? 'finalization'
+              : legacyPhase;
+    const status =
+        phase === 'intake' || phase === 'planning'
+            ? 'planning'
+            : phase === 'waiting_acceptance'
+              ? 'waiting_acceptance'
+              : 'active';
+    return {
+        ...state,
+        acceptance: { ...acceptance, waivedHeadSha: null, waiverReason: null },
+        finalization: null,
+        handoffReport: null,
+        phase,
+        reviewGate: {
+            baselineReviewId: baseline?.id ?? null,
+            frozenHeadSha:
+                typeof legacyGate.frozenHeadSha === 'string' ? legacyGate.frozenHeadSha : null,
+            rounds: reviewRounds,
+        },
+        reviewPolicy: createReviewPolicy('full-once', 'Imported pre-v6 policy'),
+        runBudget: createRunBudget(),
+        schemaVersion: 6,
+        status,
+        validations,
+        worktree: null,
+    };
+}
+
+function migrateV6(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyIssues: unknown[] = Array.isArray(state.issues) ? state.issues : [];
+    const issues = legacyIssues.map((issue) =>
+        isRecord(issue) && !('expectationDrift' in issue)
+            ? {
+                  ...issue,
+                  expectationDrift:
+                      issue.status === 'complete' || issue.status === 'deferred'
+                          ? createImportedIssueExpectationDrift()
+                          : createEmptyIssueExpectationDrift(),
+              }
+            : issue,
+    );
+    const handoffReport = isRecord(state.handoffReport) ? state.handoffReport : null;
+    const reportNeedsRegeneration = handoffReport !== null && !('evidence' in handoffReport);
+    const legacyPhase = typeof state.phase === 'string' ? state.phase : 'intake';
+    return {
+        ...state,
+        handoffReport: reportNeedsRegeneration ? null : state.handoffReport,
+        issues,
+        phase: reportNeedsRegeneration && legacyPhase === 'complete' ? 'finalization' : legacyPhase,
+        schemaVersion: 7,
+        status: reportNeedsRegeneration && legacyPhase === 'complete' ? 'active' : state.status,
+    };
+}
+
+function migrateV7(state: Record<string, unknown>): Record<string, unknown> {
+    const acceptance = isRecord(state.acceptance) ? state.acceptance : {};
+    const pullRequest = isRecord(state.pullRequest) ? state.pullRequest : {};
+    const publication = createEmptyAcceptancePublication();
+    if (
+        typeof acceptance.id === 'string' &&
+        acceptance.id &&
+        typeof acceptance.round === 'number' &&
+        acceptance.round > 0
+    ) {
+        publication.history.push({
+            acceptanceId: acceptance.id,
+            checkIds: [],
+            headSha:
+                typeof pullRequest.headSha === 'string'
+                    ? pullRequest.headSha
+                    : 'legacy-unavailable',
+            publishedAt: typeof state.updatedAt === 'string' ? state.updatedAt : 'legacy',
+            roundIndex: acceptance.round,
+            url:
+                typeof acceptance.url === 'string'
+                    ? acceptance.url
+                    : `https://app.lobehub.com/acceptance/${acceptance.id}`,
+            verdict: 'legacy-unavailable',
+            verifyRunId: 'legacy-unavailable',
+        });
+    }
+    return {
+        ...state,
+        acceptance: { ...acceptance, publication },
+        schemaVersion: 8,
+    };
 }
 
 export function migrateState(state: unknown, schemaVersion: number): unknown {
@@ -50,35 +204,29 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
             'delivery',
         ].includes(phase);
         const pullRequest = isRecord(migrated.pullRequest) ? migrated.pullRequest : {};
-        const currentHeadSha = typeof pullRequest.headSha === 'string' ? pullRequest.headSha : null;
-        const frozenHeadSha =
-            beyondDelivery && typeof pullRequest.headSha === 'string' ? pullRequest.headSha : null;
-        const importedReviewRounds =
-            currentHeadSha && (phase === 'delivery' || beyondDelivery)
-                ? [
-                      {
-                          completedAt:
-                              typeof migrated.updatedAt === 'string'
-                                  ? migrated.updatedAt
-                                  : 'legacy',
-                          headSha: currentHeadSha,
-                          mode: 'full' as const,
-                          productP0: 0,
-                          productP1: 0,
-                          scope: beyondDelivery
-                              ? 'Imported pre-v4 accepted delivery baseline'
-                              : 'Imported pre-v4 aggregate review baseline; exact-head freeze not imported',
-                      },
-                  ]
-                : [];
-
+        const headSha = typeof pullRequest.headSha === 'string' ? pullRequest.headSha : null;
         migrated = {
             ...migrated,
             ciFallback: beyondDelivery ? migrated.ciFallback : createEmptyCiFallback(),
             reviewGate: {
                 ...createEmptyReviewGate(),
-                frozenHeadSha,
-                rounds: importedReviewRounds,
+                frozenHeadSha: beyondDelivery ? headSha : null,
+                rounds:
+                    headSha && (phase === 'delivery' || beyondDelivery)
+                        ? [
+                              {
+                                  completedAt:
+                                      typeof migrated.updatedAt === 'string'
+                                          ? migrated.updatedAt
+                                          : 'legacy',
+                                  headSha,
+                                  mode: 'full',
+                                  productP0: 0,
+                                  productP1: 0,
+                                  scope: 'Imported pre-v4 aggregate review baseline',
+                              },
+                          ]
+                        : [],
             },
             schemaVersion: 4,
             validationBudget: createEmptyValidationBudget(),
@@ -87,5 +235,8 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (migrated.schemaVersion === 4 && schemaVersion >= 5) {
         migrated = migrateReviewDecisionPhases(migrated);
     }
+    if (migrated.schemaVersion === 5 && schemaVersion >= 6) migrated = migrateV5(migrated);
+    if (migrated.schemaVersion === 6 && schemaVersion >= 7) migrated = migrateV6(migrated);
+    if (migrated.schemaVersion === 7 && schemaVersion >= 8) migrated = migrateV7(migrated);
     return migrated;
 }

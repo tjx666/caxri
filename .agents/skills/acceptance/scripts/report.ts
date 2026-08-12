@@ -1,11 +1,16 @@
 #!/usr/bin/env bun
 
 import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { validateHumanText, validateReportLanguage } from './validate-report';
+import {
+    createTerminalFixturePreflightReceipt,
+    terminalFixturePreflightReceiptSchema,
+} from './fixture-preflight';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -29,57 +34,79 @@ const requiredEvidenceSchema = z.union([
     z.enum(REQUIRED_EVIDENCE_TYPES),
     z.object({ hint: z.string().optional(), type: z.enum(REQUIRED_EVIDENCE_TYPES) }),
 ]);
-const planItemSchema = z
-    .object({
-        category: z.string().min(1),
-        expected: z.string().min(1),
-        id: z.string().min(1),
-        method: z.string().min(1),
-        requiredEvidence: z.array(requiredEvidenceSchema).min(1),
-        title: z.string().min(1),
-        verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
-    })
-    .passthrough();
-const evidenceSchema = z.union([
-    z.string().min(1),
-    z.object({ path: z.string().min(1) }).passthrough(),
+const stateIsolationSchema = z.discriminatedUnion('mode', [
+    z.object({ mode: z.literal('isolated') }),
+    z.object({ checkpointId: z.string().min(1), mode: z.literal('readonly_checkpoint') }),
+    z.object({
+        cleanupOwner: z.literal('final_launch'),
+        mode: z.literal('restart'),
+        profileId: z.string().min(1),
+    }),
 ]);
-const caseSchema = z
-    .object({
-        category: z.string().min(1),
-        evidence: z.array(evidenceSchema).min(1),
-        id: z.string().min(1),
-        name: z.string().min(1),
-        observation: z.string().min(1),
-        status: z.enum(CASE_STATUSES),
-        surface: z.literal('desktop'),
-    })
-    .passthrough();
-const resultSchema = z
-    .object({
-        cases: z.array(caseSchema).min(1),
-        entry: z.string().min(1),
-        plan: z.array(planItemSchema).min(1),
-        requirement: z.string().min(1),
-        summary: z.object({ conclusion: z.string().optional() }).passthrough().optional(),
-        surfaces: z.array(z.literal('desktop')).min(1),
-        title: z.string().min(1),
-    })
-    .passthrough();
+const planItemSchema = z.looseObject({
+    category: z.string().min(1),
+    expected: z.string().min(1),
+    fixturePreflight: z.literal('terminal').optional(),
+    id: z.string().min(1),
+    method: z.string().min(1),
+    requiredEvidence: z.array(requiredEvidenceSchema).min(1),
+    stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
+    title: z.string().min(1),
+    verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
+});
+const evidenceSchema = z.union([z.string().min(1), z.looseObject({ path: z.string().min(1) })]);
+const caseSchema = z.looseObject({
+    category: z.string().min(1),
+    evidence: z.array(evidenceSchema).min(1),
+    id: z.string().min(1),
+    name: z.string().min(1),
+    observation: z.string().min(1),
+    status: z.enum(CASE_STATUSES),
+    surface: z.literal('desktop'),
+});
+const resultSchema = z.looseObject({
+    cases: z.array(caseSchema).min(1),
+    entry: z.string().min(1),
+    plan: z.array(planItemSchema).min(1),
+    requirement: z.string().min(1),
+    summary: z.looseObject({ conclusion: z.string().optional() }).optional(),
+    surfaces: z.array(z.literal('desktop')).min(1),
+    title: z.string().min(1),
+});
 
 type PlanItem = z.infer<typeof planItemSchema>;
+type PlanItemInput = z.input<typeof planItemSchema>;
 type AcceptanceCase = z.infer<typeof caseSchema>;
 type CaseStatus = (typeof CASE_STATUSES)[number];
 type RequiredEvidenceType = (typeof REQUIRED_EVIDENCE_TYPES)[number];
 type OptionValue = string | true;
 type Options = Record<string, OptionValue>;
+export type StateIsolation = z.infer<typeof stateIsolationSchema>;
+
+const lifecycleLaunchSchema = z.object({
+    cleanupCompleted: z.boolean(),
+    cleanupRequested: z.boolean(),
+    completedAt: z.string().nullable(),
+    id: z.string().min(1),
+    profileIdentity: z.string().min(1),
+    ready: z.boolean(),
+    startedAt: z.string(),
+});
+const caseLifecycleReceiptSchema = z.object({
+    caseId: z.string().min(1),
+    launches: z.array(lifecycleLaunchSchema).min(1),
+    profileIdentity: z.string().min(1),
+    schemaVersion: z.literal(1),
+    stateIsolation: stateIsolationSchema,
+});
+type CaseLifecycleReceipt = z.infer<typeof caseLifecycleReceiptSchema>;
 
 export interface InitializeReportInput {
     branch?: string;
     commit?: string;
     directory: string;
     entry: string;
-    plan: PlanItem[];
+    plan: PlanItemInput[];
     pullRequest?: number;
     requirement: string;
     title: string;
@@ -187,6 +214,156 @@ async function validateExistingReportDirectory(path: string): Promise<string> {
         throw new Error('Acceptance report directory must stay under .records/');
     }
     return directory;
+}
+
+function lifecycleEvidencePath(caseId: string): string {
+    return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
+}
+
+function preflightEvidencePath(caseId: string): string {
+    return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
+}
+
+async function writeJsonAtomically(path: string, value: unknown): Promise<void> {
+    const temporary = `${path}.${process.pid}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+    await rename(temporary, path);
+}
+
+export async function loadAcceptanceCasePlan(
+    reportDirectory: string,
+    caseId: string,
+): Promise<{ directory: string; item: PlanItem }> {
+    const directory = await validateExistingReportDirectory(reportDirectory);
+    const raw: unknown = JSON.parse(await readFile(join(directory, 'result.json'), 'utf8'));
+    const plan = z.object({ plan: z.array(planItemSchema).min(1) }).parse(raw).plan;
+    const item = plan.find(({ id }) => id === caseId);
+    if (!item) throw new Error(`Acceptance case ${caseId} is not present in the frozen plan`);
+    return { directory, item };
+}
+
+export function validateAcceptanceCaseLaunch(
+    stateIsolation: StateIsolation,
+    input: { caseMode: 'isolated' | 'restart'; cleanupReusable: boolean; reuseUserData: boolean },
+): { profileId?: string } {
+    if (stateIsolation.mode === 'readonly_checkpoint') {
+        throw new Error('Readonly checkpoint cases require a checkpoint-aware launch adapter');
+    }
+    if (stateIsolation.mode === 'isolated') {
+        if (input.caseMode !== 'isolated' || input.reuseUserData || input.cleanupReusable) {
+            throw new Error('An isolated Acceptance case cannot reuse a profile');
+        }
+        return {};
+    }
+    if (input.caseMode !== 'restart' || !input.reuseUserData) {
+        throw new Error('A declared restart case must reuse its frozen profile');
+    }
+    return { profileId: stateIsolation.profileId };
+}
+
+export async function beginCaseLifecycle(
+    reportDirectory: string,
+    input: { caseId: string; profileIdentity: string; stateIsolation: StateIsolation },
+    startedAt = new Date().toISOString(),
+): Promise<string> {
+    const directory = await validateExistingReportDirectory(reportDirectory);
+    const path = join(directory, lifecycleEvidencePath(input.caseId));
+    let receipt: CaseLifecycleReceipt;
+    try {
+        const metadata = await lstat(path);
+        if (metadata.isSymbolicLink() || !metadata.isFile()) {
+            throw new Error('Acceptance lifecycle receipt must be a direct regular file');
+        }
+        receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+        if (
+            receipt.caseId !== input.caseId ||
+            JSON.stringify(receipt.stateIsolation) !== JSON.stringify(input.stateIsolation)
+        ) {
+            throw new Error('Acceptance lifecycle receipt does not match the frozen case profile');
+        }
+        if (receipt.launches.some(({ completedAt }) => completedAt === null)) {
+            throw new Error('Previous Acceptance case launch has not completed');
+        }
+        if (input.stateIsolation.mode === 'isolated') {
+            if (receipt.launches.some(({ ready }) => ready)) {
+                throw new Error('An isolated Acceptance case already has a completed ready launch');
+            }
+            if (
+                receipt.launches.some(
+                    ({ cleanupCompleted, cleanupRequested }) =>
+                        !cleanupRequested || !cleanupCompleted,
+                )
+            ) {
+                throw new Error('A failed isolated launch must clean up before retry');
+            }
+            receipt.profileIdentity = input.profileIdentity;
+        } else {
+            if (receipt.profileIdentity !== input.profileIdentity) {
+                throw new Error(
+                    'Acceptance lifecycle receipt does not match the frozen case profile',
+                );
+            }
+            if (receipt.launches.at(-1)?.cleanupCompleted) {
+                throw new Error('Acceptance restart profile was already cleaned up');
+            }
+        }
+    } catch (error: unknown) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+        receipt = {
+            caseId: input.caseId,
+            launches: [],
+            profileIdentity: input.profileIdentity,
+            schemaVersion: 1,
+            stateIsolation: input.stateIsolation,
+        };
+    }
+    const launchId = randomUUID();
+    receipt.launches.push({
+        cleanupCompleted: false,
+        cleanupRequested: false,
+        completedAt: null,
+        id: launchId,
+        profileIdentity: input.profileIdentity,
+        ready: false,
+        startedAt,
+    });
+    await writeJsonAtomically(path, caseLifecycleReceiptSchema.parse(receipt));
+    return launchId;
+}
+
+export async function markCaseLifecycleReady(
+    reportDirectory: string,
+    input: { caseId: string; launchId: string },
+): Promise<void> {
+    const directory = await validateExistingReportDirectory(reportDirectory);
+    const path = join(directory, lifecycleEvidencePath(input.caseId));
+    const receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+    const launch = receipt.launches.find(({ id }) => id === input.launchId);
+    if (!launch || launch.completedAt) throw new Error('Acceptance lifecycle launch is not active');
+    launch.ready = true;
+    await writeJsonAtomically(path, receipt);
+}
+
+export async function completeCaseLifecycle(
+    reportDirectory: string,
+    input: {
+        caseId: string;
+        cleanupCompleted: boolean;
+        cleanupRequested: boolean;
+        launchId: string;
+    },
+    completedAt = new Date().toISOString(),
+): Promise<void> {
+    const directory = await validateExistingReportDirectory(reportDirectory);
+    const path = join(directory, lifecycleEvidencePath(input.caseId));
+    const receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+    const launch = receipt.launches.find(({ id }) => id === input.launchId);
+    if (!launch || launch.completedAt)
+        throw new Error('Acceptance lifecycle launch is not pending');
+    launch.cleanupRequested = input.cleanupRequested;
+    launch.cleanupCompleted = input.cleanupCompleted;
+    launch.completedAt = completedAt;
+    await writeJsonAtomically(path, receipt);
 }
 
 async function freezeRequirement(parent: string, requirement: string): Promise<void> {
@@ -337,6 +514,79 @@ function requiredEvidenceTypes(plan: PlanItem): RequiredEvidenceType[] {
     );
 }
 
+async function validateFixturePreflightEvidence(
+    directory: string,
+    plan: PlanItem,
+    acceptanceCase: AcceptanceCase,
+): Promise<void> {
+    if (plan.fixturePreflight !== 'terminal') return;
+    const evidence = preflightEvidencePath(plan.id);
+    if (!acceptanceCase.evidence.some((item) => evidencePath(item) === evidence)) {
+        throw new Error(`Case ${plan.id} must include its fixture preflight receipt`);
+    }
+    const receipt = terminalFixturePreflightReceiptSchema.parse(
+        JSON.parse(await readFile(join(directory, evidence), 'utf8')),
+    );
+    const verified = createTerminalFixturePreflightReceipt(receipt.fixture, receipt.caseId);
+    if (
+        receipt.caseId !== plan.id ||
+        receipt.result.status !== 'ready' ||
+        JSON.stringify(receipt) !== JSON.stringify(verified)
+    ) {
+        throw new Error(`Case ${plan.id} fixture preflight is blocked`);
+    }
+}
+
+async function validateCaseLifecycleEvidence(
+    directory: string,
+    plan: PlanItem,
+    acceptanceCase: AcceptanceCase,
+): Promise<void> {
+    if (plan.stateIsolation.mode === 'readonly_checkpoint') return;
+    const evidence = lifecycleEvidencePath(plan.id);
+    if (!acceptanceCase.evidence.some((item) => evidencePath(item) === evidence)) {
+        throw new Error(`Case ${plan.id} must include its state-isolation receipt`);
+    }
+    const receipt = caseLifecycleReceiptSchema.parse(
+        JSON.parse(await readFile(join(directory, evidence), 'utf8')),
+    );
+    if (
+        receipt.caseId !== plan.id ||
+        JSON.stringify(receipt.stateIsolation) !== JSON.stringify(plan.stateIsolation) ||
+        receipt.launches.some(({ completedAt }) => completedAt === null)
+    ) {
+        throw new Error(`Case ${plan.id} state-isolation receipt does not match the frozen plan`);
+    }
+    if (plan.stateIsolation.mode === 'isolated') {
+        const readyLaunches = receipt.launches.filter(({ ready }) => ready);
+        if (
+            readyLaunches.length !== 1 ||
+            receipt.launches.some(
+                ({ cleanupCompleted, cleanupRequested }) => !cleanupRequested || !cleanupCompleted,
+            )
+        ) {
+            throw new Error(`Case ${plan.id} isolated profile was not cleaned up`);
+        }
+        return;
+    }
+    const finalLaunch = receipt.launches.at(-1);
+    const readyLaunches = receipt.launches.filter(({ ready }) => ready);
+    const priorReadyLaunches = readyLaunches.slice(0, -1);
+    const finalReadyLaunch = readyLaunches.at(-1);
+    if (
+        readyLaunches.length < 2 ||
+        receipt.profileIdentity !== plan.stateIsolation.profileId ||
+        priorReadyLaunches.some(({ cleanupCompleted, cleanupRequested }) =>
+            Boolean(cleanupCompleted || cleanupRequested),
+        ) ||
+        finalLaunch !== finalReadyLaunch ||
+        !finalReadyLaunch?.cleanupRequested ||
+        !finalReadyLaunch.cleanupCompleted
+    ) {
+        throw new Error(`Case ${plan.id} restart profile lifecycle is incomplete`);
+    }
+}
+
 function summaryFor(cases: AcceptanceCase[], conclusion?: string) {
     const counts: Record<CaseStatus, number> = { blocked: 0, fail: 0, pass: 0 };
     for (const item of cases) counts[item.status] += 1;
@@ -394,6 +644,8 @@ export async function finalizeReport(input: FinalizeReportInput) {
         if (missing.length > 0) {
             throw new Error(`Case ${item.id} is missing required evidence: ${missing.join(', ')}`);
         }
+        await validateFixturePreflightEvidence(directory, planned, item);
+        await validateCaseLifecycleEvidence(directory, planned, item);
     }
 
     const previousConclusion = report.summary?.conclusion?.trim();

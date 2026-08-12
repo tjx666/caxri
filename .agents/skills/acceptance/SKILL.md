@@ -43,7 +43,10 @@ substitutes for the real desktop path when the claim is user-visible.
    acceptance. Write it in Simplified Chinese. The scaffold freezes it in the
    acceptance root so every later round must reuse the exact same requirement.
 4. Author `plan[]` before testing. Give each check a stable id tied to the owning
-   GitHub issue and declare its expected behavior and required evidence. Write
+   GitHub issue and declare its expected behavior, required evidence, and
+   `stateIsolation`. The scaffold defaults every case to `isolated`; use
+   `readonly_checkpoint` only for an explicitly immutable checkpoint, and use
+   `restart` only with one named profile whose final launch owns cleanup. Write
    all human-facing report prose in Simplified Chinese; keep machine ids, code
    identifiers, branches, commits, commands, and artifact paths in English.
 5. Run the report scaffold's `init` command with the frozen plan. It creates a
@@ -57,8 +60,11 @@ Read [references/report.md](references/report.md) before authoring the report an
 
 ## Execute the desktop round
 
-1. Build and launch from the adapter. Confirm the CDP target is the Caxri
-   renderer, not DevTools or a stale resident build.
+1. Build and launch from the adapter. Run every state-mutating case in a fresh
+   launch with `--report-dir <round> --case-id <stable-id>`. Only a declared restart case may use
+   `--case-mode restart --reuse-user-data`; its final launch must pass
+   `--cleanup-reused-user-data`. Confirm the CDP target is the Caxri renderer,
+   not DevTools or a stale resident build.
 2. Drive the smallest real user path that proves each plan item. Follow
    [surfaces/electron.md](surfaces/electron.md). Inspect and click a native sheet
    or app-modal window exactly once by its semantic button name; never retry the
@@ -68,6 +74,13 @@ Read [references/report.md](references/report.md) before authoring the report an
    - behavior over time: GIF or video following
      [references/recording-cdp.md](references/recording-cdp.md);
    - non-visual behavior: separate reasoning and execution text artifacts.
+     A Terminal fixture plan must declare `fixturePreflight: terminal`. Before any screenshot or
+     recording of that fixture, run `fixture-preflight.ts --case-id <stable-id> --output
+<round>/assets/<case-id>-fixture-preflight.json` against its observed generation, first grid
+     marker, DOM row count, borders, and rendered lines, then include the receipt in
+     `cases[].evidence`. Finalization rejects a missing or blocked receipt, so direct screenshot
+     capture cannot bypass preflight. `fixture_blocked` is infrastructure evidence and can never
+     be converted to a product pass or fail.
 4. Replace each generated `cases[]` placeholder as observations are made. Every
    planned check remains visible; never delete one to make coverage look
    complete.
@@ -84,6 +97,12 @@ declared evidence is missing, preserve that history and publish a corrected roun
 Run the report scaffold's `finalize` command before every ingest. It computes the
 summary and fails locally on plan/case drift, missing evidence, required-medium
 gaps, or English-only human-facing content.
+
+Inside Go, never call raw `lobehub acceptance run ingest`. Use the Go
+`acceptance-publish` command so later rounds are forced onto the frozen
+Acceptance id and publication is recorded only after the server readback matches
+the exact head, round index, stable check ids, and verdict. Record an accidental
+standalone with `acceptance-orphan`; immutable remote history is never deleted.
 
 ## Repair loop
 

@@ -48,6 +48,16 @@ step-by-step workflows beyond this summary.
   issues. A verified zero-step GitHub Actions payment or spending-limit failure automatically
   authorizes the exact-head local CI fallback defined below; do not ask again. It does not
   authorize destructive data operations, releases, secrets, account changes, or unrelated work.
+- Start a new `$go` run through `.agents/skills/go/scripts/start.ts`: it pins the latest
+  `origin/main`, creates a dedicated adjacent worktree, and records that worktree in the ledger.
+  Resume in the recorded worktree; keep the main checkout branch, HEAD, and working tree unchanged.
+- A Go ledger permits one aggregate full deep review. Later code changes require an exact-lineage
+  light delta review; CI, fixture, evidence, gates, and remote-state checks are validation records,
+  not additional review rounds. Persist and deliver the exact-head handoff report before waiting
+  for human Acceptance, and require a delivered finalization receipt before completion.
+- Before completing a Go issue, explicitly assess whether implementation or evidence materially
+  differs from its public expectation. Publish material drift as a structured Simplified Chinese
+  issue comment; unresolved, unpublished, or stale assessments block PR readiness and finalization.
 - Caxri Acceptance has one product surface: isolated macOS Electron desktop. Command output and
   focused tests are supporting evidence only.
 - User-facing Acceptance prose uses Simplified Chinese. Keep code, identifiers, paths, commands,
@@ -114,7 +124,7 @@ step-by-step workflows beyond this summary.
   source batch is complete. Re-run only gates invalidated by later edits. Rebuild before focused
   Electron E2E whenever relevant `src/` files changed after the previous build.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
-- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
+- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `e2e-testing` skill's topic-branch and draft-PR workflow.
 - A local full-E2E fallback is allowed only inside an explicit Go run after the current-head hosted
   jobs are verified to have failed before runner allocation for external billing or infrastructure,
   with automatic authorization for verified payment or spending-limit failures. Other
@@ -134,6 +144,11 @@ step-by-step workflows beyond this summary.
   `source`/`event`/`code`/`count` tuple. Wildcards, message matching, duplicate allowances, and
   allowances that are not consumed all fail the test.
 - Focused Electron E2E launches use hidden native windows by default. A spec that verifies native focus or pointer behavior must pass `windowMode: 'visible'`; the Acceptance adapter always does so for the real desktop surface.
+- Acceptance plans default every case to an isolated profile. Run each state-mutating case in a
+  separately named launch; only a declared restart case may reuse one validated temp profile, and
+  its final launch owns cleanup. Terminal/visual fixtures must pass the cell-width/grid/generation
+  preflight before recording. Go-owned rounds publish only through the exact-lineage wrapper, not a
+  raw `lobehub acceptance run ingest` command.
 - For a hosted-only timing failure, reproduce only the exact failed cases against the production
   build with one worker and `--repeat-each=3`. Make slowness deterministic at the owning async
   boundary or wait for an observable product invariant; preserve relevant CI viewport and temporary
