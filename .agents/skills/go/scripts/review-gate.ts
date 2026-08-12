@@ -9,6 +9,7 @@ const reviewDecisionSchema = z.object({
     productP0: z.number().int().nonnegative(),
     productP1: z.number().int().nonnegative(),
     scope: z.string().min(1),
+    verificationCapAuthorization: z.string().min(1).nullable().default(null),
 });
 
 export const reviewGateSchema = z.object({
@@ -31,10 +32,12 @@ interface ReviewDecisionInput {
     p0: number;
     p1: number;
     scope: string;
+    verificationCapAuthorization?: string;
 }
 
 const MAX_FULL_REVIEW_ROUNDS = 3;
 const MAX_VERIFICATION_DECISIONS = 3;
+const MAX_AUTHORIZED_VERIFICATION_DECISIONS = MAX_VERIFICATION_DECISIONS + 1;
 
 export function createEmptyReviewGate(): ReviewGate {
     return { frozenHeadSha: null, rounds: [] };
@@ -75,7 +78,21 @@ export function recordReviewDecision(
             ({ mode }) => mode === 'verification',
         ).length;
         if (verificationDecisions >= MAX_VERIFICATION_DECISIONS) {
-            throw new Error('A Go run can record at most three verification-only head freezes');
+            const authorization = input.verificationCapAuthorization?.trim();
+            if (!authorization) {
+                throw new Error(
+                    'A Go run can record at most three verification-only head freezes without explicit user authorization',
+                );
+            }
+            if (verificationDecisions >= MAX_AUTHORIZED_VERIFICATION_DECISIONS) {
+                throw new Error(
+                    'A Go run can record only one explicitly authorized verification-cap exception',
+                );
+            }
+        } else if (input.verificationCapAuthorization) {
+            throw new Error(
+                'Verification-cap authorization is valid only after the default three-freeze limit is reached',
+            );
         }
     }
     if (input.freeze && (input.p0 > 0 || input.p1 > 0)) {
@@ -89,6 +106,7 @@ export function recordReviewDecision(
         productP0: input.p0,
         productP1: input.p1,
         scope: input.scope,
+        verificationCapAuthorization: input.verificationCapAuthorization?.trim() || null,
     });
     state.reviewGate.rounds.push(decision);
     state.reviewGate.frozenHeadSha = input.freeze ? decision.headSha : null;

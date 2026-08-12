@@ -136,6 +136,55 @@ describe('Go review gate', () => {
         verification('verification-2');
         verification('verification-3');
         expect(() => verification('verification-4')).toThrow('at most three verification-only');
+
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'verification-4',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Explicitly authorized verification-only delta',
+            verificationCapAuthorization: 'User explicitly authorized one exception.',
+        });
+        expect(state.reviewGate.rounds.at(-1)).toMatchObject({
+            headSha: 'verification-4',
+            verificationCapAuthorization: 'User explicitly authorized one exception.',
+        });
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'verification-5',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Second exception',
+                verificationCapAuthorization: 'User authorized another exception.',
+            }),
+        ).toThrow('only one explicitly authorized verification-cap exception');
+    });
+
+    it('rejects premature verification-cap authorization', () => {
+        const state = reviewing();
+        recordReviewDecision(state, {
+            freeze: false,
+            headSha: 'product-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            scope: 'Goal range',
+        });
+
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'verification-1',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Verification-only delta',
+                verificationCapAuthorization: 'Unneeded authorization.',
+            }),
+        ).toThrow('only after the default three-freeze limit');
     });
 
     it('allows only one targeted verification after the third full review', () => {

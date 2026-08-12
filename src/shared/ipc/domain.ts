@@ -131,6 +131,8 @@ export const sessionStateSchema = z.object({
     openTabs: z.array(editorTabStateSchema).max(100),
     /** The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`. */
     activeTab: workItemSchema.optional(),
+    /** Last durable file mutation whose editor remap was applied to this atomic Session snapshot. */
+    editorRemapOperationId: identifierSchema.optional(),
     inspectorMode: inspectorModeSchema,
     layout: terminalLayoutSchema,
 });

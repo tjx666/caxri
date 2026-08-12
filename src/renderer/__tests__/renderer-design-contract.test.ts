@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-const rendererRoot = fileURLToPath(new URL('../../renderer/src', import.meta.url));
+const rendererRoot = fileURLToPath(new URL('../src', import.meta.url));
 const nativeInputTypes = new Set(['checkbox', 'color']);
 const allowedArbitraryClasses = new Set([
     'gap-[5px]',
