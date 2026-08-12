@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { MessageBoxOptions } from 'electron';
 
-import { launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
+import { clickTerminalLink, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
 
 async function createFocusedShell(page: Page): Promise<void> {
     const rootPath = await pageRequest<string | null>(page, 'dialog.selectDirectory');
@@ -13,56 +13,6 @@ async function createFocusedShell(page: Page): Promise<void> {
     const project = await pageRequest<{ id: string }>(page, 'project.create', { rootPath });
     await pageRequest(page, 'session.create', { projectId: project.id, defaultAgent: 'shell' });
     await expect(page.locator('.xterm-helper-textarea')).toBeVisible();
-}
-
-async function terminalTextBounds(page: Page, text: string) {
-    return page.locator('.xterm-rows').evaluate((rows, target) => {
-        let matched: { x: number; y: number; width: number; height: number } | undefined;
-        for (const row of rows.children) {
-            const rowText = row.textContent ?? '';
-            const targetStart = rowText.indexOf(target);
-            if (targetStart < 0) continue;
-            const range = document.createRange();
-            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-            let offset = 0;
-            let start: { node: Node; offset: number } | undefined;
-            let end: { node: Node; offset: number } | undefined;
-            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                const length = node.textContent?.length ?? 0;
-                if (!start && targetStart >= offset && targetStart <= offset + length)
-                    start = { node, offset: targetStart - offset };
-                const targetEnd = targetStart + target.length;
-                if (targetEnd >= offset && targetEnd <= offset + length) {
-                    end = { node, offset: targetEnd - offset };
-                    break;
-                }
-                offset += length;
-            }
-            if (!start || !end) continue;
-            range.setStart(start.node, start.offset);
-            range.setEnd(end.node, end.offset);
-            const bounds = range.getBoundingClientRect();
-            matched = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
-        }
-        return matched ?? null;
-    }, text);
-}
-
-async function clickTerminalText(page: Page, text: string): Promise<void> {
-    /** The xterm container can match a command whose URL is still wrapped across multiple rows. */
-    await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
-    const bounds = await terminalTextBounds(page, text);
-    if (!bounds) throw new Error(`Terminal text not found: ${text}`);
-    const x = bounds.x + bounds.width / 2;
-    const y = bounds.y + bounds.height / 2;
-    await page.mouse.move(x, y);
-    await page.waitForTimeout(100);
-    await page.keyboard.down('Meta');
-    try {
-        await page.mouse.click(x, y);
-    } finally {
-        await page.keyboard.up('Meta');
-    }
 }
 
 test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in Settings', async () => {
@@ -107,7 +57,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
         const firstUrl = 'https://example.com/first';
         await typeTerminal(running.page, `printf '%s\\n' '${firstUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(firstUrl);
-        await clickTerminalText(running.page, firstUrl);
+        await clickTerminalLink(running.page, firstUrl);
         await expect
             .poll(() =>
                 running.app.evaluate(() => {
@@ -128,7 +78,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
         const secondUrl = 'https://example.com/without-prompt';
         await typeTerminal(running.page, `printf '%s\\n' '${secondUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(secondUrl);
-        await clickTerminalText(running.page, secondUrl);
+        await clickTerminalLink(running.page, secondUrl);
         await expect
             .poll(() =>
                 running.app.evaluate(() => {
@@ -199,7 +149,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
         const revokedUrl = 'https://example.com/after-revoke';
         await typeTerminal(running.page, `printf '%s\\n' '${revokedUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(revokedUrl);
-        await clickTerminalText(running.page, revokedUrl);
+        await clickTerminalLink(running.page, revokedUrl);
         await expect
             .poll(() =>
                 running.app.evaluate(() => {
