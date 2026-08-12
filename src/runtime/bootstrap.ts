@@ -33,12 +33,12 @@ import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectStatusService } from './project-status';
 import {
+    ShellIntegrationService,
     TerminalManager,
     type TerminalManagerOptions,
     TerminalRestoreSupervisor,
     type TerminalWorkingDirectoryIdentity,
 } from './terminal';
-import { ShellIntegrationService } from './terminal/shell-integration';
 import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
