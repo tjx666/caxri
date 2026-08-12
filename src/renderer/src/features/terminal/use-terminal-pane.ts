@@ -28,6 +28,7 @@ import {
 import { registerTerminalLinks } from './terminal-links';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
+import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import {
     TerminalRendererController,
@@ -195,6 +196,28 @@ export function useTerminalPaneRuntime({
         xterm.loadAddon(unicode11);
         xterm.unicode.activeVersion = '11';
         xterm.open(container);
+        let unregisterTerminalImages = (): void => undefined;
+        const images = createTerminalImageAddon();
+        try {
+            xterm.loadAddon(images);
+            unregisterTerminalImages = registerTerminalImageAddon(terminalId, images, (status) => {
+                container.dataset.terminalImageStatus = 'active';
+                container.dataset.terminalImagesAdded = String(status.imagesAdded);
+                container.dataset.terminalImageStorageMb = String(status.storageUsageMb);
+                container.dataset.terminalImageStorageLimitMb = String(status.storageLimitMb);
+                container.dataset.terminalImageGlobalStorageMb = String(
+                    status.globalStorageUsageMb,
+                );
+                container.dataset.terminalImageGlobalStorageLimitMb = String(
+                    status.globalStorageLimitMb,
+                );
+            });
+        } catch {
+            /** Inline images are optional output decoration; addon activation must not make the
+             *  Terminal or its underlying PTY unavailable. */
+            images.dispose();
+            container.dataset.terminalImageStatus = 'unavailable';
+        }
         searchRef.current = search;
         const searchResultsDisposable = search.onDidChangeResults(
             ({ resultCount, resultIndex }: ISearchResultChangeEvent) =>
@@ -400,6 +423,7 @@ export function useTerminalPaneRuntime({
             selectionDisposable.dispose();
             dataDisposable.dispose();
             unregisterLinks();
+            unregisterTerminalImages();
             renderer.dispose();
             /** Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore
              *  reconciles against durable Terminal records instead of treating pane disposal as close. */
