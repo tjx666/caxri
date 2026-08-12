@@ -13,8 +13,7 @@ const execFileAsync = promisify(execFile);
 /**
  * Smallest end-to-end health check: launch, create a Project+Session with a
  * shell Terminal, run a command, and see its output. This is the fast gate
- * for `bun run build` regressions — it is not a substitute for the full
- * `bun run test:e2e` suite.
+ * behind `bun run test:smoke` — it is not a substitute for the full `bun run test:e2e` suite.
  */
 test('smoke: launches, creates a shell Session, and runs a Terminal command', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-smoke-e2e-'));

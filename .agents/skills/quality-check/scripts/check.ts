@@ -11,6 +11,8 @@ const FORMAT_EXTENSIONS = new Set(['.css', '.html', '.json', '.jsonc', '.md', '.
 const TEST_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
 
 export interface CheckOptions {
+    e2e: boolean;
+    e2eGrep?: string;
     files: string[];
     knip: boolean;
     lint: boolean;
@@ -33,19 +35,23 @@ interface ProcessFailure extends Error {
     stdout?: Buffer | string;
 }
 
-const usage = `Usage: bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]
+const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--staged]
 
 Selectors:
   --lint     Autofix supported changed files with ESLint and Prettier
   --test     Run changed tests and colocated tests for changed source files
   --type     Run the repository-wide TypeScript check
   --knip     Run the repository-wide dead code/export check (CI blocking)
+  --e2e      Build and run explicitly named e2e/*.e2e.ts Playwright specs
+  --e2e-grep Narrow --e2e to a Playwright test-title pattern
   --staged   Discover only staged files when no file arguments are supplied
 
 With no selector, --lint and --test are enabled.`;
 
 export function parseCheckArgs(args: string[]): CheckOptions {
     const options: CheckOptions = {
+        e2e: false,
+        e2eGrep: undefined,
         files: [],
         knip: false,
         lint: false,
@@ -54,7 +60,8 @@ export function parseCheckArgs(args: string[]): CheckOptions {
         type: false,
     };
 
-    for (const arg of args) {
+    for (let index = 0; index < args.length; index += 1) {
+        const arg = args[index];
         switch (arg) {
             case '--help':
             case '-h':
@@ -62,6 +69,18 @@ export function parseCheckArgs(args: string[]): CheckOptions {
             case '--knip':
                 options.knip = true;
                 break;
+            case '--e2e':
+                options.e2e = true;
+                break;
+            case '--e2e-grep': {
+                const pattern = args[index + 1];
+                if (!pattern || pattern.startsWith('--')) {
+                    throw new CheckError('--e2e-grep requires a test-title pattern', 2);
+                }
+                options.e2eGrep = pattern;
+                index += 1;
+                break;
+            }
             case '--lint':
                 options.lint = true;
                 break;
@@ -82,12 +101,34 @@ export function parseCheckArgs(args: string[]): CheckOptions {
         }
     }
 
-    if (!options.knip && !options.lint && !options.test && !options.type) {
+    if (options.e2eGrep && !options.e2e) {
+        throw new CheckError('--e2e-grep requires --e2e', 2);
+    }
+
+    if (!options.e2e && !options.knip && !options.lint && !options.test && !options.type) {
         options.lint = true;
         options.test = true;
     }
 
     return options;
+}
+
+export function selectE2ESpecs(files: string[], hasExplicitFiles: boolean): string[] {
+    const specs = files.filter((file) => /^e2e\/.+\.e2e\.ts$/.test(file));
+    if (!hasExplicitFiles || specs.length === 0) {
+        throw new CheckError('--e2e requires an explicit e2e/*.e2e.ts file', 2);
+    }
+    if (specs.includes('e2e/real-agent-smoke.e2e.ts')) {
+        throw new CheckError('Use bun run test:e2e:real-agent for the manual real-Agent smoke', 2);
+    }
+    if (specs.includes('e2e/failure-isolation.e2e.ts')) {
+        throw new CheckError('Use bun run scripts/run-e2e-failure-isolation.ts', 2);
+    }
+    return specs;
+}
+
+export function playwrightArguments(specs: string[], grep?: string): string[] {
+    return ['test', ...specs, '--reporter=line', ...(grep ? ['-g', grep] : [])];
 }
 
 export function lintPipelineForFile(file: string): 'code' | 'format' | undefined {
@@ -226,6 +267,16 @@ async function runTests(root: string, files: string[]): Promise<number> {
     return tests.length;
 }
 
+async function runE2E(root: string, specs: string[], grep?: string): Promise<number> {
+    /**
+     * A focused Electron run must never exercise stale output. Capturing both successful commands
+     * keeps the standard check result compact while runCapture still exposes complete failures.
+     */
+    await runCapture('bun', ['run', 'build'], root);
+    await runTool(root, 'playwright', playwrightArguments(specs, grep));
+    return specs.length;
+}
+
 async function main(): Promise<void> {
     const options = parseCheckArgs(process.argv.slice(2));
     const cwd = process.cwd();
@@ -235,6 +286,7 @@ async function main(): Promise<void> {
             ? options.files.map((file) => repositoryRelativePath(root, cwd, file))
             : await discoverChangedFiles(root, options.staged);
     const files = await existingFiles(root, requestedFiles);
+    const e2eSpecs = options.e2e ? selectE2ESpecs(files, options.files.length > 0) : [];
     const summaries: string[] = [];
 
     if (options.lint) summaries.push(`lint ${await runLint(root, files)}`);
@@ -246,6 +298,9 @@ async function main(): Promise<void> {
     if (options.knip) {
         await runTool(root, 'knip', []);
         summaries.push('knip');
+    }
+    if (options.e2e) {
+        summaries.push(`e2e ${await runE2E(root, e2eSpecs, options.e2eGrep)}`);
     }
 
     console.log(`✓ check · ${files.length} changed · ${summaries.join(' · ')}`);
