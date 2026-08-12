@@ -168,6 +168,23 @@ export function SettingsForm({
                         }
                     />
                 </label>
+                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <span>
+                        Allow OSC 52 clipboard writes
+                        <span className="block text-[11px] text-muted">
+                            Remote programs may request bounded writes; clipboard reads stay blocked
+                        </span>
+                    </span>
+                    <input
+                        aria-label="Allow OSC 52 clipboard writes"
+                        checked={settings['terminal.osc52ClipboardWrite']}
+                        className="size-4 flex-none accent-[var(--accent)]"
+                        type="checkbox"
+                        onChange={(event) =>
+                            onFieldChange('terminal.osc52ClipboardWrite', event.target.checked)
+                        }
+                    />
+                </label>
                 <label className="mb-4 block text-foreground">
                     <span>
                         New Terminal working directory
