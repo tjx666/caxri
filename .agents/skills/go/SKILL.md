@@ -7,15 +7,16 @@ description: >
   deduplicates requirements, resolves material decisions before starting,
   creates GitHub issues, executes each issue through implementation, focused
   validation, light review and commit, performs a final deep review, opens and
-  repairs a PR, runs macOS Electron Acceptance rounds, merges, closes issues,
-  and reports technical debt and workflow improvements. Do not trigger on an
+  repairs a PR, runs required macOS Electron Acceptance or records an explicit
+  non-product waiver, merges, closes issues, and reports technical debt and
+  workflow improvements. Do not trigger on an
   ordinary conversational "go ahead" or a single routine edit.
 ---
 
 # Go
 
 Run a durable, autonomous multi-issue delivery loop. Keep the Goal active from
-the moment execution begins until the accepted PR is merged, issue state is
+the moment execution begins until the accepted or explicitly waived PR is merged, issue state is
 verified, and the execution report is complete.
 
 Explicit invocation authorizes the in-scope local and remote workflow described
@@ -29,22 +30,28 @@ goal.
 
 ## Durable state
 
-Initialize a run ledger before remote mutations:
+Start every new run from the main checkout through the isolated-worktree entry
+point before remote mutations:
 
 ```bash
-bun run .agents/skills/go/scripts/state.ts init --objective "<business goal>"
+bun run .agents/skills/go/scripts/start.ts \
+  --objective "<business goal>" --branch "chore/<goal-slug>"
 ```
 
-Store the printed path and update it after every phase, issue, PR, Acceptance,
-or durable observation. Read [references/state.md](references/state.md) before
-using the state script. Treat GitHub and LobeHub as authoritative remote state;
-the ledger is the compact resume index that prevents repeated discovery after
-context compaction. Resume with the ledger's compact `resume --json` command;
-do not reload the full event history unless an audit needs it. Record workflow
-observations in Simplified Chinese because they are surfaced at the Acceptance
-handoff. Add a deduplicated `token_waste` or `workflow` note as soon as a costly
-repeat or stable script candidate is observed; do not reconstruct the audit by
-rereading the transcript at the end.
+The command fetches and pins the latest `origin/main`, creates a dedicated
+adjacent worktree and branch, verifies that the main checkout's branch, HEAD,
+and working tree are unchanged, and initializes the ledger inside that
+worktree. Store the returned worktree and state paths. Resume only inside that
+recorded worktree. Update the ledger after every phase, issue, PR, Acceptance,
+validation, cost checkpoint, or durable observation. Read
+[references/state.md](references/state.md) before using the state script. Treat
+GitHub and LobeHub as authoritative remote state; the ledger is the compact
+resume index that prevents repeated discovery after context compaction. Resume
+with `resume --json`; do not reload the full event history unless an audit needs
+it. Record workflow observations in Simplified Chinese because they are
+surfaced in the handoff report. Add a deduplicated `token_waste` or `workflow`
+note as soon as a costly repeat or stable script candidate is observed; do not
+reconstruct the audit by rereading the transcript at the end.
 
 ## Phase 0: admit work before starting the Goal
 
@@ -96,9 +103,9 @@ For each queued issue in dependency order:
    adjudicate the whole result before editing; do not repair findings as
    reviewers arrive.
 6. Repair valid product P0/P1 findings, run focused validation, and use at most
-   one targeted recheck. Record P2/P3 findings as debt unless they directly
+   one light delta recheck. Record P2/P3 findings as debt unless they directly
    violate the frozen issue outcome. Do not start another light-review loop once
-   the targeted recheck has no product P0/P1.
+   the delta recheck has no product P0/P1.
 7. Create one cohesive English commit. Record the commit, validation, and stable
    Acceptance ids in the ledger. Continue immediately to the next issue.
 
@@ -120,36 +127,33 @@ After all issue commits:
    P0/P1 findings as one cohesive batch and run only affected validation.
    Delivery evidence, PR prose, and workflow bookkeeping never reopen product
    review.
-3. Run at most three full Goal-range review rounds. After the third round, use
-   at most one targeted verification for its remaining P0/P1 repairs; a further
-   architecture-level P0/P1 requires a user decision instead of a fourth full
-   review. When the user explicitly authorizes that repair, allow one final
-   targeted verification and record the authorization in the ledger; never run
-   a third targeted verification in that post-round-three sequence. Ignore
-   reports for an older head unless their product P0/P1 reproduces on the
-   current head.
-4. When the current head has no product P0/P1, record and freeze it with
-   `state.ts review --freeze`. A clean first or second round may freeze
-   immediately; three rounds are a ceiling, not a target. P2/P3 findings become
-   debt and cannot keep the loop open.
-5. For a workflow, test-infrastructure, evidence, or PR-metadata-only commit,
-   record a `verification` decision after focused validation. It requires an
-   existing full product-review baseline, zero product P0/P1, and freezes the
-   exact head without consuming another product review. Batch these repairs; a
-   Go run permits one verification-only freeze during `deep_review` and at most
-   three routine delivery-stage repair freezes. If later exhaustive validation
-   exposes independent delivery-infrastructure failures, explicit user
-   authorization may permit up to three additional freezes; record the
-   authorization on each decision and never allow a seventh.
+3. Freeze the run's review policy before the aggregate review. The default is
+   `full-once`: exactly one full Goal-range review is allowed for the entire
+   ledger. `quick` or `light` may replace that baseline only through an explicit
+   pre-review policy override.
+4. Collect the aggregate review completely, repair its valid P0/P1 findings as
+   one batch, then review only the exact code delta in light mode. Every light
+   decision records the original baseline head/id, direct parent review id, and
+   `parentHead..currentHead` range. Repeat light review only for a newly changed
+   delta. If architecture, security, or frozen requirements change so much that
+   light review is not credible, request a user decision; never start a second
+   full review.
+5. When the current head has no product P0/P1, freeze it with `state.ts review
+--freeze`. Record CI, fixture, evidence, gates, and remote-state checks with
+   `validation-start` / `validation-complete`, not as review modes. A validation
+   records its exact head, command, session, artifact log, failure lineage, and
+   final exit code. Recover a pending command before retrying, never rerun an
+   uninvalidated passing exact-head gate, and stop when the lineage repair budget
+   is exhausted.
 6. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
 7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
    issue-level Acceptance coverage contract. A narrow Acceptance must never
    certify a broader PR.
 8. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
-9. Route code failures through repair, focused validation, one targeted review, commit,
-   and push. A zero-step hosted-runner billing or infrastructure failure remains
-   external and blocked. A verified GitHub Actions payment or spending-limit
+9. Route code failures through repair, focused validation, one light delta
+   review, commit, and push. A zero-step hosted-runner billing or infrastructure
+   failure remains external and blocked. A verified GitHub Actions payment or spending-limit
    failure is automatically authorized for the documented exact-head local
    fallback; do not ask the user again. Other infrastructure failures still need
    separate authorization. Record the policy or user authorization before
@@ -166,7 +170,10 @@ After the PR head is review-clean and either its required checks are green or an
 exact-head local fallback has passed, have a fresh context-isolated tester
 subagent independently draft the final Acceptance plan, then invoke the
 project-local `acceptance` skill. Its only product surface is isolated macOS
-Electron desktop.
+Electron desktop. If the frozen issues have no product or desktop claim and the
+user explicitly waives Acceptance for the exact head, record the waiver and
+reason, transition directly from `delivery` to `acceptance_handoff`, and do not
+invent desktop evidence.
 
 Read [references/acceptance-loop.md](references/acceptance-loop.md) before the
 first round. Give the planner the original requirement, admitted issue bodies,
@@ -182,15 +189,15 @@ add another routine confirmation gate.
   and erase the failed snapshot.
 - Route in-scope product failures back to their issue, repair, review, commit,
   push, and a new immutable round.
-- Route evidence, adapter, fixture, or report failures to verification repair,
+- Route evidence, adapter, fixture, or report failures to validation repair,
   not product code.
 - File unrelated discoveries as follow-up issues and continue only when they do
   not weaken the accepted business requirement.
-- After a passing round, transition to `waiting_acceptance` while keeping the
-  Goal active. Run the compact ledger resume command and include up to three
-  material workflow observations collected so far with the stable Acceptance
-  URL. Keep the complete technical-debt, workflow-evolution, and token-efficiency
-  audit for the post-merge report. Then yield control to the user.
+- After a passing round, transition to `acceptance_handoff`, generate the
+  exact-head `handoff-report.md`, validate its checksum and required sections,
+  and deliver its full summary with the stable Acceptance URL. Record
+  `deliveredAt` only after that user handoff. Then transition to
+  `waiting_acceptance` while keeping the Goal active and yield control.
   Do not start a same-turn polling loop or emit periodic pending updates. Query
   status once only after a later user or automatic continuation; never rerun
   code or tests merely because review is pending.
@@ -204,15 +211,15 @@ accepted head and requires review plus another Acceptance round.
 
 ## Phase 4: merge, close, and learn
 
-1. Merge the accepted PR and verify its remote merged SHA.
+1. Merge the accepted or explicitly waived PR and verify its remote merged SHA.
 2. Verify every intended issue is closed. Close an authorized issue directly
    only when merge automation did not.
 3. Refresh all remote state before reporting it.
-4. Read [references/report.md](references/report.md). Produce the execution
-   report with delivery results, Acceptance history, technical debt, workflow
-   improvements, and token-efficiency findings. Read the accumulated audit notes
-   from compact `resume --json`; if it reports truncation, use `state.ts notes
---json` instead of loading the full ledger.
+4. Read [references/report.md](references/report.md). Reuse the already persisted
+   handoff report rather than regenerating it. Write `finalization.json` from
+   refreshed remote evidence for the accepted/waived head, merged PR, merge SHA,
+   every intended closed issue, and Project `Done` state. Deliver the brief
+   finalization receipt and record both delivery timestamps before completion.
 5. Always identify concrete token waste from this run and repeated manual steps
    that should become scripts. Record both the observed cost and the prevention;
    explicitly say none was found instead of omitting either audit.
@@ -231,6 +238,8 @@ accepted head and requires review plus another Acceptance round.
 
 - Keep at most one issue actively progressing unless independent parallel work
   was explicitly authorized and the applicable skill requires it.
+- Run each new Goal in the dedicated worktree pinned by `start.ts`; never move a
+  resumed Goal back to the main checkout or another worktree.
 - Preserve user changes and unrelated dirty worktree state.
 - Never treat passing tests, code review, PR merge, deployment, and Acceptance
   as interchangeable facts.

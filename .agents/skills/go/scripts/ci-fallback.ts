@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { assertReviewHeadFrozen, type ReviewGate } from './review-gate';
+import { assertReviewHeadFrozen, type ReviewGate, type ReviewPolicy } from './review-gate';
 
 export const ciFailureKindSchema = z.enum(['billing', 'infrastructure']);
 export const ciFallbackResultSchema = z.enum(['passed', 'failed']);
@@ -79,6 +79,7 @@ interface DeliveryContext {
     phase: string;
     pullRequest: { headSha: string | null; status: string };
     reviewGate: ReviewGate;
+    reviewPolicy: ReviewPolicy;
     validationBudget: ValidationBudget;
 }
 

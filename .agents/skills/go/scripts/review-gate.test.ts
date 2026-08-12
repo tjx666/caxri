@@ -1,55 +1,173 @@
 import { describe, expect, it } from 'vitest';
 
-import { createEmptyReviewGate, recordReviewDecision } from './review-gate';
+import {
+    createEmptyReviewGate,
+    createReviewPolicy,
+    overrideReviewPolicy,
+    recordReviewDecision,
+} from './review-gate';
 
-function reviewing() {
-    return { phase: 'deep_review', reviewGate: createEmptyReviewGate() };
+function reviewing(policy: 'full-once' | 'quick' | 'light' = 'full-once') {
+    return {
+        phase: 'deep_review',
+        reviewGate: createEmptyReviewGate(),
+        reviewPolicy: createReviewPolicy(policy, 'test policy', '2026-08-12T00:00:00.000Z'),
+    };
+}
+
+function fullBaseline(state: ReturnType<typeof reviewing>, freeze = false) {
+    return recordReviewDecision(
+        state,
+        {
+            freeze,
+            headSha: 'baseline-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            reviewedRange: 'origin/main...baseline-head',
+            scope: 'Goal range',
+        },
+        '2026-08-12T00:01:00.000Z',
+    );
 }
 
 describe('Go review gate', () => {
-    it('stops full deep review after three rounds', () => {
+    it('allows exactly one full aggregate baseline', () => {
         const state = reviewing();
-
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'head-1',
-            mode: 'full',
-            p0: 0,
-            p1: 1,
-            scope: 'Goal range',
-        });
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'head-2',
-            mode: 'full',
-            p0: 0,
-            p1: 1,
-            scope: 'Goal range',
-        });
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'head-3',
-            mode: 'full',
-            p0: 0,
-            p1: 1,
-            scope: 'Goal range',
-        });
+        fullBaseline(state);
 
         expect(() =>
             recordReviewDecision(state, {
-                freeze: false,
-                headSha: 'head-4',
+                baselineHeadSha: 'baseline-head',
+                baselineReviewId: 'review-001',
+                freeze: true,
+                headSha: 'replacement-head',
                 mode: 'full',
                 p0: 0,
                 p1: 0,
-                scope: 'Goal range',
+                parentReviewId: 'review-001',
+                reviewedRange: 'baseline-head..replacement-head',
+                scope: 'Repeated Goal review',
             }),
-        ).toThrow('Full deep review is limited to three rounds');
+        ).toThrow('exactly one full deep review baseline');
+        expect(state.reviewGate.rounds.filter(({ mode }) => mode === 'full')).toHaveLength(1);
     });
 
-    it('freezes only an exact head with no product P0 or P1 findings', () => {
+    it('requires exact baseline, parent, and range for every light delta', () => {
         const state = reviewing();
+        fullBaseline(state);
 
+        recordReviewDecision(state, {
+            baselineHeadSha: 'baseline-head',
+            baselineReviewId: 'review-001',
+            freeze: false,
+            headSha: 'repair-1',
+            mode: 'light',
+            p0: 0,
+            p1: 1,
+            parentReviewId: 'review-001',
+            reviewedRange: 'baseline-head..repair-1',
+            scope: 'P1 repair delta',
+        });
+        recordReviewDecision(state, {
+            baselineHeadSha: 'baseline-head',
+            baselineReviewId: 'review-001',
+            freeze: true,
+            headSha: 'repair-2',
+            mode: 'light',
+            p0: 0,
+            p1: 0,
+            parentReviewId: 'review-002',
+            reviewedRange: 'repair-1..repair-2',
+            scope: 'Targeted recheck delta',
+        });
+
+        expect(state.reviewGate).toMatchObject({
+            baselineReviewId: 'review-001',
+            frozenHeadSha: 'repair-2',
+        });
+        expect(state.reviewGate.rounds.at(-1)).toMatchObject({
+            baselineHeadSha: 'baseline-head',
+            baselineReviewId: 'review-001',
+            parentReviewId: 'review-002',
+            reviewedRange: 'repair-1..repair-2',
+        });
+    });
+
+    it('fails closed when light review lineage is missing or stale', () => {
+        const state = reviewing();
+        fullBaseline(state);
+
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'repair',
+                mode: 'light',
+                p0: 0,
+                p1: 0,
+                reviewedRange: 'baseline-head..repair',
+                scope: 'Unbound delta',
+            }),
+        ).toThrow('exact baseline and parent review lineage');
+
+        expect(() =>
+            recordReviewDecision(state, {
+                baselineHeadSha: 'baseline-head',
+                baselineReviewId: 'review-001',
+                freeze: true,
+                headSha: 'repair',
+                mode: 'light',
+                p0: 0,
+                p1: 0,
+                parentReviewId: 'review-001',
+                reviewedRange: 'origin/main...repair',
+                scope: 'Wrong range',
+            }),
+        ).toThrow('Light delta review range must be baseline-head..repair');
+    });
+
+    it.each([
+        ['quick', 'quick'],
+        ['light', 'light'],
+    ] as const)('uses the frozen %s policy for its aggregate baseline', (policy, mode) => {
+        const state = reviewing(policy);
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: `${mode}-head`,
+            mode,
+            p0: 0,
+            p1: 0,
+            reviewedRange: `origin/main...${mode}-head`,
+            scope: `${mode} aggregate review`,
+        });
+
+        expect(state.reviewGate.frozenHeadSha).toBe(`${mode}-head`);
+    });
+
+    it('freezes policy before review starts and rejects later overrides', () => {
+        const state = reviewing();
+        overrideReviewPolicy(state, 'quick', 'Explicit user override');
+        expect(state.reviewPolicy).toMatchObject({
+            mode: 'quick',
+            source: 'Explicit user override',
+        });
+
+        recordReviewDecision(state, {
+            freeze: true,
+            headSha: 'quick-head',
+            mode: 'quick',
+            p0: 0,
+            p1: 0,
+            reviewedRange: 'origin/main...quick-head',
+            scope: 'Quick aggregate review',
+        });
+        expect(() => overrideReviewPolicy(state, 'light', 'Late override')).toThrow(
+            'cannot change after the aggregate review baseline starts',
+        );
+    });
+
+    it('rejects a frozen head with product P0/P1 findings and reviews outside review phases', () => {
+        const state = reviewing();
         expect(() =>
             recordReviewDecision(state, {
                 freeze: true,
@@ -57,356 +175,12 @@ describe('Go review gate', () => {
                 mode: 'full',
                 p0: 0,
                 p1: 1,
+                reviewedRange: 'origin/main...blocked-head',
                 scope: 'Goal range',
             }),
         ).toThrow('Cannot freeze a head with product P0 or P1 findings');
 
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'clean-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Workflow-only delta',
-        });
-
-        expect(state.reviewGate.frozenHeadSha).toBe('clean-head');
-    });
-
-    it('rejects targeted verification without a full review baseline', () => {
-        const state = reviewing();
-
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'targeted-head',
-                mode: 'targeted',
-                p0: 0,
-                p1: 0,
-                scope: 'Unreviewed change',
-            }),
-        ).toThrow('requires a prior full Goal-range review');
-    });
-
-    it('reserves deep-review targeted verification for repairs after the third full round', () => {
-        const state = reviewing();
-        for (const headSha of ['head-1', 'head-2']) {
-            recordReviewDecision(state, {
-                freeze: false,
-                headSha,
-                mode: 'full',
-                p0: 0,
-                p1: 1,
-                scope: 'Goal range',
-            });
-        }
-
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'premature-targeted',
-                mode: 'targeted',
-                p0: 0,
-                p1: 0,
-                scope: 'Premature targeted verification',
-            }),
-        ).toThrow('only after the third full review');
-    });
-
-    it('keeps one targeted repair available during delivery before the full-round ceiling', () => {
-        const state = reviewing();
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'product-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Goal range',
-        });
-        state.phase = 'delivery';
-
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'delivery-repair',
-            mode: 'targeted',
-            p0: 0,
-            p1: 0,
-            scope: 'CI repair',
-        });
-        expect(state.reviewGate.frozenHeadSha).toBe('delivery-repair');
-
-        expect(() =>
-            recordReviewDecision(state, {
-                authorization: 'User approved another verification.',
-                freeze: true,
-                headSha: 'delivery-repair-2',
-                mode: 'targeted',
-                p0: 0,
-                p1: 0,
-                scope: 'Disallowed repeated delivery repair',
-            }),
-        ).toThrow('Only one targeted verification is allowed after each full review');
-    });
-
-    it('freezes a verification-only delta without consuming another product review', () => {
-        const state = reviewing();
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'product-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Goal range',
-        });
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'verification-head',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'E2E stabilization only',
-        });
-
-        expect(state.reviewGate.frozenHeadSha).toBe('verification-head');
-        expect(state.reviewGate.rounds.filter(({ mode }) => mode === 'full')).toHaveLength(1);
-    });
-
-    it('requires explicit authorization for one final delivery-stage repair freeze', () => {
-        const state = reviewing();
-        const verification = (
-            headSha: string,
-            authorization?: string,
-            verificationCapAuthorization?: string,
-        ) =>
-            recordReviewDecision(state, {
-                authorization,
-                freeze: true,
-                headSha,
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Verification-only delta',
-                verificationCapAuthorization,
-            });
-
-        expect(() => verification('unreviewed-head')).toThrow('requires a prior full');
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'product-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Goal range',
-        });
-        verification('pre-delivery');
-        expect(() => verification('extra-pre-delivery')).toThrow('one pre-delivery');
-
-        state.phase = 'delivery';
-        verification('delivery-1');
-        verification('delivery-2');
-        verification('delivery-3');
-        expect(() => verification('delivery-4')).toThrow('requires explicit user authorization');
-        verification('delivery-4', undefined, 'User approved one final delivery verification.');
-        expect(state.reviewGate.rounds.at(-1)?.verificationCapAuthorization).toContain(
-            'User approved',
-        );
-        expect(() => verification('delivery-5')).toThrow('requires explicit user authorization');
-        expect(() =>
-            verification('delivery-5', 'Generic authorization must not satisfy the cap.'),
-        ).toThrow('requires explicit user authorization');
-        verification('delivery-5', undefined, 'User approved one systemic CI-parity verification.');
-        expect(() => verification('delivery-6')).toThrow('requires explicit user authorization');
-        verification(
-            'delivery-6',
-            undefined,
-            'User approved one final hosted E2E fixture verification.',
-        );
-        expect(() =>
-            verification('delivery-7', undefined, 'User approved another delivery verification.'),
-        ).toThrow('six delivery-stage');
-        expect(
-            state.reviewGate.rounds
-                .filter(({ mode }) => mode === 'verification')
-                .map(({ phase }) => phase),
-        ).toEqual([
-            'deep_review',
-            'delivery',
-            'delivery',
-            'delivery',
-            'delivery',
-            'delivery',
-            'delivery',
-        ]);
-    });
-
-    it('rejects verification-cap authorization before the delivery exception boundary', () => {
-        const state = reviewing();
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'product-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Goal range',
-        });
-
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'pre-delivery',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Premature exception',
-                verificationCapAuthorization: 'User approved an unneeded exception.',
-            }),
-        ).toThrow('only after the default three delivery-stage freezes');
-
-        state.phase = 'delivery';
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'delivery-1',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Premature exception',
-                verificationCapAuthorization: 'User approved an unneeded exception.',
-            }),
-        ).toThrow('only after the default three delivery-stage freezes');
-    });
-
-    it('conservatively charges unphased freezes to the current delivery budget', () => {
-        const state = reviewing();
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'product-head',
-            mode: 'full',
-            p0: 0,
-            p1: 0,
-            scope: 'Goal range',
-        });
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'legacy-pre-delivery',
-            mode: 'verification',
-            p0: 0,
-            p1: 0,
-            scope: 'Legacy verification-only delta',
-        });
-        state.phase = 'delivery';
-        for (const headSha of ['legacy-delivery-1', 'legacy-delivery-2']) {
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha,
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Legacy verification-only delta',
-            });
-        }
-        for (const decision of state.reviewGate.rounds) Reflect.deleteProperty(decision, 'phase');
-
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'next-delivery',
-                mode: 'verification',
-                p0: 0,
-                p1: 0,
-                scope: 'Conservatively blocked delivery verification',
-            }),
-        ).toThrow('requires explicit user authorization');
-    });
-
-    it('allows one explicitly authorized final targeted verification after the first finds P0/P1', () => {
-        const state = reviewing();
-        for (const headSha of ['head-1', 'head-2', 'head-3']) {
-            recordReviewDecision(state, {
-                freeze: false,
-                headSha,
-                mode: 'full',
-                p0: 0,
-                p1: 1,
-                scope: 'Goal range',
-            });
-        }
-        recordReviewDecision(state, {
-            freeze: false,
-            headSha: 'targeted-1',
-            mode: 'targeted',
-            p0: 0,
-            p1: 1,
-            scope: 'Round-three P1 repair',
-        });
-
-        expect(() =>
-            recordReviewDecision(state, {
-                freeze: true,
-                headSha: 'targeted-2',
-                mode: 'targeted',
-                p0: 0,
-                p1: 0,
-                scope: 'Unexpected follow-up',
-            }),
-        ).toThrow('requires explicit user authorization');
-
-        recordReviewDecision(state, {
-            authorization: 'User approved one final targeted verification.',
-            freeze: true,
-            headSha: 'targeted-2',
-            mode: 'targeted',
-            p0: 0,
-            p1: 0,
-            scope: 'Authorized architecture repair',
-        });
-        expect(state.reviewGate.frozenHeadSha).toBe('targeted-2');
-        expect(state.reviewGate.rounds.at(-1)?.authorization).toContain('User approved');
-
-        expect(() =>
-            recordReviewDecision(state, {
-                authorization: 'User approved another verification.',
-                freeze: true,
-                headSha: 'targeted-3',
-                mode: 'targeted',
-                p0: 0,
-                p1: 0,
-                scope: 'Disallowed third targeted verification',
-            }),
-        ).toThrow('at most two targeted verifications');
-    });
-
-    it('rejects an extra targeted verification when the prior targeted decision was clean', () => {
-        const state = reviewing();
-        for (const headSha of ['head-1', 'head-2', 'head-3']) {
-            recordReviewDecision(state, {
-                freeze: false,
-                headSha,
-                mode: 'full',
-                p0: 0,
-                p1: 1,
-                scope: 'Goal range',
-            });
-        }
-        recordReviewDecision(state, {
-            freeze: true,
-            headSha: 'targeted-clean',
-            mode: 'targeted',
-            p0: 0,
-            p1: 0,
-            scope: 'Clean targeted verification',
-        });
-
-        expect(() =>
-            recordReviewDecision(state, {
-                authorization: 'User approved another verification.',
-                freeze: true,
-                headSha: 'targeted-extra',
-                mode: 'targeted',
-                p0: 0,
-                p1: 0,
-                scope: 'Unnecessary extra verification',
-            }),
-        ).toThrow('prior targeted verification found no product P0/P1');
+        state.phase = 'issue_execution';
+        expect(() => fullBaseline(state)).toThrow('only during deep review or delivery');
     });
 });

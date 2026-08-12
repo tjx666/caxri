@@ -1,79 +1,65 @@
-# Final Execution Report and Self-Improvement
+# Handoff Report and Finalization
 
-Write the final report in Simplified Chinese. Keep code, identifiers, commit
-subjects, and PR content in English. GitHub issue titles, bodies, and comments
-use Simplified Chinese per project rules.
+Write user-facing report content in Simplified Chinese. Keep code, identifiers,
+commit subjects, and PR content in English. Reference GitHub objects with the
+repository-qualified markdown form required by `AGENTS.md`.
 
-## Required sections
+## Pre-wait handoff report
 
-1. **Outcome** — merged PR, final SHA, closed issues, and stable Acceptance URL.
-2. **Issue delivery map** — each issue, its user-visible result, commits, and
-   focused validation.
-3. **Review and Acceptance** — light-review repairs, aggregate deep-review
-   findings, immutable Acceptance rounds, rejects, and the final human decision.
-4. **Technical debt** — durable product or architecture debt discovered, with
-   created follow-up issues or a clear reason no issue was filed.
-5. **Workflow evolution** — project skill, `AGENTS.md`, or Acceptance-adapter
-   changes applied during the run plus larger recommendations not applied.
-6. **Token efficiency and automation candidates** — repeated discovery,
-   duplicate verification, excessive polling, oversized context loads, or
-   report duplication observed; repeated judgment-free steps that should become
-   scripts; and the concrete prevention for both audits.
-7. **Remaining boundaries** — known exclusions, pending deployment/release, or
-   evidence the run did not claim.
+Generate `.records/go/<run-id>/handoff-report.md` during
+`acceptance_handoff`, before entering human wait. The persisted report is bound
+to the exact delivered head and includes a checksum, generation time, delivery
+time, and all required section receipts.
 
-Reference GitHub objects with the repository-qualified markdown form required by
-`AGENTS.md`.
+Required sections:
 
-## Admit workflow learnings carefully
+1. **Delivery** — issue map, observable outcome, commits, and focused validation.
+2. **Review** — frozen policy, aggregate baseline, light repair lineage, and P0/P1 disposition.
+3. **Technical debt** — durable debt and any follow-up issue, or an explicit none.
+4. **Workflow** — project skill or `AGENTS.md` changes plus unapplied recommendations.
+5. **Cost** — exact available token/time/commit/file checkpoints and Actions use; write `unavailable` instead of estimates.
+6. **Automation** — repeated judgment-free sequences and the implemented or proposed script boundary.
+7. **Remaining boundaries** — exclusions, deferred work, release/deployment limits, and unclaimed evidence.
 
-Record a permanent rule only when it is:
+For a normal Acceptance round, deliver the complete report summary together
+with the stable Acceptance URL and then record `deliveredAt`. A generated file,
+an internal note, a checksum without the file, or chat prose without a delivery
+receipt cannot enter `waiting_acceptance`. For an explicit non-product waiver,
+generate before merge and deliver no later than the final response.
 
-- durable across later features;
-- project-specific, otherwise suitable for an upstream proposal;
-- expressed as an invariant rather than a frozen implementation detail;
-- non-duplicative after searching existing instructions;
-- actionable for a future agent.
-
-Merge a learning into an existing rule when possible. Route product behavior to
-tests or specifications, exact UI values to design/code, and one-off incident
-detail to the report. Do not append human feedback verbatim as policy.
-
-Apply obvious narrow project-local fixes directly while the PR is still under
-review. Do not alter an already human-accepted head merely to polish agent
-instructions; record that improvement for a separate follow-up instead.
-
-## Token-efficiency audit
+## Cost and automation audit
 
 Check specifically for:
 
-- source or issue state repeatedly reread despite an unchanged checkpoint;
+- repeated source or issue reads despite an unchanged resume checkpoint;
 - full suites run where focused tests were sufficient;
-- final Acceptance evidence captured before aggregate repairs made it stale;
-- identical case tables duplicated between `result.json`, `report.md`, and chat;
+- repeated full review instead of an exact delta review;
 - repeated CI or Acceptance polling without state change;
-- generic multi-surface documentation loaded for this desktop-only project;
-- large raw logs copied into context instead of stored as artifacts and
-  summarized.
+- large raw logs copied into context instead of stored and summarized;
+- identical result tables rebuilt in the ledger, report, and chat;
+- stable manual state reconstruction, CI classification, evidence capture,
+  report assembly, or remote filtering that should become a script.
 
-Report both the observed waste and the implemented or proposed prevention.
-Every Go report must include this audit even when the conclusion is that no
-material waste occurred.
+Report both the observed cost and the prevention. When the environment does not
+expose exact token usage, say `unavailable`; never estimate it. Apply only a
+narrow blocking workflow correction to the active PR. Route non-blocking
+workflow expansion through the budget gate and list the follow-up boundary.
 
-## Automation-candidate audit
+## Post-merge finalization
 
-For every Go run, list repeated manual sequences that consumed judgment-free
-tool calls: state reconstruction, CI classification, evidence capture, native
-dialog handling, media inspection, report assembly, or remote-state filtering.
-Convert a stable, project-local sequence into a tested skill script when the
-same code or command choreography was written twice. Otherwise record the exact
-script boundary and why it was deferred.
+After human acceptance or an exact-head waiver:
 
-Keep discovery output bounded while doing this audit:
+1. Merge the exact decision head and refresh the remote PR merge SHA.
+2. Verify every intended GitHub issue is `CLOSED` and its Project item is `Done`.
+3. Generate `.records/go/<run-id>/finalization.json` containing the decision
+   head, merge SHA, PR number, issue evidence, verification time, and delivery
+   receipt.
+4. Deliver a short final receipt. Reuse the handoff report; do not regenerate
+   the expensive audit.
+5. Record both delivery timestamps, validate persisted checksums/JSON, and only
+   then transition to `complete`.
 
-- request only required `gh --json` fields and filter with `--jq`;
-- filter LobeHub Acceptance JSON to ids, decisions, checks, and report summaries;
-  never emit evidence `fileUrl` values or presigned query strings;
-- use compact ledger `resume --json` instead of full `show` unless auditing;
-- search before reading, then open only the relevant ranges or referenced files;
-- save large logs as artifacts and return a short actionable summary.
+The final response highlights the merged PR, merge SHA, closed issues, whether
+Acceptance was accepted or explicitly waived, and any remaining boundary. It
+must not expose local artifact paths, internal session ids, presigned URLs, or
+raw remote responses.

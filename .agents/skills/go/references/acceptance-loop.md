@@ -76,12 +76,13 @@ history begins when the Acceptance plan is frozen and round execution starts.
 After a passing round:
 
 1. Store the acceptance id, URL, round index, and `pending` state in the ledger.
-2. Transition the local workflow to `waiting_acceptance`; keep the Codex Goal
-   active.
-3. Run `state.ts resume --state "$STATE" --json` and give the user the stable
-   Acceptance URL plus its compact `workflowObservations`. Do not duplicate the
-   full post-merge technical-debt, workflow, or token-efficiency audit here.
-4. End the current turn. Do not keep
+2. Transition to `acceptance_handoff`. Run the read-only workflow and cost audit,
+   then generate `handoff-report.md` for the exact PR head.
+3. Deliver the report's complete summary with the stable Acceptance URL. Record
+   `deliveredAt` only after the user-facing handoff, then transition to
+   `waiting_acceptance`; keep the Codex Goal active.
+4. Run `state.ts resume --state "$STATE" --json` to confirm the report receipt
+   and pending decision, then end the current turn. Do not keep
    a shell poller running, short-poll from the agent loop, or narrate unchanged
    pending state.
 5. On a later user or automatic continuation, query the filtered `status` and
@@ -104,3 +105,9 @@ On rejection:
 
 On acceptance, merge only the exact accepted PR head. A conflict resolution or
 any other code change requires review and a new Acceptance round.
+
+When the frozen issue set has no Caxri product or desktop claim, an explicit
+user instruction may waive Acceptance for one exact head. Record the reason and
+head, transition `delivery → acceptance_handoff`, generate the report, and skip
+the desktop planner/round. The waiver does not bypass review, CI, report,
+finalization, merge, or issue-state gates.
