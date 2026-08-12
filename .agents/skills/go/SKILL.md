@@ -136,8 +136,8 @@ After all issue commits:
    Go run permits one verification-only freeze during `deep_review` and at most
    three routine delivery-stage repair freezes. If later exhaustive validation
    exposes independent delivery-infrastructure failures, explicit user
-   authorization may permit up to two additional freezes; record the
-   authorization on each decision and never allow a sixth.
+   authorization may permit up to three additional freezes; record the
+   authorization on each decision and never allow a seventh.
 6. Push the branch and create a PR whose body maps issues to behavior and uses
    closing keywords for issues that should close on merge.
 7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
