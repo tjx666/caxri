@@ -60,8 +60,10 @@ then repair one cohesive batch.
 - Workflow, verification-infrastructure, evidence, and PR-metadata-only commits
   use a `verification` decision after focused validation. It requires a prior
   full product-review baseline, zero product P0/P1, and exact-head freeze. Batch
-  them. The ledger permits one bookkeeping freeze during `deep_review` plus at
-  most three repair freezes during `delivery` per Go run.
+  them. The ledger permits one bookkeeping freeze during `deep_review` plus three
+  routine repair freezes during `delivery`. Up to three additional delivery
+  freezes each require exact user authorization recorded with
+  `--verification-cap-authorization`; a seventh delivery freeze is rejected.
 
 Record every full, targeted, or verification decision through `state.ts review`. Use
 `--freeze` only with zero product P0/P1; the ledger invalidates the freeze when

@@ -173,7 +173,11 @@ describe('Go review gate', () => {
 
     it('requires explicit authorization for one final delivery-stage repair freeze', () => {
         const state = reviewing();
-        const verification = (headSha: string, authorization?: string) =>
+        const verification = (
+            headSha: string,
+            authorization?: string,
+            verificationCapAuthorization?: string,
+        ) =>
             recordReviewDecision(state, {
                 authorization,
                 freeze: true,
@@ -182,6 +186,7 @@ describe('Go review gate', () => {
                 p0: 0,
                 p1: 0,
                 scope: 'Verification-only delta',
+                verificationCapAuthorization,
             });
 
         expect(() => verification('unreviewed-head')).toThrow('requires a prior full');
@@ -201,7 +206,10 @@ describe('Go review gate', () => {
         verification('delivery-2');
         verification('delivery-3');
         expect(() => verification('delivery-4')).toThrow('requires explicit user authorization');
-        verification('delivery-4', 'User approved one final delivery verification.');
+        verification('delivery-4', undefined, 'User approved one final delivery verification.');
+        expect(state.reviewGate.rounds.at(-1)?.verificationCapAuthorization).toContain(
+            'User approved',
+        );
         expect(() => verification('delivery-5')).toThrow('requires explicit user authorization');
         verification('delivery-5', 'User approved one systemic CI-parity verification.');
         expect(() => verification('delivery-6')).toThrow('requires explicit user authorization');
@@ -222,6 +230,43 @@ describe('Go review gate', () => {
             'delivery',
             'delivery',
         ]);
+    });
+
+    it('rejects verification-cap authorization before the delivery exception boundary', () => {
+        const state = reviewing();
+        recordReviewDecision(state, {
+            freeze: false,
+            headSha: 'product-head',
+            mode: 'full',
+            p0: 0,
+            p1: 0,
+            scope: 'Goal range',
+        });
+
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'pre-delivery',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Premature exception',
+                verificationCapAuthorization: 'User approved an unneeded exception.',
+            }),
+        ).toThrow('only after the default three delivery-stage freezes');
+
+        state.phase = 'delivery';
+        expect(() =>
+            recordReviewDecision(state, {
+                freeze: true,
+                headSha: 'delivery-1',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Premature exception',
+                verificationCapAuthorization: 'User approved an unneeded exception.',
+            }),
+        ).toThrow('only after the default three delivery-stage freezes');
     });
 
     it('conservatively charges unphased freezes to the current delivery budget', () => {

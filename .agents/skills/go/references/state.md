@@ -50,6 +50,13 @@ bun run .agents/skills/go/scripts/state.ts review \
   --p0 0 --p1 0 --scope "Authorized architecture repair" --freeze \
   --authorization "User explicitly authorized one final targeted verification"
 
+# After the three routine delivery verification freezes, every additional
+# delivery-infrastructure repair requires its own explicit authorization:
+bun run .agents/skills/go/scripts/state.ts review \
+  --state "$STATE" --head-sha fed9876 --mode verification \
+  --p0 0 --p1 0 --scope "Authorized delivery-infrastructure repair" --freeze \
+  --verification-cap-authorization "User explicitly authorized this exact exception"
+
 # A required hosted check could not start because of external infrastructure.
 bun run .agents/skills/go/scripts/state.ts pr \
   --state "$STATE" --status checks_blocked --head-sha abc1234
@@ -136,7 +143,9 @@ event history.
 - A `verification` decision is reserved for workflow, test-infrastructure,
   evidence, or PR-metadata-only commits. It requires a prior full review, zero
   product P0/P1, and `--freeze`; the ledger permits one bookkeeping freeze during
-  `deep_review` plus at most three repair freezes during `delivery` per Go run.
+  `deep_review` plus three routine repair freezes during `delivery`. Up to three
+  additional delivery freezes each require exact user authorization recorded with
+  `--verification-cap-authorization`; a seventh delivery freeze is rejected.
 - The fallback admission command rejects an unfrozen or stale PR head. The
   ledger retains full Electron E2E history across head changes and rejects a
   third full run; a prior passing run can be repeated only after human
