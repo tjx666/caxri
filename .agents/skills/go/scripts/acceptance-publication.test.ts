@@ -153,6 +153,7 @@ describe('Go Acceptance round publication', () => {
             expect.arrayContaining(['--requirement', report('head-1').requirement]),
         );
         expect(runner.mock.calls[1][1]).not.toContain('--acceptance');
+        expect(runner.mock.calls[1][2]).toBe(10 * 60_000);
         expect(state.acceptance).toMatchObject({
             id: 'acc-1',
             round: 1,
@@ -322,6 +323,29 @@ describe('Go Acceptance round publication', () => {
                 verifyRunId: 'run-orphan',
             }),
         ]);
+    });
+
+    it('clears an explicitly orphaned matching pending publication', () => {
+        const state = publicationState('orphan-pending');
+        state.acceptance.publication.pendingAttempt = {
+            acceptanceId: 'acc-partial',
+            checkIds: ['acceptance-round-lineage'],
+            createdAt: '2026-08-12T01:00:00.000Z',
+            headSha: 'head-1',
+            reportPath: '.records/go/orphan-pending/acceptance/round-1',
+            roundIndex: 1,
+            verdict: 'pass',
+            verifyRunId: 'run-partial',
+        };
+
+        recordOrphanedAcceptance(state, {
+            acceptanceId: 'acc-partial',
+            reason: '大证据上传超时，保留部分提交历史并重新发布完整轮次。',
+            verifyRunId: 'run-partial',
+        });
+
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+        expect(state.acceptance.publication.orphanedStandalones).toHaveLength(1);
     });
 
     it('persists an unresolved ingest and retries only its remote readback', async () => {
