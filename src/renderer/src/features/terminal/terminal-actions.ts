@@ -9,6 +9,10 @@ import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
 import { openTerminalSearch } from './terminal-search';
 import { clearTerminalProgress } from './terminal-progress';
+import {
+    navigateTerminalCommand,
+    type TerminalCommandNavigationDirection,
+} from './terminal-commands';
 
 /** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
@@ -118,6 +122,13 @@ export function clearActiveTerminal(terminalId: string): void {
 
 export function findInActiveTerminal(terminalId: string): void {
     openTerminalSearch(terminalId);
+}
+
+export function navigateActiveTerminalCommand(
+    terminalId: string,
+    direction: TerminalCommandNavigationDirection,
+): void {
+    navigateTerminalCommand(terminalId, direction);
 }
 
 /**

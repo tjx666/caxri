@@ -15,7 +15,15 @@ import { ConfigurationService } from '../configuration';
 
 const temporaryDirectories: string[] = [];
 const v002DefaultKeybindings = defaultKeybindings
-    .filter((binding) => !['pathBrowser.open', 'terminal.find'].includes(binding.command))
+    .filter(
+        (binding) =>
+            ![
+                'pathBrowser.open',
+                'terminal.find',
+                'terminal.previousCommand',
+                'terminal.nextCommand',
+            ].includes(binding.command),
+    )
     .map((binding) =>
         binding.command === 'workbench.closeActiveTab'
             ? { ...binding, command: 'terminal.close' }
@@ -275,7 +283,13 @@ describe('ConfigurationService', () => {
             join(configDirectory, 'keybindings.jsonc'),
             `${JSON.stringify(
                 defaultKeybindings.filter(
-                    (binding) => !['pathBrowser.open', 'terminal.find'].includes(binding.command),
+                    (binding) =>
+                        ![
+                            'pathBrowser.open',
+                            'terminal.find',
+                            'terminal.previousCommand',
+                            'terminal.nextCommand',
+                        ].includes(binding.command),
                 ),
                 null,
                 2,
@@ -304,7 +318,14 @@ describe('ConfigurationService', () => {
         await writeFile(
             join(configDirectory, 'keybindings.jsonc'),
             `${JSON.stringify(
-                defaultKeybindings.filter((binding) => binding.command !== 'terminal.find'),
+                defaultKeybindings.filter(
+                    (binding) =>
+                        ![
+                            'terminal.find',
+                            'terminal.previousCommand',
+                            'terminal.nextCommand',
+                        ].includes(binding.command),
+                ),
                 null,
                 2,
             )}\n`,

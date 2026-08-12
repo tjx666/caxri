@@ -68,7 +68,10 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+3', command: 'inspector.showAgent' },
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
-const previousDefaultKeybindings = defaultKeybindings.filter(
+const preCommandNavigationDefaultKeybindings = defaultKeybindings.filter(
+    (binding) => !['terminal.previousCommand', 'terminal.nextCommand'].includes(binding.command),
+);
+const previousDefaultKeybindings = preCommandNavigationDefaultKeybindings.filter(
     (binding) => binding.command !== 'terminal.find',
 );
 const prePathBrowserDefaultKeybindings = previousDefaultKeybindings.filter(
@@ -85,6 +88,7 @@ const newlyAddedDefaultCommands = new Set([
     'sidebar.toggle',
 ]);
 const previousDefaultKeybindingSets = [
+    preCommandNavigationDefaultKeybindings,
     previousDefaultKeybindings,
     prePathBrowserDefaultKeybindings,
     originalDefaultKeybindings,

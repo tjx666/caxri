@@ -38,6 +38,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 clearActive: record('terminal.clear'),
                 findActive: record('terminal.find'),
                 hasActive: () => true,
+                navigateCommand: record('terminal.navigateCommand'),
                 restartActive: record('terminal.restart'),
                 startNewAgentSession: record('terminal.startNewAgentSession'),
                 closeActive: record('terminal.close'),
