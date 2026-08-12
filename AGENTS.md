@@ -7,14 +7,14 @@
 - Manage isolated worktrees: explicitly invoke `$switch-worktree`; its CLI creates adjacent
   `caxri-worktrees/` checkouts, runs `ni` per checkout, and owns profile/process/desktop isolation.
 - Format the whole repository: `bun run format`; verify formatting: `bun run format:check`. Appending
-  file paths does not narrow `bun run format`; use `bunx --bun prettier --write <files...>` for a
-  focused formatting pass.
+  file paths does not narrow `bun run format`; use `bun run --silent check <files...> --lint` for a focused
+  ESLint and Prettier pass with compact successful output.
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
-- Focused changed-file validation: `bun run check [files...] [--lint] [--test] [--type] [--knip] [--staged]`
+- Focused changed-file validation: `bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep '<pattern>'] [--staged]`
 - Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions except for the guarded Go fallback defined below.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
-- Cheap post-change smoke gate (~30s Electron launch): `bun run test:smoke`
+- Cheap post-change smoke gate (~30s Electron launch): `bun run --silent test:smoke`
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Common editor highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
 - Build/package: `bun run build`, `bun run package`, `bun run package:dmg`; for a locally requested
@@ -119,7 +119,7 @@ step-by-step workflows beyond this summary.
 ## Testing workflow
 
 - During implementation, run only tests affected by the changed source files. Do not run `bun run test` as a routine iteration step.
-- Prefer `bun run check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
+- Prefer `bun run --silent check <changed files>` for the default post-edit pass; use `--lint --test --type` when a shared TypeScript contract changes.
 - Use a validation ladder: iterate with the narrowest test, then run one changed-file check after the
   source batch is complete. Re-run only gates invalidated by later edits. Rebuild before focused
   Electron E2E whenever relevant `src/` files changed after the previous build.
@@ -135,7 +135,9 @@ step-by-step workflows beyond this summary.
   are never eligible.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
-- Run focused local Electron coverage only when the change requires it, using `bunx playwright test <e2e-file> --reporter=line`; add `-g '<test name>'` when only one workflow changed.
+- Run focused local Electron coverage only when the change requires it, using
+  `bun run --silent check <e2e-file> --e2e`; add `--e2e-grep '<test name>'` when only one workflow changed.
+  The checker builds first and collapses successful build and Playwright output into one summary.
 - Every Electron spec imports `test` and `expect` from `e2e/fixtures.ts`, never directly from
   `@playwright/test`. The automatic fixture treats Renderer exceptions/console errors and
   structured Main/Runtime error events as failures and attaches both JSONL logs before a temporary
@@ -162,7 +164,7 @@ step-by-step workflows beyond this summary.
 - A visual regression must make the failure observable, not merely assert that an element exists. For
   Terminal inset or background bugs, deliberately use contrasting application and Terminal theme
   colors so uncovered pixels cannot pass unnoticed.
-- Run the full unit suite locally only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient. Implementation subagents must stay scoped to the specs covering their change (`bunx playwright test <file> [-g '<name>']`) and must never receive the full `bun run test:e2e` gate.
+- Run the full unit suite locally only for release/CI parity, when explicitly requested, or when a shared cross-cutting contract makes the focused scope insufficient. Implementation subagents must stay scoped to the specs covering their change (`bun run --silent check <file> --e2e [--e2e-grep '<name>']`) and must never receive the full `bun run test:e2e` gate.
 
 Keep successful validation output compact. Preserve complete logs in a task-scoped file when useful,
 surface the actionable summary, and expand the underlying tool output only on failure or when the

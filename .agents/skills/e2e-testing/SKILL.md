@@ -10,11 +10,11 @@ Use the smallest real Electron workflow that proves the changed boundary.
 ## Focused workflow
 
 1. Finish source edits and focused `unit-test` coverage first when both layers apply.
-2. Rebuild after relevant `src/` changes, then run only the owning spec and test name:
+2. Run only the owning spec and test name through the compact checker; it rebuilds first so the
+   Electron launch cannot exercise stale output:
 
    ```bash
-   bun run build
-   bunx playwright test <e2e-file> -g '<test name>' --reporter=line
+   bun run --silent check <e2e-file> --e2e --e2e-grep '<test name>'
    ```
 
 3. Every spec imports `test` and `expect` from `e2e/fixtures.ts`. The automatic error gate observes
@@ -60,6 +60,18 @@ machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change
 
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed hosted run red while diagnosing it.
+
+Issue #116 hosted evidence uses the repository-owned workflow dispatch instead of an ad-hoc command:
+
+- `e2e_profile=control` runs the exact full manifest with one worker.
+- `e2e_profile=optimized` runs the explicit `@parallel-safe` spec allowlist with two workers, then
+  the fail-closed `@desktop-exclusive` remainder with one worker.
+- Both profiles install and build once, publish cache/install/Playwright metrics, and run the four
+  deterministic hosted-parity cases through `scripts/run-hosted-parity.ts`.
+- Run each profile until it has three consecutive green samples on the same Node/npm/lockfile,
+  runner label, test manifest, and workflow parameters. Record every non-green attempt.
+- Adopt optimized only when it preserves isolation and test counts and improves median feedback or
+  billed minutes. Otherwise restore one worker and publish the reject decision.
 
 ## Controlled PR retries
 
