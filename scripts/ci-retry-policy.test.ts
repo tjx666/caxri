@@ -110,7 +110,18 @@ describe('CI retry policy', () => {
             'tsconfig.node.json',
             '.agents/skills/release/SKILL.md',
             '.agents/skills/e2e-testing/SKILL.md',
+            '.agents/skills/quality-check/scripts/check.ts',
+            '.agents/skills/switch-worktree/scripts/desktop-lease.ts',
+            'e2e/pools.ts',
+            'e2e/worker-isolation.ts',
+            'scripts/ci-execution-plan.ts',
+            'scripts/ci-metrics.ts',
             'scripts/ci-retry-policy.ts',
+            'scripts/run-ci-focused-checks.ts',
+            'scripts/run-e2e-failure-isolation.ts',
+            'scripts/run-e2e-pools.ts',
+            'scripts/run-hosted-parity.ts',
+            'e2e/failure-isolation.e2e.ts',
             'RELEASING.md',
         ]) {
             expect(isProtectedRetryPath(path), path).toBe(true);

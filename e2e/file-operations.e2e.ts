@@ -1,10 +1,38 @@
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+    access,
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rename,
+    rm,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { allowE2EErrors, expect, test } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+
+async function readExpectedFile(path: string): Promise<string | undefined> {
+    try {
+        return await readFile(path, 'utf8');
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+        throw error;
+    }
+}
+
+async function injectTransientFileAbsence(path: string): Promise<{ restored: Promise<void> }> {
+    const heldPath = `${path}.hosted-parity-pending`;
+    await rename(path, heldPath);
+    return {
+        restored: new Promise<void>((resolveRestore, rejectRestore) => {
+            setTimeout(() => void rename(heldPath, path).then(resolveRestore, rejectRestore), 150);
+        }),
+    };
+}
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
     allowE2EErrors([
@@ -147,9 +175,22 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await destinationRow.focus();
         await expect(destinationRow).toBeFocused();
         await running.page.keyboard.press('Meta+V');
+        const copiedDraft = join(destination, 'draft.txt');
+        let restoreDraft: Promise<void> | undefined;
+        if (process.env.CAXRI_HOSTED_PARITY_CASE === 'transient-enoent') {
+            await expect.poll(() => readExpectedFile(copiedDraft)).toBe('draft\n');
+            restoreDraft = (await injectTransientFileAbsence(copiedDraft)).restored;
+        }
+        let observedTransientAbsence = false;
         await expect
-            .poll(() => readFile(join(destination, 'draft.txt'), 'utf8').catch(() => undefined))
+            .poll(async () => {
+                const contents = await readExpectedFile(copiedDraft);
+                if (contents === undefined) observedTransientAbsence = true;
+                return contents;
+            })
             .toBe('draft\n');
+        await restoreDraft;
+        if (restoreDraft) expect(observedTransientAbsence).toBe(true);
 
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Duplicate' }).click();
