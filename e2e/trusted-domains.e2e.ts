@@ -44,13 +44,15 @@ async function terminalTextBounds(page: Page, text: string) {
             const bounds = range.getBoundingClientRect();
             matched = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
         }
-        if (matched) return matched;
-        throw new Error(`Terminal text not found: ${target}`);
+        return matched ?? null;
     }, text);
 }
 
 async function clickTerminalText(page: Page, text: string): Promise<void> {
+    /** The xterm container can match a command whose URL is still wrapped across multiple rows. */
+    await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
     const bounds = await terminalTextBounds(page, text);
+    if (!bounds) throw new Error(`Terminal text not found: ${text}`);
     const x = bounds.x + bounds.width / 2;
     const y = bounds.y + bounds.height / 2;
     await page.mouse.move(x, y);
@@ -186,6 +188,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
             })
             .toEqual(['https://*.example.org']);
         await running.page.keyboard.press('Escape');
+        await expect(settings).toHaveCount(0);
 
         await running.app.evaluate(() => {
             const target = globalThis as typeof globalThis & {
