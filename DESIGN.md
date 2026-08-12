@@ -75,7 +75,7 @@ tracking. No other arbitrary typography values are allowed.
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. Nothing else.
 
-`src/runtime/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
+`src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
 allowlist above and rejects feature-local raw text inputs. Checkbox and color inputs remain native
 by design. Numeric arbitrary width/height constraints are also closed by default; the test's small
 allowlist covers existing structural viewport, empty-state, and platform-diagnostic geometry, not

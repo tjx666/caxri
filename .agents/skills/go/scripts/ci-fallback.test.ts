@@ -75,7 +75,10 @@ describe('Go local CI fallback', () => {
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
-        expect(commands).toContain('bun run doctor -- --scope changed');
+        expect(commands).toContain('bun run doctor:changed');
+        expect(checksJob).toContain(
+            "CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}",
+        );
     });
 
     it('rejects fallback without every admission boundary', () => {

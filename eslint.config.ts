@@ -98,4 +98,11 @@ export default defineConfig(
             ],
         },
     },
+    {
+        files: ['src/renderer/__tests__/*.test.ts'],
+        rules: {
+            /** Repository-level Renderer contracts inspect source from Vitest's Node environment. */
+            'no-restricted-imports': 'off',
+        },
+    },
 );

@@ -57,7 +57,9 @@ then repair one cohesive batch.
 - Workflow, verification-infrastructure, evidence, and PR-metadata-only commits
   use a `verification` decision after focused validation. It requires a prior
   full product-review baseline, zero product P0/P1, and exact-head freeze. Batch
-  them; the ledger permits at most three per Go run.
+  them; the ledger permits three per Go run by default. Late hosted evidence may justify one
+  fourth verification freeze only with explicit user authorization recorded in the decision;
+  the ledger always rejects a fifth.
 
 Record every full, targeted, or verification decision through `state.ts review`. Use
 `--freeze` only with zero product P0/P1; the ledger invalidates the freeze when

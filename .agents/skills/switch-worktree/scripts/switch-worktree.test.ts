@@ -1,8 +1,18 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import {
+    chmod,
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rm,
+    symlink,
+    unlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -26,6 +36,7 @@ import {
     createWorktree,
     devWorktree,
     doctorWorktree,
+    installWorktreeDependencies,
     listWorktreeStatus,
     prepareDevWorktree,
     removeWorktree,
@@ -51,7 +62,7 @@ async function createFixture(): Promise<Fixture> {
     const remote = join(temporary, 'remote.git');
     const root = join(temporary, 'caxri');
     await mkdir(root);
-    await git(temporary, 'init', '--bare', remote);
+    await git(temporary, 'init', '--bare', '-b', 'main', remote);
     await git(root, 'init', '-b', 'main');
     await git(root, 'config', 'user.email', 'caxri@example.invalid');
     await git(root, 'config', 'user.name', 'Caxri Test');
@@ -106,9 +117,8 @@ describe('switch-worktree creation and diagnostics', () => {
 
         const context = await repositoryContext(fixture.root);
         expect(created.path).toBe(worktreeDirectory(context, 'feat/example'));
-        expect(created.path).toContain(
-            `${join(dirname(fixture.root), 'caxri-worktrees')}/feat%2Fexample`,
-        );
+        expect(basename(created.path)).toMatch(/^feat-example-[a-f0-9]{8}$/);
+        expect(created.path).not.toContain('%');
         expect(created.branch).toBe('feat/example');
         expect(created.dependencies).toBe('ready');
         expect(created.managed).toBe(true);
@@ -154,6 +164,16 @@ describe('switch-worktree creation and diagnostics', () => {
         expect(switched.branch).toBe('feat/dormant');
         expect(switched.dependencies).toBe('ready');
         expect(installs).toBe(2);
+    });
+
+    it('materializes existing branches under portable worktree directory names', async () => {
+        const fixture = await createFixture();
+        for (const branch of ['feat/foo%2Fbar', 'feat/windows<bad>|"name"']) {
+            await git(fixture.root, 'branch', branch, 'origin/main');
+            const switched = await switchWorktree(fixture.root, branch, fakeInstall);
+            expect(basename(switched.path)).toMatch(/^[A-Za-z0-9._-]+$/);
+            expect(basename(switched.path).toLowerCase()).not.toContain('%2f');
+        }
     });
 
     it('repairs a managed checkout when its first dependency installation fails', async () => {
@@ -261,6 +281,73 @@ describe('switch-worktree creation and diagnostics', () => {
         expect(parsed.branch).toBe('feat/json-output');
         expect(parsed.path).toContain('caxri-worktrees');
         output.mockRestore();
+    });
+
+    it('restores exact manifests without following installer-created symlinks', async () => {
+        const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-install-'));
+        temporaryDirectories.push(temporary);
+        const binaryDirectory = join(temporary, 'bin');
+        await mkdir(binaryDirectory);
+        const niPath = join(binaryDirectory, 'ni');
+        await writeFile(
+            niPath,
+            '#!/bin/sh\nrm package-lock.json\nln -s "$CAXRI_TEST_EXTERNAL_TARGET" package-lock.json\nmkdir node_modules\n',
+            'utf8',
+        );
+        await chmod(niPath, 0o755);
+        const packageSource = '{"name":"fixture"}\n';
+        const lockSource = '{"lockfileVersion":3}\n';
+        const externalTarget = join(temporary, 'external-target.txt');
+        await writeFile(join(temporary, 'package.json'), packageSource, 'utf8');
+        await writeFile(join(temporary, 'package-lock.json'), lockSource, 'utf8');
+        await writeFile(externalTarget, 'preserve external target\n', 'utf8');
+        const previousPath = process.env.PATH;
+        const previousExternalTarget = process.env.CAXRI_TEST_EXTERNAL_TARGET;
+        try {
+            process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            process.env.CAXRI_TEST_EXTERNAL_TARGET = externalTarget;
+            await installWorktreeDependencies(temporary);
+        } finally {
+            process.env.PATH = previousPath;
+            if (previousExternalTarget === undefined) delete process.env.CAXRI_TEST_EXTERNAL_TARGET;
+            else process.env.CAXRI_TEST_EXTERNAL_TARGET = previousExternalTarget;
+        }
+
+        expect(await readFile(join(temporary, 'package.json'), 'utf8')).toBe(packageSource);
+        expect(await readFile(join(temporary, 'package-lock.json'), 'utf8')).toBe(lockSource);
+        expect((await lstat(join(temporary, 'package-lock.json'))).isSymbolicLink()).toBe(false);
+        expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
+        expect(await pathExists(join(temporary, 'node_modules'))).toBe(true);
+    });
+
+    it('refuses pre-existing manifest symlinks before launching ni', async () => {
+        const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-symlink-install-'));
+        temporaryDirectories.push(temporary);
+        const binaryDirectory = join(temporary, 'bin');
+        await mkdir(binaryDirectory);
+        const niPath = join(binaryDirectory, 'ni');
+        const niMarker = join(temporary, 'ni-ran');
+        await writeFile(niPath, '#!/bin/sh\ntouch "$CAXRI_TEST_NI_MARKER"\n', 'utf8');
+        await chmod(niPath, 0o755);
+        const externalTarget = join(temporary, 'external-target.txt');
+        await writeFile(join(temporary, 'package.json'), '{"name":"fixture"}\n', 'utf8');
+        await writeFile(externalTarget, 'preserve external target\n', 'utf8');
+        await symlink(externalTarget, join(temporary, 'package-lock.json'));
+        const previousPath = process.env.PATH;
+        const previousNiMarker = process.env.CAXRI_TEST_NI_MARKER;
+        try {
+            process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            process.env.CAXRI_TEST_NI_MARKER = niMarker;
+            await expect(installWorktreeDependencies(temporary)).rejects.toThrow(/symbolic link/i);
+        } finally {
+            process.env.PATH = previousPath;
+            if (previousNiMarker === undefined) delete process.env.CAXRI_TEST_NI_MARKER;
+            else process.env.CAXRI_TEST_NI_MARKER = previousNiMarker;
+        }
+
+        expect((await lstat(join(temporary, 'package-lock.json'))).isSymbolicLink()).toBe(true);
+        expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
+        expect(await pathExists(niMarker)).toBe(false);
     });
 });
 

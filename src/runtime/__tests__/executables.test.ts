@@ -55,10 +55,11 @@ describe('ExecutableResolver', () => {
         temporaryDirectories.push(directory);
         const firstBin = join(directory, 'first');
         const secondBin = join(directory, 'second');
+        const executableName = 'caxri-stale-test-executable';
         await mkdir(firstBin);
         await mkdir(secondBin);
-        const first = join(firstBin, 'gh');
-        const second = join(secondBin, 'gh');
+        const first = join(firstBin, executableName);
+        const second = join(secondBin, executableName);
         await writeFile(first, '#!/bin/sh\n');
         await writeFile(second, '#!/bin/sh\n');
         await chmod(first, 0o700);
@@ -73,11 +74,11 @@ describe('ExecutableResolver', () => {
                 }),
         );
 
-        await expect(resolver.resolve('../gh')).resolves.toBeUndefined();
-        await expect(resolver.resolve('gh')).resolves.toBe(first);
+        await expect(resolver.resolve(`../${executableName}`)).resolves.toBeUndefined();
+        await expect(resolver.resolve(executableName)).resolves.toBe(first);
         await rm(first);
         loginBin = secondBin;
-        await expect(resolver.resolve('gh')).resolves.toBe(second);
+        await expect(resolver.resolve(executableName)).resolves.toBe(second);
     });
 
     it('bounds cached executable names with least-recently-used eviction', async () => {
