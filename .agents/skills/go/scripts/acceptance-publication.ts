@@ -78,16 +78,15 @@ const ingestResultSchema = z.object({
     verifyRunId: z.string().min(1),
 });
 
-const acceptanceRunListSchema = z.array(
-    z.object({
-        acceptanceId: z.string().min(1),
-        context: z.looseObject({ commit: z.string().min(1), testedAt: z.string().min(1) }),
-        id: z.string().min(1),
-        plan: z.array(z.object({ id: z.string().min(1) })),
-        roundIndex: z.number().int().positive(),
-        source: z.literal('agent-testing'),
-    }),
-);
+const acceptanceRunCandidateSchema = z.object({
+    acceptanceId: z.string().min(1),
+    context: z.looseObject({ commit: z.string().min(1), testedAt: z.string().min(1) }),
+    id: z.string().min(1),
+    plan: z.array(z.object({ id: z.string().min(1) })),
+    roundIndex: z.number().int().positive(),
+    source: z.literal('agent-testing'),
+});
+const acceptanceRunListSchema = z.array(z.unknown());
 
 const acceptanceViewSchema = z.object({
     acceptance: z.object({ id: z.string().min(1) }),
@@ -121,6 +120,20 @@ function equalValues(left: string[], right: string[]): boolean {
     return JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
 }
 
+/**
+ * Run history can contain legacy `agent` rows and interrupted rows with null lineage fields.
+ * They cannot prove that this exact round already exists, so discovery ignores them while the
+ * matching candidate and subsequent Acceptance readback remain strictly validated.
+ */
+function discoverableAcceptanceRuns(
+    value: unknown,
+): Array<z.infer<typeof acceptanceRunCandidateSchema>> {
+    return acceptanceRunListSchema.parse(value).flatMap((run) => {
+        const parsed = acceptanceRunCandidateSchema.safeParse(run);
+        return parsed.success ? [parsed.data] : [];
+    });
+}
+
 async function discoverPublishedRun(
     runner: CommandRunner,
     input: {
@@ -133,7 +146,7 @@ async function discoverPublishedRun(
 ): Promise<z.infer<typeof ingestResultSchema> | null> {
     const raw = await runner('lobehub', ['acceptance', 'run', 'list', '--json']);
     if (!raw.trim()) throw new Error('LobeHub run discovery returned empty JSON output');
-    const candidates = acceptanceRunListSchema.parse(JSON.parse(raw)).filter(
+    const candidates = discoverableAcceptanceRuns(JSON.parse(raw)).filter(
         (run) =>
             run.context.commit === input.headSha &&
             run.context.testedAt === input.createdAt &&
