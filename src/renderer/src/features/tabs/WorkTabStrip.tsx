@@ -1,6 +1,6 @@
-import { Plus } from 'lucide-react';
+import { CircleAlert, LoaderCircle, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react';
-import { Fragment, useLayoutEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 
 import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
@@ -36,6 +36,12 @@ import {
     createTerminal,
     TERMINAL_DRAG_TYPE,
 } from '../terminal/terminal-actions';
+import {
+    terminalProgressAriaLabel,
+    terminalProgressLabel,
+    retainTerminalProgress,
+    useTerminalProgress,
+} from '../terminal/terminal-progress';
 import { WorkTab } from './WorkTab';
 import {
     pruneEditorTabMotionStates,
@@ -46,9 +52,45 @@ import {
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
 function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: TerminalRecord }) {
+    const progress = useTerminalProgress(terminal.id);
+    const ProgressIcon =
+        progress?.kind === 'error'
+            ? CircleAlert
+            : progress?.kind === 'paused'
+              ? Pause
+              : progress?.kind === 'indeterminate'
+                ? LoaderCircle
+                : undefined;
     return (
         <WorkTab
             active={active}
+            accessory={
+                progress && (
+                    <span
+                        aria-label={terminalProgressAriaLabel(progress)}
+                        className={cn(
+                            'terminal-progress-tab inline-flex flex-none items-center gap-1 tabular-nums',
+                            progress.kind === 'normal' && 'text-accent',
+                            progress.kind === 'error' && 'text-danger',
+                            progress.kind === 'paused' && 'text-warning',
+                        )}
+                        data-terminal-progress-state={progress.kind}
+                        title={terminalProgressAriaLabel(progress)}
+                    >
+                        {ProgressIcon && (
+                            <ProgressIcon
+                                aria-hidden="true"
+                                className={cn(
+                                    progress.kind === 'indeterminate' &&
+                                        'animate-spin motion-reduce:animate-none',
+                                )}
+                                size={11}
+                            />
+                        )}
+                        {progress.kind !== 'indeterminate' && terminalProgressLabel(progress)}
+                    </span>
+                )
+            }
             closeLabel="Close Terminal"
             icon={terminal.kind}
             label={terminal.title}
@@ -144,6 +186,15 @@ export function WorkTabStrip() {
     const activeWork = useActiveWork();
     const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     const [editorMotionStates] = useState(() => new Map<string, EditorTabMotionState>());
+    useEffect(() => {
+        retainTerminalProgress(
+            new Set(
+                sessionTerminals
+                    .filter((terminal) => terminal.lastProcessState === 'running')
+                    .map((terminal) => terminal.id),
+            ),
+        );
+    }, [selectedSessionId, sessionTerminals]);
     const editorMotionState = useMemo(
         () =>
             reconcileEditorTabMotion(

@@ -64,6 +64,7 @@
     "dependencies": {
         "@parcel/watcher": "2.5.6",
         "@xterm/addon-clipboard": "0.3.0-beta.301",
+        "@xterm/addon-progress": "0.3.0-beta.299",
         "@xterm/addon-serialize": "0.15.0-beta.299",
         "@xterm/addon-unicode11": "0.10.0-beta.299",
         "@xterm/headless": "6.1.0-beta.301",
