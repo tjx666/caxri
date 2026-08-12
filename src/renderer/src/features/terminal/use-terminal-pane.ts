@@ -19,7 +19,11 @@ import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { revealEditorLocation } from '../editor/editor-reveal';
 import { registerTerminalClearHandler } from './terminal-actions';
-import { registerTerminalCommandNavigation, TerminalCommandTracker } from './terminal-commands';
+import {
+    formatTerminalCommandCompletionStatus,
+    registerTerminalCommandNavigation,
+    TerminalCommandTracker,
+} from './terminal-commands';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
 import {
     CODEX_IMAGE_PASTE_INPUT,
@@ -197,6 +201,13 @@ export function useTerminalPaneRuntime({
         xterm.loadAddon(unicode11);
         xterm.unicode.activeVersion = '11';
         xterm.open(container);
+        const commandStatusElement = document.createElement('div');
+        commandStatusElement.className = 'terminal-command-status sr-only';
+        commandStatusElement.setAttribute('aria-atomic', 'true');
+        commandStatusElement.setAttribute('aria-live', 'polite');
+        commandStatusElement.setAttribute('role', 'status');
+        container.append(commandStatusElement);
+        let previousCompletedCommandCount = 0;
         const commandTracker = new TerminalCommandTracker(
             xterm,
             {
@@ -211,6 +222,10 @@ export function useTerminalPaneRuntime({
                 if (lastExitStatus === undefined)
                     delete container.dataset.terminalCommandLastExitStatus;
                 else container.dataset.terminalCommandLastExitStatus = String(lastExitStatus);
+                if (completedCount > previousCompletedCommandCount && lastExitStatus !== undefined)
+                    commandStatusElement.textContent =
+                        formatTerminalCommandCompletionStatus(lastExitStatus);
+                previousCompletedCommandCount = completedCount;
             },
         );
         const unregisterCommandNavigation = registerTerminalCommandNavigation(
@@ -446,6 +461,7 @@ export function useTerminalPaneRuntime({
             unregisterLinks();
             unregisterCommandNavigation();
             commandTracker.dispose();
+            commandStatusElement.remove();
             unregisterTerminalImages();
             renderer.dispose();
             /** Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore

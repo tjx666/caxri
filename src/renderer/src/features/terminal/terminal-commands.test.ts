@@ -6,6 +6,7 @@ import { TerminalCommandTracker } from './terminal-commands';
 function createTerminalHost() {
     const handlers = new Map<number, (data: string) => boolean | Promise<boolean>>();
     const decorations: Array<{ element: HTMLElement; marker: IMarker }> = [];
+    const markerDisposers: Array<ReturnType<typeof vi.fn>> = [];
     const markers: IMarker[] = [];
     const scrollToLine = vi.fn();
     let nextLine = 10;
@@ -40,19 +41,21 @@ function createTerminalHost() {
             } as unknown as IDecoration;
         }),
         registerMarker: vi.fn(() => {
+            const dispose = vi.fn();
             const marker = {
-                dispose: vi.fn(),
+                dispose,
                 id: nextLine,
                 isDisposed: false,
                 line: nextLine++,
                 onDispose: vi.fn(),
             } as unknown as IMarker;
+            markerDisposers.push(dispose);
             markers.push(marker);
             return marker;
         }),
         scrollToLine,
     } as unknown as Terminal;
-    return { decorations, handlers, markers, scrollToLine, terminal };
+    return { decorations, handlers, markerDisposers, markers, scrollToLine, terminal };
 }
 
 const colors = {
@@ -135,5 +138,26 @@ describe('TerminalCommandTracker', () => {
         await host.handlers.get(133)?.('C');
 
         expect(publish).toHaveBeenLastCalledWith({ commandCount: 1, completedCount: 0 });
+    });
+
+    it('caps untrimmed command boundaries and releases the oldest markers', async () => {
+        const host = createTerminalHost();
+        const publish = vi.fn();
+        const tracker = new TerminalCommandTracker(host.terminal, colors, publish);
+
+        for (let command = 0; command < 1_001; command += 1) {
+            await host.handlers.get(133)?.('A');
+            await host.handlers.get(133)?.('C');
+            await host.handlers.get(133)?.('D;0');
+        }
+
+        expect(publish).toHaveBeenLastCalledWith({
+            commandCount: 1_000,
+            completedCount: 1_000,
+            lastExitStatus: 0,
+        });
+        expect(host.markerDisposers[0]).toHaveBeenCalledOnce();
+        expect(host.markerDisposers[1]).toHaveBeenCalledOnce();
+        expect(tracker.navigate('previous')).toBe(true);
     });
 });

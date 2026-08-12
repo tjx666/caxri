@@ -20,6 +20,12 @@ function terminalSurface(page: Page, terminalId: string): Locator {
     return page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`);
 }
 
+function terminalCommandStatus(page: Page, terminalId: string): Locator {
+    return page.locator(
+        `.terminal-pane[data-terminal-id="${terminalId}"] .terminal-command-status`,
+    );
+}
+
 async function activeTerminalId(page: Page): Promise<string> {
     const terminalId = await page
         .locator('.work-tab.active[data-terminal-id]')
@@ -85,12 +91,18 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
             completedCount: 1,
             lastExitStatus: 0,
         });
+        await expect(terminalCommandStatus(running.page, firstTerminalId)).toHaveText(
+            'Command completed successfully.',
+        );
         await typeTerminal(running.page, 'false');
         await expectCommandState(firstSurface, {
             commandCount: 2,
             completedCount: 2,
             lastExitStatus: 1,
         });
+        await expect(terminalCommandStatus(running.page, firstTerminalId)).toHaveText(
+            'Command failed with exit status 1.',
+        );
         await expect(firstSurface.locator('[data-terminal-command-phase="failed"]')).toHaveCount(1);
 
         const visibleRows = firstSurface.locator('.xterm-rows');
@@ -119,6 +131,9 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
             completedCount: 1,
             lastExitStatus: 0,
         });
+        await expect(terminalCommandStatus(running.page, firstTerminalId)).toHaveText(
+            'Command completed successfully.',
+        );
         const splitter = running.page.getByRole('separator', { name: /Terminal split/u });
         const splitterBox = await splitter.boundingBox();
         if (!splitterBox) throw new Error('Terminal split handle was not rendered');
@@ -192,12 +207,18 @@ test('bash reports successful and failed command status without retaining comman
             completedCount: 1,
             lastExitStatus: 0,
         });
+        await expect(terminalCommandStatus(running.page, terminalId)).toHaveText(
+            'Command completed successfully.',
+        );
         await typeTerminal(running.page, 'false');
         await expectCommandState(surface, {
             commandCount: 2,
             completedCount: 2,
             lastExitStatus: 1,
         });
+        await expect(terminalCommandStatus(running.page, terminalId)).toHaveText(
+            'Command failed with exit status 1.',
+        );
         await expect(surface.locator('[data-terminal-command-phase="failed"]')).toHaveCount(1);
         const commandMetadata = await surface.evaluate((element) => ({
             decorations: [...element.querySelectorAll('.terminal-command-decoration')].map(
@@ -234,6 +255,9 @@ test('unsupported shells and Agent Terminals remain usable without inferred boun
         await typeTerminal(running.page, "printf 'UNSUPPORTED_SHELL_READY\\n'");
         await expect(shellSurface.locator('.xterm-rows')).toContainText('UNSUPPORTED_SHELL_READY');
         await expectCommandState(shellSurface, { commandCount: 0, completedCount: 0 });
+        await expect(
+            terminalCommandStatus(running.page, await activeTerminalId(running.page)),
+        ).toBeEmpty();
 
         const shellSessionId = await selectedSessionId(running.page);
         const shellTerminalId = await activeTerminalId(running.page);

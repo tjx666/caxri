@@ -22,6 +22,8 @@ interface CommandBoundary {
     status?: number;
 }
 
+const MAX_RETAINED_COMMANDS = 1_000;
+
 function opaqueColor(color: string): string {
     return color.slice(0, 7);
 }
@@ -110,6 +112,7 @@ export class TerminalCommandTracker {
     private startCommand(): void {
         if (this.running) return;
         this.pruneDisposedCommands();
+        this.pruneExcessCommands();
         const marker = this.promptMarker ?? this.terminal.registerMarker();
         if (!marker) return;
         this.promptDecoration?.dispose();
@@ -131,11 +134,24 @@ export class TerminalCommandTracker {
         for (let index = this.commands.length - 1; index >= 0; index -= 1) {
             const command = this.commands[index];
             if (!command?.startMarker.isDisposed && command?.startMarker.line !== -1) continue;
-            command.decoration?.dispose();
-            command.finishMarker?.dispose();
-            command.startMarker.dispose();
+            this.disposeCommand(command);
             this.commands.splice(index, 1);
         }
+    }
+
+    /** OSC controls can repeat without advancing the screen, so xterm may never trim their markers.
+     *  Enforce an independent cap before retaining another command boundary. */
+    private pruneExcessCommands(): void {
+        while (this.commands.length >= MAX_RETAINED_COMMANDS) {
+            const command = this.commands.shift();
+            if (command) this.disposeCommand(command);
+        }
+    }
+
+    private disposeCommand(command: CommandBoundary): void {
+        command.decoration?.dispose();
+        command.finishMarker?.dispose();
+        command.startMarker.dispose();
     }
 
     private finishCommand(data: string): void {
@@ -188,6 +204,12 @@ export class TerminalCommandTracker {
                 : {}),
         });
     }
+}
+
+export function formatTerminalCommandCompletionStatus(exitStatus: number): string {
+    return exitStatus === 0
+        ? 'Command completed successfully.'
+        : `Command failed with exit status ${exitStatus}.`;
 }
 
 const navigationHandlers = new Map<
