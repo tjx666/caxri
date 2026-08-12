@@ -34,6 +34,30 @@ describe('Go Acceptance planning contract', () => {
         );
     });
 
+    it('uses one type label plus focused scope labels', () => {
+        expect(fileIssueSkill).toContain('Apply exactly one type label');
+        expect(fileIssueSkill).toContain('normally one to three');
+        for (const label of [
+            'skill',
+            'unit-testing',
+            'e2e-testing',
+            'terminal',
+            'editor',
+            'files-explorer',
+            'git',
+            'agent',
+            'acceptance',
+            'ci',
+        ]) {
+            expect(fileIssueSkill).toContain(`| \`${label}\``);
+        }
+        expect(fileIssueSkill).toContain(
+            'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
+        );
+        expect(fileIssueSkill).toContain('Labels do not encode priority');
+        expect(fileIssueSkill).toContain('verify the complete label set after creation');
+    });
+
     it('requires a fresh tester subagent to author the final plan', () => {
         expect(goSkill).toContain('fresh context-isolated tester');
         expect(goSkill).toContain('Do not give it a builder-authored plan');
