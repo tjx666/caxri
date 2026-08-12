@@ -30,6 +30,7 @@ function rememberReconciliation(operationId: string): void {
 function scheduleReconciliationRetry(operation: FileMutationOperation): void {
     const previous = retrying.get(operation.id);
     if (previous) clearTimeout(previous.timer);
+    else pushToast('info', 'File change is still synchronizing in the background');
     const attempt = (previous?.attempt ?? 0) + 1;
     const delay = Math.min(
         RECONCILIATION_RETRY_BASE_MS * 2 ** (attempt - 1),
@@ -80,6 +81,7 @@ async function applyCompletedOperation(operation: FileMutationOperation): Promis
     }
     await remapOpenEditorsDurably(
         operation.sessionId,
+        operation.id,
         operation.result.previousPath,
         operation.result.path,
     );
@@ -120,20 +122,20 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
     const reconciliation = (async () => {
         if (operation.phase === 'completed') {
             await applyCompletedOperation(operation);
-            pushToast('success', operationSuccess(operation));
         } else {
             await invalidateAffectedDirectories(operation);
-            pushToast('error', operation.error?.message ?? 'File operation could not be completed');
         }
         await caxri.request('files.operation.acknowledge', { operationId: operation.id });
         useFileOperationStore.getState().finish(operation.id);
         rememberReconciliation(operation.id);
+        if (operation.phase === 'completed') pushToast('success', operationSuccess(operation));
+        else
+            pushToast('error', operation.error?.message ?? 'File operation could not be completed');
     })()
-        .catch((error) => {
+        .catch(() => {
             /** Runtime keeps the durable result until every same-Project Session remap and ack
-             *  succeeds, so a transient persistence failure must retry without a reload. */
+             *  succeeds, so a transient persistence failure must retry across Renderer reloads. */
             scheduleReconciliationRetry(operation);
-            throw error;
         })
         .finally(() => reconciling.delete(operation.id));
     reconciling.set(operation.id, reconciliation);

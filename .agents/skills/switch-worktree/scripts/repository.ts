@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
@@ -105,13 +105,22 @@ export async function listWorktrees(context: RepositoryContext): Promise<Worktre
 
 export function worktreeDirectory(context: RepositoryContext, branch: string): string {
     const parent = join(dirname(context.primaryRoot), `${basename(context.primaryRoot)}-worktrees`);
-    return join(parent, encodeURIComponent(branch));
+    /** A portable allowlist excludes percent-encoded separators and Windows-invalid path bytes. */
+    const readable = branch
+        .replaceAll('/', '-')
+        .replaceAll(/[^A-Za-z0-9._-]+/g, '-')
+        .slice(0, 80);
+    const digest = createHash('sha256').update(branch).digest('hex').slice(0, 8);
+    return join(parent, `${readable}-${digest}`);
 }
 
 export async function worktreeIdentity(root: string, create: boolean): Promise<string | undefined> {
-    const identityPath = (
+    const identityOutput = (
         await runCapture('git', ['rev-parse', '--git-path', 'caxri-worktree-id'], root)
     ).trim();
+    const identityPath = isAbsolute(identityOutput)
+        ? identityOutput
+        : resolve(root, identityOutput);
     try {
         return validateWorktreeIdentity(await readFile(identityPath, 'utf8'), identityPath);
     } catch (error) {

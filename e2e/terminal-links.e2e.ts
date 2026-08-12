@@ -67,7 +67,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        const fileLink = `${file}:2:3`;
+        const fileLink = 'link-target.ts:2:3';
         await typeTerminal(running.page, `printf '%s\\n' '${fileLink}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(fileLink);
         await clickTerminalText(running.page, fileLink);

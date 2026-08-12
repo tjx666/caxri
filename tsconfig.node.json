@@ -8,6 +8,7 @@
         "eslint.config.*",
         "src/main/**/*.ts",
         "src/preload/**/*.ts",
+        "src/renderer/__tests__/**/*.ts",
         "src/runtime/**/*.ts",
         "src/shared/**/*.ts",
         ".agents/skills/**/scripts/**/*.ts",

@@ -69,21 +69,15 @@ describe('Go local CI fallback', () => {
                 (action) =>
                     !/^(actions\/checkout|actions\/setup-node|oven-sh\/setup-bun)@/.test(action),
             );
-        const hostedCommands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
+        const commands = [...checksJob.matchAll(/^\s+- run: (.+)$/gm)]
             .map((match) => match[1])
             .filter((command) => command !== 'npm ci');
-        const commands = hostedCommands.map((command) =>
-            command ===
-            'bun run doctor -- --scope changed --base "${{ github.event.pull_request.base.sha || github.event.before }}"'
-                ? 'bun run doctor -- --scope changed --base origin/main'
-                : command,
-        );
 
         expect(nonSetupActions).toEqual([]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
-        expect(commands).toContain('bun run doctor -- --scope changed --base origin/main');
-        expect(hostedCommands).toContain(
-            'bun run doctor -- --scope changed --base "${{ github.event.pull_request.base.sha || github.event.before }}"',
+        expect(commands).toContain('bun run doctor:changed');
+        expect(checksJob).toContain(
+            "CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}",
         );
     });
 

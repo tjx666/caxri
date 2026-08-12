@@ -17,8 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Full history makes the event base available. Pull request checkouts are detached, so
-          # the Doctor step below must also name that base explicitly or it scans the full repo.
+          # React Doctor reports only issues new relative to the push/PR base; a shallow
+          # checkout breaks that base detection and it falls back to reporting every
+          # existing issue (https://www.react.doctor/docs/ci-and-prs/github-actions-setup).
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
@@ -28,7 +29,9 @@ jobs:
       - run: npm ci
       - run: bun run lint
       - run: bun run knip
-      - run: bun run doctor -- --scope changed --base "${{ github.event.pull_request.base.sha || github.event.before }}"
+      - run: bun run doctor:changed
+        env:
+          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
       - run: bun run typecheck
       - run: bun run format:check
       - run: bun run format:md:check

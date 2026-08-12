@@ -638,7 +638,7 @@ Commands:
   pr --state PATH [--number N] [--url URL] [--status STATUS] [--branch NAME]
      [--head-sha SHA]
   review --state PATH --head-sha SHA --mode full|targeted|verification --p0 N --p1 N
-         --scope TEXT [--freeze]
+         --scope TEXT [--freeze] [--verification-cap-authorization TEXT]
   ci-fallback-admit --state PATH --head-sha SHA --failure-kind billing|infrastructure
                     --failure-url URL --failure-job NAME --failure-detail TEXT
                     [--authorization TEXT] --verified-zero-steps
@@ -739,6 +739,7 @@ async function main(argv: string[]): Promise<void> {
             p0: integer(options, 'p0', true) ?? 0,
             p1: integer(options, 'p1', true) ?? 0,
             scope: one(options, 'scope', true) ?? '',
+            verificationCapAuthorization: one(options, 'verification-cap-authorization'),
         });
         const review = state.reviewGate.rounds.at(-1);
         addEvent(

@@ -104,6 +104,9 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         await running.page.keyboard.press('Meta+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         const originalViewport = running.page.viewportSize() ?? { width: 1280, height: 720 };
+        await running.page.setViewportSize({ width: 1200, height: originalViewport.height });
+        await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeVisible();
+        await expectIndicatorAligned(inspectorTabs, gitTab);
         const wideIndicatorWidth = await inspectorTabs
             .locator('[data-slot="chrome-tab-indicator"]')
             .evaluate((element) => element.getBoundingClientRect().width);

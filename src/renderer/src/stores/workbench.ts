@@ -28,8 +28,12 @@ interface WorkbenchState {
         next: SessionState,
         failureLabel?: string,
         onLatestFailure?: () => void,
+        failureMode?: SessionStateFailureMode,
+        reportFailure?: boolean,
     ): Promise<boolean>;
 }
+
+type SessionStateFailureMode = 'retain' | 'rollback';
 
 let inFlight: Promise<void> | undefined;
 let queued: Promise<void> | undefined;
@@ -182,7 +186,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     isFullScreen: false,
     initialize: initializeWorkbench,
     refresh: refreshWorkbench,
-    patchSessionState(next, failureLabel = 'Session layout could not be saved', onLatestFailure) {
+    patchSessionState(
+        next,
+        failureLabel = 'Session layout could not be saved',
+        onLatestFailure,
+        failureMode = 'rollback',
+        reportFailure = true,
+    ) {
         const bootstrap = get().bootstrap;
         if (!bootstrap) return Promise.resolve(false);
         const previous = bootstrap.sessionStates.find(
@@ -214,8 +224,12 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 // write's own later success/failure) that has since superseded it.
                 const isLatestRevision =
                     pendingSessionPatches.get(next.sessionId)?.revision === revision;
-                finish();
-                if (isLatestRevision && previous) {
+                /** A durable file move cannot safely restore its old path. Retaining the latest
+                 * optimistic patch also shields it from stale bootstrap reads until retry replaces
+                 * this revision and eventually persists it. */
+                const retainLatest = isLatestRevision && failureMode === 'retain';
+                if (!retainLatest) finish();
+                if (!retainLatest && isLatestRevision && previous) {
                     set((current) => {
                         if (!current.bootstrap) return current;
                         return {
@@ -229,7 +243,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                     });
                 }
                 if (isLatestRevision) onLatestFailure?.();
-                pushToast('error', describeFailure(error, failureLabel));
+                if (reportFailure) pushToast('error', describeFailure(error, failureLabel));
                 return false;
             });
     },
@@ -243,9 +257,27 @@ export function patchSessionState(
     void useWorkbenchStore.getState().patchSessionState(next, failureLabel, onLatestFailure);
 }
 
-/** Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime. */
-export function persistSessionState(next: SessionState, failureLabel?: string): Promise<boolean> {
-    return useWorkbenchStore.getState().patchSessionState(next, failureLabel);
+/**
+ * Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime.
+ * `retainOnFailure` pins a target-path state that would be unsafe to roll back after disk mutation.
+ */
+export function persistSessionState(
+    next: SessionState,
+    options: {
+        failureLabel?: string;
+        reportFailure?: boolean;
+        retainOnFailure?: boolean;
+    } = {},
+): Promise<boolean> {
+    return useWorkbenchStore
+        .getState()
+        .patchSessionState(
+            next,
+            options.failureLabel,
+            undefined,
+            options.retainOnFailure ? 'retain' : 'rollback',
+            options.reportFailure,
+        );
 }
 
 export interface WorkbenchEventHandlers {

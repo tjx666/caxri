@@ -99,10 +99,11 @@ test('Terminal selection copies exact text and stays isolated across split panes
     const root = join(testDirectory, 'project');
     const multilineOutput = join(testDirectory, 'multiline-output.sh');
     const splitOutput = join(testDirectory, 'split-output.sh');
+    const splitText = 'PANE_TWO';
     await mkdir(root);
     await Promise.all([
         writeFile(multilineOutput, "#!/bin/sh\nprintf 'FIRST Ω 中\\nSECOND  spaced text\\n'\n"),
-        writeFile(splitOutput, "#!/bin/sh\nprintf 'SECOND_TERMINAL_ONLY\\n'\n"),
+        writeFile(splitOutput, `#!/bin/sh\nprintf '${splitText}\\n'\n`),
     ]);
     await Promise.all([chmod(multilineOutput, 0o700), chmod(splitOutput, 0o700)]);
 
@@ -141,16 +142,11 @@ test('Terminal selection copies exact text and stays isolated across split panes
         const secondRows = running.page.locator(
             `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-rows`,
         );
-        await expect(secondRows).toContainText('SECOND_TERMINAL_ONLY');
-        await selectTerminalText(
-            running.page,
-            secondTerminalId,
-            'SECOND_TERMINAL_ONLY',
-            'SECOND_TERMINAL_ONLY',
-        );
+        await expect(secondRows).toContainText(splitText);
+        await selectTerminalText(running.page, secondTerminalId, splitText, splitText);
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
-            .toBe('SECOND_TERMINAL_ONLY');
+            .toBe(splitText);
 
         await running.app.evaluate(({ clipboard }) =>
             clipboard.writeText("printf 'PASTE_STILL_WORKS\\n'"),
