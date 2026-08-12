@@ -12,6 +12,8 @@ export interface CommandContext {
     terminal: {
         create(): void;
         clearActive(): void;
+        findActive(): void;
+        hasActive(): boolean;
         restartActive(): void;
         startNewAgentSession(): void;
         closeActive(): void;
