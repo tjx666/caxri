@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 export const TERMINAL_IMAGE_RECOVERY_PLACEHOLDER =
     '\r\n[Caxri inline image unavailable after restore]\r\n';
 const MAX_TERMINAL_IMAGE_SEQUENCE_BYTES = 64 * 1024;
@@ -5,7 +7,7 @@ const MAX_TERMINAL_IMAGE_SEQUENCE_BYTES = 64 * 1024;
 const ESC = '\x1b';
 const ST = `${ESC}\\`;
 const C1_ST = '\x9c';
-const IIP_PREFIXES = ['File=', 'MultipartFile=', 'FilePart='].flatMap((command) => [
+const IIP_PREFIXES = ['File=', 'MultipartFile=', 'FilePart=', 'FileEnd='].flatMap((command) => [
     `${ESC}]1337;${command}`,
     `\x9d1337;${command}`,
 ]);
@@ -23,6 +25,11 @@ interface ImageStart {
 interface ImageSearch {
     incompleteIndex?: number;
     start?: ImageStart;
+}
+
+interface ImageOutputDestination {
+    appendAtomic(data: string): number;
+    appendBounded(data: string): number;
 }
 
 function findNextImageControl(source: string, start: number): number {
@@ -176,5 +183,97 @@ export class TerminalImageRecoveryFilter {
         this.capturing = undefined;
         this.discarding = undefined;
         return output;
+    }
+}
+
+/**
+ * Keeps live image controls atomic across PTY chunks and Renderer backpressure. An image sequence
+ * is delivered whole or counted as wholly dropped; oversized/malformed sequences are discarded
+ * through their terminator so later text can never be consumed as image payload.
+ */
+export class TerminalImageOutputFilter {
+    private buffer = '';
+    private capturing: TerminatorKind | undefined;
+    private discarding: TerminatorKind | undefined;
+
+    constructor(private readonly maximumSequenceBytes = MAX_TERMINAL_IMAGE_SEQUENCE_BYTES) {
+        if (!Number.isInteger(maximumSequenceBytes) || maximumSequenceBytes < 1)
+            throw new RangeError('Terminal image output limit must be a positive integer');
+    }
+
+    push(data: string, destination: ImageOutputDestination): number {
+        if (!data) return 0;
+        this.buffer += data;
+        let droppedBytes = 0;
+        while (this.buffer) {
+            if (this.discarding) {
+                const terminator = findTerminator(this.buffer, this.discarding);
+                if (!terminator) {
+                    const retained = this.buffer.endsWith(ESC) ? ESC : '';
+                    droppedBytes += Buffer.byteLength(
+                        this.buffer.slice(0, this.buffer.length - retained.length),
+                        'utf8',
+                    );
+                    this.buffer = retained;
+                    return droppedBytes;
+                }
+                const end = terminator.index + terminator.length;
+                droppedBytes += Buffer.byteLength(this.buffer.slice(0, end), 'utf8');
+                this.buffer = this.buffer.slice(end);
+                this.discarding = undefined;
+                continue;
+            }
+            if (this.capturing) {
+                const terminator = findTerminator(this.buffer, this.capturing);
+                if (terminator) {
+                    const end = terminator.index + terminator.length;
+                    const sequence = this.buffer.slice(0, end);
+                    const sequenceBytes = Buffer.byteLength(sequence, 'utf8');
+                    droppedBytes +=
+                        sequenceBytes > this.maximumSequenceBytes
+                            ? sequenceBytes
+                            : destination.appendAtomic(sequence);
+                    this.buffer = this.buffer.slice(end);
+                    this.capturing = undefined;
+                    continue;
+                }
+                if (Buffer.byteLength(this.buffer, 'utf8') > this.maximumSequenceBytes) {
+                    this.discarding = this.capturing;
+                    this.capturing = undefined;
+                    const retained = this.buffer.endsWith(ESC) ? ESC : '';
+                    droppedBytes += Buffer.byteLength(
+                        this.buffer.slice(0, this.buffer.length - retained.length),
+                        'utf8',
+                    );
+                    this.buffer = retained;
+                }
+                return droppedBytes;
+            }
+            const search = findImageStart(this.buffer);
+            if (search.start) {
+                droppedBytes += destination.appendBounded(this.buffer.slice(0, search.start.index));
+                this.buffer = this.buffer.slice(search.start.index);
+                this.capturing = search.start.terminator;
+                continue;
+            }
+            if (search.incompleteIndex !== undefined) {
+                droppedBytes += destination.appendBounded(
+                    this.buffer.slice(0, search.incompleteIndex),
+                );
+                this.buffer = this.buffer.slice(search.incompleteIndex);
+                return droppedBytes;
+            }
+            droppedBytes += destination.appendBounded(this.buffer);
+            this.buffer = '';
+        }
+        return droppedBytes;
+    }
+
+    finish(): number {
+        const droppedBytes = Buffer.byteLength(this.buffer, 'utf8');
+        this.buffer = '';
+        this.capturing = undefined;
+        this.discarding = undefined;
+        return droppedBytes;
     }
 }

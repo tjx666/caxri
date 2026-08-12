@@ -153,6 +153,15 @@ export class TerminalOutputQueue {
         return buffer.length - end;
     }
 
+    /** Appends one control sequence in full or drops it in full, never exposing a partial parser state. */
+    appendAtomic(data: string): number {
+        const byteCount = Buffer.byteLength(data, 'utf8');
+        if (byteCount > this.maxBytes - this.byteCount) return byteCount;
+        this.chunks.push(data);
+        this.byteCount += byteCount;
+        return 0;
+    }
+
     drain(): string {
         const value = this.chunks.join('');
         this.clear();
