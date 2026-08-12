@@ -1,11 +1,10 @@
-import { execFile } from 'node:child_process';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
 import { z } from 'zod';
 
-const execFileAsync = promisify(execFile);
+import { captureCommand } from './command-runner';
+
 const MAX_COMMAND_OUTPUT_BYTES = 8 * 1024 * 1024;
 const MAX_CHANGED_FILES = 100;
 const MAX_GITHUB_ITEMS = 1_000;
@@ -77,12 +76,10 @@ interface ProjectItem {
 
 const defaultRunner: CommandRunner = {
     async capture(command, args, cwd) {
-        const { stdout } = await execFileAsync(command, args, {
+        return captureCommand(command, args, {
             cwd,
-            encoding: 'utf8',
-            maxBuffer: MAX_COMMAND_OUTPUT_BYTES,
+            maxOutputBytes: MAX_COMMAND_OUTPUT_BYTES,
         });
-        return stdout;
     },
 };
 

@@ -31,9 +31,10 @@ import {
 import { createRunBudget, ensurePhaseCheckpoint, runBudgetSchema } from './run-budget';
 import { migrateState } from './state-migration';
 import { validationsSchema } from './validation-gate';
+import { createEmptyLedgerRetention, ledgerRetentionSchema } from './ledger-retention';
+import { MAX_NOTE_TEXT_CHARACTERS, sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
 
-const SCHEMA_VERSION = 8;
-const MAX_EVENTS = 120;
+const SCHEMA_VERSION = 9;
 
 const PHASES = [
     'intake',
@@ -90,8 +91,18 @@ type PullRequestStatus = z.infer<typeof pullRequestStatusSchema>;
 type AcceptanceStatus = z.infer<typeof acceptanceStatusSchema>;
 export type NoteKind = z.infer<typeof noteKindSchema>;
 
-const eventSchema = z.object({ at: z.string(), detail: z.string(), type: z.string() });
-const noteSchema = z.object({ at: z.string(), text: z.string() });
+const eventSchema = z.object({
+    at: z.string(),
+    detail: z.string().max(MAX_NOTE_TEXT_CHARACTERS),
+    type: z.string(),
+});
+const noteSchema = z.object({
+    at: z.string(),
+    kind: noteKindSchema,
+    redacted: z.boolean(),
+    text: z.string().min(1).max(MAX_NOTE_TEXT_CHARACTERS),
+    truncated: z.boolean(),
+});
 const issueSchema = z.object({
     acceptanceCheckIds: z.array(z.string()),
     commits: z.array(z.string()),
@@ -141,6 +152,7 @@ const goStateSchema = z.object({
         status: pullRequestStatusSchema,
         url: z.string().nullable(),
     }),
+    retention: ledgerRetentionSchema,
     reviewGate: reviewGateSchema,
     reviewPolicy: reviewPolicySchema,
     runBudget: runBudgetSchema,
@@ -223,14 +235,7 @@ function statusForPhase(phase: Phase): GoState['status'] {
 }
 
 export function addEvent(state: GoState, type: string, detail: string): void {
-    state.events.push({ at: now(), detail, type });
-    while (state.events.length > MAX_EVENTS) {
-        const removable = state.events.findIndex(
-            (event) => event.type !== 'init' && event.type !== 'phase',
-        );
-        if (removable < 0) break;
-        state.events.splice(removable, 1);
-    }
+    state.events.push({ at: now(), detail: sanitizeLedgerDetail(detail), type });
 }
 
 function uniqueAppend<T>(target: T[], values: T[]): void {
@@ -271,6 +276,7 @@ export function createInitialState({
         objective,
         phase: 'intake',
         pullRequest: { headSha: null, number: null, status: 'none', url: null },
+        retention: createEmptyLedgerRetention(),
         reviewGate: createEmptyReviewGate(),
         reviewPolicy: createReviewPolicy(),
         runBudget: createRunBudget(),
@@ -495,14 +501,12 @@ export function recordAcceptance(state: GoState, input: AcceptanceInput): GoStat
 }
 
 export function recordNote(state: GoState, input: { kind: NoteKind; text: string }): GoState {
-    if (!input.text.trim()) throw new Error('Note text is required');
-    const normalized =
-        input.kind === 'workflow'
-            ? validateHumanText(input.text, 'workflow note')
-            : input.text.trim();
-    if (!state.notes[input.kind].some((item) => item.text === normalized)) {
-        state.notes[input.kind].push({ at: now(), text: normalized });
-        addEvent(state, 'note', `${input.kind}: ${normalized}`);
+    const safe = sanitizeNoteText(input.text);
+    const text =
+        input.kind === 'workflow' ? validateHumanText(safe.text, 'workflow note') : safe.text;
+    if (!state.notes[input.kind].some((item) => item.text === text)) {
+        state.notes[input.kind].push({ at: now(), kind: input.kind, ...safe, text });
+        addEvent(state, 'note', `${input.kind}: ${text}`);
     }
     return state;
 }
@@ -519,6 +523,11 @@ export function validateState(state: unknown): GoState {
     }
     if (new Set(parsed.issues.map(({ number }) => number)).size !== parsed.issues.length) {
         throw new Error('Invalid Go state: duplicate issue number');
+    }
+    for (const kind of NOTE_KINDS) {
+        if (parsed.notes[kind].some((note) => note.kind !== kind)) {
+            throw new Error(`Invalid Go state: ${kind} note has mismatched structured kind`);
+        }
     }
     if (
         parsed.ciFallback.status !== 'not_requested' &&

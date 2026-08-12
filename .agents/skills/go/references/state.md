@@ -151,7 +151,11 @@ bun run .agents/skills/go/scripts/state.ts resume --state "$STATE" --json
 bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
 ```
 
-- Update state only through the script; writes are atomic.
+- Update state only through the script. Every command acquires an atomic per-run lock directory and
+  fails closed when another process owns it. If a process is forcibly killed, remove `state.lock`
+  only after verifying that no state command for that exact run is alive; then retry. State and
+  history artifacts use exclusive unpredictable temporary files, ownership/no-follow checks, and
+  atomic replacement.
 - Do not call raw `lobehub acceptance run ingest` inside Go. A `pending`
   Acceptance without verified publication history, or with a stale exact head,
   cannot enter handoff or survive ledger validation.
@@ -164,6 +168,15 @@ bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
   blocked when the guarded fallback passes.
 - Store raw logs in the run directories, not in `state.json`; never copy the
   Codex transcript into the run record.
+- Notes are typed, limited to 4,096 characters, and secret-shaped values are redacted before they
+  enter the ledger. Long-lived collections are capped; overflow is stored in a content-addressed
+  `artifacts/ledger-history-<sha256>.json` file whose count, per-collection summary, and digest stay
+  in `state.json`. Archives fail closed at 8 MiB, and ordinary resume validates only their direct
+  file metadata; inspect the artifact only for a targeted audit.
+- Git, GitHub, and LobeHub child processes share a bounded runner: 60-second default timeout,
+  combined stdout/stderr byte ceiling, TERM-to-KILL escalation, and byte-count-only failure
+  evidence. `issue-drift` scans at most ten 100-comment pages and stops as soon as its marker is
+  found.
 - Explicitly assess expectation drift for each issue commit. `detected` blocks
   issue completion, PR readiness, and finalization until its comment URL is
   recorded. `decision_required` remains blocked after commenting until a new

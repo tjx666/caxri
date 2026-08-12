@@ -2,10 +2,13 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
 import { z } from 'zod';
 
 import { validateHumanText } from '../../acceptance/scripts/validate-report';
+import { captureCommand } from './command-runner';
+
+const GITHUB_COMMENT_PAGE_SIZE = 100;
+const MAX_GITHUB_COMMENT_PAGES = 10;
 
 export const materialDriftKindSchema = z.enum([
     'disproven_root_cause',
@@ -77,6 +80,7 @@ type CommentPublisher = (input: {
     fingerprint: string;
     issueNumber: number;
 }) => Promise<{ url: string }>;
+type CommandRunner = (command: string, args: string[]) => Promise<string>;
 
 export function createEmptyIssueExpectationDrift(): IssueExpectationDrift {
     return { assessedAt: null, assessmentHeadSha: null, records: [], status: 'none' };
@@ -254,21 +258,6 @@ export function assertIssueExpectationDriftReady(
     }
 }
 
-function capture(command: string, args: string[]): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
-        child.once('error', reject);
-        child.once('close', (code) => {
-            if (code === 0) resolve(stdout.trim());
-            else reject(new Error(`${command} exited ${String(code)}: ${stderr.trim()}`));
-        });
-    });
-}
-
 export function findPublishedDriftComment(pages: unknown, fingerprintValue: string): string | null {
     const marker = `<!-- caxri-go-drift:${fingerprintValue} -->`;
     const existing = z
@@ -279,26 +268,37 @@ export function findPublishedDriftComment(pages: unknown, fingerprintValue: stri
     return existing?.html_url ?? null;
 }
 
-export async function publishExpectationDriftViaGh(input: {
-    body: string;
-    fingerprint: string;
-    issueNumber: number;
-}): Promise<{ url: string }> {
-    const pages: unknown = JSON.parse(
-        await capture('gh', [
-            'api',
-            '--paginate',
-            '--slurp',
-            `repos/tjx666/caxri/issues/${input.issueNumber}/comments?per_page=100`,
-        ]),
-    );
+export async function publishExpectationDriftViaGh(
+    input: {
+        body: string;
+        fingerprint: string;
+        issueNumber: number;
+    },
+    runner: CommandRunner = captureCommand,
+): Promise<{ url: string }> {
+    const pages: unknown[][] = [];
+    for (let page = 1; page <= MAX_GITHUB_COMMENT_PAGES; page += 1) {
+        const comments: unknown = JSON.parse(
+            await runner('gh', [
+                'api',
+                `repos/tjx666/caxri/issues/${input.issueNumber}/comments?per_page=${GITHUB_COMMENT_PAGE_SIZE}&page=${page}`,
+            ]),
+        );
+        const parsedPage = z.array(z.unknown()).parse(comments);
+        pages.push(parsedPage);
+        if (findPublishedDriftComment(pages, input.fingerprint)) break;
+        if (parsedPage.length < GITHUB_COMMENT_PAGE_SIZE) break;
+        if (page === MAX_GITHUB_COMMENT_PAGES) {
+            throw new Error('GitHub comment scan exceeded 1000 bounded comments');
+        }
+    }
     const existingUrl = findPublishedDriftComment(pages, input.fingerprint);
     if (existingUrl) return { url: existingUrl };
     const directory = await mkdtemp(join(tmpdir(), 'caxri-issue-drift-'));
     const bodyPath = join(directory, 'comment.md');
     try {
         await writeFile(bodyPath, input.body, 'utf8');
-        const output = await capture('gh', [
+        const output = await runner('gh', [
             'issue',
             'comment',
             String(input.issueNumber),

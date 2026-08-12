@@ -89,6 +89,15 @@ interface ReportContext {
         rounds: ReviewDecision[];
     };
     reviewPolicy: { mode: 'full-once' | 'quick' | 'light'; source: string };
+    retention: {
+        archive: {
+            byteLength: number;
+            counts: Record<string, number>;
+            entryCount: number;
+            path: string;
+            sha256: string;
+        } | null;
+    };
     runBudget: {
         checkpoints: Array<{
             commitCount: number | 'unavailable';
@@ -232,6 +241,8 @@ ${bullets(
 ${bullets(costLines, '运行环境没有提供成本数据。')}
 
 Actions: ${evidence.actionsUse}
+
+History archive: ${state.retention.archive ? `${state.retention.archive.entryCount} entries/${state.retention.archive.byteLength} bytes; counts=${JSON.stringify(state.retention.archive.counts)}; sha256=${state.retention.archive.sha256}` : 'none'}
 
 Validation: ${state.validations.map(({ id, kind, result }) => `${id}/${kind}/${result}`).join(', ') || 'none'}
 

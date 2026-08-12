@@ -6,6 +6,8 @@ import {
     createImportedIssueExpectationDrift,
 } from './issue-drift';
 import { createRunBudget } from './run-budget';
+import { createEmptyLedgerRetention } from './ledger-retention';
+import { sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -188,6 +190,40 @@ function migrateV7(state: Record<string, unknown>): Record<string, unknown> {
     };
 }
 
+function migrateV8(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyNotes = isRecord(state.notes) ? state.notes : {};
+    const notes = Object.fromEntries(
+        (['technical_debt', 'token_waste', 'workflow'] as const).map((kind) => [
+            kind,
+            (Array.isArray(legacyNotes[kind]) ? legacyNotes[kind] : []).map((note) => {
+                const record = isRecord(note) ? note : {};
+                const safe = sanitizeNoteText(
+                    typeof record.text === 'string' ? record.text : 'Legacy note unavailable',
+                    true,
+                );
+                return {
+                    at: typeof record.at === 'string' ? record.at : 'legacy',
+                    kind,
+                    ...safe,
+                };
+            }),
+        ]),
+    );
+    const events: unknown[] = (Array.isArray(state.events) ? state.events : []).map(
+        (event: unknown): unknown =>
+            isRecord(event) && typeof event.detail === 'string'
+                ? { ...event, detail: sanitizeLedgerDetail(event.detail) }
+                : event,
+    );
+    return {
+        ...state,
+        events,
+        notes,
+        retention: createEmptyLedgerRetention(),
+        schemaVersion: 9,
+    };
+}
+
 export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (!isRecord(state)) return state;
     let migrated = state;
@@ -238,5 +274,6 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (migrated.schemaVersion === 5 && schemaVersion >= 6) migrated = migrateV5(migrated);
     if (migrated.schemaVersion === 6 && schemaVersion >= 7) migrated = migrateV6(migrated);
     if (migrated.schemaVersion === 7 && schemaVersion >= 8) migrated = migrateV7(migrated);
+    if (migrated.schemaVersion === 8 && schemaVersion >= 9) migrated = migrateV8(migrated);
     return migrated;
 }

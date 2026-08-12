@@ -153,6 +153,7 @@ export function createResumeCheckpoint(state: GoState) {
         objective: state.objective,
         phase: state.phase,
         pullRequest: state.pullRequest,
+        retention: state.retention,
         finalization: state.finalization,
         handoffReport: state.handoffReport,
         reviewGate: state.reviewGate,
