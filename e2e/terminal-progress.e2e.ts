@@ -8,6 +8,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    pageRequest,
     selectedSessionId,
     sessionCard,
     typeTerminal,
@@ -75,8 +76,11 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         );
         await typeTerminal(running.page, oscProgress(1, 33));
 
+        const existingTerminalIds = (
+            await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
+        ).terminals.map((terminal) => terminal.id);
         await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
-        const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
+        const secondTerminalId = await waitForNewTerminalId(running.page, existingTerminalIds);
         const firstInactiveTab = running.page.locator(
             `.work-tab[data-terminal-id="${firstTerminalId}"]`,
         );
@@ -97,7 +101,12 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveCount(0);
 
         await firstInactiveTab.getByRole('tab').click();
-        await typeTerminal(running.page, oscProgress(0, 99));
+        const firstTerminalInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
+        );
+        await expect(firstTerminalInput).toBeFocused();
+        await firstTerminalInput.pressSequentially(oscProgress(0, 99));
+        await firstTerminalInput.press('Enter');
         await expect(firstInactiveTab.locator('.terminal-progress-tab')).toHaveCount(0);
         await typeTerminal(running.page, oscProgress(1, 70));
         await expect(firstInactiveTab.getByLabel('Terminal progress: 70 percent')).toBeVisible();
