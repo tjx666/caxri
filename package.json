@@ -47,10 +47,16 @@
         ]
     },
     "knip": {
-        "ignore": [
-            ".agents/skills/deep-review/scripts/vitest.config.ts",
+        "entry": [
+            ".agents/skills/acceptance/scripts/capture-renderer.ts",
+            ".agents/skills/acceptance/scripts/fixture-preflight.ts",
+            ".agents/skills/acceptance/scripts/report.ts",
             ".agents/skills/acceptance/scripts/start-electron.ts",
-            ".agents/skills/acceptance/scripts/stop-electron.ts"
+            ".agents/skills/acceptance/scripts/stop-electron.ts",
+            ".agents/skills/go/scripts/state.ts"
+        ],
+        "ignore": [
+            ".agents/skills/deep-review/scripts/vitest.config.ts"
         ]
     },
     "dependencies": {

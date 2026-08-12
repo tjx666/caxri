@@ -15,19 +15,14 @@ export const materialDriftKindSchema = z.enum([
     'scope_change',
     'already_satisfied',
 ]);
-export const nonMaterialDriftKindSchema = z.enum([
+const nonMaterialDriftKindSchema = z.enum([
     'equivalent_refactor',
     'test_split',
     'formatting',
     'internal_detail',
 ]);
 export const driftKindSchema = z.union([materialDriftKindSchema, nonMaterialDriftKindSchema]);
-export const expectationDriftStatusSchema = z.enum([
-    'none',
-    'detected',
-    'commented',
-    'decision_required',
-]);
+const expectationDriftStatusSchema = z.enum(['none', 'detected', 'commented', 'decision_required']);
 
 const driftRecordSchema = z.object({
     acceptanceImpact: z.string().min(1),

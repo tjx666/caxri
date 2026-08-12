@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { assertIssueExpectationDriftReady, type IssueExpectationDrift } from './issue-drift';
 
-export const REQUIRED_HANDOFF_SECTIONS = [
+const REQUIRED_HANDOFF_SECTIONS = [
     'delivery',
     'review',
     'technical-debt',
@@ -168,7 +168,7 @@ function buildHandoffEvidence(state: ReportContext, headSha: string) {
     });
 }
 
-export function buildHandoffReport(state: ReportContext, headSha: string): string {
+function buildHandoffReport(state: ReportContext, headSha: string): string {
     const evidence = buildHandoffEvidence(state, headSha);
     const issueLines = state.issues.map(({ commits, expectationDrift, number, title }) => {
         const comments = expectationDrift.records
@@ -248,7 +248,7 @@ ${bullets(
 `;
 }
 
-export function validateHandoffSections(markdown: string): typeof REQUIRED_HANDOFF_SECTIONS {
+function validateHandoffSections(markdown: string): typeof REQUIRED_HANDOFF_SECTIONS {
     for (const section of REQUIRED_HANDOFF_SECTIONS) {
         if (!markdown.includes(`<!-- section:${section} -->`)) {
             throw new Error(`Handoff report is missing required section: ${section}`);

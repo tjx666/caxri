@@ -32,10 +32,10 @@ import { createRunBudget, ensurePhaseCheckpoint, runBudgetSchema } from './run-b
 import { migrateState } from './state-migration';
 import { validationsSchema } from './validation-gate';
 
-export const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 8;
 const MAX_EVENTS = 120;
 
-export const PHASES = [
+const PHASES = [
     'intake',
     'planning',
     'issue_execution',
@@ -85,9 +85,9 @@ export const acceptanceStatusSchema = z.enum(ACCEPTANCE_STATUSES);
 export const noteKindSchema = z.enum(NOTE_KINDS);
 
 export type Phase = z.infer<typeof phaseSchema>;
-export type IssueStatus = z.infer<typeof issueStatusSchema>;
-export type PullRequestStatus = z.infer<typeof pullRequestStatusSchema>;
-export type AcceptanceStatus = z.infer<typeof acceptanceStatusSchema>;
+type IssueStatus = z.infer<typeof issueStatusSchema>;
+type PullRequestStatus = z.infer<typeof pullRequestStatusSchema>;
+type AcceptanceStatus = z.infer<typeof acceptanceStatusSchema>;
 export type NoteKind = z.infer<typeof noteKindSchema>;
 
 const eventSchema = z.object({ at: z.string(), detail: z.string(), type: z.string() });
@@ -110,7 +110,7 @@ const worktreeSchema = z.object({
     path: z.string().min(1),
 });
 
-export const goStateSchema = z.object({
+const goStateSchema = z.object({
     acceptance: z.object({
         acceptedHeadSha: z.string().nullable(),
         id: z.string().nullable(),
@@ -215,7 +215,7 @@ export function now(): string {
     return new Date().toISOString();
 }
 
-export function statusForPhase(phase: Phase): GoState['status'] {
+function statusForPhase(phase: Phase): GoState['status'] {
     if (phase === 'complete') return 'complete';
     if (phase === 'waiting_acceptance') return 'waiting_acceptance';
     if (phase === 'intake' || phase === 'planning') return 'planning';

@@ -1,13 +1,13 @@
 import { z } from 'zod';
 
 const measuredValueSchema = z.union([z.number().int().nonnegative(), z.literal('unavailable')]);
-export const DEFAULT_GO_BUDGET_POLICY = {
+const DEFAULT_GO_BUDGET_POLICY = {
     hardElapsedSeconds: 5_400,
     hardTokens: 1_000_000,
     validationRepairLimit: 3,
 } as const;
 
-export const budgetPolicySchema = z.object({
+const budgetPolicySchema = z.object({
     hardElapsedSeconds: z.number().int().positive(),
     hardTokens: z.number().int().positive(),
     validationRepairLimit: z.number().int().positive(),

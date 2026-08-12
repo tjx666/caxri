@@ -34,7 +34,7 @@ const requiredEvidenceSchema = z.union([
     z.enum(REQUIRED_EVIDENCE_TYPES),
     z.object({ hint: z.string().optional(), type: z.enum(REQUIRED_EVIDENCE_TYPES) }),
 ]);
-export const stateIsolationSchema = z.discriminatedUnion('mode', [
+const stateIsolationSchema = z.discriminatedUnion('mode', [
     z.object({ mode: z.literal('isolated') }),
     z.object({ checkpointId: z.string().min(1), mode: z.literal('readonly_checkpoint') }),
     z.object({
