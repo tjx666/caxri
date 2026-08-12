@@ -9,6 +9,7 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const MAX_CLI_OUTPUT_BYTES = 5 * 1024 * 1024;
 const CLI_TIMEOUT_MS = 60_000;
+const ACCEPTANCE_INGEST_TIMEOUT_MS = 10 * 60_000;
 const ACCEPTANCE_URL_ROOT = 'https://app.lobehub.com/acceptance';
 
 const publishedVerdictSchema = z.enum(['fail', 'partial', 'pass', 'legacy-unavailable']);
@@ -61,7 +62,7 @@ interface PublicationState {
     pullRequest: { headSha: string | null };
 }
 
-type CommandRunner = (command: string, args: string[]) => Promise<string>;
+type CommandRunner = (command: string, args: string[], timeoutMs?: number) => Promise<string>;
 
 const localReportSchema = z.object({
     cases: z.array(z.object({ id: z.string().min(1) })).min(1),
@@ -259,27 +260,36 @@ export function recordOrphanedAcceptance(
     input: { acceptanceId: string; reason: string; verifyRunId?: string },
     recordedAt = new Date().toISOString(),
 ): void {
-    if (!input.acceptanceId.trim() || !input.reason.trim()) {
+    const acceptanceId = input.acceptanceId.trim();
+    const reason = input.reason.trim();
+    const verifyRunId = input.verifyRunId?.trim() || null;
+    if (!acceptanceId || !reason) {
         throw new Error('Orphaned Acceptance history requires an id and reason');
     }
-    if (
-        state.acceptance.publication.orphanedStandalones.some(
-            ({ acceptanceId, verifyRunId }) =>
-                acceptanceId === input.acceptanceId &&
-                verifyRunId === (input.verifyRunId?.trim() || null),
-        )
-    ) {
-        return;
-    }
-    state.acceptance.publication.orphanedStandalones.push(
-        orphanedAcceptanceSchema.parse({
-            acceptanceId: input.acceptanceId.trim(),
-            reason: input.reason.trim(),
-            recordedAt,
-            url: stableAcceptanceUrl(input.acceptanceId.trim()),
-            verifyRunId: input.verifyRunId?.trim() || null,
-        }),
+    const alreadyRecorded = state.acceptance.publication.orphanedStandalones.some(
+        (record) => record.acceptanceId === acceptanceId && record.verifyRunId === verifyRunId,
     );
+    if (!alreadyRecorded) {
+        state.acceptance.publication.orphanedStandalones.push(
+            orphanedAcceptanceSchema.parse({
+                acceptanceId,
+                reason,
+                recordedAt,
+                url: stableAcceptanceUrl(acceptanceId),
+                verifyRunId,
+            }),
+        );
+    }
+
+    const pending = state.acceptance.publication.pendingAttempt;
+    /** Only the explicit, immutable orphan record for the exact remote run permits a fresh upload. */
+    if (
+        pending?.acceptanceId === acceptanceId &&
+        verifyRunId !== null &&
+        pending.verifyRunId === verifyRunId
+    ) {
+        state.acceptance.publication.pendingAttempt = null;
+    }
 }
 
 export async function publishAcceptanceRound(
@@ -357,7 +367,7 @@ export async function publishAcceptanceRound(
             ingest = existing;
         } else {
             try {
-                const stdout = await runner('lobehub', args);
+                const stdout = await runner('lobehub', args, ACCEPTANCE_INGEST_TIMEOUT_MS);
                 if (!stdout.trim()) throw new Error('LobeHub ingest returned empty JSON output');
                 ingest = ingestResultSchema.parse(JSON.parse(stdout));
             } catch (error: unknown) {
