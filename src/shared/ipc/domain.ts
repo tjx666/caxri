@@ -149,6 +149,7 @@ export const SETTINGS_BOUNDS = {
     'terminal.fontSize': { min: 9, max: 32, default: 13 },
     'terminal.scrollback': { min: 100, max: 10_000, default: 2_000 },
     'terminal.copyOnSelect': { default: true },
+    'terminal.gpuAcceleration': { default: 'off' },
     'terminal.osc52ClipboardWrite': { default: false },
     'files.maxFileBytes': {
         min: 1_024,
@@ -211,6 +212,7 @@ export const appSettingsSchema = z.object({
     'terminal.fontSize': z.number(),
     'terminal.scrollback': z.number(),
     'terminal.copyOnSelect': z.boolean(),
+    'terminal.gpuAcceleration': z.enum(['auto', 'on', 'off']),
     'terminal.osc52ClipboardWrite': z.boolean(),
     'files.exclude': z.record(z.string(), z.boolean()),
     'files.maxFileBytes': z.number(),

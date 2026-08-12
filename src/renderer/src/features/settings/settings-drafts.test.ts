@@ -73,8 +73,17 @@ describe('parseConfigSource', () => {
         if (!result.ok) throw new Error(result.error);
         expect(result.value['terminal.fontSize']).toBe(18);
         expect(result.value['terminal.scrollback']).toBe(2000);
+        expect(result.value['terminal.gpuAcceleration']).toBe('off');
         expect(result.value['agents.providers'].claude.launch.executable).toBe('claude');
         expect(result.value['agents.providers'].claude.hooks.enabled).toBe(false);
+    });
+
+    it('rejects unsupported Terminal GPU acceleration values', () => {
+        const result = parseConfigSource('settings', '{ "terminal.gpuAcceleration": "force" }');
+
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('Expected invalid Terminal GPU acceleration');
+        expect(result.error).toContain('terminal.gpuAcceleration');
     });
 });
 

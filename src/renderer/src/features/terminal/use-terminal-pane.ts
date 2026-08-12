@@ -29,6 +29,11 @@ import { registerTerminalLinks } from './terminal-links';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
+import {
+    TerminalRendererController,
+    type TerminalGpuAcceleration,
+    type TerminalRendererStatus,
+} from './terminal-renderer';
 import { TerminalReplayCoordinator } from './terminal-replay';
 import {
     TERMINAL_SEARCH_HIGHLIGHT_LIMIT,
@@ -47,6 +52,7 @@ interface TerminalPaneRuntimeOptions {
     attachEpoch: number;
     copyOnSelect: boolean;
     fontSize: number;
+    gpuAcceleration: TerminalGpuAcceleration;
     isCodex: boolean;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
@@ -73,6 +79,7 @@ export function useTerminalPaneRuntime({
     attachEpoch,
     copyOnSelect,
     fontSize,
+    gpuAcceleration,
     isCodex,
     osc52ClipboardWrite,
     processState,
@@ -89,6 +96,7 @@ export function useTerminalPaneRuntime({
     const searchActiveRef = useRef(false);
     const searchSignatureRef = useRef('');
     const replayRef = useRef<TerminalReplayCoordinator | undefined>(undefined);
+    const rendererRef = useRef<TerminalRendererController | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
     const attachedEpochRef = useRef(attachEpoch);
@@ -97,6 +105,7 @@ export function useTerminalPaneRuntime({
         active,
         copyOnSelect,
         fontSize,
+        gpuAcceleration,
         isCodex,
         osc52ClipboardWrite,
         processState,
@@ -112,6 +121,7 @@ export function useTerminalPaneRuntime({
             active,
             copyOnSelect,
             fontSize,
+            gpuAcceleration,
             isCodex,
             osc52ClipboardWrite,
             processState,
@@ -125,6 +135,7 @@ export function useTerminalPaneRuntime({
         active,
         copyOnSelect,
         fontSize,
+        gpuAcceleration,
         isCodex,
         osc52ClipboardWrite,
         processState,
@@ -292,6 +303,29 @@ export function useTerminalPaneRuntime({
             }
         };
 
+        const publishRendererStatus = (status: TerminalRendererStatus): void => {
+            container.dataset.terminalRenderer = status.mode;
+            container.dataset.terminalRendererReason = status.reason;
+            container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
+            container.dataset.terminalRendererRedraws = String(status.redrawCount);
+        };
+        const renderer = new TerminalRendererController(
+            xterm,
+            () => {
+                fitToPane();
+                xterm.refresh(0, xterm.rows - 1);
+            },
+            publishRendererStatus,
+        );
+        rendererRef.current = renderer;
+        renderer.setPreference(latest.gpuAcceleration);
+        const restoreRenderer = (): void => {
+            if (document.visibilityState === 'visible') renderer.restoreVisible();
+        };
+        document.addEventListener('visibilitychange', restoreRenderer);
+        window.addEventListener('focus', restoreRenderer);
+        window.addEventListener('pageshow', restoreRenderer);
+
         const dataDisposable = xterm.onData((data) => {
             if (latestRef.current.processState !== 'running') return;
             void caxri.request('terminal.input', { terminalId, data }).catch((error: unknown) => {
@@ -356,6 +390,9 @@ export function useTerminalPaneRuntime({
         return () => {
             disposed = true;
             observer.disconnect();
+            document.removeEventListener('visibilitychange', restoreRenderer);
+            window.removeEventListener('focus', restoreRenderer);
+            window.removeEventListener('pageshow', restoreRenderer);
             container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
             progressDisposable.dispose();
@@ -363,10 +400,12 @@ export function useTerminalPaneRuntime({
             selectionDisposable.dispose();
             dataDisposable.dispose();
             unregisterLinks();
+            renderer.dispose();
             /** Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore
              *  reconciles against durable Terminal records instead of treating pane disposal as close. */
             xterm.dispose();
             xtermRef.current = undefined;
+            if (rendererRef.current === renderer) rendererRef.current = undefined;
             if (searchRef.current === search) searchRef.current = undefined;
             searchActiveRef.current = false;
             searchSignatureRef.current = '';
@@ -376,6 +415,10 @@ export function useTerminalPaneRuntime({
             });
         };
     }, [fontsReady, terminalId]);
+
+    useEffect(() => {
+        rendererRef.current?.setPreference(gpuAcceleration);
+    }, [gpuAcceleration]);
 
     useEffect(() => {
         if (processState !== 'running') clearTerminalProgress(terminalId);

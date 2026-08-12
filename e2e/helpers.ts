@@ -82,6 +82,8 @@ export interface LaunchCaxriOptions {
     executablePath?: string;
     /** Hidden by default; use visible only for native focus, pointer, or desktop behavior. */
     windowMode?: 'hidden' | 'visible';
+    /** Keeps deterministic software rendering by default; WebGL renderer specs opt into GPU. */
+    gpuMode?: 'disabled' | 'enabled';
     /** Blocks host Agents by default; fake and real modes require an explicit per-spec choice. */
     agentMode?: E2EAgentMode;
 }
@@ -216,6 +218,7 @@ export async function launchCaxriApp(
         testRootPath,
         env = {},
         executablePath,
+        gpuMode = 'disabled',
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
     } = options;
@@ -258,7 +261,13 @@ export async function launchCaxriApp(
         lease = await beginDesktopLeaseHandoff(lease);
         app = await electron.launch({
             ...(executablePath ? { executablePath } : {}),
-            args: executablePath ? ['--disable-gpu'] : ['.', '--disable-gpu'],
+            args: executablePath
+                ? gpuMode === 'enabled'
+                    ? []
+                    : ['--disable-gpu']
+                : gpuMode === 'enabled'
+                  ? ['.']
+                  : ['.', '--disable-gpu'],
             cwd: projectRoot,
             env: launchEnvironment,
         });
