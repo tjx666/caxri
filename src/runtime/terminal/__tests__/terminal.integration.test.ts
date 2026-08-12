@@ -54,6 +54,7 @@ function createFakePty() {
 }
 
 afterEach(async () => {
+    vi.unstubAllEnvs();
     await Promise.all(
         temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
     );
@@ -158,6 +159,51 @@ describe('TerminalManager', () => {
             );
         } finally {
             for (const fake of spawned) fake.kill();
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+
+    it('rejects a persisted Agent resume before spawning in real E2E mode', async () => {
+        vi.stubEnv('CAXRI_E2E', '1');
+        vi.stubEnv('CAXRI_E2E_AGENT_MODE', 'real');
+        vi.stubEnv('CAXRI_E2E_AGENT_PROVIDER', 'codex');
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-real-agent-resume-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                agentLaunchSettings: () => ({
+                    executable: 'codex',
+                    args: [
+                        'exec',
+                        '--sandbox',
+                        'read-only',
+                        '--skip-git-repo-check',
+                        '--ephemeral',
+                        '--ignore-rules',
+                        '--color',
+                        'never',
+                        'Read README.md and report its heading. Do not modify files.',
+                    ],
+                }),
+                agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
+                resolveExecutable: () => Promise.resolve('/usr/bin/codex'),
+                spawn,
+            },
+        );
+
+        try {
+            await expect(
+                manager.start(created.terminal, { resumeAgentSessionId: 'persisted-session' }),
+            ).rejects.toThrow('does not resume persisted Agent sessions');
+            expect(spawn).not.toHaveBeenCalled();
+        } finally {
             manager.close(created.terminal.id);
             database.close();
         }

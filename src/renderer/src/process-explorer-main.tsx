@@ -5,6 +5,9 @@ import { createRoot } from 'react-dom/client';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProcessExplorerRoot } from './features/process-explorer/ProcessExplorerRoot';
+import { installRendererErrorReporter } from './renderer-error-reporter';
+
+installRendererErrorReporter((kind) => window.processExplorer.reportError(kind));
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>

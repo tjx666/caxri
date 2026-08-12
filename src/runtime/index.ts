@@ -3,22 +3,37 @@ import { join } from 'node:path';
 
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { StructuredLogger } from '../shared/node/logger';
+import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import { createRuntime } from './bootstrap';
 import { createDispatcher, type RuntimeRequestEnvelope } from './dispatch';
 
 const bootStartedAt = performance.now();
+let runtimeLogger: StructuredLogger | undefined;
+const createBootstrapLogger = (): StructuredLogger | undefined => {
+    const bootstrapUserDataPath = process.env.CAXRI_USER_DATA_PATH;
+    const bootstrapLogDirectory =
+        process.env.CAXRI_LOG_DIRECTORY ??
+        (bootstrapUserDataPath ? join(bootstrapUserDataPath, 'logs') : undefined);
+    if (!bootstrapLogDirectory) return undefined;
+    return (runtimeLogger ??= new StructuredLogger(
+        bootstrapLogDirectory,
+        'runtime',
+        process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
+    ));
+};
+const processErrorMonitor = installProcessErrorMonitor({
+    bootstrapWriter: createBootstrapLogger,
+    processName: 'runtime',
+});
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
-const logDirectory = process.env.CAXRI_LOG_DIRECTORY ?? join(userDataPath, 'logs');
 const parentPort = process.parentPort;
 if (!parentPort) throw new Error('Caxri Runtime must run as an Electron utilityProcess');
 
 await mkdir(userDataPath, { recursive: true });
-const logger = new StructuredLogger(
-    logDirectory,
-    'runtime',
-    process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
-);
+const logger = runtimeLogger ?? createBootstrapLogger();
+if (!logger) throw new Error('CAXRI_LOG_DIRECTORY is required');
+processErrorMonitor.attach(logger);
 const runtime = await createRuntime({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     userDataPath,

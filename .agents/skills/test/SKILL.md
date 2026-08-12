@@ -15,6 +15,32 @@ description: Validate Caxri changes with focused Vitest coverage, real PTY integ
 8. Preserve privacy in fixtures: never place real tokens, user code, transcripts, or production paths in test artifacts.
 9. Never run the full E2E suite locally during an ordinary run. When development requires full-suite coverage, follow the remote pull-request workflow below. The only exception is the guarded Go fallback below. Run the full unit suite locally only when explicitly requested or when a shared cross-cutting contract makes focused coverage insufficient. Report exact commands, pass/fail counts, and benchmark timings. Do not weaken assertions or disable tests to manufacture a pass.
 
+## Electron error gate
+
+- Import `test` and `expect` from `e2e/fixtures.ts`. Its automatic fixture registers every
+  `launchCaxri*` application, observes current and future Renderer pages, and parses the structured
+  Main/Runtime logs after close.
+- Unexpected Renderer exceptions/console errors and Main/Runtime error or fatal events fail even
+  when the user workflow otherwise passes. A deliberate fault must use `allowE2EErrors(...)` with
+  an exact `source`, `event`, `code`, and positive `count`; a missing event or stale allowance also
+  fails. Never allow by message substring or wildcard.
+- The launch boundary captures and attaches `main.jsonl` and `runtime.jsonl` before a spec removes
+  its temporary user-data directory. Keep error diagnostics content-free: no source, Terminal
+  output/snapshots, Agent prompts/responses/transcripts, environment, or credentials.
+
+## Agent launch modes
+
+- Ordinary E2E launches are `blocked` and use provider state beneath the isolated test user-data
+  directory. Any spec that creates an Agent Terminal must explicitly pass either
+  `createFakeAgentMode(...)` or `{ mode: 'real', provider: '<provider>' }`; a negative test that
+  proves unavailable or blocked behavior may explicitly use `blocked` or exercise the default.
+- Use `createFakeAgentMode(...)` for deterministic output, metadata, lifecycle, byte-input, and
+  control-input coverage. Do not discover a fake by prepending `PATH`; pass its absolute executable
+  through the fixture contract.
+- `bun run test:e2e:real-agent` is a manual Codex-only smoke. It requires an authenticated CLI,
+  disables screenshots and traces, sends one bounded natural read-only prompt in a temporary
+  Project, and must fail clearly instead of falling back to another provider.
+
 ## Remote full E2E during development
 
 Use this workflow only when focused E2E coverage is insufficient:

@@ -13,6 +13,7 @@ import {
     type RuntimeMessage,
 } from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
+import { e2eAgentPolicyEnvironment, type E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
@@ -74,6 +75,7 @@ export class RuntimeSupervisor extends EventEmitter {
         logger: StructuredLogger,
         private readonly logLevel: 'debug' | 'info' = 'debug',
         private readonly agentHooksPath?: string,
+        private readonly e2eAgentPolicy?: E2EAgentPolicy,
     ) {
         super();
         /** Shares Main's own logger so Runtime stdio and Main records interleave in one main.jsonl file. */
@@ -108,13 +110,16 @@ export class RuntimeSupervisor extends EventEmitter {
                     CAXRI_APP_VERSION: process.env.CAXRI_APP_VERSION ?? 'unknown',
                     CAXRI_GIT_COMMIT: process.env.CAXRI_GIT_COMMIT ?? 'unknown',
                     ...(this.agentHooksPath ? { CAXRI_AGENT_HOOKS_PATH: this.agentHooksPath } : {}),
+                    ...e2eAgentPolicyEnvironment(this.e2eAgentPolicy),
                 },
                 stdio: 'pipe',
             });
         } catch (error) {
             const message = errorMessage(error, 'Runtime failed to start');
             const failure = new CaxriError('UNAVAILABLE', message);
-            this.logger.write('error', 'runtime.error', { fields: { error: message } });
+            this.logger.write('error', 'runtime.launch_failed', {
+                fields: { code: failure.code, error: message },
+            });
             this.onExit(-1);
             return this.readiness?.promise ?? Promise.reject(failure);
         }
@@ -129,9 +134,13 @@ export class RuntimeSupervisor extends EventEmitter {
          * Electron's `UtilityProcess` 'error' event is a non-continuable V8 fault, not a JS `Error`
          * object; it reports a fixed error type plus a diagnostic report, which can be large.
          */
-        child.on('error', (type, location, report) =>
-            this.logger.write('error', 'runtime.error', {
-                fields: { type, location, report: truncateForLog(report) },
+        child.on('error', (type, location) =>
+            this.logger.write('error', 'runtime.utility_error', {
+                fields: {
+                    code: 'UTILITY_PROCESS_ERROR',
+                    type,
+                    location,
+                },
             }),
         );
         child.stdout?.on('data', (chunk: Buffer | string) => this.handleStdio('stdout', chunk));
@@ -279,6 +288,9 @@ export class RuntimeSupervisor extends EventEmitter {
         }
         this.pending.clear();
         if (this.intentionalStop || this.terminalFailure) return;
+        this.logger.write('error', 'runtime.process_exit', {
+            fields: { code: 'PROCESS_EXIT', exitCode: code, restartCount: this.restartCount },
+        });
         if (this.restartCount >= 3) {
             const failure = new CaxriError(
                 'UNAVAILABLE',
@@ -310,8 +322,9 @@ export class RuntimeSupervisor extends EventEmitter {
                     this.pendingRestart = undefined;
                     this.start().then(resolve, (error: unknown) => {
                         if (!this.intentionalStop)
-                            this.logger.write('error', 'runtime.error', {
+                            this.logger.write('error', 'runtime.restart_failed', {
                                 fields: {
+                                    code: 'UNAVAILABLE',
                                     error: errorMessage(error, String(error)),
                                 },
                             });

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { allowE2EErrors, expect, test, type ElectronApplication, type Page } from './fixtures.ts';
 
 import { createShellSession, launchCaxri } from './helpers.ts';
 
@@ -90,6 +90,22 @@ async function countLogEvents(logPath: string, event: string): Promise<number> {
 }
 
 test('Process Explorer render exceptions offer a working reload', async () => {
+    allowE2EErrors([
+        {
+            source: 'main',
+            event: 'process_explorer.console_error',
+            code: 'CONSOLE_ERROR',
+            count: 3,
+        },
+        {
+            source: 'main',
+            event: 'process_explorer.page_exception',
+            code: 'PAGE_EXCEPTION',
+            count: 1,
+        },
+        { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 2 },
+        { source: 'renderer', event: 'pageerror', code: 'PAGE_ERROR', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-boundary-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -111,6 +127,19 @@ test('Process Explorer render exceptions offer a working reload', async () => {
         await expect(
             processPage.getByText('Process Explorer — Caxri', { exact: true }),
         ).toBeVisible();
+        await processPage.evaluate(() => {
+            setTimeout(() => {
+                throw new Error('CAXRI_EXPECTED_PROCESS_EXPLORER_PAGE_EXCEPTION');
+            });
+        });
+        await expect
+            .poll(() =>
+                countLogEvents(
+                    join(userData, 'logs', 'main.jsonl'),
+                    'process_explorer.page_exception',
+                ),
+            )
+            .toBe(1);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -118,6 +147,27 @@ test('Process Explorer render exceptions offer a working reload', async () => {
 });
 
 test('Process Explorer bounds renderer crash recovery and reopens cleanly', async () => {
+    allowE2EErrors([
+        {
+            source: 'main',
+            event: 'process_explorer.console_error',
+            code: 'CONSOLE_ERROR',
+            count: 6,
+        },
+        {
+            source: 'main',
+            event: 'process_explorer.render_process_gone',
+            code: 'RENDER_PROCESS_GONE',
+            count: 3,
+        },
+        {
+            source: 'main',
+            event: 'process_explorer.render_process_crash_loop',
+            code: 'RENDER_PROCESS_CRASH_LOOP',
+            count: 1,
+        },
+        { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 6 },
+    ]);
     test.setTimeout(45_000);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-crash-e2e-'));
     const userData = join(testDirectory, 'user-data');

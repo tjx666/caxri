@@ -10,9 +10,15 @@ import {
     type ProcessExplorerSnapshot,
 } from '../shared/process-explorer';
 import type { StructuredLogger } from '../shared/node/logger';
+import {
+    isRendererErrorKind,
+    RENDERER_ERROR_CHANNELS,
+    type RendererErrorKind,
+} from '../shared/renderer-error';
 import type { ThemeTokens } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
+import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
     currentDirectory: string;
@@ -22,6 +28,7 @@ interface ProcessExplorerWindowOptions {
     rendererUrl?: string;
     sampler: ProcessExplorerSampler;
     theme: () => Promise<ThemeTokens>;
+    windowMode: E2EWindowMode;
 }
 
 export class ProcessExplorerWindowController {
@@ -31,6 +38,22 @@ export class ProcessExplorerWindowController {
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
 
     installIpc(): void {
+        ipcMain.on(RENDERER_ERROR_CHANNELS.processExplorer, (event, rawKind: unknown) => {
+            if (!this.window || event.sender !== this.window.webContents) return;
+            if (!isRendererErrorKind(rawKind)) return;
+            const kind: RendererErrorKind = rawKind;
+            this.options.logger.write(
+                'error',
+                kind === 'page-exception'
+                    ? 'process_explorer.page_exception'
+                    : 'process_explorer.unhandled_rejection',
+                {
+                    fields: {
+                        code: kind === 'page-exception' ? 'PAGE_EXCEPTION' : 'UNHANDLED_REJECTION',
+                    },
+                },
+            );
+        });
         ipcMain.handle(
             PROCESS_EXPLORER_CHANNELS.snapshot,
             async (event): Promise<ProcessExplorerSnapshot> => {
@@ -55,8 +78,10 @@ export class ProcessExplorerWindowController {
     open(): void {
         if (this.window && !this.window.isDestroyed()) {
             if (this.window.isMinimized()) this.window.restore();
-            this.window.show();
-            this.window.focus();
+            if (this.options.windowMode === 'visible') {
+                this.window.show();
+                this.window.focus();
+            }
             return;
         }
         const rendererUrl = this.resolveRendererUrl();
@@ -78,7 +103,9 @@ export class ProcessExplorerWindowController {
         });
         this.rendererCrashTimestampsMs = [];
         this.window = window;
-        window.once('ready-to-show', () => window.show());
+        window.once('ready-to-show', () => {
+            if (this.options.windowMode === 'visible') window.show();
+        });
         window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         window.webContents.on('will-navigate', (event, url) => {
             /**
@@ -90,8 +117,13 @@ export class ProcessExplorerWindowController {
         });
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
-            this.options.logger.write('error', 'process_explorer.console', {
-                fields: { message: details.message.slice(0, 4_096) },
+            this.options.logger.write('error', 'process_explorer.console_error', {
+                fields: { code: 'CONSOLE_ERROR' },
+            });
+        });
+        window.webContents.on('preload-error', () => {
+            this.options.logger.write('error', 'process_explorer.preload_error', {
+                fields: { code: 'PRELOAD_ERROR' },
             });
         });
         window.webContents.on('render-process-gone', (_event, details) => {
@@ -105,6 +137,7 @@ export class ProcessExplorerWindowController {
             if (decision.action === 'reload') {
                 this.options.logger.write('warn', 'process_explorer.render_process_gone', {
                     fields: {
+                        code: 'RENDER_PROCESS_GONE',
                         reason: details.reason,
                         crashCount: decision.crashCount,
                         delayMs: decision.delayMs ?? 0,
@@ -117,7 +150,11 @@ export class ProcessExplorerWindowController {
                 return;
             }
             this.options.logger.write('error', 'process_explorer.render_process_crash_loop', {
-                fields: { reason: details.reason, crashCount: decision.crashCount },
+                fields: {
+                    code: 'RENDER_PROCESS_CRASH_LOOP',
+                    reason: details.reason,
+                    crashCount: decision.crashCount,
+                },
             });
             /**
              * Process Explorer is optional diagnostics, so stop only its failed window. Creating

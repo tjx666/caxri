@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
 import { launchCaxri } from './helpers.ts';
 

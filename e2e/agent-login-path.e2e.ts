@@ -2,8 +2,9 @@ import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
+import { realCodexSmokeArgs } from './agent-fixture.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest } from './helpers.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
@@ -13,9 +14,11 @@ test('Finder-like launch PATH starts a Node-dependent Codex launcher', async () 
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const bin = join(testDirectory, 'login-bin');
+    const home = join(testDirectory, 'home');
+    const state = join(testDirectory, 'provider-state');
     const loginShell = join(testDirectory, 'login-shell');
     const probeLog = join(testDirectory, 'probe.jsonl');
-    await Promise.all([mkdir(root), mkdir(bin)]);
+    await Promise.all([mkdir(root), mkdir(bin), mkdir(home), mkdir(state)]);
     await symlink(process.execPath, join(bin, 'node'));
     await writeFile(
         join(bin, 'codex'),
@@ -53,10 +56,14 @@ printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
     await Promise.all([chmod(join(bin, 'codex'), 0o755), chmod(loginShell, 0o755)]);
 
     const running = await launchCaxri({
+        agentMode: { mode: 'real', provider: 'codex' },
         userDataDir: userData,
         testRootPath: root,
         executablePath: packagedExecutable,
         env: {
+            HOME: home,
+            CODEX_HOME: state,
+            CODEX_SQLITE_HOME: state,
             GITHUB_TOKEN: 'must-not-reach-agent',
             PATH: '/usr/bin:/bin',
             SHELL: loginShell,
@@ -69,6 +76,21 @@ printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
                     Promise.resolve({ canceled: false, filePaths: [projectRoot] });
             }, root);
         }
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify({
+                'agents.providers': {
+                    codex: {
+                        hooks: { enabled: false },
+                        launch: {
+                            executable: 'codex',
+                            args: realCodexSmokeArgs(
+                                'Report that the synthetic login-path launcher is ready. Do not modify files.',
+                            ),
+                        },
+                    },
+                },
+            }),
+        });
         await openAddProjectDialog(running.page);
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
 

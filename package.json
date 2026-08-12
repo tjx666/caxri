@@ -23,6 +23,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:e2e": "bun run build && playwright test",
+        "test:e2e:real-agent": "CAXRI_REAL_AGENT_E2E=1 playwright test e2e/real-agent-smoke.e2e.ts --reporter=line",
         "test:smoke": "playwright test e2e/smoke.e2e.ts --reporter=line",
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",

@@ -1,48 +1,27 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import { createProjectSession, launchCaxri } from './helpers.ts';
 
 test('Bug report preview sends one redacted multiline prompt to the selected live Agent', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-bug-report-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    const bin = join(testDirectory, 'bin');
-    const executable = join(bin, 'claude');
     const capture = join(testDirectory, 'agent-input.bin');
-    await Promise.all([
-        mkdir(root, { recursive: true }),
-        mkdir(bin, { recursive: true }),
-        writeFile(capture, ''),
-    ]);
-    await writeFile(
-        executable,
-        `#!/usr/bin/env node
-const fs = require('node:fs');
-const capture = ${JSON.stringify(capture)};
-if (process.argv[2] === '--version') {
-  process.stdout.write('claude-test 1.0\\n');
-  process.exit(0);
-}
-process.stdout.write('Fake Claude ready\\n');
-process.stdin.setRawMode?.(true);
-process.stdin.resume();
-process.stdin.on('data', (chunk) => fs.appendFileSync(capture, chunk));
-setInterval(() => {}, 1000);
-`,
-        'utf8',
-    );
-    await chmod(executable, 0o700);
+    await Promise.all([mkdir(root, { recursive: true }), writeFile(capture, '')]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { inputCapture: { path: capture, encoding: 'raw' } } },
+    });
 
     const running = await launchCaxri({
+        agentMode,
         userDataDir: userData,
         testRootPath: root,
-        env: {
-            PATH: `${bin}:${process.env.PATH ?? ''}`,
-        },
     });
     try {
         await createProjectSession(running.page, 'claude');
@@ -101,33 +80,17 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-bug-report-codex-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    const bin = join(testDirectory, 'bin');
-    const executable = join(bin, 'codex');
     const capture = join(testDirectory, 'agent-input.bin');
-    await Promise.all([mkdir(root), mkdir(bin), writeFile(capture, '')]);
-    await writeFile(
-        executable,
-        `#!${process.execPath}
-const fs = require('node:fs');
-const capture = ${JSON.stringify(capture)};
-if (process.argv[2] === '--version') {
-  process.stdout.write('codex-test 1.0\\n');
-  process.exit(0);
-}
-process.stdout.write('Fake Codex ready\\n');
-process.stdin.setRawMode?.(true);
-process.stdin.resume();
-process.stdin.on('data', (chunk) => fs.appendFileSync(capture, chunk));
-setInterval(() => {}, 1000);
-`,
-        'utf8',
-    );
-    await chmod(executable, 0o700);
+    await Promise.all([mkdir(root), writeFile(capture, '')]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { inputCapture: { path: capture, encoding: 'raw' } } },
+    });
 
     const running = await launchCaxri({
+        agentMode,
         userDataDir: userData,
         testRootPath: root,
-        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
     });
     try {
         await createProjectSession(running.page, 'codex');

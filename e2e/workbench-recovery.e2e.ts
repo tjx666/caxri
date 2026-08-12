@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -21,6 +21,14 @@ import {
 const execFileAsync = promisify(execFile);
 
 test('complete local workbench workflow, recovery, privacy, and persistence', async () => {
+    allowE2EErrors([
+        {
+            source: 'main',
+            event: 'runtime.process_exit',
+            code: 'PROCESS_EXIT',
+            count: 1,
+        },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const sessionRoot = join(testDirectory, 'project');

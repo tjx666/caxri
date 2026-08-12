@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import Database from 'better-sqlite3';
 
 import { launchCaxri, waitForRuntimeReady } from './helpers';

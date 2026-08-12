@@ -4,13 +4,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from '@playwright/test';
+import { allowE2EErrors, expect, test } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
 test('Project search opens name results and reveals grouped content matches', async () => {
+    allowE2EErrors([
+        { source: 'main', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
