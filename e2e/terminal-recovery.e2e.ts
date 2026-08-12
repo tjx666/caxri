@@ -1,9 +1,10 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { allowE2EErrors, expect, test, type Page } from './fixtures.ts';
 
+import { createFakeAgentMode } from './agent-fixture.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
@@ -181,14 +182,14 @@ for (const agent of [
         const testDirectory = await mkdtemp(join(tmpdir(), `caxri-${agent.kind}-grid-e2e-`));
         const userData = join(testDirectory, 'user-data');
         const root = join(testDirectory, 'project');
-        const bin = join(testDirectory, 'bin');
         const generationFile = join(testDirectory, 'generation');
         const gridLog = join(testDirectory, 'grid.log');
-        const executable = join(bin, agent.kind);
-        await Promise.all([mkdir(root, { recursive: true }), mkdir(bin, { recursive: true })]);
-        await writeFile(
-            executable,
-            `#!${process.execPath}
+        await mkdir(root, { recursive: true });
+        const agentMode = await createFakeAgentMode({
+            userDataDir: userData,
+            providers: {
+                [agent.kind]: {
+                    executableSource: `#!${process.execPath}
 const fs = require('node:fs');
 if (process.argv.includes('--version')) {
   console.log(${JSON.stringify(`${agent.kind}-grid-test 1.0`)});
@@ -226,13 +227,13 @@ process.on('SIGWINCH', scheduleRender);
 process.stdin.resume();
 render();
 `,
-            'utf8',
-        );
-        await chmod(executable, 0o700);
+                },
+            },
+        });
         const launchOptions = {
+            agentMode,
             userDataDir: userData,
             testRootPath: root,
-            env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
         };
 
         let running = await launchCaxri(launchOptions);
