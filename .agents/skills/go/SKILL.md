@@ -233,7 +233,7 @@ accepted head and requires review plus another Acceptance round.
   as interchangeable facts.
 - Never run the full local Electron E2E suite during an ordinary run. The only
   exception is the exact-head, ledger-recorded external CI fallback authorized
-  by project policy or the user as defined by the `test` skill and Go workflow
+  by project policy or the user as defined by the `e2e-testing` skill and Go workflow
   reference. Run it only after the final head is frozen, normally once per Go
   run and never more than twice; after a second product failure, stop and report
   instead of starting a third full run.

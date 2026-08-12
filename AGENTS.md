@@ -114,7 +114,7 @@ step-by-step workflows beyond this summary.
   source batch is complete. Re-run only gates invalidated by later edits. Rebuild before focused
   Electron E2E whenever relevant `src/` files changed after the previous build.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
-- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `test` skill's topic-branch and draft-PR workflow.
+- Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `e2e-testing` skill's topic-branch and draft-PR workflow.
 - A local full-E2E fallback is allowed only inside an explicit Go run after the current-head hosted
   jobs are verified to have failed before runner allocation for external billing or infrastructure,
   with automatic authorization for verified payment or spending-limit failures. Other
