@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { lintPipelineForFile, parseCheckArgs, testCandidatesForFile } from './check';
+import {
+    lintPipelineForFile,
+    parseCheckArgs,
+    playwrightArguments,
+    selectE2ESpecs,
+    testCandidatesForFile,
+} from './check';
 
 describe('parseCheckArgs', () => {
     it('defaults to lint and related tests', () => {
         expect(parseCheckArgs(['src/main/index.ts'])).toEqual({
+            e2e: false,
+            e2eGrep: undefined,
             files: ['src/main/index.ts'],
             knip: false,
             lint: true,
@@ -16,6 +24,8 @@ describe('parseCheckArgs', () => {
 
     it('uses explicit selectors without adding defaults', () => {
         expect(parseCheckArgs(['--staged', '--type'])).toEqual({
+            e2e: false,
+            e2eGrep: undefined,
             files: [],
             knip: false,
             lint: false,
@@ -27,6 +37,8 @@ describe('parseCheckArgs', () => {
 
     it('treats --knip as an explicit selector that suppresses defaults', () => {
         expect(parseCheckArgs(['--knip'])).toEqual({
+            e2e: false,
+            e2eGrep: undefined,
             files: [],
             knip: true,
             lint: false,
@@ -34,6 +46,71 @@ describe('parseCheckArgs', () => {
             test: false,
             type: false,
         });
+    });
+
+    it('selects focused Playwright coverage without adding default checks', () => {
+        expect(
+            parseCheckArgs(['e2e/smoke.e2e.ts', '--e2e', '--e2e-grep', 'launches the workbench']),
+        ).toEqual({
+            e2e: true,
+            e2eGrep: 'launches the workbench',
+            files: ['e2e/smoke.e2e.ts'],
+            knip: false,
+            lint: false,
+            staged: false,
+            test: false,
+            type: false,
+        });
+    });
+
+    it('rejects an e2e grep without the e2e selector', () => {
+        expect(() => parseCheckArgs(['--e2e-grep', 'launches'])).toThrow(
+            '--e2e-grep requires --e2e',
+        );
+    });
+});
+
+describe('selectE2ESpecs', () => {
+    it('keeps only explicit Playwright specs', () => {
+        expect(
+            selectE2ESpecs(['src/main/index.ts', 'e2e/smoke.e2e.ts', 'e2e/settings.e2e.ts'], true),
+        ).toEqual(['e2e/smoke.e2e.ts', 'e2e/settings.e2e.ts']);
+    });
+
+    it('fails closed without explicit file arguments', () => {
+        expect(() => selectE2ESpecs(['e2e/smoke.e2e.ts'], false)).toThrow(
+            '--e2e requires an explicit e2e/*.e2e.ts file',
+        );
+    });
+
+    it('fails closed when explicit files contain no Playwright spec', () => {
+        expect(() => selectE2ESpecs(['src/main/index.ts'], true)).toThrow(
+            '--e2e requires an explicit e2e/*.e2e.ts file',
+        );
+    });
+
+    it('keeps the authenticated real-Agent smoke behind its manual entrypoint', () => {
+        expect(() => selectE2ESpecs(['e2e/real-agent-smoke.e2e.ts'], true)).toThrow(
+            'Use bun run test:e2e:real-agent for the manual real-Agent smoke',
+        );
+    });
+
+    it('keeps intentional failure isolation behind its validating wrapper', () => {
+        expect(() => selectE2ESpecs(['e2e/failure-isolation.e2e.ts'], true)).toThrow(
+            'Use bun run scripts/run-e2e-failure-isolation.ts',
+        );
+    });
+});
+
+describe('playwrightArguments', () => {
+    it('uses the compact reporter and optional focused title filter', () => {
+        expect(playwrightArguments(['e2e/smoke.e2e.ts'], 'launches')).toEqual([
+            'test',
+            'e2e/smoke.e2e.ts',
+            '--reporter=line',
+            '-g',
+            'launches',
+        ]);
     });
 });
 
