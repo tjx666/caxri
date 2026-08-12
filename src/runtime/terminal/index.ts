@@ -35,6 +35,7 @@ import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
 
 export { TerminalRestoreSupervisor } from './restore-supervisor';
+export { ShellIntegrationService } from './shell-integration';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
