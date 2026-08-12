@@ -1,5 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { ProgressAddon } from '@xterm/addon-progress';
 import {
     SearchAddon,
     type ISearchOptions,
@@ -26,6 +27,7 @@ import {
 } from './terminal-keyboard';
 import { registerTerminalLinks } from './terminal-links';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
+import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import { TerminalReplayCoordinator } from './terminal-replay';
 import {
@@ -174,9 +176,11 @@ export function useTerminalPaneRuntime({
             writeClipboard: (text) => navigator.clipboard.writeText(text),
         });
         const clipboard = new ClipboardAddon(osc52Clipboard, osc52Clipboard);
+        const progress = new ProgressAddon();
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
         xterm.loadAddon(clipboard);
+        xterm.loadAddon(progress);
         xterm.loadAddon(unicode11);
         xterm.unicode.activeVersion = '11';
         xterm.open(container);
@@ -185,6 +189,15 @@ export function useTerminalPaneRuntime({
             ({ resultCount, resultIndex }: ISearchResultChangeEvent) =>
                 setSearchResults({ resultCount, resultIndex }),
         );
+        const progressDisposable = progress.onChange((update) => {
+            /** A stopped Terminal can replay historical OSC bytes during recovery; those bytes must
+             *  not resurrect progress after the process lifecycle already cleared it. */
+            if (latestRef.current.processState !== 'running') {
+                clearTerminalProgress(terminalId);
+                return;
+            }
+            updateTerminalProgress(terminalId, update);
+        });
         const unregisterLinks = registerTerminalLinks(xterm, {
             get cwd() {
                 return latestRef.current.terminalCwd;
@@ -345,10 +358,13 @@ export function useTerminalPaneRuntime({
             observer.disconnect();
             container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
+            progressDisposable.dispose();
             searchResultsDisposable.dispose();
             selectionDisposable.dispose();
             dataDisposable.dispose();
             unregisterLinks();
+            /** Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore
+             *  reconciles against durable Terminal records instead of treating pane disposal as close. */
             xterm.dispose();
             xtermRef.current = undefined;
             if (searchRef.current === search) searchRef.current = undefined;
@@ -360,6 +376,10 @@ export function useTerminalPaneRuntime({
             });
         };
     }, [fontsReady, terminalId]);
+
+    useEffect(() => {
+        if (processState !== 'running') clearTerminalProgress(terminalId);
+    }, [processState, terminalId]);
 
     useEffect(() => {
         if (attachedEpochRef.current === attachEpoch) return;

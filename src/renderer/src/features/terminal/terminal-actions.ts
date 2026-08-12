@@ -8,6 +8,7 @@ import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
 import { openTerminalSearch } from './terminal-search';
+import { clearTerminalProgress } from './terminal-progress';
 
 /** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
@@ -51,7 +52,10 @@ export async function createTerminal(
 export function closeTerminal(terminalId: string): void {
     void tryCommand(
         'Terminal close failed',
-        () => caxri.request('terminal.close', { terminalId }),
+        async () => {
+            await caxri.request('terminal.close', { terminalId });
+            clearTerminalProgress(terminalId);
+        },
         {
             refresh: true,
         },
