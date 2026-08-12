@@ -50,6 +50,39 @@ async function hasExpectedAgentScreen(
     );
 }
 
+async function waitForStableAgentGrid(
+    page: Page,
+    path: string,
+    generation: number,
+): Promise<string> {
+    let candidate: string | undefined;
+    let matchingSamples = 0;
+    let stableGrid: string | undefined;
+    await expect
+        .poll(async () => {
+            const latest = await latestAgentGrid(path, generation);
+            if (
+                !latest ||
+                latest === '100x30' ||
+                !(await hasExpectedAgentScreen(page, generation, latest))
+            ) {
+                candidate = undefined;
+                matchingSamples = 0;
+                return undefined;
+            }
+            if (latest === candidate) matchingSamples += 1;
+            else {
+                candidate = latest;
+                matchingSamples = 1;
+            }
+            if (matchingSamples < 3) return undefined;
+            stableGrid = latest;
+            return latest;
+        })
+        .toMatch(/^\d+x\d+$/);
+    return stableGrid!;
+}
+
 test('normal exit stays neutral and restart preserves one durable Terminal', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-recovery-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -207,23 +240,20 @@ render();
             await createProjectSession(running.page, agent.kind);
             await expect(running.page.locator('.process-running')).toBeVisible();
             await running.app.evaluate(({ BrowserWindow }) =>
-                BrowserWindow.getAllWindows()[0]?.setBounds({ width: 800, height: 600 }),
+                BrowserWindow.getAllWindows()[0]?.setBounds({ width: 1200, height: 800 }),
             );
-            await expect.poll(() => latestAgentGrid(gridLog, 1)).toMatch(/^(?!100x30)\d+x\d+$/);
-            const expectedGrid = await latestAgentGrid(gridLog, 1);
-            if (!expectedGrid) throw new Error(`${agent.name} did not report its visible grid`);
-            await expect
-                .poll(() => hasExpectedAgentScreen(running.page, 1, expectedGrid))
-                .toBe(true);
+            const intermediateGrid = await waitForStableAgentGrid(running.page, gridLog, 1);
+            await running.app.evaluate(({ BrowserWindow }) =>
+                BrowserWindow.getAllWindows()[0]?.setBounds({ width: 960, height: 640 }),
+            );
+            await expect.poll(() => latestAgentGrid(gridLog, 1)).not.toBe(intermediateGrid);
+            const expectedGrid = await waitForStableAgentGrid(running.page, gridLog, 1);
 
             await running.app.close();
             running = await launchCaxri(launchOptions);
             await expect(running.page.locator('.process-running')).toBeVisible();
             await expect.poll(() => firstAgentGrid(gridLog, 2)).toBe(expectedGrid);
-            await expect.poll(() => latestAgentGrid(gridLog, 2)).toBe(expectedGrid);
-            await expect
-                .poll(() => hasExpectedAgentScreen(running.page, 2, expectedGrid))
-                .toBe(true);
+            expect(await waitForStableAgentGrid(running.page, gridLog, 2)).toBe(expectedGrid);
         } finally {
             await running.app.close().catch(() => undefined);
             await rm(testDirectory, { recursive: true, force: true });

@@ -7,7 +7,12 @@ import { promisify } from 'node:util';
 import { expect, test } from './fixtures.ts';
 
 import { createFakeAgentMode } from './agent-fixture.ts';
-import { launchCaxri, openAddProjectDialog, pageRequest, selectedSessionId } from './helpers.ts';
+import {
+    launchCaxri,
+    openAddProjectDialog,
+    pageRequest,
+    waitForCreatedSession,
+} from './helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const execFileAsync = promisify(execFile);
@@ -41,7 +46,7 @@ test('Agent identities stay consistent across every shared surface', async () =>
         await expect(createDialog.locator('[data-agent-icon="shell"]')).toBeVisible();
         await createDialog.getByRole('button', { name: 'Codex' }).click();
 
-        const sessionId = await selectedSessionId(running.page);
+        const sessionId = await waitForCreatedSession(running.page);
         await pageRequest(running.page, 'terminal.create', { kind: 'claude', sessionId });
 
         await expect(
