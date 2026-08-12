@@ -295,7 +295,7 @@ describe('Go state ledger', () => {
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
             reviewGate: { frozenHeadSha: null, rounds: [] },
-            schemaVersion: 4,
+            schemaVersion: 5,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });
@@ -317,8 +317,299 @@ describe('Go state ledger', () => {
                 frozenHeadSha: null,
                 rounds: [{ headSha: 'legacy-head', mode: 'full' }],
             },
-            schemaVersion: 4,
+            schemaVersion: 5,
         });
+    });
+
+    it('backfills v4 review phases around the recorded delivery transition', () => {
+        const current = createInitialState({
+            objective: 'Migrate review phases',
+            runId: 'legacy-v4',
+        });
+        transitionState(current, 'planning');
+        transitionState(current, 'issue_execution');
+        transitionState(current, 'deep_review');
+        freezeReview(current, 'product-head');
+        recordReviewDecision(current, {
+            freeze: true,
+            headSha: 'pre-delivery-head',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Pre-delivery bookkeeping',
+        });
+        transitionState(current, 'delivery');
+        for (const headSha of ['delivery-head-1', 'delivery-head-2']) {
+            recordReviewDecision(current, {
+                freeze: true,
+                headSha,
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Delivery repair',
+            });
+        }
+        const deliveryTransitionIndex = current.events.findIndex(
+            ({ detail, type }) => type === 'phase' && detail.startsWith('deep_review -> delivery'),
+        );
+        current.events.splice(
+            deliveryTransitionIndex,
+            0,
+            {
+                at: current.reviewGate.rounds[0].completedAt,
+                detail: 'full review for product-head: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+            {
+                at: current.reviewGate.rounds[1].completedAt,
+                detail: 'verification review for pre-delivery-head: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+        );
+        current.events.push(
+            {
+                at: current.reviewGate.rounds[2].completedAt,
+                detail: 'verification review for delivery-head-1: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+            {
+                at: current.reviewGate.rounds[3].completedAt,
+                detail: 'verification review for delivery-head-2: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+        );
+        for (const decision of current.reviewGate.rounds) {
+            Reflect.deleteProperty(decision, 'phase');
+        }
+        const legacy = { ...current, schemaVersion: 4 } as Record<string, unknown>;
+
+        const migrated = validateState(legacy);
+        expect(migrated.schemaVersion).toBe(5);
+        expect(migrated.reviewGate.rounds.map(({ phase }) => phase)).toEqual([
+            'deep_review',
+            'deep_review',
+            'delivery',
+            'delivery',
+        ]);
+        recordReviewDecision(migrated, {
+            freeze: true,
+            headSha: 'delivery-head-3',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Final delivery repair',
+        });
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'delivery-head-4',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Excess delivery repair',
+            }),
+        ).toThrow('requires explicit user authorization');
+        recordReviewDecision(migrated, {
+            freeze: true,
+            headSha: 'delivery-head-4',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Authorized final delivery repair',
+            verificationCapAuthorization: 'User approved one final delivery verification.',
+        });
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'delivery-head-5',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Unauthorized fifth delivery repair',
+            }),
+        ).toThrow('requires explicit user authorization');
+        recordReviewDecision(migrated, {
+            freeze: true,
+            headSha: 'delivery-head-5',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Authorized systemic delivery repair',
+            verificationCapAuthorization: 'User approved one systemic CI-parity verification.',
+        });
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'delivery-head-6',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Unauthorized sixth delivery repair',
+            }),
+        ).toThrow('requires explicit user authorization');
+        recordReviewDecision(migrated, {
+            freeze: true,
+            headSha: 'delivery-head-6',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Authorized final hosted E2E fixture repair',
+            verificationCapAuthorization:
+                'User approved one final hosted E2E fixture verification.',
+        });
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'delivery-head-7',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Disallowed seventh delivery repair',
+                verificationCapAuthorization: 'User approved another delivery verification.',
+            }),
+        ).toThrow('six delivery-stage');
+    });
+
+    it('replays every v4 delivery and deep-review cycle while backfilling phases', () => {
+        const current = createInitialState({
+            objective: 'Migrate review cycles',
+            runId: 'legacy-v4-cycles',
+        });
+        transitionState(current, 'planning');
+        transitionState(current, 'issue_execution');
+        transitionState(current, 'deep_review');
+        freezeReview(current, 'product-head');
+        recordReviewDecision(current, {
+            freeze: true,
+            headSha: 'pre-delivery-head',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Pre-delivery bookkeeping',
+        });
+        transitionState(current, 'delivery');
+        recordReviewDecision(current, {
+            freeze: true,
+            headSha: 'delivery-head',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Delivery repair',
+        });
+        transitionState(current, 'deep_review');
+        current.reviewGate.rounds.push({
+            ...current.reviewGate.rounds[1],
+            headSha: 'returned-deep-review-head',
+            scope: 'Legacy returned deep-review repair',
+        });
+        current.reviewGate.frozenHeadSha = 'returned-deep-review-head';
+        current.events = [
+            { at: '1', detail: 'issue_execution -> deep_review', type: 'phase' },
+            {
+                at: '2',
+                detail: 'full review for product-head: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+            {
+                at: '3',
+                detail: 'verification review for pre-delivery-head: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+            { at: '4', detail: 'deep_review -> delivery', type: 'phase' },
+            {
+                at: '5',
+                detail: 'verification review for delivery-head: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+            { at: '6', detail: 'delivery -> deep_review', type: 'phase' },
+            {
+                at: '7',
+                detail: 'verification review for returned-deep-review-head: P0=0 P1=0 (frozen)',
+                type: 'review',
+            },
+        ];
+        for (const decision of current.reviewGate.rounds) {
+            Reflect.deleteProperty(decision, 'phase');
+        }
+
+        const migrated = validateState({ ...current, schemaVersion: 4 });
+        expect(migrated.reviewGate.rounds.map(({ phase }) => phase)).toEqual([
+            'deep_review',
+            'deep_review',
+            'delivery',
+            'deep_review',
+        ]);
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'another-deep-review-head',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Excess returned deep-review repair',
+            }),
+        ).toThrow('one pre-delivery');
+    });
+
+    it('charges v4 reviews with missing review events to both phase budgets', () => {
+        const current = createInitialState({
+            objective: 'Migrate truncated review evidence',
+            runId: 'legacy-v4-truncated',
+        });
+        transitionState(current, 'planning');
+        transitionState(current, 'issue_execution');
+        transitionState(current, 'deep_review');
+        freezeReview(current, 'product-head');
+        recordReviewDecision(current, {
+            freeze: true,
+            headSha: 'verification-1',
+            mode: 'verification',
+            p0: 0,
+            p1: 0,
+            scope: 'Legacy verification',
+        });
+        transitionState(current, 'delivery');
+        for (const headSha of ['verification-2', 'verification-3']) {
+            recordReviewDecision(current, {
+                freeze: true,
+                headSha,
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Legacy verification',
+            });
+        }
+        for (const decision of current.reviewGate.rounds) {
+            Reflect.deleteProperty(decision, 'phase');
+        }
+        const migrated = validateState({ ...current, schemaVersion: 4 });
+        expect(
+            migrated.reviewGate.rounds
+                .filter(({ mode }) => mode === 'verification')
+                .map(({ phase }) => phase),
+        ).toEqual(['unknown', 'unknown', 'unknown']);
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'delivery-4',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Excess delivery repair',
+            }),
+        ).toThrow('requires explicit user authorization');
+
+        transitionState(migrated, 'deep_review');
+        expect(() =>
+            recordReviewDecision(migrated, {
+                freeze: true,
+                headSha: 'deep-review-2',
+                mode: 'verification',
+                p0: 0,
+                p1: 0,
+                scope: 'Excess pre-delivery repair',
+            }),
+        ).toThrow('one pre-delivery');
     });
 
     it('does not overwrite an existing run ledger', async () => {

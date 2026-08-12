@@ -98,11 +98,20 @@ export interface TerminalStartOptions {
     resumeAgentSessionId?: string;
     /** Restore generations use this to abandon stale discovery before it spawns a process. */
     shouldStart?: () => boolean;
+    /** Cancels a visible restore's grid wait when its restore generation becomes stale. */
+    abortSignal?: AbortSignal;
+    /** Gives a visible restored Terminal time to publish its receiving Renderer grid. */
+    waitForAttachedSizeMs?: number;
 }
+
+type TerminalGridSize = { cols: number; rows: number };
+type AttachedSizeWaiter = () => void;
 
 export class TerminalManager {
     private readonly terminals = new Map<string, LiveTerminal>();
     private readonly attached = new Set<string>();
+    private readonly attachedSizes = new Map<string, TerminalGridSize>();
+    private readonly attachedSizeWaiters = new Map<string, Set<AttachedSizeWaiter>>();
     private readonly starts = new SingleFlight<string, TerminalRecord>();
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
     private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
@@ -175,6 +184,12 @@ export class TerminalManager {
                     ),
                 );
             }
+            if (options?.waitForAttachedSizeMs)
+                await this.waitForAttachedSize(
+                    record.id,
+                    options.waitForAttachedSizeMs,
+                    options.abortSignal,
+                );
             if (options?.shouldStart && !options.shouldStart()) {
                 if (!this.database.getTerminal(record.id))
                     throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
@@ -195,10 +210,11 @@ export class TerminalManager {
                 ...this.lifecycleEnvironment?.(record),
             };
             const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
+            const initialSize = this.attachedSizes.get(record.id) ?? { cols: 100, rows: 30 };
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
-                cols: 100,
-                rows: 30,
+                cols: initialSize.cols,
+                rows: initialSize.rows,
                 cwd: record.cwd,
                 env,
             });
@@ -210,12 +226,17 @@ export class TerminalManager {
             const live: LiveTerminal = {
                 process: child,
                 record,
-                screen: new TerminalScreenState(initialSnapshot, 100, 30, {
-                    onOverflow: (droppedBytes) =>
-                        this.logger.write('warn', 'pty.screen_backpressure', {
-                            fields: { terminalId: record.id, droppedBytes },
-                        }),
-                }),
+                screen: new TerminalScreenState(
+                    initialSnapshot,
+                    initialSize.cols,
+                    initialSize.rows,
+                    {
+                        onOverflow: (droppedBytes) =>
+                            this.logger.write('warn', 'pty.screen_backpressure', {
+                                fields: { terminalId: record.id, droppedBytes },
+                            }),
+                    },
+                ),
                 snapshot: new TerminalSnapshotBuffer(initialSnapshot),
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,
@@ -413,12 +434,51 @@ export class TerminalManager {
         return true;
     }
 
+    private waitForAttachedSize(
+        terminalId: string,
+        timeoutMs: number,
+        abortSignal?: AbortSignal,
+    ): Promise<void> {
+        if (this.attachedSizes.has(terminalId) || timeoutMs <= 0 || abortSignal?.aborted)
+            return Promise.resolve();
+        return new Promise((resolve) => {
+            let completed = false;
+            const complete = (): void => {
+                if (completed) return;
+                completed = true;
+                clearTimeout(timer);
+                abortSignal?.removeEventListener('abort', complete);
+                const waiters = this.attachedSizeWaiters.get(terminalId);
+                waiters?.delete(complete);
+                if (waiters?.size === 0) this.attachedSizeWaiters.delete(terminalId);
+                resolve();
+            };
+            const waiters = this.attachedSizeWaiters.get(terminalId) ?? new Set();
+            waiters.add(complete);
+            this.attachedSizeWaiters.set(terminalId, waiters);
+            const timer = setTimeout(complete, timeoutMs);
+            abortSignal?.addEventListener('abort', complete, { once: true });
+        });
+    }
+
+    private resolveAttachedSizeWaiters(terminalId: string): void {
+        const waiters = this.attachedSizeWaiters.get(terminalId);
+        if (!waiters) return;
+        for (const complete of [...waiters]) complete();
+    }
+
     async attach(
         terminalId: string,
         size?: { cols: number; rows: number },
     ): Promise<TerminalSnapshot | null> {
         const live = this.terminals.get(terminalId);
         if (!live && !this.database.getTerminal(terminalId)) return null;
+        /** An interrupted Terminal may attach before its restore spawn. Retain the measured grid so
+         *  the resumed TUI starts at the visible geometry instead of the fallback 100x30 grid. */
+        if (size) {
+            this.attachedSizes.set(terminalId, size);
+            this.resolveAttachedSizeWaiters(terminalId);
+        }
         /** Serialize at the receiving xterm's grid. Restoring addon-serialize output into another
          *  size can irreversibly wrap cursor-addressed alternate-screen content. */
         if (live && size) this.resize(terminalId, size.cols, size.rows);
@@ -442,6 +502,7 @@ export class TerminalManager {
 
     detachView(terminalId: string): void {
         this.attached.delete(terminalId);
+        this.attachedSizes.delete(terminalId);
         const live = this.terminals.get(terminalId);
         if (!live) return;
         live.outputTimer = clearScheduledTimer(live.outputTimer);
@@ -458,12 +519,14 @@ export class TerminalManager {
         if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         const live = this.terminals.get(terminalId);
         const preserveAttachment = this.attached.has(terminalId);
+        const preservedSize = this.attachedSizes.get(terminalId);
         if (live) {
             /** Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID. */
             this.detach(live, true);
             live.process.kill();
         }
         if (preserveAttachment) this.attached.add(terminalId);
+        if (preservedSize) this.attachedSizes.set(terminalId, preservedSize);
         this.database.updateTerminalState(terminalId, 'starting');
         const restarting = this.database.getTerminal(terminalId);
         if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
@@ -488,6 +551,7 @@ export class TerminalManager {
         if (options.persist) this.persistSnapshot(live);
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
+        this.attachedSizes.delete(live.record.id);
         this.onLifecycleRetired?.(live.record.id);
         live.screen.dispose();
         return true;
@@ -508,12 +572,16 @@ export class TerminalManager {
             live.process.kill();
         }
         this.attached.delete(terminalId);
+        this.attachedSizes.delete(terminalId);
+        this.resolveAttachedSizeWaiters(terminalId);
         this.database.closeTerminal(terminalId);
     }
 
     terminateSession(sessionId: string): void {
         for (const terminal of this.database.listTerminals(sessionId)) {
             this.attached.delete(terminal.id);
+            this.attachedSizes.delete(terminal.id);
+            this.resolveAttachedSizeWaiters(terminal.id);
         }
         for (const live of [...this.terminals.values()]) {
             if (live.record.sessionId !== sessionId) continue;
@@ -544,6 +612,10 @@ export class TerminalManager {
      * Runtime start, never from a live Runtime shutting itself down.
      */
     shutdown(reason: Exclude<ShutdownReason, 'unclean'>): void {
+        /** Wake restore starts before their generation guard turns false so shutdown does not leave
+         *  the Runtime alive solely for the visible-Terminal grid grace period. */
+        for (const terminalId of [...this.attachedSizeWaiters.keys()])
+            this.resolveAttachedSizeWaiters(terminalId);
         for (const live of [...this.terminals.values()]) {
             this.detach(live, true);
             live.process.kill();

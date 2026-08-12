@@ -41,4 +41,73 @@ describe('TerminalRestoreSupervisor', () => {
         expect(secondSessionStarts).toBe(1);
         expect(peak).toBe(2);
     });
+
+    it('releases stale restore slots immediately when the active Session changes', async () => {
+        const supervisor = new TerminalRestoreSupervisor(4);
+        const staleWaveStarted = Promise.withResolvers<void>();
+        let staleStarts = 0;
+        const staleSession = supervisor.restore(
+            'session-a',
+            Array.from({ length: 4 }, () => async (_isCurrent, signal) => {
+                staleStarts += 1;
+                if (staleStarts === 4) staleWaveStarted.resolve();
+                await new Promise<void>((resolve) => {
+                    if (signal.aborted) resolve();
+                    else signal.addEventListener('abort', () => resolve(), { once: true });
+                });
+                return false;
+            }),
+        );
+        await staleWaveStarted.promise;
+
+        let currentStarted = false;
+        const currentSession = supervisor.restore('session-b', [
+            () => {
+                currentStarted = true;
+                return Promise.resolve(true);
+            },
+        ]);
+
+        await vi.waitFor(() => expect(currentStarted).toBe(true));
+        expect(await staleSession).toEqual([false, false, false, false]);
+        expect(await currentSession).toEqual([true]);
+    });
+
+    it('keeps an active restore current when the same Session is selected again', async () => {
+        const supervisor = new TerminalRestoreSupervisor(1);
+        const restoreStarted = Promise.withResolvers<void>();
+        const releaseRestore = Promise.withResolvers<void>();
+
+        const activeRestore = supervisor.restore('session-a', [
+            async (isCurrent, signal) => {
+                restoreStarted.resolve();
+                await releaseRestore.promise;
+                return isCurrent() && !signal.aborted;
+            },
+        ]);
+        await restoreStarted.promise;
+
+        await expect(supervisor.restore('session-a', [])).resolves.toEqual([]);
+        releaseRestore.resolve();
+
+        await expect(activeRestore).resolves.toEqual([true]);
+    });
+
+    it('cancels active restore work when the newly selected Session has nothing to restore', async () => {
+        const supervisor = new TerminalRestoreSupervisor(1);
+        const restoreStarted = Promise.withResolvers<void>();
+        const staleSession = supervisor.restore('session-a', [
+            async (_isCurrent, signal) => {
+                restoreStarted.resolve();
+                await new Promise<void>((resolve) =>
+                    signal.addEventListener('abort', () => resolve(), { once: true }),
+                );
+                return false;
+            },
+        ]);
+        await restoreStarted.promise;
+
+        expect(await supervisor.restore('session-b', [])).toEqual([]);
+        expect(await staleSession).toEqual([false]);
+    });
 });

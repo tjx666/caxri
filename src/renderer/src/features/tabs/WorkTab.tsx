@@ -24,6 +24,7 @@ interface WorkTabProps {
     fileIconName?: string;
     icon: 'file' | AgentIconIdentity;
     label: string;
+    motionIdentity?: string;
     preview?: boolean;
     status?: ProcessState;
     terminalId?: string;
@@ -44,6 +45,7 @@ export function WorkTab({
     fileIconName,
     icon,
     label,
+    motionIdentity,
     preview = false,
     status,
     terminalId,
@@ -75,6 +77,7 @@ export function WorkTab({
                     "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
             )}
             data-terminal-id={terminalId}
+            data-motion-identity={motionIdentity}
             data-preview={preview || undefined}
             aria-hidden={!isPresent || undefined}
             inert={!isPresent ? true : undefined}

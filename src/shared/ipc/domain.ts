@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { MAX_TRUSTED_DOMAINS, MAX_TRUSTED_DOMAIN_LENGTH } from '../trusted-domains';
+
 import {
     agentProviderIds,
     type AgentLaunchSettings,
@@ -200,6 +202,10 @@ export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookH
 export const appSettingsSchema = z.object({
     'session.defaultAgent': terminalKindSchema.nullable(),
     'agents.providers': agentProviderSettingsSchema,
+    'security.trustedDomains': z
+        .array(z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH))
+        .max(MAX_TRUSTED_DOMAINS)
+        .default([]),
     'terminal.defaultWorkingDirectory': z.string().nullable(),
     'terminal.fontSize': z.number(),
     'terminal.scrollback': z.number(),

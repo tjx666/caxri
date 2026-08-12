@@ -18,6 +18,33 @@ import {
 } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
+const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
+
+async function stubMessageBoxResponse(app: ElectronApplication, response: number): Promise<void> {
+    await app.evaluate(({ dialog }, nextResponse) => {
+        Reflect.set(globalThis, '__caxriE2EMessageBoxCallCount', 0);
+        dialog.showMessageBox = () => {
+            const calls = Number(Reflect.get(globalThis, '__caxriE2EMessageBoxCallCount') ?? 0);
+            Reflect.set(globalThis, '__caxriE2EMessageBoxCallCount', calls + 1);
+            return Promise.resolve({ response: nextResponse, checkboxChecked: false });
+        };
+    }, response);
+}
+
+/**
+ * A row that remains visible does not prove its canceled deletion request completed. Wait until
+ * Main consumes the native-dialog response before replacing the stub for a subsequent request.
+ */
+async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
+    await expect
+        .poll(() =>
+            app.evaluate(
+                (_electron, key) => Number(Reflect.get(globalThis, key) ?? 0),
+                MESSAGE_BOX_CALL_COUNT_KEY,
+            ),
+        )
+        .toBe(1);
+}
 
 /**
  * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The
@@ -320,6 +347,108 @@ test('Project and Files actions reveal on hover or focus', async () => {
     }
 });
 
+test('Project titles toggle disclosure when no active Session can be selected', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-empty-project-heading-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const activeRoot = join(testDirectory, 'active-project');
+    const emptyRoot = join(testDirectory, 'empty-project');
+    await Promise.all([
+        execFileAsync('mkdir', ['-p', activeRoot]),
+        execFileAsync('mkdir', ['-p', emptyRoot]),
+    ]);
+    const [canonicalActiveRoot, canonicalEmptyRoot] = await Promise.all([
+        realpath(activeRoot),
+        realpath(emptyRoot),
+    ]);
+
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: activeRoot,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([activeRoot, emptyRoot]) },
+    });
+    try {
+        await createProjectSession(running.page);
+        const activeSessionId = await selectedSessionId(running.page);
+        const selectedRoot = await pageRequest<string | null>(
+            running.page,
+            'dialog.selectDirectory',
+        );
+        expect(selectedRoot).toBe(emptyRoot);
+        await pageRequest(running.page, 'project.create', { rootPath: selectedRoot });
+        await expect(running.page.locator('.project-heading')).toHaveCount(2);
+
+        const bootstrap = await pageRequest<{
+            projects: Array<{ displayTitle: string; id: string; rootPath: string }>;
+            sessions: Array<{ archivedAt?: number; id: string; projectId: string }>;
+        }>(running.page, 'app.bootstrap');
+        const activeProject = bootstrap.projects.find(
+            (project) => project.rootPath === canonicalActiveRoot,
+        );
+        const emptyProject = bootstrap.projects.find(
+            (project) => project.rootPath === canonicalEmptyRoot,
+        );
+        if (!activeProject || !emptyProject) throw new Error('Expected both E2E Projects');
+        expect(
+            bootstrap.sessions.filter((session) => session.projectId === emptyProject.id),
+        ).toHaveLength(0);
+
+        const emptyHeading = running.page.locator(
+            `.project-heading[data-project-id="${emptyProject.id}"]`,
+        );
+        const emptyTitle = emptyHeading.getByRole('button', {
+            name: emptyProject.displayTitle,
+            exact: true,
+        });
+        const emptyDisclosure = emptyHeading.locator('.project-disclosure');
+        await expect(emptyTitle).toHaveAttribute('aria-expanded', 'true');
+        await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'true');
+        await emptyTitle.click();
+        await expect(emptyTitle).toHaveAttribute('aria-expanded', 'false');
+        await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'false');
+        expect(await selectedSessionId(running.page)).toBe(activeSessionId);
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
+
+        await emptyTitle.focus();
+        await emptyTitle.press('Enter');
+        await expect(emptyTitle).toBeFocused();
+        await expect(emptyTitle).toHaveAttribute('aria-expanded', 'true');
+        await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'true');
+
+        const activeRow = sessionCard(running.page, activeSessionId).locator('..');
+        await activeRow.hover();
+        await activeRow.getByRole('button', { name: /^Archive / }).click();
+        await expect(sessionCard(running.page, activeSessionId)).toHaveCount(0);
+        const archivedSnapshot = await pageRequest<{
+            sessions: Array<{ archivedAt?: number; id: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect(
+            archivedSnapshot.sessions.find((session) => session.id === activeSessionId)?.archivedAt,
+        ).toEqual(expect.any(Number));
+
+        const activeHeading = running.page.locator(
+            `.project-heading[data-project-id="${activeProject.id}"]`,
+        );
+        const activeTitle = activeHeading.getByRole('button', {
+            name: activeProject.displayTitle,
+            exact: true,
+        });
+        const activeDisclosure = activeHeading.locator('.project-disclosure');
+        await expect(activeTitle).toHaveAttribute('aria-expanded', 'true');
+        await activeTitle.click();
+        await expect(activeTitle).toHaveAttribute('aria-expanded', 'false');
+        await expect(activeDisclosure).toHaveAttribute('aria-expanded', 'false');
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
+        const finalSnapshot = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(finalSnapshot.sessions).toHaveLength(1);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('work tabs leave a draggable titlebar and keep New Terminal beside the last tab', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -402,6 +531,13 @@ test('Session archive hides active navigation without stopping Terminals and can
         const firstSessionId = await selectedSessionId(running.page);
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: secondSessionId,
+            displayTitle: 'Archived investigation',
+        });
+        await expect(sessionCard(running.page, secondSessionId)).toContainText(
+            'Archived investigation',
+        );
         await expect(running.page.locator('.session-card')).toHaveCount(2);
         const runningBeforeArchive = await pageRequest<number>(
             running.page,
@@ -417,14 +553,28 @@ test('Session archive hides active navigation without stopping Terminals and can
         await expect
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeArchive);
-        const archived = running.page.getByRole('button', { name: /Archived 1/ });
+        await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
+        const archived = running.page.getByRole('button', { name: /Archived Sessions/ });
+        await expect(archived).toContainText('1');
         await archived.click();
-        const restore = running.page.getByRole('button', { name: /^Restore / });
-        await expect(restore.locator('svg')).toHaveCount(2);
+        const dialog = running.page.getByRole('dialog');
+        await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
+        await dialog.getByLabel('Search').fill('investigation');
+        await dialog.getByLabel('Filter by Project').click();
+        await running.page.getByRole('option', { name: 'project', exact: true }).click();
+        await dialog.getByLabel('Filter by Agent').click();
+        await running.page.getByRole('option', { name: 'Shell', exact: true }).click();
+        await expect(dialog.locator('.archived-manager-row')).toHaveCount(1);
+        const restore = dialog.getByRole('button', { name: 'Restore Archived investigation' });
         await restore.click();
 
         await expect(running.page.locator('.session-card')).toHaveCount(2);
-        await expect(running.page.locator('.archived-sessions')).toHaveCount(0);
+        await expect
+            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
+            .toBe(runningBeforeArchive);
+        await dialog.getByRole('button', { name: 'Done' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(archived).toContainText('0');
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');
@@ -437,7 +587,7 @@ test('Session archive hides active navigation without stopping Terminals and can
     }
 });
 
-test('archived Sessions reveal a Delete action on hover that removes the Session on confirmation', async () => {
+test('Archived Sessions manager deletes only after native confirmation', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-delete-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -454,33 +604,30 @@ test('archived Sessions reveal a Delete action on hover that removes the Session
         await archivedSourceRow.getByRole('button', { name: /^Archive / }).click();
         await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
 
-        await running.page.getByRole('button', { name: /Archived 1/ }).click();
-        const archivedRow = running.page.locator('.archived-row');
+        const archivedEntry = running.page.getByRole('button', { name: /Archived Sessions/ });
+        await expect(archivedEntry).toContainText('1');
+        await archivedEntry.click();
+        const dialog = running.page.getByRole('dialog');
+        const archivedRow = dialog.locator('.archived-manager-row');
         await expect(archivedRow).toHaveCount(1);
         const deleteButton = archivedRow.getByRole('button', { name: /^Delete / });
-        await expect(deleteButton).toHaveCSS('opacity', '0');
-        await expect(deleteButton).toHaveCSS('pointer-events', 'none');
-        await archivedRow.hover();
-        await expect(deleteButton).toHaveCSS('opacity', '1');
-        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
+        await expect(deleteButton).toBeVisible();
 
         // Cancel keeps the archived row.
-        await running.app.evaluate(({ dialog }) => {
-            dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
-        });
+        await stubMessageBoxResponse(running.app, 1);
         await deleteButton.click();
+        await waitForMessageBoxCall(running.app);
         await expect(archivedRow).toHaveCount(1);
 
         // Confirm removes the archived row and the now-empty Archived group.
-        await running.app.evaluate(({ dialog }) => {
-            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
-        });
-        await deleteButton.focus();
-        await expect(deleteButton).toHaveCSS('pointer-events', 'auto');
+        await stubMessageBoxResponse(running.app, 0);
         await deleteButton.click();
 
         await expect(archivedRow).toHaveCount(0);
-        await expect(running.page.locator('.archived-sessions')).toHaveCount(0);
+        await expect(dialog.getByText('No archived Sessions yet')).toBeVisible();
+        await dialog.getByRole('button', { name: 'Done' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(archivedEntry).toContainText('0');
         const snapshot = await pageRequest<{ sessions: Array<{ id: string }> }>(
             running.page,
             'app.bootstrap',

@@ -158,6 +158,12 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Open settings.jsonc in the Caxri source editor',
     },
     {
+        id: 'settings.manageTrustedDomains',
+        title: 'Manage Trusted Domains',
+        category: 'Preferences',
+        description: 'Review which external-link origins Caxri opens without confirmation',
+    },
+    {
         id: 'updates.check',
         title: 'Check for Updates',
         category: 'Preferences',

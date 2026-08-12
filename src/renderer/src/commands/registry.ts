@@ -1,5 +1,7 @@
 import type { InspectorMode } from '@shared/types';
 
+import type { SettingsView } from '../stores/dialogs';
+
 /**
  * Everything a command may reach. Passing this in keeps command `run` functions free of
  * module-level bindings to the feature actions, so a test can drive the registry with fakes.
@@ -19,7 +21,7 @@ export interface CommandContext {
     inspector: { searchFiles(): void; setMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };
     dialogs: {
-        openSettings(view?: 'ui' | 'source'): void;
+        openSettings(view?: SettingsView): void;
         openPalette(): void;
         openPathBrowser(): void;
     };

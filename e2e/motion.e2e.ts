@@ -185,10 +185,6 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        // The "Choose the default Terminal" dialog from project creation stays mounted with
-        // data-closed until its own exit animation finishes (dialog.tsx); wait it out so it
-        // cannot coexist with the Settings dialog this test opens next.
-        await expect(running.page.getByRole('dialog')).toHaveCount(0);
         const enterMs = await motionTokenMs(running.page, '--motion-overlay-enter');
         const exitMs = await motionTokenMs(running.page, '--motion-overlay-exit');
 

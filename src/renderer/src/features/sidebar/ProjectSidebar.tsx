@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Archive, Plus } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -15,6 +15,7 @@ import {
     useTerminals,
 } from '../../stores/selectors';
 import { beginSessionCreation, renameSession, selectProject } from '../session/session-actions';
+import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { hasProjectDragType } from './project-order';
 import { ProjectGroup } from './ProjectGroup';
 import { useProjectOrder } from './useProjectOrder';
@@ -32,10 +33,9 @@ export function ProjectSidebar() {
     const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
     const projectOrder = useProjectOrder(projects);
+    const archivedCount = sessions.filter((session) => session.archivedAt !== undefined).length;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
-    const [expandedArchives, setExpandedArchives] = useState<Set<string>>(() => new Set());
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    const [animatedArchiveIds, setAnimatedArchiveIds] = useState<Set<string>>(() => new Set());
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
@@ -112,16 +112,6 @@ export function ProjectSidebar() {
         });
     };
 
-    const toggleArchive = (projectId: string): void => {
-        setAnimatedArchiveIds((current) => new Set(current).add(projectId));
-        setExpandedArchives((current) => {
-            const next = new Set(current);
-            if (next.has(projectId)) next.delete(projectId);
-            else next.add(projectId);
-            return next;
-        });
-    };
-
     return (
         <aside className="session-sidebar group/sidebar flex min-w-0 flex-col bg-surface">
             <div
@@ -168,18 +158,12 @@ export function ProjectSidebar() {
                     const activeSessions = projectSessions.filter(
                         (session) => session.archivedAt === undefined,
                     );
-                    const archivedSessions = projectSessions.filter(
-                        (session) => session.archivedAt !== undefined,
-                    );
                     return (
                         <ProjectGroup
                             key={project.id}
                             active={project.id === selectedProjectId}
                             activeSessions={activeSessions}
-                            animateArchive={animatedArchiveIds.has(project.id)}
                             animateProject={animatedProjectIds.has(project.id)}
-                            archiveExpanded={expandedArchives.has(project.id)}
-                            archivedSessions={archivedSessions}
                             dragged={projectOrder.draggedProjectId === project.id}
                             expanded={!collapsedProjects.has(project.id)}
                             focusRenameInput={focusRenameInput}
@@ -201,7 +185,6 @@ export function ProjectSidebar() {
                             }}
                             onSelect={() => selectProject(project.id)}
                             onToggle={() => toggleProject(project.id)}
-                            onToggleArchive={() => toggleArchive(project.id)}
                             project={project}
                             projectDropTarget={
                                 projectOrder.projectDropTarget?.projectId === project.id
@@ -227,6 +210,23 @@ export function ProjectSidebar() {
                 <div className="project-order-announcement sr-only" aria-live="polite">
                     {projectOrder.projectOrderAnnouncement}
                 </div>
+            </div>
+            <div className="border-t border-border p-2">
+                <Button
+                    className="archived-sessions-entry w-full justify-start text-muted hover:text-foreground"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setArchivedSessionsOpen(true)}
+                >
+                    <Archive aria-hidden="true" size={14} />
+                    <span className="min-w-0 flex-1 truncate text-left">Archived Sessions</span>
+                    <span
+                        className="min-w-5 rounded-full bg-elevated px-1.5 text-center text-[10px] tabular-nums text-foreground"
+                        data-archived-count={archivedCount}
+                    >
+                        {archivedCount}
+                    </span>
+                </Button>
             </div>
         </aside>
     );

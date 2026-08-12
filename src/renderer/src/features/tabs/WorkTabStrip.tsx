@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react';
-import { Fragment, useMemo } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useState } from 'react';
 
 import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
@@ -13,7 +13,12 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../components/ui/context-menu';
-import { useSelectedSession, useSessionState, useSessionTerminals } from '../../stores/selectors';
+import {
+    useSelectedSession,
+    useSessionIds,
+    useSessionState,
+    useSessionTerminals,
+} from '../../stores/selectors';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { useActiveWork, useSessionViewStore } from '../../stores/session-view';
 import { cn } from '../../lib/utils';
@@ -32,6 +37,11 @@ import {
     TERMINAL_DRAG_TYPE,
 } from '../terminal/terminal-actions';
 import { WorkTab } from './WorkTab';
+import {
+    pruneEditorTabMotionStates,
+    reconcileEditorTabMotion,
+    type EditorTabMotionState,
+} from './editor-tab-motion';
 
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
@@ -58,10 +68,12 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
 /** Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped. */
 function EditorWorkTab({
     active,
+    motionIdentity,
     path,
     preview,
 }: {
     active: boolean;
+    motionIdentity: string;
     path: string;
     preview?: true;
 }) {
@@ -86,6 +98,7 @@ function EditorWorkTab({
             }
             icon="file"
             label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
+            motionIdentity={motionIdentity}
             onDoubleClick={() => pinEditorTab(path)}
             onClose={() => closeEditor(path)}
             onSelect={() => selectEditorTab(path)}
@@ -127,8 +140,24 @@ export function WorkTabStrip() {
     const sessionTerminals = useSessionTerminals();
     const openTabs = useSessionState()?.openTabs;
     const selectedSessionId = useSelectedSession()?.id;
+    const sessionIds = useSessionIds();
     const activeWork = useActiveWork();
     const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
+    const [editorMotionStates] = useState(() => new Map<string, EditorTabMotionState>());
+    const editorMotionState = useMemo(
+        () =>
+            reconcileEditorTabMotion(
+                selectedSessionId ? editorMotionStates.get(selectedSessionId) : undefined,
+                openTabs ?? [],
+            ),
+        [editorMotionStates, openTabs, selectedSessionId],
+    );
+    useLayoutEffect(() => {
+        if (selectedSessionId) editorMotionStates.set(selectedSessionId, editorMotionState);
+    }, [editorMotionState, editorMotionStates, selectedSessionId]);
+    useLayoutEffect(() => {
+        pruneEditorTabMotionStates(editorMotionStates, sessionIds);
+    }, [editorMotionStates, sessionIds]);
     const items = useMemo<WorkTabItem[]>(
         () => [
             ...sessionTerminals.map((terminal) => ({
@@ -136,14 +165,14 @@ export function WorkTabStrip() {
                 motionKey: `terminal:${terminal.id}`,
                 terminal,
             })),
-            ...(openTabs ?? []).map((tab) => ({
+            ...editorMotionState.tabs.map((tab) => ({
                 kind: 'editor' as const,
-                motionKey: `editor:${tab.path}`,
+                motionKey: `editor:${selectedSessionId}:${tab.motionId}`,
                 path: tab.path,
                 preview: tab.preview,
             })),
         ],
-        [openTabs, sessionTerminals],
+        [editorMotionState.tabs, selectedSessionId, sessionTerminals],
     );
     return (
         <div
@@ -179,6 +208,7 @@ export function WorkTabStrip() {
                                         kind: 'editor',
                                         path: item.path,
                                     })}
+                                    motionIdentity={item.motionKey}
                                     path={item.path}
                                     preview={item.preview}
                                 />

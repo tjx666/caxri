@@ -168,6 +168,12 @@ function useSettingsDialogController() {
                 setView('source');
                 return;
             }
+            if (request.view === 'trusted-domains') {
+                if (view === 'source' && !synchronizeSource(tab)) return;
+                setTab('settings');
+                setView('ui');
+                return;
+            }
             if (view === 'source' && !synchronizeSource(tab)) return;
             setView('ui');
         });
@@ -353,6 +359,7 @@ function useSettingsDialogController() {
         sourceErrors,
         state,
         tab,
+        trustedDomainsFocusRequestId: request.view === 'trusted-domains' ? request.id : undefined,
         updateBinding,
         updateSettingsField,
         updateSource,
@@ -379,6 +386,7 @@ function SettingsDialogView({
     sourceErrors,
     state,
     tab,
+    trustedDomainsFocusRequestId,
     updateBinding,
     updateSettingsField,
     updateSource,
@@ -496,6 +504,7 @@ function SettingsDialogView({
                                 agentHookHealth={agentHookHealth}
                                 appliedSettings={appliedSettings}
                                 settings={state.settings.value}
+                                trustedDomainsFocusRequestId={trustedDomainsFocusRequestId}
                                 onFieldChange={updateSettingsField}
                             />
                         ))}

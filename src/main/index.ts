@@ -36,6 +36,7 @@ import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { decideCrashRecovery } from './crash-policy';
+import { openExternalUrl } from './external-links';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
@@ -116,23 +117,49 @@ function sendEvent(event: RuntimeEvent): void {
     if (event.event === 'keybindings.changed' && !event.payload.error) void installMenu();
 }
 
-async function confirmExternalUrl(url: string): Promise<void> {
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return;
-    }
-    if (!['http:', 'https:'].includes(parsed.protocol)) return;
-    const result = await dialog.showMessageBox({
-        type: 'question',
-        title: 'Open External Link',
-        message: `Open ${parsed.hostname} in your default browser?`,
-        buttons: ['Open', 'Cancel'],
-        defaultId: 1,
-        cancelId: 1,
-    });
-    if (result.response === 0) await shell.openExternal(parsed.toString());
+async function handleExternalUrl(
+    url: string,
+    options: { allowTrust: boolean; window?: BrowserWindow },
+) {
+    return openExternalUrl(
+        url,
+        {
+            getTrustedDomains: async () =>
+                (await supervisor.request('settings.get')).value['security.trustedDomains'],
+            prompt: async (parsed) => {
+                const messageBoxOptions = options.allowTrust
+                    ? {
+                          type: 'question' as const,
+                          title: 'Open External Link',
+                          message: `Open ${parsed.host} in your default browser?`,
+                          detail: 'You can open this link once or trust this exact origin for future links.',
+                          buttons: ['Open Once', 'Trust Domain and Open', 'Cancel'],
+                          defaultId: 2,
+                          cancelId: 2,
+                      }
+                    : {
+                          type: 'question' as const,
+                          title: 'Open External Link',
+                          message: `Open ${parsed.host} in your default browser?`,
+                          detail: 'You can open this link once.',
+                          buttons: ['Open Once', 'Cancel'],
+                          defaultId: 1,
+                          cancelId: 1,
+                      };
+                const result = options.window
+                    ? await dialog.showMessageBox(options.window, messageBoxOptions)
+                    : await dialog.showMessageBox(messageBoxOptions);
+                if (result.response === 0) return 'open_once' as const;
+                if (options.allowTrust && result.response === 1) return 'trust' as const;
+                return 'cancel' as const;
+            },
+            trust: async (domain) => {
+                await supervisor.request('settings.trustDomain', { domain });
+            },
+            open: (target) => shell.openExternal(target),
+        },
+        { allowTrust: options.allowTrust },
+    );
 }
 
 function createWindow(initialState: PersistedWindowState): BrowserWindow {
@@ -214,15 +241,12 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             void updateService.check();
         }
     });
-    window.webContents.setWindowOpenHandler(({ url }) => {
-        void confirmExternalUrl(url);
-        return { action: 'deny' };
-    });
+    /** Passive page content never inherits authority from an explicitly trusted Terminal link. */
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event, url) => {
         const currentUrl = window.webContents.getURL();
         if (url === currentUrl) return;
         event.preventDefault();
-        void confirmExternalUrl(url);
     });
     /** Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults. */
     window.webContents.on('console-message', (details) => {
@@ -372,6 +396,8 @@ function assertNever(value: never): never {
 
 async function handleMainMethod(request: MainRequest): Promise<unknown> {
     switch (request.method) {
+        case 'external.open':
+            return handleExternalUrl(request.params.url, { allowTrust: true, window: mainWindow });
         case 'dialog.selectDirectory': {
             const testRoot = resolveNextTestRootPath();
             if (testRoot) {
