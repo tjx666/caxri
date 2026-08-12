@@ -69,9 +69,12 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 const previousDefaultKeybindings = defaultKeybindings.filter(
+    (binding) => binding.command !== 'terminal.find',
+);
+const prePathBrowserDefaultKeybindings = previousDefaultKeybindings.filter(
     (binding) => binding.command !== 'pathBrowser.open',
 );
-const closeTerminalDefaultKeybindings = previousDefaultKeybindings.map((binding) =>
+const closeTerminalDefaultKeybindings = prePathBrowserDefaultKeybindings.map((binding) =>
     binding.command === 'workbench.closeActiveTab'
         ? { ...binding, command: 'terminal.close' }
         : binding,
@@ -83,6 +86,7 @@ const newlyAddedDefaultCommands = new Set([
 ]);
 const previousDefaultKeybindingSets = [
     previousDefaultKeybindings,
+    prePathBrowserDefaultKeybindings,
     originalDefaultKeybindings,
     closeTerminalDefaultKeybindings,
     closeTerminalDefaultKeybindings.filter(

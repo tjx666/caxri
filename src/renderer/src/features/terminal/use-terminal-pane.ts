@@ -1,8 +1,12 @@
 import { FitAddon } from '@xterm/addon-fit';
-import { SearchAddon } from '@xterm/addon-search';
+import {
+    SearchAddon,
+    type ISearchOptions,
+    type ISearchResultChangeEvent,
+} from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import { errorMessage } from '@shared/ipc';
@@ -22,6 +26,11 @@ import {
 import { registerTerminalLinks } from './terminal-links';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import { TerminalReplayCoordinator } from './terminal-replay';
+import {
+    TERMINAL_SEARCH_HIGHLIGHT_LIMIT,
+    type TerminalSearchOptions,
+    type TerminalSearchResults,
+} from './terminal-search';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
 import {
     terminalSizeChanged,
@@ -46,6 +55,13 @@ interface TerminalPaneRuntimeOptions {
 
 const onError = (message: string): void => pushToast('error', message);
 
+const emptySearchResults: TerminalSearchResults = { resultCount: 0, resultIndex: -1 };
+
+/** SearchAddon requires opaque `#RRGGBB`; imported semantic tokens may include an alpha byte. */
+function opaqueSearchColor(color: string): string {
+    return color.slice(0, 7);
+}
+
 /** Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component. */
 export function useTerminalPaneRuntime({
     active,
@@ -63,8 +79,12 @@ export function useTerminalPaneRuntime({
 }: TerminalPaneRuntimeOptions) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
+    const searchRef = useRef<SearchAddon | undefined>(undefined);
+    const searchActiveRef = useRef(false);
+    const searchSignatureRef = useRef('');
     const replayRef = useRef<TerminalReplayCoordinator | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
+    const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
     const attachedEpochRef = useRef(attachEpoch);
     const previousProcessStateRef = useRef(processState);
     const latestRef = useRef({
@@ -136,13 +156,20 @@ export function useTerminalPaneRuntime({
             theme: latest.terminalTheme,
         });
         const fit = new FitAddon();
-        const search = new SearchAddon();
+        /** One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing
+         *  Terminal text outside xterm's Unicode- and wrap-aware search engine. */
+        const search = new SearchAddon({ highlightLimit: TERMINAL_SEARCH_HIGHLIGHT_LIMIT + 1 });
         const unicode11 = new Unicode11Addon();
         xterm.loadAddon(fit);
         xterm.loadAddon(search);
         xterm.loadAddon(unicode11);
         xterm.unicode.activeVersion = '11';
         xterm.open(container);
+        searchRef.current = search;
+        const searchResultsDisposable = search.onDidChangeResults(
+            ({ resultCount, resultIndex }: ISearchResultChangeEvent) =>
+                setSearchResults({ resultCount, resultIndex }),
+        );
         const unregisterLinks = registerTerminalLinks(xterm, {
             get cwd() {
                 return latestRef.current.terminalCwd;
@@ -253,6 +280,9 @@ export function useTerminalPaneRuntime({
             },
         );
         const selectionDisposable = xterm.onSelectionChange(() => {
+            /** SearchAddon represents the active match as a selection; it must not overwrite the
+             *  system clipboard when the user's copy-on-select preference is enabled. */
+            if (searchActiveRef.current) return;
             if (!latestRef.current.copyOnSelect) return;
             void selectionClipboard.copy(xterm.getSelection());
         });
@@ -300,11 +330,15 @@ export function useTerminalPaneRuntime({
             observer.disconnect();
             container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
+            searchResultsDisposable.dispose();
             selectionDisposable.dispose();
             dataDisposable.dispose();
             unregisterLinks();
             xterm.dispose();
             xtermRef.current = undefined;
+            if (searchRef.current === search) searchRef.current = undefined;
+            searchActiveRef.current = false;
+            searchSignatureRef.current = '';
             if (replayRef.current === replay) replayRef.current = undefined;
             void caxri.request('terminal.detach', { terminalId }).catch(() => {
                 // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
@@ -374,5 +408,79 @@ export function useTerminalPaneRuntime({
         [terminalId],
     );
 
-    return containerRef;
+    const beginSearch = useCallback((): void => {
+        searchActiveRef.current = true;
+    }, []);
+
+    const endSearch = useCallback((): void => {
+        try {
+            searchRef.current?.clearDecorations();
+        } finally {
+            searchActiveRef.current = false;
+            searchSignatureRef.current = '';
+            setSearchResults(emptySearchResults);
+        }
+    }, []);
+
+    const find = useCallback(
+        (
+            direction: 'next' | 'previous',
+            query: string,
+            options: TerminalSearchOptions,
+            incremental = false,
+        ): void => {
+            const search = searchRef.current;
+            if (!search) return;
+            searchActiveRef.current = true;
+            const theme = latestRef.current.terminalTheme;
+            const searchOptions: ISearchOptions = {
+                ...options,
+                incremental,
+                ...(theme
+                    ? {
+                          decorations: {
+                              activeMatchBackground: opaqueSearchColor(theme.yellow),
+                              activeMatchBorder: opaqueSearchColor(theme.foreground),
+                              activeMatchColorOverviewRuler: opaqueSearchColor(theme.yellow),
+                              matchBackground: opaqueSearchColor(theme.selectionBackground),
+                              matchBorder: opaqueSearchColor(theme.brightBlack),
+                              matchOverviewRuler: opaqueSearchColor(theme.selectionBackground),
+                          },
+                      }
+                    : {}),
+            };
+            try {
+                const signature = JSON.stringify([query, options, theme]);
+                /** addon-search beta updates its cached options before checking whether options
+                 *  changed, so toggling Match Case/Whole Word/Regex for the same query would retain
+                 *  stale decorations and counts. Clear only on an incremental signature change;
+                 *  explicit next/previous navigation must preserve the current result. */
+                if (incremental && signature !== searchSignatureRef.current)
+                    search.clearDecorations();
+                searchSignatureRef.current = signature;
+                if (!query) {
+                    search.findNext('', searchOptions);
+                    setSearchResults(emptySearchResults);
+                    return;
+                }
+                if (direction === 'previous') search.findPrevious(query, searchOptions);
+                else search.findNext(query, searchOptions);
+            } catch (error) {
+                search.clearDecorations();
+                setSearchResults({
+                    error:
+                        error instanceof SyntaxError
+                            ? 'Invalid regular expression'
+                            : 'Search unavailable',
+                    resultCount: 0,
+                    resultIndex: -1,
+                });
+            }
+        },
+        [],
+    );
+
+    const focusTerminal = useCallback((): void => xtermRef.current?.focus(), []);
+
+    return { beginSearch, containerRef, endSearch, find, focusTerminal, searchResults };
 }

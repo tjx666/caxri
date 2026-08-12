@@ -16,6 +16,7 @@ import {
     clearActiveTerminal,
     closeTerminal,
     createTerminal,
+    findInActiveTerminal,
     restartActiveTerminal,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
@@ -56,6 +57,11 @@ const commandContext: CommandContext = {
             const terminalId = activeTerminalId();
             if (terminalId) clearActiveTerminal(terminalId);
         },
+        findActive: () => {
+            const terminalId = activeTerminalId();
+            if (terminalId) findInActiveTerminal(terminalId);
+        },
+        hasActive: () => Boolean(activeTerminalId()),
         restartActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) restartActiveTerminal(terminalId);
@@ -124,6 +130,14 @@ const commandContext: CommandContext = {
     updates: { check: checkForUpdates },
 };
 
+export function isCommandAvailable(
+    command: string,
+    context: CommandContext = commandContext,
+): boolean {
+    const definition = getRegisteredCommand(command);
+    return Boolean(definition && (!definition.when || definition.when(context)));
+}
+
 /**
  * Entry point for the palette, buttons, tabs, and the shortcut dispatcher. Looks the command up in
  * the registry populated by `./definitions`; an unknown id surfaces exactly one error toast instead
@@ -139,7 +153,7 @@ export function executeCommand(
         pushToast('error', `Unknown command: ${command}`);
         return;
     }
-    if (definition.when && !definition.when(context)) return;
+    if (!isCommandAvailable(command, context)) return;
     definition.run(context, args);
 }
 

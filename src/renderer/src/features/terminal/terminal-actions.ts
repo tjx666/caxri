@@ -7,6 +7,7 @@ import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
+import { openTerminalSearch } from './terminal-search';
 
 /** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
@@ -109,6 +110,10 @@ export function registerTerminalClearHandler(terminalId: string, handler: () => 
 
 export function clearActiveTerminal(terminalId: string): void {
     clearHandlers.get(terminalId)?.();
+}
+
+export function findInActiveTerminal(terminalId: string): void {
+    openTerminalSearch(terminalId);
 }
 
 /**

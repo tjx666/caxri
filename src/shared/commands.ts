@@ -84,6 +84,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'terminal', group: 0, order: 1 },
     },
     {
+        id: 'terminal.find',
+        title: 'Find in Terminal',
+        category: 'Terminal',
+        description: 'Search the active Terminal buffer',
+    },
+    {
         id: 'terminal.restart',
         title: 'Restart Terminal',
         category: 'Terminal',
@@ -245,6 +251,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+n', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
     { key: 'cmd+k', command: 'terminal.clear' },
+    { key: 'cmd+f', command: 'terminal.find' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
