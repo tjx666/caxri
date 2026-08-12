@@ -3,6 +3,8 @@ import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 
+import { assertIssueExpectationDriftReady, type IssueExpectationDrift } from './issue-drift';
+
 export const REQUIRED_HANDOFF_SECTIONS = [
     'delivery',
     'review',
@@ -21,6 +23,8 @@ const handoffEvidenceSchema = z.object({
     reviewDecisionCount: z.number().int().positive(),
     reviewLineageComplete: z.literal(true),
     reviewPolicyMode: z.enum(['full-once', 'quick', 'light']),
+    issueDriftAssessmentCount: z.number().int().nonnegative(),
+    issueDriftCommentCount: z.number().int().nonnegative(),
     validationRepairCount: z.number().int().nonnegative(),
 });
 
@@ -58,7 +62,13 @@ interface ReportContext {
     acceptance: { status: string; url: string | null; waiverReason?: string | null };
     ciFallback: { status: string };
     handoffReport: HandoffReportReceipt | null;
-    issues: Array<{ commits: string[]; number: number; title: string }>;
+    issues: Array<{
+        commits: string[];
+        expectationDrift: IssueExpectationDrift;
+        number: number;
+        status: string;
+        title: string;
+    }>;
     notes: {
         technical_debt: Array<{ text: string }>;
         token_waste: Array<{ text: string }>;
@@ -97,7 +107,7 @@ function bullets(values: string[], empty: string): string {
     return values.length > 0 ? values.map((value) => `- ${value}`).join('\n') : `- ${empty}`;
 }
 
-function buildHandoffEvidence(state: ReportContext) {
+function buildHandoffEvidence(state: ReportContext, headSha: string) {
     const baseline = state.reviewGate.rounds.find(
         ({ id }) => id === state.reviewGate.baselineReviewId,
     );
@@ -127,6 +137,9 @@ function buildHandoffEvidence(state: ReportContext) {
     if (state.runBudget.checkpoints.length === 0) {
         throw new Error('Handoff report requires at least one cost checkpoint');
     }
+    for (const issue of state.issues.filter(({ status }) => status !== 'deferred')) {
+        assertIssueExpectationDriftReady(issue, headSha);
+    }
     const commitFileMetrics = state.runBudget.checkpoints.some(
         ({ commitCount, fileCount }) =>
             commitCount !== 'unavailable' && fileCount !== 'unavailable',
@@ -137,6 +150,15 @@ function buildHandoffEvidence(state: ReportContext) {
         actionsUse: `hosted=${state.pullRequest.status}; localFallback=${state.ciFallback.status}`,
         commitFileMetrics,
         costCheckpointCount: state.runBudget.checkpoints.length,
+        issueDriftAssessmentCount: state.issues.filter(
+            ({ expectationDrift }) => expectationDrift.assessedAt !== null,
+        ).length,
+        issueDriftCommentCount: state.issues.reduce(
+            (count, { expectationDrift }) =>
+                count +
+                expectationDrift.records.filter(({ commentUrl }) => commentUrl !== null).length,
+            0,
+        ),
         reviewBaselineId: baseline.id,
         reviewDecisionCount: state.reviewGate.rounds.length,
         reviewLineageComplete: true,
@@ -146,11 +168,13 @@ function buildHandoffEvidence(state: ReportContext) {
 }
 
 export function buildHandoffReport(state: ReportContext, headSha: string): string {
-    const evidence = buildHandoffEvidence(state);
-    const issueLines = state.issues.map(
-        ({ commits, number, title }) =>
-            `#${number} ${title} (${commits.join(', ') || 'no commit'})`,
-    );
+    const evidence = buildHandoffEvidence(state, headSha);
+    const issueLines = state.issues.map(({ commits, expectationDrift, number, title }) => {
+        const comments = expectationDrift.records
+            .flatMap(({ commentUrl }) => (commentUrl ? [commentUrl] : []))
+            .join(', ');
+        return `#${number} ${title} (${commits.join(', ') || 'no commit'}); drift=${expectationDrift.status}${comments ? `; comments=${comments}` : ''}`;
+    });
     const reviewLines = state.reviewGate.rounds.map(
         ({ id, mode, parentReviewId, productP0, productP1, reviewedRange }) =>
             `${id}: ${mode}, range=${reviewedRange}, parent=${parentReviewId ?? 'baseline'}, product P0=${productP0}, product P1=${productP1}`,
@@ -252,7 +276,7 @@ export async function generateHandoffReport(
     }
     const markdown = buildHandoffReport(state, headSha);
     const sections = validateHandoffSections(markdown);
-    const evidence = buildHandoffEvidence(state);
+    const evidence = buildHandoffEvidence(state, headSha);
     const path = join(runDirectory, 'handoff-report.md');
     const temporary = `${path}.${process.pid}.tmp`;
     await writeFile(temporary, markdown, 'utf8');

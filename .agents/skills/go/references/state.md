@@ -28,6 +28,23 @@ bun run .agents/skills/go/scripts/state.ts issue \
   --state "$STATE" --number 42 --title "修复 Terminal 内边距" \
   --status progressing --priority P0 --check issue-42-terminal-inset
 
+# Record a non-material assessment without creating a GitHub comment.
+bun run .agents/skills/go/scripts/state.ts drift-assess \
+  --state "$STATE" --number 42 --head-sha abc1234 \
+  --kind internal_detail --drift-key final-assessment
+
+# Material drift requires the complete four-part Chinese decision record.
+bun run .agents/skills/go/scripts/state.ts drift-assess \
+  --state "$STATE" --number 42 --head-sha abc1234 \
+  --kind acceptance_change --drift-key terminal-evidence \
+  --expectation "原计划使用截图证明 Terminal 恢复。" \
+  --evidence "真实运行表明该行为只能由时序视频证明。" \
+  --decision "保持产品范围，改用视频证据。" \
+  --acceptance-impact "稳定检查 issue-42-terminal-inset 改用视频。"
+
+bun run .agents/skills/go/scripts/state.ts drift-comment \
+  --state "$STATE" --number 42 --record-id terminal-evidence-r1
+
 bun run .agents/skills/go/scripts/state.ts issue \
   --state "$STATE" --number 42 --status complete \
   --commit abc1234 --validation "focused test passed"
@@ -130,3 +147,8 @@ bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
   blocked when the guarded fallback passes.
 - Store raw logs in the run directories, not in `state.json`; never copy the
   Codex transcript into the run record.
+- Explicitly assess expectation drift for each issue commit. `detected` blocks
+  issue completion, PR readiness, and finalization until its comment URL is
+  recorded. `decision_required` remains blocked after commenting until a new
+  resolved decision revision is published. Identical resume attempts reuse the
+  existing comment URL and never post duplicates.

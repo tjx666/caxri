@@ -55,6 +55,9 @@ step-by-step workflows beyond this summary.
   light delta review; CI, fixture, evidence, gates, and remote-state checks are validation records,
   not additional review rounds. Persist and deliver the exact-head handoff report before waiting
   for human Acceptance, and require a delivered finalization receipt before completion.
+- Before completing a Go issue, explicitly assess whether implementation or evidence materially
+  differs from its public expectation. Publish material drift as a structured Simplified Chinese
+  issue comment; unresolved, unpublished, or stale assessments block PR readiness and finalization.
 - Caxri Acceptance has one product surface: isolated macOS Electron desktop. Command output and
   focused tests are supporting evidence only.
 - User-facing Acceptance prose uses Simplified Chinese. Keep code, identifiers, paths, commands,

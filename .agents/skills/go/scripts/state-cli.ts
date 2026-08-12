@@ -6,6 +6,12 @@ import {
 } from './ci-fallback';
 import { generateFinalization, recordFinalizationDelivery } from './finalization';
 import { generateHandoffReport, recordHandoffDelivery } from './handoff-report';
+import {
+    assessExpectationDrift,
+    driftKindSchema,
+    publishExpectationDriftComment,
+    publishExpectationDriftViaGh,
+} from './issue-drift';
 import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
 import {
     overrideReviewPolicy,
@@ -124,6 +130,10 @@ Commands:
            [--branch NAME]
   phase --state PATH --phase NAME [--reason TEXT]
   issue --state PATH --number N [--title TEXT] [--status STATUS] [--check ID]
+  drift-assess --state PATH --number N --head-sha SHA --kind KIND --drift-key KEY
+         [--expectation TEXT --evidence TEXT --decision TEXT --acceptance-impact TEXT]
+         [--decision-required]
+  drift-comment --state PATH --number N --record-id ID
   pr --state PATH [--number N] [--url URL] [--status STATUS] [--head-sha SHA]
   review-policy --state PATH --mode full-once|quick|light --source TEXT
   review --state PATH --head-sha SHA --mode full|quick|light --p0 N --p1 N
@@ -242,6 +252,32 @@ export async function runStateCli(argv: string[]): Promise<void> {
             title: one(options, 'title'),
             validations: many(options, 'validation'),
         });
+    } else if (command === 'drift-assess') {
+        const kind = driftKindSchema.parse(one(options, 'kind', true));
+        const assessment = assessExpectationDrift(state, {
+            acceptanceImpact: one(options, 'acceptance-impact'),
+            decision: one(options, 'decision'),
+            decisionRequired: options['decision-required'] === true,
+            driftKey: one(options, 'drift-key', true)!,
+            evidence: one(options, 'evidence'),
+            expectation: one(options, 'expectation'),
+            headSha: one(options, 'head-sha', true)!,
+            issueNumber: integer(options, 'number', true)!,
+            kind,
+        });
+        addEvent(
+            state,
+            'issue_drift',
+            `#${String(integer(options, 'number', true))} ${kind} -> ${assessment.record?.id ?? 'none'}`,
+        );
+    } else if (command === 'drift-comment') {
+        const issueNumber = integer(options, 'number', true)!;
+        const record = await publishExpectationDriftComment(
+            state,
+            { issueNumber, recordId: one(options, 'record-id', true)! },
+            publishExpectationDriftViaGh,
+        );
+        addEvent(state, 'issue_drift', `#${issueNumber} ${record.id} -> ${record.commentUrl}`);
     } else if (command === 'worktree') {
         recordWorktree(state, {
             baseSha: one(options, 'base-sha', true)!,

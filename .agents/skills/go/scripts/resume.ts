@@ -10,9 +10,17 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
         case 'planning':
             return 'Freeze the issue queue and Acceptance matrix, then create the Goal';
         case 'issue_execution':
-            return currentIssue
-                ? `Continue issue #${currentIssue.number}: ${currentIssue.title}`
-                : 'Transition to deep_review';
+            if (!currentIssue) return 'Transition to deep_review';
+            if (currentIssue.expectationDrift.status === 'detected') {
+                return `Publish the material expectation-drift comment for issue #${currentIssue.number}`;
+            }
+            if (currentIssue.expectationDrift.status === 'decision_required') {
+                return `Request the recorded scope decision for issue #${currentIssue.number}`;
+            }
+            if (!currentIssue.expectationDrift.assessedAt) {
+                return `Assess expectation drift for issue #${currentIssue.number}`;
+            }
+            return `Continue issue #${currentIssue.number}: ${currentIssue.title}`;
         case 'deep_review':
             if (state.reviewGate.frozenHeadSha)
                 return 'Transition the frozen review-clean head to delivery';
@@ -91,6 +99,13 @@ export function createResumeCheckpoint(state: GoState) {
         ...(state.validations.some(({ result }) => result === 'pending')
             ? ['A validation command has no final exit code']
             : []),
+        ...state.issues.flatMap(({ expectationDrift, number }) =>
+            expectationDrift.status === 'detected'
+                ? [`Issue #${number} has unpublished material expectation drift`]
+                : expectationDrift.status === 'decision_required'
+                  ? [`Issue #${number} expectation drift requires a user decision`]
+                  : [],
+        ),
     ];
     const lastTransition = state.events.findLast((event) => event.type === 'phase') ?? null;
     const workflowObservations = [
@@ -124,6 +139,7 @@ export function createResumeCheckpoint(state: GoState) {
                   number: currentIssue.number,
                   status: currentIssue.status,
                   title: currentIssue.title,
+                  expectationDrift: currentIssue.expectationDrift,
               }
             : null,
         lastTransition,

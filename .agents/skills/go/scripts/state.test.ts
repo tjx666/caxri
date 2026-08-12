@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createResumeCheckpoint } from './resume';
+import { assessExpectationDrift } from './issue-drift';
 import { recordReviewDecision } from './review-gate';
 import {
     createInitialState,
@@ -48,7 +49,14 @@ function readyDelivery(headSha = 'head-1') {
     const state = createInitialState({ objective: 'Test Go delivery', runId: 'state-test' });
     transitionState(state, 'planning');
     transitionState(state, 'issue_execution');
-    upsertIssue(state, { number: 111, status: 'complete', title: 'Improve Go' });
+    upsertIssue(state, { number: 111, status: 'progressing', title: 'Improve Go' });
+    assessExpectationDrift(state, {
+        driftKey: 'final-assessment',
+        headSha,
+        issueNumber: 111,
+        kind: 'internal_detail',
+    });
+    upsertIssue(state, { commits: [headSha], number: 111, status: 'complete' });
     transitionState(state, 'deep_review');
     freezeReview(state, headSha);
     transitionState(state, 'delivery');
@@ -71,6 +79,8 @@ function attachReport(
             actionsUse: 'hosted=ready; localFallback=not_requested',
             commitFileMetrics: 'unavailable',
             costCheckpointCount: state.runBudget.checkpoints.length || 1,
+            issueDriftAssessmentCount: 1,
+            issueDriftCommentCount: 0,
             reviewBaselineId: 'review-001',
             reviewDecisionCount: 1,
             reviewLineageComplete: true,
@@ -227,7 +237,13 @@ describe('Go state ledger', () => {
         transitionState(state, 'deep_review');
 
         expect(() => validateState(state)).toThrow('unfinished issues #111');
-        upsertIssue(state, { number: 111, status: 'complete' });
+        assessExpectationDrift(state, {
+            driftKey: 'final-assessment',
+            headSha: 'head-1',
+            issueNumber: 111,
+            kind: 'internal_detail',
+        });
+        upsertIssue(state, { commits: ['head-1'], number: 111, status: 'complete' });
         expect(() => transitionState(state, 'delivery')).toThrow(
             'explicitly frozen review-clean head',
         );
@@ -304,6 +320,27 @@ describe('Go state ledger', () => {
         expect(() => transitionState(state, 'merge')).toThrow('generated handoff report');
         attachReport(state);
         expect(() => transitionState(state, 'merge')).not.toThrow();
+    });
+
+    it('blocks Acceptance handoff when drift is detected after PR readiness', () => {
+        const state = readyDelivery();
+        recordAcceptance(state, {
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'No product or UI behavior changed.',
+        });
+        assessExpectationDrift(state, {
+            acceptanceImpact: '原验证计划需要增加一条稳定检查。',
+            decision: '保留冻结范围，并在继续交付前记录实现决定。',
+            driftKey: 'late-discovery',
+            evidence: 'PR ready 后发现原架构假设不完整。',
+            expectation: '原预期认为现有状态门禁已经覆盖所有恢复路径。',
+            headSha: 'head-1',
+            issueNumber: 111,
+            kind: 'partial_root_cause',
+        });
+
+        expect(() => transitionState(state, 'acceptance_handoff')).toThrow('without a comment');
     });
 
     it('cannot complete without delivered handoff and finalization receipts', () => {
@@ -403,7 +440,7 @@ describe('Go state ledger', () => {
             acceptance: { id: 'acc-legacy', waivedHeadSha: null },
             handoffReport: null,
             phase: 'acceptance_handoff',
-            schemaVersion: 6,
+            schemaVersion: 7,
         });
         expect(
             migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
@@ -436,9 +473,32 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 6,
+            schemaVersion: 7,
             validationBudget: { fullElectronE2eRuns: [] },
         });
+    });
+
+    it('requires resumed v6 work to assess drift while preserving completed history', () => {
+        const current = createInitialState({ objective: 'Resume v6 ledger', runId: 'legacy-v6' });
+        upsertIssue(current, { number: 113, status: 'progressing', title: 'Track drift' });
+        upsertIssue(current, { number: 112, status: 'progressing', title: 'Preserve history' });
+        current.issues[1].commits.push('legacy-head');
+        current.issues[1].status = 'complete';
+        const legacy = { ...current, schemaVersion: 6 } as Record<string, unknown>;
+        legacy.issues = current.issues.map((issue) => {
+            const legacyIssue: Record<string, unknown> = { ...issue };
+            delete legacyIssue.expectationDrift;
+            return legacyIssue;
+        });
+
+        const resumed = validateState(legacy);
+        expect(resumed.issues[0].expectationDrift).toEqual({
+            assessedAt: null,
+            assessmentHeadSha: null,
+            records: [],
+            status: 'none',
+        });
+        expect(resumed.issues[1].expectationDrift.assessedAt).toBe('legacy-unavailable');
     });
 
     it('does not overwrite an existing run ledger', async () => {

@@ -13,12 +13,14 @@ import {
     recordHandoffDelivery,
     verifyHandoffReportArtifact,
 } from './handoff-report';
+import { assessExpectationDrift } from './issue-drift';
 import { recordReviewDecision } from './review-gate';
 import { recordCostCheckpoint } from './run-budget';
 import { createInitialState, upsertIssue } from './state';
 
 function reportState(runId: string) {
     const state = createInitialState({ objective: 'Persist report', runId });
+    completeIssue(state, 113, 'Track issue drift');
     state.phase = 'deep_review';
     state.status = 'active';
     recordReviewDecision(state, {
@@ -44,6 +46,21 @@ function reportState(runId: string) {
         url: 'https://github.com/tjx666/caxri/pull/120',
     };
     return state;
+}
+
+function completeIssue(
+    state: ReturnType<typeof createInitialState>,
+    number: number,
+    title: string,
+) {
+    upsertIssue(state, { number, status: 'progressing', title });
+    assessExpectationDrift(state, {
+        driftKey: 'final-assessment',
+        headSha: 'head-1',
+        issueNumber: number,
+        kind: 'internal_detail',
+    });
+    upsertIssue(state, { commits: ['head-1'], number, status: 'complete' });
 }
 
 describe('Go persisted handoff artifacts', () => {
@@ -138,8 +155,8 @@ describe('Go persisted handoff artifacts', () => {
         });
         state.phase = 'finalization';
         state.status = 'active';
-        upsertIssue(state, { number: 107, status: 'complete', title: 'CI retries' });
-        upsertIssue(state, { number: 111, status: 'complete', title: 'Go state' });
+        completeIssue(state, 107, 'CI retries');
+        completeIssue(state, 111, 'Go state');
         upsertIssue(state, { number: 103, status: 'deferred', title: 'Tart spike' });
         state.pullRequest = { headSha: 'head-1', number: 120, status: 'merged', url: null };
         state.acceptance = {
@@ -172,8 +189,8 @@ describe('Go persisted handoff artifacts', () => {
         const state = createInitialState({ objective: 'Finalize Goal', runId: 'finalization-gap' });
         state.phase = 'finalization';
         state.status = 'active';
-        upsertIssue(state, { number: 107, status: 'complete', title: 'CI retries' });
-        upsertIssue(state, { number: 111, status: 'complete', title: 'Go state' });
+        completeIssue(state, 107, 'CI retries');
+        completeIssue(state, 111, 'Go state');
         state.pullRequest = { headSha: 'head-1', number: 120, status: 'merged', url: null };
         state.acceptance = {
             ...state.acceptance,
@@ -191,11 +208,76 @@ describe('Go persisted handoff artifacts', () => {
         ).rejects.toThrow('must match every intended ledger issue');
     });
 
+    it('rejects finalization when completed issue drift was discovered but not commented', async () => {
+        const state = createInitialState({ objective: 'Finalize Goal', runId: 'final-drift-gap' });
+        state.phase = 'finalization';
+        state.status = 'active';
+        completeIssue(state, 111, 'Go state');
+        assessExpectationDrift(state, {
+            acceptanceImpact: '稳定检查 `go-complete-gate` 必须增加新的评论证据。',
+            decision: '先公开当前差异，再继续最终关闭流程。',
+            driftKey: 'late-drift',
+            evidence: '远端核验发现原 issue 的验收证据已不再成立。',
+            expectation: '原预期认为已有测试证据足以关闭 issue。',
+            headSha: 'head-1',
+            issueNumber: 111,
+            kind: 'acceptance_change',
+        });
+        state.pullRequest = { headSha: 'head-1', number: 120, status: 'merged', url: null };
+        state.acceptance = {
+            ...state.acceptance,
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'No product behavior changed.',
+        };
+
+        await expect(
+            generateFinalization(state, directory, {
+                headSha: 'head-1',
+                issues: [{ number: 111, projectStatus: 'Done', state: 'CLOSED' }],
+                mergeSha: 'merge-1',
+            }),
+        ).rejects.toThrow('without a comment');
+    });
+
+    it('blocks finalization delivery when drift appears after receipt generation', async () => {
+        const state = createInitialState({ objective: 'Finalize Goal', runId: 'final-drift-late' });
+        state.phase = 'finalization';
+        state.status = 'active';
+        completeIssue(state, 111, 'Go state');
+        state.pullRequest = { headSha: 'head-1', number: 120, status: 'merged', url: null };
+        state.acceptance = {
+            ...state.acceptance,
+            status: 'waived',
+            waivedHeadSha: 'head-1',
+            waiverReason: 'No product behavior changed.',
+        };
+        await generateFinalization(state, directory, {
+            headSha: 'head-1',
+            issues: [{ number: 111, projectStatus: 'Done', state: 'CLOSED' }],
+            mergeSha: 'merge-1',
+        });
+        assessExpectationDrift(state, {
+            acceptanceImpact: '稳定检查 `go-complete-gate` 需要增加新的评论证据。',
+            decision: '公开当前差异后再交付最终回执。',
+            driftKey: 'post-receipt-drift',
+            evidence: '最终远端回读发现原证据不再成立。',
+            expectation: '原预期认为生成 receipt 后状态不会再变化。',
+            headSha: 'head-1',
+            issueNumber: 111,
+            kind: 'acceptance_change',
+        });
+
+        await expect(recordFinalizationDelivery(state, directory)).rejects.toThrow(
+            'without a comment',
+        );
+    });
+
     it('does not follow a symlinked finalization receipt', async () => {
         const state = createInitialState({ objective: 'Finalize Goal', runId: 'final-symlink' });
         state.phase = 'finalization';
         state.status = 'active';
-        upsertIssue(state, { number: 111, status: 'complete', title: 'Go state' });
+        completeIssue(state, 111, 'Go state');
         state.pullRequest = { headSha: 'head-1', number: 120, status: 'merged', url: null };
         state.acceptance = {
             ...state.acceptance,
