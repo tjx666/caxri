@@ -4,6 +4,21 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      e2e_profile:
+        description: Full-suite profile for hosted control or optimized A/B runs
+        required: true
+        default: skip
+        type: choice
+        options: [skip, control, optimized]
+      eslint_concurrency:
+        description: ESLint concurrency for hosted A/B runs
+        required: true
+        default: 'off'
+        type: choice
+        options: ['off', '2', auto]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -15,7 +30,10 @@ permissions:
 
 jobs:
   retry-policy:
-    name: retry-policy / pr-${{ github.event.pull_request.number || 0 }} / base-${{ github.event.pull_request.base.sha || '0000000000000000000000000000000000000000' }}
+    name: >-
+      ${{ github.event_name == 'pull_request'
+        && format('retry-policy / pr-{0} / base-{1}', github.event.pull_request.number, github.event.pull_request.base.sha)
+        || format('retry-policy / {0}', github.ref_name) }}
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.policy.outputs.mode }}
@@ -23,6 +41,10 @@ jobs:
       base_run: ${{ steps.policy.outputs.base_run }}
       validated_tree: ${{ steps.policy.outputs.validated_tree }}
       e2e_tests: ${{ steps.policy.outputs.e2e_tests }}
+      checks_scope: ${{ steps.policy.outputs.checks_scope }}
+      run_e2e: ${{ steps.policy.outputs.run_e2e }}
+      e2e_profile: ${{ steps.policy.outputs.e2e_profile }}
+      changed_files: ${{ steps.policy.outputs.changed_files }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -32,7 +54,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: oven-sh/setup-bun@v2
       - id: policy
-        name: Resolve exact-tree retry policy
+        name: Resolve exact-tree retry and execution policy
         run: bun run scripts/ci-retry-policy.ts
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -43,6 +65,8 @@ jobs:
     # Platform-neutral gates stay on Linux so private-repository macOS minutes are reserved for
     # Electron behavior and release validation that actually depend on macOS.
     runs-on: ubuntu-latest
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,19 +77,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          package-manager-cache: false
       - uses: oven-sh/setup-bun@v2
       - name: Restore npm cache
+        id: npm-cache
         uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-${{ hashFiles('package-lock.json') }}
           restore-keys: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-
-      - name: Use repository-pinned npm
-        run: |
-          npm install --global npm@12.0.2
-          test "$(npm --version)" = "12.0.2"
-      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Restore Electron download cache
+        id: electron-cache
+        uses: actions/cache@v5
+        with:
+          path: .cache/electron-download
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
       - name: Restore quality caches
+        id: quality-cache
         uses: actions/cache@v5
         with:
           path: |
@@ -73,33 +101,73 @@ jobs:
             .cache/prettier
           key: quality-${{ runner.os }}-${{ hashFiles('eslint.config.ts', '.prettierrc', '.prettierignore') }}-${{ hashFiles('package-lock.json', 'package.json') }}
           restore-keys: quality-${{ runner.os }}-${{ hashFiles('eslint.config.ts', '.prettierrc', '.prettierignore') }}-
-      - run: bun run lint
-      - run: bun run knip
-      - run: bun run doctor:changed
+      - name: Report cache state
+        run: |
+          {
+            echo "## Cache state (Linux checks)"
+            echo
+            echo "| Cache | Hit |"
+            echo "| --- | --- |"
+            echo "| npm | ${{ steps.npm-cache.outputs.cache-hit || 'false' }} |"
+            echo "| Electron | ${{ steps.electron-cache.outputs.cache-hit || 'false' }} |"
+            echo "| ESLint / Prettier | ${{ steps.quality-cache.outputs.cache-hit || 'false' }} |"
+            echo
+            echo "## Command metrics"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Use repository-pinned npm
+        run: |
+          bun run scripts/ci-metrics.ts --label "Install pinned npm" -- npm install --global npm@12.0.2
+          test "$(npm --version)" = "12.0.2"
+      - name: Install dependency tree without lifecycle scripts
+        run: bun run scripts/ci-metrics.ts --label "npm registry, unpack, and link" -- npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+      - name: Install Electron binary
+        if: needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source'
+        run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
+      - name: Rebuild Electron native modules
+        if: needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source'
+        run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild
+      - name: Run focused changed-file checks
+        if: needs.retry-policy.outputs.checks_scope != 'full'
+        env:
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+          CI_CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
+        run: bun run scripts/run-ci-focused-checks.ts
+      - name: Run ESLint
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        env:
+          ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
+        run: bun run scripts/ci-metrics.ts --label "ESLint concurrency=${ESLINT_CONCURRENCY}" -- bun run lint --concurrency "$ESLINT_CONCURRENCY"
+      - if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run knip
+      - if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run doctor:changed
         env:
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-      - run: bun run typecheck
-      - run: bun run format:check
-      - run: bun run test
-      - run: bun run build
+      - if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run typecheck
+      - if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run format:check
+      - if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run test
+      - if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run build
 
   e2e:
     needs: [retry-policy, checks]
     if: >-
       always() &&
       needs.retry-policy.result == 'success' &&
+      needs.retry-policy.outputs.run_e2e == 'true' &&
       (
-        ((needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') && github.event_name == 'pull_request') ||
+        (needs.retry-policy.outputs.mode == 'full' && needs.checks.result == 'success') ||
         (
-          needs.retry-policy.outputs.mode == 'full' &&
-          needs.checks.result == 'success' &&
-          (
-            github.event_name == 'pull_request' ||
-            (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
-          )
+          (needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') &&
+          needs.checks.result == 'skipped'
         )
       )
     runs-on: macos-latest
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
     steps:
       - uses: actions/checkout@v7
         with:
@@ -109,30 +177,65 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          package-manager-cache: false
       - uses: oven-sh/setup-bun@v2
       - name: Restore npm cache
+        id: npm-cache
         uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-${{ hashFiles('package-lock.json') }}
           restore-keys: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-
-      - name: Use repository-pinned npm
-        run: |
-          npm install --global npm@12.0.2
-          test "$(npm --version)" = "12.0.2"
       - name: Restore Electron download cache
+        id: electron-cache
         uses: actions/cache@v5
         with:
-          path: ~/Library/Caches/electron
+          path: .cache/electron-download
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Report cache state
+        run: |
+          {
+            echo "## Cache state (macOS E2E)"
+            echo
+            echo "| Cache | Hit |"
+            echo "| --- | --- |"
+            echo "| npm | ${{ steps.npm-cache.outputs.cache-hit || 'false' }} |"
+            echo "| Electron | ${{ steps.electron-cache.outputs.cache-hit || 'false' }} |"
+            echo
+            echo "## Command metrics"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Use repository-pinned npm
+        run: |
+          bun run scripts/ci-metrics.ts --label "Install pinned npm" -- npm install --global npm@12.0.2
+          test "$(npm --version)" = "12.0.2"
+      - name: Install dependency tree without lifecycle scripts
+        run: bun run scripts/ci-metrics.ts --label "npm registry, unpack, and link" -- npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+      - name: Install Electron binary
+        run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
+      - name: Rebuild Electron native modules
+        run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild
       - run: bun run build
       - name: Run focused repair specs
         if: needs.retry-policy.outputs.mode == 'e2e-repair'
         env:
           CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
         run: bun run scripts/run-e2e-repair.ts
-      - run: bunx playwright test
+      - name: Run one-worker control suite
+        if: needs.retry-policy.outputs.e2e_profile == 'control'
+        env:
+          CAXRI_E2E_OUTPUT_DIR: test-results/control
+        run: bun run scripts/ci-metrics.ts --label "Playwright control workers=1" -- bunx playwright test --workers=1
+      - name: Prove desktop worker interruption recovery
+        if: needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Desktop worker interruption recovery" --
+          bun run scripts/run-e2e-failure-isolation.ts
+      - name: Run isolated optimized pools
+        if: needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: bun run scripts/ci-metrics.ts --label "Playwright optimized pools" -- bun run scripts/run-e2e-pools.ts
+      - name: Run deterministic hosted-parity cases
+        if: github.event_name == 'workflow_dispatch'
+        run: bun run scripts/ci-metrics.ts --label "Hosted parity workers=1 repeat=3" -- bun run scripts/run-hosted-parity.ts
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
@@ -153,17 +256,19 @@ jobs:
       - name: Verify required execution path
         env:
           CHECKS_RESULT: ${{ needs.checks.result }}
+          CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
           E2E_RESULT: ${{ needs.e2e.result }}
           MODE: ${{ needs.retry-policy.outputs.mode }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
-          SHOULD_RUN_E2E: >-
-            ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v')) }}
+          SHOULD_RUN_E2E: ${{ needs.retry-policy.outputs.run_e2e }}
         run: |
           test "$RETRY_POLICY_RESULT" = success
           if test "$MODE" = full; then
+            test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
             test "$CHECKS_RESULT" = success
           else
             test "$MODE" = e2e-only || test "$MODE" = e2e-repair
+            test "$CHECKS_SCOPE" = skipped
             test "$CHECKS_RESULT" = skipped
           fi
           if test "$SHOULD_RUN_E2E" = true; then

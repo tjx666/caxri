@@ -17,6 +17,8 @@ export interface FakeAgentDefinition {
     startupOutput?: string;
     /** Optional raw input capture used by tests that assert Terminal input mappings. */
     inputCapture?: FakeAgentInputCapture;
+    /** Delays raw mode and its ready marker to reproduce a slow hosted PTY startup boundary. */
+    readinessDelayMs?: number;
 }
 
 export interface FakeAgentMode {
@@ -51,12 +53,12 @@ if (process.argv.includes('--version')) {
   process.stdout.write(${JSON.stringify(`caxri-fake-${provider} 1.0.0\n`)});
   process.exit(0);
 }
-process.stdin.setRawMode?.(true);
-process.stdin.resume();
-process.stdout.write(${JSON.stringify(definition.startupOutput ?? `Fake ${provider} ready\r\n`)});
-${
-    capture
-        ? `process.stdin.on('data', (chunk) => {
+function becomeReady() {
+  process.stdin.setRawMode?.(true);
+  process.stdin.resume();
+  ${
+      capture
+          ? `process.stdin.on('data', (chunk) => {
   ${
       capture.encoding === 'raw'
           ? `fs.appendFileSync(${JSON.stringify(capture.path)}, chunk);`
@@ -65,8 +67,11 @@ ${
   ${capture.echoPrefix ? `process.stdout.write(${JSON.stringify(capture.echoPrefix)} + value + '\\r\\n');` : ''}`
   }
 });`
-        : ''
+          : ''
+  }
+  process.stdout.write(${JSON.stringify(definition.startupOutput ?? `Fake ${provider} ready\r\n`)});
 }
+${definition.readinessDelayMs ? `setTimeout(becomeReady, ${definition.readinessDelayMs});` : 'becomeReady();'}
 `;
 }
 
@@ -97,6 +102,14 @@ export async function createFakeAgentMode(options: {
     for (const [provider, definition] of Object.entries(options.providers) as Array<
         [AgentProvider, FakeAgentDefinition]
     >) {
+        if (
+            definition.readinessDelayMs !== undefined &&
+            (!Number.isInteger(definition.readinessDelayMs) ||
+                definition.readinessDelayMs < 1 ||
+                definition.readinessDelayMs > 5_000)
+        ) {
+            throw new RangeError('Fake Agent readiness delay must be an integer from 1 to 5000ms');
+        }
         const executable = join(bin, provider);
         await writeFile(
             executable,

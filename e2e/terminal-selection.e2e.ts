@@ -109,41 +109,61 @@ async function terminalIds(page: Page): Promise<string[]> {
 
 test('Terminal selection copies exact text and stays isolated across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
-    const userData = join(testDirectory, 'user-data');
-    const root = join(testDirectory, 'project');
+    const hostedParity = process.env.CAXRI_HOSTED_PARITY_CASE === 'long-path-wrapped-terminal';
+    const longPath = hostedParity
+        ? join(
+              'hosted-parity-path-segment-0123456789',
+              'another-long-path-segment-0123456789',
+              'final-long-path-segment-0123456789',
+          )
+        : '';
+    const userData = join(testDirectory, longPath, 'user-data');
+    const root = join(testDirectory, longPath, 'project');
     const multilineOutput = join(testDirectory, 'multiline-output.sh');
     const splitOutput = join(testDirectory, 'split-output.sh');
     const splitText = 'PANE_TWO';
-    await mkdir(root);
+    const firstLine = hostedParity
+        ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END`
+        : 'FIRST Ω 中';
+    const lastLine = 'SECOND  spaced text';
+    await mkdir(root, { recursive: true });
     await Promise.all([
-        writeFile(multilineOutput, "#!/bin/sh\nprintf 'FIRST Ω 中\\nSECOND  spaced text\\n'\n"),
+        writeFile(multilineOutput, `#!/bin/sh\nprintf '${firstLine}\\n${lastLine}\\n'\n`),
         writeFile(splitOutput, `#!/bin/sh\nprintf '${splitText}\\n'\n`),
     ]);
     await Promise.all([chmod(multilineOutput, 0o700), chmod(splitOutput, 0o700)]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
+        if (hostedParity) {
+            await running.app.evaluate(({ BrowserWindow }) =>
+                BrowserWindow.getAllWindows()[0]?.setBounds({ width: 720, height: 640 }),
+            );
+        }
         await createShellSession(running.page);
         const firstTerminalId = (await terminalIds(running.page))[0];
         await typeInTerminal(running.page, firstTerminalId, multilineOutput);
         const firstRows = running.page.locator(
             `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
         );
-        await expect(firstRows).toContainText('FIRST Ω 中');
-        await expect(firstRows).toContainText('SECOND  spaced text');
+        await expect(firstRows).toContainText(firstLine);
+        await expect(firstRows).toContainText(lastLine);
+        if (hostedParity) {
+            const wrappedBounds = await terminalTextBounds(
+                running.page,
+                firstTerminalId,
+                firstLine,
+            );
+            expect(wrappedBounds.end.y).toBeGreaterThan(wrappedBounds.start.y);
+        }
         await running.app.evaluate(({ clipboard }) => clipboard.writeText('BEFORE_SELECTION'));
-        await selectTerminalText(
-            running.page,
-            firstTerminalId,
-            'FIRST Ω 中',
-            'SECOND  spaced text',
-        );
+        await selectTerminalText(running.page, firstTerminalId, firstLine, lastLine);
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
-            .toBe('FIRST Ω 中\nSECOND  spaced text');
+            .toBe(`${firstLine}\n${lastLine}`);
 
         await running.app.evaluate(({ clipboard }) => clipboard.writeText('KEEP_ON_EMPTY'));
-        const firstBounds = await terminalTextBounds(running.page, firstTerminalId, 'FIRST Ω 中');
+        const firstBounds = await terminalTextBounds(running.page, firstTerminalId, firstLine);
         await running.page.mouse.click(
             firstBounds.start.x + 2,
             firstBounds.start.y + firstBounds.start.height / 2,

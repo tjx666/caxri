@@ -1,6 +1,8 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 
+import { evaluateCIExecutionPlan, type CIExecutionPlan } from './ci-execution-plan';
+
 export interface RetryHint {
     baseRunId: number;
     e2eTests?: string[];
@@ -47,7 +49,9 @@ const protectedPathPatterns = [
     /^(?:package|package-lock)\.json$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/ci-retry-policy\.ts$/,
+    /^scripts\/(?:ci-execution-plan|ci-metrics|ci-retry-policy|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-hosted-parity)\.ts$/,
+    /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
+    /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
     /^\.agents\/skills\/(?:build|release)\//,
     /^build\//,
@@ -171,6 +175,10 @@ async function capture(command: string, args: string[]): Promise<string> {
     });
 }
 
+function nullSeparatedPaths(value: string): string[] {
+    return value.split('\0').filter(Boolean);
+}
+
 async function githubJson(path: string): Promise<unknown> {
     const api = process.env.GITHUB_API_URL ?? 'https://api.github.com';
     const response = await fetch(`${api}${path}`, {
@@ -224,7 +232,11 @@ async function loadBaseRun(repository: string, runId: number): Promise<BaseRunEv
     };
 }
 
-async function writeDecision(decision: RetryPolicyDecision): Promise<void> {
+async function writeDecision(
+    decision: RetryPolicyDecision,
+    execution: CIExecutionPlan,
+    changedFiles: readonly string[],
+): Promise<void> {
     const output = process.env.GITHUB_OUTPUT;
     const summary = process.env.GITHUB_STEP_SUMMARY;
     const reason = decision.reason.replace(/[\r\n]+/gu, ' ');
@@ -237,13 +249,17 @@ async function writeDecision(decision: RetryPolicyDecision): Promise<void> {
                 `base_run=${decision.baseRunId ?? ''}`,
                 `validated_tree=${decision.validatedTree ?? ''}`,
                 `e2e_tests=${JSON.stringify(decision.e2eTests ?? [])}`,
+                `checks_scope=${execution.checksScope}`,
+                `run_e2e=${String(execution.runE2E)}`,
+                `e2e_profile=${execution.e2eProfile}`,
+                `changed_files=${JSON.stringify(changedFiles)}`,
             ].join('\n') + '\n',
         );
     }
     if (summary) {
         await appendFile(
             summary,
-            `## CI retry policy\n\n- Mode: \`${decision.mode}\`\n- Reason: ${reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n`,
+            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Changed files: ${changedFiles.length}\n`,
         );
     }
     process.stdout.write(`${JSON.stringify(decision)}\n`);
@@ -254,62 +270,91 @@ async function main(): Promise<void> {
     const repository = process.env.GITHUB_REPOSITORY ?? '';
     if (!eventPath || !repository) throw new Error('GitHub Actions environment is required');
     const event = JSON.parse(await readFile(eventPath, 'utf8')) as {
+        before?: string;
+        inputs?: { e2e_profile?: 'control' | 'optimized' | 'skip' };
         pull_request?: {
             base?: { sha?: string };
+            draft?: boolean;
             number?: number;
         };
     };
-    const parsed = parseRetryHint(await capture('git', ['log', '-1', '--format=%B']));
+    const [commitMessage, commitSubject, packageManifest] = await Promise.all([
+        capture('git', ['log', '-1', '--format=%B']),
+        capture('git', ['log', '-1', '--format=%s']),
+        readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    ]);
+    const parsed = parseRetryHint(commitMessage);
+    const comparisonBase =
+        event.pull_request?.base?.sha ??
+        (event.before && !/^0{40}$/u.test(event.before) ? event.before : undefined);
+    const allChangedFiles = comparisonBase
+        ? nullSeparatedPaths(
+              await capture('git', ['diff', '--name-only', '-z', `${comparisonBase}...HEAD`]),
+          )
+        : [];
     let baseRun: BaseRunEvidence | undefined;
     let isAncestor = false;
-    let changedFiles: string[] = [];
+    let retryChangedFiles: string[] = [];
     let baseRunChangedFiles: string[] = [];
     if (parsed.hint) {
         try {
             baseRun = await loadBaseRun(repository, parsed.hint.baseRunId);
             await capture('git', ['merge-base', '--is-ancestor', baseRun.headSha, 'HEAD']);
             isAncestor = true;
-            changedFiles = (
-                await capture('git', ['diff', '--name-only', `${baseRun.headSha}...HEAD`])
-            )
-                .split('\n')
-                .filter(Boolean);
-            baseRunChangedFiles = (
+            retryChangedFiles = nullSeparatedPaths(
+                await capture('git', ['diff', '--name-only', '-z', `${baseRun.headSha}...HEAD`]),
+            );
+            baseRunChangedFiles = nullSeparatedPaths(
                 await capture('git', [
                     'diff',
                     '--name-only',
+                    '-z',
                     `${event.pull_request?.base?.sha ?? ''}...${baseRun.headSha}`,
-                ])
-            )
-                .split('\n')
-                .filter(Boolean);
+                ]),
+            );
         } catch (error) {
             parsed.error = `verification failed: ${error instanceof Error ? error.message : String(error)}`;
         }
     }
-    await writeDecision(
-        evaluateRetryPolicy({
-            baseRun,
-            baseRunChangedFiles,
-            changedFiles,
-            currentTree: await capture('git', ['rev-parse', 'HEAD^{tree}']),
-            eventName: process.env.GITHUB_EVENT_NAME ?? '',
-            hint: parsed.hint,
-            hintError: parsed.error,
-            isAncestor,
-            pullRequestBaseSha: event.pull_request?.base?.sha,
-            pullRequestNumber: event.pull_request?.number,
-            repository,
-            workflowPath: '.github/workflows/ci.yml',
-        }),
-    );
+    const retryDecision = evaluateRetryPolicy({
+        baseRun,
+        baseRunChangedFiles,
+        changedFiles: retryChangedFiles,
+        currentTree: await capture('git', ['rev-parse', 'HEAD^{tree}']),
+        eventName: process.env.GITHUB_EVENT_NAME ?? '',
+        hint: parsed.hint,
+        hintError: parsed.error,
+        isAncestor,
+        pullRequestBaseSha: event.pull_request?.base?.sha,
+        pullRequestNumber: event.pull_request?.number,
+        repository,
+        workflowPath: '.github/workflows/ci.yml',
+    });
+    const packageVersion = (JSON.parse(packageManifest) as { version?: string }).version;
+    const execution = evaluateCIExecutionPlan({
+        changedFiles: allChangedFiles,
+        dispatchE2EProfile: event.inputs?.e2e_profile,
+        eventName: process.env.GITHUB_EVENT_NAME ?? '',
+        isReleaseCommit:
+            typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`,
+        pullRequestDraft: event.pull_request?.draft,
+        retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,
+    });
+    await writeDecision(retryDecision, execution, allChangedFiles);
 }
 
 if (import.meta.main) {
     await main().catch(async (error) => {
-        await writeDecision({
-            mode: 'full',
-            reason: `policy evaluation failed closed: ${error instanceof Error ? error.message : String(error)}`,
-        });
+        const reason = `policy evaluation failed closed: ${error instanceof Error ? error.message : String(error)}`;
+        await writeDecision(
+            { mode: 'full', reason },
+            {
+                checksScope: 'full',
+                e2eProfile: 'control',
+                reason,
+                runE2E: true,
+            },
+            [],
+        );
     });
 }
