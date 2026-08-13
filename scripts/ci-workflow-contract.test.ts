@@ -66,6 +66,14 @@ describe('CI workflow contract', () => {
         expect(workflow.match(/rebuild-native:/gu)).toHaveLength(2);
     });
 
+    it('always tears down the self-hosted boundary, including a partial setup failure', () => {
+        expect(workflow.match(/name: Clean self-hosted runner boundary/gu)).toHaveLength(3);
+        expect(
+            workflow.match(/name: Clean self-hosted runner boundary\n {8}if: always\(\)/gu),
+        ).toHaveLength(3);
+        expect(workflow).not.toContain("steps.setup.outputs.prepared == 'true'");
+    });
+
     it('recovers an empty persistent Prettier cache before reuse', async () => {
         const cacheStep = setupActionDocument.runs.steps.find(
             (step) => step.name === 'Configure runner-local caches',
@@ -208,7 +216,9 @@ describe('CI workflow contract', () => {
         expect(workflow.match(/CAXRI_RUNNER_AGENT_DISCOVERY: blocked/gu)).toHaveLength(3);
         expect(checksJob).not.toContain('CAXRI_E2E_AGENT_MODE');
         expect(e2eJob).toContain('CAXRI_E2E_AGENT_MODE: blocked');
-        expect(workflow.match(/steps\.setup\.outputs\.prepared == 'true'/gu)).toHaveLength(3);
+        expect(
+            workflow.match(/name: Clean self-hosted runner boundary\n {8}if: always\(\)/gu),
+        ).toHaveLength(3);
         expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
     });
 });

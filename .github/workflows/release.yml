@@ -130,5 +130,5 @@ jobs:
             --generate-notes \
             --fail-on-no-commits
       - name: Clean self-hosted runner boundary
-        if: always() && steps.setup.outputs.prepared == 'true'
+        if: always()
         run: bun run scripts/self-hosted-runner.ts cleanup
