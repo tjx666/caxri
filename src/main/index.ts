@@ -54,7 +54,7 @@ import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
 import { RuntimeSupervisor } from './supervisor';
 import { createTestRootPathResolver } from './test-root';
-import { UpdateService } from './updates';
+import { shouldStartAutomaticUpdateCheck, UpdateService } from './updates';
 import { resolveE2EWindowMode } from './window-mode';
 import { createWindowCloseHandler } from './window-close';
 
@@ -218,7 +218,13 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             durationMs: performance.now() - bootStartedAt,
         });
         if (e2eWindowMode === 'visible') window.show();
-        if (app.isPackaged && !automaticUpdateCheckStarted) {
+        if (
+            shouldStartAutomaticUpdateCheck({
+                alreadyStarted: automaticUpdateCheckStarted,
+                isE2E: process.env.CAXRI_E2E === '1',
+                isPackaged: app.isPackaged,
+            })
+        ) {
             automaticUpdateCheckStarted = true;
             /** Update discovery stays off the awaited startup path and never delays the first window. */
             void updateService.check();

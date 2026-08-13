@@ -7,6 +7,19 @@
 
 Use `electron-vite` for separate Main, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
+The root remains the private npm workspace owner and the only lockfile owner. `packages/protocol`
+owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
+may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop
+source stays under `src/`; introducing workspaces is not an application-directory migration.
+Day-to-day commands continue through `ni` and `bun run`, and `packageManager` remains pinned to npm
+because electron-builder uses npm's dependency layout and `install-app-deps` behavior.
+
+Workspace builds run before the Desktop build. electron-builder excludes the development workspace
+links from its broad `node_modules` input; a workspace artifact enters the app only through an
+explicit Desktop build or packaging entry. This prevents npm symlink traversal from accidentally
+shipping the standalone CLI while preserving the hoisted native dependency locations and ASAR
+unpack rules.
+
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Preload, and Runtime remain on their existing Node-oriented transforms.
 
 Electron Forge's official Vite plugin remains explicitly experimental and provides no API-stability guarantee. `electron-vite` documents Electron `utilityProcess`, externalizes production/native dependencies, and fits the required process model.

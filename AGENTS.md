@@ -14,6 +14,9 @@
 - Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions except for the guarded Go fallback defined below.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
+- Build or validate the browser-safe protocol and Node-only CLI workspaces with
+  `bun run build:workspaces`, `bun run typecheck:workspaces`, and `bun run test:workspaces`;
+  root `build`, `typecheck`, and `test` retain those checks.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run --silent test:smoke`
 - Self-hosted CI and Release runner operation and recovery: `docs/self-hosted-runner.md`; every
   GitHub Actions job uses `m2-24`, and there is no GitHub-hosted fallback.
@@ -37,6 +40,8 @@
 - Never import Node.js, Electron, or native APIs in Renderer code (see Architecture boundaries below).
 - Never bypass the structured IPC request contract with arbitrary shell commands (see Architecture boundaries below).
 - Do not edit `package-lock.json` or the `packageManager` field by hand.
+- Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
+  native dependencies out of `packages/cli`'s production dependency graph.
 
 ## Skills
 

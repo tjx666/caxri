@@ -9,6 +9,7 @@ import { expect, test } from './fixtures.ts';
 import { createShellSession, launchCaxri, typeTerminal } from './helpers.ts';
 
 const execFileAsync = promisify(execFile);
+const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
 /**
  * Smallest end-to-end health check: launch, create a Project+Session with a
@@ -21,10 +22,22 @@ test('smoke: launches, creates a shell Session, and runs a Terminal command', as
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        executablePath: packagedExecutable,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
+        if (packagedExecutable) {
+            await running.app.evaluate(({ dialog }, projectRoot) => {
+                dialog.showOpenDialog = () =>
+                    Promise.resolve({ canceled: false, filePaths: [projectRoot] });
+            }, root);
+        }
         if (process.platform === 'darwin') {
-            expect(await running.app.evaluate(() => process.title)).toBe('Caxri Dev');
+            expect(await running.app.evaluate(() => process.title)).toBe(
+                packagedExecutable ?? 'Caxri Dev',
+            );
         }
         await expect(
             running.page.getByRole('heading', { name: 'Project-first development.' }),
