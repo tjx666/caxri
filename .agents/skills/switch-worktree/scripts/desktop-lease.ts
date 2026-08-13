@@ -18,6 +18,7 @@ interface DesktopLease {
     handoffPending?: boolean;
     identity: string;
     label: string;
+    owner?: string;
     pid: number;
     token: string;
     worktreeId: string;
@@ -58,6 +59,7 @@ function parseLease(value: string, path: string): DesktopLease {
         (candidate.handoffPending !== undefined && typeof candidate.handoffPending !== 'boolean') ||
         typeof candidate.identity !== 'string' ||
         typeof candidate.label !== 'string' ||
+        (candidate.owner !== undefined && typeof candidate.owner !== 'string') ||
         typeof candidate.pid !== 'number' ||
         typeof candidate.token !== 'string' ||
         typeof candidate.worktreeId !== 'string' ||
@@ -66,6 +68,24 @@ function parseLease(value: string, path: string): DesktopLease {
         throw new CommandError(`Invalid desktop lease at ${path}; inspect it before continuing`);
     }
     return candidate as DesktopLease;
+}
+
+function validateLeaseOwner(owner: string): string {
+    if (!/^[A-Za-z0-9._:-]{1,128}$/u.test(owner)) {
+        throw new CommandError('Desktop lease owner must use a bounded portable identifier');
+    }
+    return owner;
+}
+
+async function leaseFileNames(stateDirectory: string): Promise<string[]> {
+    try {
+        return (await readdir(stateDirectory)).filter((name) =>
+            /^desktop-lease(?:-[a-z0-9-]+)?\.json$/u.test(name),
+        );
+    } catch (error) {
+        if (errorCode(error) === 'ENOENT') return [];
+        throw error;
+    }
 }
 
 async function readLease(path: string): Promise<DesktopLease | undefined> {
@@ -141,6 +161,9 @@ export async function acquireDesktopLease(
         acquiredAt: new Date().toISOString(),
         identity,
         label,
+        ...(process.env.CAXRI_DESKTOP_LEASE_OWNER
+            ? { owner: validateLeaseOwner(process.env.CAXRI_DESKTOP_LEASE_OWNER) }
+            : {}),
         pid: ownerPid,
         token: randomUUID(),
         worktreeId,
@@ -196,6 +219,52 @@ export async function acquireDesktopLease(
             }
         }
         throw new CommandError('Could not acquire the repository desktop lease');
+    });
+}
+
+/**
+ * Reclaims only leases carrying the current CI run owner after their process identity is dead.
+ * A live process or lease from another owner remains fail-closed for manual inspection.
+ */
+export async function reclaimDesktopLeasesByOwner(cwd: string, owner: string): Promise<number> {
+    const validatedOwner = validateLeaseOwner(owner);
+    const context = await repositoryContext(cwd);
+    return await withRepositoryLock(context, async () => {
+        const owned: Array<{ lease: DesktopLease; path: string }> = [];
+        for (const name of await leaseFileNames(context.stateDir)) {
+            const path = join(context.stateDir, name);
+            const lease = await readLease(path);
+            if (lease?.owner === validatedOwner) owned.push({ lease, path });
+        }
+        for (const { lease } of owned) {
+            if (await isProcessIdentityAlive(lease.pid, lease.identity)) {
+                throw new CommandError(
+                    `Refusing to reclaim live desktop lease ${lease.label} owned by ${validatedOwner}`,
+                );
+            }
+        }
+        /** Worker leases must disappear before their repository-wide coordinator. */
+        owned.sort(({ path: left }, { path: right }) => right.length - left.length);
+        for (const { path } of owned) await unlinkIfExists(path);
+        return owned.length;
+    });
+}
+
+/** Fails when any repository desktop lease survives a runner preflight or teardown boundary. */
+export async function assertDesktopLeasesReleased(cwd: string): Promise<void> {
+    const context = await repositoryContext(cwd);
+    await withRepositoryLock(context, async () => {
+        for (const name of await leaseFileNames(context.stateDir)) {
+            const path = join(context.stateDir, name);
+            const lease = await readLease(path);
+            if (!lease) continue;
+            const state = (await isProcessIdentityAlive(lease.pid, lease.identity))
+                ? 'active'
+                : 'stale';
+            throw new CommandError(
+                `Desktop lease ${lease.label} is ${state}; inspect ${path} before continuing`,
+            );
+        }
     });
 }
 

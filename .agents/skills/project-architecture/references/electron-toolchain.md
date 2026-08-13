@@ -28,3 +28,12 @@ arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly ma
 validate the package version and unused tag, run all release gates, launch the packaged app through
 the startup benchmark, verify the DMG, and upload a SHA-256 checksum. Signing and notarization are a
 separate public-distribution decision and must not be inferred from the presence of this workflow.
+
+Trusted same-repository PR Electron E2E runs on the repository-level Apple Silicon self-hosted
+runner selected by `self-hosted`, `macOS`, `ARM64`, and `caxri-e2e`. The workflow must resolve this
+route from GitHub event metadata before PR code executes, require the owner as PR author, actor, and
+triggering actor, and use owner-scoped process, desktop-lease, profile, and temporary-directory
+cleanup. The `ci:github-hosted-e2e` PR label is the explicit auditable `macos-latest` fallback.
+Untrusted events and Release packaging stay GitHub-hosted. Reusing an existing macOS user is an
+accepted trust decision and must never be described as isolation from malicious workflow code; see
+`docs/self-hosted-runner.md` for operation and incident recovery.

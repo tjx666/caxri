@@ -199,11 +199,13 @@ describe('CI retry policy', () => {
             'scripts/ci-green-reuse.ts',
             'scripts/ci-metrics.ts',
             'scripts/ci-retry-policy.ts',
+            'scripts/report-e2e-manifest.ts',
             'scripts/run-ci-focused-checks.ts',
             'scripts/run-e2e-failure-isolation.ts',
             'scripts/run-e2e-pools.ts',
             'scripts/run-e2e-repair.ts',
             'scripts/run-hosted-parity.ts',
+            'scripts/self-hosted-e2e-runner.ts',
             'e2e/failure-isolation.e2e.ts',
             'RELEASING.md',
         ]) {

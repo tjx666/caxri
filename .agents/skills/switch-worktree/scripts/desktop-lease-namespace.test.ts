@@ -8,8 +8,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     acquireDesktopLease,
+    assertDesktopLeasesReleased,
     beginDesktopLeaseHandoff,
     inspectDesktopLease,
+    reclaimDesktopLeasesByOwner,
     releaseDesktopLease,
     transferDesktopLease,
     type DesktopLeaseHandle,
@@ -44,6 +46,28 @@ afterEach(async () => {
 });
 
 describe('desktop lease worker namespaces', () => {
+    it('persists a CI owner and reclaims only its verified-dead leases', async () => {
+        const root = await createRepository();
+        const previousOwner = process.env.CAXRI_DESKTOP_LEASE_OWNER;
+        process.env.CAXRI_DESKTOP_LEASE_OWNER = 'caxri-42-1-control';
+        try {
+            const lease = await acquireDesktopLease(root, 'owned CI desktop');
+            const stored = JSON.parse(
+                await readFile(lease.leasePath, 'utf8'),
+            ) as DesktopLeaseHandle;
+            expect(stored.owner).toBe('caxri-42-1-control');
+            await writeJsonAtomic(lease.leasePath, { ...stored, identity: 'dead-owner-identity' });
+
+            await expect(reclaimDesktopLeasesByOwner(root, 'caxri-41-1-control')).resolves.toBe(0);
+            await expect(assertDesktopLeasesReleased(root)).rejects.toThrow('is stale');
+            await expect(reclaimDesktopLeasesByOwner(root, 'caxri-42-1-control')).resolves.toBe(1);
+            await expect(assertDesktopLeasesReleased(root)).resolves.toBeUndefined();
+        } finally {
+            if (previousOwner === undefined) delete process.env.CAXRI_DESKTOP_LEASE_OWNER;
+            else process.env.CAXRI_DESKTOP_LEASE_OWNER = previousOwner;
+        }
+    });
+
     it('isolates namespaced leases under one repository-wide coordinator', async () => {
         const root = await createRepository();
         const coordinator = await acquireDesktopLease(root, 'repository desktop');
