@@ -87,7 +87,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
         }
         return {
             checksScope: 'full',
-            e2eProfile: 'control',
+            e2eProfile: 'optimized',
             reason: 'ready source pull request',
             runE2E: true,
         };
