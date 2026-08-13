@@ -44,7 +44,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
         await expect(dialog.locator('[data-slot="input"]')).toHaveCount(7);
         await expect(dialog.locator('[data-slot="textarea"]')).toHaveCount(2);
-        const defaultAgent = dialog.locator('[data-slot="select-trigger"]');
+        const defaultAgent = dialog.getByRole('combobox', {
+            name: 'Default agent for new sessions',
+        });
         await expect(defaultAgent).toContainText('Ask each time');
         await expect(defaultAgent.locator('[data-agent-icon="unknown"]')).toBeVisible();
         await defaultAgent.click();

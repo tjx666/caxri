@@ -15,7 +15,15 @@ import { ConfigurationService } from '../configuration';
 
 const temporaryDirectories: string[] = [];
 const v002DefaultKeybindings = defaultKeybindings
-    .filter((binding) => binding.command !== 'pathBrowser.open')
+    .filter(
+        (binding) =>
+            ![
+                'pathBrowser.open',
+                'terminal.find',
+                'terminal.previousCommand',
+                'terminal.nextCommand',
+            ].includes(binding.command),
+    )
     .map((binding) =>
         binding.command === 'workbench.closeActiveTab'
             ? { ...binding, command: 'terminal.close' }
@@ -54,6 +62,7 @@ describe('ConfigurationService', () => {
             'security.trustedDomains': [],
             'terminal.defaultWorkingDirectory': null,
             'terminal.fontSize': 15,
+            'terminal.gpuAcceleration': 'off',
         });
         expect(await readFile(service.settingsPath, 'utf8')).toBe(original);
         await service.close();
@@ -273,7 +282,15 @@ describe('ConfigurationService', () => {
         await writeFile(
             join(configDirectory, 'keybindings.jsonc'),
             `${JSON.stringify(
-                defaultKeybindings.filter((binding) => binding.command !== 'pathBrowser.open'),
+                defaultKeybindings.filter(
+                    (binding) =>
+                        ![
+                            'pathBrowser.open',
+                            'terminal.find',
+                            'terminal.previousCommand',
+                            'terminal.nextCommand',
+                        ].includes(binding.command),
+                ),
                 null,
                 2,
             )}\n`,
@@ -286,6 +303,41 @@ describe('ConfigurationService', () => {
         expect(service.getKeybindings().value).toContainEqual({
             command: 'pathBrowser.open',
             key: 'cmd+p',
+        });
+        expect(
+            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
+        ).toEqual(defaultKeybindings);
+        await service.close();
+    });
+
+    it('adds Terminal Find to the immediately previous untouched defaults', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-terminal-find-shortcut-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(
+                defaultKeybindings.filter(
+                    (binding) =>
+                        ![
+                            'terminal.find',
+                            'terminal.previousCommand',
+                            'terminal.nextCommand',
+                        ].includes(binding.command),
+                ),
+                null,
+                2,
+            )}\n`,
+            'utf8',
+        );
+        const service = new ConfigurationService(directory, () => undefined);
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toContainEqual({
+            command: 'terminal.find',
+            key: 'cmd+f',
         });
         expect(
             JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),

@@ -255,6 +255,8 @@ accepted head and requires review plus another Acceptance round.
 - Run each new Goal in the dedicated worktree pinned by `start.ts`; never move a
   resumed Goal back to the main checkout or another worktree.
 - Preserve user changes and unrelated dirty worktree state.
+- In zsh orchestration snippets, never assign to special parameters such as `path`, which is tied
+  to command lookup through `$PATH`; use a task-specific variable name instead.
 - Never treat passing tests, code review, PR merge, deployment, and Acceptance
   as interchangeable facts.
 - Never run the full local Electron E2E suite during an ordinary run. The only

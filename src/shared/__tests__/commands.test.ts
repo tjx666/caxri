@@ -19,6 +19,7 @@ describe('command registry', () => {
         expect(defaultKeybindings).toEqual(
             expect.arrayContaining([
                 { key: 'cmd+k', command: 'terminal.clear' },
+                { key: 'cmd+f', command: 'terminal.find' },
                 { key: 'cmd+[', command: 'sidebar.toggle' },
                 { key: 'cmd+]', command: 'inspector.toggle' },
                 { key: 'cmd+shift+f', command: 'inspector.searchFiles' },

@@ -109,6 +109,12 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
         .max(SETTINGS_BOUNDS['terminal.scrollback'].max)
         .default(SETTINGS_BOUNDS['terminal.scrollback'].default),
     'terminal.copyOnSelect': z.boolean().default(SETTINGS_BOUNDS['terminal.copyOnSelect'].default),
+    'terminal.gpuAcceleration': z
+        .enum(['auto', 'on', 'off'])
+        .default(SETTINGS_BOUNDS['terminal.gpuAcceleration'].default),
+    'terminal.osc52ClipboardWrite': z
+        .boolean()
+        .default(SETTINGS_BOUNDS['terminal.osc52ClipboardWrite'].default),
     'files.exclude': filesExcludeSchema,
     'files.maxFileBytes': z
         .number()

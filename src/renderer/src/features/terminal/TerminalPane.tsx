@@ -1,4 +1,5 @@
 import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useReducer } from 'react';
 
 import type { ProcessState, TerminalFailureReason } from '@shared/types';
 
@@ -9,6 +10,13 @@ import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../st
 import { useWorkbenchStore } from '../../stores/workbench';
 import { activateTerminal, restartTerminal, startNewAgentSession } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
+import { TerminalSearchBar } from './TerminalSearchBar';
+import {
+    initialTerminalSearchState,
+    registerTerminalSearchHandler,
+    terminalSearchReducer,
+    type TerminalSearchOptions,
+} from './terminal-search';
 import { useTerminalPaneRuntime } from './use-terminal-pane';
 
 interface TerminalPaneProps {
@@ -104,24 +112,73 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const fontSize = settings?.['terminal.fontSize'] ?? 13;
     const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
     const copyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
+    const gpuAcceleration = settings?.['terminal.gpuAcceleration'] ?? 'off';
+    const osc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
     const processState = terminal?.lastProcessState ?? 'starting';
     const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
     const terminalTheme = theme?.terminal;
 
-    const containerRef = useTerminalPaneRuntime({
-        active,
-        attachEpoch,
-        copyOnSelect,
-        fontSize,
-        isCodex,
-        processState,
-        projectRoot: session?.rootPath ?? '',
-        scrollback,
-        terminalCwd: terminal?.cwd ?? '',
-        terminalId,
-        terminalSessionId: terminal?.sessionId ?? '',
-        terminalTheme,
-    });
+    const [searchState, dispatchSearch] = useReducer(
+        terminalSearchReducer,
+        initialTerminalSearchState,
+    );
+    const { beginSearch, containerRef, endSearch, find, focusTerminal, searchResults } =
+        useTerminalPaneRuntime({
+            active,
+            attachEpoch,
+            copyOnSelect,
+            fontSize,
+            gpuAcceleration,
+            isCodex,
+            osc52ClipboardWrite,
+            processState,
+            projectRoot: session?.rootPath ?? '',
+            scrollback,
+            terminalCwd: terminal?.cwd ?? '',
+            terminalId,
+            terminalSessionId: terminal?.sessionId ?? '',
+            terminalTheme,
+        });
+
+    useEffect(
+        () =>
+            registerTerminalSearchHandler(terminalId, () => {
+                beginSearch();
+                dispatchSearch({ type: 'open' });
+            }),
+        [beginSearch, terminalId],
+    );
+
+    useEffect(() => {
+        dispatchSearch({ type: 'reset' });
+        return endSearch;
+    }, [endSearch, terminalId]);
+
+    useEffect(() => {
+        if (active) return;
+        endSearch();
+        dispatchSearch({ type: 'close' });
+    }, [active, endSearch]);
+
+    const searchOptions: TerminalSearchOptions = useMemo(
+        () => ({
+            caseSensitive: searchState.caseSensitive,
+            regex: searchState.regex,
+            wholeWord: searchState.wholeWord,
+        }),
+        [searchState.caseSensitive, searchState.regex, searchState.wholeWord],
+    );
+
+    useEffect(() => {
+        if (!searchState.open) return;
+        find('next', searchState.query, searchOptions, true);
+    }, [find, searchOptions, searchState.open, searchState.query, terminalTheme]);
+
+    const closeSearch = useCallback((): void => {
+        endSearch();
+        dispatchSearch({ type: 'close' });
+        window.requestAnimationFrame(focusTerminal);
+    }, [endSearch, focusTerminal]);
 
     const resumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
 
@@ -135,6 +192,22 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
             <div ref={containerRef} className="terminal-surface min-h-0 w-full flex-1" />
+            {searchState.open && (
+                <TerminalSearchBar
+                    caseSensitive={searchState.caseSensitive}
+                    focusRevision={searchState.focusRevision}
+                    query={searchState.query}
+                    regex={searchState.regex}
+                    results={searchResults}
+                    wholeWord={searchState.wholeWord}
+                    onClose={closeSearch}
+                    onNavigate={(direction) =>
+                        find(direction, searchState.query, searchOptions, false)
+                    }
+                    onQueryChange={(query) => dispatchSearch({ type: 'query', query })}
+                    onToggle={(option) => dispatchSearch({ type: 'toggle', option })}
+                />
+            )}
             <TerminalRecoveryBar
                 failureReason={terminal?.failureReason}
                 processState={processState}

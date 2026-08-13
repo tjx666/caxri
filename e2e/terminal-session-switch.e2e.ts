@@ -31,11 +31,13 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
             "printf '\\033[?1049h\\033[2J\\033[H'",
             'cols=$(tput cols)',
             'rows=$(tput lines)',
-            "printf '\\033[1;1HSESSION_SWITCH_TOP_界'",
+            "printf '\\033[1;1HSESSION_SWITCH_TOP_界_é_'",
             "printf '\\033[4;1H'",
             "printf '%*s' \"$cols\" '' | tr ' ' '-'",
             "printf '\\033[4;3HSESSION_SWITCH_RULE_界'",
             "printf '\\033[8;5HSESSION_SWITCH_MIDDLE_界'",
+            "printf '\\033[10;1H'",
+            "printf '%*s🤦X\\rZ' \"$((cols - 2))\" ''",
             'printf \'\\033[%d;%dHSESSION_SWITCH_EDGE_界\' "$((rows - 2))" "$((cols - 22))"',
             `while [ ! -f '${backgroundTrigger}' ]; do sleep 0.05; done`,
             `awk 'BEGIN { for (i = 0; i < 120000; i += 1) printf "\\033[2;1Hbackground-%06d", i }'`,
@@ -53,10 +55,14 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
         const firstSessionId = await selectedSessionId(running.page);
         await typeTerminal(running.page, 'zsh terminal-screen-fixture.zsh');
         const screen = running.page.locator('.xterm-rows');
-        await expect(screen).toContainText('SESSION_SWITCH_TOP_界');
+        await expect(screen).toContainText('SESSION_SWITCH_TOP_界_é_');
         await expect(screen).toContainText('SESSION_SWITCH_RULE_界');
         await expect(screen).toContainText('SESSION_SWITCH_MIDDLE_界');
         await expect(screen).toContainText('SESSION_SWITCH_EDGE_界');
+        await expect(screen.locator(':scope > div').nth(9)).toContainText('🤦');
+        await expect(screen.locator(':scope > div').nth(10)).toHaveText('Z');
+        await running.page.setViewportSize({ height: 900, width: 1_400 });
+        await expect(screen).toContainText('SESSION_SWITCH_TOP_界_é_');
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
         const firstSession = sessionCard(running.page, firstSessionId);
@@ -68,7 +74,7 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
             .toBe('complete');
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
-        await expect(screen).toContainText('SESSION_SWITCH_TOP_界');
+        await expect(screen).toContainText('SESSION_SWITCH_TOP_界_é_');
         await expect(screen).toContainText('SESSION_SWITCH_RULE_界');
         await expect(screen).toContainText('SESSION_SWITCH_MIDDLE_界');
         await expect(screen).toContainText('SESSION_SWITCH_EDGE_界');
