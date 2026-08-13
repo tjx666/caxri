@@ -332,8 +332,24 @@ function BugReportDialogContent() {
                                     updateState({ includeScreenshot: event.target.checked })
                                 }
                             />
-                            Capture a screenshot of the current Caxri window for preview
+                            Capture a screenshot of the current Caxri window, including any open
+                            files and terminal output visible on screen
                         </label>
+                        {includeScreenshot && (
+                            /**
+                             * AGENTS.md requires diagnostics to exclude source contents and
+                             * Terminal output; the text report above honors that (see
+                             * `bug-report.ts`'s doc comment), but a screenshot is captured
+                             * pixel-for-pixel and cannot be redacted the same way. This warning
+                             * makes that gap explicit instead of leaving it as a silently
+                             * unexplained full-window capture.
+                             */
+                            <p className="m-0 pl-6 text-[11px] text-warning">
+                                Unlike the text report, this screenshot is not redacted: it shows
+                                everything on screen exactly as it appears, including source code
+                                and Terminal output.
+                            </p>
+                        )}
                         <p className="m-0 pl-6 text-[11px]">{imageFallbackNotice}</p>
                     </div>
                     <div className="flex justify-end gap-2">
@@ -349,8 +365,13 @@ function BugReportDialogContent() {
                     </pre>
                     {screenshot && (
                         <div className="grid gap-2">
+                            <p className="m-0 text-[11px] text-warning">
+                                This screenshot is unredacted: it captures everything currently
+                                visible in the Caxri window, including open files and Terminal
+                                output.
+                            </p>
                             <img
-                                alt="Current Caxri window screenshot"
+                                alt="Unredacted screenshot of the current Caxri window, including any open files and terminal output"
                                 className="max-h-48 w-full rounded border border-border object-contain bg-background"
                                 height={screenshot.height}
                                 src={screenshot.dataUrl}
