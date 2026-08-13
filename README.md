@@ -41,6 +41,13 @@ Human TTY output is concise text. `--json` reserves stdout for one stable JSON v
 not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation requires
 that explicit Host selector and non-interactive confirmation with `--yes`.
 
+The shared business surface includes `project list|show|current`, `session list|show|current`,
+`terminal list|show`, `settings get|validate|patch`, `logs query|follow`,
+`diagnostics snapshot`, and `events watch`. Settings writes accept repeated `--set key=value`
+arguments; `settings validate` and `settings patch --dry-run` use the real Runtime schema without
+writing. Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
+Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
+
 Default Terminal shortcuts are configurable in Settings → Keybindings:
 
 | Shortcut    | Action                              |

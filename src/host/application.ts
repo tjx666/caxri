@@ -2,7 +2,11 @@ import { join } from 'node:path';
 
 import type { CommandAdapter } from '../shared/ipc/dispatcher';
 import { CaxriError } from '../shared/ipc/errors';
-import { createEventJournal, isTransientRuntimeEvent } from '../shared/ipc/event-journal';
+import {
+    createEventJournal,
+    isTransientRuntimeEvent,
+    projectObservableEventRecovery,
+} from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { getMethodSpec, type RuntimeRequest } from '../shared/ipc/methods';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
@@ -125,9 +129,13 @@ export async function startHostApplication(
     };
 
     const host: CommandAdapter = {
-        async invoke(request) {
+        async invoke(request, context) {
             if (request.method === 'events.recover')
                 return journal.recover(request.params.afterCursor);
+            if (request.method === 'events.query')
+                return projectObservableEventRecovery(
+                    await journal.recover(request.params.afterCursor),
+                );
             if (request.method === 'host.status') {
                 const health = await supervisor.request('app.health');
                 return {
@@ -187,6 +195,21 @@ export async function startHostApplication(
                     if (!accepted) mutationAdmissionClosed = false;
                 }
             }
+            if (request.method === 'project.query')
+                return supervisor.request('project.queryForPrincipal', {
+                    principal: context.principal,
+                    query: request.params,
+                });
+            if (request.method === 'session.query')
+                return supervisor.request('session.queryForPrincipal', {
+                    principal: context.principal,
+                    query: request.params,
+                });
+            if (request.method === 'terminal.query')
+                return supervisor.request('terminal.queryForPrincipal', {
+                    principal: context.principal,
+                    query: request.params,
+                });
             return forwardRuntime(request);
         },
     };

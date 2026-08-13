@@ -27,6 +27,17 @@ process.on('message', (request) => {
         });
         return;
     }
+    if (request.method === 'project.queryForPrincipal') {
+        process.send?.({
+            id: request.id,
+            ok: true,
+            result: {
+                view: request.params.principal.kind,
+                projects: [{ id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/code/caxri' }],
+            },
+        });
+        return;
+    }
     if (request.method === 'runtime.shutdown') {
         process.send?.({ id: request.id, ok: true, result: null });
         setTimeout(() => process.exit(0), 10);
@@ -140,7 +151,14 @@ async function connectDesktop(manifest: HostManifest, desktopToken: string) {
             credential: { kind: 'desktop', token: desktopToken, desktopId: 'desktop-test' },
         })}\n`,
     );
-    localServerWelcomeSchema.parse(await read());
+    const welcome = localServerWelcomeSchema.parse(await read());
+    if (!welcome.desktopLease) throw new Error('Desktop fixture did not receive a lease');
+    socket.write(
+        `${JSON.stringify({
+            type: 'desktop.ready',
+            generation: welcome.desktopLease.generation,
+        })}\n`,
+    );
     return { read, socket };
 }
 
@@ -179,6 +197,10 @@ describe('Headless Host application', () => {
         const first = await connectToHost(userDataPath, 2_000);
         const health = await first.request('app.health');
         expect(health).toMatchObject({ ready: true, activePtyCount: 1 });
+        await expect(first.request('project.query', { mode: 'list' })).resolves.toEqual({
+            view: 'human-cli',
+            projects: [{ id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/code/caxri' }],
+        });
         first.close();
 
         const second = await connectToHost(userDataPath, 2_000);

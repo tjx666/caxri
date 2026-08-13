@@ -59,6 +59,62 @@ async function connect(path: string): Promise<Socket> {
 }
 
 describe('local Host transport', () => {
+    it('deduplicates one mutation request ID across authenticated operator reconnects', async () => {
+        const lease = await profile();
+        const invoke = vi.fn((request: { method: string }) => {
+            if (request.method !== 'settings.patch') return null;
+            return {
+                value: {
+                    'session.defaultAgent': null,
+                    'terminal.fontSize': 18,
+                    'terminal.scrollback': 2_000,
+                    'terminal.copyOnSelect': true,
+                    'terminal.gpuAcceleration': 'off',
+                    'terminal.osc52ClipboardWrite': false,
+                    'files.maxFileBytes': 2_097_152,
+                },
+                revision: 'a'.repeat(64),
+                errors: [],
+                dryRun: false,
+                changedKeys: ['terminal.fontSize'],
+            };
+        });
+        const server = new LocalHostServer({
+            adapters: { host: { invoke } },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+
+        const first = await HostClient.connect(lease.manifest);
+        await first.requestWithId('settings-retry', 'settings.patch', {
+            changes: [{ key: 'terminal.fontSize', value: 18 }],
+            dryRun: false,
+        });
+        first.close();
+        const second = await HostClient.connect(lease.manifest);
+        await second.requestWithId('settings-retry', 'settings.patch', {
+            changes: [{ key: 'terminal.fontSize', value: 18 }],
+            dryRun: false,
+        });
+        const operatorEvents = vi.fn();
+        second.onEvent(operatorEvents);
+        server.broadcast({
+            protocolVersion: 1,
+            cursor: 1,
+            event: {
+                event: 'settings.changed',
+                payload: { source: 'secret-sentinel' },
+            },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        second.close();
+
+        expect(invoke).toHaveBeenCalledTimes(1);
+        expect(operatorEvents).not.toHaveBeenCalled();
+    });
+
     it('authenticates in constant-shape handshake and dispatches a Host command', async () => {
         const lease = await profile();
         const host: CommandAdapter = {
@@ -98,14 +154,25 @@ describe('local Host transport', () => {
         expect(welcome.principal.kind).toBe('human-cli');
         expect(welcome.capabilities).toEqual([
             'desktop.window',
+            'diagnostics.read',
             'events.read',
             'host.read',
             'host.stop',
+            'projects.read',
+            'sessions.read',
+            'settings.read',
+            'settings.write',
+            'terminals.read',
         ]);
         expect(welcome.commands).toContain('app.health');
         expect(welcome.commands).toContain('host.status');
         expect(welcome.commands).toContain('desktop.status');
         expect(welcome.commands).toContain('host.stop');
+        expect(welcome.commands).toContain('project.query');
+        expect(welcome.commands).toContain('settings.patch');
+        expect(welcome.commands).toContain('logs.query');
+        expect(welcome.commands).toContain('events.query');
+        expect(welcome.commands).not.toContain('events.recover');
         socket.write(
             `${JSON.stringify({
                 type: 'command',

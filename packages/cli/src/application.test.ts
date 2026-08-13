@@ -29,6 +29,7 @@ function host(
     return {
         close: vi.fn(),
         request: vi.fn(() => Promise.resolve(result)),
+        requestWithId: vi.fn(() => Promise.resolve(result)),
         welcome: {
             protocolVersion: CAXRI_PROTOCOL_VERSION,
             principal: { kind: 'human-cli', id: 'cli-test' },
@@ -274,5 +275,160 @@ describe('CLI application', () => {
             runCli(['host', 'status'], { connect, io: output.io, signal: controller.signal }),
         ).resolves.toBe(130);
         expect(connect).not.toHaveBeenCalled();
+    });
+
+    it('queries shared Project projections and emits only IDs in quiet mode', async () => {
+        const output = io();
+        const client = host(
+            {
+                view: 'human-cli',
+                projects: [
+                    { id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/code/caxri' },
+                ],
+            },
+            ['project.query'],
+        );
+
+        await expect(
+            runCli(['project', 'list', '--quiet'], {
+                connect: () => Promise.resolve(client),
+                io: output.io,
+            }),
+        ).resolves.toBe(0);
+
+        expect(client.request).toHaveBeenCalledWith('project.query', { mode: 'list' });
+        expect(output.stdout()).toBe('project-1\n');
+    });
+
+    it('validates a Settings patch without mutation confirmation', async () => {
+        const output = io({ stdinIsTTY: false });
+        const client = host(
+            {
+                value: { 'terminal.fontSize': 17 },
+                revision: 'a'.repeat(64),
+                errors: [],
+                dryRun: true,
+                changedKeys: ['terminal.fontSize'],
+            },
+            ['settings.patch'],
+        );
+
+        await expect(
+            runCli(['settings', 'validate', '--set', 'terminal.fontSize=17', '--json'], {
+                connect: () => Promise.resolve(client),
+                io: output.io,
+            }),
+        ).resolves.toBe(0);
+
+        expect(client.request).toHaveBeenCalledWith('settings.patch', {
+            changes: [{ key: 'terminal.fontSize', value: 17 }],
+            dryRun: true,
+        });
+    });
+
+    it('sends an explicit request ID for an accepted Settings mutation', async () => {
+        const output = io({ stdinIsTTY: false });
+        const client = host(
+            {
+                value: { 'terminal.fontSize': 18 },
+                revision: 'b'.repeat(64),
+                errors: [],
+                dryRun: false,
+                changedKeys: ['terminal.fontSize'],
+            },
+            ['settings.patch'],
+        );
+
+        await expect(
+            runCli(
+                [
+                    'settings',
+                    'patch',
+                    '--set',
+                    'terminal.fontSize=18',
+                    '--request-id',
+                    'settings-18',
+                    '--profile',
+                    '/profiles/selected',
+                    '--yes',
+                    '--json',
+                ],
+                { connect: () => Promise.resolve(client), io: output.io },
+            ),
+        ).resolves.toBe(0);
+
+        expect(client.requestWithId).toHaveBeenCalledWith('settings-18', 'settings.patch', {
+            changes: [{ key: 'terminal.fontSize', value: 18 }],
+            dryRun: false,
+        });
+        expect(client.request).not.toHaveBeenCalled();
+    });
+
+    it('follows bounded log pages until Ctrl+C without exposing log fields', async () => {
+        const output = io({ stdinIsTTY: false, stdoutIsTTY: false });
+        const controller = new AbortController();
+        const client = host(
+            {
+                records: [
+                    {
+                        id: 'record-1',
+                        timestamp: '2026-08-14T00:00:00.000Z',
+                        process: 'runtime',
+                        level: 'info',
+                        event: 'runtime.ready',
+                    },
+                ],
+                nextCursor: 'cursor-1',
+                gap: false,
+                truncated: false,
+            },
+            ['logs.query'],
+        );
+
+        await expect(
+            runCli(['logs', 'follow', '--json'], {
+                connect: () => Promise.resolve(client),
+                io: output.io,
+                signal: controller.signal,
+                wait: () => {
+                    controller.abort();
+                    return Promise.resolve();
+                },
+            }),
+        ).resolves.toBe(130);
+
+        expect(output.stdout()).toBe(
+            '{"event":"runtime.ready","id":"record-1","level":"info","process":"runtime","timestamp":"2026-08-14T00:00:00.000Z"}\n',
+        );
+        expect(output.stdout()).not.toContain('fields');
+    });
+
+    it('watches projected event names without receiving Desktop event payloads', async () => {
+        const output = io({ stdinIsTTY: false, stdoutIsTTY: false });
+        const controller = new AbortController();
+        const client = host(
+            {
+                kind: 'events',
+                cursor: 1,
+                events: [{ cursor: 1, event: 'settings.changed' }],
+            },
+            ['events.query'],
+        );
+
+        await expect(
+            runCli(['events', 'watch', '--json'], {
+                connect: () => Promise.resolve(client),
+                io: output.io,
+                signal: controller.signal,
+                wait: () => {
+                    controller.abort();
+                    return Promise.resolve();
+                },
+            }),
+        ).resolves.toBe(130);
+
+        expect(client.request).toHaveBeenCalledWith('events.query', { afterCursor: 0 });
+        expect(output.stdout()).toBe('{"cursor":1,"event":"settings.changed"}\n');
+        expect(output.stdout()).not.toContain('source');
     });
 });

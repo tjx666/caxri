@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmod, lstat } from 'node:fs/promises';
 import { createServer, type Server, type Socket } from 'node:net';
 
@@ -56,11 +56,22 @@ function tokenMatches(candidate: string, expected: string): boolean {
     return timingSafeEqual(candidateDigest, expectedDigest);
 }
 
-function operatorContext(): CommandExecutionContext {
-    const id = `human-cli:${randomBytes(12).toString('hex')}`;
+function operatorContext(profileId: string): CommandExecutionContext {
     return {
-        capabilities: ['desktop.window', 'events.read', 'host.read', 'host.stop'],
-        principal: { kind: 'human-cli', id },
+        capabilities: [
+            'desktop.window',
+            'diagnostics.read',
+            'events.read',
+            'host.read',
+            'host.stop',
+            'projects.read',
+            'sessions.read',
+            'settings.read',
+            'settings.write',
+            'terminals.read',
+        ],
+        /** The authenticated profile is the retry identity across short-lived CLI connections. */
+        principal: { kind: 'human-cli', id: `human-cli:${profileId}` },
     };
 }
 
@@ -263,11 +274,8 @@ export class LocalHostServer {
 
     broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
-        if ('event' in event && event.event === 'terminal.output') {
-            if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
-            return;
-        }
-        for (const { socket } of this.clients.values()) this.write(socket, message);
+        /** Raw Runtime payloads are a Desktop-only transport; other principals use projections. */
+        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
     }
 
     private revokeDesktop(state: ClientState, notifyUnavailable = true): void {
@@ -361,7 +369,7 @@ export class LocalHostServer {
                                     socket.destroy();
                                     return;
                                 }
-                                context = operatorContext();
+                                context = operatorContext(this.options.manifest.profileId);
                             } else {
                                 const credential = this.options.desktopCredential;
                                 if (

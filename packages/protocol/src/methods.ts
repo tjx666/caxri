@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
+import { businessInternalMethods, businessMethods } from './business-contract.js';
 import { configurationSourceSchema, MAX_KEYBINDINGS } from './configuration-contract.js';
 import { desktopHostMethods, desktopStatusResultSchema } from './desktop-contract.js';
 import { eventRecoverySchema } from './event-journal.js';
+import { commandPolicy, type MethodSpec } from './method-spec.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from './trusted-domains.js';
-import type { Capability, Principal } from './principal.js';
-import { projectListForPrincipal, projectListResultSchema } from './projections.js';
 
 import {
     agentHookHealthMapSchema,
@@ -43,32 +43,7 @@ import {
     updateStateSchema,
 } from './domain.js';
 
-export type CommandOwner = 'host' | 'desktop';
-export type CommandEffect = 'read' | 'write' | 'control';
-export type CommandIdempotency = 'none' | 'request';
-
-export interface MethodSpec {
-    owner: CommandOwner;
-    effect: CommandEffect;
-    requiredCapabilities: readonly Capability[];
-    idempotency: CommandIdempotency;
-    params: z.ZodType;
-    result: z.ZodType;
-    projectResult?: (result: unknown, principal: Principal) => unknown;
-}
-
-function commandPolicy<Owner extends CommandOwner, Effect extends CommandEffect>(
-    owner: Owner,
-    effect: Effect,
-    requiredCapabilities: readonly Capability[] = ['desktop'],
-) {
-    return {
-        owner,
-        effect,
-        requiredCapabilities,
-        idempotency: effect === 'read' ? 'none' : 'request',
-    } as const;
-}
+export type { CommandEffect, CommandIdempotency, CommandOwner, MethodSpec } from './method-spec.js';
 
 const hostRead = commandPolicy('host', 'read');
 const hostWrite = commandPolicy('host', 'write');
@@ -78,8 +53,7 @@ const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
 const hostStatusRead = commandPolicy('host', 'read', ['host.read']);
 const hostStopControl = commandPolicy('host', 'control', ['host.stop']);
-const projectRead = commandPolicy('host', 'read', ['projects.read']);
-const eventRead = commandPolicy('host', 'read', ['events.read']);
+const desktopEventRead = commandPolicy('host', 'read');
 
 /**
  * Methods without required parameters still accept the preload's `{}` placeholder, and the default
@@ -152,6 +126,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
  * may route an entry but must never copy its application handler.
  */
 export const methods = {
+    ...businessMethods,
     'app.bootstrap': { ...hostRead, params: noParams, result: bootstrapStateSchema },
     'app.records': {
         ...hostRead,
@@ -201,7 +176,7 @@ export const methods = {
         }),
     },
     'events.recover': {
-        ...eventRead,
+        ...desktopEventRead,
         params: z.object({ afterCursor: z.number().int().nonnegative() }),
         result: eventRecoverySchema,
     },
@@ -282,12 +257,6 @@ export const methods = {
         ...desktopWrite,
         params: z.object({ projectId: identifierSchema }),
         result: z.union([canceled, bootstrapStateSchema]),
-    },
-    'project.list': {
-        ...projectRead,
-        params: noParams,
-        result: projectListResultSchema,
-        projectResult: projectListForPrincipal,
     },
     'project.reorder': {
         ...hostWrite,
@@ -655,6 +624,7 @@ export const methods = {
 
 /** Main-to-Runtime methods that are never reachable from the Renderer request allowlist. */
 export const internalMethods = {
+    ...businessInternalMethods,
     'app.windowState.get': {
         ...hostRead,
         params: noParams,

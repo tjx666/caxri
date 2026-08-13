@@ -14,6 +14,7 @@ import {
     methods,
     negotiateProtocolVersion,
     principalProjectionSchemas,
+    projectObservableEventRecovery,
     protocolWelcomeSchema,
     type CommandAdapter,
     type CommandExecutionContext,
@@ -148,7 +149,8 @@ describe('@caxri/protocol contract', () => {
         expect(welcome.commands).toContain('app.health');
         expect(welcome.commands).toContain('host.status');
         expect(welcome.commands).toContain('host.stop');
-        expect(welcome.commands).toContain('events.recover');
+        expect(welcome.commands).toContain('events.query');
+        expect(welcome.commands).not.toContain('events.recover');
         expect(welcome.commands).not.toContain('project.list');
     });
 });
@@ -397,6 +399,44 @@ describe('recoverable event cursor', () => {
                 payload: { command: 'session.delete' },
             }),
         ).toThrow('Transient events cannot enter durable protocol replay');
+    });
+
+    it('projects CLI recovery to typed names without configuration source or record IDs', () => {
+        expect(
+            projectObservableEventRecovery({
+                kind: 'events',
+                cursor: 1,
+                events: [
+                    {
+                        protocolVersion: 1,
+                        cursor: 1,
+                        event: {
+                            event: 'settings.changed',
+                            payload: { source: 'secret-sentinel' },
+                        },
+                    },
+                ],
+            }),
+        ).toEqual({
+            kind: 'events',
+            cursor: 1,
+            events: [{ cursor: 1, event: 'settings.changed' }],
+        });
+        expect(
+            projectObservableEventRecovery({
+                kind: 'snapshot',
+                cursor: 2,
+                snapshot: {
+                    cursor: 2,
+                    projectIds: ['private-project'],
+                    sessionIds: ['private-session'],
+                    terminalIds: ['private-terminal'],
+                    settingsRevision: 2,
+                    diagnosticsRevision: 2,
+                    agentRevision: 2,
+                },
+            }),
+        ).toEqual({ kind: 'snapshot', cursor: 2, gap: true });
     });
 
     it('keeps events published during an asynchronous snapshot behind its frozen cursor', async () => {

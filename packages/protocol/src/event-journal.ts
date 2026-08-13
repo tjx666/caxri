@@ -66,6 +66,57 @@ export const eventRecoverySchema = z.discriminatedUnion('kind', [
 
 export type EventRecovery = z.infer<typeof eventRecoverySchema>;
 
+const OBSERVABLE_EVENT_NAMES = {
+    'runtime.status': true,
+    'state.changed': true,
+    'terminal.exit': true,
+    'files.changed': true,
+    'files.operationChanged': true,
+    'settings.changed': true,
+    'agentHooks.changed': true,
+    'keybindings.changed': true,
+    'theme.changed': true,
+    'updates.state': true,
+    'window.fullScreen': true,
+} as const satisfies Record<DurableRuntimeEvent['event'], true>;
+export const observableEventNameSchema = z.enum(
+    Object.keys(OBSERVABLE_EVENT_NAMES) as [
+        DurableRuntimeEvent['event'],
+        ...Array<DurableRuntimeEvent['event']>,
+    ],
+);
+export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('events'),
+        cursor: cursorSchema,
+        events: z
+            .array(z.object({ cursor: cursorSchema, event: observableEventNameSchema }))
+            .max(256),
+    }),
+    z.object({
+        kind: z.literal('snapshot'),
+        cursor: cursorSchema,
+        gap: z.literal(true),
+    }),
+]);
+export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySchema>;
+
+/** Removes every event payload and snapshot identity before recovery reaches a non-Desktop client. */
+export function projectObservableEventRecovery(recovery: EventRecovery): ObservableEventRecovery {
+    return observableEventRecoverySchema.parse(
+        recovery.kind === 'events'
+            ? {
+                  kind: 'events',
+                  cursor: recovery.cursor,
+                  events: recovery.events.map(({ cursor, event }) => ({
+                      cursor,
+                      event: event.event,
+                  })),
+              }
+            : { kind: 'snapshot', cursor: recovery.cursor, gap: true },
+    );
+}
+
 export interface EventJournal {
     publish(event: RuntimeEvent): ProtocolEventEnvelope;
     recover(afterCursor: number): Promise<EventRecovery>;
