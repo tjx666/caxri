@@ -99,8 +99,12 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.page.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
         await running.page.getByRole('button', { name: 'Open theme.json Source' }).click();
+        // Scoped by `data-config-source`, not by accessible name: `ConfigurationEditor` passes the
+        // label through Monaco's `options.ariaLabel` so it lands on the textarea a screen reader
+        // actually focuses. `.view-lines` is that textarea's sibling, so `getByLabel(...)` can never
+        // contain it. The accessible name itself is asserted separately in `settings.e2e.ts`.
         await expect(
-            running.page.getByLabel('theme.json source').locator('.view-lines'),
+            running.page.locator('[data-config-source="theme"] .view-lines'),
         ).toContainText('#282a36');
         const terminalTabCount = await running.page.locator('.work-tab').count();
         await running.page.keyboard.press('Meta+W');

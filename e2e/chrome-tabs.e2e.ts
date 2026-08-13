@@ -41,6 +41,30 @@ async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean
     else await expect(panel).toBeHidden();
 }
 
+/**
+ * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is
+ * scaled down by up to 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and
+ * the tab content it tracks are scaled together and stay aligned throughout the animation. Poll for
+ * two consecutive equal readings before pinning an absolute pixel baseline.
+ */
+async function stableWidth(locator: Locator): Promise<number> {
+    let previous = Number.NaN;
+    await expect
+        .poll(async () => {
+            const width = await locator.evaluate(
+                (element) =>
+                    new Promise<number>((resolve) =>
+                        requestAnimationFrame(() => resolve(element.getBoundingClientRect().width)),
+                    ),
+            );
+            const stable = width === previous;
+            previous = width;
+            return stable;
+        })
+        .toBe(true);
+    return previous;
+}
+
 async function settleMediaChange(page: Page): Promise<void> {
     await page.evaluate(
         () =>
@@ -149,9 +173,9 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         await expectPanelAssociation(running.page, keybindingsTab, false);
         await expectPanelAssociation(running.page, themeTab, false);
         await expectIndicatorAligned(settingsTabs, settingsTab);
-        const cleanWidth = await settingsTabs
-            .locator('[data-slot="chrome-tab-indicator"]')
-            .evaluate((element) => element.getBoundingClientRect().width);
+        const cleanWidth = await stableWidth(
+            settingsTabs.locator('[data-slot="chrome-tab-indicator"]'),
+        );
         /**
          * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it
          * changes, with no draft/Apply step and no per-tab dirty badge for the chrome tab to grow
@@ -174,9 +198,7 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         // Sub-pixel tolerance rather than exact float equality: the point is that the tab did not
         // grow by a dirty badge, not that layout reproduces bit-for-bit across a re-render.
         expect(
-            await settingsTabs
-                .locator('[data-slot="chrome-tab-indicator"]')
-                .evaluate((element) => element.getBoundingClientRect().width),
+            await stableWidth(settingsTabs.locator('[data-slot="chrome-tab-indicator"]')),
         ).toBeCloseTo(cleanWidth, 0);
 
         await settingsTab.focus();
