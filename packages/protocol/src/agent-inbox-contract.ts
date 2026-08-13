@@ -87,6 +87,13 @@ export const agentInboundPolicyResultSchema = z
     })
     .strict();
 
+export const agentMessagePullResultSchema = z
+    .object({
+        message: agentInboundMessageSchema.nullable(),
+        outcome: z.enum(['message', 'empty', 'timed_out']),
+    })
+    .strict();
+
 const sendParamsSchema = z
     .object({
         to: agentEndpointRefSchema,
@@ -115,7 +122,12 @@ export const agentInboxMethods = {
         params: z
             .object({ timeoutMs: z.number().int().min(100).max(120_000).default(15_000) })
             .strict(),
-        result: z.object({ message: agentInboundMessageSchema.nullable() }).strict(),
+        result: agentMessagePullResultSchema,
+    },
+    'agent.message.check': {
+        ...commandPolicy('host', 'read', ['agents.message']),
+        params: z.object({}).strict().default({}),
+        result: agentMessagePullResultSchema,
     },
     'agent.message.receipt': {
         ...commandPolicy('host', 'read', ['agents.message']),
@@ -154,3 +166,4 @@ export type AgentInboundMessage = z.infer<typeof agentInboundMessageSchema>;
 export type AgentHeldMessage = z.infer<typeof agentHeldMessageSchema>;
 export type AgentInboundPolicy = z.infer<typeof agentInboundPolicySchema>;
 export type AgentHeldRetention = z.infer<typeof agentHeldRetentionSchema>;
+export type AgentMessagePullResult = z.infer<typeof agentMessagePullResultSchema>;

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { configurationSourceSchema } from './configuration-contract.js';
 import { agentHeldMessageSchema, agentMessageReceiptSchema } from './agent-inbox-contract.js';
+import { agentEndpointSummarySchema } from './agent-endpoint-contract.js';
 
 import {
     agentHookHealthMapSchema,
@@ -85,6 +86,8 @@ export const runtimeEventPayloads = {
     'agent.message.receipt': agentMessageReceiptSchema,
     /** Desktop-only approval projection with a bounded, inert plain-text preview. */
     'agent.message.held': agentHeldMessageSchema,
+    /** Volatile generation health; clients refresh `agent.list` for the current peer set. */
+    'agent.messaging.changed': agentEndpointSummarySchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,
     'updates.state': updateStateSchema,

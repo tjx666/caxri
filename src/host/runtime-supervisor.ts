@@ -36,6 +36,7 @@ export interface HostRuntimeSupervisorOptions {
     agentEndpointControl?(request: RuntimeHostControlRequest): unknown;
     agentHooksPath?: string;
     appVersion: string;
+    cliPath?: string;
     commit: string;
     executable?: string;
     extraEnvironment?: NodeJS.ProcessEnv;
@@ -97,6 +98,7 @@ export class HostRuntimeSupervisor extends EventEmitter {
                     CAXRI_USER_DATA_PATH: this.options.userDataPath,
                     CAXRI_APP_VERSION: this.options.appVersion,
                     CAXRI_GIT_COMMIT: this.options.commit,
+                    ...(this.options.cliPath ? { CAXRI_CLI_PATH: this.options.cliPath } : {}),
                     ...(this.options.agentHooksPath
                         ? { CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath }
                         : {}),

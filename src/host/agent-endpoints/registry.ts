@@ -3,14 +3,15 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import {
     agentEndpointBeginParamsSchema,
     agentEndpointBeginResultSchema,
+    agentEndpointMessagingParamsSchema,
     agentEndpointRetireParamsSchema,
     type AgentEndpointBeginParams,
     type AgentEndpointBeginResult,
+    type AgentEndpointMessagingParams,
     type AgentEndpointRetireParams,
 } from '../../shared/ipc/agent-endpoint-control';
 import type {
     AgentContextResult,
-    AgentDeliveryMode,
     AgentEndpointGrant,
     AgentEndpointRef,
     AgentEndpointSummary,
@@ -61,6 +62,10 @@ export interface AgentEndpointRegistryOptions {
 }
 
 export type AgentEndpointRetiredListener = (endpoint: AgentEndpointSummary) => void;
+export type AgentEndpointMessagingChangedListener = (
+    endpoint: AgentEndpointSummary,
+    previous: AgentEndpointSummary['messaging'],
+) => void;
 
 function tokenDigest(token: string): Buffer {
     return createHash('sha256').update(token).digest();
@@ -80,6 +85,7 @@ export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
     private readonly byTerminal = new Map<string, StoredEndpoint>();
     private readonly generations = new Map<string, number>();
+    private readonly messagingChangedListeners = new Set<AgentEndpointMessagingChangedListener>();
     private readonly retiredListeners = new Set<AgentEndpointRetiredListener>();
     private readonly now: () => number;
     private readonly token: () => string;
@@ -112,7 +118,7 @@ export class AgentEndpointRegistry {
             provider: input.provider,
             name: input.name,
             permissionClass: input.permissionClass,
-            deliveryMode: input.deliveryMode,
+            messaging: input.messaging,
             expiresAt,
         } satisfies AgentEndpointSummary;
         const record: StoredEndpoint = {
@@ -158,6 +164,11 @@ export class AgentEndpointRegistry {
     onRetired(listener: AgentEndpointRetiredListener): () => void {
         this.retiredListeners.add(listener);
         return () => this.retiredListeners.delete(listener);
+    }
+
+    onMessagingChanged(listener: AgentEndpointMessagingChangedListener): () => void {
+        this.messagingChangedListeners.add(listener);
+        return () => this.messagingChangedListeners.delete(listener);
     }
 
     authenticate(credential: AgentEndpointCredential): CommandExecutionContext {
@@ -228,9 +239,15 @@ export class AgentEndpointRegistry {
         return this.exact(ref).grants.delete(grantId);
     }
 
-    updateDelivery(ref: AgentEndpointRef, deliveryMode: AgentDeliveryMode): void {
-        const record = this.exact(ref);
-        record.summary = { ...record.summary, deliveryMode };
+    updateMessaging(raw: AgentEndpointMessagingParams): boolean {
+        const input = agentEndpointMessagingParamsSchema.parse(raw);
+        const record = this.byEndpoint.get(input.ref.endpointId);
+        if (!record || !this.matches(record, input.ref) || record.launchId !== input.launchId)
+            return false;
+        const previous = record.summary.messaging;
+        record.summary = { ...record.summary, messaging: input.messaging };
+        for (const listener of this.messagingChangedListeners) listener(record.summary, previous);
+        return true;
     }
 
     resolve(ref: AgentEndpointRef): AgentEndpointSummary {

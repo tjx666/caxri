@@ -1,111 +1,46 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type {
     AgentHeldMessage,
     AgentHeldRetention,
     AgentInboundMessage,
     AgentInboundPolicy,
+    AgentMessagePullResult,
     AgentMessageReceipt,
 } from '../../shared/ipc/agent-inbox-contract';
 import { AGENT_MESSAGE_APPROVAL_TTL_MS } from '../../shared/ipc/agent-inbox-contract';
 import type {
     AgentEndpointRef,
     AgentEndpointSummary,
-    AgentPermissionClass,
 } from '../../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { CommandExecutionContext } from '../../shared/ipc/principal';
 import type { AgentEndpointRegistry } from '../agent-endpoints';
-
-const MAX_WAITING_PER_ENDPOINT = 50;
-const MAX_HELD_PER_ENDPOINT = 100;
-const MAX_PENDING_MESSAGES = 1_024;
-const MAX_PENDING_BYTES = 4 * 1024 * 1024;
-const MAX_RECEIPTS = 4_096;
-const DUPLICATE_WINDOW_MS = 30_000;
-const LOOP_WINDOW_MS = 5 * 60 * 1_000;
-const MAX_PAIR_MESSAGES_PER_WINDOW = 16;
-const MAX_REPLY_DEPTH = 8;
-
-type PendingState = 'waiting' | 'held' | 'delivering';
-type StoredState = PendingState | AgentMessageReceipt['status'];
-
-interface StoredMessage {
-    body?: string;
-    byteLength: number;
-    depth: number;
-    fingerprint: string;
-    from: AgentEndpointSummary;
-    receipt: AgentMessageReceipt;
-    state: StoredState;
-    timer?: NodeJS.Timeout;
-    to?: AgentEndpointSummary;
-}
-
-interface IdempotencyReceipt {
-    digest: string;
-    messageId: string;
-}
-
-interface DuplicateReceipt {
-    expiresAt: number;
-    messageId: string;
-}
-
-interface MessageWaiter {
-    endpointKey: string;
-    requestId: string;
-    resolve(value: { message: AgentInboundMessage | null }): void;
-    timer: NodeJS.Timeout;
-}
-
-interface DeliveryReservation {
-    endpointKey: string;
-    messageId: string;
-}
-
-interface AgentInboxRegistryOptions {
-    emitHeld?(message: AgentHeldMessage): void;
-    emitReceipt?(endpoint: AgentEndpointRef, receipt: AgentMessageReceipt): void;
-    id?: () => string;
-    now?: () => number;
-}
-
-interface AgentMessageSendInput {
-    body: string;
-    idempotencyKey?: string;
-    replyTo?: string;
-    to: AgentEndpointRef;
-    ttlMs: number;
-}
-
-function endpointKey(ref: AgentEndpointRef): string {
-    return `${ref.hostId}:${ref.endpointId}:${ref.generation}`;
-}
-
-function refsEqual(left: AgentEndpointRef, right: AgentEndpointRef): boolean {
-    return endpointKey(left) === endpointKey(right);
-}
-
-function digest(value: unknown): string {
-    return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-}
-
-function boundedPreview(body: string): string {
-    return [...body].slice(0, 240).join('');
-}
-
-/** The complete auto-policy matrix is intentionally small enough to exhaustively regression test. */
-export function decideInboundStatus(
-    policy: AgentInboundPolicy,
-    sender: AgentPermissionClass,
-    receiver: AgentPermissionClass,
-): 'waiting' | 'held' | 'refused' {
-    if (policy === 'refuse') return 'refused';
-    if (policy === 'hold') return 'held';
-    if (policy === 'accept') return 'waiting';
-    return sender !== 'unknown' && sender === receiver ? 'waiting' : 'held';
-}
+import {
+    agentMessageDigest,
+    boundedPreview,
+    decideInboundStatus,
+    DUPLICATE_WINDOW_MS,
+    endpointKey,
+    LOOP_WINDOW_MS,
+    MAX_HELD_PER_ENDPOINT,
+    MAX_PAIR_MESSAGES_PER_WINDOW,
+    MAX_PENDING_BYTES,
+    MAX_PENDING_MESSAGES,
+    MAX_RECEIPTS,
+    MAX_REPLY_DEPTH,
+    MAX_WAITING_PER_ENDPOINT,
+    refsEqual,
+} from './rules';
+import type {
+    AgentInboxRegistryOptions,
+    AgentMessageSendInput,
+    DeliveryReservation,
+    DuplicateReceipt,
+    IdempotencyReceipt,
+    MessageWaiter,
+    StoredMessage,
+} from './types';
 
 /** Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input. */
 export class AgentInboxRegistry {
@@ -133,6 +68,13 @@ export class AgentInboxRegistry {
         this.id = options.id ?? randomUUID;
         this.now = options.now ?? Date.now;
         endpoints.onRetired((endpoint) => this.retire(endpoint.ref));
+        endpoints.onMessagingChanged((endpoint, previous) => {
+            if (
+                previous.deliveryMode !== endpoint.messaging.deliveryMode &&
+                endpoint.messaging.deliveryMode !== 'pull'
+            )
+                this.disablePull(endpoint.ref, endpoint.messaging.deliveryMode === 'unavailable');
+        });
     }
 
     send(
@@ -231,11 +173,9 @@ export class AgentInboxRegistry {
         context: CommandExecutionContext,
         timeoutMs: number,
         requestId: string,
-    ): Promise<{ message: AgentInboundMessage | null }> {
+    ): Promise<AgentMessagePullResult> {
         this.sweep();
-        const receiver = this.sender(context);
-        if (receiver.deliveryMode === 'unavailable')
-            throw new CaxriError('UNAVAILABLE', 'Agent Endpoint has no message adapter');
+        const receiver = this.pullReceiver(context);
         const key = endpointKey(receiver.ref);
         if (
             this.waiters.has(key) ||
@@ -243,7 +183,11 @@ export class AgentInboxRegistry {
         )
             throw new CaxriError('CONFLICT', 'Agent Endpoint already has an active message wait');
         const message = this.shiftWaiting(key);
-        if (message) return Promise.resolve({ message: this.reserve(message, key, requestId) });
+        if (message)
+            return Promise.resolve({
+                message: this.reserve(message, key, requestId),
+                outcome: 'message',
+            });
         return new Promise((resolve) => {
             const waiter: MessageWaiter = {
                 endpointKey: key,
@@ -251,12 +195,27 @@ export class AgentInboxRegistry {
                 resolve,
                 timer: setTimeout(() => {
                     if (this.waiters.get(key) === waiter) this.waiters.delete(key);
-                    resolve({ message: null });
+                    resolve({ message: null, outcome: 'timed_out' });
                 }, timeoutMs),
             };
             waiter.timer.unref();
             this.waiters.set(key, waiter);
         });
+    }
+
+    check(context: CommandExecutionContext, requestId: string): AgentMessagePullResult {
+        this.sweep();
+        const receiver = this.pullReceiver(context);
+        const key = endpointKey(receiver.ref);
+        if (
+            this.waiters.has(key) ||
+            [...this.reservations.values()].some((reservation) => reservation.endpointKey === key)
+        )
+            throw new CaxriError('CONFLICT', 'Agent Endpoint already has an active message wait');
+        const message = this.shiftWaiting(key);
+        return message
+            ? { message: this.reserve(message, key, requestId), outcome: 'message' }
+            : { message: null, outcome: 'empty' };
     }
 
     /** Marks a pull delivered only after LocalHostServer confirms its reply crossed the socket. */
@@ -282,7 +241,7 @@ export class AgentInboxRegistry {
             if (waiter.requestId !== requestId) continue;
             clearTimeout(waiter.timer);
             this.waiters.delete(key);
-            waiter.resolve({ message: null });
+            waiter.resolve({ message: null, outcome: 'empty' });
             return;
         }
         const reservation = this.reservations.get(requestId);
@@ -312,7 +271,7 @@ export class AgentInboxRegistry {
         if (waiter) {
             clearTimeout(waiter.timer);
             this.waiters.delete(key);
-            waiter.resolve({ message: null });
+            waiter.resolve({ message: null, outcome: 'empty' });
         }
         for (const [requestId, reservation] of this.reservations) {
             if (reservation.endpointKey === key) this.reservations.delete(requestId);
@@ -331,10 +290,34 @@ export class AgentInboxRegistry {
         this.held.delete(key);
     }
 
+    private disablePull(ref: AgentEndpointRef, unavailable: boolean): void {
+        const key = endpointKey(ref);
+        const waiter = this.waiters.get(key);
+        if (waiter) {
+            clearTimeout(waiter.timer);
+            this.waiters.delete(key);
+            waiter.resolve({ message: null, outcome: 'empty' });
+        }
+        for (const [requestId, reservation] of this.reservations) {
+            if (reservation.endpointKey !== key) continue;
+            this.cancelWait(requestId);
+        }
+        if (!unavailable) return;
+        for (const message of [...this.messages.values()]) {
+            if (
+                refsEqual(message.receipt.to, ref) &&
+                (message.state === 'waiting' ||
+                    message.state === 'held' ||
+                    message.state === 'delivering')
+            )
+                this.finish(message, 'unavailable');
+        }
+    }
+
     close(): void {
         for (const waiter of this.waiters.values()) {
             clearTimeout(waiter.timer);
-            waiter.resolve({ message: null });
+            waiter.resolve({ message: null, outcome: 'empty' });
         }
         this.waiters.clear();
         this.reservations.clear();
@@ -359,9 +342,14 @@ export class AgentInboxRegistry {
     ): AgentMessageReceipt {
         this.sweep();
         const from = this.sender(context);
+        if (from.messaging.deliveryMode === 'unavailable')
+            throw new CaxriError('UNAVAILABLE', 'Agent Endpoint messaging is unavailable', {
+                reason: from.messaging.reason,
+                nextAction: from.messaging.nextAction,
+            });
         if (refsEqual(from.ref, input.to))
             throw new CaxriError('VALIDATION', 'An Agent Endpoint cannot message itself');
-        const canonicalDigest = digest({
+        const canonicalDigest = agentMessageDigest({
             to: input.to,
             body: input.body,
             replyTo: input.replyTo ?? null,
@@ -380,7 +368,7 @@ export class AgentInboxRegistry {
             this.idempotency.delete(idempotencyMapKey);
         }
 
-        const fingerprint = digest([
+        const fingerprint = agentMessageDigest([
             endpointKey(from.ref),
             endpointKey(input.to),
             input.replyTo ?? null,
@@ -411,7 +399,7 @@ export class AgentInboxRegistry {
                 idempotencyMapKey,
             );
         }
-        if (to.projectId !== from.projectId || to.deliveryMode === 'unavailable')
+        if (to.projectId !== from.projectId || to.messaging.deliveryMode === 'unavailable')
             return this.storeTerminal(
                 from,
                 input,
@@ -630,6 +618,21 @@ export class AgentInboxRegistry {
         return this.endpoints.context(context).endpoint;
     }
 
+    private pullReceiver(context: CommandExecutionContext): AgentEndpointSummary {
+        const receiver = this.sender(context);
+        if (receiver.messaging.deliveryMode === 'unavailable')
+            throw new CaxriError('UNAVAILABLE', 'Agent Endpoint has no message adapter', {
+                reason: receiver.messaging.reason,
+                nextAction: receiver.messaging.nextAction,
+            });
+        if (receiver.messaging.deliveryMode !== 'pull')
+            throw new CaxriError('CONFLICT', 'Agent Endpoint uses Provider push messaging', {
+                reason: 'delivery_mode_push',
+                nextAction: 'none',
+            });
+        return receiver;
+    }
+
     private heldProjection(message: StoredMessage): AgentHeldMessage {
         if (!message.body || !message.to)
             throw new CaxriError('INTERNAL', 'Held Agent message lost its in-memory body');
@@ -676,7 +679,10 @@ export class AgentInboxRegistry {
         if (!message) return;
         clearTimeout(waiter.timer);
         this.waiters.delete(receiverKey);
-        waiter.resolve({ message: this.reserve(message, receiverKey, waiter.requestId) });
+        waiter.resolve({
+            message: this.reserve(message, receiverKey, waiter.requestId),
+            outcome: 'message',
+        });
     }
 
     private shiftWaiting(receiverKey: string): StoredMessage | undefined {
@@ -694,7 +700,7 @@ export class AgentInboxRegistry {
         message: StoredMessage,
         status: Extract<
             AgentMessageReceipt['status'],
-            'capacity' | 'delivered' | 'expired' | 'refused'
+            'capacity' | 'delivered' | 'expired' | 'refused' | 'unavailable'
         >,
     ): void {
         if (

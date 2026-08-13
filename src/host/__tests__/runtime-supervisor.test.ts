@@ -95,7 +95,13 @@ describe('Host Runtime supervisor', () => {
                 launchId: 'launch-1',
                 name: 'Codex',
                 permissionClass: 'standard',
-                deliveryMode: 'unavailable',
+                messaging: {
+                    deliveryMode: 'unavailable',
+                    health: 'unsupported',
+                    reason: 'adapter_unavailable',
+                    checkedAt: 1,
+                    nextAction: 'restart_terminal',
+                },
             },
         });
         await vi.waitFor(() => expect(child.send).toHaveBeenCalledTimes(1));

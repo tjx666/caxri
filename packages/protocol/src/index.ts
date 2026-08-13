@@ -19,6 +19,7 @@ export * from './local-transport.js';
 export * from './methods.js';
 export * from './method-spec.js';
 export * from './principal.js';
+export * from './provider-messaging-contract.js';
 export * from './projections.js';
 export * from './request-lifetime.js';
 export * from './renderer-error.js';

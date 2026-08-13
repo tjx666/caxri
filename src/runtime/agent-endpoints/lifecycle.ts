@@ -1,22 +1,27 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentLaunchSettings } from '../../shared/agents';
+import type { AgentLaunchSettings, AgentProviderSettings } from '../../shared/agents';
 import { agentProviderCatalog } from '../../shared/agents';
 import type {
     AgentEndpointBeginParams,
     AgentEndpointBeginResult,
+    AgentEndpointMessagingParams,
     AgentEndpointRetireParams,
 } from '../../shared/ipc/agent-endpoint-control';
 import type { AgentPermissionClass } from '../../shared/ipc/agent-endpoint-contract';
 import type { AgentProvider, TerminalRecord } from '../../shared/types';
+import { AgentMessagingCapabilityProbe, type AgentMessagingProbeInput } from '../agent-messaging';
 
 export interface RuntimeAgentEndpointControl {
     begin(params: AgentEndpointBeginParams): Promise<AgentEndpointBeginResult>;
+    messaging(params: AgentEndpointMessagingParams): Promise<boolean>;
     retire(params: AgentEndpointRetireParams): Promise<boolean>;
 }
 
 interface ActiveEndpoint {
+    launch: AgentLaunchSettings;
     launchId: string;
+    provider: AgentProvider;
     ref: AgentEndpointBeginResult['ref'];
 }
 
@@ -44,16 +49,24 @@ export class RuntimeAgentEndpointLifecycle {
     constructor(
         private readonly control: RuntimeAgentEndpointControl,
         private readonly userDataPath: string,
+        private readonly messagingProbe = new AgentMessagingCapabilityProbe({
+            cliPath: process.env.CAXRI_CLI_PATH,
+        }),
     ) {}
 
     async environment(
         terminal: TerminalRecord,
         projectId: string,
-        launch: AgentLaunchSettings,
+        settings: AgentProviderSettings,
     ): Promise<NodeJS.ProcessEnv> {
         if (terminal.kind === 'shell') return {};
         await this.retire(terminal.id);
         const launchId = randomUUID();
+        const messaging = await this.messagingProbe.check({
+            enabled: settings.messaging.enabled,
+            launch: settings.launch,
+            provider: terminal.kind,
+        });
         const endpoint = await this.control.begin({
             terminalId: terminal.id,
             sessionId: terminal.sessionId,
@@ -61,18 +74,43 @@ export class RuntimeAgentEndpointLifecycle {
             provider: terminal.kind,
             launchId,
             name: terminal.title,
-            permissionClass: classifyAgentPermission(terminal.kind, launch),
-            /** Directly managed Agent Terminals consume the Host Inbox through the local CLI. */
-            deliveryMode: 'pull',
+            permissionClass: classifyAgentPermission(terminal.kind, settings.launch),
+            messaging,
         });
-        this.active.set(terminal.id, { launchId, ref: endpoint.ref });
+        this.active.set(terminal.id, {
+            launch: settings.launch,
+            launchId,
+            provider: terminal.kind,
+            ref: endpoint.ref,
+        });
         return {
             CAXRI_AGENT_ENDPOINT_HOST_ID: endpoint.ref.hostId,
             CAXRI_AGENT_ENDPOINT_ID: endpoint.ref.endpointId,
             CAXRI_AGENT_ENDPOINT_GENERATION: String(endpoint.ref.generation),
             CAXRI_AGENT_ENDPOINT_TOKEN: endpoint.token,
+            ...(process.env.CAXRI_CLI_PATH ? { CAXRI_CLI_PATH: process.env.CAXRI_CLI_PATH } : {}),
             CAXRI_USER_DATA_DIR: this.userDataPath,
         };
+    }
+
+    async reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
+        this.messagingProbe.invalidate();
+        await Promise.all(
+            [...this.active.values()].map(async (endpoint) => {
+                const providerSettings = settings[endpoint.provider];
+                const input = {
+                    enabled: providerSettings.messaging.enabled,
+                    launch: endpoint.launch,
+                    provider: endpoint.provider,
+                } satisfies AgentMessagingProbeInput;
+                const messaging = await this.messagingProbe.check(input);
+                await this.control.messaging({
+                    ref: endpoint.ref,
+                    launchId: endpoint.launchId,
+                    messaging,
+                });
+            }),
+        );
     }
 
     async retire(terminalId: string): Promise<void> {

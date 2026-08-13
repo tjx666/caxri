@@ -198,6 +198,22 @@ before that boundary requeues the message at the FIFO front. Desktop approval mo
 message into the receiver Inbox. Peer text carries `origin: peer` and can never grant a permission,
 change settings, invoke a slash command, wake an Agent, or write a user prompt.
 
+Each Endpoint also exposes one typed messaging capability (`deliveryMode`, `health`, stable `reason`,
+`checkedAt`, and `nextAction`). The Runtime probes the configured executable and version behind a
+bounded cache; disabling the integration or invalidating the probe revokes messaging without stopping
+the PTY. Unknown future Provider majors fail closed. The verified stable matrix is Claude Code
+2.1.80+ within major 2 and Codex 0.147.0+ within major 0, both using `pull` through the version-matched
+Caxri CLI. Claude custom Channels preserve a non-user source, but remain a research preview that
+requires `--dangerously-load-development-channels`; Caxri therefore does not enable that flag or
+advertise stable push. A future allowlisted Channel adapter must omit the independent
+`claude/channel/permission` capability and acknowledge only after its exact transport delivery.
+See [Claude Code Channels](https://code.claude.com/docs/en/channels) and the
+[Channels reference](https://code.claude.com/docs/en/channels-reference). Codex 0.147.0 exposes no
+documented peer-origin push boundary, so Caxri never guesses app-server frames or Provider storage.
+Pull `wait` and `check` consume only after the authenticated Host reply flushes; timeout, cancellation,
+or disconnect requeues the same FIFO message. The controlled version matrix and operator behavior
+are recorded in `docs/provider-messaging.md`.
+
 Provider lifecycle hooks follow one generic Runtime contract: provider-local adapters define documented events, config targets, schema inspection, render, and removal, while `src/runtime/agents/hooks/` exclusively owns filesystem reads, a cross-process install lock, mode-`0600` atomic replacements, debounced provider-config watching with a slow polling fallback, bridge staging, the authenticated local socket, and health reporting. Adapters add three content-free phases (`turnStarted`, `attentionRequested`, `turnFinished`) and remove only handlers carrying Caxri's marker. Foreign hooks and comments are preserved, malformed trees and policy-disabled configs fail closed, Codex inline-hook conflicts are reported instead of merged, and removal independently preserves every newer marked schema even when another conflict is present. Main supplies the fixed per-user bridge root; test/E2E composition omits it so isolated runs cannot mutate real CLI configuration.
 
 Provider hook intent is profile-scoped while provider configuration is user-global. The shared hook root persists a versioned union of enabled providers and paths by Caxri profile, prunes entries whose real profile directory was explicitly removed, and installs the remaining union under the same cross-process lock; one profile can remove a provider only after no recorded profile still enables it. This prevents independently configured worktrees from uninstalling each other's hooks, continuously rewriting the global provider files, or leaving an unremovable intent after profile cleanup.

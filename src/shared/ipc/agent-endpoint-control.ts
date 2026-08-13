@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 import {
-    agentDeliveryModeSchema,
     agentEndpointRefSchema,
+    agentMessagingCapabilitySchema,
     agentPermissionClassSchema,
 } from '../../../packages/protocol/src/agent-endpoint-contract';
 import { agentProviderSchema, identifierSchema } from '../../../packages/protocol/src/domain';
@@ -17,7 +17,7 @@ export const agentEndpointBeginParamsSchema = z.object({
     launchId: identifierSchema,
     name: z.string().trim().min(1).max(200),
     permissionClass: agentPermissionClassSchema,
-    deliveryMode: agentDeliveryModeSchema,
+    messaging: agentMessagingCapabilitySchema,
 });
 
 export const agentEndpointBeginResultSchema = z.object({
@@ -33,6 +33,14 @@ export const agentEndpointRetireParamsSchema = z.object({
 
 export const agentEndpointRetireResultSchema = z.object({ retired: z.boolean() });
 
+export const agentEndpointMessagingParamsSchema = z.object({
+    ref: agentEndpointRefSchema,
+    launchId: identifierSchema,
+    messaging: agentMessagingCapabilitySchema,
+});
+
+export const agentEndpointMessagingResultSchema = z.object({ updated: z.boolean() });
+
 export const runtimeHostControlRequestSchema = z.discriminatedUnion('operation', [
     z.object({
         type: z.literal('host-control.request'),
@@ -45,6 +53,12 @@ export const runtimeHostControlRequestSchema = z.discriminatedUnion('operation',
         id: identifierSchema,
         operation: z.literal('agent-endpoint.retire'),
         params: agentEndpointRetireParamsSchema,
+    }),
+    z.object({
+        type: z.literal('host-control.request'),
+        id: identifierSchema,
+        operation: z.literal('agent-endpoint.messaging'),
+        params: agentEndpointMessagingParamsSchema,
     }),
 ]);
 
@@ -66,4 +80,5 @@ export const runtimeHostControlReplySchema = z.discriminatedUnion('ok', [
 export type AgentEndpointBeginParams = z.infer<typeof agentEndpointBeginParamsSchema>;
 export type AgentEndpointBeginResult = z.infer<typeof agentEndpointBeginResultSchema>;
 export type AgentEndpointRetireParams = z.infer<typeof agentEndpointRetireParamsSchema>;
+export type AgentEndpointMessagingParams = z.infer<typeof agentEndpointMessagingParamsSchema>;
 export type RuntimeHostControlRequest = z.infer<typeof runtimeHostControlRequestSchema>;

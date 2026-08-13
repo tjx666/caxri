@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import {
     agentEndpointBeginResultSchema,
+    agentEndpointMessagingResultSchema,
     agentEndpointRetireResultSchema,
     runtimeHostControlReplySchema,
     type AgentEndpointBeginParams,
     type AgentEndpointBeginResult,
+    type AgentEndpointMessagingParams,
     type AgentEndpointRetireParams,
 } from '../../shared/ipc/agent-endpoint-control';
 import { CaxriError, fromWireError } from '../../shared/ipc/errors';
@@ -30,6 +32,12 @@ export class RuntimeAgentEndpointControlClient {
         return this.request('agent-endpoint.begin', params, (value) =>
             agentEndpointBeginResultSchema.parse(value),
         ) as Promise<AgentEndpointBeginResult>;
+    }
+
+    messaging(params: AgentEndpointMessagingParams): Promise<boolean> {
+        return this.request('agent-endpoint.messaging', params, (value) =>
+            agentEndpointMessagingResultSchema.parse(value),
+        ).then((result) => (result as { updated: boolean }).updated);
     }
 
     retire(params: AgentEndpointRetireParams): Promise<boolean> {
@@ -68,8 +76,8 @@ export class RuntimeAgentEndpointControlClient {
     }
 
     private request(
-        operation: 'agent-endpoint.begin' | 'agent-endpoint.retire',
-        params: AgentEndpointBeginParams | AgentEndpointRetireParams,
+        operation: 'agent-endpoint.begin' | 'agent-endpoint.messaging' | 'agent-endpoint.retire',
+        params: AgentEndpointBeginParams | AgentEndpointMessagingParams | AgentEndpointRetireParams,
         parse: (value: unknown) => unknown,
     ): Promise<unknown> {
         if (!this.port.connected())

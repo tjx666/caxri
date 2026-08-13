@@ -127,7 +127,13 @@ describe('CLI application', () => {
                 provider: 'codex',
                 name: 'Codex',
                 permissionClass: 'standard',
-                deliveryMode: 'unavailable',
+                messaging: {
+                    deliveryMode: 'unavailable',
+                    health: 'unsupported',
+                    reason: 'adapter_unavailable',
+                    checkedAt: 1,
+                    nextAction: 'restart_terminal',
+                },
                 expiresAt: 10_000,
             },
             capabilities: ['agents.read'],
@@ -179,6 +185,24 @@ describe('CLI application', () => {
         expect(client.request).toHaveBeenCalledWith('agent.context', {});
         expect(output.stdout()).toContain('"endpointId":"endpoint-1"');
         expect(`${output.stdout()}${output.stderr()}`).not.toContain(token);
+
+        const humanOutput = io();
+        await expect(
+            runCli(['agent-context'], {
+                connect,
+                environment: {
+                    CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),
+                    CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
+                    CAXRI_AGENT_ENDPOINT_GENERATION: '2',
+                    CAXRI_AGENT_ENDPOINT_TOKEN: token,
+                    CAXRI_USER_DATA_DIR: '/profiles/agent',
+                },
+                io: humanOutput.io,
+            }),
+        ).resolves.toBe(0);
+        expect(humanOutput.stdout()).toContain('Delivery: unavailable');
+        expect(humanOutput.stdout()).toContain('Health: unsupported');
+        expect(humanOutput.stdout()).toContain('Restart this Agent Terminal');
     });
 
     it('sends and waits for peer messages only with the inherited Agent Endpoint credential', async () => {
@@ -254,6 +278,7 @@ describe('CLI application', () => {
                     origin: 'peer',
                     body: 'private peer body',
                 },
+                outcome: 'message',
             },
             ['agent.message.wait'],
         );
@@ -261,15 +286,46 @@ describe('CLI application', () => {
             ...senderClient.welcome,
             commands: ['agent.message.wait'],
         };
+        const waitConnect = vi.fn(() => Promise.resolve(waitClient));
         await expect(
-            runCli(['agent', 'message', 'wait', '--timeout', '1234', '--json'], {
-                connect: () => Promise.resolve(waitClient),
+            runCli(
+                [
+                    'agent',
+                    'message',
+                    'wait',
+                    '--connect-timeout',
+                    '4321',
+                    '--timeout',
+                    '1234',
+                    '--json',
+                ],
+                {
+                    connect: waitConnect,
+                    environment: endpointEnvironment,
+                    io: waitOutput.io,
+                },
+            ),
+        ).resolves.toBe(0);
+        expect(waitConnect).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 4_321 }));
+        expect(waitClient.request).toHaveBeenCalledWith('agent.message.wait', { timeoutMs: 1_234 });
+        expect(waitClient.request).not.toHaveBeenCalledWith('agent.message.check', {});
+        expect(waitOutput.stdout()).toContain('private peer body');
+
+        const checkOutput = io();
+        const checkClient = host({ message: null, outcome: 'empty' }, ['agent.message.check']);
+        checkClient.welcome = {
+            ...senderClient.welcome,
+            commands: ['agent.message.check'],
+        };
+        await expect(
+            runCli(['agent', 'message', 'check', '--json'], {
+                connect: () => Promise.resolve(checkClient),
                 environment: endpointEnvironment,
-                io: waitOutput.io,
+                io: checkOutput.io,
             }),
         ).resolves.toBe(0);
-        expect(waitClient.request).toHaveBeenCalledWith('agent.message.wait', { timeoutMs: 1_234 });
-        expect(waitOutput.stdout()).toContain('private peer body');
+        expect(checkClient.request).toHaveBeenCalledWith('agent.message.check', {});
+        expect(checkOutput.stdout()).toContain('"outcome":"empty"');
     });
 
     it('rejects Peer Inbox commands before connecting when no Agent credential is present', async () => {

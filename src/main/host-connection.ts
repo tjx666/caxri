@@ -35,6 +35,7 @@ interface UntypedHostClient {
 
 export interface DesktopHostConnectionOptions {
     agentHooksPath?: string;
+    cliPath: string;
     currentDirectory: string;
     desktopId: string;
     desktopLaunch: HostDesktopLaunch;
@@ -101,6 +102,7 @@ export class DesktopHostConnection extends EventEmitter {
                 ...(this.options.agentHooksPath
                     ? { CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath }
                     : {}),
+                CAXRI_CLI_PATH: this.options.cliPath,
             },
         });
         try {

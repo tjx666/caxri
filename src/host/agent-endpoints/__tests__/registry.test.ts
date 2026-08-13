@@ -13,7 +13,13 @@ function begin(registry: AgentEndpointRegistry, overrides: Record<string, unknow
         launchId: 'launch-1',
         name: 'Codex',
         permissionClass: 'standard',
-        deliveryMode: 'unavailable',
+        messaging: {
+            deliveryMode: 'unavailable',
+            health: 'unsupported',
+            reason: 'adapter_unavailable',
+            checkedAt: 1,
+            nextAction: 'restart_terminal',
+        },
         ...overrides,
     });
 }
@@ -133,5 +139,28 @@ describe('AgentEndpointRegistry', () => {
         expect(registry.list(agent)).toHaveLength(2);
         expect(registry.list(owner)).toHaveLength(3);
         expect(registry.list(owner).map(({ name }) => name)).toEqual(['Codex', 'Codex', 'Codex']);
+    });
+
+    it('updates messaging health only for the exact live launch generation', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        const changed: string[] = [];
+        registry.onMessagingChanged((summary) => changed.push(summary.messaging.reason));
+        const messaging = {
+            deliveryMode: 'pull' as const,
+            health: 'ready' as const,
+            reason: 'pull_ready' as const,
+            checkedAt: 2,
+            nextAction: 'use_pull' as const,
+        };
+
+        expect(
+            registry.updateMessaging({ ref: endpoint.ref, launchId: 'stale-launch', messaging }),
+        ).toBe(false);
+        expect(
+            registry.updateMessaging({ ref: endpoint.ref, launchId: 'launch-1', messaging }),
+        ).toBe(true);
+        expect(registry.resolve(endpoint.ref).messaging).toEqual(messaging);
+        expect(changed).toEqual(['pull_ready']);
     });
 });
