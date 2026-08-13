@@ -32,7 +32,17 @@ export const draculaTheme: ThemeTokens = {
         surface: '#21222c',
         elevated: '#343746',
         foreground: '#f8f8f2',
-        muted: '#6272a4',
+        /**
+         * Deliberately NOT Dracula's `#6272a4`. That value is the palette's *comment* color, tuned
+         * for syntax that is meant to recede behind code; `--muted` is the UI's secondary-text role
+         * (133 of its 135 uses in the Renderer are `text-muted`), so it has to stay readable. On the
+         * lightest chrome surface (`elevated` `#343746`) `#6272a4` measures 3.35:1 against
+         * `surface` and only 2.50:1 against `elevated`, both below the WCAG AA 4.5:1 floor for body
+         * text. This value keeps the same blue-grey hue and stays clearly subordinate to
+         * `foreground`, while clearing AA on every chrome surface (4.81:1 on `elevated`). The
+         * comment color itself is unchanged below, where it is still correct.
+         */
+        muted: '#9aa5c4',
         border: '#44475a',
         selection: '#44475a',
         accent: '#bd93f9',
