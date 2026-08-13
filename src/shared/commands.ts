@@ -36,9 +36,9 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'project.delete',
-        title: 'Remove Project',
+        title: 'Delete Project',
         category: 'Project',
-        description: 'Remove the selected Project from Caxri',
+        description: 'Delete the selected Project from Caxri without touching its files',
         nativeMenu: { menu: 'project', group: 0, order: 1 },
     },
     {
@@ -50,9 +50,9 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'session.delete',
-        title: 'Remove Session',
+        title: 'Delete Session',
         category: 'Session',
-        description: 'Remove the selected Session and its Terminals',
+        description: 'Delete the selected Session and its Terminals without touching files on disk',
         nativeMenu: { menu: 'session', group: 0, order: 1 },
     },
     {
@@ -84,22 +84,32 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'terminal', group: 0, order: 1 },
     },
     {
+        id: 'terminal.copy',
+        title: 'Copy Selection',
+        category: 'Terminal',
+        description: 'Copy the active Terminal selection to the clipboard',
+        nativeMenu: { menu: 'terminal', group: 1, order: 0 },
+    },
+    {
         id: 'terminal.find',
         title: 'Find in Terminal',
         category: 'Terminal',
         description: 'Search the active Terminal buffer',
+        nativeMenu: { menu: 'terminal', group: 1, order: 1 },
     },
     {
         id: 'terminal.previousCommand',
         title: 'Go to Previous Terminal Command',
         category: 'Terminal',
         description: 'Scroll the active Terminal to the previous command boundary',
+        nativeMenu: { menu: 'terminal', group: 1, order: 2 },
     },
     {
         id: 'terminal.nextCommand',
         title: 'Go to Next Terminal Command',
         category: 'Terminal',
         description: 'Scroll the active Terminal to the next command boundary',
+        nativeMenu: { menu: 'terminal', group: 1, order: 3 },
     },
     {
         id: 'terminal.restart',
@@ -128,6 +138,20 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Close the active Terminal or file tab',
         nativeMenu: { menu: 'window', group: 0, order: 0 },
+    },
+    {
+        id: 'workbench.nextTab',
+        title: 'Show Next Tab',
+        category: 'View',
+        description: 'Activate the next Terminal or file tab',
+        nativeMenu: { menu: 'window', group: 1, order: 0 },
+    },
+    {
+        id: 'workbench.previousTab',
+        title: 'Show Previous Tab',
+        category: 'View',
+        description: 'Activate the previous Terminal or file tab',
+        nativeMenu: { menu: 'window', group: 1, order: 1 },
     },
     {
         id: 'editor.save',
@@ -174,6 +198,12 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Open Settings (JSON)',
         category: 'Preferences',
         description: 'Open settings.jsonc in the Caxri source editor',
+    },
+    {
+        id: 'settings.openKeybindings',
+        title: 'Open Keyboard Shortcuts',
+        category: 'Preferences',
+        description: 'Edit Caxri keyboard shortcuts',
     },
     {
         id: 'settings.manageTrustedDomains',
@@ -258,12 +288,20 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
 
 /** Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run. */
 export const defaultKeybindings: Keybinding[] = [
-    { key: 'cmd+p', command: 'pathBrowser.open' },
+    /**
+     * The path browser is a Helm-style directory walker, not a workspace-wide fuzzy quick-open, so
+     * it deliberately avoids `Cmd+P`: that chord sets a "type any filename, jump anywhere"
+     * expectation this dialog cannot meet while `files.browse` stays bounded to one directory.
+     */
+    { key: 'alt+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+n', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
     { key: 'cmd+k', command: 'terminal.clear' },
+    { key: 'cmd+c', command: 'terminal.copy' },
     { key: 'cmd+f', command: 'terminal.find' },
+    { key: 'ctrl+tab', command: 'workbench.nextTab' },
+    { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
     { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },

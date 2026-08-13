@@ -35,6 +35,15 @@ import {
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import {
+    deleteProjectPrompt,
+    deleteSessionPrompt,
+    externalLinkChoice,
+    externalLinkPrompt,
+    trashPrompt,
+    unsavedChangesChoice,
+    unsavedChangesPrompt,
+} from './confirmations';
 import { decideCrashRecovery } from './crash-policy';
 import { openExternalUrl } from './external-links';
 import { resolveLogLevel } from './log-level';
@@ -127,31 +136,11 @@ async function handleExternalUrl(
             getTrustedDomains: async () =>
                 (await supervisor.request('settings.get')).value['security.trustedDomains'],
             prompt: async (parsed) => {
-                const messageBoxOptions = options.allowTrust
-                    ? {
-                          type: 'question' as const,
-                          title: 'Open External Link',
-                          message: `Open ${parsed.host} in your default browser?`,
-                          detail: 'You can open this link once or trust this exact origin for future links.',
-                          buttons: ['Open Once', 'Trust Domain and Open', 'Cancel'],
-                          defaultId: 2,
-                          cancelId: 2,
-                      }
-                    : {
-                          type: 'question' as const,
-                          title: 'Open External Link',
-                          message: `Open ${parsed.host} in your default browser?`,
-                          detail: 'You can open this link once.',
-                          buttons: ['Open Once', 'Cancel'],
-                          defaultId: 1,
-                          cancelId: 1,
-                      };
+                const messageBoxOptions = externalLinkPrompt(parsed, options.allowTrust);
                 const result = options.window
                     ? await dialog.showMessageBox(options.window, messageBoxOptions)
                     : await dialog.showMessageBox(messageBoxOptions);
-                if (result.response === 0) return 'open_once' as const;
-                if (options.allowTrust && result.response === 1) return 'trust' as const;
-                return 'cancel' as const;
+                return externalLinkChoice(result.response, options.allowTrust);
             },
             trust: async (domain) => {
                 await supervisor.request('settings.trustDomain', { domain });
@@ -431,15 +420,10 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
         }
         case 'files.trash': {
             const item = await supervisor.request('files.authorizeTrash', request.params);
-            const result = await dialog.showMessageBox(mainWindow!, {
-                type: 'warning',
-                title: 'Move to Trash',
-                message: `Move '${item.name}' to the Trash?`,
-                detail: `${item.path}\n\nYou can recover this item from the Trash.`,
-                buttons: ['Move to Trash', 'Cancel'],
-                defaultId: 1,
-                cancelId: 1,
-            });
+            const result = await dialog.showMessageBox(
+                mainWindow!,
+                trashPrompt({ ...item, hasUnsavedChanges: request.params.hasUnsavedChanges }),
+            );
             if (result.response !== 0) return { canceled: true };
             /** Reauthorize after the native dialog so a replaced path cannot inherit approval. */
             const current = await supervisor.request('files.authorizeTrash', request.params);
@@ -469,18 +453,10 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
             const projectTitle =
                 state.projects.find((project) => project.id === projectId)?.displayTitle ??
                 'this Project';
-            const result = await dialog.showMessageBox(mainWindow!, {
-                type: 'warning',
-                title: 'Remove Project',
-                message:
-                    count > 0
-                        ? `Remove '${projectTitle}' and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
-                        : `Remove '${projectTitle}'?`,
-                detail: 'Only Caxri metadata and snapshots are removed. The Project directory and its files are never deleted.',
-                buttons: ['Remove Project', 'Cancel'],
-                defaultId: 1,
-                cancelId: 1,
-            });
+            const result = await dialog.showMessageBox(
+                mainWindow!,
+                deleteProjectPrompt(projectTitle, count),
+            );
             if (result.response !== 0) return { canceled: true };
             return supervisor.request('project.delete', { projectId });
         }
@@ -491,18 +467,10 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
             const sessionTitle =
                 bootstrap.sessions.find((session) => session.id === sessionId)?.displayTitle ??
                 'this Session';
-            const result = await dialog.showMessageBox(mainWindow!, {
-                type: 'warning',
-                title: 'Remove Session',
-                message:
-                    count > 0
-                        ? `Remove '${sessionTitle}' and terminate ${count} running Terminal${count === 1 ? '' : 's'}?`
-                        : `Remove '${sessionTitle}'?`,
-                detail: 'Only Caxri metadata and snapshots are removed. The selected directory and its files are never deleted.',
-                buttons: ['Remove Session', 'Cancel'],
-                defaultId: 1,
-                cancelId: 1,
-            });
+            const result = await dialog.showMessageBox(
+                mainWindow!,
+                deleteSessionPrompt(sessionTitle, count),
+            );
             if (result.response !== 0) return { canceled: true };
             return supervisor.request('session.delete', { sessionId });
         }
@@ -529,6 +497,13 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
             const error = await shell.openPath(path);
             if (error) throw new CaxriError('IO', error);
             return null;
+        }
+        case 'editor.confirmDiscard': {
+            const result = await dialog.showMessageBox(
+                mainWindow!,
+                unsavedChangesPrompt(request.params.name),
+            );
+            return { choice: unsavedChangesChoice(result.response) };
         }
         case 'processExplorer.open':
             processExplorer.open();
@@ -740,6 +715,21 @@ void app.whenReady().then(async () => {
         sampler: new ProcessExplorerSampler({
             rootPid: process.pid,
             runtimePid: () => supervisor.processId(),
+            /**
+             * Resolved lazily at sample time: the diagnostics window is created on demand, so its
+             * renderer process does not exist yet while this controller is being constructed.
+             */
+            rendererRoles: () => {
+                const roles = new Map<number, string>();
+                const workbenchPid =
+                    mainWindow && !mainWindow.isDestroyed()
+                        ? mainWindow.webContents.getOSProcessId()
+                        : undefined;
+                if (workbenchPid !== undefined) roles.set(workbenchPid, 'workbench');
+                const explorerPid = processExplorer?.processId();
+                if (explorerPid !== undefined) roles.set(explorerPid, 'process explorer');
+                return roles;
+            },
             electronProcesses: () =>
                 app.getAppMetrics().map((metric) => ({
                     pid: metric.pid,

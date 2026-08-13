@@ -148,6 +148,16 @@ export const methods = {
         params: z.object({ url: z.string().min(1).max(16_384) }),
         result: externalOpenResult,
     },
+    /**
+     * Native "save before closing" prompt for an Editor tab with unsaved changes. It lives in Main
+     * because the choice must be a modal, focus-stealing native sheet: silently discarding an
+     * unsaved buffer is the one destructive Editor action the user cannot undo.
+     */
+    'editor.confirmDiscard': {
+        owner: 'main',
+        params: z.object({ name: z.string().min(1).max(1_024) }),
+        result: z.object({ choice: z.enum(['save', 'discard', 'cancel']) }),
+    },
     'processExplorer.open': { owner: 'main', params: noParams, result: z.null() },
     'dialog.selectDirectory': {
         owner: 'main',
@@ -414,7 +424,16 @@ export const methods = {
     },
     'files.trash': {
         owner: 'main',
-        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+            /**
+             * Set when an open Editor tab holds unsaved changes for this path. The Trash can only
+             * restore the last bytes written to disk, so the confirmation must stop promising that
+             * the item is fully recoverable.
+             */
+            hasUnsavedChanges: z.boolean().optional(),
+        }),
         result: z.union([canceled, mutableFileEntrySchema]),
     },
     'files.read': {
