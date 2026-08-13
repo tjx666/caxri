@@ -10,6 +10,7 @@ export * from './event-client.js';
 export * from './event-journal.js';
 export * from './events.js';
 export * from './inspector.js';
+export * from './introspection.js';
 export * from './layout.js';
 export * from './local-transport.js';
 export * from './methods.js';

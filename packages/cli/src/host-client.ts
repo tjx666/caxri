@@ -226,7 +226,10 @@ export class HostClient {
         credential: HostClientCredential = { kind: 'operator' },
     ): Promise<HostClient> {
         if (manifest.protocolVersion !== CAXRI_PROTOCOL_VERSION)
-            throw new CaxriError('CONFLICT', 'Caxri Host protocol version is incompatible');
+            throw new CaxriError('CONFLICT', 'Caxri Host protocol version is incompatible', {
+                clientProtocolVersion: CAXRI_PROTOCOL_VERSION,
+                hostProtocolVersion: manifest.protocolVersion,
+            });
         try {
             const endpoint = await lstat(manifest.endpoint);
             if (
@@ -505,8 +508,10 @@ export class HostClient {
         this.pending.clear();
     }
 
-    request<M extends CaxriMethod>(method: M, ...args: ParamsArg<M>): Promise<MethodResult<M>> {
-        return this.requestWithId(randomUUID(), method, ...args);
+    request<M extends CaxriMethod>(method: M, ...args: ParamsArg<M>): Promise<MethodResult<M>>;
+    request(method: CaxriMethod, params: unknown): Promise<unknown>;
+    request(method: CaxriMethod, params?: unknown): Promise<unknown> {
+        return this.sendRequest(randomUUID(), method, params);
     }
 
     /** Preserves the caller's transport request ID across the Desktop-to-Host hop. */
@@ -515,10 +520,14 @@ export class HostClient {
         method: M,
         ...args: ParamsArg<M>
     ): Promise<MethodResult<M>> {
+        return this.sendRequest(id, method, args[0]) as Promise<MethodResult<M>>;
+    }
+
+    private sendRequest(id: string, method: CaxriMethod, params: unknown): Promise<unknown> {
         if (this.closed)
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
-        const request = parseCaxriRequest(method, args[0]);
-        return new Promise<MethodResult<M>>((resolve, reject) => {
+        const request = parseCaxriRequest(method, params);
+        return new Promise<unknown>((resolve, reject) => {
             const timer = isNonExpiringRuntimeMethod(method)
                 ? undefined
                 : setTimeout(() => {
@@ -527,7 +536,7 @@ export class HostClient {
                   }, this.timeoutMs);
             this.pending.set(id, {
                 parse: (value) => parseCaxriResult(method, value),
-                resolve: (value) => resolve(value as MethodResult<M>),
+                resolve,
                 reject,
                 timer,
             });

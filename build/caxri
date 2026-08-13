@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+launcher_path=$0
+while [ -L "$launcher_path" ]; do
+    launcher_dir=$(CDPATH= cd -P -- "$(dirname -- "$launcher_path")" && pwd)
+    link_target=$(readlink "$launcher_path")
+    case "$link_target" in
+        /*) launcher_path=$link_target ;;
+        *) launcher_path=$launcher_dir/$link_target ;;
+    esac
+done
+
+launcher_dir=$(CDPATH= cd -P -- "$(dirname -- "$launcher_path")" && pwd)
+app_executable=$launcher_dir/../../MacOS/Caxri
+cli_bundle=$launcher_dir/../cli/caxri.cjs
+
+if [ ! -x "$app_executable" ] || [ ! -r "$cli_bundle" ]; then
+    echo "Caxri CLI could not locate its packaged runtime." >&2
+    exit 126
+fi
+
+ELECTRON_RUN_AS_NODE=1 exec "$app_executable" "$cli_bundle" "$@"

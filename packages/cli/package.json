@@ -8,6 +8,9 @@
     "files": [
         "dist"
     ],
+    "bin": {
+        "caxri": "./dist/caxri.cjs"
+    },
     "exports": {
         ".": {
             "types": "./src/index.ts",
@@ -15,8 +18,8 @@
         }
     },
     "scripts": {
-        "build": "tsc -p tsconfig.build.json",
-        "test": "vitest run --root ../.. packages/cli/src/index.test.ts",
+        "build": "tsc -p tsconfig.build.json && bun build src/bin.ts --target=node --format=cjs --outfile dist/caxri.cjs && bun run scripts/verify-bundle.ts",
+        "test": "vitest run --root ../.. packages/cli/src",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
     "dependencies": {
