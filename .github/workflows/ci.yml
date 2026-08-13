@@ -147,10 +147,12 @@ jobs:
         run: bun run typecheck
       - if: needs.retry-policy.outputs.checks_scope == 'full'
         run: bun run format:check
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run test
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run build
+      - name: Run unit and integration tests
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run scripts/ci-metrics.ts --label "Vitest full suite" -- bun run test
+      - name: Build Electron bundles
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
 
   e2e:
     needs: [retry-policy, checks]
@@ -214,7 +216,10 @@ jobs:
         run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
       - name: Rebuild Electron native modules
         run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild
-      - run: bun run build
+      - name: Verify Electron native modules
+        run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
+      - name: Build Electron bundles
+        run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
       - name: Run focused repair specs
         if: needs.retry-policy.outputs.mode == 'e2e-repair'
         env:

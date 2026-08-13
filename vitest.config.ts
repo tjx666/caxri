@@ -4,7 +4,6 @@ import { defineConfig } from 'vitest/config';
 
 const testFiles = ['src/**/*.test.ts', '.agents/skills/**/scripts/*.test.ts', 'scripts/*.test.ts'];
 const serialNativeTests = [
-    '.agents/skills/switch-worktree/scripts/*.test.ts',
     'src/runtime/__tests__/agent-hooks.integration.test.ts',
     'src/runtime/__tests__/configuration.test.ts',
     'src/runtime/agents/hooks/__tests__/manager.integration.test.ts',

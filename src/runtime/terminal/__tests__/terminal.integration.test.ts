@@ -9,7 +9,6 @@ import { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentLaunchSettings } from '../../../shared/agents';
 import type { TerminalKind } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
-import { MAX_SNAPSHOT_BYTES } from '../../snapshot';
 import { TerminalManager } from '..';
 import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../image-recovery';
 
@@ -749,6 +748,7 @@ describe('TerminalManager', () => {
     });
 
     it('reattaches from the current cursor-addressed screen after raw output exceeds retention', async () => {
+        const maximumSnapshotBytes = 32 * 1024;
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-screen-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -758,7 +758,11 @@ describe('TerminalManager', () => {
             database,
             () => undefined,
             new StructuredLogger(join(directory, 'logs')),
-            { resolveExecutable: () => Promise.resolve('/bin/echo'), spawn: () => fake.process },
+            {
+                resolveExecutable: () => Promise.resolve('/bin/echo'),
+                snapshotMaximumBytes: maximumSnapshotBytes,
+                spawn: () => fake.process,
+            },
         );
 
         await manager.start(created.terminal);
@@ -767,7 +771,7 @@ describe('TerminalManager', () => {
         fake.emitData('\u001B[2J\u001B[HRETAINED_HEADER');
         const cursorUpdate = '\u001B[2;1Hprogress';
         fake.emitData(
-            cursorUpdate.repeat(Math.ceil((MAX_SNAPSHOT_BYTES + 65_536) / cursorUpdate.length)),
+            cursorUpdate.repeat(Math.ceil((maximumSnapshotBytes + 65_536) / cursorUpdate.length)),
         );
 
         const snapshot = await manager.attach(created.terminal.id);

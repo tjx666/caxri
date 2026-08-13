@@ -542,7 +542,15 @@ describe('ConfigurationService', () => {
         const subscribe = vi
             .spyOn(parcelWatcher, 'subscribe')
             .mockRejectedValueOnce(new Error('watcher unavailable'));
-        const service = new ConfigurationService(directory, (event) => events.push(event));
+        const fallbackPollIntervalMs = 25;
+        const service = new ConfigurationService(
+            directory,
+            (event) => events.push(event),
+            undefined,
+            {
+                fallbackPollIntervalMs,
+            },
+        );
 
         try {
             await service.initialize();
@@ -562,7 +570,7 @@ describe('ConfigurationService', () => {
                     { timeout: 5_000 },
                 )
                 .toBe(1);
-            await new Promise((resolve) => setTimeout(resolve, 750));
+            await new Promise((resolve) => setTimeout(resolve, fallbackPollIntervalMs * 3));
             expect(
                 events.filter(
                     (event) =>

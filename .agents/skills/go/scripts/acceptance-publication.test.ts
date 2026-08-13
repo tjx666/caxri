@@ -174,6 +174,7 @@ describe('Go Acceptance round publication', () => {
                 process.execPath,
                 ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'],
                 50,
+                10,
             ),
         ).rejects.toThrow('timed out after 50ms');
     });
