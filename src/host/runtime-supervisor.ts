@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import { CaxriError, fromWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod, RuntimeMethodResult, RuntimeParamsArg } from '../shared/ipc/methods';
+import { isNonExpiringRuntimeMethod } from '../shared/ipc/request-lifetime';
 import {
     parseRuntimeMessage,
     parseRuntimeResult,
@@ -43,10 +44,8 @@ type ForkRuntime = typeof fork;
 const RUNTIME_READY_TIMEOUT_MS = 15_000;
 const RUNTIME_STABILITY_WINDOW_MS = 30_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
-const NON_EXPIRING_METHODS = new Set<RuntimeMethod>(['files.copy', 'files.write']);
-
 function requestTimeout(method: RuntimeMethod): number | undefined {
-    return NON_EXPIRING_METHODS.has(method) ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
+    return isNonExpiringRuntimeMethod(method) ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
 /** Host-owned Runtime lifecycle. The child is Electron's Node mode, preserving native ABI parity. */

@@ -11,7 +11,12 @@ Electron Main
   -> secure BrowserWindow + native dialogs
   -> dedicated Process Explorer window + fixed process sampler
   -> correlated IPC allowlist
-  -> utilityProcess Runtime supervisor
+  -> authenticated Desktop client with a generation-bound Host lease
+
+Headless Host (Electron RunAsNode)
+  -> one profile lock + private Unix socket
+  -> command/capability dispatcher + bounded event journal
+  -> one Node-mode Runtime child
 
 Preload
   -> typed request/event bridge only
@@ -20,14 +25,20 @@ Renderer
   -> React, xterm.js, Monaco, shadcn/ui on Base UI
   -> separate Process Explorer entry with a snapshot-only preload
 
-Runtime utilityProcess
+Runtime child process
   -> Project/Session/PTY/File/Git/Agent/Settings/Theme/Diagnostics services
   -> better-sqlite3 through Drizzle ORM
 ```
 
-The Renderer never owns runtime truth. A renderer reload attaches to the existing Runtime and receives current metadata plus bounded snapshots. A Runtime crash invalidates every in-memory PTY; the supervisor restarts with capped exponential backoff and persisted terminals are exposed as `dead`, never as silently restored processes. A Runtime must remain ready for 30 seconds before its restart budget resets, so ready/crash flapping still fails closed after three restarts.
+The Host is the profile authority and sole Runtime/SQLite owner. Electron Main is a replaceable
+Desktop client: closing a window or quitting Desktop revokes its lease and detaches views without
+stopping Host, Runtime, or PTYs. A renderer reload attaches to the same Runtime state and bounded
+snapshots. A Runtime crash invalidates every in-memory PTY; the Host restarts it with capped
+exponential backoff and persisted terminals are exposed as `dead`, never as silently restored
+processes. A Runtime must remain ready for 30 seconds before its restart budget resets, so
+ready/crash flapping still fails closed after three restarts.
 
-The Process Explorer is a singleton Main-owned window with its own renderer entry and narrow preload. While open, it samples a fixed `/bin/ps` argv every two seconds, filters the result to descendants of the Caxri Main process, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Runtime or PTY lifecycle.
+The Process Explorer is a singleton Main-owned window with its own renderer entry and narrow preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Host process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Runtime or PTY lifecycle.
 
 ## IPC contract
 
@@ -47,10 +58,11 @@ reject an ID reused with different command content. The Electron adapter additio
 requesting WebContents before invoking that dispatcher. Internal Runtime methods remain outside the
 public command registry.
 
-Runtime output events are batched and bounded before crossing process boundaries. Durable
+Runtime output events are batched and bounded before crossing process boundaries. Host owns the durable
 structural events use a monotonic, bounded cursor journal: a reconnect receives an intact suffix or
 a bounded ID/revision snapshot when its cursor has fallen behind. Terminal output never enters that
-journal and retains its specialized attachment, snapshot, and backpressure path. Structural state
+journal; one-shot Desktop commands are transient too. Main keeps a second local journal only for
+Renderer reloads. Terminal output retains its specialized attachment, snapshot, and backpressure path. Structural state
 changes request the full bootstrap convergence snapshot; steady-state Terminal and Agent metadata
 events carry typed Session/Terminal identities and use the bounded `app.records` read so they never
 resend the whole application graph. An unrecognized state-change scope normalizes to the full
@@ -67,15 +79,16 @@ a content-free `reportError` classifier. The Process Explorer preload has the sa
 beside its read-only snapshot/theme methods. Renderer entries report only `page-exception` or
 `unhandled-rejection`; exception values never cross the bridge. Main validates both the sender and
 kind, then writes stable structured events. The preload does not expose `ipcRenderer`, Electron
-objects, environment data, or generic filesystem/process access. Main and Runtime observe fatal
+objects, environment data, or generic filesystem/process access. Host, Main, and Runtime observe fatal
 Node errors through `uncaughtExceptionMonitor`, which preserves their existing crash/exit behavior,
-and use a bounded early-startup buffer plus a synchronous bootstrap logger. Main starts the Runtime
+and use a bounded early-startup buffer plus a synchronous bootstrap logger. Host starts the Runtime
 with an allowlisted environment containing only process-launch context, tool state locations, and
-Caxri-owned paths; ambient credential variables are not copied into the utility process.
+Caxri-owned paths; ambient credential variables are not copied into either child process.
 
 Every Electron Playwright spec uses `e2e/fixtures.ts`. `launchCaxriApp` registers each application
-with that automatic fixture, which observes all Renderer pages, captures both process logs before
-profile cleanup, and fails on any undeclared error/fatal event. Intentional faults use exact
+with that automatic fixture, which observes all Renderer pages, captures Host, Main, and Runtime
+logs before profile cleanup, stops the isolated Host on the final launch, and fails on any
+undeclared error/fatal event. Intentional faults use exact
 source/event/code/count allowances; unconsumed allowances fail so repaired faults cannot leave stale
 suppression behind.
 
@@ -102,7 +115,7 @@ The active Terminal's Status Bar metrics remain Runtime-owned. A fixed `ps` argv
 
 Default `Command+K`, `Command+T`, and `Command+W` bindings clear the active xterm view, create a Terminal in the active group, and close the active Terminal through its normal lifecycle. Clear is Renderer-local and never sends input or a signal to the PTY. All bindings remain configurable, and app-wide commands are ignored while a modal dialog is open. Command-backed native menu items derive placement, ordering, labels, and accelerators from the shared command catalog and live keybindings; only standard Electron role items stay explicit in Main. Inspector modes register their schema value, show command, catalog metadata, and default binding once in `src/shared/inspector.ts`; the Renderer panel map remains exhaustive and type-checks each mode against its derived command id.
 
-Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` detaches every Renderer view and closes the window while Main, Runtime, and PTYs remain alive; reopening creates a new window and attaches it to the live Runtime. Explicit App Quit terminates PTYs and waits briefly for ordered Runtime shutdown. Persisted processes are marked stopped after a normal quit. Dead terminals remain visible and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is registered, so closing a Terminal or deleting its Session cannot create an orphan process.
+Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or cancel. `Keep Running` detaches every Renderer view and closes the window while Host, Runtime, and PTYs remain alive; reopening creates a new window and attaches it to the live Runtime. `Quit Caxri Desktop` persists window state, detaches views, and disconnects Main, but only the explicit `host stop` control terminates PTYs and shuts down Runtime. Dead terminals remain visible and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
 Interrupted-Terminal recovery is supervised by one Runtime-wide four-spawn budget. Selecting a Session invalidates queued restore work from the previous selection, and the selected generation is revalidated after executable discovery immediately before PTY spawn. A visible interrupted Terminal retains the receiving Renderer grid before restore, starts its PTY and parsed screen at that grid when possible, and performs one ordered live-screen reattach after the record becomes `running`; this removes any remaining attach/spawn race without relying on a later ResizeObserver event. Startup Agent metadata probes are limited to the selected Session; another Session is probed when selected rather than during boot.
 
@@ -171,7 +184,7 @@ Directory-picker results create single-use Main-process grants. A grant is revok
 
 ## Performance and observability
 
-Main and Runtime record boundary timings for app readiness, Runtime attachment, first window visibility, Runtime boot, PTY spawn, file listing, Git commands, Agent probes, and watcher readiness. Concurrent identical file, Git, Agent, and Terminal-start requests share one in-flight operation so development StrictMode and repeated UI requests do not duplicate native work. Agent Terminal output schedules a trailing metadata refresh with at most one timer per Terminal, allowing a CLI-generated title to reach the sidebar without opening the Info inspector. One Agent coordinator owns that scheduling and reads Agent Terminal membership from the durable Terminal record instead of a cached set, so no lifecycle path can leave the two disagreeing. Ordinary Shell and dev-server output never enters this probe path; only a bounded simple-command candidate may request coalesced foreground-process confirmation, after which normal Agent metadata refreshes take over.
+Host, Main, and Runtime record boundary timings for app readiness, Host/Desktop attachment, first window visibility, Runtime boot, PTY spawn, file listing, Git commands, Agent probes, and watcher readiness. Concurrent identical file, Git, Agent, and Terminal-start requests share one in-flight operation so development StrictMode and repeated UI requests do not duplicate native work. Agent Terminal output schedules a trailing metadata refresh with at most one timer per Terminal, allowing a CLI-generated title to reach the sidebar without opening the Info inspector. One Agent coordinator owns that scheduling and reads Agent Terminal membership from the durable Terminal record instead of a cached set, so no lifecycle path can leave the two disagreeing. Ordinary Shell and dev-server output never enters this probe path; only a bounded simple-command candidate may request coalesced foreground-process confirmation, after which normal Agent metadata refreshes take over.
 
 Terminal input, resize, and output are high-frequency paths. Successful input and resize requests do not write individual records, repeated ResizeObserver grid sizes do not cross IPC, and Runtime ignores a resize that matches the live PTY grid so a remounted view cannot generate a redundant SIGWINCH. PTY throughput is emitted as periodic aggregate input, output, and dropped-byte counters. Recovery snapshots retain bounded output in incrementally trimmed chunks and persist changed state at most once every five seconds, plus the final exit/restart snapshot, rather than rebuilding and rewriting a full BLOB every 750 ms. Bootstrap loads all Session state rows in one query. Terminal exit, restart/restore, and Agent metadata events refresh only their identified records through one coalesced small read; application attach, Runtime recovery, and structural mutations retain full bootstrap as the convergence path. Monaco stays out of the terminal-first Renderer bundle; after Runtime attachment, a single shared idle preload primes editor-core plus JavaScript, TypeScript/TSX, JSON, HTML, CSS, Markdown, and dotenv tokenization before the first real file selection. Language workers remain demand-loaded.
 
@@ -183,10 +196,10 @@ Structured logs carry timestamp, process, level, event, correlation ID, duration
 
 The application version and short commit hash are injected at build time and read once by Main, which stamps its own logs and forwards them to the Runtime's environment so both processes' logs and the diagnostics export can be correlated to the exact build.
 
-Development launches write Main and Runtime JSONL files to the repository `logs/` directory for direct inspection. Packaged and test launches keep logs beneath the active Electron user-data directory so application data remains self-contained.
+Development launches write Host, Main, and Runtime JSONL files to the repository `logs/` directory for direct inspection. Packaged and test launches keep logs beneath the active Electron user-data directory so application data remains self-contained.
 
 ## Recovery limits
 
-Renderer reload recovers UI state and attaches to live PTYs. Runtime restart recovers database metadata and snapshots only; operating-system PTYs owned by the dead Runtime are not recoverable. Restart attempts are capped and use exponential backoff; a Renderer request that arrives while a crash-triggered restart is waiting out its backoff delay is queued to await that same restart rather than forking early. Startup fails visibly instead of hanging if no Runtime becomes ready within 15 seconds. App exit is the only supported durable process boundary; PTYs do not outlive an explicit quit.
+Renderer or Desktop restart recovers Host-owned state and attaches to live PTYs. Runtime restart recovers database metadata and snapshots only; operating-system PTYs owned by the dead Runtime are not recoverable. Restart attempts are capped and use exponential backoff; a request that arrives while a crash-triggered restart is waiting out its backoff delay is queued to await that same restart rather than forking early. Startup fails visibly instead of hanging if no Runtime becomes ready within 15 seconds. Only explicit `host stop` is a durable process shutdown boundary.
 
 A Renderer process crash (`render-process-gone`) reloads the window automatically with backoff (250ms, then 1s, then 4s). After three crashes within a 60-second window, automatic reload stops; Main logs the crash loop and shows a native dialog offering Relaunch or Quit instead of reloading indefinitely.

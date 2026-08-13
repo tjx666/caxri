@@ -32,7 +32,11 @@ const principalIdSchema = z.string().min(1).max(200);
 const projectIdsSchema = z.array(principalIdSchema).max(128).default([]);
 
 export const principalSchema = z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('desktop'), id: principalIdSchema }),
+    z.object({
+        kind: z.literal('desktop'),
+        id: principalIdSchema,
+        generation: z.number().int().positive(),
+    }),
     z.object({ kind: z.literal('human-cli'), id: principalIdSchema }),
     z.object({
         kind: z.literal('agent'),

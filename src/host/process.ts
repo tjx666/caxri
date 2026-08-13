@@ -1,9 +1,15 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+    HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
+    hostDesktopLaunchSchema,
+} from '../shared/ipc/desktop-launch';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
+import { e2eAgentPolicyEnvironment, readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { startHostApplication } from './index';
+import { createDesktopLauncher } from './desktop-launcher';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
@@ -15,12 +21,25 @@ process.env.CAXRI_GIT_COMMIT = commit;
 const logger = new StructuredLogger(join(userDataPath, 'logs'), 'host', 'info');
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'host' });
 processErrorMonitor.attach(logger);
+const desktopLaunchSource = process.env[HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
+const desktopLaunch = desktopLaunchSource
+    ? hostDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
+    : undefined;
 
 const application = await startHostApplication({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     commit,
     executable: process.execPath,
+    ...(desktopLaunch
+        ? {
+              launchDesktop: createDesktopLauncher({
+                  launch: desktopLaunch,
+                  userDataPath,
+              }),
+          }
+        : {}),
     runtimePath: join(dirname(fileURLToPath(import.meta.url)), 'runtime.js'),
+    runtimeEnvironment: e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
     userDataPath,
     version,
 });

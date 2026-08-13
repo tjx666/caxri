@@ -27,7 +27,11 @@ Node IPC child so it retains Electron ABI parity without launching Chromium. Pac
 must keep proving that `host.js` and `runtime.js` load from `app.asar` while their native modules load
 from `app.asar.unpacked`. Disabling this fuse requires replacing both production launch paths first.
 
-The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Preload, and Runtime remain on their existing Node-oriented transforms.
+The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Main while leaving the
+standalone workspace links out of the packaged application. This gives Main the authenticated Host
+client without making packaged startup depend on an npm workspace symlink.
+
+The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 
 Electron Forge's official Vite plugin remains explicitly experimental and provides no API-stability guarantee. `electron-vite` documents Electron `utilityProcess`, externalizes production/native dependencies, and fits the required process model.
 

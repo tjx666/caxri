@@ -1,4 +1,4 @@
-export type E2EErrorSource = 'main' | 'renderer' | 'runtime';
+export type E2EErrorSource = 'host' | 'main' | 'renderer' | 'runtime';
 
 export interface E2EErrorEvent {
     source: E2EErrorSource;

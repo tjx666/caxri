@@ -7,16 +7,36 @@ import { join } from 'node:path';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
+    desktopTargetPayloadSchema,
     fromWireError,
+    hostDesktopCredentialSchema,
     hostManifestSchema,
+    localClientDesktopReplySchema,
+    localClientDesktopReadySchema,
+    localServerDesktopCommandSchema,
+    localServerDesktopRuntimeReplySchema,
+    localServerDesktopTargetReplySchema,
     localServerEventSchema,
+    localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
     parseCaxriRequest,
     parseCaxriResult,
+    parseRuntimeRequest,
+    parseRuntimeResult,
+    isNonExpiringRuntimeMethod,
+    toWireError,
     type CaxriMethod,
+    type DesktopLease,
+    type DesktopOperation,
+    type DesktopRuntimeMethod,
+    type DesktopRuntimeMethodResult,
+    type DesktopRuntimeParamsArg,
+    type DesktopTargetPayload,
+    type HostDesktopCredential,
     type HostManifest,
     type LocalServerEvent,
+    type LocalServerDesktopCommand,
     type MethodResult,
     type ParamsArg,
     type ProtocolWelcome,
@@ -45,11 +65,23 @@ const LAUNCH_ENVIRONMENT_KEYS = [
 ] as const;
 
 interface PendingRequest {
-    method: CaxriMethod;
+    parse(value: unknown): unknown;
     reject(error: Error): void;
     resolve(value: unknown): void;
-    timer: NodeJS.Timeout;
+    timer?: NodeJS.Timeout;
 }
+
+export type HostClientCredential =
+    | { kind: 'operator' }
+    | {
+          kind: 'desktop';
+          desktopId: string;
+          credential: HostDesktopCredential;
+          handleCommand(
+              operation: DesktopOperation,
+              consumeTarget: () => Promise<DesktopTargetPayload>,
+          ): Promise<unknown>;
+      };
 
 function fileSystemCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
@@ -114,26 +146,84 @@ export async function discoverHostManifest(userDataPath: string): Promise<HostMa
     return parsed.data;
 }
 
+/** Reads the Desktop-only credential and binds it to the current Host process identity. */
+export async function discoverDesktopCredential(
+    userDataPath: string,
+    manifest: HostManifest,
+): Promise<HostDesktopCredential> {
+    const canonicalPath = await realpath(userDataPath);
+    const path = join(canonicalPath, 'host', 'desktop-credential.json');
+    let metadata;
+    try {
+        metadata = await lstat(path);
+    } catch (error) {
+        if (fileSystemCode(error) === 'ENOENT')
+            throw new CaxriError('NOT_FOUND', 'Caxri Desktop credential is unavailable');
+        throw error;
+    }
+    if (
+        !metadata.isFile() ||
+        metadata.isSymbolicLink() ||
+        (metadata.mode & 0o077) !== 0 ||
+        (typeof process.getuid === 'function' && metadata.uid !== process.getuid()) ||
+        metadata.size > MAX_MANIFEST_BYTES
+    )
+        throw new CaxriError('PATH_DENIED', 'Caxri Desktop credential is not private');
+    let source: unknown;
+    try {
+        source = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    } catch {
+        throw new CaxriError('VALIDATION', 'Caxri Desktop credential is malformed');
+    }
+    const parsed = hostDesktopCredentialSchema.safeParse(source);
+    if (!parsed.success) throw new CaxriError('VALIDATION', 'Caxri Desktop credential is invalid');
+    if (
+        parsed.data.profileId !== manifest.profileId ||
+        parsed.data.processIdentity !== manifest.processIdentity
+    )
+        throw new CaxriError('CONFLICT', 'Caxri Desktop credential belongs to another Host');
+    return parsed.data;
+}
+
 /** Authenticated local client shared by the CLI command surface and its future Agent adapter. */
 export class HostClient {
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
     private readonly pending = new Map<string, PendingRequest>();
     private source = '';
     private closed = false;
+    private leaseRenewalTimer?: NodeJS.Timeout;
+    desktopLease?: DesktopLease;
 
     private constructor(
         private readonly socket: Socket,
         readonly welcome: ProtocolWelcome,
         private readonly timeoutMs: number,
+        desktopLease?: DesktopLease,
+        private readonly desktopCommandHandler?: Extract<
+            HostClientCredential,
+            { kind: 'desktop' }
+        >['handleCommand'],
     ) {
+        this.desktopLease = desktopLease;
         socket.on('data', (chunk: Buffer | string) => this.receive(chunk.toString()));
         socket.on('close', () => this.failPending());
         socket.on('error', () => this.failPending());
+        if (desktopLease) {
+            this.leaseRenewalTimer = setInterval(() => {
+                const generation = this.desktopLease?.generation;
+                if (!generation || this.closed) return;
+                this.socket.write(
+                    `${JSON.stringify({ type: 'desktop-lease.renew', generation })}\n`,
+                );
+            }, 20_000);
+            this.leaseRenewalTimer.unref();
+        }
     }
 
     static async connect(
         manifest: HostManifest,
         timeoutMs = DEFAULT_TIMEOUT_MS,
+        credential: HostClientCredential = { kind: 'operator' },
     ): Promise<HostClient> {
         if (manifest.protocolVersion !== CAXRI_PROTOCOL_VERSION)
             throw new CaxriError('CONFLICT', 'Caxri Host protocol version is incompatible');
@@ -153,66 +243,86 @@ export class HostClient {
         }
         const socket = createConnection(manifest.endpoint);
         socket.setNoDelay(true);
-        const handshake = await new Promise<{ remainder: string; welcome: ProtocolWelcome }>(
-            (resolve, reject) => {
-                const timer = setTimeout(() => {
+        const handshake = await new Promise<{
+            desktopLease?: DesktopLease;
+            remainder: string;
+            welcome: ProtocolWelcome;
+        }>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                socket.destroy();
+                reject(new CaxriError('TIMEOUT', 'Caxri Host handshake timed out'));
+            }, timeoutMs);
+            let source = '';
+            const fail = (): void => {
+                clearTimeout(timer);
+                reject(new CaxriError('UNAVAILABLE', 'Caxri Host is unavailable'));
+            };
+            socket.once('error', fail);
+            socket.once('close', fail);
+            socket.on('data', (chunk: Buffer | string) => {
+                source += chunk.toString();
+                if (Buffer.byteLength(source, 'utf8') > MAX_MESSAGE_BYTES) {
                     socket.destroy();
-                    reject(new CaxriError('TIMEOUT', 'Caxri Host handshake timed out'));
-                }, timeoutMs);
-                let source = '';
-                const fail = (): void => {
-                    clearTimeout(timer);
-                    reject(new CaxriError('UNAVAILABLE', 'Caxri Host is unavailable'));
-                };
-                socket.once('error', fail);
-                socket.once('close', fail);
-                socket.on('data', (chunk: Buffer | string) => {
-                    source += chunk.toString();
-                    if (Buffer.byteLength(source, 'utf8') > MAX_MESSAGE_BYTES) {
-                        socket.destroy();
-                        return;
-                    }
-                    const newline = source.indexOf('\n');
-                    if (newline === -1) return;
-                    try {
-                        const message = localServerWelcomeSchema.parse(
-                            JSON.parse(source.slice(0, newline)),
-                        );
-                        if (
-                            message.profileId !== manifest.profileId ||
-                            message.processIdentity !== manifest.processIdentity
-                        )
-                            throw new CaxriError('CONFLICT', 'Caxri Host process identity changed');
-                        clearTimeout(timer);
-                        socket.pause();
-                        socket.removeListener('error', fail);
-                        socket.removeListener('close', fail);
-                        socket.removeAllListeners('data');
-                        resolve({ remainder: source.slice(newline + 1), welcome: message });
-                    } catch (error) {
-                        clearTimeout(timer);
-                        socket.destroy();
-                        reject(
-                            error instanceof CaxriError
-                                ? error
-                                : new CaxriError('VALIDATION', 'Caxri Host handshake was invalid'),
-                        );
-                    }
-                });
-                socket.once('connect', () => {
-                    socket.write(
-                        `${JSON.stringify({
-                            type: 'hello',
-                            supportedVersions: [CAXRI_PROTOCOL_VERSION],
-                            profileId: manifest.profileId,
-                            ownerToken: manifest.ownerToken,
-                            clientKind: 'human-cli',
-                        })}\n`,
+                    return;
+                }
+                const newline = source.indexOf('\n');
+                if (newline === -1) return;
+                try {
+                    const message = localServerWelcomeSchema.parse(
+                        JSON.parse(source.slice(0, newline)),
                     );
-                });
-            },
+                    if (
+                        message.profileId !== manifest.profileId ||
+                        message.processIdentity !== manifest.processIdentity
+                    )
+                        throw new CaxriError('CONFLICT', 'Caxri Host process identity changed');
+                    clearTimeout(timer);
+                    socket.pause();
+                    socket.removeListener('error', fail);
+                    socket.removeListener('close', fail);
+                    socket.removeAllListeners('data');
+                    resolve({
+                        remainder: source.slice(newline + 1),
+                        welcome: message,
+                        ...(message.desktopLease ? { desktopLease: message.desktopLease } : {}),
+                    });
+                } catch (error) {
+                    clearTimeout(timer);
+                    socket.destroy();
+                    reject(
+                        error instanceof CaxriError
+                            ? error
+                            : new CaxriError('VALIDATION', 'Caxri Host handshake was invalid'),
+                    );
+                }
+            });
+            socket.once('connect', () => {
+                socket.write(
+                    `${JSON.stringify({
+                        type: 'hello',
+                        supportedVersions: [CAXRI_PROTOCOL_VERSION],
+                        profileId: manifest.profileId,
+                        credential:
+                            credential.kind === 'operator'
+                                ? { kind: 'operator', token: manifest.operatorToken }
+                                : {
+                                      kind: 'desktop',
+                                      token: credential.credential.desktopToken,
+                                      desktopId: credential.desktopId,
+                                  },
+                    })}\n`,
+                );
+            });
+        });
+        const client = new HostClient(
+            socket,
+            handshake.welcome,
+            timeoutMs,
+            handshake.desktopLease,
+            credential.kind === 'desktop'
+                ? (operation, consumeTarget) => credential.handleCommand(operation, consumeTarget)
+                : undefined,
         );
-        const client = new HostClient(socket, handshake.welcome, timeoutMs);
         client.source = handshake.remainder;
         client.receive('');
         socket.resume();
@@ -231,18 +341,38 @@ export class HostClient {
             this.source = this.source.slice(newline + 1);
             try {
                 const raw = JSON.parse(line) as unknown;
+                const renewed = localServerLeaseRenewedSchema.safeParse(raw);
                 const event = localServerEventSchema.safeParse(raw);
-                if (event.success) {
+                if (renewed.success) {
+                    if (
+                        !this.desktopLease ||
+                        renewed.data.lease.desktopId !== this.desktopLease.desktopId ||
+                        renewed.data.lease.generation !== this.desktopLease.generation
+                    )
+                        throw new Error('Desktop lease renewal does not match this connection');
+                    this.desktopLease = renewed.data.lease;
+                } else if (event.success) {
                     for (const listener of this.eventListeners) listener(event.data.event);
                 } else {
-                    const { reply } = localServerReplySchema.parse(raw);
+                    const desktopCommand = localServerDesktopCommandSchema.safeParse(raw);
+                    if (desktopCommand.success) {
+                        void this.handleDesktopCommand(desktopCommand.data);
+                        newline = this.source.indexOf('\n');
+                        continue;
+                    }
+                    const runtimeReply = localServerDesktopRuntimeReplySchema.safeParse(raw);
+                    const targetReply = localServerDesktopTargetReplySchema.safeParse(raw);
+                    const { reply } = runtimeReply.success
+                        ? runtimeReply.data
+                        : targetReply.success
+                          ? targetReply.data
+                          : localServerReplySchema.parse(raw);
                     if (!reply.id) throw new Error('Reply is missing its request ID');
                     const pending = this.pending.get(reply.id);
                     if (pending) {
                         clearTimeout(pending.timer);
                         this.pending.delete(reply.id);
-                        if (reply.ok)
-                            pending.resolve(parseCaxriResult(pending.method, reply.result));
+                        if (reply.ok) pending.resolve(pending.parse(reply.result));
                         else pending.reject(fromWireError(reply.error));
                     }
                 }
@@ -254,9 +384,120 @@ export class HostClient {
         }
     }
 
+    private async handleDesktopCommand(command: LocalServerDesktopCommand): Promise<void> {
+        const lease = this.desktopLease;
+        let result: unknown;
+        let error: unknown;
+        try {
+            if (
+                !lease ||
+                lease.desktopId !== command.lease.desktopId ||
+                lease.generation !== command.lease.generation
+            )
+                throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
+            if (!this.desktopCommandHandler)
+                throw new CaxriError('UNAVAILABLE', 'Desktop command handler is unavailable');
+            result = await this.desktopCommandHandler(command.request.operation, () => {
+                if (!('targetId' in command.request.operation))
+                    return Promise.reject(
+                        new CaxriError('VALIDATION', 'Desktop command has no opaque target'),
+                    );
+                return this.consumeDesktopTarget(command.request.operation.targetId);
+            });
+        } catch (cause) {
+            error = cause;
+        }
+        if (this.closed) return;
+        this.socket.write(
+            `${JSON.stringify(
+                localClientDesktopReplySchema.parse({
+                    type: 'desktop-reply',
+                    generation: command.lease.generation,
+                    reply: error
+                        ? {
+                              protocolVersion: CAXRI_PROTOCOL_VERSION,
+                              id: command.request.id,
+                              ok: false,
+                              error: toWireError(error),
+                          }
+                        : {
+                              protocolVersion: CAXRI_PROTOCOL_VERSION,
+                              id: command.request.id,
+                              ok: true,
+                              result: result ?? null,
+                          },
+                }),
+            )}\n`,
+        );
+    }
+
+    private consumeDesktopTarget(targetId: string): Promise<DesktopTargetPayload> {
+        const lease = this.desktopLease;
+        if (!lease) return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
+        const id = randomUUID();
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pending.delete(id);
+                reject(new CaxriError('TIMEOUT', 'Desktop target redemption timed out'));
+            }, this.timeoutMs);
+            this.pending.set(id, {
+                parse: (value) => desktopTargetPayloadSchema.parse(value),
+                resolve: (value) => resolve(value as DesktopTargetPayload),
+                reject,
+                timer,
+            });
+            this.socket.write(
+                `${JSON.stringify({
+                    type: 'desktop-target.consume',
+                    generation: lease.generation,
+                    id,
+                    targetId,
+                })}\n`,
+            );
+        });
+    }
+
+    requestRuntime<M extends DesktopRuntimeMethod>(
+        method: M,
+        ...args: DesktopRuntimeParamsArg<M>
+    ): Promise<DesktopRuntimeMethodResult<M>> {
+        if (this.closed)
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+        if (!this.desktopLease)
+            return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
+        const [params, timeoutOverride] = args;
+        const request = parseRuntimeRequest(method, params);
+        const id = randomUUID();
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pending.delete(id);
+                reject(new CaxriError('TIMEOUT', `Desktop Runtime request timed out: ${method}`));
+            }, timeoutOverride ?? this.timeoutMs);
+            this.pending.set(id, {
+                parse: (value) => parseRuntimeResult(method, value),
+                resolve: (value) => resolve(value as DesktopRuntimeMethodResult<M>),
+                reject,
+                timer,
+            });
+            this.socket.write(
+                `${JSON.stringify({
+                    type: 'desktop-runtime-command',
+                    request: {
+                        protocolVersion: CAXRI_PROTOCOL_VERSION,
+                        id,
+                        method: request.method,
+                        params: request.params,
+                    },
+                })}\n`,
+            );
+        });
+    }
+
     private failPending(): void {
         if (this.closed) return;
         this.closed = true;
+        if (this.leaseRenewalTimer) clearInterval(this.leaseRenewalTimer);
+        this.leaseRenewalTimer = undefined;
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
             pending.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'));
@@ -265,17 +506,27 @@ export class HostClient {
     }
 
     request<M extends CaxriMethod>(method: M, ...args: ParamsArg<M>): Promise<MethodResult<M>> {
+        return this.requestWithId(randomUUID(), method, ...args);
+    }
+
+    /** Preserves the caller's transport request ID across the Desktop-to-Host hop. */
+    requestWithId<M extends CaxriMethod>(
+        id: string,
+        method: M,
+        ...args: ParamsArg<M>
+    ): Promise<MethodResult<M>> {
         if (this.closed)
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
         const request = parseCaxriRequest(method, args[0]);
-        const id = randomUUID();
         return new Promise<MethodResult<M>>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(id);
-                reject(new CaxriError('TIMEOUT', `Caxri Host request timed out: ${method}`));
-            }, this.timeoutMs);
+            const timer = isNonExpiringRuntimeMethod(method)
+                ? undefined
+                : setTimeout(() => {
+                      this.pending.delete(id);
+                      reject(new CaxriError('TIMEOUT', `Caxri Host request timed out: ${method}`));
+                  }, this.timeoutMs);
             this.pending.set(id, {
-                method,
+                parse: (value) => parseCaxriResult(method, value),
                 resolve: (value) => resolve(value as MethodResult<M>),
                 reject,
                 timer,
@@ -299,6 +550,31 @@ export class HostClient {
         return () => this.eventListeners.delete(listener);
     }
 
+    /** Announces that Main has an attached Renderer event listener for one-shot window commands. */
+    markDesktopReady(): Promise<void> {
+        const lease = this.desktopLease;
+        if (this.closed)
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+        if (!lease) return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
+        return new Promise((resolve, reject) => {
+            this.socket.write(
+                `${JSON.stringify(
+                    localClientDesktopReadySchema.parse({
+                        type: 'desktop.ready',
+                        generation: lease.generation,
+                    }),
+                )}\n`,
+                (error) => {
+                    if (error)
+                        reject(
+                            new CaxriError('UNAVAILABLE', 'Desktop readiness was not delivered'),
+                        );
+                    else resolve();
+                },
+            );
+        });
+    }
+
     close(): void {
         this.socket.destroy();
         this.failPending();
@@ -310,6 +586,22 @@ export async function connectToHost(
     timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<HostClient> {
     return HostClient.connect(await discoverHostManifest(userDataPath), timeoutMs);
+}
+
+export async function connectDesktopToHost(
+    userDataPath: string,
+    desktopId: string,
+    handleCommand: Extract<HostClientCredential, { kind: 'desktop' }>['handleCommand'],
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<HostClient> {
+    const manifest = await discoverHostManifest(userDataPath);
+    const credential = await discoverDesktopCredential(userDataPath, manifest);
+    return HostClient.connect(manifest, timeoutMs, {
+        kind: 'desktop',
+        desktopId,
+        credential,
+        handleCommand,
+    });
 }
 
 export interface HostLaunchOptions {

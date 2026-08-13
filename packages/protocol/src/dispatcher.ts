@@ -23,7 +23,11 @@ import {
 } from './version.js';
 
 export interface CommandAdapter {
-    invoke(request: CaxriRequest, context: CommandExecutionContext): unknown;
+    invoke(
+        request: CaxriRequest,
+        context: CommandExecutionContext,
+        invocation: { requestId: string },
+    ): unknown;
     isAvailable?(): boolean;
 }
 
@@ -52,7 +56,10 @@ const contextSchema = z.object({
 
 function principalReceiptKey(context: CommandExecutionContext, requestId: string): string {
     const { principal } = context;
-    const generation = principal.kind === 'agent' ? `:${principal.generation}` : '';
+    const generation =
+        principal.kind === 'agent' || principal.kind === 'desktop'
+            ? `:${principal.generation}`
+            : '';
     return `${principal.kind}:${principal.id}${generation}:${requestId}`;
 }
 
@@ -152,7 +159,7 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
         if (!hasRequiredCapabilities(context, spec.requiredCapabilities))
             throw new CaxriError('FORBIDDEN', `Missing capability for ${request.method}`);
         const adapter = adapterFor(spec.owner, options);
-        const result = await adapter.invoke(request, context);
+        const result = await adapter.invoke(request, context, { requestId: id });
         const projected = spec.projectResult
             ? spec.projectResult(result, context.principal)
             : result;

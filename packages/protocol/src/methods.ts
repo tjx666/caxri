@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { configurationSourceSchema, MAX_KEYBINDINGS } from './configuration-contract.js';
+import { desktopHostMethods, desktopStatusResultSchema } from './desktop-contract.js';
 import { eventRecoverySchema } from './event-journal.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from './trusted-domains.js';
 import type { Capability, Principal } from './principal.js';
@@ -180,11 +181,13 @@ export const methods = {
             profileId: identifierSchema,
             version: z.string().min(1).max(100),
             pid: z.number().int().positive(),
+            runtimePid: z.number().int().positive().optional(),
             startedAt: z.number().int().positive(),
             clientCount: z.number().int().nonnegative(),
             activePtyCount: z.number().int().nonnegative(),
             protocolVersion: z.number().int().positive(),
             protocolCompatible: z.boolean(),
+            desktop: desktopStatusResultSchema,
         }),
     },
     'host.stop': {
@@ -202,6 +205,7 @@ export const methods = {
         params: z.object({ afterCursor: z.number().int().nonnegative() }),
         result: eventRecoverySchema,
     },
+    ...desktopHostMethods,
     'app.openConfigFile': {
         ...desktopControl,
         params: z.object({ kind: z.enum(['settings', 'keybindings', 'theme']) }),
@@ -487,11 +491,6 @@ export const methods = {
         params: z.object({ operationId: identifierSchema }),
         result: z.null(),
     },
-    'files.reveal': {
-        ...desktopControl,
-        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
-        result: z.null(),
-    },
     'files.trash': {
         ...desktopWrite,
         params: z.object({
@@ -711,7 +710,15 @@ export const internalMethods = {
     'files.authorizeOpen': {
         ...hostControl,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
-        result: mutableFileEntrySchema,
+        result: mutableFileEntrySchema.extend({
+            device: z.string().regex(/^\d+$/),
+            inode: z.string().regex(/^\d+$/),
+            root: z.object({
+                path: pathSchema,
+                device: z.string().regex(/^\d+$/),
+                inode: z.string().regex(/^\d+$/),
+            }),
+        }),
     },
     'runtime.shutdown': { ...hostControl, params: noParams, result: z.null() },
     'terminal.detachAll': { ...hostControl, params: noParams, result: z.null() },

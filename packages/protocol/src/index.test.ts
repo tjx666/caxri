@@ -10,6 +10,7 @@ import {
     createRecoveringEventClient,
     errorCodes,
     hostManifestSchema,
+    isNonExpiringRuntimeMethod,
     methods,
     negotiateProtocolVersion,
     principalProjectionSchemas,
@@ -21,7 +22,7 @@ import {
 
 const desktop = {
     capabilities: ['desktop'],
-    principal: { kind: 'desktop', id: 'desktop-1' },
+    principal: { kind: 'desktop', id: 'desktop-1', generation: 1 },
 } satisfies CommandExecutionContext;
 const human = {
     capabilities: ['projects.read'],
@@ -100,6 +101,12 @@ describe('@caxri/protocol contract', () => {
         expect(methods['project.list'].requiredCapabilities).toEqual(['projects.read']);
     });
 
+    it('keeps copy and write alive until their authoritative Runtime result', () => {
+        expect(isNonExpiringRuntimeMethod('files.copy')).toBe(true);
+        expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);
+        expect(isNonExpiringRuntimeMethod('files.read')).toBe(false);
+    });
+
     it('negotiates only commands reachable by the authenticated principal', () => {
         const welcome = createProtocolWelcome(
             { host: { invoke: () => null } },
@@ -126,10 +133,10 @@ describe('@caxri/protocol contract', () => {
             processIdentity: '1'.repeat(32),
             protocolVersion: 2,
             version: '2.0.0',
-            ownerToken: '2'.repeat(64),
+            operatorToken: '2'.repeat(64),
         });
         expect(manifest.protocolVersion).toBe(2);
-        expect(Object.keys(methods['host.status'].result.shape)).not.toContain('ownerToken');
+        expect(Object.keys(methods['host.status'].result.shape)).not.toContain('operatorToken');
     });
 
     it('negotiates the bounded Host control surface for an authenticated operator', () => {
@@ -283,8 +290,9 @@ describe('transport-neutral dispatcher', () => {
         });
         const dispatch = createCommandDispatcher({
             host: {
-                invoke: async (command) => {
-                    if (command.method !== 'session.rename') return host.invoke(command, desktop);
+                invoke: async (command, context, invocation) => {
+                    if (command.method !== 'session.rename')
+                        return host.invoke(command, context, invocation);
                     writes += 1;
                     await gate;
                     return {

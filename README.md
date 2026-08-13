@@ -17,7 +17,7 @@ ni
 bun run dev
 ```
 
-Development logs are written to `logs/main.jsonl` and `logs/runtime.jsonl` in the repository root.
+Development logs are written to `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl` in the repository root.
 
 Default Terminal shortcuts are configurable in Settings → Keybindings:
 

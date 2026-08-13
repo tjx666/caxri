@@ -11,6 +11,7 @@ import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 export interface WorkbenchIpcOptions {
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
+    onEventsReady?(): void;
     renderer(): WebContents | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
 }
@@ -38,6 +39,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     },
                 },
             );
+    });
+    ipcMain.on('caxri:renderer-events-ready', (event) => {
+        assertSender(event.sender);
+        options.onEventsReady?.();
     });
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         try {

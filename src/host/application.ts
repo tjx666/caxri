@@ -4,10 +4,11 @@ import type { CommandAdapter } from '../shared/ipc/dispatcher';
 import { CaxriError } from '../shared/ipc/errors';
 import { createEventJournal, isTransientRuntimeEvent } from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
-import { methods } from '../shared/ipc/methods';
+import { getMethodSpec, type RuntimeRequest } from '../shared/ipc/methods';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import { StructuredLogger } from '../shared/node/logger';
 import { LocalHostServer } from './local-server';
+import { HostDesktopRouter } from './desktop-router';
 import { acquireHostProfile, type HostProfileLease } from './profile';
 import { HostRuntimeSupervisor } from './runtime-supervisor';
 
@@ -15,7 +16,9 @@ export interface HostApplicationOptions {
     agentHooksPath?: string;
     commit: string;
     executable?: string;
+    launchDesktop?: () => Promise<void>;
     runtimePath: string;
+    runtimeEnvironment?: NodeJS.ProcessEnv;
     socketDirectory?: string;
     userDataPath: string;
     version: string;
@@ -44,12 +47,14 @@ export async function startHostApplication(
         appVersion: options.version,
         commit: options.commit,
         executable: options.executable,
+        extraEnvironment: options.runtimeEnvironment,
         logDirectory,
         logger,
         runtimePath: options.runtimePath,
         userDataPath: lease.paths.userDataPath,
     });
     let server: LocalHostServer | undefined;
+    let desktopRouter: HostDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
     let mutationAdmissionClosed = false;
@@ -66,6 +71,19 @@ export async function startHostApplication(
         mutationsInFlight === 0
             ? Promise.resolve()
             : new Promise((resolve) => mutationDrainWaiters.add(resolve));
+
+    const forwardRuntime = async (request: RuntimeRequest): Promise<unknown> => {
+        const spec = getMethodSpec(request.method);
+        if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
+        if (spec.effect === 'read') return supervisor.forward(request.method, request.params);
+        if (mutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
+        mutationsInFlight += 1;
+        try {
+            return await supervisor.forward(request.method, request.params);
+        } finally {
+            finishMutation();
+        }
+    };
 
     const journal = createEventJournal({
         snapshot: async (cursor) => {
@@ -116,12 +134,36 @@ export async function startHostApplication(
                     profileId: lease.manifest.profileId,
                     version: options.version,
                     pid: process.pid,
+                    ...(supervisor.processId() ? { runtimePid: supervisor.processId() } : {}),
                     startedAt,
                     clientCount: server?.clientCount() ?? 0,
                     activePtyCount: health.activePtyCount,
                     protocolVersion: CAXRI_PROTOCOL_VERSION,
                     protocolCompatible: true,
+                    desktop: (await desktopRouter?.status()) ?? { state: 'offline' },
                 };
+            }
+            if (request.method === 'desktop.status')
+                return (await desktopRouter?.status()) ?? { state: 'offline' };
+            if (request.method === 'desktop.focus') {
+                if (!desktopRouter)
+                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                return desktopRouter.focus(request.params.launchIfNeeded);
+            }
+            if (request.method === 'desktop.openProject') {
+                if (!desktopRouter)
+                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                return desktopRouter.open('open', 'directory', request.params);
+            }
+            if (request.method === 'desktop.openFile') {
+                if (!desktopRouter)
+                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                return desktopRouter.open('open', 'file', request.params);
+            }
+            if (request.method === 'files.reveal') {
+                if (!desktopRouter)
+                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                return desktopRouter.open('reveal', undefined, request.params);
             }
             if (request.method === 'host.stop') {
                 if (mutationAdmissionClosed)
@@ -145,15 +187,7 @@ export async function startHostApplication(
                     if (!accepted) mutationAdmissionClosed = false;
                 }
             }
-            if (methods[request.method].effect === 'read')
-                return supervisor.forward(request.method, request.params);
-            if (mutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
-            mutationsInFlight += 1;
-            try {
-                return await supervisor.forward(request.method, request.params);
-            } finally {
-                finishMutation();
-            }
+            return forwardRuntime(request);
         },
     };
 
@@ -161,15 +195,35 @@ export async function startHostApplication(
         await supervisor.start();
         server = new LocalHostServer({
             adapters: { host },
+            consumeDesktopTarget: (targetId, generation) => {
+                if (!desktopRouter)
+                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                return desktopRouter.consumeTarget(targetId, generation);
+            },
+            desktopCredential: lease.desktopCredential,
+            invokeDesktopRuntime: (request) => forwardRuntime(request),
             manifest: lease.manifest,
             onClientCountChanged: (clientCount) =>
                 logger.write('info', 'host.client_count', { fields: { clientCount } }),
+            onDesktopUnavailable: () => {
+                void supervisor.request('terminal.detachAll').catch(() => undefined);
+            },
             onReplyFlushed: (request, reply) => {
                 if (request.method !== 'host.stop' || !reply.ok) return;
                 if (commandStopFallback) clearImmediate(commandStopFallback);
                 commandStopFallback = undefined;
                 void stop('command');
             },
+        });
+        desktopRouter = new HostDesktopRouter({
+            bridge: {
+                invoke: (operation, expectedGeneration) =>
+                    server!.invokeDesktop(operation, expectedGeneration),
+                lease: () => server!.desktopLease(),
+                ...(options.launchDesktop ? { launch: options.launchDesktop } : {}),
+                waitForLease: (timeoutMs) => server!.waitForDesktopLease(timeoutMs),
+            },
+            runtime: supervisor,
         });
         await server.start();
         await lease.publish();
