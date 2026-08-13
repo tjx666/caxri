@@ -126,7 +126,7 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
             dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
         });
         await running.page.keyboard.press('Meta+Shift+P');
-        await running.page.getByText('Remove Session', { exact: true }).click();
+        await running.page.getByText('Delete Session', { exact: true }).click();
         await expect(sessionCard(running.page, deletedSessionId)).toHaveCount(0);
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveCount(0);
     } finally {

@@ -64,7 +64,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(firstSession).toHaveClass(/active/);
         await expect(running.page.locator('.xterm-rows')).toContainText('BACKGROUND_CONTINUED');
 
-        await running.page.getByRole('button', { name: 'note.txt' }).click();
+        await running.page.getByRole('treeitem', { name: 'note.txt' }).click();
         await expect(running.page.locator('.monaco-editor')).toBeVisible();
         const editorSurface = running.page.locator('.monaco-editor').first();
         await editorSurface.click({ position: { x: 120, y: 24 } });

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './fixtures.ts';
@@ -556,6 +556,15 @@ test('Session archive hides active navigation without stopping Terminals and can
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
         const archived = running.page.getByRole('button', { name: /Archived Sessions/ });
         await expect(archived).toContainText('1');
+        // The per-Project heading also grows an archived-count affix (`ProjectGroup.tsx`); assert
+        // it alongside the footer's global count so a regression in either surface is caught.
+        const projectArchivedBadge = running.page.locator('.project-archived-count');
+        await expect(projectArchivedBadge).toHaveText('1');
+        // Derived from `root` rather than hardcoded: the badge scopes its accessible name with the
+        // Project's display title, which is this fixture directory's basename.
+        await expect(projectArchivedBadge).toHaveAccessibleName(
+            `1 archived Session in ${basename(root)}`,
+        );
         await archived.click();
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
@@ -575,6 +584,9 @@ test('Session archive hides active navigation without stopping Terminals and can
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
         await expect(archived).toContainText('0');
+        // Restoring the last archived Session in the Project drops the affix entirely (it only
+        // renders while `archivedCount > 0`).
+        await expect(projectArchivedBadge).toHaveCount(0);
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');

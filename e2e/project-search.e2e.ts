@@ -40,8 +40,12 @@ test('Project search opens name results and reveals grouped content matches', as
         await expect(running.page.getByRole('textbox', { name: 'Find Project files' })).toHaveCount(
             0,
         );
+        // `treeitem`, not `button`: file tree rows carry an explicit `role="treeitem"` that
+        // overrides their implicit button role. This matters most for the `toHaveCount(0)` checks
+        // further down, which would pass vacuously against the old role whether or not the tree
+        // was on screen.
         await expect(
-            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+            running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
         ).toBeVisible();
         const settings = await pageRequest<{
             value: Record<string, unknown> & { 'files.exclude': Record<string, boolean> };
@@ -59,7 +63,7 @@ test('Project search opens name results and reveals grouped content matches', as
         )}\n`;
         await pageRequest(running.page, 'settings.update', { source: hiddenSource });
         await expect(
-            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+            running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
         ).toHaveCount(0);
         const visibleSource = `${JSON.stringify(
             {
@@ -74,7 +78,7 @@ test('Project search opens name results and reveals grouped content matches', as
         )}\n`;
         await pageRequest(running.page, 'settings.update', { source: visibleSource });
         await expect(
-            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+            running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
         ).toBeVisible();
         const fileCaption = running.page.locator('.panel-caption');
         const searchButton = fileCaption.getByRole('button', { name: 'Search Files' });
@@ -88,7 +92,7 @@ test('Project search opens name results and reveals grouped content matches', as
         );
         await expect(running.page.locator('.file-list')).toHaveCount(0);
         await expect(
-            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+            running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
         ).toHaveCount(0);
         await running.page.mouse.move(600, 300);
         await expect(searchButton).toHaveAttribute('aria-pressed', 'true');
@@ -168,7 +172,7 @@ test('Project search opens name results and reveals grouped content matches', as
             running.page.getByRole('textbox', { name: 'Search Project contents' }),
         ).toHaveCount(0);
         await expect(
-            running.page.getByRole('button', { name: 'node_modules', exact: true }),
+            running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
         ).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);

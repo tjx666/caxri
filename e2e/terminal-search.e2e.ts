@@ -77,11 +77,16 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await expect(wholeWord).toHaveAttribute('aria-pressed', 'true');
         await expect(search).toContainText('1/2');
 
-        await matchCase.click();
-        await wholeWord.click();
+        /** The VS Code Match Case/Whole Word/Regex chords fire from anywhere inside the search bar,
+         *  not only while the query input is focused, so this toggles both off from the input. */
+        await searchInput.press('Alt+C');
+        await expect(matchCase).toHaveAttribute('aria-pressed', 'false');
+        await searchInput.press('Alt+W');
+        await expect(wholeWord).toHaveAttribute('aria-pressed', 'false');
+        await expect(search).toContainText('1/4');
         await searchInput.fill('n.e+dle');
         await expect(search).toContainText('No results');
-        await regex.click();
+        await searchInput.press('Alt+R');
         await expect(regex).toHaveAttribute('aria-pressed', 'true');
         await expect(search).toContainText('1/4');
         await searchInput.fill('(');
@@ -104,7 +109,7 @@ test('Terminal search highlights and navigates matches without intercepting Edit
             'CLIPBOARD_SENTINEL',
         );
 
-        await running.page.getByRole('button', { name: 'searchable.ts', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'searchable.ts', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').first();
         await expect(editor).toBeVisible();
         await editor.click({ position: { x: 120, y: 24 } });

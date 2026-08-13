@@ -92,13 +92,18 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         await dialog.getByLabel('Terminal font size').fill('14');
         await dialog.getByLabel('Claude Code lifecycle hooks').check();
-        await expect(
-            dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
-        ).toHaveText('Pending Apply · will enable');
         await expect(dialog.locator('[data-agent-provider="claude"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
         );
-        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+        // Structured controls write immediately (debounced) now that the Apply button is gone; the
+        // status label settles once the Runtime reconciles and installs the hook file, which is the
+        // observable invariant that used to be gated behind clicking Apply. Matched on the health
+        // caption alone rather than the full string: `hookHealthLabel` appends the adapter's own
+        // advisory message, and pinning that here would couple this spec to Runtime copy that says
+        // nothing about whether checking the box installed anything.
+        await expect(
+            dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
+        ).toContainText('Installed — activates once you start a session');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -152,7 +157,10 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await dialog.locator('.structured-editor').evaluate((element) => {
             element.scrollTop = element.scrollHeight;
         });
-        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
+        // "Keeps actions visible" now means the footer with the persistent "Open Config File"
+        // action (Apply is gone) stays pinned instead of scrolling out of view with the content.
+        await expect(dialog.locator('.dialog-actions')).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Open Config File' })).toBeVisible();
         expect(pageErrors).toEqual([]);
     } finally {
         await running.app.close().catch(() => undefined);
@@ -160,7 +168,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
     }
 });
 
-test('Settings source mode preserves drafts and blocks stale UI for invalid source', async () => {
+test('Settings source mode preserves drafts across tabs and discards an invalid edit instead of persisting it', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-source-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -185,9 +193,16 @@ test('Settings source mode preserves drafts and blocks stale UI for invalid sour
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
         await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
         await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
-        await expect(
-            dialog.getByRole('tab', { name: 'Settings', exact: true }).locator('[data-dirty=true]'),
-        ).toBeVisible();
+        // The source editor commits on blur/leaving the view instead of behind Apply, and there is
+        // no per-tab dirty marker anymore — the persisted value already reflects the edit.
+        await expect
+            .poll(async () => {
+                const settings = await pageRequest<{
+                    value: { 'terminal.fontSize': number };
+                }>(running.page, 'settings.get');
+                return settings.value['terminal.fontSize'];
+            })
+            .toBe(17);
 
         await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
         sourceEditor = dialog.getByLabel('settings.jsonc source');
@@ -198,11 +213,25 @@ test('Settings source mode preserves drafts and blocks stale UI for invalid sour
             '{\n  "terminal.fontSize": nope\n}',
         );
         await expect(dialog.getByRole('alert')).toContainText(/settings\.jsonc: .*line 2/);
+        // Leaving the source view no longer requires fixing the error first (there is no Apply gate
+        // to block on): it discards the uncommitted invalid edit and the structured UI reverts to
+        // the last-known-good value instead of showing something broken.
         await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
-        await expect(sourceEditor).toBeVisible();
-        await expect(dialog.getByLabel('Terminal font size')).toHaveCount(0);
-        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
+        await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
+        await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
+        await expect
+            .poll(async () => {
+                const settings = await pageRequest<{
+                    value: { 'terminal.fontSize': number };
+                }>(running.page, 'settings.get');
+                return settings.value['terminal.fontSize'];
+            })
+            .toBe(17);
 
+        // Re-enter source mode and fix it while still in the view, then confirm the fix survives a
+        // tab switch away and back (the "preserves drafts across tabs" half of this test).
+        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        sourceEditor = dialog.getByLabel('settings.jsonc source');
         await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
@@ -224,7 +253,6 @@ test('Settings source mode preserves drafts and blocks stale UI for invalid sour
         dialog = running.page.getByRole('dialog');
         await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
-        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -252,23 +280,34 @@ test('Settings source mode preserves drafts and blocks stale UI for invalid sour
         const keybindingsEditor = dialog.getByLabel('keybindings.jsonc source');
         await replaceMonacoText(running.app, running.page, keybindingsEditor, '[ invalid');
         await expect(dialog.getByRole('alert')).toContainText('keybindings.jsonc');
+
+        // Reissuing "Open Settings (JSON)" jumps straight back to the Settings source tab even
+        // though the Keybindings source is still invalid: an unresolved parse error is local to the
+        // view it was made in and never blocks navigating elsewhere in the dialog.
         await running.page.keyboard.press('Escape');
         await running.page.keyboard.press('Meta+Shift+P');
-        const blockedPalette = running.page.getByRole('dialog');
-        await blockedPalette
+        const reopenPalette = running.page.getByRole('dialog');
+        await reopenPalette
             .getByPlaceholder('Search projects, sessions, and commands…')
             .fill('Open Settings JSON');
-        await blockedPalette
-            .getByRole('option')
-            .filter({ hasText: 'Open Settings (JSON)' })
-            .click();
+        await reopenPalette.getByRole('option').filter({ hasText: 'Open Settings (JSON)' }).click();
         dialog = running.page.getByRole('dialog');
-        await expect(dialog.getByRole('tab', { name: 'Keybindings', exact: true })).toHaveAttribute(
+        await expect(dialog.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute(
             'aria-selected',
             'true',
         );
-        await expect(dialog.getByLabel('keybindings.jsonc source')).toBeVisible();
-        await expect(dialog.getByRole('alert')).toContainText('keybindings.jsonc');
+        await expect(dialog.getByLabel('settings.jsonc source')).toBeVisible();
+
+        // The invalid keybindings edit was discarded, not persisted: the on-disk file still holds
+        // the untouched default binding this test never committed a change to.
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: Array<{ command: string; key: string }>;
+                }>(running.page, 'keybindings.get');
+                return result.value.find((binding) => binding.command === 'inspector.toggle')?.key;
+            })
+            .toBe('cmd+]');
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
@@ -330,8 +369,20 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await inspectorEdit.press('Meta+Alt+I');
         await inspectorEdit.press('Enter');
         await expect(inspectorRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
+        // Structured edits write immediately (debounced); wait for this one to land before layering
+        // a conflicting edit on top of it.
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: Array<{ command: string; key: string }>;
+                }>(running.page, 'keybindings.get');
+                return result.value.find((binding) => binding.command === 'inspector.toggle')?.key;
+            })
+            .toBe('cmd+alt+i');
 
-        await search.fill('toggle primary sidebar');
+        // Keep both rows visible (a narrower "toggle primary sidebar" search would hide Toggle
+        // Inspector) so the conflict this creates can be checked on both colliding rows.
+        await search.fill('toggle');
         const sidebarRow = dialog
             .getByRole('listitem')
             .filter({ hasText: 'Toggle Primary Sidebar' });
@@ -341,15 +392,34 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await sidebarEdit.click();
         await sidebarEdit.press('Meta+Alt+I');
         await sidebarEdit.press('Enter');
-        await expect(sidebarRow).toHaveAttribute('aria-invalid', 'true');
+        // A conflict is reported inline on both rows and never blocks the write (there is no
+        // `applyDisabled` gate anymore): both rows keep the colliding chord and it still persists.
+        await expect(sidebarRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
         await expect(sidebarRow).toContainText('Conflicts with Toggle Inspector');
-        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
+        await expect(inspectorRow).toContainText('Conflicts with Toggle Primary Sidebar');
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: Array<{ command: string; key: string }>;
+                }>(running.page, 'keybindings.get');
+                return result.value.find((binding) => binding.command === 'sidebar.toggle')?.key;
+            })
+            .toBe('cmd+alt+i');
 
         await sidebarRow
             .getByRole('button', { name: 'Reset shortcut for Toggle Primary Sidebar' })
             .click();
-        await expect(sidebarRow).not.toHaveAttribute('aria-invalid', 'true');
-        await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled();
+        await expect(sidebarRow.locator('[data-shortcut="cmd+["]')).toBeVisible();
+        await expect(sidebarRow).not.toContainText('Conflicts with');
+        await expect(inspectorRow).not.toContainText('Conflicts with');
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: Array<{ command: string; key: string }>;
+                }>(running.page, 'keybindings.get');
+                return result.value.find((binding) => binding.command === 'sidebar.toggle')?.key;
+            })
+            .toBe('cmd+[');
 
         await search.fill('search files');
         const searchFilesRow = dialog.getByRole('listitem').filter({ hasText: 'Search Files' });
@@ -363,16 +433,15 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
             .getByRole('button', { name: 'Reset shortcut for Search Files' })
             .click();
         await expect(searchFilesRow.locator('[data-shortcut="cmd+shift+f"]')).toBeVisible();
-
-        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
         await expect
             .poll(async () => {
                 const result = await pageRequest<{
                     value: Array<{ command: string; key: string }>;
                 }>(running.page, 'keybindings.get');
-                return result.value.find((binding) => binding.command === 'inspector.toggle')?.key;
+                return result.value.find((binding) => binding.command === 'inspector.searchFiles')
+                    ?.key;
             })
-            .toBe('cmd+alt+i');
+            .toBe('cmd+shift+f');
 
         await running.page.keyboard.press('Escape');
         await expect(running.page.locator('.inspector')).toBeVisible();
