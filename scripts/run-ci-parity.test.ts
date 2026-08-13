@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { hostedParityCases, hostedParityEnvironment } from './run-hosted-parity';
+import { ciParityCases, ciParityEnvironment } from './run-ci-parity';
 
-describe('hosted E2E parity manifest', () => {
+describe('CI E2E parity manifest', () => {
     it('retains one deterministic focused case for every inherited slow-path contract', () => {
-        expect(hostedParityCases.map(({ id }) => id)).toEqual([
+        expect(ciParityCases.map(({ id }) => id)).toEqual([
             'late-raw-mode',
             'extra-sigwinch',
             'transient-enoent',
             'long-path-wrapped-terminal',
         ]);
-        expect(new Set(hostedParityCases.map(({ spec }) => spec))).toHaveLength(4);
+        expect(new Set(ciParityCases.map(({ spec }) => spec))).toHaveLength(4);
     });
 
     it('uses the case id as the explicit deterministic injection selector', () => {
-        for (const parityCase of hostedParityCases) {
+        for (const parityCase of ciParityCases) {
             expect(parityCase.id).toMatch(
                 /^(?:late-raw-mode|extra-sigwinch|transient-enoent|long-path-wrapped-terminal)$/,
             );
@@ -22,9 +22,9 @@ describe('hosted E2E parity manifest', () => {
     });
 
     it('retains failure artifacts under a separate output root for every case', () => {
-        expect(hostedParityEnvironment('transient-enoent')).toMatchObject({
-            CAXRI_E2E_OUTPUT_DIR: 'test-results/hosted-parity/transient-enoent',
-            CAXRI_HOSTED_PARITY_CASE: 'transient-enoent',
+        expect(ciParityEnvironment('transient-enoent')).toMatchObject({
+            CAXRI_CI_PARITY_CASE: 'transient-enoent',
+            CAXRI_E2E_OUTPUT_DIR: 'test-results/ci-parity/transient-enoent',
         });
     });
 });

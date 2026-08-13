@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
-export const hostedParityCases = [
+export const ciParityCases = [
     {
         id: 'late-raw-mode',
         match: 'Bug report preview sends one redacted multiline prompt',
@@ -33,11 +33,11 @@ export const hostedParityCases = [
     },
 ] as const;
 
-export function hostedParityEnvironment(id: string): NodeJS.ProcessEnv {
+export function ciParityEnvironment(id: string): NodeJS.ProcessEnv {
     return {
         ...process.env,
-        CAXRI_E2E_OUTPUT_DIR: `test-results/hosted-parity/${id}`,
-        CAXRI_HOSTED_PARITY_CASE: id,
+        CAXRI_CI_PARITY_CASE: id,
+        CAXRI_E2E_OUTPUT_DIR: `test-results/ci-parity/${id}`,
     };
 }
 
@@ -59,18 +59,18 @@ async function main(): Promise<void> {
         await appendFile(
             summary,
             [
-                '## Hosted-parity matrix',
+                '## CI-parity matrix',
                 '',
                 '| Case | Deterministic seam | Spec | Repetitions |',
                 '| --- | --- | --- | ---: |',
-                ...hostedParityCases.map(
+                ...ciParityCases.map(
                     ({ id, seam, spec }) => `| \`${id}\` | ${seam} | \`${spec}\` | 3 |`,
                 ),
                 '',
             ].join('\n'),
         );
     }
-    for (const parityCase of hostedParityCases) {
+    for (const parityCase of ciParityCases) {
         const exitCode = await run(
             'bunx',
             [
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
                 '--repeat-each=3',
                 '--reporter=line',
             ],
-            hostedParityEnvironment(parityCase.id),
+            ciParityEnvironment(parityCase.id),
         );
         if (exitCode !== 0) {
             process.exitCode = exitCode;

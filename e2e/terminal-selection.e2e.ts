@@ -109,10 +109,10 @@ async function terminalIds(page: Page): Promise<string[]> {
 
 test('Terminal selection copies exact text and stays isolated across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
-    const hostedParity = process.env.CAXRI_HOSTED_PARITY_CASE === 'long-path-wrapped-terminal';
-    const longPath = hostedParity
+    const ciParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
+    const longPath = ciParity
         ? join(
-              'hosted-parity-path-segment-0123456789',
+              'ci-parity-path-segment-0123456789',
               'another-long-path-segment-0123456789',
               'final-long-path-segment-0123456789',
           )
@@ -122,9 +122,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
     const multilineOutput = join(testDirectory, 'multiline-output.sh');
     const splitOutput = join(testDirectory, 'split-output.sh');
     const splitText = 'PANE_TWO';
-    const firstLine = hostedParity
-        ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END`
-        : 'FIRST Ω 中';
+    const firstLine = ciParity ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END` : 'FIRST Ω 中';
     const lastLine = 'SECOND  spaced text';
     await mkdir(root, { recursive: true });
     await Promise.all([
@@ -135,7 +133,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        if (hostedParity) {
+        if (ciParity) {
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.setBounds({ width: 720, height: 640 }),
             );
@@ -148,7 +146,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
         );
         await expect(firstRows).toContainText(firstLine);
         await expect(firstRows).toContainText(lastLine);
-        if (hostedParity) {
+        if (ciParity) {
             const wrappedBounds = await terminalTextBounds(
                 running.page,
                 firstTerminalId,

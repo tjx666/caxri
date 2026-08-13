@@ -1,8 +1,9 @@
 # CI and E2E Performance Evidence
 
-This is the single source of truth for CI optimization decisions. It records comparable hosted
-evidence, non-green attempts, correctness constraints, and cost controls. A failed path is useful
-failure-cost data, but it is never a green performance baseline.
+This is the single source of truth for CI optimization decisions. It preserves historical
+GitHub-hosted evidence and records current self-hosted samples, non-green attempts, correctness
+constraints, and resource controls. A failed path is useful failure-cost data, but it is never a
+green performance baseline.
 
 ## Baseline
 
@@ -52,22 +53,21 @@ from about 6 to 17 seconds on hosted runners while the current local build is ab
 checks may build a synthetic PR merge while E2E intentionally verifies the exact pushed head, and
 Vite's `.vite` directory is not a reusable production-output cache.
 
-## Cost and diagnosis contract
+## Self-hosted diagnosis contract
 
-- After a zero-step billing or spending-limit failure, dispatch `CI` with `runner_probe=true`.
-  The probe runs only `retry-policy` on Ubuntu. Do not use `e2e_profile=skip`, which still runs full
-  Linux checks. A green probe permits one paid macOS attempt for the same frozen head.
-- Preserve the first red hosted run and download its artifacts. Do not rerun a known red SHA or push
+- Every CI and Release job runs on `m2-24`. If it is offline or busy, keep the job queued; there is
+  no hosted fallback, billing probe, or alternate runner input.
+- Preserve the first red self-hosted run and download its artifacts. Do not rerun a known red SHA or push
   one assertion fix at a time.
 - Reproduce the exact failed spec against a fresh production build with one worker and
   `--repeat-each=3`. A `parallel-safe` failure must also be exercised under its namespaced
-  two-worker pool so local validation matches hosted scheduling pressure.
+  two-worker pool so local validation matches CI scheduling pressure.
 - Finish the complete repair batch and focused local gates before pushing once. Use exact-tree
   `e2e-repair` for an eligible unprotected delta. Workflow, dependency, pool, fixture, and retry
   policy changes remain fail-closed and require one final full run.
-- After one ready-PR run has full Linux checks, every E2E pool, and `CI gate` green, a later strict
+- After one ready-PR run has full checks, every E2E pool, and `CI gate` green, a later strict
   ancestor may reuse that macOS evidence only when its entire delta is documentation or the
-  repository-owned `acceptance`/`go` skill. The current head still runs focused Linux checks;
+  repository-owned `acceptance`/`go` skill. The current head still runs focused self-hosted checks;
   product, workflow, dependency, fixture, pool, and other skill changes fail closed to full CI.
 - Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
   fixture cost and orchestration rather than coverage.
@@ -76,6 +76,6 @@ Vite's `.vite` directory is not a reusable production-output cache.
 
 Freeze exact head, manifest, Node/npm versions, lockfile hash, runner label, workflow inputs, cache
 state, and counts before comparing profiles. Report median end-to-end wall time, dominant steps,
-peak process-tree RSS, billed whole minutes, cache state, and every non-green attempt. Adopt a
-parallelism or concurrency change only when correctness and isolation stay green and hosted medians
-improve; otherwise restore control and record the rejection.
+peak process-tree RSS, cache state, and every non-green attempt. Adopt a parallelism or concurrency
+change only when correctness and isolation stay green and self-hosted medians improve; otherwise
+restore control and record the rejection.

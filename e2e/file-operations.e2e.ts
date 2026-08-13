@@ -25,7 +25,7 @@ async function readExpectedFile(path: string): Promise<string | undefined> {
 }
 
 async function injectTransientFileAbsence(path: string): Promise<{ restored: Promise<void> }> {
-    const heldPath = `${path}.hosted-parity-pending`;
+    const heldPath = `${path}.ci-parity-pending`;
     await rename(path, heldPath);
     return {
         restored: new Promise<void>((resolveRestore, rejectRestore) => {
@@ -177,7 +177,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await running.page.keyboard.press('Meta+V');
         const copiedDraft = join(destination, 'draft.txt');
         let restoreDraft: Promise<void> | undefined;
-        if (process.env.CAXRI_HOSTED_PARITY_CASE === 'transient-enoent') {
+        if (process.env.CAXRI_CI_PARITY_CASE === 'transient-enoent') {
             await expect.poll(() => readExpectedFile(copiedDraft)).toBe('draft\n');
             restoreDraft = (await injectTransientFileAbsence(copiedDraft)).restored;
         }

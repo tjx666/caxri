@@ -7,7 +7,6 @@ import { parse } from 'yaml';
 
 import {
     admitCiFallback,
-    BILLING_POLICY_AUTHORIZATION,
     PLATFORM_NEUTRAL_CI_COMMANDS,
     recordCiFallbackResult,
 } from './ci-fallback';
@@ -19,7 +18,7 @@ const headSha = 'abc123';
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const fullChecksCondition = "needs.retry-policy.outputs.checks_scope == 'full'";
 
-interface HostedWorkflow {
+interface ActionsWorkflow {
     jobs?: {
         checks?: {
             steps?: Array<{ if?: string; run?: string; uses?: string }>;
@@ -58,7 +57,7 @@ function admit(state: ReturnType<typeof blockedDelivery>) {
     return admitCiFallback(
         state,
         {
-            authorization: '',
+            authorization: 'User approved this exact-head Actions fallback.',
             failureDetail: 'The job was not started because the spending limit was reached.',
             failureJob: 'checks',
             failureKind: 'billing',
@@ -91,9 +90,9 @@ function reviewDeliveryDelta(
 }
 
 describe('Go local CI fallback', () => {
-    it('matches every executable step in the hosted checks job', async () => {
+    it('matches every executable step in the self-hosted checks job', async () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
-        const steps = parse(workflow) as HostedWorkflow;
+        const steps = parse(workflow) as ActionsWorkflow;
         const checkSteps = steps.jobs?.checks?.steps ?? [];
         const nonSetupActions = checkSteps
             .flatMap((step) => (step.uses ? [step.uses] : []))
@@ -119,10 +118,10 @@ describe('Go local CI fallback', () => {
         const state = blockedDelivery();
 
         expect(() => transitionState(state, 'acceptance')).toThrow(
-            'green hosted checks or a passed exact-head local CI fallback',
+            'green Actions checks or a passed exact-head local CI fallback',
         );
         expect(createResumeCheckpoint(state).nextAction).toBe(
-            'Classify the zero-step failure; auto-admit billing or request infrastructure authorization',
+            'Classify the zero-step failure and request explicit fallback authorization',
         );
         expect(() =>
             admitCiFallback(state, {
@@ -134,7 +133,7 @@ describe('Go local CI fallback', () => {
                 headSha,
                 verifiedZeroSteps: true,
             }),
-        ).toThrow('Infrastructure local CI fallback requires explicit user authorization');
+        ).toThrow('Local CI fallback requires explicit user authorization');
         expect(() =>
             admitCiFallback(state, {
                 authorization: 'User approved.',
@@ -166,7 +165,7 @@ describe('Go local CI fallback', () => {
         expect(() => admit(state)).toThrow('explicitly frozen review-clean head');
     });
 
-    it('records exact-head evidence and keeps hosted checks externally blocked', () => {
+    it('records exact-head evidence and keeps Actions checks externally blocked', () => {
         const state = blockedDelivery();
         admit(state);
 
@@ -175,7 +174,9 @@ describe('Go local CI fallback', () => {
             headSha,
             status: 'admitted',
         });
-        expect(state.ciFallback.authorization?.detail).toContain(BILLING_POLICY_AUTHORIZATION);
+        expect(state.ciFallback.authorization?.detail).toBe(
+            'User approved this exact-head Actions fallback.',
+        );
         expect(() =>
             recordCiFallbackResult(state, {
                 electronE2eCommand: 'bun run test:e2e',
@@ -226,21 +227,19 @@ describe('Go local CI fallback', () => {
         );
     });
 
-    it('requires original billing evidence for automatic policy authorization', () => {
+    it('requires explicit user authorization for billing failures', () => {
         const state = blockedDelivery();
 
         expect(() =>
             admitCiFallback(state, {
-                failureDetail: 'The hosted job did not start.',
+                failureDetail: 'The Actions job did not start.',
                 failureJob: 'checks',
                 failureKind: 'billing',
                 failureRunUrl: 'https://github.com/tjx666/caxri/actions/runs/123',
                 headSha,
                 verifiedZeroSteps: true,
             }),
-        ).toThrow(
-            'requires the original GitHub payment, billing, or spending-limit failure detail',
-        );
+        ).toThrow('requires explicit user authorization');
     });
 
     it('invalidates recorded fallback evidence when the PR head changes', () => {
@@ -307,14 +306,14 @@ describe('Go local CI fallback', () => {
         expect(state.ciFallback.status).toBe('failed');
         expect(() => admit(state)).toThrow('new PR head');
         expect(createResumeCheckpoint(state).nextAction).toBe(
-            'Repair the failure, push a new head, and wait for new hosted checks',
+            'Repair the failure, push a new head, and wait for new Actions checks',
         );
         expect(() => transitionState(state, 'acceptance')).toThrow(
-            'green hosted checks or a passed exact-head local CI fallback',
+            'green Actions checks or a passed exact-head local CI fallback',
         );
     });
 
-    it('does not report hosted CI as a blocker after exact-head fallback passes', () => {
+    it('does not report Actions CI as a blocker after exact-head fallback passes', () => {
         const state = blockedDelivery();
         admit(state);
         recordCiFallbackResult(state, {
@@ -346,6 +345,7 @@ describe('Go local CI fallback', () => {
         recordPullRequest(state, { headSha: 'second-head', status: 'checks_blocked' });
         reviewDeliveryDelta(state, headSha, 'second-head');
         admitCiFallback(state, {
+            authorization: 'User approved the second exact-head Actions fallback.',
             failureDetail: 'The job was not started because the spending limit was reached.',
             failureJob: 'checks',
             failureKind: 'billing',
@@ -365,6 +365,7 @@ describe('Go local CI fallback', () => {
         reviewDeliveryDelta(state, 'second-head', 'third-head');
         expect(() =>
             admitCiFallback(state, {
+                authorization: 'User approved the third exact-head Actions fallback.',
                 failureDetail: 'The job was not started because the spending limit was reached.',
                 failureJob: 'checks',
                 failureKind: 'billing',
@@ -389,6 +390,7 @@ describe('Go local CI fallback', () => {
         recordPullRequest(state, { headSha: 'replacement-head', status: 'checks_blocked' });
         reviewDeliveryDelta(state, headSha, 'replacement-head');
         const input = {
+            authorization: 'User approved the replacement-head Actions fallback.',
             failureDetail: 'The job was not started because the spending limit was reached.',
             failureJob: 'checks',
             failureKind: 'billing' as const,

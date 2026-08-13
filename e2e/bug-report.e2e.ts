@@ -19,7 +19,7 @@ test('Bug report preview sends one redacted multiline prompt to the selected liv
             claude: {
                 inputCapture: { path: capture, encoding: 'raw' },
                 readinessDelayMs:
-                    process.env.CAXRI_HOSTED_PARITY_CASE === 'late-raw-mode' ? 750 : undefined,
+                    process.env.CAXRI_CI_PARITY_CASE === 'late-raw-mode' ? 750 : undefined,
                 startupOutput: 'FAKE_CLAUDE_INPUT_READY\r\n',
             },
         },

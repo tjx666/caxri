@@ -92,7 +92,7 @@ function attachReport(
     state.handoffReport = {
         deliveredAt: options.delivered ? '2026-08-12T01:00:00.000Z' : null,
         evidence: {
-            actionsUse: 'hosted=ready; localFallback=not_requested',
+            actionsUse: 'remote=ready; localFallback=not_requested',
             commitFileMetrics: 'unavailable',
             costCheckpointCount: state.runBudget.checkpoints.length || 1,
             issueDriftAssessmentCount: 1,

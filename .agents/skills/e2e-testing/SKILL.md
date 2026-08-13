@@ -1,6 +1,6 @@
 ---
 name: e2e-testing
-description: Validate Caxri through focused Playwright Electron workflows, real PTY and IPC boundaries, native window lifecycle, E2E fixtures, production-build parity, error artifacts, and hosted full-suite CI. Use after changing user-visible Electron behavior, E2E infrastructure, Agent launch fixtures, desktop leases, or packaging-facing runtime behavior; when diagnosing a hosted-only Electron failure; or when an explicit Go run needs its guarded exact-head fallback. Do not use as the default Vitest workflow.
+description: Validate Caxri through focused Playwright Electron workflows, real PTY and IPC boundaries, native window lifecycle, E2E fixtures, production-build parity, error artifacts, and self-hosted full-suite CI. Use after changing user-visible Electron behavior, E2E infrastructure, Agent launch fixtures, desktop leases, or packaging-facing runtime behavior; when diagnosing a CI-only Electron failure; or when an explicit Go run needs its guarded exact-head fallback. Do not use as the default Vitest workflow.
 ---
 
 # E2E Testing
@@ -44,7 +44,7 @@ Use the smallest real Electron workflow that proves the changed boundary.
 - Preserve the first causal failure and its artifacts. Do not use retries to turn an original red
   result green or allow a lock/lease cascade to hide it.
 
-## Hosted-only parity
+## CI-only parity
 
 Reproduce only the exact failed cases against the production build with one worker and three
 deterministic repetitions:
@@ -59,7 +59,7 @@ Inject slowness at the owning async boundary or wait for an observable product i
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.
 
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
-Main/Runtime logs for failures. Keep the failed hosted run red while diagnosing it.
+Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 
 If the failed job was `e2e / parallel-safe`, the serial repetitions are necessary but not
 sufficient. Run the exact failed specs again under the repository-owned namespaced two-worker pool,
@@ -67,22 +67,22 @@ because loaded-runner races can expose stale async state and hidden warmup surfa
 cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
 arbitrary delays.
 
-Issue #116 hosted evidence uses the repository-owned workflow dispatch instead of an ad-hoc command:
+Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command:
 
 - `e2e_profile=control` runs the exact full manifest with one worker.
 - `e2e_profile=optimized` runs the explicit `@parallel-safe` spec allowlist with two workers, then
   the fail-closed `@desktop-exclusive` remainder with one worker.
 - Both profiles install and build once, publish cache/install/Playwright metrics, and run the four
-  deterministic hosted-parity cases through `scripts/run-hosted-parity.ts`.
+  deterministic CI-parity cases through `scripts/run-ci-parity.ts`.
 - Run each profile until it has three consecutive green samples on the same Node/npm/lockfile,
   runner label, test manifest, and workflow parameters. Record every non-green attempt.
-- Adopt optimized only when it preserves isolation and test counts and improves median feedback or
-  billed minutes. Otherwise restore one worker and publish the reject decision.
+- Adopt optimized only when it preserves isolation and test counts and improves median feedback.
+  Otherwise restore one worker and publish the reject decision.
 
 ## Controlled PR retries
 
-For a new repair commit after a base run's Linux `checks` passed and macOS `e2e` failed, first run
-the complete platform-neutral command sequence from `.github/workflows/ci.yml` on the clean commit.
+For a new repair commit after a base run's `checks` passed and `e2e` failed, first run the complete
+platform-check command sequence from `.github/workflows/ci.yml` on the clean commit.
 Then amend only commit metadata with this immutable receipt, using the exact tree printed before the
 amend:
 
@@ -101,30 +101,23 @@ always continues to the complete suite on the same macOS runner. For the same SH
 
 Do not push one repair per observed assertion. Download the original failure artifacts, inspect the
 whole failed spec and its async/locator assumptions, finish the repair batch locally, then create one
-new hosted head. When protected workflow, dependency, fixture, pool, or retry-policy files changed,
+new CI head. When protected workflow, dependency, fixture, pool, or retry-policy files changed,
 the shortcut intentionally falls back to full CI; treat that as a reason to converge locally before
-pushing, never as a reason to iterate through paid full runs.
-
-## Cost guard
-
-After a zero-step billing or spending-limit failure, first dispatch `CI` with `runner_probe=true`.
-The probe allocates only `retry-policy` on Ubuntu and skips checks, E2E, and the final gate. Do not
-use `e2e_profile=skip` for this purpose: it still buys the full Linux checks job. A successful probe
-permits one paid macOS validation attempt for the same frozen head; another zero-step rejection must
-not be retried in a loop.
+pushing, never as a reason to iterate through full runs.
 
 ## Remote full suite
 
 Never run `bun run test:e2e` locally during an ordinary run. When focused coverage is insufficient,
-use an authorized topic branch and draft PR; GitHub Actions runs platform-neutral checks first and
-the macOS full Electron suite on the exact PR head. Inspect failures, repair the same branch, and
-wait for replacement checks. Do not merge or close without delivery authorization.
+use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
+on the repository self-hosted `m2-24` runner. Inspect failures, repair the same branch, and wait for
+replacement checks. Do not merge or close without delivery authorization.
 
 ## Guarded Go fallback
 
-Use a local full suite only inside an explicit Go run after a current-head hosted job is verified to
-have failed before runner allocation for an eligible external billing or infrastructure reason. The
-Go ledger must record the exact frozen head, failure URL/job/detail, authorization, platform-neutral
-commands, and one `bun run test:e2e` result. A changed head invalidates the admission. Code/test
-failures, missing authorization, releases, and deployment are never eligible, and the hosted check
-remains externally failed rather than being relabeled green.
+Use a local full-suite substitution only inside an explicit Go run after a current-head self-hosted
+Actions job is verified to have failed before execution for an eligible external GitHub Actions
+infrastructure reason and the user separately authorizes the substitution. The Go ledger must
+record the exact frozen head, failure URL/job/detail, authorization, platform-check commands, and
+one `bun run test:e2e` result. A changed head invalidates the admission. Code/test failures, missing
+authorization, releases, and deployment are never eligible, and the Actions check remains
+externally failed rather than being relabeled green.

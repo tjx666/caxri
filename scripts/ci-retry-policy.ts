@@ -80,7 +80,7 @@ const protectedPathPatterns = [
     /^(?:package|package-lock)\.json$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|run-hosted-parity|self-hosted-e2e-runner)\.ts$/,
+    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|self-hosted-runner)\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
@@ -444,10 +444,7 @@ async function main(): Promise<void> {
     if (!eventPath || !repository) throw new Error('GitHub Actions environment is required');
     const event = JSON.parse(await readFile(eventPath, 'utf8')) as {
         before?: string;
-        inputs?: {
-            e2e_profile?: 'control' | 'optimized' | 'skip';
-            runner_probe?: boolean | 'false' | 'true';
-        };
+        inputs?: { e2e_profile?: 'control' | 'optimized' | 'skip' };
         pull_request?: {
             base?: { sha?: string };
             draft?: boolean;
@@ -518,7 +515,6 @@ async function main(): Promise<void> {
         isReleaseCommit:
             typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`,
         pullRequestDraft: event.pull_request?.draft,
-        runnerProbe: event.inputs?.runner_probe === true || event.inputs?.runner_probe === 'true',
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,
     };
     const initialExecution = evaluateCIExecutionPlan(executionInput);

@@ -44,7 +44,7 @@ export function ownedProcessIds(
     owner: string,
     protectedIds: ReadonlySet<number>,
 ): number[] {
-    const marker = `CAXRI_E2E_RUN_OWNER=${owner}`;
+    const marker = `CAXRI_RUNNER_OWNER=${owner}`;
     return records
         .filter(
             ({ command, pid }) =>
@@ -62,7 +62,7 @@ function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): strin
 }
 
 export function validateRunnerOwner(owner: string): string {
-    if (!ownerPattern.test(owner)) throw new Error('Invalid CAXRI_E2E_RUN_OWNER');
+    if (!ownerPattern.test(owner)) throw new Error('Invalid CAXRI_RUNNER_OWNER');
     return owner;
 }
 
@@ -109,7 +109,7 @@ async function terminateOwnedProcesses(owner: string, cwd: string): Promise<numb
             if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
         }
     }
-    if (owned.some(isAlive)) throw new Error('Owned E2E processes survived SIGKILL');
+    if (owned.some(isAlive)) throw new Error('Owned runner processes survived SIGKILL');
     return owned.length;
 }
 
@@ -119,40 +119,40 @@ async function assertCleanWorkspace(workspace: string): Promise<void> {
         ['status', '--porcelain=v1', '--untracked-files=all'],
         workspace,
     );
-    if (status) throw new Error('Self-hosted E2E workspace is not clean');
+    if (status) throw new Error('Self-hosted runner workspace is not clean');
 }
 
 async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
     const workspace = resolve(requiredEnvironment(environment, 'GITHUB_WORKSPACE'));
     const runnerTemp = resolve(requiredEnvironment(environment, 'RUNNER_TEMP'));
-    const owner = validateRunnerOwner(requiredEnvironment(environment, 'CAXRI_E2E_RUN_OWNER'));
+    const owner = validateRunnerOwner(requiredEnvironment(environment, 'CAXRI_RUNNER_OWNER'));
     if (environment.CAXRI_DESKTOP_LEASE_OWNER !== owner) {
-        throw new Error('Desktop lease owner must match the E2E run owner');
+        throw new Error('Desktop lease owner must match the runner job owner');
     }
     if (
         environment.RUNNER_ENVIRONMENT !== 'self-hosted' ||
         environment.RUNNER_OS !== 'macOS' ||
         environment.RUNNER_ARCH !== 'ARM64'
     ) {
-        throw new Error('The Caxri self-hosted E2E boundary requires macOS ARM64');
+        throw new Error('The Caxri self-hosted runner boundary requires macOS ARM64');
     }
     if (
         environment.CAXRI_E2E_AGENT_MODE !== 'blocked' ||
         environment.CAXRI_REAL_AGENT_E2E === '1'
     ) {
-        throw new Error('Self-hosted E2E must block ambient real Agent discovery');
+        throw new Error('Self-hosted jobs must block ambient real Agent discovery');
     }
     const expectedHead = requiredEnvironment(environment, 'CAXRI_EXPECTED_HEAD');
-    if (!/^[0-9a-f]{40}$/u.test(expectedHead)) throw new Error('Invalid expected E2E head');
+    if (!/^[0-9a-f]{40}$/u.test(expectedHead)) throw new Error('Invalid expected runner head');
     if ((await capture('git', ['rev-parse', 'HEAD'], workspace)) !== expectedHead) {
-        throw new Error('Self-hosted E2E checkout does not match the exact expected head');
+        throw new Error('Self-hosted checkout does not match the exact expected head');
     }
     await assertCleanWorkspace(workspace);
     await assertDesktopLeasesReleased(workspace);
 
     const runRoot = join(runnerTemp, owner);
     if (!isAbsolute(runRoot) || relative(runnerTemp, runRoot).startsWith('..')) {
-        throw new Error('Owned E2E run root escaped RUNNER_TEMP');
+        throw new Error('Owned runner job root escaped RUNNER_TEMP');
     }
     await mkdir(runRoot, { mode: 0o700 });
     await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`, {
@@ -171,7 +171,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
     await appendFile(
         githubEnvironment,
         [
-            `CAXRI_E2E_RUN_ROOT=${runRoot}`,
+            `CAXRI_RUNNER_ROOT=${runRoot}`,
             `CODEX_HOME=${codexHome}`,
             `CLAUDE_CONFIG_DIR=${claudeConfig}`,
             `TEMP=${temporaryDirectory}`,
@@ -183,7 +183,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
     );
     await appendSummary(
         [
-            '## Self-hosted E2E preflight',
+            '## Self-hosted runner preflight',
             '',
             '| Boundary | Value |',
             '| --- | --- |',
@@ -201,31 +201,31 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
 
 async function removeOwnedRunRoot(environment: NodeJS.ProcessEnv, owner: string): Promise<boolean> {
     const runnerTemp = await realpath(resolve(requiredEnvironment(environment, 'RUNNER_TEMP')));
-    const runRootSource = environment.CAXRI_E2E_RUN_ROOT ?? join(runnerTemp, owner);
+    const runRootSource = environment.CAXRI_RUNNER_ROOT ?? join(runnerTemp, owner);
     const stats = await lstat(runRootSource).catch((error: NodeJS.ErrnoException) => {
         if (error.code === 'ENOENT') return undefined;
         throw error;
     });
     if (!stats) return false;
     if (!stats.isDirectory() || stats.isSymbolicLink()) {
-        throw new Error('Owned E2E run root must be a real directory');
+        throw new Error('Owned runner job root must be a real directory');
     }
     const runRoot = await realpath(runRootSource);
     const relativePath = relative(runnerTemp, runRoot);
     if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
-        throw new Error('Refusing to clean an E2E run root outside RUNNER_TEMP');
+        throw new Error('Refusing to clean a runner job root outside RUNNER_TEMP');
     }
     const marker = JSON.parse(await readFile(join(runRoot, 'owner.json'), 'utf8')) as {
         owner?: string;
     };
-    if (marker.owner !== owner) throw new Error('Owned E2E run root marker does not match');
+    if (marker.owner !== owner) throw new Error('Owned runner job root marker does not match');
     await rm(runRoot, { recursive: true });
     return true;
 }
 
 async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
     const workspace = resolve(requiredEnvironment(environment, 'GITHUB_WORKSPACE'));
-    const owner = validateRunnerOwner(requiredEnvironment(environment, 'CAXRI_E2E_RUN_OWNER'));
+    const owner = validateRunnerOwner(requiredEnvironment(environment, 'CAXRI_RUNNER_OWNER'));
     const processes = await terminateOwnedProcesses(owner, workspace);
     const leases = await reclaimDesktopLeasesByOwner(workspace, owner);
     await assertDesktopLeasesReleased(workspace);
@@ -238,7 +238,7 @@ async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
     await assertCleanWorkspace(workspace);
     await appendSummary(
         [
-            '## Self-hosted E2E teardown',
+            '## Self-hosted runner teardown',
             '',
             '| Check | Result |',
             '| --- | --- |',
@@ -257,7 +257,7 @@ async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
 async function main(): Promise<void> {
     const command = process.argv[2];
     if (command !== 'prepare' && command !== 'cleanup') {
-        throw new Error('Usage: self-hosted-e2e-runner.ts <prepare|cleanup>');
+        throw new Error('Usage: self-hosted-runner.ts <prepare|cleanup>');
     }
     try {
         if (command === 'prepare') await prepare(process.env);
@@ -265,7 +265,7 @@ async function main(): Promise<void> {
     } catch (error) {
         await appendSummary(
             [
-                `## Self-hosted E2E ${command}`,
+                `## Self-hosted runner ${command}`,
                 '',
                 `**Failed closed:** ${error instanceof Error ? error.message : String(error)}`,
                 '',

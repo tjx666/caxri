@@ -1,7 +1,7 @@
 # Releasing Caxri
 
 Caxri currently publishes an unsigned Apple Silicon DMG for personal use. A normal commit runs the
-platform-neutral CI checks only. A commit whose subject is exactly
+self-hosted CI checks only. A commit whose subject is exactly
 `release: v<package-version>` also runs the full macOS E2E suite on the repository self-hosted
 `m2-24` runner; after that CI succeeds, the same runner builds the DMG and creates the matching Git
 tag and GitHub Release.
@@ -25,16 +25,15 @@ git commit -m "release: v${version}"
 git push origin main
 ```
 
-CI rejects the release path unless its platform-neutral gates and full macOS E2E suite pass. The
+CI rejects the release path unless its self-hosted gates and full macOS E2E suite pass. The
 downstream workflow then rejects a release when the commit subject and package version differ or
 when the tag already exists. It builds an arm64 DMG, launches the packaged application through the
 startup benchmark, verifies the disk image, writes a SHA-256 checksum, and publishes both files to
 GitHub Releases without repeating the CI gates.
 
-Both macOS stages require the online `m2-24` runner. There is no automatic GitHub-hosted fallback
-for release commits: an offline runner leaves the workflow queued instead of spending paid macOS
-minutes. The Release job uses a short-lived `contents: write` token and does not persist checkout
-credentials.
+Every CI and Release stage requires the online `m2-24` runner. There is no GitHub-hosted fallback:
+an offline runner leaves the workflow queued. The Release job uses a short-lived `contents: write`
+token and does not persist checkout credentials.
 
 ## Current distribution boundary
 
