@@ -15,6 +15,8 @@
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run --silent test:smoke`
+- Self-hosted macOS E2E runner operation and recovery: `docs/self-hosted-runner.md`; trusted owner
+  PRs use `m2-24`, while `ci:github-hosted-e2e` explicitly selects the hosted fallback.
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Common editor highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
 - Build/package: `bun run build`, `bun run package`, `bun run package:dmg`; for a locally requested

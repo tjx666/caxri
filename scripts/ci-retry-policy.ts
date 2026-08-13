@@ -80,7 +80,7 @@ const protectedPathPatterns = [
     /^(?:package|package-lock)\.json$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|run-hosted-parity)\.ts$/,
+    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|run-hosted-parity|self-hosted-e2e-runner)\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,

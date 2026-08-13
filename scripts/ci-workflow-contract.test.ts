@@ -46,7 +46,7 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain("needs.retry-policy.outputs.checks_scope != 'skipped'");
         expect(workflow).toContain('if test "$CHECKS_SCOPE" = skipped; then');
         expect(workflow).toContain(
-            'types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]',
+            'types: [opened, synchronize, reopened, converted_to_draft, ready_for_review, labeled, unlabeled]',
         );
         expect(workflow).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
         expect(workflow).toContain('focused-skills');
@@ -82,5 +82,24 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
         expect(workflow).toContain('name: CI gate');
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
+    });
+
+    it('routes only trusted owner PR code to the repository self-hosted runner', () => {
+        const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
+
+        expect(e2eJob).toContain('["self-hosted","macOS","ARM64","caxri-e2e"]');
+        expect(e2eJob).toContain("github.actor == 'tjx666'");
+        expect(e2eJob).toContain("github.triggering_actor == 'tjx666'");
+        expect(e2eJob).toContain("github.event.pull_request.user.login == 'tjx666'");
+        expect(e2eJob).toContain(
+            'github.event.pull_request.head.repo.full_name == github.repository',
+        );
+        expect(e2eJob).toContain("'ci:github-hosted-e2e'");
+        expect(e2eJob).toContain('persist-credentials: false');
+        expect(e2eJob).toContain('bun run scripts/self-hosted-e2e-runner.ts prepare');
+        expect(e2eJob).toContain("if: always() && env.CAXRI_E2E_RUNNER_KIND == 'self-hosted'");
+        expect(e2eJob).toContain('bun run scripts/self-hosted-e2e-runner.ts cleanup');
+        expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
+        expect(workflow).toContain('options: [github-hosted, self-hosted]');
     });
 });
