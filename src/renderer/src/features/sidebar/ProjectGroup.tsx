@@ -80,6 +80,8 @@ interface ActiveSessionRowProps {
     renameError?: string;
     renameValue: string;
     renaming: boolean;
+    /** True when this Session row currently owns the tree's single roving Tab stop. */
+    roving: boolean;
     selected: boolean;
     session: SessionRecord;
     terminal?: TerminalRecord;
@@ -96,6 +98,7 @@ function ActiveSessionRow({
     renameError,
     renameValue,
     renaming,
+    roving,
     selected,
     session,
     terminal,
@@ -114,7 +117,7 @@ function ActiveSessionRow({
                 renaming && 'cursor-text',
             )}
             role={renaming ? undefined : 'button'}
-            tabIndex={renaming ? undefined : 0}
+            tabIndex={renaming ? undefined : roving ? 0 : -1}
             onClick={() => {
                 if (!renaming && !selected) void selectSession(session.id);
             }}
@@ -214,6 +217,8 @@ function ActiveSessionRow({
                     type="button"
                     className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 pointer-events-none cursor-pointer hover:text-foreground group-hover/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto"
                     aria-label={`Archive ${session.displayTitle}`}
+                    aria-keyshortcuts="Delete"
+                    tabIndex={-1}
                     onClick={() => archiveSession(session.id)}
                 >
                     <Archive size={12} />
@@ -250,6 +255,8 @@ interface ProjectGroupProps {
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
+    /** Id of the row that currently owns the tree's single roving Tab stop. */
+    rovingRowId?: string;
     selectedSessionId?: string;
     terminals: TerminalRecord[];
 }
@@ -280,6 +287,7 @@ export function ProjectGroup({
     renameError,
     renameValue,
     renamingSessionId,
+    rovingRowId,
     selectedSessionId,
     terminals,
 }: ProjectGroupProps) {
@@ -329,6 +337,7 @@ export function ProjectGroup({
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
+                        tabIndex={-1}
                         onClick={onToggle}
                     >
                         {expanded ? (
@@ -354,6 +363,7 @@ export function ProjectGroup({
                     aria-expanded={expanded}
                     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                     data-row-id={project.id}
+                    tabIndex={project.id === rovingRowId ? 0 : -1}
                     onClick={() => {
                         const effect = resolveProjectHeadingClick(
                             active,
@@ -382,6 +392,7 @@ export function ProjectGroup({
                         size="icon"
                         variant="ghost"
                         aria-label={`New Session in ${project.displayTitle}`}
+                        tabIndex={-1}
                         onClick={onCreateSession}
                     >
                         <Plus size={13} />
@@ -395,6 +406,7 @@ export function ProjectGroup({
                             type="button"
                             className="project-archived-count flex-none rounded-full border-0 bg-elevated px-1.5 text-[10px] tabular-nums text-muted cursor-pointer hover:text-foreground"
                             aria-label={`${archivedCount} archived ${archivedCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
+                            tabIndex={-1}
                             onClick={() => {
                                 requestArchivedSessionsForProject(project.id);
                                 setArchivedSessionsOpen(true);
@@ -443,6 +455,7 @@ export function ProjectGroup({
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
+                                roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}
                                 terminal={sessionTerminal(session, terminals)}
@@ -451,6 +464,7 @@ export function ProjectGroup({
                         {activeSessions.length === 0 && (
                             <button
                                 className="empty-project flex h-7 w-full items-center gap-2 px-2 border-0 rounded-md text-muted bg-transparent cursor-pointer hover:text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
+                                tabIndex={-1}
                                 onClick={onCreateSession}
                             >
                                 <Plus size={13} /> New Session

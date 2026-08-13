@@ -76,3 +76,41 @@ export function sidebarHorizontalIntent(
     if (key === 'ArrowRight') return expanded ? {} : { expanded: true };
     return expanded ? { expanded: false } : {};
 }
+
+/**
+ * Resolves which row owns the Sidebar tree's single roving Tab stop (standard ARIA tree
+ * authoring pattern: one Tab stop, arrow keys move focus inside it). Prefers the last row the
+ * user actually focused, but that id can go stale — a Session gets archived, or a Project
+ * collapses over the Session that was focused — so it falls back through the selected Session's
+ * row, then the selected Project's heading row, then the first row, exactly like a fresh tree
+ * with no focus history yet.
+ */
+export function rovingSidebarRowId(
+    rows: readonly SidebarTreeRow[],
+    focusedRowId: string | undefined,
+    selectedSessionId: string | undefined,
+    selectedProjectId: string | undefined,
+): string | undefined {
+    if (focusedRowId && rows.some((row) => row.id === focusedRowId)) return focusedRowId;
+    if (selectedSessionId && rows.some((row) => row.id === selectedSessionId))
+        return selectedSessionId;
+    if (selectedProjectId && rows.some((row) => row.id === selectedProjectId))
+        return selectedProjectId;
+    return rows[0]?.id;
+}
+
+export type SidebarRowKeyIntent = 'archive';
+
+/**
+ * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row has an
+ * archive action, so a Project row (or any other key) resolves to no intent; the caller is
+ * responsible for the actual `archiveSession` side effect (archiving is reversible via the
+ * Archived Sessions dialog, so this intentionally skips a confirmation step).
+ */
+export function sidebarArchiveIntent(
+    row: SidebarTreeRow,
+    key: string,
+): SidebarRowKeyIntent | undefined {
+    if (row.kind !== 'session') return undefined;
+    return key === 'Delete' || key === 'Backspace' ? 'archive' : undefined;
+}
