@@ -76,17 +76,13 @@ describe('E2E pools', () => {
             repositorySpecs.length,
         );
         expect([...plan.desktopExclusive, ...plan.parallelSafe].sort()).toEqual(repositorySpecs);
-        expect(plan.parallelSafeInvocations).toContainEqual({
-            grep: '@parallel-safe',
-            specs: ['e2e/settings.e2e.ts'],
-        });
-        expect(plan.desktopExclusiveInvocations).toContainEqual({
-            grepInvert: '@parallel-safe',
-            specs: ['e2e/settings.e2e.ts'],
-        });
+        expect(parallelSafeSpecs).toContain('e2e/settings-parallel-safe.e2e.ts');
+        expect(plan.desktopExclusive).toContain('e2e/settings.e2e.ts');
+        expect(plan.parallelSafeInvocations).toEqual([{ specs: plan.parallelSafe }]);
+        expect(plan.desktopExclusiveInvocations).toEqual([{ specs: plan.desktopExclusive }]);
     });
 
-    it('combines multiple pool invocations without double-counting tagged tests', () => {
+    it('combines receipt invocations without accepting duplicate tests', () => {
         const receipt = combinePoolReceipts('parallel-safe', [
             {
                 failed: 0,

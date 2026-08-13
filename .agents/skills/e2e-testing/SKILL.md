@@ -70,9 +70,10 @@ arbitrary delays.
 Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command:
 
 - `e2e_profile=control` runs the exact full manifest with one worker.
-- `e2e_profile=optimized` runs the explicit `@parallel-safe` spec allowlist with two workers, then
-  the fail-closed `@desktop-exclusive` remainder with one worker in the same E2E job. Individually
-  audited tagged tests may join the safe pool while untagged tests remain exclusive.
+- `e2e_profile=optimized` runs the explicit `parallelSafeSpecs` allowlist with two workers, then
+  the fail-closed `desktop-exclusive` remainder with one worker in the same E2E job. Move
+  individually audited safe tests into a dedicated allowlisted spec instead of splitting one spec
+  across pools.
 - Both profiles install and build once. The optimized job attempts both logical pools after a pool
   failure, publishes an actual-execution receipt and per-pool artifacts, and workflow dispatches
   run the deterministic CI-parity cases through `scripts/run-ci-parity.ts`.

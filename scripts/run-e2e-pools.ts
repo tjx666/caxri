@@ -45,16 +45,12 @@ async function runInvocation(
     receiptPath: string,
     coordinatorToken?: string,
 ): Promise<number> {
-    const grep = invocation.grep ? ['--grep', invocation.grep] : [];
-    const grepInvert = invocation.grepInvert ? ['--grep-invert', invocation.grepInvert] : [];
     const child = spawn(
         'bunx',
         [
             'playwright',
             'test',
             ...invocation.specs,
-            ...grep,
-            ...grepInvert,
             `--workers=${workers}`,
             '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
         ],

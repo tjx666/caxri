@@ -78,8 +78,9 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - One E2E job checks out, installs, verifies native modules, and builds once. It then runs
   `parallel-safe` with two namespaced workers followed by `desktop-exclusive` with one worker on
   the same `m2-24`; a failed first pool does not suppress the second pool.
-- A mixed spec may opt individually audited tests into `@parallel-safe`. Untagged tests and every
-  unclassified spec remain desktop-exclusive, so tags only narrow an explicit exception.
+- Individually audited tests may move into a dedicated spec in the `parallelSafeSpecs` allowlist.
+  Every unclassified spec remains desktop-exclusive, so each logical pool needs only one
+  Playwright invocation.
 - The Playwright invocation itself writes each pool receipt. Receipts distinguish planned,
   started, finished, passed, skipped, and failed tests; their verified union supplies the manifest
   hash without a separate `playwright --list` collection. CI logs the verified union as

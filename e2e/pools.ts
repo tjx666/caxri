@@ -1,6 +1,4 @@
 export interface E2EPoolInvocation {
-    grep?: string;
-    grepInvert?: string;
     specs: string[];
 }
 
@@ -10,9 +8,6 @@ export interface E2EPoolPlan {
     parallelSafe: string[];
     parallelSafeInvocations: E2EPoolInvocation[];
 }
-
-const settingsSpec = 'e2e/settings.e2e.ts';
-const parallelSafeTag = '@parallel-safe';
 
 /**
  * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents.
@@ -36,6 +31,7 @@ export const parallelSafeSpecs = [
     'e2e/path-browser.e2e.ts',
     'e2e/project-order.e2e.ts',
     'e2e/project-search.e2e.ts',
+    'e2e/settings-parallel-safe.e2e.ts',
     'e2e/session-title.e2e.ts',
     'e2e/smoke.e2e.ts',
     'e2e/statusbar.e2e.ts',
@@ -57,20 +53,13 @@ export function createE2EPoolPlan(
         safe.add(path);
     }
     const parallelSafe = [...safe].sort();
-    const includesSettings = all.has(settingsSpec);
     const desktopExclusive = [...all].filter((path) => !safe.has(path)).sort();
-    const desktopExclusiveSpecs = desktopExclusive.filter((path) => path !== settingsSpec);
 
     return {
         desktopExclusive,
-        desktopExclusiveInvocations: [
-            ...(desktopExclusiveSpecs.length > 0 ? [{ specs: desktopExclusiveSpecs }] : []),
-            ...(includesSettings ? [{ grepInvert: parallelSafeTag, specs: [settingsSpec] }] : []),
-        ],
+        desktopExclusiveInvocations:
+            desktopExclusive.length > 0 ? [{ specs: desktopExclusive }] : [],
         parallelSafe,
-        parallelSafeInvocations: [
-            ...(parallelSafe.length > 0 ? [{ specs: parallelSafe }] : []),
-            ...(includesSettings ? [{ grep: parallelSafeTag, specs: [settingsSpec] }] : []),
-        ],
+        parallelSafeInvocations: parallelSafe.length > 0 ? [{ specs: parallelSafe }] : [],
     };
 }
