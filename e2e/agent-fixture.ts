@@ -1,7 +1,7 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AgentProvider } from '../src/shared/agents';
+import { agentProviderIds, type AgentProvider } from '../src/shared/agents';
 
 interface FakeAgentInputCapture {
     encoding: 'hex' | 'raw' | 'utf8';
@@ -102,6 +102,8 @@ export async function createFakeAgentMode(options: {
     for (const [provider, definition] of Object.entries(options.providers) as Array<
         [AgentProvider, FakeAgentDefinition]
     >) {
+        if (!agentProviderIds.includes(provider))
+            throw new Error(`Unsupported fake Agent provider: ${provider}`);
         if (
             definition.readinessDelayMs !== undefined &&
             (!Number.isInteger(definition.readinessDelayMs) ||
