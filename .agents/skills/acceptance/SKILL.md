@@ -32,6 +32,11 @@ substitutes for the real desktop path when the claim is user-visible.
   evidence that the expected UI rendered.
 - Keep focused regression tests separate from acceptance evidence. Tests prove a
   contract; the desktop round proves the delivered user experience.
+- Keep desktop evidence at the user-observable boundary. Do not use repeated
+  injections, screenshots, or timing guesses to claim an internal callback
+  order that the UI cannot expose; prove the visible before/after outcome on the
+  desktop and use the smallest focused test or log receipt for the internal
+  ordering contract.
 - Do not call `accept` or `reject` as the builder.
 
 ## Prepare
@@ -51,6 +56,10 @@ substitutes for the real desktop path when the claim is user-visible.
    `restart` only with one named profile whose final launch owns cleanup. Write
    all human-facing report prose in Simplified Chinese; keep machine ids, code
    identifiers, branches, commits, commands, and artifact paths in English.
+   For every temporal check, name the observable start marker, end marker, and
+   stop condition before launching. If the claimed ordering has no observable
+   desktop marker, split the evidence into a desktop outcome and a focused
+   supporting contract instead of starting an open-ended experiment.
 5. Run the report scaffold's `init` command with the frozen plan. It creates a
    fresh round directory containing case placeholders, `report.md`, and
    `assets/`. Inside Go use
@@ -119,6 +128,10 @@ the commands in [references/report.md](references/report.md).
   commit, and push before starting the next round.
 - Repair adapter, fixture, capture, or report defects as verification
   infrastructure; do not mislabel them as Caxri product bugs.
+- After one honest blocked round caused by an infeasible evidence method,
+  publish that observation, repair the plan or adapter at the owning boundary,
+  and retry once. Do not keep improvising progressively finer timing probes for
+  the same unobservable claim.
 
 ## Finish
 

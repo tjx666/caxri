@@ -171,6 +171,10 @@ After all issue commits:
    issue-level Acceptance coverage contract. A narrow Acceptance must never
    certify a broader PR.
 8. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
+   Before starting two or more long-running remote validations, tell the user
+   the frozen run count, the minimum wall time implied by recent runs, why each
+   sample is required, and the stop condition. Record run ids as they are
+   dispatched instead of reconstructing an A/B table from the transcript.
 9. Route code failures through repair, focused validation, one light delta
    review, commit, and push. A zero-step self-hosted Actions infrastructure
    failure remains external and blocked. Exact-head local substitution always
@@ -202,6 +206,13 @@ implementation. If subagent execution is unavailable, pause before Acceptance
 and ask for direction instead of silently substituting the builder's own plan.
 The issue-level contracts already authorize the resulting in-scope cases; do not
 add another routine confirmation gate.
+
+Before the first launch, reject any plan that tries to prove hidden callback
+ordering solely through desktop timing. Keep the business requirement intact,
+but express its evidence as the observable desktop outcome plus the smallest
+focused test or log receipt that owns the internal ordering contract. One
+published blocked round is enough to diagnose an infeasible evidence method;
+repair the method once rather than extending the run with ad hoc timing probes.
 
 - Publish failures discovered after round execution starts; never silently fix
   and erase the failed snapshot.
@@ -243,6 +254,10 @@ accepted head and requires review plus another Acceptance round.
 5. Always identify concrete token waste from this run and repeated manual steps
    that should become scripts. Record both the observed cost and the prevention;
    explicitly say none was found instead of omitting either audit.
+   Treat a status question or complaint about elapsed time as an immediate cost
+   checkpoint: answer with completed work, the current wait, remaining required
+   gates, and a revised lower-bound ETA before launching anything else. Drop
+   optional proof that no longer changes the frozen delivery decision.
 6. Apply obvious, narrow project-local workflow fixes when discovered early
    enough to remain inside the reviewed PR. Never silently mutate the active
    skill to change the current run's rules; an explicit user instruction may
