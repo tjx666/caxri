@@ -12,7 +12,8 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
 - **Dependencies:** `ni` when `node_modules/` is absent or stale.
 - **Build:** `bun run build`. Rebuild whenever relevant `src/` files changed
   after the previous build. The start adapter rejects missing or stale process
-  outputs.
+  outputs and refuses a bundle whose embedded commit differs from the frozen
+  Acceptance report commit.
 - **Start isolated desktop:**
 
   ```bash
@@ -105,10 +106,15 @@ lobehub acceptance run list --json
 - Run Acceptance on macOS against the isolated Electron desktop app.
 - A stale `out/` bundle invalidates screenshots. Build before launch and restart
   after Main, Preload, or Runtime changes; Renderer reload alone is insufficient.
+  A commit created after the last build is stale even when file mtimes appear
+  current; the adapter compares the build stamp with `result.json` before launch.
 - Never run the full local Electron E2E suite. Use focused Playwright coverage
   and leave the full suite to PR CI.
 - A static screenshot cannot prove streaming, replay, loading, animation, or
   other temporal behavior; record it.
+- Desktop evidence proves observable product behavior, not hidden callback
+  ordering. Pair the visible outcome with a focused test or log receipt when
+  the ordering itself has no desktop marker.
 - Visually inspect every captured image. A blank or stale renderer can still
   contain plausible DOM text.
 - Do not resize the Electron window after the scenario begins unless resizing is

@@ -16,6 +16,7 @@ import {
     runtimeStateSchema,
     type RuntimeState,
 } from './runtime-state';
+import { assertAcceptanceBuildCommit } from './build-identity';
 import {
     acquireDesktopLease,
     beginDesktopLeaseHandoff,
@@ -230,6 +231,10 @@ async function main(): Promise<void> {
         const reuseUserDataDir = stringOption(options, 'reuse-user-data');
         const cleanupReusable = booleanOption(options, 'cleanup-reused-user-data');
         const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
+        assertAcceptanceBuildCommit({
+            builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
+            reportCommit: plannedCase.commit,
+        });
         const { profileId } = validateAcceptanceCaseLaunch(plannedCase.item.stateIsolation, {
             caseMode,
             cleanupReusable,

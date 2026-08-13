@@ -237,13 +237,15 @@ async function writeJsonAtomically(path: string, value: unknown): Promise<void> 
 export async function loadAcceptanceCasePlan(
     reportDirectory: string,
     caseId: string,
-): Promise<{ directory: string; item: PlanItem }> {
+): Promise<{ commit: string; directory: string; item: PlanItem }> {
     const directory = await validateExistingReportDirectory(reportDirectory);
     const raw: unknown = JSON.parse(await readFile(join(directory, 'result.json'), 'utf8'));
-    const plan = z.object({ plan: z.array(planItemSchema).min(1) }).parse(raw).plan;
+    const { commit, plan } = z
+        .object({ commit: z.string().trim().min(1), plan: z.array(planItemSchema).min(1) })
+        .parse(raw);
     const item = plan.find(({ id }) => id === caseId);
     if (!item) throw new Error(`Acceptance case ${caseId} is not present in the frozen plan`);
-    return { directory, item };
+    return { commit, directory, item };
 }
 
 export function validateAcceptanceCaseLaunch(

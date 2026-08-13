@@ -101,3 +101,10 @@ change only when correctness and isolation stay green and self-hosted medians im
 restore control and record the rejection. `CAXRI_VALIDATION_ENV`, `CAXRI_CACHE_STATE`,
 `CAXRI_CI_METRIC`, and `CAXRI_E2E_MANIFEST` provide the machine-readable inputs for that report;
 the owning issue or PR records the candidate-specific samples and adoption decision.
+
+Before dispatch, freeze the sample count, dispatch order, expected minimum wall time from the most
+recent same-runner result, and stop condition. A median comparison normally means three control and
+three candidate samples; queue that frozen set once, record run ids immediately, and do not replace
+red samples unless a documented unrelated infrastructure failure invalidated them. Tell the user
+that lower bound before the runner is occupied. Stop after the declared set and generate one report
+from the recorded metrics rather than extending the experiment with manually assembled evidence.
