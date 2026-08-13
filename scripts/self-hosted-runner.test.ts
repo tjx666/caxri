@@ -18,6 +18,24 @@ import {
 
 const execFile = promisify(execFileCallback);
 
+/** Overrides every runner path that the real setup action exports into hosted test processes. */
+function cleanupFixtureEnvironment(input: {
+    githubSummary: string;
+    owner: string;
+    runnerTemp: string;
+    runRoot: string;
+    workspace: string;
+}): NodeJS.ProcessEnv {
+    return {
+        ...process.env,
+        CAXRI_RUNNER_OWNER: input.owner,
+        CAXRI_RUNNER_ROOT: input.runRoot,
+        GITHUB_STEP_SUMMARY: input.githubSummary,
+        GITHUB_WORKSPACE: input.workspace,
+        RUNNER_TEMP: input.runnerTemp,
+    };
+}
+
 describe('self-hosted E2E runner ownership', () => {
     const processes = parseProcessTable(`
   1   0 launchd
@@ -162,13 +180,13 @@ describe('self-hosted E2E runner ownership', () => {
 
             await expect(
                 cleanup(
-                    {
-                        ...process.env,
-                        CAXRI_RUNNER_OWNER: owner,
-                        GITHUB_STEP_SUMMARY: githubSummary,
-                        GITHUB_WORKSPACE: workspace,
-                        RUNNER_TEMP: runnerTemp,
-                    },
+                    cleanupFixtureEnvironment({
+                        githubSummary,
+                        owner,
+                        runnerTemp,
+                        runRoot,
+                        workspace,
+                    }),
                     {
                         terminateOwnedProcesses: () =>
                             Promise.reject(new Error('injected earlier teardown failure')),
@@ -211,13 +229,13 @@ describe('self-hosted E2E runner ownership', () => {
 
             await expect(
                 cleanup(
-                    {
-                        ...process.env,
-                        CAXRI_RUNNER_OWNER: owner,
-                        GITHUB_STEP_SUMMARY: githubSummary,
-                        GITHUB_WORKSPACE: workspace,
-                        RUNNER_TEMP: runnerTemp,
-                    },
+                    cleanupFixtureEnvironment({
+                        githubSummary,
+                        owner,
+                        runnerTemp,
+                        runRoot,
+                        workspace,
+                    }),
                     { terminateOwnedProcesses: () => Promise.resolve(0) },
                 ),
             ).rejects.toThrow(
@@ -251,13 +269,13 @@ describe('self-hosted E2E runner ownership', () => {
 
             await expect(
                 cleanup(
-                    {
-                        ...process.env,
-                        CAXRI_RUNNER_OWNER: owner,
-                        GITHUB_STEP_SUMMARY: summaryDirectory,
-                        GITHUB_WORKSPACE: workspace,
-                        RUNNER_TEMP: runnerTemp,
-                    },
+                    cleanupFixtureEnvironment({
+                        githubSummary: summaryDirectory,
+                        owner,
+                        runnerTemp,
+                        runRoot,
+                        workspace,
+                    }),
                     {
                         terminateOwnedProcesses: () =>
                             Promise.reject(new Error('first cleanup failure')),
