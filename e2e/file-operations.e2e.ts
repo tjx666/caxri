@@ -46,12 +46,15 @@ async function injectTransientFileAbsence(path: string): Promise<{ restored: Pro
 }
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
-    // Two deliberate collisions: renaming onto an existing name, and pasting a cut file into a
-    // directory that already holds that name. The second one used to auto-rename instead of
-    // failing, so its `CONFLICT` pair is new rather than an unexplained count bump.
+    // Every conflicting move — rename, or paste/drag onto an existing name — now opens the Finder-
+    // style conflict dialog instead of failing flat, but `moveFile` (`file-actions.ts`) still always
+    // tries `conflict: 'reject'` first so the dialog can offer Replace/Keep Both/Cancel. That first
+    // attempt is what surfaces the `CONFLICT` pair below: 1 rename-onto-existing-name case plus 3
+    // dialog scenarios exercised further down (Cancel, Replace, Keep Both), each preceded by exactly
+    // one failed `reject` attempt = 1 + 3 = 4 pairs, one on `main` and one on `runtime` per attempt.
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 2 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 2 },
+        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -68,6 +71,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         writeFile(join(root, 'cut.txt'), 'cut\n', 'utf8'),
         writeFile(join(root, 'draft.txt'), 'draft\n', 'utf8'),
         writeFile(join(destination, 'cut.txt'), 'existing\n', 'utf8'),
+        writeFile(join(destination, 'draft copy.txt'), 'existing copy\n', 'utf8'),
         writeFile(join(sourceFolder, 'nested', 'value.txt'), 'nested\n', 'utf8'),
     ]);
 
@@ -241,31 +245,38 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await cutRow.focus();
         await running.page.keyboard.press('Meta+X');
         await expect(cutRow).toHaveAttribute('data-cut', 'true');
-        // Pasting onto an existing name is rejected, never silently auto-suffixed to "cut copy.txt".
-        // Cut-paste used to pass `conflict: 'rename'` while drag-and-drop passed `'reject'`, so the
-        // same collision either moved the file somewhere the user never named or refused outright
-        // depending on how it was triggered (`file-actions.ts`'s `moveFile` doc comment). Both now
-        // reject and explain themselves through the same error toast.
+        // Pasting onto an existing name no longer fails flat: `moveFile` (`file-actions.ts`) always
+        // tries `conflict: 'reject'` first, catches the resulting `CONFLICT`, and opens the Finder-
+        // style prompt below instead of the old error toast. Cut-paste and drag-and-drop now share
+        // this same interactive flow rather than one silently auto-suffixing and the other refusing
+        // outright.
+        const conflictDialog = running.page.locator('.file-conflict-dialog');
         await destinationRow.focus();
         await running.page.keyboard.press('Meta+V');
+        await expect(conflictDialog).toBeVisible();
+        await expect(conflictDialog).toContainText('"cut.txt" already exists');
         await expect(
             running.page.locator('.toast', {
                 hasText: 'A file or folder with that name already exists',
             }),
-        ).toBeVisible();
+        ).toHaveCount(0);
+
+        // Cancel: nothing moves, and the cut clipboard stays armed for another attempt.
+        await conflictDialog.getByRole('button', { name: 'Cancel' }).click();
+        await expect(conflictDialog).toBeHidden();
         await expect(readFile(join(destination, 'cut.txt'), 'utf8')).resolves.toBe('existing\n');
         await expect(access(join(destination, 'cut copy.txt'))).rejects.toThrow();
         await expect(readFile(join(root, 'cut.txt'), 'utf8')).resolves.toBe('cut\n');
-        // The rejection leaves the clipboard armed, so retrying somewhere else costs no second cut.
         await expect(cutRow).toHaveAttribute('data-cut', 'true');
 
-        const createdFolderRow = fileList.getByRole('treeitem', {
-            name: 'created-folder',
-            exact: true,
-        });
-        await createdFolderRow.focus();
+        // Replace: retrying the same armed clipboard overwrites the existing destination file in
+        // place. The moved file keeps `cut.txt`'s own name (no auto-suffix), so the unsaved buffer
+        // and the save below both follow it to `destination/cut.txt` instead of a freshly named path.
+        await destinationRow.focus();
         await running.page.keyboard.press('Meta+V');
-        const cutMovedPath = join(root, 'created-folder', 'cut.txt');
+        await expect(conflictDialog).toBeVisible();
+        await conflictDialog.getByRole('button', { name: 'Replace' }).click();
+        const cutMovedPath = join(destination, 'cut.txt');
         await expect
             .poll(() => readFile(cutMovedPath, 'utf8').catch(() => undefined))
             .toBe('cut\n');
@@ -276,6 +287,25 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await cutTab.click();
         await running.page.keyboard.press('Meta+S');
         await expect.poll(() => readFile(cutMovedPath, 'utf8')).toContain(' moved');
+
+        // Keep Both: even though Replace is offered for this file-over-file collision too, choosing
+        // Keep Both auto-suffixes the moved file instead, leaving the destination's original entry
+        // untouched — the same guarantee the old flat rejection used to promise before this dialog.
+        const draftCopyRow = fileList.getByRole('treeitem', {
+            name: 'draft copy.txt',
+            exact: true,
+        });
+        await draftCopyRow.dragTo(destinationRow);
+        await expect(conflictDialog).toBeVisible();
+        await conflictDialog.getByRole('button', { name: 'Keep Both' }).click();
+        const keepBothPath = join(destination, 'draft copy copy.txt');
+        await expect
+            .poll(() => readFile(keepBothPath, 'utf8').catch(() => undefined))
+            .toBe('draft\n');
+        await expect(readFile(join(destination, 'draft copy.txt'), 'utf8')).resolves.toBe(
+            'existing copy\n',
+        );
+        await expect(access(join(root, 'draft copy.txt'))).rejects.toThrow();
 
         await draftRow.dblclick();
         await running.page.locator('.monaco-editor').click({ position: { x: 100, y: 24 } });

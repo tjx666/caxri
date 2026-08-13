@@ -393,7 +393,7 @@ export const methods = {
             sessionId: identifierSchema,
             path: pathSchema,
             directory: pathSchema,
-            conflict: z.enum(['reject', 'rename']).default('reject'),
+            conflict: z.enum(['reject', 'rename', 'replace']).default('reject'),
         }),
         result: movedFileEntrySchema,
     },

@@ -17,6 +17,43 @@ const MAXIMUM_REMEMBERED_RECONCILIATIONS = 256;
 const RECONCILIATION_RETRY_BASE_MS = 250;
 const MAXIMUM_RECONCILIATION_RETRY_MS = 30_000;
 
+/**
+ * Operation ids whose failure toast `reconcileFileMutation` must skip entirely, because the caller
+ * that started the operation already owns explaining that specific failure itself. The one current
+ * user is `file-actions.ts`'s `moveFile`: it registers its first (`reject`-mode) attempt's id before
+ * starting, and its own `try`/`catch` decides how to explain any failure — open the interactive
+ * Replace/Keep Both/Cancel dialog for `CONFLICT`, or toast once for anything else — so reconciliation
+ * must stay silent for that id regardless of the error code, or the caller's message would double up
+ * with reconciliation's own. Everything else about reconciliation (acknowledge, store finish,
+ * directory invalidation) still runs unconditionally for a suppressed id — only the toast is
+ * skipped, and only once per registration (see `consumeFailureToastSuppression`). The registration is
+ * cleared in the caller's own `finally` (see `clearFailureToastSuppression`) so a successful or
+ * never-reconciled operation can't leak an entry either. A Renderer reload mid-flight loses this
+ * in-memory registry, so a suppressed operation that somehow reaches `reconcileFileMutation` again
+ * only after a reload falls back to the normal toast; that is an acceptable rare edge case, not a
+ * durable guarantee.
+ */
+const failureToastSuppressed = new Set<string>();
+
+/** Registers an operation's failure toast as owned by its caller instead of reconciliation. */
+export function suppressFailureToast(operationId: string): void {
+    failureToastSuppressed.add(operationId);
+}
+
+/**
+ * Releases a registration without regard to whether reconciliation ever consumed it. The caller
+ * that registered the id calls this from its own `finally`, so a move that succeeds, or one whose
+ * failed operation never reaches `reconcileFileMutation` at all, cannot leak the entry forever.
+ */
+export function clearFailureToastSuppression(operationId: string): void {
+    failureToastSuppressed.delete(operationId);
+}
+
+/** Consumes a registered suppression; true means the failure toast below must be skipped. */
+function consumeFailureToastSuppression(operationId: string): boolean {
+    return failureToastSuppressed.delete(operationId);
+}
+
 function rememberReconciliation(operationId: string): void {
     const retry = retrying.get(operationId);
     if (retry) clearTimeout(retry.timer);
@@ -148,7 +185,7 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
         useFileOperationStore.getState().finish(operation.id);
         rememberReconciliation(operation.id);
         if (operation.phase === 'completed') pushToast('success', operationSuccess(operation));
-        else
+        else if (!consumeFailureToastSuppression(operation.id))
             pushToast('error', operation.error?.message ?? 'File operation could not be completed');
     })()
         .catch(() => {
@@ -159,6 +196,18 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
         .finally(() => reconciling.delete(operation.id));
     reconciling.set(operation.id, reconciliation);
     return reconciliation;
+}
+
+/**
+ * Test-only: exposes the suppression registry's size directly. A black-box assertion through
+ * `reconcileFileMutation` cannot observe a leaked entry on its own — that Set's `reconciled` guard
+ * (above) makes a second delivery of the *same* operation id a no-op regardless of suppression
+ * state, and a leaked entry for one id has no effect on any other id's registration or consumption.
+ * So the only way to see whether a caller's `finally` actually cleared its registration is to read
+ * the registry's size before and after.
+ */
+export function failureToastSuppressionSizeForTests(): number {
+    return failureToastSuppressed.size;
 }
 
 /** Lets the initiating action join an event-driven reconciliation that won the IPC response race. */
