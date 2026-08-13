@@ -22,8 +22,8 @@ wrapper package compiles an unused duplicate binary, so development and CI rebui
 selective rebuild. Packaging verification must execute a probe from the packaged Runtime before
 release.
 
-The private GitHub Release path runs on an Apple Silicon macOS runner and publishes an unsigned
-arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly matches
+The private GitHub Release path runs on the repository-level Apple Silicon self-hosted runner and
+publishes an unsigned arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly matches
 `release: v<package-version>` may trigger it; normal commits remain CI-only. The release job must
 validate the package version and unused tag, run all release gates, launch the packaged app through
 the startup benchmark, verify the DMG, and upload a SHA-256 checksum. Signing and notarization are a
@@ -33,7 +33,10 @@ Trusted same-repository PR Electron E2E runs on the repository-level Apple Silic
 runner selected by `self-hosted`, `macOS`, `ARM64`, and `caxri-e2e`. The workflow must resolve this
 route from GitHub event metadata before PR code executes, require the owner as PR author, actor, and
 triggering actor, and use owner-scoped process, desktop-lease, profile, and temporary-directory
-cleanup. The `ci:github-hosted-e2e` PR label is the explicit auditable `macos-latest` fallback.
-Untrusted events and Release packaging stay GitHub-hosted. Reusing an existing macOS user is an
-accepted trust decision and must never be described as isolation from malicious workflow code; see
-`docs/self-hosted-runner.md` for operation and incident recovery.
+cleanup. The `ci:github-hosted-e2e` PR label is the explicit auditable `macos-latest` fallback for
+PRs only. Exact trusted release commits route both their full E2E and downstream packaging through
+the same machine, with the separate `caxri-release` capability label and a non-persisted,
+short-lived `contents: write` token. Release jobs intentionally have no automatic hosted macOS
+fallback. Reusing an existing macOS user is an accepted trust decision and must never be described
+as isolation from malicious workflow code; see `docs/self-hosted-runner.md` for operation and
+incident recovery.

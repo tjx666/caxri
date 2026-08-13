@@ -12,6 +12,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const ownerPattern = /^caxri-[0-9]+-[0-9]+-[a-z0-9-]+$/u;
+const generatedWorkspacePaths = ['logs', 'out', 'playwright-report', 'release', 'test-results'];
 
 export interface ProcessRecord {
     command: string;
@@ -229,6 +230,11 @@ async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
     const leases = await reclaimDesktopLeasesByOwner(workspace, owner);
     await assertDesktopLeasesReleased(workspace);
     const removedRunRoot = await removeOwnedRunRoot(environment, owner);
+    await Promise.all(
+        generatedWorkspacePaths.map((path) =>
+            rm(join(workspace, path), { recursive: true, force: true }),
+        ),
+    );
     await assertCleanWorkspace(workspace);
     await appendSummary(
         [
@@ -240,6 +246,7 @@ async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
             `| Stale owned leases reclaimed | \`${leases}\` |`,
             '| Desktop lease | `free` |',
             `| Temporary profile | \`${removedRunRoot ? 'removed' : 'not created'}\` |`,
+            '| Generated workspace outputs | `removed` |',
             '| Workspace | `clean` |',
             '',
         ],

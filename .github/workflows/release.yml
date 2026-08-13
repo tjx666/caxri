@@ -18,25 +18,50 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.actor.login == 'tjx666' &&
+      github.event.workflow_run.triggering_actor.login == 'tjx666' &&
       startsWith(github.event.workflow_run.display_title, 'release: v')
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64, caxri-release]
     timeout-minutes: 60
     permissions:
       contents: write
+    env:
+      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
+      CAXRI_E2E_AGENT_MODE: blocked
+      CAXRI_E2E_RUN_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
+      CAXRI_EXPECTED_HEAD: ${{ github.event.workflow_run.head_sha }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Verify self-hosted release boundary
+        env:
+          RELEASE_ACTOR: ${{ github.event.workflow_run.actor.login }}
+          RELEASE_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          RELEASE_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
+        run: |
+          test "$RELEASE_ACTOR" = tjx666
+          test "$RELEASE_TRIGGERING_ACTOR" = tjx666
+          test "$RELEASE_REPOSITORY" = "$GITHUB_REPOSITORY"
+          test "$RUNNER_ENVIRONMENT" = self-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - id: checkout
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - uses: oven-sh/setup-bun@v2
+      - name: Prepare self-hosted release boundary
+        run: bun run scripts/self-hosted-e2e-runner.ts prepare
 
       - name: Validate release commit
         id: release
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           subject="$(git show -s --format=%s "$RELEASE_COMMIT_SHA")"
@@ -48,8 +73,11 @@ jobs:
             echo "Expected commit subject '${expected}', received '${subject}'." >&2
             exit 1
           fi
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+          if response="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" 2>&1)"; then
             echo "Tag '${tag}' already exists." >&2
+            exit 1
+          elif [[ "$response" != *"HTTP 404"* ]]; then
+            echo "$response" >&2
             exit 1
           fi
 
@@ -103,3 +131,6 @@ jobs:
             --title "Caxri ${RELEASE_TAG}" \
             --generate-notes \
             --fail-on-no-commits
+      - name: Clean self-hosted release boundary
+        if: always() && steps.checkout.outcome == 'success'
+        run: bun run scripts/self-hosted-e2e-runner.ts cleanup

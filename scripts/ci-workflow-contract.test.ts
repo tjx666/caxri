@@ -94,7 +94,13 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain(
             'github.event.pull_request.head.repo.full_name == github.repository',
         );
+        expect(e2eJob).toContain("github.ref == 'refs/heads/main'");
+        expect(e2eJob).toContain("startsWith(github.event.head_commit.message, 'release: v')");
+        expect(e2eJob).toContain("'trusted tjx666 release commit'");
         expect(e2eJob).toContain("'ci:github-hosted-e2e'");
+        expect(e2eJob).toContain(
+            ") || contains(github.event.pull_request.labels.*.name, 'ci:github-hosted-e2e')",
+        );
         expect(e2eJob).toContain('persist-credentials: false');
         expect(e2eJob).toContain('bun run scripts/self-hosted-e2e-runner.ts prepare');
         expect(e2eJob).toContain("if: always() && env.CAXRI_E2E_RUNNER_KIND == 'self-hosted'");
