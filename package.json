@@ -60,21 +60,30 @@
         ]
     },
     "knip": {
-        "entry": [
-            ".agents/skills/acceptance/scripts/capture-renderer.ts",
-            ".agents/skills/acceptance/scripts/fixture-preflight.ts",
-            ".agents/skills/acceptance/scripts/report.ts",
-            ".agents/skills/acceptance/scripts/start-electron.ts",
-            ".agents/skills/acceptance/scripts/stop-electron.ts",
-            ".agents/skills/go/scripts/state.ts",
-            ".agents/skills/go/scripts/xterm-beta-line.ts",
-            "scripts/reporters/e2e-receipt-reporter.ts",
-            "scripts/run-e2e-failure-isolation.ts",
-            "scripts/run-e2e-pools.ts"
-        ],
-        "ignore": [
-            ".agents/skills/deep-review/scripts/vitest.config.ts"
-        ]
+        "workspaces": {
+            ".": {
+                "entry": [
+                    ".agents/skills/acceptance/scripts/capture-renderer.ts",
+                    ".agents/skills/acceptance/scripts/fixture-preflight.ts",
+                    ".agents/skills/acceptance/scripts/report.ts",
+                    ".agents/skills/acceptance/scripts/start-electron.ts",
+                    ".agents/skills/acceptance/scripts/stop-electron.ts",
+                    ".agents/skills/go/scripts/state.ts",
+                    ".agents/skills/go/scripts/xterm-beta-line.ts",
+                    "scripts/reporters/e2e-receipt-reporter.ts",
+                    "scripts/run-e2e-failure-isolation.ts",
+                    "scripts/run-e2e-pools.ts"
+                ],
+                "ignore": [
+                    ".agents/skills/deep-review/scripts/vitest.config.ts"
+                ]
+            },
+            "packages/cli": {
+                "entry": [
+                    "src/bin.ts"
+                ]
+            }
+        }
     },
     "dependencies": {
         "@parcel/watcher": "2.5.6",
@@ -150,6 +159,9 @@
     "build": {
         "appId": "com.caxri.app",
         "productName": "Caxri",
+        "electronFuses": {
+            "runAsNode": true
+        },
         "directories": {
             "output": "release"
         },
@@ -159,6 +171,16 @@
             "node_modules/@parcel/watcher-*/**",
             "node_modules/better-sqlite3/**",
             "node_modules/node-pty/**"
+        ],
+        "extraResources": [
+            {
+                "from": "packages/cli/dist/caxri.cjs",
+                "to": "cli/caxri.cjs"
+            },
+            {
+                "from": "build/caxri",
+                "to": "bin/caxri"
+            }
         ],
         "files": [
             "out/**",

@@ -19,6 +19,28 @@ bun run dev
 
 Development logs are written to `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl` in the repository root.
 
+## Command line
+
+The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Headless Host. It never
+reads Caxri's SQLite database, settings, or logs directly. Local help and protocol introspection work
+without a running Host:
+
+```bash
+bun run build:cli
+node packages/cli/dist/caxri.cjs --help
+node packages/cli/dist/caxri.cjs capabilities --json
+```
+
+`packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 22.12 or newer. The
+macOS app contains the exact same bundle at `Caxri.app/Contents/Resources/cli/caxri.cjs` plus an
+app-managed launcher at `Caxri.app/Contents/Resources/bin/caxri`; that launcher uses the packaged
+Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode.
+
+Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while
+`--quiet` emits one opaque ID per line. Supported Agent and CI environments default to JSON and do
+not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation requires
+that explicit Host selector and non-interactive confirmation with `--yes`.
+
 Default Terminal shortcuts are configurable in Settings → Keybindings:
 
 | Shortcut    | Action                              |

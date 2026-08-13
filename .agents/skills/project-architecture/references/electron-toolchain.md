@@ -31,6 +31,12 @@ The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Mai
 standalone workspace links out of the packaged application. This gives Main the authenticated Host
 client without making packaged startup depend on an npm workspace symlink.
 
+The CLI build also emits one self-contained CommonJS artifact that imports only Node built-ins. The
+standalone distribution and `Contents/Resources/cli/caxri.cjs` are copied from that same file, while
+`Contents/Resources/bin/caxri` resolves symlinks and launches it through the packaged Caxri binary
+with `ELECTRON_RUN_AS_NODE=1`. Packaging must preserve executable bits, explicitly keep the
+`RunAsNode` fuse enabled, and prove byte identity between the standalone and embedded bundle.
+
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 
 Electron Forge's official Vite plugin remains explicitly experimental and provides no API-stability guarantee. `electron-vite` documents Electron `utilityProcess`, externalizes production/native dependencies, and fits the required process model.
