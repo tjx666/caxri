@@ -83,6 +83,7 @@ const protectedPathPatterns = [
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
     /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|self-hosted-runner)\.ts$/,
+    /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
@@ -95,15 +96,37 @@ export function isProtectedRetryPath(path: string): boolean {
     return protectedPathPatterns.some((pattern) => pattern.test(path));
 }
 
-/** Aggregates both the legacy single E2E job and the split pool matrix without hiding failures. */
+/** Aggregates legacy, split-matrix, and single-machine logical-pool E2E evidence without hiding failures. */
+const poolStepNames = {
+    'control': 'Run one-worker control suite',
+    'desktop-exclusive': 'Run desktop-exclusive pool',
+    'parallel-safe': 'Run parallel-safe pool',
+} as const;
+
+function poolFromStep(step: {
+    conclusion?: string;
+    name?: string;
+}): 'control' | 'desktop-exclusive' | 'parallel-safe' | undefined {
+    return (Object.entries(poolStepNames).find(([, name]) => name === step.name)?.[0] ??
+        undefined) as 'control' | 'desktop-exclusive' | 'parallel-safe' | undefined;
+}
+
 export function summarizeE2EJobs(
-    jobs: Array<{ conclusion?: string; name?: string }> | undefined,
+    jobs: WorkflowJobRecord[] | undefined,
 ): Pick<BaseRunEvidence, 'e2eConclusion' | 'e2eFailurePool'> {
     const e2eJobs = jobs?.filter(({ name }) => name === 'e2e' || name?.startsWith('e2e / ')) ?? [];
     const failed = e2eJobs.filter(({ conclusion }) => conclusion === 'failure');
     const failedPools = [
         ...new Set(
-            failed.map(({ name }) => (name === 'e2e' ? 'control' : name?.slice('e2e / '.length))),
+            failed.flatMap((job) => {
+                if (job.name !== 'e2e') return [job.name?.slice('e2e / '.length)];
+                const stepPools = (job.steps ?? []).map(poolFromStep).filter(Boolean);
+                if (stepPools.length === 0) return ['control'];
+                return (job.steps ?? [])
+                    .filter((step) => step.conclusion === 'failure')
+                    .map(poolFromStep)
+                    .filter(Boolean);
+            }),
         ),
     ];
     const e2eFailurePool =
@@ -212,9 +235,10 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
     if (protectedBaseRunFile) {
         return full(`base run includes protected configuration: ${protectedBaseRunFile}`);
     }
+    if (!base.e2eFailurePool) return full('base E2E failure did not isolate one logical pool');
     return {
         baseRunId: hint.baseRunId,
-        e2ePool: base.e2eFailurePool ?? 'control',
+        e2ePool: base.e2eFailurePool,
         e2eTests: hint.e2eTests,
         mode: hint.mode,
         reason: 'validated exact-tree retry is eligible',

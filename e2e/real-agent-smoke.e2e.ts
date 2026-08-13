@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { test } from './fixtures.ts';
+import { expect, test } from './fixtures.ts';
 
 import { resolveRuntimeExecutable } from '../src/runtime/executables.ts';
 import { realCodexSmokeArgs } from './agent-fixture.ts';
@@ -62,13 +62,9 @@ test('an explicitly authorized real Codex handles one natural read-only prompt',
             }),
         });
         await createProjectSession(running.page, 'codex');
-        const responseDeadline = Date.now() + 60_000;
-        while (Date.now() < responseDeadline) {
-            const rows = await running.page.locator('.xterm-rows').allTextContents();
-            if (rows.some((row) => row.includes(expectedReply))) return;
-            await running.page.waitForTimeout(500);
-        }
-        throw new Error('Real Codex did not return the expected smoke marker within 60 seconds');
+        await expect(running.page.locator('.xterm-rows')).toContainText(expectedReply, {
+            timeout: 60_000,
+        });
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

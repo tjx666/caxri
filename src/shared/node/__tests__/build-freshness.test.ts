@@ -1,10 +1,11 @@
+import type { FSWatcher } from 'node:fs';
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { assertBuildOutputsFresh } from '../build-freshness';
+import { assertBuildOutputsFresh, createBuildFreshnessGuard } from '../build-freshness';
 
 const temporaryDirectories: string[] = [];
 const watchedExtensions = new Set(['.ts', '.ttf']);
@@ -65,5 +66,153 @@ describe('assertBuildOutputsFresh', () => {
                 staleMessage,
             }),
         ).rejects.toThrow(staleMessage);
+    });
+});
+
+describe('createBuildFreshnessGuard', () => {
+    async function freshFixture() {
+        const paths = await fixture();
+        await setMtime(paths.output, 20);
+        await setMtime(paths.config, 10);
+        return paths;
+    }
+
+    function guardFor(paths: Awaited<ReturnType<typeof fixture>>) {
+        return createBuildFreshnessGuard({
+            inputPaths: [paths.source, paths.config],
+            outputPaths: [paths.output],
+            watchedDirectoryExtensions: watchedExtensions,
+            staleMessage,
+        });
+    }
+
+    it('reuses a successful recursive scan while watched inputs stay unchanged', async () => {
+        const guard = guardFor(await freshFixture());
+        await guard.assertFresh();
+        await guard.assertFresh();
+
+        expect(guard.fullScanCount).toBe(1);
+        guard.dispose();
+    });
+
+    it('rescans and rejects after a watched input changes', async () => {
+        const paths = await freshFixture();
+        let invalidateSource: (() => void) | undefined;
+        const guard = createBuildFreshnessGuard(
+            {
+                inputPaths: [paths.source, paths.config],
+                outputPaths: [paths.output],
+                watchedDirectoryExtensions: watchedExtensions,
+                staleMessage,
+            },
+            {
+                watch: (path, _options, listener) => {
+                    if (path === paths.source) invalidateSource = listener;
+                    return {
+                        close() {},
+                        on() {
+                            return this;
+                        },
+                    } as unknown as FSWatcher;
+                },
+            },
+        );
+        await guard.assertFresh();
+        expect(invalidateSource).toBeTypeOf('function');
+        const sourceFile = join(paths.source, 'entry.ts');
+        await writeFile(sourceFile, 'export {};');
+        await setMtime(sourceFile, 30);
+        invalidateSource!();
+
+        await expect(guard.assertFresh()).rejects.toThrow(staleMessage);
+        expect(guard.fullScanCount).toBe(2);
+        guard.dispose();
+    });
+
+    it('rejects a deleted output without waiting for a watcher event', async () => {
+        const paths = await freshFixture();
+        const guard = guardFor(paths);
+        await guard.assertFresh();
+        await rm(paths.output);
+
+        await expect(guard.assertFresh()).rejects.toThrow(staleMessage);
+        expect(guard.fullScanCount).toBe(1);
+        guard.dispose();
+    });
+
+    it('fails closed when an explicit build input disappears', async () => {
+        const paths = await freshFixture();
+        const guard = guardFor(paths);
+        await rm(paths.config);
+
+        await expect(guard.assertFresh()).rejects.toThrow(staleMessage);
+        guard.dispose();
+    });
+
+    it('rescans when a required output is replaced before watcher delivery', async () => {
+        const paths = await freshFixture();
+        const guard = guardFor(paths);
+        await guard.assertFresh();
+        await writeFile(paths.output, 'replaced output');
+        await setMtime(paths.output, 5);
+
+        await expect(guard.assertFresh()).rejects.toThrow(staleMessage);
+        expect(guard.fullScanCount).toBe(2);
+        guard.dispose();
+    });
+
+    it('falls back to a full scan when watcher setup cannot observe an input', async () => {
+        const paths = await freshFixture();
+        const guard = createBuildFreshnessGuard(
+            {
+                inputPaths: [paths.source, paths.config],
+                outputPaths: [paths.output],
+                watchedDirectoryExtensions: watchedExtensions,
+                staleMessage,
+            },
+            {
+                watch: () => {
+                    throw new Error('watch unavailable');
+                },
+            },
+        );
+
+        await guard.assertFresh();
+        await guard.assertFresh();
+
+        expect(guard.fullScanCount).toBe(2);
+        guard.dispose();
+    });
+
+    it('invalidates the cache after a watcher runtime error', async () => {
+        const paths = await freshFixture();
+        let sourceWatcherError: (() => void) | undefined;
+        const guard = createBuildFreshnessGuard(
+            {
+                inputPaths: [paths.source, paths.config],
+                outputPaths: [paths.output],
+                watchedDirectoryExtensions: watchedExtensions,
+                staleMessage,
+            },
+            {
+                watch: (path) =>
+                    ({
+                        close() {},
+                        on(event: string, listener: () => void) {
+                            if (path === paths.source && event === 'error') {
+                                sourceWatcherError = listener;
+                            }
+                            return this;
+                        },
+                    }) as unknown as FSWatcher,
+            },
+        );
+        await guard.assertFresh();
+        expect(sourceWatcherError).toBeTypeOf('function');
+        sourceWatcherError!();
+        await guard.assertFresh();
+
+        expect(guard.fullScanCount).toBe(2);
+        guard.dispose();
     });
 });

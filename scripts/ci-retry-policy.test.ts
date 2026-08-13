@@ -17,6 +17,7 @@ const eligible: RetryPolicyInput = {
         baseSha: 'base',
         checksConclusion: 'success',
         e2eConclusion: 'failure',
+        e2eFailurePool: 'control',
         event: 'pull_request',
         headSha: 'old',
         pullRequestNumber: 17,
@@ -94,7 +95,7 @@ describe('CI retry policy', () => {
         ).toBe('full');
     });
 
-    it('aggregates legacy and split E2E jobs while preserving one failed pool', () => {
+    it('aggregates legacy, split, and single-machine E2E jobs while preserving one failed pool', () => {
         expect(summarizeE2EJobs([{ name: 'e2e', conclusion: 'failure' }])).toEqual({
             e2eConclusion: 'failure',
             e2eFailurePool: 'control',
@@ -117,6 +118,42 @@ describe('CI retry policy', () => {
                 { name: 'e2e / desktop-exclusive', conclusion: 'failure' },
             ]),
         ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                {
+                    conclusion: 'failure',
+                    name: 'e2e',
+                    steps: [
+                        { conclusion: 'failure', name: 'Run parallel-safe pool' },
+                        { conclusion: 'success', name: 'Run desktop-exclusive pool' },
+                    ],
+                },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: 'parallel-safe' });
+        expect(
+            summarizeE2EJobs([
+                {
+                    conclusion: 'failure',
+                    name: 'e2e',
+                    steps: [
+                        { conclusion: 'failure', name: 'Run parallel-safe pool' },
+                        { conclusion: 'failure', name: 'Run desktop-exclusive pool' },
+                    ],
+                },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+    });
+
+    it('fails closed when a modern single E2E job does not isolate one failed logical pool', () => {
+        expect(
+            evaluateRetryPolicy({
+                ...eligible,
+                baseRun: {
+                    ...eligible.baseRun!,
+                    e2eFailurePool: undefined,
+                },
+            }).mode,
+        ).toBe('full');
     });
 
     it('extracts an auditable full-green candidate from workflow run jobs', () => {
@@ -202,6 +239,7 @@ describe('CI retry policy', () => {
             'scripts/ci-metrics.ts',
             'scripts/ci-retry-policy.ts',
             'scripts/report-e2e-manifest.ts',
+            'scripts/reporters/e2e-receipt-reporter.ts',
             'scripts/run-ci-focused-checks.ts',
             'scripts/run-e2e-failure-isolation.ts',
             'scripts/run-e2e-pools.ts',

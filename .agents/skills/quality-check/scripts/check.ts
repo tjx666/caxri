@@ -1,14 +1,17 @@
 import { execFile } from 'node:child_process';
-import { lstat } from 'node:fs/promises';
+import { lstat, readdir, readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+
+import ts from 'typescript';
 
 const execFileAsync = promisify(execFile);
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const CODE_EXTENSIONS = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx']);
 const FORMAT_EXTENSIONS = new Set(['.css', '.html', '.json', '.jsonc', '.md', '.yaml', '.yml']);
 const TEST_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
+const VITEST_TEST_FILE = /\.test\.(?:cts|mts|ts|tsx)$/;
 
 export interface CheckOptions {
     e2e: boolean;
@@ -175,6 +178,105 @@ export function testCandidatesForFile(file: string): string[] {
     return candidates;
 }
 
+/**
+ * Returns whether a test directly imports or re-exports a source file through a relative static
+ * specifier. This intentionally does not walk transitive imports: broad runtime suites are much
+ * less useful than the tests that name the changed module at their boundary.
+ */
+export function testDirectlyImportsSource(
+    testFile: string,
+    testContents: string,
+    sourceFile: string,
+): boolean {
+    const normalizedTest = testFile.replaceAll('\\', '/');
+    const normalizedSource = sourceFile.replaceAll('\\', '/');
+    const sourceWithoutExtension = normalizedSource.slice(0, -extname(normalizedSource).length);
+
+    const syntax = testFile.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+    const parsedTest = ts.createSourceFile(
+        testFile,
+        testContents,
+        ts.ScriptTarget.Latest,
+        false,
+        syntax,
+    );
+    for (const statement of parsedTest.statements) {
+        const moduleSpecifier =
+            ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)
+                ? statement.moduleSpecifier
+                : undefined;
+        if (!moduleSpecifier || !ts.isStringLiteral(moduleSpecifier)) continue;
+        const specifier = moduleSpecifier.text;
+        if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
+        const imported = posix.normalize(posix.join(posix.dirname(normalizedTest), specifier));
+        const importedExtension = extname(imported);
+        const importedWithoutExtension = importedExtension
+            ? imported.slice(0, -importedExtension.length)
+            : imported;
+        if (
+            imported === normalizedSource ||
+            importedWithoutExtension === sourceWithoutExtension ||
+            importedWithoutExtension === `${sourceWithoutExtension}/index`
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+async function walkVitestTestFiles(root: string, directory: string): Promise<string[]> {
+    const absoluteDirectory = join(root, directory);
+    try {
+        const entries = await readdir(absoluteDirectory, { encoding: 'utf8', withFileTypes: true });
+        const nested = await Promise.all(
+            entries.map(async (entry) => {
+                const path = posix.join(directory, entry.name);
+                if (entry.isDirectory()) return walkVitestTestFiles(root, path);
+                return entry.isFile() && VITEST_TEST_FILE.test(path) ? [path] : [];
+            }),
+        );
+        return nested.flat();
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+    }
+}
+
+/**
+ * Finds only direct static-import tests covered by Vitest's repository include patterns. Dynamic
+ * imports and transitive dependency graphs are deliberately excluded so a focused source edit
+ * cannot fan out into unrelated integration suites.
+ */
+export async function directImportTestCandidates(
+    root: string,
+    sourceFiles: string[],
+): Promise<string[]> {
+    const sources = sourceFiles.filter(
+        (file) =>
+            !VITEST_TEST_FILE.test(file) &&
+            TEST_EXTENSIONS.some((extension) => file.endsWith(extension)) &&
+            !file.endsWith('.d.ts'),
+    );
+    if (sources.length === 0) return [];
+
+    const tests = (
+        await Promise.all(
+            ['src', '.agents/skills', 'scripts'].map((directory) =>
+                walkVitestTestFiles(root, directory),
+            ),
+        )
+    ).flat();
+    const contents = await Promise.all(
+        tests.map(async (test) => ({ test, contents: await readFile(join(root, test), 'utf8') })),
+    );
+    return contents
+        .filter(({ test, contents }) =>
+            sources.some((source) => testDirectlyImportsSource(test, contents, source)),
+        )
+        .map(({ test }) => test)
+        .sort();
+}
+
 async function runCapture(command: string, args: string[], cwd: string): Promise<string> {
     try {
         const { stdout } = await execFileAsync(command, args, {
@@ -258,9 +360,18 @@ async function runLint(root: string, files: string[]): Promise<number> {
     return codeFiles.length + formatFiles.length;
 }
 
+export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {
+    const candidates = [
+        ...new Set([
+            ...files.flatMap(testCandidatesForFile),
+            ...(await directImportTestCandidates(root, files)),
+        ]),
+    ];
+    return existingFiles(root, candidates);
+}
+
 async function runTests(root: string, files: string[]): Promise<number> {
-    const candidates = [...new Set(files.flatMap(testCandidatesForFile))];
-    const tests = await existingFiles(root, candidates);
+    const tests = await selectedTestCandidates(root, files);
     if (tests.length > 0) {
         await runTool(root, 'vitest', ['run', '--silent=passed-only', ...tests]);
     }

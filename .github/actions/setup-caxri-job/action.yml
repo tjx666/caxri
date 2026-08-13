@@ -72,6 +72,11 @@ runs:
           quality_state=warm
         fi
 
+        CAXRI_NPM_CACHE_STATE="$npm_state" \
+          CAXRI_ELECTRON_CACHE_STATE="$electron_state" \
+          CAXRI_QUALITY_CACHE_STATE="$quality_state" \
+          node -e 'console.log(`CAXRI_CACHE_STATE ${JSON.stringify({ electron: process.env.CAXRI_ELECTRON_CACHE_STATE, npm: process.env.CAXRI_NPM_CACHE_STATE, quality: process.env.CAXRI_QUALITY_CACHE_STATE })}`)'
+
         test ! -e .cache
         mkdir -p "$electron_cache" "$cache_root/eslint" .cache
         if [[ ! -s "$cache_root/prettier" ]]; then

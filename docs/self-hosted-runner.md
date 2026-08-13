@@ -85,9 +85,10 @@ If `m2-24` is offline, unhealthy, busy, or under maintenance, every matching CI 
 remains queued until the machine returns. There is no hosted fallback label, runner input, billing
 probe, or temporary workflow override. Do not treat a queued job as successful.
 
-Because one physical runner owns all capability labels, jobs execute serially even when the
-workflow uses an E2E matrix. This preserves one desktop owner and prevents checks, E2E, and Release
-from competing for the same workspace or native UI.
+Because one physical runner owns all capability labels, jobs execute serially. The full E2E path is
+one job that runs its two logical pools in sequence after one setup/build; checks, E2E, and Release
+still cannot compete for the same workspace or native UI. This preserves one desktop owner while
+allowing the explicitly isolated `parallel-safe` pool to use two namespaced workers internally.
 
 ## Validation and recovery
 

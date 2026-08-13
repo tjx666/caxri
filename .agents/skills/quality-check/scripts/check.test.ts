@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    directImportTestCandidates,
     lintPipelineForFile,
     parseCheckArgs,
     playwrightArguments,
     selectE2ESpecs,
+    selectedTestCandidates,
     testCandidatesForFile,
+    testDirectlyImportsSource,
 } from './check';
 
 describe('parseCheckArgs', () => {
@@ -169,5 +172,55 @@ describe('testCandidatesForFile', () => {
         expect(testCandidatesForFile('src/runtime/bootstrap.ts')).not.toContain(
             'src/runtime/__tests__/runtime.integration.test.ts',
         );
+    });
+});
+
+describe('direct import test selection', () => {
+    it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {
+        expect(
+            testDirectlyImportsSource(
+                'src/runtime/files/__tests__/service.test.ts',
+                `import { FileService } from '../service';\nexport type { FileServiceOptions } from '../service';`,
+                'src/runtime/files/service.ts',
+            ),
+        ).toBe(true);
+        expect(
+            testDirectlyImportsSource(
+                'src/runtime/files/__tests__/service.test.ts',
+                `await import('../service');`,
+                'src/runtime/files/service.ts',
+            ),
+        ).toBe(false);
+        expect(
+            testDirectlyImportsSource(
+                'src/runtime/files/__tests__/other.test.ts',
+                `import './other';\nconst note = "import '../service'";`,
+                'src/runtime/files/service.ts',
+            ),
+        ).toBe(false);
+    });
+
+    it('selects only direct FileService suites with the existing narrow heuristic', async () => {
+        const source = 'src/runtime/files/service.ts';
+        const direct = await directImportTestCandidates(process.cwd(), [source]);
+        const selected = await selectedTestCandidates(process.cwd(), [source]);
+
+        expect(direct).toEqual([
+            'src/runtime/files/__tests__/files.integration.test.ts',
+            'src/runtime/files/__tests__/git-ignore.integration.test.ts',
+            'src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
+            'src/runtime/files/__tests__/mutations.integration.test.ts',
+            'src/runtime/files/__tests__/search.integration.test.ts',
+        ]);
+        expect(selected).toEqual([
+            'src/runtime/files/__tests__/files.integration.test.ts',
+            'src/runtime/files/__tests__/git-ignore.integration.test.ts',
+            'src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
+            'src/runtime/files/__tests__/mutations.integration.test.ts',
+            'src/runtime/files/__tests__/search.integration.test.ts',
+        ]);
+        expect(selected).not.toContain('src/runtime/__tests__/runtime.integration.test.ts');
+        expect(selected).not.toContain('src/runtime/__tests__/agent-hooks.integration.test.ts');
+        expect(selected).not.toContain('src/runtime/__tests__/bug-report.test.ts');
     });
 });

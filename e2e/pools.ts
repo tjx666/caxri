@@ -1,6 +1,12 @@
+export interface E2EPoolInvocation {
+    specs: string[];
+}
+
 export interface E2EPoolPlan {
     desktopExclusive: string[];
+    desktopExclusiveInvocations: E2EPoolInvocation[];
     parallelSafe: string[];
+    parallelSafeInvocations: E2EPoolInvocation[];
 }
 
 /**
@@ -25,6 +31,7 @@ export const parallelSafeSpecs = [
     'e2e/path-browser.e2e.ts',
     'e2e/project-order.e2e.ts',
     'e2e/project-search.e2e.ts',
+    'e2e/settings-parallel-safe.e2e.ts',
     'e2e/session-title.e2e.ts',
     'e2e/smoke.e2e.ts',
     'e2e/statusbar.e2e.ts',
@@ -45,8 +52,14 @@ export function createE2EPoolPlan(
         if (!all.has(path)) throw new Error(`Unknown parallel-safe E2E spec: ${path}`);
         safe.add(path);
     }
+    const parallelSafe = [...safe].sort();
+    const desktopExclusive = [...all].filter((path) => !safe.has(path)).sort();
+
     return {
-        desktopExclusive: [...all].filter((path) => !safe.has(path)).sort(),
-        parallelSafe: [...safe].sort(),
+        desktopExclusive,
+        desktopExclusiveInvocations:
+            desktopExclusive.length > 0 ? [{ specs: desktopExclusive }] : [],
+        parallelSafe,
+        parallelSafeInvocations: parallelSafe.length > 0 ? [{ specs: parallelSafe }] : [],
     };
 }

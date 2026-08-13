@@ -11,7 +11,12 @@ import {
     transferDesktopLease,
     type DesktopLeaseHandle,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
-import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
+import { createBuildFreshnessGuard } from '../src/shared/node/build-freshness.ts';
+import {
+    e2eAgentPolicyEnvironment,
+    e2eAgentShellShims,
+    e2eFakeExecutableEnvironmentKeys,
+} from '../src/shared/node/e2e-agent-policy.ts';
 import type { AgentProvider } from '../src/shared/agents.ts';
 import { registerE2ELaunch } from './error-gate.ts';
 import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
@@ -49,8 +54,7 @@ const watchedBuildInputExtensions = new Set([
 const e2eAgentEnvironmentKeys = [
     'CAXRI_E2E_AGENT_MODE',
     'CAXRI_E2E_AGENT_PROVIDER',
-    'CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE',
-    'CAXRI_E2E_FAKE_CODEX_EXECUTABLE',
+    ...e2eFakeExecutableEnvironmentKeys(),
 ] as const;
 
 /**
@@ -58,13 +62,15 @@ const e2eAgentEnvironmentKeys = [
  * (`bun run --silent check e2e/foo.e2e.ts --e2e`) builds first, while direct Playwright invocations may
  * skip that step and otherwise silently launch a previously built `out/main/index.js`.
  */
+const buildFreshnessGuard = createBuildFreshnessGuard({
+    inputPaths: buildInputPaths,
+    outputPaths: buildOutputPaths,
+    watchedDirectoryExtensions: watchedBuildInputExtensions,
+    staleMessage: staleBuildMessage,
+});
+
 async function assertBuildIsFresh(): Promise<void> {
-    await assertBuildOutputsFresh({
-        inputPaths: buildInputPaths,
-        outputPaths: buildOutputPaths,
-        watchedDirectoryExtensions: watchedBuildInputExtensions,
-        staleMessage: staleBuildMessage,
-    });
+    await buildFreshnessGuard.assertFresh();
 }
 
 export interface LaunchCaxriOptions {
@@ -103,10 +109,10 @@ async function e2eAgentEnvironment(
     sourceEnvironment: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
     if (agentMode.mode === 'real') {
-        return {
-            CAXRI_E2E_AGENT_MODE: 'real',
-            CAXRI_E2E_AGENT_PROVIDER: agentMode.provider ?? 'codex',
-        };
+        return e2eAgentPolicyEnvironment({
+            mode: 'real',
+            provider: agentMode.provider ?? 'codex',
+        });
     }
     const fixtureRoot = join(userDataDir, 'e2e-agents');
     const home = join(fixtureRoot, 'home');
@@ -140,16 +146,9 @@ async function e2eAgentEnvironment(
 
     const shellBin = join(fixtureRoot, 'shell-bin');
     await mkdir(shellBin, { recursive: true });
-    for (const provider of ['claude', 'codex'] as const) {
-        const target = fakeExecutables[provider];
-        const executable = join(shellBin, provider);
-        await writeFile(
-            executable,
-            target
-                ? `#!/bin/sh\nexec ${shellQuote(target)} "$@"\n`
-                : `#!/bin/sh\nprintf 'Caxri E2E blocked ${provider}\\n' >&2\nexit 127\n`,
-            'utf8',
-        );
+    for (const shim of e2eAgentShellShims(fakeExecutables)) {
+        const executable = join(shellBin, shim.executable);
+        await writeFile(executable, shim.source, 'utf8');
         await chmod(executable, 0o700);
     }
     const shellPath = `${shellBin}:${sourceEnvironment.PATH ?? process.env.PATH ?? '/usr/bin:/bin'}`;
@@ -168,13 +167,11 @@ async function e2eAgentEnvironment(
     return {
         ...isolatedEnvironment,
         PATH: shellPath,
-        CAXRI_E2E_AGENT_MODE: agentMode.mode,
-        ...(fakeExecutables.claude
-            ? { CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE: fakeExecutables.claude }
-            : {}),
-        ...(fakeExecutables.codex
-            ? { CAXRI_E2E_FAKE_CODEX_EXECUTABLE: fakeExecutables.codex }
-            : {}),
+        ...e2eAgentPolicyEnvironment(
+            agentMode.mode === 'fake'
+                ? { mode: 'fake', executables: fakeExecutables }
+                : { mode: 'blocked' },
+        ),
     };
 }
 
