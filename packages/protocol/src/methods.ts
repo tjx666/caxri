@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentEndpointMethods } from './agent-endpoint-contract.js';
+import { agentInboxMethods } from './agent-inbox-contract.js';
 import { businessInternalMethods, businessMethods } from './business-contract.js';
 import { configurationSourceSchema, MAX_KEYBINDINGS } from './configuration-contract.js';
 import { desktopHostMethods, desktopStatusResultSchema } from './desktop-contract.js';
@@ -128,6 +129,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
  */
 export const methods = {
     ...agentEndpointMethods,
+    ...agentInboxMethods,
     ...businessMethods,
     'app.bootstrap': { ...hostRead, params: noParams, result: bootstrapStateSchema },
     'app.records': {

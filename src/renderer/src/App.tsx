@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/useCommandShortcuts';
 import { BugReportDialog } from './features/bug-report/BugReportDialog';
+import { AgentMessageApprovalDialog } from './features/agent-inbox/AgentMessageApprovalDialog';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { openFile } from './features/editor/document-actions';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
@@ -162,6 +163,7 @@ export function App() {
                 <CommandPalette />
                 <PathBrowserDialog />
                 <BugReportDialog />
+                <AgentMessageApprovalDialog />
                 <ToastOutlet />
                 <ScreencastOverlay />
             </main>

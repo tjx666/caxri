@@ -118,9 +118,9 @@ function groupHelp(group: string) {
         usage: `caxri ${group} <command>`,
         summary: definition.summary,
         commands: CLI_COMMANDS.filter(
-            (command) => command.path.length === 2 && command.path[0] === group,
+            (command) => command.path.length >= 2 && command.path[0] === group,
         ).map((command) => ({
-            name: command.path[1],
+            name: command.path.slice(1).join(' '),
             summary: command.summary,
             ...('usage' in command && command.usage ? { usage: command.usage } : {}),
         })),
@@ -417,7 +417,14 @@ export async function runCli(
             return 0;
         }
         const command = remoteCommand(parsed.tokens);
-        const params = command.parseParams(parsed.tokens.slice(command.path.length));
+        let params = command.parseParams(parsed.tokens.slice(command.path.length));
+        /** `--timeout` is global for transport setup and is also the bounded long-poll deadline. */
+        if (command.method === 'agent.message.wait') params = { timeoutMs: parsed.timeoutMs };
+        if (command.requiresAgentEndpoint && !endpointCredential)
+            throw new CaxriError(
+                'FORBIDDEN',
+                'This command requires a directly managed Caxri Agent Endpoint credential',
+            );
         const mutates =
             methods[command.method].effect !== 'read' && (command.mutates?.(params) ?? true);
         if (mutates && !parsed.profile && !endpointCredential)

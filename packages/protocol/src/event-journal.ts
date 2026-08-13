@@ -7,13 +7,22 @@ import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 const cursorSchema = z.number().int().nonnegative();
 export type TransientRuntimeEvent = Extract<
     RuntimeEvent,
-    { event: 'command.execute' | 'desktop.openRequested' | 'terminal.output' }
+    {
+        event:
+            | 'agent.message.held'
+            | 'agent.message.receipt'
+            | 'command.execute'
+            | 'desktop.openRequested'
+            | 'terminal.output';
+    }
 >;
 export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
 
 export function isTransientRuntimeEvent(event: RuntimeEvent): event is TransientRuntimeEvent {
     return (
         event.event === 'terminal.output' ||
+        event.event === 'agent.message.held' ||
+        event.event === 'agent.message.receipt' ||
         event.event === 'command.execute' ||
         event.event === 'desktop.openRequested'
     );

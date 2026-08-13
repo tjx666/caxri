@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { configurationSourceSchema } from './configuration-contract.js';
+import { agentHeldMessageSchema, agentMessageReceiptSchema } from './agent-inbox-contract.js';
 
 import {
     agentHookHealthMapSchema,
@@ -80,6 +81,10 @@ export const runtimeEventPayloads = {
     'files.operationChanged': fileMutationOperationSchema,
     'settings.changed': configurationChangedSchema,
     'agentHooks.changed': agentHookHealthMapSchema,
+    /** Sender-only status metadata. The message body is deliberately not representable here. */
+    'agent.message.receipt': agentMessageReceiptSchema,
+    /** Desktop-only approval projection with a bounded, inert plain-text preview. */
+    'agent.message.held': agentHeldMessageSchema,
     'keybindings.changed': configurationChangedSchema,
     'theme.changed': configurationChangedSchema,
     'updates.state': updateStateSchema,

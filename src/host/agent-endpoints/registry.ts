@@ -60,6 +60,8 @@ export interface AgentEndpointRegistryOptions {
     token?: () => string;
 }
 
+export type AgentEndpointRetiredListener = (endpoint: AgentEndpointSummary) => void;
+
 function tokenDigest(token: string): Buffer {
     return createHash('sha256').update(token).digest();
 }
@@ -78,6 +80,7 @@ export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
     private readonly byTerminal = new Map<string, StoredEndpoint>();
     private readonly generations = new Map<string, number>();
+    private readonly retiredListeners = new Set<AgentEndpointRetiredListener>();
     private readonly now: () => number;
     private readonly token: () => string;
 
@@ -148,8 +151,13 @@ export class AgentEndpointRegistry {
     }
 
     clear(): void {
-        this.byEndpoint.clear();
-        this.byTerminal.clear();
+        for (const record of [...this.byEndpoint.values()]) this.remove(record);
+    }
+
+    /** Lets Host-owned generation resources expire at exactly the same endpoint boundary. */
+    onRetired(listener: AgentEndpointRetiredListener): () => void {
+        this.retiredListeners.add(listener);
+        return () => this.retiredListeners.delete(listener);
     }
 
     authenticate(credential: AgentEndpointCredential): CommandExecutionContext {
@@ -225,6 +233,10 @@ export class AgentEndpointRegistry {
         record.summary = { ...record.summary, deliveryMode };
     }
 
+    resolve(ref: AgentEndpointRef): AgentEndpointSummary {
+        return this.exact(ref).summary;
+    }
+
     private exact(ref: AgentEndpointRef): StoredEndpoint {
         const record = this.active(ref.endpointId);
         if (!record || !this.matches(record, ref))
@@ -290,5 +302,6 @@ export class AgentEndpointRegistry {
             this.byTerminal.delete(record.terminalId);
         record.grants.clear();
         record.tokenDigest.fill(0);
+        for (const listener of this.retiredListeners) listener(record.summary);
     }
 }

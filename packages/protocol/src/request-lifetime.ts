@@ -1,8 +1,9 @@
-const nonExpiringRuntimeMethods = new Set(['files.copy', 'files.write']);
+const nonExpiringRuntimeMethods = new Set(['agent.message.wait', 'files.copy', 'files.write']);
 
 /**
- * Copy and save lack a durable completion journal, so every transport must wait for the
- * authoritative Runtime result instead of reporting a timeout while disk mutation continues.
+ * Copy/save lack a durable completion journal, while Agent Inbox wait carries its own validated
+ * long-poll deadline. Their transports must wait for the authoritative result instead of racing a
+ * second generic timer.
  */
 export function isNonExpiringRuntimeMethod(method: string): boolean {
     return nonExpiringRuntimeMethods.has(method);

@@ -62,7 +62,8 @@ export class RuntimeAgentEndpointLifecycle {
             launchId,
             name: terminal.title,
             permissionClass: classifyAgentPermission(terminal.kind, launch),
-            deliveryMode: 'unavailable',
+            /** Directly managed Agent Terminals consume the Host Inbox through the local CLI. */
+            deliveryMode: 'pull',
         });
         this.active.set(terminal.id, { launchId, ref: endpoint.ref });
         return {
