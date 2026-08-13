@@ -141,7 +141,7 @@ describe('file mutation reconciliation', () => {
         });
         expect(useFileOperationStore.getState().operations).toEqual([]);
         expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
         );
     });
 
@@ -290,7 +290,7 @@ describe('file mutation reconciliation', () => {
             },
         });
         expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
         );
         expect(useToastStore.getState().toasts).not.toContainEqual(
             expect.objectContaining({ kind: 'error' }),
@@ -453,7 +453,7 @@ describe('file mutation reconciliation', () => {
         await vi.waitFor(() => expect(acknowledgeAttempts).toBe(2));
 
         expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: 'Item moved' }),
+            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
         );
         expect(useFileOperationStore.getState().operations).toEqual([]);
     });

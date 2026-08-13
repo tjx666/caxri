@@ -1,5 +1,5 @@
 import { errorMessage, isCaxriError, type MethodResult } from '@shared/ipc';
-import type { MutableFileEntry } from '@shared/types';
+import type { FileEntry, MutableFileEntry } from '@shared/types';
 
 import { caxri } from '../../../../lib/caxri';
 import { projectRelativePath } from '../../../../lib/file-path';
@@ -10,16 +10,38 @@ import {
     getSessionProjectId,
 } from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
-import { closeOpenEditorsUnderPath, openFile } from '../../../editor/document-actions';
+import {
+    closeOpenEditorsUnderPath,
+    hasUnsavedChangesUnderPath,
+    openFile,
+} from '../../../editor/document-actions';
 import { createTerminal } from '../../../terminal/terminal-actions';
+import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
 import {
+    clearFailureToastSuppression,
     reconcileFileMutation,
+    suppressFailureToast,
     waitForFileMutationReconciliation,
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
+
+/** Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`). */
+function pathBasename(path: string): string {
+    return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/** Looks up one entry's kind from its directory listing; undefined when not found or unreadable. */
+async function entryKind(
+    sessionId: string,
+    directory: string,
+    name: string,
+): Promise<FileEntry['kind'] | undefined> {
+    const entries = await caxri.request('files.list', { sessionId, directory }).catch(() => []);
+    return entries.find((entry) => entry.name === name)?.kind;
+}
 
 async function invalidateDirectory(sessionId: string, directory: string): Promise<void> {
     await Promise.all(
@@ -35,19 +57,27 @@ async function invalidateDirectory(sessionId: string, directory: string): Promis
 }
 
 async function runTrackedFileOperation<Value>(options: {
+    affectedPaths: readonly string[];
     errorLabel: string;
     id: string;
     label: string;
     projectId: string;
     run: () => Promise<Value>;
-    successMessage: string;
+    successMessage: (result: Value) => string;
 }): Promise<Value | undefined> {
     const operations = useFileOperationStore.getState();
-    if (!operations.begin({ id: options.id, label: options.label, projectId: options.projectId }))
+    if (
+        !operations.begin({
+            id: options.id,
+            label: options.label,
+            projectId: options.projectId,
+            affectedPaths: options.affectedPaths,
+        })
+    )
         return undefined;
     try {
         const result = await tryCommand(options.errorLabel, options.run);
-        if (result !== undefined) pushToast('success', options.successMessage);
+        if (result !== undefined) pushToast('success', options.successMessage(result));
         return result;
     } finally {
         useFileOperationStore.getState().finish(options.id);
@@ -55,6 +85,7 @@ async function runTrackedFileOperation<Value>(options: {
 }
 
 async function runDurableFileMutation<Value>(options: {
+    affectedPaths: readonly string[];
     errorLabel: string;
     id: string;
     label: string;
@@ -63,7 +94,15 @@ async function runDurableFileMutation<Value>(options: {
     run: () => Promise<Value>;
 }): Promise<Value | undefined> {
     const store = useFileOperationStore.getState();
-    if (!store.begin({ id: options.id, label: options.label, projectId: options.projectId }))
+    if (
+        !store.begin({
+            id: options.id,
+            label: options.label,
+            projectId: options.projectId,
+            affectedPaths: options.affectedPaths,
+            cancelable: true,
+        })
+    )
         return undefined;
     try {
         const result = await options.run();
@@ -130,6 +169,7 @@ export async function createItem(
     const operationId = crypto.randomUUID();
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     const created = await runDurableFileMutation({
+        affectedPaths: [directory],
         errorLabel: 'Unable to create item',
         id: operationId,
         label: 'Creating item…',
@@ -156,11 +196,12 @@ function copyItem(
 ): Promise<MutableFileEntry | undefined> {
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runTrackedFileOperation({
+        affectedPaths: [directory],
         errorLabel: 'Unable to copy item',
         id: JSON.stringify(['copy', projectId, path, directory]),
         label: 'Copying item…',
         projectId,
-        successMessage: 'Item copied',
+        successMessage: (copied) => `'${copied.name}' copied`,
         run: async () => {
             const copied = await caxri.request('files.copy', { sessionId, path, directory });
             await invalidateDirectory(sessionId, directory);
@@ -177,6 +218,7 @@ export async function renameFile(
     const operationId = crypto.randomUUID();
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runDurableFileMutation({
+        affectedPaths: [path, parentDirectoryPath(path)],
         errorLabel: 'Unable to rename item',
         id: operationId,
         label: 'Renaming item…',
@@ -186,19 +228,28 @@ export async function renameFile(
     });
 }
 
-export function moveFile(
+/**
+ * Runs one `files.move` attempt. `operationId` defaults to a fresh id, but the propagating first
+ * attempt in `moveFile` below passes its own id in so it can register/clear failure-toast
+ * suppression around the call (see `suppressFailureToast` in `file-operation-reconciliation.ts`) —
+ * `attemptMove` itself owns none of that handshake, only the request/tracking plumbing.
+ */
+function attemptMove(
     sessionId: string,
     path: string,
     directory: string,
-    conflict: 'reject' | 'rename' = 'reject',
+    conflict: 'reject' | 'rename' | 'replace',
+    propagateFailure: boolean,
+    operationId: string = crypto.randomUUID(),
 ): Promise<MethodResult<'files.move'> | undefined> {
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
-    const operationId = crypto.randomUUID();
     return runDurableFileMutation({
+        affectedPaths: [path, parentDirectoryPath(path), directory],
         errorLabel: 'Unable to move item',
         id: operationId,
         label: 'Moving item…',
         projectId,
+        propagateFailure,
         run: () =>
             caxri.request('files.move', {
                 operationId,
@@ -208,6 +259,93 @@ export function moveFile(
                 conflict,
             }),
     });
+}
+
+/**
+ * Every move call site (drag-and-drop in the file tree, drop on the panel root, cut-paste on a
+ * row, cut-paste on the root) funnels through this single interactive orchestrator instead of each
+ * one choosing its own conflict policy.
+ *
+ * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining
+ * whatever that attempt fails with. It generates that attempt's operation id itself, registers it
+ * with `suppressFailureToast` before calling `attemptMove` (`propagateFailure: true` makes the
+ * rejection reach this `catch` instead of `runDurableFileMutation`'s own error-toast path), and
+ * always clears the registration in `finally` via `clearFailureToastSuppression` — on success, on a
+ * `CONFLICT`, on any other failure, and even if the failed operation never makes it back through
+ * `reconcileFileMutation` at all, so the registry entry can never outlive this call.
+ *
+ * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`)
+ * instead of a toast. Availability of Replace is gated on both sides of the collision actually
+ * being plain files, fetched fresh via `files.list` (Runtime can only atomically overwrite a file
+ * target, never a folder; see `assertReplaceableMove` in `mutations.ts`). Replace retries with
+ * `conflict: 'replace'`; Keep Both retries with `conflict: 'rename'` (the existing auto-suffix
+ * "name copy" behavior); Cancel resolves with no retry and no toast, leaving a cut clipboard entry
+ * armed for another attempt elsewhere. Every retry is a fresh, unregistered operation id on the
+ * normal (non-propagating) toast path, so its own success or failure explains itself the same way
+ * any other file mutation does.
+ *
+ * Any non-`CONFLICT` failure from the first attempt is not retried or dialoged: reconciliation
+ * stays silent for the registered id (see `file-operation-reconciliation.ts`), and this function
+ * toasts it exactly once itself before returning `undefined` — preserving the pre-existing
+ * single-toast behavior for every other error instead of doubling it up.
+ *
+ * In-place rename (`renameFile` below) deliberately keeps its non-interactive inline CONFLICT
+ * error instead of this prompt: it edits a single row in place, and a modal dialog over one text
+ * field would be disproportionate chrome for a collision the user can just retype.
+ */
+export async function moveFile(
+    sessionId: string,
+    path: string,
+    directory: string,
+): Promise<MethodResult<'files.move'> | undefined> {
+    const operationId = crypto.randomUUID();
+    suppressFailureToast(operationId);
+    try {
+        return await attemptMove(sessionId, path, directory, 'reject', true, operationId);
+    } catch (error) {
+        if (!isCaxriError(error) || error.code !== 'CONFLICT') {
+            pushToast('error', errorMessage(error, 'Unable to move item'));
+            return undefined;
+        }
+        const name = pathBasename(path);
+        const [targetKind, sourceKind] = await Promise.all([
+            entryKind(sessionId, directory, name),
+            entryKind(sessionId, parentDirectoryPath(path), name),
+        ]);
+        const choice = await requestFileConflictChoice({
+            name,
+            folderGated: isFolderGatedConflict(sourceKind, targetKind),
+        });
+        if (choice === 'cancel') return undefined;
+        return attemptMove(
+            sessionId,
+            path,
+            directory,
+            choice === 'replace' ? 'replace' : 'rename',
+            false,
+        );
+    } finally {
+        clearFailureToastSuppression(operationId);
+    }
+}
+
+/**
+ * User-triggered Cancel for a long-running durable mutation (create/rename/move). Mirrors the
+ * internal timeout-driven cancel path in `runDurableFileMutation` above: Runtime's `staged` phase
+ * cannot be rolled back safely (the file-system change already started), so a cancel that lands
+ * after staging still reconciles to whatever Runtime finished with instead of pretending it stopped.
+ */
+export async function cancelFileOperation(operationId: string): Promise<void> {
+    const operation = await caxri
+        .request('files.operation.cancel', { operationId })
+        .catch(() => null);
+    if (!operation) {
+        pushToast('error', 'Unable to cancel item operation');
+        return;
+    }
+    if (operation.phase === 'staged')
+        pushToast('info', 'File change is still finishing safely in the background');
+    await reconcileFileMutation(operation);
 }
 
 export function rememberFile(
@@ -230,7 +368,7 @@ export async function pasteFile(
         return undefined;
     }
     if (clipboard.mode === 'copy') return copyItem(sessionId, clipboard.path, directory);
-    const moved = await moveFile(sessionId, clipboard.path, directory, 'rename');
+    const moved = await moveFile(sessionId, clipboard.path, directory);
     if (moved) useFileClipboardStore.getState().clear();
     return moved;
 }
@@ -262,12 +400,30 @@ export function copyFilePath(path: string, projectRoot?: string): Promise<void |
 }
 
 export async function trashFile(sessionId: string, path: string): Promise<boolean> {
+    /**
+     * Checked before the request so Main's confirmation copy can stop promising full
+     * recoverability: Trash can only restore the last bytes written to disk, never an unsaved
+     * buffer.
+     */
+    const hasUnsavedChanges = hasUnsavedChangesUnderPath(sessionId, path);
     const result = await tryCommand('Unable to move item to Trash', () =>
-        caxri.request('files.trash', { sessionId, path }),
+        caxri.request('files.trash', { sessionId, path, hasUnsavedChanges }),
     );
     if (!result || 'canceled' in result) return false;
     closeOpenEditorsUnderPath(sessionId, result.path);
     await invalidateDirectory(sessionId, parentDirectoryPath(result.path));
     pushToast('success', `Moved '${result.name}' to Trash`);
+    /**
+     * The user already confirmed this destructive action knowing changes were unsaved (the
+     * `hasUnsavedChanges` copy above), but `closeOpenEditorsUnderPath` still discards those dirty
+     * buffers without a trace. A persisted notice — like the external-write notice in
+     * `external-sync.ts` — keeps that loss visible instead of vanishing with the success toast.
+     */
+    if (hasUnsavedChanges)
+        pushToast(
+            'info',
+            `Unsaved changes to '${result.name}' were discarded; only the last saved version moved to Trash`,
+            { persist: true },
+        );
     return true;
 }

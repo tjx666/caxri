@@ -20,7 +20,7 @@ test('editor Find controls remain stable and close on the first click', async ()
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        await running.page.getByRole('button', { name: 'searchable.ts', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'searchable.ts', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').first();
         await expect(editor).toBeVisible();
 

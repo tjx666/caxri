@@ -4,6 +4,7 @@ import {
     ownedProcessIds,
     parseProcessTable,
     protectedProcessIds,
+    shortTemporaryLinkPath,
     validateRunnerOwner,
 } from './self-hosted-runner';
 
@@ -29,6 +30,15 @@ describe('self-hosted E2E runner ownership', () => {
         expect(validateRunnerOwner('caxri-123-2-parallel-safe')).toBe('caxri-123-2-parallel-safe');
         expect(() => validateRunnerOwner('caxri-123-2-../../home')).toThrow(
             'Invalid CAXRI_RUNNER_OWNER',
+        );
+    });
+
+    it('keeps the short TMPDIR link inside the macOS Unix socket path budget', () => {
+        expect(shortTemporaryLinkPath('caxri-31688024802-1-parallel-safe')).toBe(
+            '/private/tmp/caxri-31688024802-1-parallel-safe',
+        );
+        expect(() => shortTemporaryLinkPath(`caxri-1-1-${'x'.repeat(60)}`)).toThrow(
+            'Short temporary link path exceeds the Unix socket budget',
         );
     });
 });

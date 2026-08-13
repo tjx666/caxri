@@ -1,7 +1,9 @@
 import type { ProcessState, TerminalFailureReason } from '@shared/types';
 
 export interface TerminalExitPresentation {
-    icon: 'completed' | 'failed' | 'unexpected';
+    /** `pending` marks an in-progress automatic restore; it must never share the `unexpected`
+     *  failure glyph, since nothing has actually gone wrong yet. */
+    icon: 'completed' | 'failed' | 'pending' | 'unexpected';
     label: string;
     tone: 'neutral' | 'danger';
 }
@@ -32,7 +34,7 @@ export function getTerminalExitPresentation(
             return { icon: 'unexpected', label: 'Terminal stopped unexpectedly', tone: 'danger' };
         case 'interrupted':
             return {
-                icon: 'unexpected',
+                icon: 'pending',
                 label: 'Interrupted by app shutdown — restoring',
                 tone: 'neutral',
             };

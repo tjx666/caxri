@@ -38,7 +38,8 @@
     --surface: #21222c;
     --elevated: #343746;
     --foreground: #f8f8f2;
-    --muted: #6272a4;
+    /* Mirrors `draculaTheme.colors.muted`; see the contrast rationale in `runtime/theme.ts`. */
+    --muted: #9aa5c4;
     --border: #44475a;
     --selection: #44475a;
     --accent: #bd93f9;

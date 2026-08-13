@@ -9,6 +9,14 @@ describe('getTerminalExitPresentation', () => {
         ['stopped', { icon: 'completed', label: 'Process exited normally', tone: 'neutral' }],
         ['failed', { icon: 'failed', label: 'Terminal failed to start', tone: 'danger' }],
         ['dead', { icon: 'unexpected', label: 'Terminal stopped unexpectedly', tone: 'danger' }],
+        [
+            'interrupted',
+            {
+                icon: 'pending',
+                label: 'Interrupted by app shutdown — restoring',
+                tone: 'neutral',
+            },
+        ],
     ] satisfies Array<[ProcessState, ReturnType<typeof getTerminalExitPresentation>]>)(
         'maps %s to a distinct recovery presentation',
         (state, expected) => {

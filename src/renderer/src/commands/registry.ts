@@ -12,14 +12,17 @@ export interface CommandContext {
     terminal: {
         create(): void;
         clearActive(): void;
+        copySelection(): void;
         findActive(): void;
         hasActive(): boolean;
+        /** True only when the active work item is a Terminal that currently owns a selection. */
+        hasSelection(): boolean;
         navigateCommand(direction: 1 | -1): void;
         restartActive(): void;
         startNewAgentSession(): void;
         closeActive(): void;
     };
-    workbench: { closeActiveTab(): void };
+    workbench: { closeActiveTab(): void; cycleTab(delta: 1 | -1): void };
     editor: { saveActive(): void };
     inspector: { searchFiles(): void; setMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };

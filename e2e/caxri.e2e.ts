@@ -69,27 +69,27 @@ test('file changes refresh entries without collapsing expanded directories', asy
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.getByRole('button', { name: 'nested', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'nested', exact: true }).click();
         await expect(
-            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
         await writeFile(join(root, 'new.txt'), 'new\n', 'utf8');
 
         await expect(
-            running.page.getByRole('button', { name: 'new.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'new.txt', exact: true }),
         ).toBeVisible();
         await expect(
-            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
 
         await running.page.locator('.panel-caption').hover();
         await running.page.getByRole('button', { name: 'Collapse Folders' }).click();
         await expect(
-            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toHaveCount(0);
-        await running.page.getByRole('button', { name: 'nested', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'nested', exact: true }).click();
         await expect(
-            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);
@@ -442,7 +442,7 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.getByRole('button', { name: 'note.txt', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'note.txt', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').first();
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
@@ -451,7 +451,7 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
             dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
         });
         await running.page.keyboard.press('Meta+Shift+P');
-        await running.page.getByText('Remove Session', { exact: true }).click();
+        await running.page.getByText('Delete Session', { exact: true }).click();
         await running.page.waitForTimeout(300);
 
         await expect(running.page.locator('.session-card')).toHaveCount(1);
@@ -481,7 +481,7 @@ test('removing a Project deletes only Caxri metadata', async () => {
             dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
         });
         await running.page.keyboard.press('Meta+Shift+P');
-        await running.page.getByText('Remove Project', { exact: true }).click();
+        await running.page.getByText('Delete Project', { exact: true }).click();
 
         await expect(running.page.locator('.project-group')).toHaveCount(0);
         await expect(running.page.locator('.session-card')).toHaveCount(0);
@@ -585,10 +585,10 @@ test('switching Sessions discards expanded file-tree state from the previous roo
     try {
         await createShellSession(running.page);
         for (const directory of expandedDirectories) {
-            await running.page.getByRole('button', { name: directory, exact: true }).click();
+            await running.page.getByRole('treeitem', { name: directory, exact: true }).click();
         }
         await expect(
-            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toHaveCount(expandedDirectories.length);
 
         await running.app.evaluate((_, root) => {
@@ -600,7 +600,7 @@ test('switching Sessions discards expanded file-tree state from the previous roo
             .getByRole('button', { name: 'Shell', exact: true })
             .click();
         await expect(
-            running.page.getByRole('button', { name: 'second.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'second.txt', exact: true }),
         ).toBeVisible();
 
         expect(await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8')).not.toContain(
@@ -623,7 +623,7 @@ test('editor buffers stay isolated between Sessions that share one root', async 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.getByRole('button', { name: 'shared.txt' }).click();
+        await running.page.getByRole('treeitem', { name: 'shared.txt' }).click();
         const editor = running.page.locator('.monaco-editor').first();
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
@@ -632,7 +632,7 @@ test('editor buffers stay isolated between Sessions that share one root', async 
 
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
-        await running.page.getByRole('button', { name: 'shared.txt' }).click();
+        await running.page.getByRole('treeitem', { name: 'shared.txt' }).click();
         await expect(running.page.locator('.view-lines')).toContainText('disk state');
         await expect(running.page.locator('.view-lines')).not.toContainText('first Session');
 

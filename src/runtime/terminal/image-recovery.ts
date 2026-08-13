@@ -187,9 +187,19 @@ export class TerminalImageRecoveryFilter {
 }
 
 /**
+ * Live counterpart to {@link TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}: inserted in place of an image
+ * Caxri's own size policy refused to deliver, so the gap reads as a deliberate, explained decision
+ * instead of folding into the generic `[N bytes dropped by output backpressure]` notice, which is
+ * reserved for genuine PTY output-queue congestion.
+ */
+export const TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER =
+    '\r\n[Caxri dropped an inline image: it exceeds the size limit]\r\n';
+
+/**
  * Keeps live image controls atomic across PTY chunks and Renderer backpressure. An image sequence
- * is delivered whole or counted as wholly dropped; oversized/malformed sequences are discarded
- * through their terminator so later text can never be consumed as image payload.
+ * is delivered whole; one Caxri sized it out, the returned byte count below reflects only genuine
+ * `destination` backpressure (queue capacity), never the size of the image itself — that distinction
+ * is what lets the caller keep its own backpressure counter honest.
  */
 export class TerminalImageOutputFilter {
     private buffer = '';
@@ -201,24 +211,24 @@ export class TerminalImageOutputFilter {
             throw new RangeError('Terminal image output limit must be a positive integer');
     }
 
+    /**
+     * Returns only bytes `destination` itself refused (real output-queue backpressure). A sequence
+     * Caxri's own size policy refuses is replaced by one
+     * {@link TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER} instead of being tallied as dropped bytes,
+     * so the Renderer sees an honest inline reason rather than a generic byte count.
+     */
     push(data: string, destination: ImageOutputDestination): number {
         if (!data) return 0;
         this.buffer += data;
-        let droppedBytes = 0;
+        let backpressureBytes = 0;
         while (this.buffer) {
             if (this.discarding) {
                 const terminator = findTerminator(this.buffer, this.discarding);
                 if (!terminator) {
-                    const retained = this.buffer.endsWith(ESC) ? ESC : '';
-                    droppedBytes += Buffer.byteLength(
-                        this.buffer.slice(0, this.buffer.length - retained.length),
-                        'utf8',
-                    );
-                    this.buffer = retained;
-                    return droppedBytes;
+                    this.buffer = this.buffer.endsWith(ESC) ? ESC : '';
+                    return backpressureBytes;
                 }
                 const end = terminator.index + terminator.length;
-                droppedBytes += Buffer.byteLength(this.buffer.slice(0, end), 'utf8');
                 this.buffer = this.buffer.slice(end);
                 this.discarding = undefined;
                 continue;
@@ -229,9 +239,9 @@ export class TerminalImageOutputFilter {
                     const end = terminator.index + terminator.length;
                     const sequence = this.buffer.slice(0, end);
                     const sequenceBytes = Buffer.byteLength(sequence, 'utf8');
-                    droppedBytes +=
+                    backpressureBytes +=
                         sequenceBytes > this.maximumSequenceBytes
-                            ? sequenceBytes
+                            ? destination.appendAtomic(TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER)
                             : destination.appendAtomic(sequence);
                     this.buffer = this.buffer.slice(end);
                     this.capturing = undefined;
@@ -240,40 +250,47 @@ export class TerminalImageOutputFilter {
                 if (Buffer.byteLength(this.buffer, 'utf8') > this.maximumSequenceBytes) {
                     this.discarding = this.capturing;
                     this.capturing = undefined;
-                    const retained = this.buffer.endsWith(ESC) ? ESC : '';
-                    droppedBytes += Buffer.byteLength(
-                        this.buffer.slice(0, this.buffer.length - retained.length),
-                        'utf8',
+                    this.buffer = this.buffer.endsWith(ESC) ? ESC : '';
+                    backpressureBytes += destination.appendAtomic(
+                        TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER,
                     );
-                    this.buffer = retained;
                 }
-                return droppedBytes;
+                return backpressureBytes;
             }
             const search = findImageStart(this.buffer);
             if (search.start) {
-                droppedBytes += destination.appendBounded(this.buffer.slice(0, search.start.index));
+                backpressureBytes += destination.appendBounded(
+                    this.buffer.slice(0, search.start.index),
+                );
                 this.buffer = this.buffer.slice(search.start.index);
                 this.capturing = search.start.terminator;
                 continue;
             }
             if (search.incompleteIndex !== undefined) {
-                droppedBytes += destination.appendBounded(
+                backpressureBytes += destination.appendBounded(
                     this.buffer.slice(0, search.incompleteIndex),
                 );
                 this.buffer = this.buffer.slice(search.incompleteIndex);
-                return droppedBytes;
+                return backpressureBytes;
             }
-            droppedBytes += destination.appendBounded(this.buffer);
+            backpressureBytes += destination.appendBounded(this.buffer);
             this.buffer = '';
         }
-        return droppedBytes;
+        return backpressureBytes;
     }
 
-    finish(): number {
-        const droppedBytes = Buffer.byteLength(this.buffer, 'utf8');
+    /**
+     * Called at teardown (detach/close/exit). `destination` is only passed when the caller still
+     * intends to flush its queue afterwards (a genuine close/exit); a bare detach passes none, since
+     * no Renderer view remains to read the placeholder and appending it would just leave stale
+     * content sitting in a queue nobody drains.
+     */
+    finish(destination?: ImageOutputDestination): number {
+        const wasCapturing = this.capturing !== undefined;
         this.buffer = '';
         this.capturing = undefined;
         this.discarding = undefined;
-        return droppedBytes;
+        if (!wasCapturing || !destination) return 0;
+        return destination.appendAtomic(TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER);
     }
 }

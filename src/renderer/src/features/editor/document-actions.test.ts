@@ -16,6 +16,8 @@ import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     changeDocument,
+    closeAllEditors,
+    closeEditor,
     closeOpenEditorsUnderPath,
     openEditorTab,
     openFile,
@@ -312,5 +314,124 @@ describe('session-scoped file mutation completion', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
             { path: '/project/renamed.ts', dirty: true },
         ]);
+    });
+});
+
+describe('closing a dirty editor tab', () => {
+    it('aborts the close and keeps the tab open when the user cancels the discard confirmation', async () => {
+        installSessions('/project/dirty.ts', 'session-1');
+        mocks.request.mockImplementation((method) =>
+            method === 'editor.confirmDiscard'
+                ? Promise.resolve({ choice: 'cancel' })
+                : Promise.resolve(null),
+        );
+
+        await closeEditor('/project/dirty.ts');
+
+        expect(mocks.request).toHaveBeenCalledWith('editor.confirmDiscard', { name: 'dirty.ts' });
+        expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]).toMatchObject({
+            openTabs: [{ path: '/project/dirty.ts', dirty: true }],
+            activeTab: { kind: 'editor', path: '/project/dirty.ts' },
+        });
+        expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
+            '/project/dirty.ts': { dirty: true },
+        });
+    });
+
+    it("closes a dirty tab without writing when the user chooses Don't Save", async () => {
+        installSessions('/project/dirty.ts', 'session-1');
+        mocks.request.mockImplementation((method) =>
+            method === 'editor.confirmDiscard'
+                ? Promise.resolve({ choice: 'discard' })
+                : Promise.resolve(null),
+        );
+
+        await closeEditor('/project/dirty.ts');
+
+        expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([]);
+        expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
+    });
+
+    it('saves a dirty tab before closing it when the user chooses Save', async () => {
+        installSessions('/project/dirty.ts', 'session-1');
+        mocks.request.mockImplementation((method) => {
+            if (method === 'editor.confirmDiscard') return Promise.resolve({ choice: 'save' });
+            if (method === 'files.write')
+                return Promise.resolve({
+                    content: 'unsaved',
+                    mtimeMs: 2,
+                    path: '/project/dirty.ts',
+                    size: 7,
+                });
+            return Promise.resolve(null);
+        });
+
+        await closeEditor('/project/dirty.ts');
+
+        expect(mocks.request).toHaveBeenCalledWith(
+            'files.write',
+            expect.objectContaining({ sessionId: 'session-1', path: '/project/dirty.ts' }),
+        );
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([]);
+        expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
+    });
+
+    it('aborts a bulk close entirely when any dirty tab in it is canceled', async () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              openTabs: [
+                                  { path: '/project/a.ts', dirty: true },
+                                  { path: '/project/b.ts', dirty: true },
+                              ],
+                              activeTab: { kind: 'editor', path: '/project/a.ts' },
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/a.ts',
+            content: 'a',
+            dirty: true,
+            mtimeMs: 1,
+            size: 1,
+        });
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/b.ts',
+            content: 'b',
+            dirty: true,
+            mtimeMs: 1,
+            size: 1,
+        });
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-1', { kind: 'editor', path: '/project/a.ts' });
+        let confirmCalls = 0;
+        mocks.request.mockImplementation((method) => {
+            if (method === 'editor.confirmDiscard') {
+                confirmCalls += 1;
+                return Promise.resolve({ choice: confirmCalls === 1 ? 'discard' : 'cancel' });
+            }
+            return Promise.resolve(null);
+        });
+
+        await closeAllEditors('/project/a.ts');
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
+            { path: '/project/a.ts', dirty: true },
+            { path: '/project/b.ts', dirty: true },
+        ]);
+        expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
+            '/project/a.ts': { dirty: true },
+            '/project/b.ts': { dirty: true },
+        });
     });
 });

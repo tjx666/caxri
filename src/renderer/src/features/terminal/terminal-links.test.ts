@@ -5,6 +5,7 @@ import {
     findTerminalLinks,
     registerTerminalLinks,
     resolveTerminalFilePath,
+    terminalLinkHintPosition,
     type TerminalLinkContext,
 } from './terminal-links';
 
@@ -45,6 +46,15 @@ describe('findTerminalLinks', () => {
             { kind: 'url', target: 'https://example.com/value' },
         ]);
         expect(performance.now() - startedAt).toBeLessThan(500);
+    });
+});
+
+describe('terminalLinkHintPosition', () => {
+    it('offsets the hint above and to the right of the pointer', () => {
+        expect(terminalLinkHintPosition({ clientX: 100, clientY: 200 })).toEqual({
+            left: 112,
+            top: 172,
+        });
     });
 });
 

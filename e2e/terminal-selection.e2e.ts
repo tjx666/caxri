@@ -183,11 +183,33 @@ test('Terminal selection copies exact text and stays isolated across split panes
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
             .toBe(splitText);
 
-        await running.app.evaluate(({ clipboard }) =>
-            clipboard.writeText("printf 'PASTE_STILL_WORKS\\n'"),
-        );
         const secondInput = running.page.locator(
             `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-helper-textarea`,
+        );
+        /**
+         * `terminal.copy` (Cmd+C) is a distinct affordance from copy-on-select, and this proves it
+         * without touching `terminal.copyOnSelect`: turning that setting off would race the
+         * `settings.changed` broadcast the Renderer needs before `use-terminal-pane` stops copying.
+         * Instead, reuse the selection copy-on-select just proved live and overwrite the clipboard
+         * underneath it. Copy-on-select only reacts to a selection *change*, so nothing can restore
+         * the text except the command under test.
+         *
+         * Deliberately before the paste case below rather than after it: a second drag would have to
+         * re-measure `PANE_TWO`'s bounds against a viewport the pasted command is still scrolling,
+         * so the mouse could land a row off and select nothing at all.
+         */
+        await running.app.evaluate(({ clipboard }) => clipboard.writeText('COPY_COMMAND_SENTINEL'));
+        await secondInput.focus();
+        expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
+            'COPY_COMMAND_SENTINEL',
+        );
+        await secondInput.press('Meta+C');
+        await expect
+            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
+            .toBe(splitText);
+
+        await running.app.evaluate(({ clipboard }) =>
+            clipboard.writeText("printf 'PASTE_STILL_WORKS\\n'"),
         );
         await secondInput.focus();
         await secondInput.press('Meta+V');

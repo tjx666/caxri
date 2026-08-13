@@ -35,10 +35,12 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const memoryAction = running.page.getByRole('button', {
             name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
         });
-        await expect(memoryAction).toHaveAttribute(
-            'title',
+        await memoryAction.hover();
+        await expect(running.page.locator('.tooltip-popup')).toHaveText(
             /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
         );
+        await running.page.mouse.move(0, 0);
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         await memoryAction.focus();
         await expect(memoryAction).toBeFocused();
         await memoryAction.press('Enter');

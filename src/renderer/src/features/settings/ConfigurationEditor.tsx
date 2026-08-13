@@ -1,5 +1,5 @@
-import Editor from '@monaco-editor/react';
-import { useEffect } from 'react';
+import Editor, { type OnMount } from '@monaco-editor/react';
+import { useEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@shared/types';
 
@@ -11,6 +11,7 @@ interface ConfigurationEditorProps {
     path: string;
     theme: ThemeTokens;
     value: string;
+    onBlur: () => void;
     onChange: (value: string) => void;
 }
 
@@ -19,12 +20,25 @@ export function ConfigurationEditor({
     path,
     theme,
     value,
+    onBlur,
     onChange,
 }: ConfigurationEditorProps) {
     useEffect(() => applyEditorTheme(theme), [theme]);
 
+    // Monaco renders its own textarea, so `onMount` wires the blur-commit trigger directly to
+    // that editable surface instead of the wrapping `<div>`. A ref keeps the callback current
+    // across renders without re-mounting the editor: `onMount` only runs once, so a stale
+    // closure over an early `onBlur` prop would keep committing against outdated state.
+    const onBlurRef = useRef(onBlur);
+    useEffect(() => {
+        onBlurRef.current = onBlur;
+    }, [onBlur]);
+    const handleMount: OnMount = (editor) => {
+        editor.onDidBlurEditorText(() => onBlurRef.current());
+    };
+
     return (
-        <div className={configurationEditorClassName} aria-label={ariaLabel}>
+        <div className={configurationEditorClassName}>
             <Editor
                 path={path}
                 language="json"
@@ -32,7 +46,9 @@ export function ConfigurationEditor({
                 theme="caxri-active"
                 beforeMount={() => applyEditorTheme(theme)}
                 onChange={(next) => onChange(next ?? '')}
+                onMount={handleMount}
                 options={{
+                    ariaLabel,
                     automaticLayout: true,
                     fontSize: 12,
                     lineNumbersMinChars: 3,

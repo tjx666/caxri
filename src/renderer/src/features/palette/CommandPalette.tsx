@@ -16,9 +16,15 @@ const NO_RECORDS: never[] = [];
 // attribute, so the selected-row fill is expressed as a `data-[selected=true]` variant
 // instead of the old `[cmdk-item][data-selected='true']` global-CSS attribute selector.
 const commandItemClassName =
-    'group flex min-h-7 cursor-pointer items-center justify-between gap-2 rounded px-2 py-1 data-[selected=true]:bg-elevated';
+    'group flex min-h-7 cursor-pointer items-start justify-between gap-2 rounded px-2 py-1 data-[selected=true]:bg-elevated';
 const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-[11px] text-muted';
 
+/**
+ * Every command already carries a plain-language `description` in the shared catalog (e.g.
+ * Screencast Mode's explains it overlays clicks/keystrokes without hiding anything), but nothing
+ * in the palette ever rendered it. Showing it as a secondary line benefits every command, not just
+ * the ones whose title alone is ambiguous.
+ */
 function CommandRow({ command }: { command: (typeof commandDefinitions)[number] }) {
     const shortcut = useCommandShortcut(command.id);
     return (
@@ -30,7 +36,10 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
                 executeCommand(command.id);
             }}
         >
-            <span>{command.title}</span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+                <span>{command.title}</span>
+                <span className="truncate text-[11px] text-muted">{command.description}</span>
+            </span>
             <small className={commandItemMetaClassName}>
                 {command.category}
                 {shortcut && (

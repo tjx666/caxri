@@ -9,9 +9,15 @@ import { Input } from '../../components/ui/input';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { cn } from '../../lib/utils';
+import { setArchivedSessionsOpen } from '../../stores/dialogs';
+import { requestArchivedSessionsForProject } from '../session/archived-sessions';
 import { archiveSession, selectSession } from '../session/session-actions';
 import { SessionActivityCard } from './SessionActivityCard';
-import { sessionActivityPresentation } from './session-activity';
+import {
+    sessionActivityPresentation,
+    sessionToneBackgroundClassName,
+    sessionToneBorderClassName,
+} from './session-activity';
 import {
     hasProjectDragType,
     resolveProjectHeadingClick,
@@ -21,27 +27,33 @@ import {
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
 
-const ATTENTION_LABELS = {
-    completed: 'Finished',
-    failed: 'Failed',
-    waiting: 'Waiting for you',
-} as const;
-
+/**
+ * The ring reuses `sessionActivityPresentation`'s tone (success/warning/danger/neutral) instead of
+ * `--accent` — DESIGN.md reserves accent for the single focused pane/tab, and the Sidebar stays
+ * entirely neutral otherwise. `lastAttentionKind` is a subset of `AgentActivityState`'s keys, so the
+ * same presentation table already used for the activity dot applies unchanged.
+ */
 function UnreadAttentionIndicator({ session }: { session: SessionRecord }) {
     if (!session.hasUnread) return null;
-    const detail = session.lastAttentionKind
-        ? ATTENTION_LABELS[session.lastAttentionKind]
-        : 'Agent attention';
-    const label = `Unread: ${detail}`;
+    const attention = sessionActivityPresentation(session.lastAttentionKind ?? 'unknown');
+    const label = `Unread: ${attention.label}`;
     return (
         <span
             role="img"
             aria-label={label}
-            className="session-unread flex size-3 flex-none items-center justify-center rounded-full border border-accent"
+            className={cn(
+                'session-unread flex size-3 flex-none items-center justify-center rounded-full border',
+                sessionToneBorderClassName(attention.tone),
+            )}
             data-attention-kind={session.lastAttentionKind}
             title={label}
         >
-            <span className="size-1.5 rounded-full bg-accent" />
+            <span
+                className={cn(
+                    'size-1.5 rounded-full',
+                    sessionToneBackgroundClassName(attention.tone),
+                )}
+            />
         </span>
     );
 }
@@ -68,6 +80,8 @@ interface ActiveSessionRowProps {
     renameError?: string;
     renameValue: string;
     renaming: boolean;
+    /** True when this Session row currently owns the tree's single roving Tab stop. */
+    roving: boolean;
     selected: boolean;
     session: SessionRecord;
     terminal?: TerminalRecord;
@@ -84,6 +98,7 @@ function ActiveSessionRow({
     renameError,
     renameValue,
     renaming,
+    roving,
     selected,
     session,
     terminal,
@@ -92,6 +107,7 @@ function ActiveSessionRow({
     const renameErrorId = `session-rename-error-${session.id}`;
     const sessionCard = (
         <div
+            data-row-id={session.id}
             data-session-id={session.id}
             className={cn(
                 sessionCardClassName,
@@ -101,7 +117,7 @@ function ActiveSessionRow({
                 renaming && 'cursor-text',
             )}
             role={renaming ? undefined : 'button'}
-            tabIndex={renaming ? undefined : 0}
+            tabIndex={renaming ? undefined : roving ? 0 : -1}
             onClick={() => {
                 if (!renaming && !selected) void selectSession(session.id);
             }}
@@ -158,7 +174,7 @@ function ActiveSessionRow({
                         <span
                             id={renameErrorId}
                             role="alert"
-                            className="session-rename-error absolute top-full left-0 z-10 mt-0.5 whitespace-nowrap text-[11px] text-danger"
+                            className="session-rename-error absolute inset-x-0 top-full z-10 mt-0.5 wrap-break-word text-[11px] text-danger"
                         >
                             {renameError}
                         </span>
@@ -166,14 +182,26 @@ function ActiveSessionRow({
                 </>
             ) : (
                 <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                    <strong className="font-medium">{session.displayTitle}</strong>
+                    {/*
+                     * Bolder weight is a non-color, no-hover unread cue: the ring's tone explains
+                     * *what* the attention was, but a sighted user should not need to hover the ring
+                     * or open the preview card just to notice *that* a row is unread.
+                     */}
+                    <strong className={session.hasUnread ? 'font-semibold' : 'font-medium'}>
+                        {session.displayTitle}
+                    </strong>
                 </span>
             )}
             <UnreadAttentionIndicator session={session} />
         </div>
     );
     return (
-        <div className="session-row group/session-row relative">
+        <div
+            aria-level={2}
+            aria-selected={selected}
+            className="session-row group/session-row relative"
+            role="treeitem"
+        >
             {renaming ? (
                 sessionCard
             ) : (
@@ -189,6 +217,8 @@ function ActiveSessionRow({
                     type="button"
                     className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 pointer-events-none cursor-pointer hover:text-foreground group-hover/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto"
                     aria-label={`Archive ${session.displayTitle}`}
+                    aria-keyshortcuts="Delete"
+                    tabIndex={-1}
                     onClick={() => archiveSession(session.id)}
                 >
                     <Archive size={12} />
@@ -201,6 +231,8 @@ function ActiveSessionRow({
 interface ProjectGroupProps {
     active: boolean;
     activeSessions: SessionRecord[];
+    /** Count of this Project's archived Sessions; 0 hides the heading affix entirely. */
+    archivedCount: number;
     animateProject: boolean;
     dragged: boolean;
     expanded: boolean;
@@ -223,6 +255,8 @@ interface ProjectGroupProps {
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
+    /** Id of the row that currently owns the tree's single roving Tab stop. */
+    rovingRowId?: string;
     selectedSessionId?: string;
     terminals: TerminalRecord[];
 }
@@ -230,6 +264,7 @@ interface ProjectGroupProps {
 export function ProjectGroup({
     active,
     activeSessions,
+    archivedCount,
     animateProject,
     dragged,
     expanded,
@@ -252,6 +287,7 @@ export function ProjectGroup({
     renameError,
     renameValue,
     renamingSessionId,
+    rovingRowId,
     selectedSessionId,
     terminals,
 }: ProjectGroupProps) {
@@ -277,8 +313,16 @@ export function ProjectGroup({
                 </div>
             )}
             <div
+                aria-expanded={expanded}
+                aria-level={1}
+                aria-selected={active}
                 className="project-heading group/project-heading flex min-h-7 items-center gap-1 rounded-md text-foreground cursor-grab active:cursor-grabbing hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
                 data-project-id={project.id}
+                role="treeitem"
+                // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
+                // a11y contract (react-doctor/interactive-supports-focus); the roving Tab stop
+                // stays on the inner `.project-select` button below, not on this wrapper.
+                tabIndex={-1}
                 draggable
                 onDragOver={(event) => {
                     if (!hasProjectDragType(event.dataTransfer.types)) return;
@@ -297,6 +341,7 @@ export function ProjectGroup({
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
+                        tabIndex={-1}
                         onClick={onToggle}
                     >
                         {expanded ? (
@@ -321,6 +366,8 @@ export function ProjectGroup({
                     aria-controls={projectDisclosureId}
                     aria-expanded={expanded}
                     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                    data-row-id={project.id}
+                    tabIndex={project.id === rovingRowId ? 0 : -1}
                     onClick={() => {
                         const effect = resolveProjectHeadingClick(
                             active,
@@ -349,11 +396,30 @@ export function ProjectGroup({
                         size="icon"
                         variant="ghost"
                         aria-label={`New Session in ${project.displayTitle}`}
+                        tabIndex={-1}
                         onClick={onCreateSession}
                     >
                         <Plus size={13} />
                     </Button>
                 </CommandTooltip>
+                {archivedCount > 0 && (
+                    <Tooltip
+                        content={`${archivedCount} archived ${archivedCount === 1 ? 'Session' : 'Sessions'}`}
+                    >
+                        <button
+                            type="button"
+                            className="project-archived-count flex-none rounded-full border-0 bg-elevated px-1.5 text-[10px] tabular-nums text-muted cursor-pointer hover:text-foreground"
+                            aria-label={`${archivedCount} archived ${archivedCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
+                            tabIndex={-1}
+                            onClick={() => {
+                                requestArchivedSessionsForProject(project.id);
+                                setArchivedSessionsOpen(true);
+                            }}
+                        >
+                            {archivedCount}
+                        </button>
+                    </Tooltip>
+                )}
             </div>
             <div
                 aria-hidden="true"
@@ -373,7 +439,11 @@ export function ProjectGroup({
                 kind="project"
             >
                 {() => (
-                    <div className="session-list pb-1 pl-4">
+                    <div
+                        aria-label={`${project.displayTitle} Sessions`}
+                        className="session-list pb-1 pl-4"
+                        role="group"
+                    >
                         {activeSessions.map((session) => (
                             <ActiveSessionRow
                                 key={session.id}
@@ -389,6 +459,7 @@ export function ProjectGroup({
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
+                                roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}
                                 terminal={sessionTerminal(session, terminals)}
@@ -397,6 +468,7 @@ export function ProjectGroup({
                         {activeSessions.length === 0 && (
                             <button
                                 className="empty-project flex h-7 w-full items-center gap-2 px-2 border-0 rounded-md text-muted bg-transparent cursor-pointer hover:text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
+                                tabIndex={-1}
                                 onClick={onCreateSession}
                             >
                                 <Plus size={13} /> New Session

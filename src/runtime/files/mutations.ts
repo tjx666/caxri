@@ -358,7 +358,7 @@ export class FileMutationService {
             params.path,
             undefined,
             fileName(params.name),
-            false,
+            'reject',
             stage,
         );
     }
@@ -372,7 +372,7 @@ export class FileMutationService {
             params.path,
             params.directory,
             undefined,
-            params.conflict === 'rename',
+            params.conflict,
             stage,
         );
     }
@@ -403,7 +403,7 @@ export class FileMutationService {
         sourcePath: string,
         targetDirectoryPath?: string,
         requestedName?: string,
-        renameOnConflict = false,
+        conflict: 'reject' | 'rename' | 'replace' = 'reject',
         stage?: MutationStage<StagedMovedEntry>,
     ): Promise<MovedEntry> {
         try {
@@ -418,6 +418,8 @@ export class FileMutationService {
             if (source.kind === 'directory' && isSameOrInside(source.path, directory.path))
                 throw new CaxriError('CONFLICT', 'A folder cannot be moved into itself');
 
+            const renameOnConflict = conflict === 'rename';
+            const replaceOnConflict = conflict === 'replace';
             const sourceName = requestedName ?? basename(source.path);
             const directTargetPath = resolve(directory.path, sourceName);
             if (directTargetPath === source.path)
@@ -441,7 +443,7 @@ export class FileMutationService {
                     );
                 }
                 try {
-                    if (await this.pathExists(targetPath)) {
+                    if (!replaceOnConflict && (await this.pathExists(targetPath))) {
                         if (renameOnConflict) continue;
                         throw new CaxriError(
                             'CONFLICT',
@@ -460,7 +462,10 @@ export class FileMutationService {
                     };
                     await stage?.({ ...result, device: source.device, inode: source.inode });
                     await this.afterMutationStage?.();
-                    if (await this.pathExists(targetPath))
+                    let replacedTarget = false;
+                    if (replaceOnConflict) {
+                        replacedTarget = await this.assertReplaceableMove(source, targetPath);
+                    } else if (await this.pathExists(targetPath))
                         throw new CaxriError(
                             'CONFLICT',
                             'A file or folder with that name already exists',
@@ -471,8 +476,13 @@ export class FileMutationService {
                     ]);
                     /**
                      * Node's rename matches VS Code's local provider. The reservation prevents
-                     * conflicting Caxri requests, while the final check avoids knowingly replacing
-                     * a target that already exists.
+                     * conflicting Caxri requests, and the final check normally avoids knowingly
+                     * replacing a target that already exists — except in `replace` mode, where the
+                     * caller already showed the user an interactive Finder-style prompt and captured
+                     * an explicit Replace confirmation, and `assertReplaceableMove` just verified
+                     * neither side of the move is a folder. Runtime has no Trash API for a safer
+                     * overwrite (that lives in Main), so the sanctioned replace path is POSIX
+                     * `rename(2)` atomically overwriting a plain file target.
                      */
                     await rename(source.path, targetPath);
                     this.logger.write('info', 'file.moved', {
@@ -480,6 +490,7 @@ export class FileMutationService {
                             sessionId,
                             from: relative(source.root.path, source.path),
                             to: relative(source.root.path, targetPath),
+                            ...(replacedTarget ? { replaced: true } : {}),
                         },
                     });
                     return result;
@@ -496,6 +507,30 @@ export class FileMutationService {
         } catch (error) {
             throw mutationError(error, requestedName ? 'renaming the item' : 'moving the item');
         }
+    }
+
+    /**
+     * `replace` mode intentionally skips the CONFLICT-on-existing-target checks the other modes
+     * use: the caller already showed the user a Finder-style prompt and captured an explicit
+     * Replace confirmation. The only remaining safety rail is this directory check. Returns
+     * whether an existing file target was actually present (and is about to be overwritten), so
+     * the caller can log it; a target that vanished between the user's choice and this retry
+     * (ENOENT) is treated the same as no target — the plain rename below just succeeds.
+     */
+    private async assertReplaceableMove(
+        source: FileIdentity,
+        targetPath: string,
+    ): Promise<boolean> {
+        const [sourceStats, targetStats] = await Promise.all([
+            lstat(source.path, { bigint: true }),
+            lstat(targetPath, { bigint: true }).catch((error: unknown) => {
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+                throw error;
+            }),
+        ]);
+        if (sourceStats.isDirectory() || targetStats?.isDirectory())
+            throw new CaxriError('CONFLICT', 'A folder cannot replace or be replaced');
+        return targetStats !== undefined;
     }
 
     private reserveTarget(path: string): () => void {

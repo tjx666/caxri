@@ -12,9 +12,12 @@ import {
     selectAdjacentSession,
 } from '../features/session/session-actions';
 import { toggleScreencastMode } from '../features/screencast/screencast';
+import { cycleActiveWork } from '../features/tabs/tab-navigation';
 import {
+    activeTerminalHasSelection,
     clearActiveTerminal,
     closeTerminal,
+    copyActiveTerminalSelection,
     createTerminal,
     findInActiveTerminal,
     navigateActiveTerminalCommand,
@@ -38,6 +41,19 @@ function activeTerminalId(): string | undefined {
     return active?.kind === 'terminal' ? active.terminalId : undefined;
 }
 
+/**
+ * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is
+ * `allowInEditable` so it can reach through the xterm surface. Availability therefore cannot rest on
+ * "the active tab is a terminal with a selection" alone: a sidebar rename field or the path browser
+ * input can hold focus while a stale terminal selection is still highlighted behind them, and
+ * hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually sit inside
+ * the terminal keeps the chord falling through to the native copy everywhere else.
+ */
+function terminalSurfaceHasFocus(): boolean {
+    const focused = document.activeElement;
+    return focused instanceof Element && focused.closest('.xterm') !== null;
+}
+
 const commandContext: CommandContext = {
     project: {
         create: () => void chooseProjectDirectory(),
@@ -58,11 +74,20 @@ const commandContext: CommandContext = {
             const terminalId = activeTerminalId();
             if (terminalId) clearActiveTerminal(terminalId);
         },
+        copySelection: () => {
+            const terminalId = activeTerminalId();
+            if (terminalId) copyActiveTerminalSelection(terminalId);
+        },
         findActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) findInActiveTerminal(terminalId);
         },
         hasActive: () => Boolean(activeTerminalId()),
+        hasSelection: () => {
+            const terminalId = activeTerminalId();
+            if (!terminalId || !terminalSurfaceHasFocus()) return false;
+            return activeTerminalHasSelection(terminalId);
+        },
         navigateCommand: (direction) => {
             const terminalId = activeTerminalId();
             if (terminalId)
@@ -85,8 +110,9 @@ const commandContext: CommandContext = {
         closeActiveTab: () => {
             const active = getResolvedActiveWork();
             if (active?.kind === 'terminal') closeTerminal(active.terminalId);
-            else if (active?.kind === 'editor') closeEditor(active.path);
+            else if (active?.kind === 'editor') void closeEditor(active.path);
         },
+        cycleTab: cycleActiveWork,
     },
     editor: { saveActive: () => void saveActiveEditor() },
     inspector: {

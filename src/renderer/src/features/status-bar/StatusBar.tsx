@@ -30,6 +30,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
@@ -89,6 +90,12 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
     return debounced;
 }
 
+/**
+ * DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip: an
+ * `aria-label` alone leaves sighted mouse users with less information than assistive tech gets.
+ * Wrapped in the shared `Tooltip` primitive rather than a bare `title` attribute so it renders
+ * consistently (and visibly) instead of relying on Chromium's native, easy-to-miss tooltip.
+ */
 function StatusInfo({
     ariaLabel,
     children,
@@ -100,13 +107,15 @@ function StatusInfo({
     children: ReactNode;
     className?: string;
     icon?: LucideIcon;
-    title: string;
+    title: ReactNode;
 }) {
     return (
-        <span className={cn(statusInfoClassName, className)} aria-label={ariaLabel} title={title}>
-            {Icon && <Icon size={12} />}
-            <span>{children}</span>
-        </span>
+        <Tooltip content={title}>
+            <span className={cn(statusInfoClassName, className)} aria-label={ariaLabel}>
+                {Icon && <Icon size={12} />}
+                <span>{children}</span>
+            </span>
+        </Tooltip>
     );
 }
 
@@ -136,9 +145,16 @@ function ActiveFileStatus({ sessionId, path }: { sessionId: string; path: string
                     className="statusbar-blame max-w-[420px]"
                     icon={GitCommitHorizontal}
                     title={
-                        blame.uncommitted
-                            ? `Uncommitted changes · line ${line}`
-                            : `${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`
+                        blame.uncommitted ? (
+                            `Uncommitted changes · line ${line}`
+                        ) : (
+                            // The tooltip primitive doesn't collapse `\n` like a native `title`
+                            // attribute would, so the three-line author/sha/subject summary needs
+                            // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
+                            <span className="whitespace-pre-line">
+                                {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
+                            </span>
+                        )
                     }
                 >
                     {blame.uncommitted
@@ -194,7 +210,14 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                     ariaLabel={terminalProgressAriaLabel(progress)}
                     className={cn(
                         'statusbar-terminal-progress tabular-nums',
-                        progress.kind === 'normal' && 'text-accent',
+                        /**
+                         * `--accent` is reserved for the one focused pane/tab (DESIGN.md principle
+                         * 2). This badge renders for every Terminal with progress, not just the
+                         * active one, so a background process must not borrow the accent color —
+                         * only the genuinely exceptional states (`error`/`paused`) get a status
+                         * color here; the common "normal" case stays neutral.
+                         */
+                        progress.kind === 'normal' && 'text-muted',
                         progress.kind === 'error' && 'text-danger',
                         progress.kind === 'paused' && 'text-warning',
                     )}
@@ -204,6 +227,17 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                     {terminalProgressLabel(progress)}
                 </StatusInfo>
             )}
+            {/**
+             * Deliberately informational-only, not the primary entry point: "Open Process
+             * Explorer" already lives in the native Help menu and the Command Palette
+             * (`processExplorer.open` in `shared/commands.ts`), so it stays reachable
+             * regardless of the active tab. Duplicating it as an always-present status-bar
+             * button would compete with those two discoverable routes for a diagnostic tool
+             * most users open rarely; instead this chip earns its place by doubling as a live
+             * memory reading for the active Terminal; clicking it is a convenience shortcut,
+             * not a required affordance, which is why it is allowed to disappear on editor/diff
+             * tabs where there is no Terminal metric to show.
+             */}
             {usage && (
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
@@ -232,20 +266,25 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
  * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it
  * does so in the user's vocabulary rather than naming the Runtime process.
  */
-const DEGRADED_STATES: Partial<Record<RuntimeStatus, { label: string; className: string }>> = {
+const DEGRADED_STATES: Partial<
+    Record<RuntimeStatus, { label: string; detail: string; className: string }>
+> = {
     /** No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip. */
     failed: {
         label: 'Backend stopped',
+        detail: "Caxri's backend process stopped unexpectedly. Recovery is offered in the native Relaunch dialog.",
         className:
             'statusbar-state-danger bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-danger',
     },
     restarting: {
         label: 'Reconnecting…',
+        detail: "Caxri's backend process is restarting; this chip clears once it reconnects.",
         className:
             'statusbar-state-warning bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning',
     },
 };
 
+/** Same hover-tooltip contract as {@link StatusInfo}, for the clickable status-bar entries. */
 function StatusItem({
     ariaLabel,
     children,
@@ -261,7 +300,7 @@ function StatusItem({
     href?: string;
     icon: LucideIcon;
     onClick?: () => void;
-    title: string;
+    title: ReactNode;
 }) {
     const content = (
         <>
@@ -269,27 +308,29 @@ function StatusItem({
             <span>{children}</span>
         </>
     );
-    return href ? (
-        <a
-            className={cn(statusItemClassName, className)}
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={ariaLabel}
-            title={title}
-        >
-            {content}
-        </a>
-    ) : (
-        <button
-            type="button"
-            className={cn(statusItemClassName, className)}
-            aria-label={ariaLabel}
-            title={title}
-            onClick={onClick}
-        >
-            {content}
-        </button>
+    return (
+        <Tooltip content={title}>
+            {href ? (
+                <a
+                    className={cn(statusItemClassName, className)}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={ariaLabel}
+                >
+                    {content}
+                </a>
+            ) : (
+                <button
+                    type="button"
+                    className={cn(statusItemClassName, className)}
+                    aria-label={ariaLabel}
+                    onClick={onClick}
+                >
+                    {content}
+                </button>
+            )}
+        </Tooltip>
     );
 }
 
@@ -301,14 +342,24 @@ function StatusItem({
  */
 const screencastChipClassName = 'text-muted';
 
+/**
+ * The chip name alone implies recording safety it does not provide, so both the accessible name
+ * and the hover tooltip spell out the actual behavior: Screencast Mode only overlays click ripples
+ * and a privacy-filtered keystroke badge (see `screencast.ts`'s `describeScreencastKey`) — it never
+ * hides or redacts anything already visible on screen, so source code and Terminal output stay
+ * exactly as exposed as they would be without it.
+ */
+const SCREENCAST_CHIP_LABEL =
+    'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
+
 function ScreencastModeChip() {
     const enabled = useScreencastStore((state) => state.enabled);
     if (!enabled) return null;
     return (
         <StatusItem
             icon={Cast}
-            ariaLabel="Screencast Mode is on — click to turn it off"
-            title="Screencast Mode is on — click to turn it off"
+            ariaLabel={SCREENCAST_CHIP_LABEL}
+            title={SCREENCAST_CHIP_LABEL}
             className={screencastChipClassName}
             onClick={() => executeCommand('developer.toggleScreencastMode')}
         >
@@ -516,11 +567,21 @@ export function StatusBar() {
                     </StatusItem>
                 )}
             </div>
-            <div className="statusbar-actions flex flex-none items-center gap-2">
+            {/*
+             * `min-w-0` lets this side actually shrink instead of pushing width past the window
+             * edge — `<body>` has `overflow-x: hidden`, so a `flex-none` sibling here used to be
+             * silently clipped below ~752px viewport width with no way to reach it. `overflow-x-
+             * auto` turns that clip into a real (if last-resort) scroll affordance: the browser's
+             * native horizontal scrollbar only appears once this row can no longer fit, and stays
+             * absent at every ordinary window width.
+             */}
+            <div className="statusbar-actions flex min-w-0 shrink items-center gap-2 overflow-x-auto">
                 {degraded && (
-                    <span className={cn(statusStateClassName, degraded.className)}>
-                        {degraded.label}
-                    </span>
+                    <Tooltip content={degraded.detail}>
+                        <span className={cn(statusStateClassName, degraded.className)}>
+                            {degraded.label}
+                        </span>
+                    </Tooltip>
                 )}
                 <ScreencastModeChip />
                 {sessionId &&

@@ -50,6 +50,12 @@ is immutable initialization metadata for the chosen shadcn style, not a live pal
 Derive `--accent-foreground`, `--overlay`, `--shadow` in one place from theme colors.
 The status bar uses `--surface` + top hairline — never an accent fill.
 
+`--muted` is secondary text, not a syntax comment color: it must clear WCAG AA (4.5:1) against
+`--background`, `--surface`, and `--elevated` alike, and a theme is not free to borrow its
+palette's comment color for it. The built-in palette is asserted against that floor in
+`runtime/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
+pre-Runtime first frame cannot drift.
+
 ### Type scale (root 13px)
 
 | Tier    | Size | Usage                                                      |
@@ -202,8 +208,11 @@ search/path fields use `InputGroup`, never feature-local field chrome.
 
 **Settings** — copy rewrite: dialog description becomes "Changes apply immediately and
 are stored as editable files." Field labels in plain language; byte values rendered as
-human units (`2 MB`) with unit-aware input. Every tab keeps a dirty marker; Apply saves
-all dirty tabs. Compact scalar controls keep labels left and show their unit inside the field;
+human units (`2 MB`) with unit-aware input. There is no Apply button and no per-tab dirty marker:
+a structured control writes as soon as it changes, and the raw source editor commits when it loses
+focus, reporting a parse failure in place instead of persisting it. A keybinding that collides with
+an existing chord is still written and flagged inline on both rows — the editor reports conflicts,
+it never blocks the user out of one. Compact scalar controls keep labels left and show their unit inside the field;
 path controls occupy a full row. Provider launch groups use quiet `--elevated` sections headed by
 the shared Agent identity icon, and every multiline value uses the same themed field/focus redline
 as single-line input.

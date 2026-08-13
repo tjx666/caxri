@@ -1,14 +1,37 @@
-import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useReducer } from 'react';
+import {
+    CircleCheck,
+    CircleX,
+    LoaderCircle,
+    MessageSquarePlus,
+    RotateCcw,
+    TriangleAlert,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import type { ProcessState, TerminalFailureReason } from '@shared/types';
 
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from '../../components/ui/context-menu';
 import { Button } from '../../components/ui/button';
-import { CommandTooltip } from '../../components/ui/tooltip';
+import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utils';
 import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { activateTerminal, restartTerminal, startNewAgentSession } from './terminal-actions';
+import {
+    activateTerminal,
+    activeTerminalHasSelection,
+    clearActiveTerminal,
+    copyActiveTerminalSelection,
+    findInActiveTerminal,
+    restartTerminal,
+    startNewAgentSession,
+} from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { TerminalSearchBar } from './TerminalSearchBar';
 import {
@@ -47,6 +70,10 @@ function TerminalRecoveryBar({
     resumesAgentSession: boolean;
     terminalId: string;
 }) {
+    /** `terminal.restart` drives both labels below; only the visible word ("Resume" vs "Restart")
+     *  changes, so the tooltip text is composed locally instead of reusing `CommandTooltip`'s fixed
+     *  catalog title, which used to show "Restart Terminal" while hovering a button labeled Resume. */
+    const restartShortcut = useCommandShortcut('terminal.restart');
     const exitPresentation = getTerminalExitPresentation(processState, failureReason);
     if (!exitPresentation) return null;
     const ExitIcon =
@@ -54,7 +81,13 @@ function TerminalRecoveryBar({
             ? CircleCheck
             : exitPresentation.icon === 'failed'
               ? TriangleAlert
-              : CircleX;
+              : exitPresentation.icon === 'pending'
+                ? LoaderCircle
+                : CircleX;
+    /** An automatic restore is already in flight for `interrupted`; racing it with a manual click
+     *  can hand two restart requests to the same Terminal, so the actions stand down until it settles
+     *  into a state (`failed`/`dead`/`stopped`) that actually needs a user decision. */
+    const awaitingAutomaticRestore = processState === 'interrupted';
     return (
         <div
             aria-live="polite"
@@ -67,22 +100,36 @@ function TerminalRecoveryBar({
             data-terminal-exit-state={processState}
             role="status"
         >
-            <span className={terminalRecoveryMessageClassName}>
-                <ExitIcon size={14} />
+            <span className={terminalRecoveryMessageClassName} title={exitPresentation.label}>
+                <ExitIcon
+                    className={
+                        exitPresentation.icon === 'pending'
+                            ? 'animate-spin motion-reduce:animate-none'
+                            : undefined
+                    }
+                    size={14}
+                />
                 {exitPresentation.label}
             </span>
-            <CommandTooltip commandId="terminal.restart">
-                <Button
-                    aria-label={resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'}
-                    className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => restartTerminal(terminalId)}
+            {!awaitingAutomaticRestore && (
+                <Tooltip
+                    content={resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'}
+                    shortcut={restartShortcut}
                 >
-                    <RotateCcw size={12} /> {resumesAgentSession ? 'Resume' : 'Restart'}
-                </Button>
-            </CommandTooltip>
-            {resumesAgentSession && (
+                    <Button
+                        aria-label={
+                            resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'
+                        }
+                        className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => restartTerminal(terminalId)}
+                    >
+                        <RotateCcw size={12} /> {resumesAgentSession ? 'Resume' : 'Restart'}
+                    </Button>
+                </Tooltip>
+            )}
+            {!awaitingAutomaticRestore && resumesAgentSession && (
                 <CommandTooltip commandId="terminal.startNewAgentSession">
                     <Button
                         aria-label="Start New Agent Session"
@@ -122,23 +169,30 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         terminalSearchReducer,
         initialTerminalSearchState,
     );
-    const { beginSearch, containerRef, endSearch, find, focusTerminal, searchResults } =
-        useTerminalPaneRuntime({
-            active,
-            attachEpoch,
-            copyOnSelect,
-            fontSize,
-            gpuAcceleration,
-            isCodex,
-            osc52ClipboardWrite,
-            processState,
-            projectRoot: session?.rootPath ?? '',
-            scrollback,
-            terminalCwd: terminal?.cwd ?? '',
-            terminalId,
-            terminalSessionId: terminal?.sessionId ?? '',
-            terminalTheme,
-        });
+    const {
+        beginSearch,
+        containerRef,
+        endSearch,
+        find,
+        focusTerminal,
+        pasteFromClipboard,
+        searchResults,
+    } = useTerminalPaneRuntime({
+        active,
+        attachEpoch,
+        copyOnSelect,
+        fontSize,
+        gpuAcceleration,
+        isCodex,
+        osc52ClipboardWrite,
+        processState,
+        projectRoot: session?.rootPath ?? '',
+        scrollback,
+        terminalCwd: terminal?.cwd ?? '',
+        terminalId,
+        terminalSessionId: terminal?.sessionId ?? '',
+        terminalTheme,
+    });
 
     useEffect(
         () =>
@@ -181,6 +235,13 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     }, [endSearch, focusTerminal]);
 
     const resumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
+    const isRunning = processState === 'running';
+    /**
+     * Recomputed only when the menu opens rather than tracked continuously: xterm selection changes
+     * do not otherwise trigger a `TerminalPane` rerender, so reading `activeTerminalHasSelection`
+     * straight in JSX would show whatever was true the last time some other prop changed.
+     */
+    const [contextMenuHasSelection, setContextMenuHasSelection] = useState(false);
 
     return (
         <div
@@ -191,7 +252,47 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             onFocus={() => activateTerminal(terminalId)}
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
-            <div ref={containerRef} className="terminal-surface min-h-0 w-full flex-1" />
+            <ContextMenu
+                onOpenChange={(open) => {
+                    if (open) setContextMenuHasSelection(activeTerminalHasSelection(terminalId));
+                }}
+            >
+                <ContextMenuTrigger
+                    render={
+                        <div
+                            ref={containerRef}
+                            className="terminal-surface min-h-0 w-full flex-1"
+                        />
+                    }
+                />
+                <ContextMenuContent>
+                    <ContextMenuItem
+                        disabled={!contextMenuHasSelection}
+                        title={
+                            contextMenuHasSelection
+                                ? undefined
+                                : 'Select text in the Terminal to copy it'
+                        }
+                        onClick={() => copyActiveTerminalSelection(terminalId)}
+                    >
+                        Copy
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                        disabled={!isRunning}
+                        title={isRunning ? undefined : 'Terminal is not running'}
+                        onClick={() => pasteFromClipboard()}
+                    >
+                        Paste
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onClick={() => clearActiveTerminal(terminalId)}>
+                        Clear
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => findInActiveTerminal(terminalId)}>
+                        Find in Terminal
+                    </ContextMenuItem>
+                </ContextMenuContent>
+            </ContextMenu>
             {searchState.open && (
                 <TerminalSearchBar
                     caseSensitive={searchState.caseSensitive}

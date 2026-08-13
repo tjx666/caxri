@@ -5,15 +5,32 @@ import { normalizeShortcut } from '@shared/shortcuts';
 
 import { useWorkbenchStore } from '../stores/workbench';
 
-export function keyboardEventShortcut(event: KeyboardEvent): string {
+/**
+ * macOS composes Option+<letter> into a symbol: `Option+P` reports `event.key === 'π'`, so a chord
+ * built from `event.key` could never match a stored `alt+p` — every Option+letter binding was dead,
+ * both at dispatch and while recording one in Settings. Alt chords therefore read the physical
+ * `event.code`, which stays stable for the letter and digit rows. Non-Alt chords keep using
+ * `event.key` so a remapped or non-US layout still records what the user actually typed.
+ */
+function shortcutMainKey(event: KeyboardEvent): string {
+    if (event.altKey) {
+        const letter = /^Key([A-Z])$/.exec(event.code);
+        if (letter) return letter[1].toLowerCase();
+        const digit = /^Digit(\d)$/.exec(event.code);
+        if (digit) return digit[1];
+    }
     const mainKey = event.key === ' ' ? 'space' : event.key;
+    return mainKey.length === 1 ? mainKey : mainKey.toLowerCase();
+}
+
+export function keyboardEventShortcut(event: KeyboardEvent): string {
     return normalizeShortcut(
         [
             event.metaKey && 'cmd',
             event.ctrlKey && 'ctrl',
             event.altKey && 'alt',
             event.shiftKey && 'shift',
-            mainKey.length === 1 ? mainKey : mainKey.toLowerCase(),
+            shortcutMainKey(event),
         ]
             .filter(Boolean)
             .join('+'),

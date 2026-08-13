@@ -113,7 +113,7 @@ export function deleteSelectedProject(): void {
     const bootstrap = getBootstrap();
     const project = selectSelectedProject(bootstrap);
     if (!bootstrap || !project) return;
-    void tryCommand('Project removal failed', async () => {
+    void tryCommand('Project deletion failed', async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
         const removedSessionIds: string[] = [];

@@ -39,12 +39,12 @@ test('ignore and rc dotfiles open with syntax highlighting', async () => {
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        await running.page.getByRole('button', { name: '.gitignore', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: '.gitignore', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').last();
         await expect(editor.locator('.view-lines')).toContainText('important.generated');
         await expectSyntaxColors(editor);
 
-        await running.page.getByRole('button', { name: '.npmrc', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: '.npmrc', exact: true }).click();
         await expect(editor.locator('.view-lines')).toContainText('strict-ssl=true');
         await expectSyntaxColors(editor);
     } finally {

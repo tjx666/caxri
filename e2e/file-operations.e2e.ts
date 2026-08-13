@@ -11,9 +11,20 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test, type Locator, type Page } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+
+/**
+ * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see
+ * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads
+ * as "Copy⌘C" once the shortcut badge renders. Matching by the label's own exact text (rather than
+ * the whole menuitem's accessible name) keeps this test independent of that badge's exact rendering
+ * while still disambiguating "Copy" from "Copy Path" / "Copy Relative Path" in the same menu.
+ */
+function exactMenuItem(page: Page, label: string): Locator {
+    return page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) });
+}
 
 async function readExpectedFile(path: string): Promise<string | undefined> {
     try {
@@ -35,9 +46,15 @@ async function injectTransientFileAbsence(path: string): Promise<{ restored: Pro
 }
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
+    // Every conflicting move — rename, or paste/drag onto an existing name — now opens the Finder-
+    // style conflict dialog instead of failing flat, but `moveFile` (`file-actions.ts`) still always
+    // tries `conflict: 'reject'` first so the dialog can offer Replace/Keep Both/Cancel. That first
+    // attempt is what surfaces the `CONFLICT` pair below: 1 rename-onto-existing-name case plus 3
+    // dialog scenarios exercised further down (Cancel, Replace, Keep Both), each preceded by exactly
+    // one failed `reject` attempt = 1 + 3 = 4 pairs, one on `main` and one on `runtime` per attempt.
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 1 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 1 },
+        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -54,6 +71,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         writeFile(join(root, 'cut.txt'), 'cut\n', 'utf8'),
         writeFile(join(root, 'draft.txt'), 'draft\n', 'utf8'),
         writeFile(join(destination, 'cut.txt'), 'existing\n', 'utf8'),
+        writeFile(join(destination, 'draft copy.txt'), 'existing copy\n', 'utf8'),
         writeFile(join(sourceFolder, 'nested', 'value.txt'), 'nested\n', 'utf8'),
     ]);
 
@@ -80,7 +98,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             running.page
                 .locator('.file-list')
                 .first()
-                .getByRole('button', { name: 'created.txt', exact: true }),
+                .getByRole('treeitem', { name: 'created.txt', exact: true }),
         ).toBeFocused();
         await expect(readFile(join(root, 'created.txt'), 'utf8')).resolves.toBe('');
 
@@ -96,7 +114,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             running.page
                 .locator('.file-list')
                 .first()
-                .getByRole('button', { name: 'created-folder', exact: true }),
+                .getByRole('treeitem', { name: 'created-folder', exact: true }),
         ).toBeFocused();
         await expect
             .poll(() =>
@@ -107,7 +125,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             .toBe(true);
 
         const fileList = running.page.locator('.file-list').first();
-        const createdRow = fileList.getByRole('button', { name: 'created.txt', exact: true });
+        const createdRow = fileList.getByRole('treeitem', { name: 'created.txt', exact: true });
         await createdRow.focus();
         await running.page.keyboard.press('Enter');
         const conflictingName = running.page.getByRole('textbox', { name: 'Rename created.txt' });
@@ -120,8 +138,8 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await conflictingName.press('Escape');
         await expect(createdRow).toBeFocused();
 
-        const draftRow = fileList.getByRole('button', { name: 'draft.txt', exact: true });
-        const destinationRow = fileList.getByRole('button', {
+        const draftRow = fileList.getByRole('treeitem', { name: 'draft.txt', exact: true });
+        const destinationRow = fileList.getByRole('treeitem', {
             name: 'destination',
             exact: true,
         });
@@ -198,14 +216,14 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             .poll(() => readFile(join(root, 'draft copy.txt'), 'utf8').catch(() => undefined))
             .toBe('draft\n');
 
-        const sourceFolderRow = fileList.getByRole('button', {
+        const sourceFolderRow = fileList.getByRole('treeitem', {
             name: 'source-folder',
             exact: true,
         });
         await sourceFolderRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Copy', exact: true }).click();
+        await exactMenuItem(running.page, 'Copy').click();
         await destinationRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Paste', exact: true }).click();
+        await exactMenuItem(running.page, 'Paste').click();
         await expect
             .poll(() =>
                 readFile(join(destination, 'source-folder', 'nested', 'value.txt'), 'utf8').catch(
@@ -214,28 +232,80 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             )
             .toBe('nested\n');
 
-        const cutRow = fileList.getByRole('button', { name: 'cut.txt', exact: true });
+        const cutRow = fileList.getByRole('treeitem', { name: 'cut.txt', exact: true });
         await cutRow.dblclick();
         await running.page.locator('.monaco-editor').click({ position: { x: 100, y: 24 } });
         await running.page.keyboard.press('End');
         await running.page.keyboard.type(' moved');
-        const cutTab = running.page.locator('.work-tab', { hasText: 'cut.txt' });
+        // `:not([inert])` because the move below remaps the tab to the new path and leaves the old
+        // one on screen as an inert exit-animation ghost with the same label, exactly as the rename
+        // case further down already has to handle.
+        const cutTab = running.page.locator('.work-tab:not([inert])', { hasText: 'cut.txt' });
         await expect(cutTab).toContainText('●');
         await cutRow.focus();
         await running.page.keyboard.press('Meta+X');
         await expect(cutRow).toHaveAttribute('data-cut', 'true');
+        // Pasting onto an existing name no longer fails flat: `moveFile` (`file-actions.ts`) always
+        // tries `conflict: 'reject'` first, catches the resulting `CONFLICT`, and opens the Finder-
+        // style prompt below instead of the old error toast. Cut-paste and drag-and-drop now share
+        // this same interactive flow rather than one silently auto-suffixing and the other refusing
+        // outright.
+        const conflictDialog = running.page.locator('.file-conflict-dialog');
         await destinationRow.focus();
         await running.page.keyboard.press('Meta+V');
-        const cutMovedPath = join(destination, 'cut copy.txt');
+        await expect(conflictDialog).toBeVisible();
+        await expect(conflictDialog).toContainText('"cut.txt" already exists');
+        await expect(
+            running.page.locator('.toast', {
+                hasText: 'A file or folder with that name already exists',
+            }),
+        ).toHaveCount(0);
+
+        // Cancel: nothing moves, and the cut clipboard stays armed for another attempt.
+        await conflictDialog.getByRole('button', { name: 'Cancel' }).click();
+        await expect(conflictDialog).toBeHidden();
+        await expect(readFile(join(destination, 'cut.txt'), 'utf8')).resolves.toBe('existing\n');
+        await expect(access(join(destination, 'cut copy.txt'))).rejects.toThrow();
+        await expect(readFile(join(root, 'cut.txt'), 'utf8')).resolves.toBe('cut\n');
+        await expect(cutRow).toHaveAttribute('data-cut', 'true');
+
+        // Replace: retrying the same armed clipboard overwrites the existing destination file in
+        // place. The moved file keeps `cut.txt`'s own name (no auto-suffix), so the unsaved buffer
+        // and the save below both follow it to `destination/cut.txt` instead of a freshly named path.
+        await destinationRow.focus();
+        await running.page.keyboard.press('Meta+V');
+        await expect(conflictDialog).toBeVisible();
+        await conflictDialog.getByRole('button', { name: 'Replace' }).click();
+        const cutMovedPath = join(destination, 'cut.txt');
         await expect
             .poll(() => readFile(cutMovedPath, 'utf8').catch(() => undefined))
             .toBe('cut\n');
         await expect(access(join(root, 'cut.txt'))).rejects.toThrow();
-        const cutMovedTab = running.page.locator('.work-tab', { hasText: 'cut copy.txt' });
-        await expect(cutMovedTab).toContainText('●');
-        await cutMovedTab.click();
+        // The unsaved buffer follows the file to its new path instead of being stranded on the old
+        // one: the tab stays dirty and the save below has to land at `cutMovedPath`.
+        await expect(cutTab).toContainText('●');
+        await cutTab.click();
         await running.page.keyboard.press('Meta+S');
         await expect.poll(() => readFile(cutMovedPath, 'utf8')).toContain(' moved');
+
+        // Keep Both: even though Replace is offered for this file-over-file collision too, choosing
+        // Keep Both auto-suffixes the moved file instead, leaving the destination's original entry
+        // untouched — the same guarantee the old flat rejection used to promise before this dialog.
+        const draftCopyRow = fileList.getByRole('treeitem', {
+            name: 'draft copy.txt',
+            exact: true,
+        });
+        await draftCopyRow.dragTo(destinationRow);
+        await expect(conflictDialog).toBeVisible();
+        await conflictDialog.getByRole('button', { name: 'Keep Both' }).click();
+        const keepBothPath = join(destination, 'draft copy copy.txt');
+        await expect
+            .poll(() => readFile(keepBothPath, 'utf8').catch(() => undefined))
+            .toBe('draft\n');
+        await expect(readFile(join(destination, 'draft copy.txt'), 'utf8')).resolves.toBe(
+            'existing copy\n',
+        );
+        await expect(access(join(root, 'draft copy.txt'))).rejects.toThrow();
 
         await draftRow.dblclick();
         await running.page.locator('.monaco-editor').click({ position: { x: 100, y: 24 } });
@@ -256,7 +326,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await expect(access(join(root, 'draft.txt'))).rejects.toThrow();
         await expect(access(join(root, 'renamed.txt'))).resolves.toBeUndefined();
 
-        const renamedRow = fileList.getByRole('button', { name: 'renamed.txt', exact: true });
+        const renamedRow = fileList.getByRole('treeitem', { name: 'renamed.txt', exact: true });
         await expect(renamedRow).toBeFocused();
         await renamedRow.dragTo(destinationRow);
         const movedPath = join(destination, 'renamed.txt');
@@ -270,7 +340,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await destinationRow.click();
         const movedRow = running.page
             .locator('.file-list')
-            .getByRole('button', { name: 'renamed.txt', exact: true });
+            .getByRole('treeitem', { name: 'renamed.txt', exact: true });
         await expect(movedRow).toBeVisible();
 
         await renamedTab.click();

@@ -75,6 +75,16 @@ export class ProcessExplorerWindowController {
         });
     }
 
+    /**
+     * OS process id of this window's renderer, or `undefined` while it is closed. The sampler uses
+     * it to label Caxri's two renderer processes by role; Electron's `getAppMetrics()` reports no
+     * name for `Tab` processes, so the diagnostics window could not otherwise identify itself.
+     */
+    processId(): number | undefined {
+        if (!this.window || this.window.isDestroyed()) return undefined;
+        return this.window.webContents.getOSProcessId();
+    }
+
     open(): void {
         if (this.window && !this.window.isDestroyed()) {
             if (this.window.isMinimized()) this.window.restore();

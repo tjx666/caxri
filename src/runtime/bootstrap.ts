@@ -439,6 +439,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'external.open': () => mainOwned('external.open'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
+        'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
         'bugReport.context': () => diagnostics.reportContext(),

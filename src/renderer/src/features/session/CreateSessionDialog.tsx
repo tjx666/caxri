@@ -13,13 +13,24 @@ import { useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
 import { cancelPendingSession, confirmPendingSession } from './session-actions';
 
+/**
+ * Mirrors the Runtime's own `basename(rootPath) || rootPath` Project title derivation
+ * (`src/runtime/db/models/projects.ts`) so a not-yet-created Project previews the same friendly
+ * name it will get once `project.create` persists it, instead of the raw absolute path. The
+ * Renderer cannot import Node's `path` module, so this is a small POSIX/Windows-separator split.
+ */
+function pathBasename(path: string): string {
+    return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
 export function CreateSessionDialog() {
     const pendingRoot = useDialogStore((state) => state.pendingRoot);
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
     const open = Boolean(pendingRoot || pendingProjectId);
-    const contextLabel =
-        pendingRoot ?? projects?.find((project) => project.id === pendingProjectId)?.displayTitle;
+    const contextLabel = pendingRoot
+        ? pathBasename(pendingRoot)
+        : projects?.find((project) => project.id === pendingProjectId)?.displayTitle;
     const onCancel = cancelPendingSession;
     const onCreate = confirmPendingSession;
     return (

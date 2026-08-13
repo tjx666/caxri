@@ -140,6 +140,15 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             .toBeGreaterThan(sixelBaselineRedPixels + 1_000);
 
         await typeTerminal(running.page, `cat '${oversizedPath}'`);
+        /** Caxri's own size policy now reports its own honest placeholder instead of folding the
+         *  drop into the generic PTY output-backpressure counter, which is reserved for genuine
+         *  queue-capacity refusals. */
+        await expect(running.page.locator('.xterm-rows')).toContainText(
+            'Caxri dropped an inline image: it exceeds the size limit',
+        );
+        await expect(running.page.locator('.xterm-rows')).not.toContainText(
+            'dropped by output backpressure',
+        );
         await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_IMAGE_LIMIT');
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
 

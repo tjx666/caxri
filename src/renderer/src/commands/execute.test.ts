@@ -36,14 +36,19 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             terminal: {
                 create: record('terminal.create'),
                 clearActive: record('terminal.clear'),
+                copySelection: record('terminal.copySelection'),
                 findActive: record('terminal.find'),
                 hasActive: () => true,
+                hasSelection: () => true,
                 navigateCommand: record('terminal.navigateCommand'),
                 restartActive: record('terminal.restart'),
                 startNewAgentSession: record('terminal.startNewAgentSession'),
                 closeActive: record('terminal.close'),
             },
-            workbench: { closeActiveTab: record('workbench.closeActiveTab') },
+            workbench: {
+                closeActiveTab: record('workbench.closeActiveTab'),
+                cycleTab: record('workbench.cycleTab'),
+            },
             editor: { saveActive: record('editor.save') },
             inspector: {
                 searchFiles: record('inspector.searchFiles'),
@@ -113,6 +118,28 @@ describe('executeCommand', () => {
         executeCommand('terminal.find', undefined, context);
 
         expect(calls).toEqual([]);
+    });
+
+    /**
+     * `terminal.copy` binds `Cmd+C`. Without a Terminal selection the command must decline so the
+     * chord falls through to the native copy an input or Monaco would otherwise handle.
+     */
+    it('keeps Terminal Copy contextual on the presence of a selection', () => {
+        const { calls, context } = recordingContext();
+        context.terminal.hasSelection = () => false;
+
+        expect(isCommandAvailable('terminal.copy', context)).toBe(false);
+        executeCommand('terminal.copy', undefined, context);
+
+        expect(calls).toEqual([]);
+    });
+
+    it('maps the tab cycling commands to opposite directions', () => {
+        const { calls, context } = recordingContext();
+        executeCommand('workbench.nextTab', undefined, context);
+        executeCommand('workbench.previousTab', undefined, context);
+
+        expect(calls).toEqual(['workbench.cycleTab(1)', 'workbench.cycleTab(-1)']);
     });
 
     it('maps each Inspector command to its mode', () => {

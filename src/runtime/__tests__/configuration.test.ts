@@ -11,25 +11,9 @@ import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/configuration-contr
 import { findKeybindingConflicts } from '../../shared/configuration';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
-import { ConfigurationService } from '../configuration';
+import { ConfigurationService, previousDefaultKeybindingSets } from '../configuration';
 
 const temporaryDirectories: string[] = [];
-const v002DefaultKeybindings = defaultKeybindings
-    .filter(
-        (binding) =>
-            ![
-                'pathBrowser.open',
-                'terminal.find',
-                'terminal.previousCommand',
-                'terminal.nextCommand',
-            ].includes(binding.command),
-    )
-    .map((binding) =>
-        binding.command === 'workbench.closeActiveTab'
-            ? { ...binding, command: 'terminal.close' }
-            : binding,
-    );
-
 afterEach(async () => {
     await Promise.all(
         temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
@@ -198,72 +182,6 @@ describe('ConfigurationService', () => {
         await service.close();
     });
 
-    it('adds newly shipped shortcuts to an untouched legacy default keybinding set', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-defaults-'));
-        temporaryDirectories.push(directory);
-        const configDirectory = join(directory, 'config');
-        await mkdir(configDirectory);
-        await writeFile(
-            join(configDirectory, 'keybindings.jsonc'),
-            `${JSON.stringify(
-                v002DefaultKeybindings.filter(
-                    (binding) =>
-                        !['inspector.searchFiles', 'inspector.toggle', 'sidebar.toggle'].includes(
-                            binding.command,
-                        ),
-                ),
-                null,
-                2,
-            )}\n`,
-            'utf8',
-        );
-        const service = new ConfigurationService(directory, () => undefined);
-
-        await service.initialize();
-
-        expect(service.getKeybindings().value).toContainEqual({
-            command: 'inspector.searchFiles',
-            key: 'cmd+shift+f',
-        });
-        expect(service.getKeybindings().value).toContainEqual({
-            command: 'sidebar.toggle',
-            key: 'cmd+[',
-        });
-        expect(service.getKeybindings().value).toContainEqual({
-            command: 'inspector.toggle',
-            key: 'cmd+]',
-        });
-        expect(service.getKeybindings().source).toContain('inspector.searchFiles');
-        expect(
-            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
-        ).toEqual(defaultKeybindings);
-        await service.close();
-    });
-
-    it('adds panel shortcuts to the immediately previous untouched defaults', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-panel-shortcuts-'));
-        temporaryDirectories.push(directory);
-        const configDirectory = join(directory, 'config');
-        await mkdir(configDirectory);
-        await writeFile(
-            join(configDirectory, 'keybindings.jsonc'),
-            `${JSON.stringify(
-                v002DefaultKeybindings.filter(
-                    (binding) => !['inspector.toggle', 'sidebar.toggle'].includes(binding.command),
-                ),
-                null,
-                2,
-            )}\n`,
-            'utf8',
-        );
-        const service = new ConfigurationService(directory, () => undefined);
-
-        await service.initialize();
-
-        expect(service.getKeybindings().value).toEqual(defaultKeybindings);
-        await service.close();
-    });
-
     it('detects shortcut conflicts without flagging duplicate identical commands', () => {
         expect(
             findKeybindingConflicts([
@@ -274,74 +192,55 @@ describe('ConfigurationService', () => {
         ).toEqual([{ key: 'cmd+t', commands: ['terminal.new', 'session.create'] }]);
     });
 
-    it('adds the path browser shortcut to the immediately previous untouched defaults', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-path-browser-shortcut-'));
+    /**
+     * Drives the migration from the production derivation chain instead of rebuilding a past
+     * release by filtering the current catalog. The old per-release fixtures did the latter, so
+     * every added or rebound default silently made them describe a release that never existed.
+     */
+    it.each(previousDefaultKeybindingSets.map((set, index) => [index, set] as const))(
+        'upgrades untouched historical default set %i to the current defaults',
+        async (index, historical) => {
+            const directory = await mkdtemp(join(tmpdir(), `caxri-config-legacy-${index}-`));
+            temporaryDirectories.push(directory);
+            const configDirectory = join(directory, 'config');
+            await mkdir(configDirectory);
+            await writeFile(
+                join(configDirectory, 'keybindings.jsonc'),
+                `${JSON.stringify(historical, null, 2)}\n`,
+                'utf8',
+            );
+            const service = new ConfigurationService(directory, () => undefined);
+
+            await service.initialize();
+
+            expect(service.getKeybindings().value).toEqual(defaultKeybindings);
+            /** The upgrade is written back, not just held in memory. */
+            expect(
+                JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
+            ).toEqual(defaultKeybindings);
+            await service.close();
+        },
+    );
+
+    it('leaves a customized keybinding file untouched', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-custom-keybindings-'));
         temporaryDirectories.push(directory);
         const configDirectory = join(directory, 'config');
         await mkdir(configDirectory);
+        const customized = [
+            ...previousDefaultKeybindingSets[0],
+            { key: 'cmd+shift+k', command: 'terminal.clear' },
+        ];
         await writeFile(
             join(configDirectory, 'keybindings.jsonc'),
-            `${JSON.stringify(
-                defaultKeybindings.filter(
-                    (binding) =>
-                        ![
-                            'pathBrowser.open',
-                            'terminal.find',
-                            'terminal.previousCommand',
-                            'terminal.nextCommand',
-                        ].includes(binding.command),
-                ),
-                null,
-                2,
-            )}\n`,
+            `${JSON.stringify(customized, null, 2)}\n`,
             'utf8',
         );
         const service = new ConfigurationService(directory, () => undefined);
 
         await service.initialize();
 
-        expect(service.getKeybindings().value).toContainEqual({
-            command: 'pathBrowser.open',
-            key: 'cmd+p',
-        });
-        expect(
-            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
-        ).toEqual(defaultKeybindings);
-        await service.close();
-    });
-
-    it('adds Terminal Find to the immediately previous untouched defaults', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-terminal-find-shortcut-'));
-        temporaryDirectories.push(directory);
-        const configDirectory = join(directory, 'config');
-        await mkdir(configDirectory);
-        await writeFile(
-            join(configDirectory, 'keybindings.jsonc'),
-            `${JSON.stringify(
-                defaultKeybindings.filter(
-                    (binding) =>
-                        ![
-                            'terminal.find',
-                            'terminal.previousCommand',
-                            'terminal.nextCommand',
-                        ].includes(binding.command),
-                ),
-                null,
-                2,
-            )}\n`,
-            'utf8',
-        );
-        const service = new ConfigurationService(directory, () => undefined);
-
-        await service.initialize();
-
-        expect(service.getKeybindings().value).toContainEqual({
-            command: 'terminal.find',
-            key: 'cmd+f',
-        });
-        expect(
-            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
-        ).toEqual(defaultKeybindings);
+        expect(service.getKeybindings().value).toEqual(customized);
         await service.close();
     });
 
