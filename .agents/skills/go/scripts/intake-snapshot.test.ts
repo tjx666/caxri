@@ -30,6 +30,7 @@ function fixtureRunner(overrides: Record<string, FixtureResponse | FixtureRespon
         'git rev-parse HEAD': 'head-sha\n',
         'git rev-parse origin/main': 'main-sha\n',
         'git status --short --untracked-files=all': ' M src/example.ts\n',
+        'lobehub whoami --json': JSON.stringify({ userId: 'user-1' }),
     };
     const runner: CommandRunner = {
         capture(command, args) {
@@ -128,6 +129,7 @@ describe('Go intake snapshot', () => {
         expect(snapshot).toMatchObject({
             authenticatedAs: 'builder',
             capturedAt: '2026-08-11T01:00:00Z',
+            lobeHubAuthenticated: true,
             issues: [
                 {
                     acceptanceCheckIds: [],
@@ -151,6 +153,7 @@ describe('Go intake snapshot', () => {
             },
         });
         expect(calls).toContain(issueCommand);
+        expect(calls).toContain('lobehub whoami --json');
         expect(calls.some((call) => call.includes('.content.body'))).toBe(false);
         expect(snapshot.pullRequests.map(({ number }) => number)).toEqual([74]);
     });
