@@ -45,7 +45,7 @@ describe('CI execution plan', () => {
         });
         expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: false })).toMatchObject({
             checksScope: 'full',
-            e2eProfile: 'control',
+            e2eProfile: 'optimized',
             runE2E: true,
         });
     });
