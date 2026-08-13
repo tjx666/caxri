@@ -1,10 +1,10 @@
 import { CircleAlert, LoaderCircle, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react';
-import { Fragment, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
-import { workItemsEqual, type WorkItem } from '@shared/work-item';
+import { workItemKey, workItemsEqual, type WorkItem } from '@shared/work-item';
 
 import { Button } from '../../components/ui/button';
 import { CommandTooltip } from '../../components/ui/tooltip';
@@ -70,7 +70,13 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
                         aria-label={terminalProgressAriaLabel(progress)}
                         className={cn(
                             'terminal-progress-tab inline-flex flex-none items-center gap-1 tabular-nums',
-                            progress.kind === 'normal' && 'text-accent',
+                            /**
+                             * `--accent` marks exactly one thing at a time — the focused pane/tab
+                             * (DESIGN.md principle 2). This badge renders on every tab with
+                             * progress, active or not, so a background `npm install` must not
+                             * wear the same accent color the focused tab's ring already owns.
+                             */
+                            progress.kind === 'normal' && 'text-muted',
                             progress.kind === 'error' && 'text-danger',
                             progress.kind === 'paused' && 'text-warning',
                         )}
@@ -142,25 +148,25 @@ function EditorWorkTab({
             label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
             motionIdentity={motionIdentity}
             onDoubleClick={() => pinEditorTab(path)}
-            onClose={() => closeEditor(path)}
+            onClose={() => void closeEditor(path)}
             onSelect={() => selectEditorTab(path)}
             contextMenu={
                 <ContextMenuContent>
-                    <ContextMenuItem onClick={() => closeEditor(path)}>Close</ContextMenuItem>
+                    <ContextMenuItem onClick={() => void closeEditor(path)}>Close</ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
                         disabled={openTabs.length < 2}
-                        onClick={() => closeOtherEditors(path)}
+                        onClick={() => void closeOtherEditors(path)}
                     >
                         Close Others
                     </ContextMenuItem>
                     <ContextMenuItem
                         disabled={index < 0 || index === openTabs.length - 1}
-                        onClick={() => closeEditorsToRight(path)}
+                        onClick={() => void closeEditorsToRight(path)}
                     >
                         Close to the Right
                     </ContextMenuItem>
-                    <ContextMenuItem onClick={() => closeAllEditors(path)}>
+                    <ContextMenuItem onClick={() => void closeAllEditors(path)}>
                         Close All
                     </ContextMenuItem>
                 </ContextMenuContent>
@@ -186,6 +192,19 @@ export function WorkTabStrip() {
     const activeWork = useActiveWork();
     const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     const [editorMotionStates] = useState(() => new Map<string, EditorTabMotionState>());
+    const stripRef = useRef<HTMLDivElement>(null);
+    const activeWorkKey = workItemKey(activeWork);
+    /**
+     * `overflow-x-auto` (below) has no built-in cue for "the active tab is off to the side," so
+     * selecting or creating a tab that lands outside the visible strip must scroll it into view
+     * itself — matching the VS Code norm this strip otherwise follows. `block: 'nearest'` keeps
+     * the page from also scrolling vertically to reveal an element that never left the viewport.
+     */
+    useEffect(() => {
+        stripRef.current
+            ?.querySelector<HTMLElement>('[data-tab-active="true"]')
+            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }, [activeWorkKey]);
     useEffect(() => {
         const runningTerminalIds = new Set<string>();
         for (const terminal of sessionTerminals)
@@ -224,6 +243,7 @@ export function WorkTabStrip() {
     );
     return (
         <div
+            ref={stripRef}
             className={cn(
                 'work-tabs flex h-11 items-end overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag] [&>.work-tab]:h-9',
                 !sidebarVisible && 'pl-[78px]',
