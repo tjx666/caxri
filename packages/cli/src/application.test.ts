@@ -181,6 +181,120 @@ describe('CLI application', () => {
         expect(`${output.stdout()}${output.stderr()}`).not.toContain(token);
     });
 
+    it('sends and waits for peer messages only with the inherited Agent Endpoint credential', async () => {
+        const endpointEnvironment = {
+            CODEX_THREAD_ID: 'thread-1',
+            CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),
+            CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
+            CAXRI_AGENT_ENDPOINT_GENERATION: '2',
+            CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
+            CAXRI_USER_DATA_DIR: '/profiles/agent',
+        };
+        const peerRef = `${'a'.repeat(32)}:endpoint-2:1`;
+        const receipt = {
+            messageId: 'message-1',
+            from: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 2 },
+            to: { hostId: 'a'.repeat(32), endpointId: 'endpoint-2', generation: 1 },
+            status: 'waiting',
+            createdAt: 1,
+            updatedAt: 1,
+            expiresAt: 2,
+        };
+        const senderOutput = io();
+        const senderClient = host(receipt, ['agent.message.send']);
+        senderClient.welcome = {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            principal: {
+                kind: 'agent',
+                id: 'agent:endpoint-1',
+                endpointId: 'endpoint-1',
+                generation: 2,
+                projectIds: ['project-1'],
+            },
+            capabilities: ['agents.message'],
+            commands: ['agent.message.send'],
+        };
+
+        await expect(
+            runCli(
+                [
+                    'agent',
+                    'message',
+                    'send',
+                    '--to',
+                    peerRef,
+                    '--body',
+                    'private peer body',
+                    '--request-id',
+                    'message-request-1',
+                    '--json',
+                ],
+                {
+                    connect: () => Promise.resolve(senderClient),
+                    environment: endpointEnvironment,
+                    io: senderOutput.io,
+                },
+            ),
+        ).resolves.toBe(0);
+        expect(senderClient.requestWithId).toHaveBeenCalledWith(
+            'message-request-1',
+            'agent.message.send',
+            {
+                to: { hostId: 'a'.repeat(32), endpointId: 'endpoint-2', generation: 1 },
+                body: 'private peer body',
+            },
+        );
+        expect(senderOutput.stdout()).not.toContain('private peer body');
+
+        const waitOutput = io();
+        const waitClient = host(
+            {
+                message: {
+                    id: 'message-1',
+                    origin: 'peer',
+                    body: 'private peer body',
+                },
+            },
+            ['agent.message.wait'],
+        );
+        waitClient.welcome = {
+            ...senderClient.welcome,
+            commands: ['agent.message.wait'],
+        };
+        await expect(
+            runCli(['agent', 'message', 'wait', '--timeout', '1234', '--json'], {
+                connect: () => Promise.resolve(waitClient),
+                environment: endpointEnvironment,
+                io: waitOutput.io,
+            }),
+        ).resolves.toBe(0);
+        expect(waitClient.request).toHaveBeenCalledWith('agent.message.wait', { timeoutMs: 1_234 });
+        expect(waitOutput.stdout()).toContain('private peer body');
+    });
+
+    it('rejects Peer Inbox commands before connecting when no Agent credential is present', async () => {
+        const output = io();
+        const connect = vi.fn();
+
+        await expect(
+            runCli(
+                [
+                    'agent',
+                    'message',
+                    'send',
+                    '--to',
+                    `${'a'.repeat(32)}:endpoint-2:1`,
+                    '--body',
+                    'body',
+                    '--json',
+                ],
+                { connect, io: output.io },
+            ),
+        ).resolves.not.toBe(0);
+        expect(connect).not.toHaveBeenCalled();
+        expect(output.stderr()).toContain('Agent Endpoint credential');
+    });
+
     it('negotiates the command with the selected profile and emits stable JSON', async () => {
         const output = io();
         const client = host({

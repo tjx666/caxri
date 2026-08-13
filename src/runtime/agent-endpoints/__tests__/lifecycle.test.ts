@@ -55,7 +55,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 projectId: 'project-1',
                 provider: 'codex',
                 permissionClass: 'standard',
-                deliveryMode: 'unavailable',
+                deliveryMode: 'pull',
             }),
         );
         await expect(

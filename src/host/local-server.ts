@@ -34,6 +34,7 @@ import {
     type HostManifest,
 } from '../shared/ipc/local-transport';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
+import type { AgentEndpointRef } from '../shared/ipc/agent-endpoint-contract';
 import { parseRuntimeRequest, type CommandReplyEnvelope } from '../shared/ipc/transport';
 import type { RuntimeRequest } from '../shared/ipc/methods';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
@@ -103,6 +104,7 @@ interface ClientState {
     context: CommandExecutionContext;
     desktopLease?: DesktopLease;
     desktopReady: boolean;
+    inFlightRequestIds: Set<string>;
     leaseTimer?: NodeJS.Timeout;
     socket: Socket;
 }
@@ -134,7 +136,12 @@ export interface LocalHostServerOptions {
     manifest: HostManifest;
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;
-    onReplyFlushed?(request: LocalClientCommand['request'], reply: LocalServerReply['reply']): void;
+    onReplyFlushed?(
+        request: LocalClientCommand['request'],
+        reply: LocalServerReply['reply'],
+        context: CommandExecutionContext,
+    ): void;
+    onRequestDisconnected?(requestId: string, context: CommandExecutionContext): void;
     refreshContext?(context: CommandExecutionContext): CommandExecutionContext;
 }
 
@@ -288,6 +295,26 @@ export class LocalHostServer {
         if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
     }
 
+    /** Delivers a transient, body-free receipt only to the exact authenticated Agent generation. */
+    broadcastAgent(endpoint: AgentEndpointRef, event: TransientRuntimeEvent): void {
+        const message = localServerEventSchema.parse({ type: 'event', event });
+        for (const state of this.clients.values()) {
+            const principal = state.context.principal;
+            if (
+                principal.kind === 'agent' &&
+                principal.endpointId === endpoint.endpointId &&
+                principal.generation === endpoint.generation
+            )
+                this.write(state.socket, message);
+        }
+    }
+
+    /** Delivers a one-shot Host UI event without placing it in the recoverable Runtime journal. */
+    broadcastDesktop(event: TransientRuntimeEvent): void {
+        const message = localServerEventSchema.parse({ type: 'event', event });
+        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
+    }
+
     private revokeDesktop(state: ClientState, notifyUnavailable = true): void {
         if (state.leaseTimer) clearTimeout(state.leaseTimer);
         state.leaseTimer = undefined;
@@ -323,7 +350,11 @@ export class LocalHostServer {
         const remove = (): void => {
             clearTimeout(handshakeTimer);
             this.sockets.delete(socket);
-            if (!state || !this.clients.has(socket)) return;
+            if (!state) return;
+            for (const requestId of state.inFlightRequestIds)
+                this.options.onRequestDisconnected?.(requestId, state.context);
+            state.inFlightRequestIds.clear();
+            if (!this.clients.has(socket)) return;
             if (state.desktopLease) this.revokeDesktop(state);
             else {
                 this.clients.delete(socket);
@@ -419,7 +450,13 @@ export class LocalHostServer {
                                 if (this.currentDesktop)
                                     this.revokeDesktop(this.currentDesktop, false);
                             }
-                            state = { context, desktopLease, desktopReady: false, socket };
+                            state = {
+                                context,
+                                desktopLease,
+                                desktopReady: false,
+                                inFlightRequestIds: new Set(),
+                                socket,
+                            };
                             clearTimeout(handshakeTimer);
                             this.clients.set(socket, state);
                             if (desktopLease) {
@@ -549,6 +586,7 @@ export class LocalHostServer {
                             return;
                         }
                         const command = localClientCommandSchema.parse(raw);
+                        clientState.inFlightRequestIds.add(command.request.id);
                         let currentContext: CommandExecutionContext;
                         try {
                             currentContext =
@@ -564,7 +602,14 @@ export class LocalHostServer {
                             this.write(
                                 socket,
                                 localServerReplySchema.parse({ type: 'reply', reply }),
-                                () => this.options.onReplyFlushed?.(command.request, reply),
+                                () => {
+                                    clientState.inFlightRequestIds.delete(command.request.id);
+                                    this.options.onReplyFlushed?.(
+                                        command.request,
+                                        reply,
+                                        clientState.context,
+                                    );
+                                },
                             );
                             return;
                         }
@@ -586,7 +631,14 @@ export class LocalHostServer {
                         this.write(
                             socket,
                             localServerReplySchema.parse({ type: 'reply', reply }),
-                            () => this.options.onReplyFlushed?.(command.request, reply),
+                            () => {
+                                clientState.inFlightRequestIds.delete(command.request.id);
+                                this.options.onReplyFlushed?.(
+                                    command.request,
+                                    reply,
+                                    currentContext,
+                                );
+                            },
                         );
                     })
                     .catch(() => {

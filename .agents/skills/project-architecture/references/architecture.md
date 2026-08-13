@@ -16,7 +16,7 @@ Electron Main
 Headless Host (Electron RunAsNode)
   -> one profile lock + private Unix socket
   -> command/capability dispatcher + bounded event journal
-  -> in-memory generation-scoped Agent Endpoint registry
+  -> in-memory generation-scoped Agent Endpoint registry + bounded Peer Inbox
   -> one Node-mode Runtime child
 
 Preload
@@ -187,6 +187,16 @@ the token or publishes it through events, diagnostics, snapshots, or command out
 evidence classifies only the built-in executable with an empty argument list as `standard`, exact
 documented bypass flags as `elevated`, and custom executables or arguments as `unknown`. Endpoint
 selectors use the opaque ref; duplicate display names never redirect a mutation to a newer generation.
+
+Peer messages are Host-owned, generation-scoped, bounded plain text. Their bodies exist only in the
+live in-memory Inbox and never enter Runtime, SQLite, logs, diagnostics, the event journal, Terminal
+snapshots, or PTY input. `auto` accepts only same-Project peers whose known permission classes match;
+otherwise the receiver's `accept`, `hold`, or `refuse` policy decides. Waiting and held queues are
+bounded independently, and expiration or either Endpoint generation ending destroys every undelivered
+body. A pull stays reserved until the authenticated local socket flushes its response; disconnecting
+before that boundary requeues the message at the FIFO front. Desktop approval moves only one held
+message into the receiver Inbox. Peer text carries `origin: peer` and can never grant a permission,
+change settings, invoke a slash command, wake an Agent, or write a user prompt.
 
 Provider lifecycle hooks follow one generic Runtime contract: provider-local adapters define documented events, config targets, schema inspection, render, and removal, while `src/runtime/agents/hooks/` exclusively owns filesystem reads, a cross-process install lock, mode-`0600` atomic replacements, debounced provider-config watching with a slow polling fallback, bridge staging, the authenticated local socket, and health reporting. Adapters add three content-free phases (`turnStarted`, `attentionRequested`, `turnFinished`) and remove only handlers carrying Caxri's marker. Foreign hooks and comments are preserved, malformed trees and policy-disabled configs fail closed, Codex inline-hook conflicts are reported instead of merged, and removal independently preserves every newer marked schema even when another conflict is present. Main supplies the fixed per-user bridge root; test/E2E composition omits it so isolated runs cannot mutate real CLI configuration.
 

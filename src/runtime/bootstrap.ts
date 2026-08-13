@@ -434,13 +434,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         await configuration.close();
         database.close();
     }
-
     const handlers: RuntimeHandlers = {
         'agent.context': () => mainOwned('agent.context'),
         'agent.list': () => mainOwned('agent.list'),
         'agent.grants': () => mainOwned('agent.grants'),
         'agent.grant': () => mainOwned('agent.grant'),
         'agent.revoke': () => mainOwned('agent.revoke'),
+        'agent.message.send': () => mainOwned('agent.message.send'),
+        'agent.message.reply': () => mainOwned('agent.message.reply'),
+        'agent.message.wait': () => mainOwned('agent.message.wait'),
+        'agent.message.receipt': () => mainOwned('agent.message.receipt'),
+        'agent.message.policy.get': () => mainOwned('agent.message.policy.get'),
+        'agent.message.policy.set': () => mainOwned('agent.message.policy.set'),
+        'agent.message.held': () => mainOwned('agent.message.held'),
+        'agent.message.approve': () => mainOwned('agent.message.approve'),
+        'agent.message.deny': () => mainOwned('agent.message.deny'),
         'app.bootstrap': () => bootstrapState(),
         'events.recover': () => mainOwned('events.recover'),
         'events.query': () => mainOwned('events.query'),

@@ -16,6 +16,7 @@ import { HostDesktopRouter } from './desktop-router';
 import { acquireHostProfile, type HostProfileLease } from './profile';
 import { HostRuntimeSupervisor } from './runtime-supervisor';
 import { AgentEndpointRegistry } from './agent-endpoints';
+import { AgentInboxRegistry } from './agent-inbox';
 
 export interface HostApplicationOptions {
     agentHooksPath?: string;
@@ -48,6 +49,14 @@ export async function startHostApplication(
         version: options.version,
     });
     const agentEndpoints = new AgentEndpointRegistry(lease.manifest.processIdentity);
+    let server: LocalHostServer | undefined;
+    const agentInbox = new AgentInboxRegistry(agentEndpoints, {
+        emitHeld: (payload) => server?.broadcastDesktop({ event: 'agent.message.held', payload }),
+        emitReceipt: (endpoint, payload) => {
+            server?.broadcastAgent(endpoint, { event: 'agent.message.receipt', payload });
+            server?.broadcastDesktop({ event: 'agent.message.receipt', payload });
+        },
+    });
     const supervisor = new HostRuntimeSupervisor({
         agentEndpointControl: (request) => {
             if (request.operation === 'agent-endpoint.begin')
@@ -64,7 +73,6 @@ export async function startHostApplication(
         runtimePath: options.runtimePath,
         userDataPath: lease.paths.userDataPath,
     });
-    let server: LocalHostServer | undefined;
     let desktopRouter: HostDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
@@ -142,6 +150,7 @@ export async function startHostApplication(
         stopPromise ??= (async () => {
             logger.write('info', 'host.stopping', { fields: { reason } });
             await server?.close();
+            agentInbox.close();
             await supervisor.shutdown();
             await lease.release();
             logger.write('info', 'host.stopped', { fields: { reason } });
@@ -150,7 +159,7 @@ export async function startHostApplication(
     };
 
     const host: CommandAdapter = {
-        async invoke(request, context) {
+        async invoke(request, context, invocation) {
             if (request.method === 'events.recover')
                 return journal.recover(request.params.afterCursor);
             if (request.method === 'events.query')
@@ -171,6 +180,22 @@ export async function startHostApplication(
                 return {
                     revoked: agentEndpoints.revoke(request.params.endpoint, request.params.grantId),
                 };
+            if (request.method === 'agent.message.send')
+                return agentInbox.send(context, request.params, invocation.requestId);
+            if (request.method === 'agent.message.reply')
+                return agentInbox.reply(context, request.params, invocation.requestId);
+            if (request.method === 'agent.message.wait')
+                return agentInbox.wait(context, request.params.timeoutMs, invocation.requestId);
+            if (request.method === 'agent.message.receipt')
+                return agentInbox.receipt(context, request.params.messageId);
+            if (request.method === 'agent.message.policy.get') return agentInbox.policy(context);
+            if (request.method === 'agent.message.policy.set')
+                return agentInbox.setPolicy(context, request.params);
+            if (request.method === 'agent.message.held') return { messages: agentInbox.listHeld() };
+            if (request.method === 'agent.message.approve')
+                return agentInbox.approve(request.params.messageId);
+            if (request.method === 'agent.message.deny')
+                return agentInbox.deny(request.params.messageId);
             if (request.method === 'host.status') {
                 const health = await supervisor.request('app.health');
                 return {
@@ -283,12 +308,18 @@ export async function startHostApplication(
             onDesktopUnavailable: () => {
                 void supervisor.request('terminal.detachAll').catch(() => undefined);
             },
-            onReplyFlushed: (request, reply) => {
-                if (request.method !== 'host.stop' || !reply.ok) return;
-                if (commandStopFallback) clearImmediate(commandStopFallback);
-                commandStopFallback = undefined;
-                void stop('command');
+            onReplyFlushed: (request, reply, context) => {
+                if (request.method === 'agent.message.wait') {
+                    if (reply.ok) agentInbox.confirmWait(request.id, context);
+                    else agentInbox.cancelWait(request.id);
+                }
+                if (request.method === 'host.stop' && reply.ok) {
+                    if (commandStopFallback) clearImmediate(commandStopFallback);
+                    commandStopFallback = undefined;
+                    void stop('command');
+                }
             },
+            onRequestDisconnected: (requestId) => agentInbox.cancelWait(requestId),
             refreshContext: (context) => agentEndpoints.refresh(context),
         });
         desktopRouter = new HostDesktopRouter({

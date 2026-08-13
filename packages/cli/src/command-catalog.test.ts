@@ -27,6 +27,12 @@ describe('CLI business command catalog', () => {
                 'agent grants',
                 'agent grant',
                 'agent revoke',
+                'agent message send',
+                'agent message wait',
+                'agent message reply',
+                'agent message receipt',
+                'agent message policy',
+                'agent message policy-set',
             ]),
         );
     });
@@ -71,6 +77,24 @@ describe('CLI business command catalog', () => {
             endpoint: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 2 },
             policy: 'debug:read',
             ttlMs: 60_000,
+        });
+
+        const message = findCliCommand(['agent', 'message', 'reply']);
+        expect(
+            message?.kind === 'remote'
+                ? message.parseParams([
+                      '--to',
+                      `${'a'.repeat(32)}:endpoint-2:3`,
+                      '--reply-to',
+                      'message-1',
+                      '--body',
+                      'plain peer text',
+                  ])
+                : null,
+        ).toEqual({
+            to: { hostId: 'a'.repeat(32), endpointId: 'endpoint-2', generation: 3 },
+            replyTo: 'message-1',
+            body: 'plain peer text',
         });
     });
 });

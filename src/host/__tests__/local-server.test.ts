@@ -12,6 +12,7 @@ import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { LocalHostServer } from '../local-server';
 import { AgentEndpointRegistry } from '../agent-endpoints';
+import { AgentInboxRegistry } from '../agent-inbox';
 import { acquireHostProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -290,6 +291,110 @@ describe('local Host transport', () => {
             expect.objectContaining({ code: 'UNAVAILABLE' }) as CaxriError,
         );
         client.close();
+    });
+
+    it('confirms pull delivery after reply flush and requeues a disconnected long poll', async () => {
+        const lease = await profile();
+        const tokens = ['ab'.repeat(32), 'cd'.repeat(32)];
+        const endpoints = new AgentEndpointRegistry(lease.manifest.processIdentity, {
+            token: () => tokens.shift()!,
+        });
+        const senderEndpoint = endpoints.begin({
+            terminalId: 'terminal-sender',
+            sessionId: 'session-1',
+            projectId: 'project-1',
+            provider: 'codex',
+            launchId: 'launch-sender',
+            name: 'Sender',
+            permissionClass: 'standard',
+            deliveryMode: 'pull',
+        });
+        const receiverEndpoint = endpoints.begin({
+            terminalId: 'terminal-receiver',
+            sessionId: 'session-1',
+            projectId: 'project-1',
+            provider: 'codex',
+            launchId: 'launch-receiver',
+            name: 'Receiver',
+            permissionClass: 'standard',
+            deliveryMode: 'pull',
+        });
+        const inbox = new AgentInboxRegistry(endpoints);
+        let waitStartedResolve: (() => void) | undefined;
+        const host: CommandAdapter = {
+            invoke: (request, context, invocation) => {
+                if (request.method === 'agent.message.send')
+                    return inbox.send(context, request.params, invocation.requestId);
+                if (request.method === 'agent.message.wait') {
+                    waitStartedResolve?.();
+                    return inbox.wait(context, request.params.timeoutMs, invocation.requestId);
+                }
+                if (request.method === 'agent.message.receipt')
+                    return inbox.receipt(context, request.params.messageId);
+                return null;
+            },
+        };
+        const server = new LocalHostServer({
+            adapters: { host },
+            authenticateAgent: (credential) => endpoints.authenticate(credential),
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+            onReplyFlushed: (request, reply, context) => {
+                if (request.method !== 'agent.message.wait') return;
+                if (reply.ok) inbox.confirmWait(request.id, context);
+                else inbox.cancelWait(request.id);
+            },
+            onRequestDisconnected: (requestId) => inbox.cancelWait(requestId),
+            refreshContext: (context) => endpoints.refresh(context),
+        });
+        await server.start();
+        cleanups.push(async () => {
+            inbox.close();
+            await server.close();
+        });
+        const sender = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'agent',
+            ...senderEndpoint.ref,
+            token: 'ab'.repeat(32),
+        });
+        const receiverCredential = {
+            kind: 'agent' as const,
+            ...receiverEndpoint.ref,
+            token: 'cd'.repeat(32),
+        };
+        let receiver = await HostClient.connect(lease.manifest, 2_000, receiverCredential);
+
+        const first = await sender.request('agent.message.send', {
+            to: receiverEndpoint.ref,
+            body: 'flush-bound peer message',
+        });
+        await expect(
+            receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
+        ).resolves.toMatchObject({ message: { body: 'flush-bound peer message' } });
+        await vi.waitFor(async () => {
+            await expect(
+                sender.request('agent.message.receipt', { messageId: first.messageId }),
+            ).resolves.toMatchObject({ status: 'delivered' });
+        });
+
+        const waitStarted = new Promise<void>((resolve) => {
+            waitStartedResolve = resolve;
+        });
+        const abandoned = receiver.request('agent.message.wait', { timeoutMs: 2_000 });
+        await waitStarted;
+        receiver.close();
+        await expect(abandoned).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        const second = await sender.request('agent.message.send', {
+            to: receiverEndpoint.ref,
+            body: 'requeued after disconnect',
+        });
+        receiver = await HostClient.connect(lease.manifest, 2_000, receiverCredential);
+        await expect(
+            receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
+        ).resolves.toMatchObject({ message: { id: second.messageId } });
+
+        sender.close();
+        receiver.close();
     });
 
     it('does not let the operator credential self-assert the Desktop principal', async () => {

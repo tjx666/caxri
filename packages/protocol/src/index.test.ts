@@ -102,6 +102,16 @@ describe('@caxri/protocol contract', () => {
         expect(methods['project.list'].requiredCapabilities).toEqual(['projects.read']);
     });
 
+    it('rejects opaque task payloads from the text-only Agent Inbox schema', () => {
+        expect(
+            methods['agent.message.send'].params.safeParse({
+                to: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                body: 'plain peer text',
+                task: { command: 'session.delete' },
+            }).success,
+        ).toBe(false);
+    });
+
     it('keeps copy and write alive until their authoritative Runtime result', () => {
         expect(isNonExpiringRuntimeMethod('files.copy')).toBe(true);
         expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);

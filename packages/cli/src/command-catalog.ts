@@ -35,7 +35,8 @@ export interface RemoteCommandDefinition {
     method: CaxriMethod;
     mutates?(params: unknown): boolean;
     parseParams(tokens: readonly string[]): unknown;
-    path: readonly [CliGroupName, string];
+    path: readonly [CliGroupName, string, ...string[]];
+    requiresAgentEndpoint?: boolean;
     summary: string;
     quietKey?: string;
     stream?: 'events' | 'logs';
@@ -190,6 +191,55 @@ function agentGrant(tokens: readonly string[]): Record<string, unknown> {
     return result;
 }
 
+function namedOptions(
+    tokens: readonly string[],
+    allowed: ReadonlyMap<string, string>,
+    required: readonly string[],
+): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (let index = 0; index < tokens.length; index += 1) {
+        const flag = tokens[index];
+        const key = allowed.get(flag);
+        if (!key) throw new CaxriError('VALIDATION', `Unknown option: ${flag.split('=')[0]}`);
+        if (result[key] !== undefined)
+            throw new CaxriError('VALIDATION', `${flag} may be provided only once`);
+        const value = tokens[index + 1];
+        if (!value || value.startsWith('--'))
+            throw new CaxriError('VALIDATION', `${flag} requires a value`);
+        result[key] = value;
+        index += 1;
+    }
+    for (const key of required) {
+        if (result[key] === undefined)
+            throw new CaxriError(
+                'VALIDATION',
+                `--${key.replace(/[A-Z]/g, (value) => `-${value.toLowerCase()}`)} is required`,
+            );
+    }
+    return result;
+}
+
+function agentMessage(tokens: readonly string[], reply: boolean): Record<string, unknown> {
+    const options = namedOptions(
+        tokens,
+        new Map([
+            ['--to', 'to'],
+            ['--body', 'body'],
+            ['--reply-to', 'replyTo'],
+            ['--ttl-ms', 'ttlMs'],
+        ]),
+        reply ? ['to', 'body', 'replyTo'] : ['to', 'body'],
+    );
+    if (!reply && options.replyTo !== undefined)
+        throw new CaxriError('VALIDATION', '--reply-to is valid only for agent message reply');
+    return {
+        to: endpointRef(options.to),
+        body: options.body,
+        ...(options.replyTo ? { replyTo: options.replyTo } : {}),
+        ...(options.ttlMs ? { ttlMs: Number(options.ttlMs) } : {}),
+    };
+}
+
 export const CLI_COMMANDS = [
     {
         kind: 'local',
@@ -246,6 +296,74 @@ export const CLI_COMMANDS = [
                 );
             return { endpoint: endpointRef(tokens[0]), grantId: tokens[1] };
         },
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'message', 'send'],
+        method: 'agent.message.send',
+        summary: 'Send bounded inert text to one exact peer Agent generation.',
+        usage: '--to <host-id>:<endpoint-id>:<generation> --body <text> [--ttl-ms <milliseconds>]',
+        parseParams: (tokens) => agentMessage(tokens, false),
+        requiresAgentEndpoint: true,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'message', 'wait'],
+        method: 'agent.message.wait',
+        summary: 'Wait for one FIFO peer message without treating it as terminal input.',
+        usage: '[--timeout <milliseconds>]',
+        parseParams: rejectOptions,
+        requiresAgentEndpoint: true,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'message', 'reply'],
+        method: 'agent.message.reply',
+        summary: 'Reply to one delivered peer message and its exact sender generation.',
+        usage: '--to <host-id>:<endpoint-id>:<generation> --reply-to <message-id> --body <text> [--ttl-ms <milliseconds>]',
+        parseParams: (tokens) => agentMessage(tokens, true),
+        requiresAgentEndpoint: true,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'message', 'receipt'],
+        method: 'agent.message.receipt',
+        summary: 'Read body-free delivery status for one sent peer message.',
+        usage: '<message-id>',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1)
+                throw new CaxriError('VALIDATION', 'agent message receipt requires one message ID');
+            return { messageId: tokens[0] };
+        },
+        requiresAgentEndpoint: true,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'message', 'policy'],
+        method: 'agent.message.policy.get',
+        summary: 'Show this Agent generation inbound message policy.',
+        parseParams: rejectOptions,
+        requiresAgentEndpoint: true,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'message', 'policy-set'],
+        method: 'agent.message.policy.set',
+        summary: 'Set this Agent generation inbound message policy.',
+        usage: '<auto|accept|hold|refuse> [--hold-until-endpoint]',
+        parseParams: (tokens) => {
+            const policy = tokens[0];
+            const rest = tokens.slice(1);
+            if (!policy)
+                throw new CaxriError('VALIDATION', 'agent message policy-set requires a policy');
+            if (rest.length > 1 || (rest.length === 1 && rest[0] !== '--hold-until-endpoint'))
+                throw new CaxriError('VALIDATION', `Unknown option: ${rest[0]}`);
+            return {
+                policy,
+                heldRetention: rest[0] === '--hold-until-endpoint' ? 'endpoint' : 'approval-window',
+            };
+        },
+        requiresAgentEndpoint: true,
     },
     {
         kind: 'remote',
