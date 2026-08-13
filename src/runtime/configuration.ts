@@ -101,6 +101,11 @@ const previousDefaultKeybindingSets = [
     ),
 ];
 
+interface ConfigurationServiceOptions {
+    /** Overrides the fallback watcher cadence for deterministic integration tests. */
+    fallbackPollIntervalMs?: number;
+}
+
 /** Upgrades known untouched historical defaults while preserving every customized keybinding file. */
 function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[] {
     const source = JSON.stringify(keybindings);
@@ -210,12 +215,15 @@ export class ConfigurationService {
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private settingsMutationTail: Promise<void> = Promise.resolve();
     private closed = false;
+    private readonly fallbackPollIntervalMs: number;
 
     constructor(
         userDataPath: string,
         private readonly emit: (event: RuntimeEvent) => void,
         private readonly logger?: StructuredLogger,
+        options: ConfigurationServiceOptions = {},
     ) {
+        this.fallbackPollIntervalMs = options.fallbackPollIntervalMs ?? FALLBACK_POLL_INTERVAL_MS;
         this.configDirectory = join(userDataPath, 'config');
         this.settingsPath = join(this.configDirectory, 'settings.jsonc');
         this.keybindingsPath = join(this.configDirectory, 'keybindings.jsonc');
@@ -250,7 +258,7 @@ export class ConfigurationService {
                 for (const path of [this.settingsPath, this.keybindingsPath, this.themePath]) {
                     void this.onExternalChange(path);
                 }
-            }, FALLBACK_POLL_INTERVAL_MS);
+            }, this.fallbackPollIntervalMs);
             timer.unref();
             this.watcher = {
                 unsubscribe: () => {

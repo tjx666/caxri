@@ -175,8 +175,10 @@ export function commandCapture(
     command: string,
     args: string[],
     timeoutMs = CLI_TIMEOUT_MS,
+    killGraceMs?: number,
 ): Promise<string> {
     return captureCommand(command, args, {
+        killGraceMs,
         maxOutputBytes: MAX_CLI_OUTPUT_BYTES,
         timeoutMs,
     });

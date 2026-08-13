@@ -665,13 +665,14 @@ describe('FileService', () => {
             },
             new StructuredLogger(join(directory, 'logs')),
             () => 1024,
+            { pollIntervalMs: 50 },
         );
         await service.watchSession(session.id);
         await writeFile(watchedPath, 'after', 'utf8');
 
         await expect.poll(() => events.length, { timeout: 5_000 }).toBeGreaterThan(0);
         /** Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change. */
-        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        await new Promise((resolve) => setTimeout(resolve, 150));
         expect(events).toEqual([canonicalWatchedPath]);
         await service.close();
         database.close();
