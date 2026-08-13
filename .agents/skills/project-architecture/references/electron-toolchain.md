@@ -42,3 +42,10 @@ packaging through the same machine with a non-persisted, short-lived `contents: 
 Reusing an existing macOS user is an accepted trust decision and must never be described as
 isolation from malicious workflow code; see `docs/self-hosted-runner.md` for operation and incident
 recovery.
+
+The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI selects
+Node 22, pins Bun through `.bun-version`, and pins npm through `package.json#packageManager` without
+changing the user's interactive installations. Node and the separately provisioned runner-owned Bun
+executable use the runner tool cache; npm, Electron, ESLint, and Prettier reuse runner-local caches
+without `actions/cache`. Dependency trees remain job-local and are rebuilt from `package-lock.json`
+for every source job.

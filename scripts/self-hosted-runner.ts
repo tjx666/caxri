@@ -12,7 +12,14 @@ import {
 
 const execFileAsync = promisify(execFile);
 const ownerPattern = /^caxri-[0-9]+-[0-9]+-[a-z0-9-]+$/u;
-const generatedWorkspacePaths = ['logs', 'out', 'playwright-report', 'release', 'test-results'];
+const generatedWorkspacePaths = [
+    '.cache',
+    'logs',
+    'out',
+    'playwright-report',
+    'release',
+    'test-results',
+];
 
 export interface ProcessRecord {
     command: string;
@@ -137,10 +144,10 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         throw new Error('The Caxri self-hosted runner boundary requires macOS ARM64');
     }
     if (
-        environment.CAXRI_E2E_AGENT_MODE !== 'blocked' ||
+        environment.CAXRI_RUNNER_AGENT_DISCOVERY !== 'blocked' ||
         environment.CAXRI_REAL_AGENT_E2E === '1'
     ) {
-        throw new Error('Self-hosted jobs must block ambient real Agent discovery');
+        throw new Error('Self-hosted jobs must block ambient Agent discovery');
     }
     const expectedHead = requiredEnvironment(environment, 'CAXRI_EXPECTED_HEAD');
     if (!/^[0-9a-f]{40}$/u.test(expectedHead)) throw new Error('Invalid expected runner head');

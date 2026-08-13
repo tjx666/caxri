@@ -54,8 +54,8 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, caxri-ci]
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-retry-policy
-      CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-retry-policy
     outputs:
       mode: ${{ steps.policy.outputs.mode }}
@@ -79,16 +79,15 @@ jobs:
           # the immutable retry trailers or exact validated tree from the pushed head.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: oven-sh/setup-bun@v2
-      - name: Prepare self-hosted runner boundary
-        run: bun run scripts/self-hosted-runner.ts prepare
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
       - id: policy
         name: Resolve exact-tree retry and execution policy
         run: bun run scripts/ci-retry-policy.ts
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Clean self-hosted runner boundary
-        if: always() && steps.checkout.outcome == 'success'
+        if: always() && steps.setup.outputs.prepared == 'true'
         run: bun run scripts/self-hosted-runner.ts cleanup
 
   checks:
@@ -99,10 +98,9 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, caxri-ci]
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
-      CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_EXPECTED_HEAD: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
-      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
     steps:
       - id: checkout
         uses: actions/checkout@v7
@@ -112,60 +110,13 @@ jobs:
           # existing issue (https://www.react.doctor/docs/ci-and-prs/github-actions-setup).
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
         with:
-          node-version: 22
-          package-manager-cache: false
-      - uses: oven-sh/setup-bun@v2
-      - name: Prepare self-hosted runner boundary
-        run: bun run scripts/self-hosted-runner.ts prepare
-      - name: Restore npm cache
-        id: npm-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-
-      - name: Restore Electron download cache
-        id: electron-cache
-        uses: actions/cache@v5
-        with:
-          path: .cache/electron-download
-          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
-      - name: Restore quality caches
-        id: quality-cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            .cache/eslint
-            .cache/prettier
-          key: quality-${{ runner.os }}-${{ hashFiles('eslint.config.ts', '.prettierrc', '.prettierignore') }}-${{ hashFiles('package-lock.json', 'package.json') }}
-          restore-keys: quality-${{ runner.os }}-${{ hashFiles('eslint.config.ts', '.prettierrc', '.prettierignore') }}-
-      - name: Report cache state
-        run: |
-          {
-            echo "## Cache state (self-hosted checks)"
-            echo
-            echo "| Cache | Hit |"
-            echo "| --- | --- |"
-            echo "| npm | ${{ steps.npm-cache.outputs.cache-hit || 'false' }} |"
-            echo "| Electron | ${{ steps.electron-cache.outputs.cache-hit || 'false' }} |"
-            echo "| ESLint / Prettier | ${{ steps.quality-cache.outputs.cache-hit || 'false' }} |"
-            echo
-            echo "## Command metrics"
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Use repository-pinned npm
-        run: |
-          bun run scripts/ci-metrics.ts --label "Install pinned npm" -- npm install --global npm@12.0.2
-          test "$(npm --version)" = "12.0.2"
-      - name: Install dependency tree without lifecycle scripts
-        run: bun run scripts/ci-metrics.ts --label "npm registry, unpack, and link" -- npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
-      - name: Install Electron binary
-        if: needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source'
-        run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
-      - name: Rebuild Electron native modules
-        if: needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source'
-        run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild
+          setup-node: 'true'
+          install-dependencies: 'true'
+          install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
+          rebuild-native: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
       - name: Run focused changed-file checks
         if: needs.retry-policy.outputs.checks_scope != 'full'
         env:
@@ -194,7 +145,7 @@ jobs:
         if: needs.retry-policy.outputs.checks_scope == 'full'
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
       - name: Clean self-hosted runner boundary
-        if: always() && steps.checkout.outcome == 'success'
+        if: always() && steps.setup.outputs.prepared == 'true'
         run: bun run scripts/self-hosted-runner.ts cleanup
 
   e2e:
@@ -248,8 +199,8 @@ jobs:
           && 'trusted tjx666 release commit'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.pool }}
-      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
     steps:
       - name: Verify self-hosted trust boundary
         env:
@@ -280,13 +231,13 @@ jobs:
           # validated by retry-policy. The PR base identity is checked separately by that policy.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
         with:
-          node-version: 22
-          package-manager-cache: false
-      - uses: oven-sh/setup-bun@v2
-      - name: Prepare self-hosted runner boundary
-        run: bun run scripts/self-hosted-runner.ts prepare
+          setup-node: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          rebuild-native: 'true'
       - name: Report E2E runner route
         run: |
           {
@@ -297,41 +248,6 @@ jobs:
             echo "| \`$RUNNER_NAME\` | \`$CAXRI_E2E_RUNNER_KIND\` | $CAXRI_E2E_RUNNER_REASON | \`$CAXRI_EXPECTED_HEAD\` |"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Restore npm cache
-        id: npm-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-${{ runner.os }}-${{ runner.arch }}-node22-npm12.0.2-
-      - name: Restore Electron download cache
-        id: electron-cache
-        uses: actions/cache@v5
-        with:
-          path: .cache/electron-download
-          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
-      - name: Report cache state
-        run: |
-          {
-            echo "## Cache state (macOS E2E)"
-            echo
-            echo "| Cache | Hit |"
-            echo "| --- | --- |"
-            echo "| npm | ${{ steps.npm-cache.outputs.cache-hit || 'false' }} |"
-            echo "| Electron | ${{ steps.electron-cache.outputs.cache-hit || 'false' }} |"
-            echo
-            echo "## Command metrics"
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Use repository-pinned npm
-        run: |
-          bun run scripts/ci-metrics.ts --label "Install pinned npm" -- npm install --global npm@12.0.2
-          test "$(npm --version)" = "12.0.2"
-      - name: Install dependency tree without lifecycle scripts
-        run: bun run scripts/ci-metrics.ts --label "npm registry, unpack, and link" -- npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
-      - name: Install Electron binary
-        run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
-      - name: Rebuild Electron native modules
-        run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild
       - name: Verify Electron native modules
         run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
       - name: Build Electron bundles
@@ -378,7 +294,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Clean self-hosted runner boundary
-        if: always() && steps.checkout.outcome == 'success'
+        if: always() && steps.setup.outputs.prepared == 'true'
         run: bun run scripts/self-hosted-runner.ts cleanup
 
   ci:

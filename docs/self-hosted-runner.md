@@ -29,26 +29,38 @@ not eligible for this runner workflow.
 
 ## Normal operation
 
-Keep the Mac connected to power with the runner user logged in and the desktop unlocked. Before
-service installation, run the listener in the foreground:
+Keep the Mac connected to power with the runner user logged in and the desktop unlocked. Normal
+operation uses the per-user launchd service:
 
 ```bash
 cd "$RUNNER_INSTALL_DIR"
-caffeinate -dimsu ./run.sh
+./svc.sh status
 ```
 
-After the fixed-head validation matrix is green, install the per-user launchd service:
+Use the foreground listener only for troubleshooting after stopping the service:
 
 ```bash
 cd "$RUNNER_INSTALL_DIR"
-./svc.sh install
-./svc.sh start
-./svc.sh status
+./svc.sh stop
+caffeinate -dimsu ./run.sh
 ```
 
 The runner application updates itself by default. After an update, macOS or Xcode change, stop the
 service and repeat one explicit self-hosted control validation before returning the runner to normal
 PR traffic.
+
+## Toolchain and caches
+
+`.github/actions/setup-caxri-job/action.yml` owns the common job setup. Actions selects Node 22,
+reads the Bun version from `.bun-version`, and pins npm to `package.json#packageManager`; these job
+paths do not replace the user's interactive Node or Bun installations.
+
+Node and Bun executables use the runner tool cache. The runner-owned Bun binary must match
+`.bun-version`; it is separate from `~/.bun` and the job fails closed if it is missing or stale.
+npm downloads persist in the runner account's normal npm cache, while Electron, ESLint, and
+Prettier caches live beneath `RUNNER_TOOL_CACHE/caxri`. The workflow does not upload these caches to
+GitHub. Every source job still runs a fresh lockfile install and cleanup removes workspace cache
+links without deleting the runner-local cache contents.
 
 ## Preflight and teardown contract
 

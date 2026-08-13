@@ -1,0 +1,118 @@
+name: Setup Caxri job
+description: Prepare the trusted self-hosted runner and install the requested Caxri toolchain.
+
+inputs:
+  setup-node:
+    description: Add the repository Node.js version to PATH.
+    required: false
+    default: 'false'
+  install-dependencies:
+    description: Install the lockfile dependency tree without lifecycle scripts.
+    required: false
+    default: 'false'
+  install-electron:
+    description: Install the Electron binary after dependency installation.
+    required: false
+    default: 'false'
+  rebuild-native:
+    description: Rebuild Electron native modules after dependency installation.
+    required: false
+    default: 'false'
+
+outputs:
+  prepared:
+    description: Whether the self-hosted runner boundary was prepared.
+    value: ${{ steps.prepare.outputs.prepared }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      if: inputs.setup-node == 'true'
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        package-manager-cache: false
+
+    - name: Use runner-pinned Bun
+      shell: bash
+      run: |
+        bun_version="$(tr -d '\r\n' < .bun-version)"
+        [[ "$bun_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"
+        test -x "$bun_directory/bun"
+        test "$("$bun_directory/bun" --version)" = "$bun_version"
+        echo "$bun_directory" >> "$GITHUB_PATH"
+
+    - id: prepare
+      name: Prepare self-hosted runner boundary
+      shell: bash
+      run: |
+        bun run scripts/self-hosted-runner.ts prepare
+        echo "prepared=true" >> "$GITHUB_OUTPUT"
+
+    - name: Configure runner-local caches
+      if: inputs.setup-node == 'true'
+      shell: bash
+      run: |
+        cache_root="$RUNNER_TOOL_CACHE/caxri"
+        electron_cache="$cache_root/electron"
+        npm_cache="$(npm config get cache)"
+
+        npm_state=cold
+        electron_state=cold
+        quality_state=cold
+        if [[ -d "$npm_cache" ]] && find "$npm_cache" -mindepth 1 -print -quit | grep -q .; then
+          npm_state=warm
+        fi
+        if [[ -d "$electron_cache" ]] && find "$electron_cache" -mindepth 1 -print -quit | grep -q .; then
+          electron_state=warm
+        fi
+        if [[ -e "$cache_root/eslint/.eslintcache" || -e "$cache_root/prettier" ]]; then
+          quality_state=warm
+        fi
+
+        test ! -e .cache
+        mkdir -p "$electron_cache" "$cache_root/eslint" .cache
+        touch "$cache_root/prettier"
+        ln -s "$cache_root/eslint" .cache/eslint
+        ln -s "$cache_root/prettier" .cache/prettier
+        echo "ELECTRON_CACHE=$electron_cache" >> "$GITHUB_ENV"
+
+        {
+          echo "## Runner-local cache state"
+          echo
+          echo "| Cache | State |"
+          echo "| --- | --- |"
+          echo "| npm | $npm_state |"
+          echo "| Electron | $electron_state |"
+          echo "| ESLint / Prettier | $quality_state |"
+          echo
+          echo "## Command metrics"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Use repository-pinned npm
+      if: inputs.setup-node == 'true'
+      shell: bash
+      run: |
+        npm_version="$(node -p "require('./package.json').packageManager.replace(/^npm@/, '')")"
+        [[ "$npm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        if [[ "$(npm --version)" != "$npm_version" ]]; then
+          bun run scripts/ci-metrics.ts --label "Install pinned npm" -- npm install --global "npm@$npm_version"
+        fi
+        test "$(npm --version)" = "$npm_version"
+
+    - name: Install dependency tree without lifecycle scripts
+      if: inputs.install-dependencies == 'true'
+      shell: bash
+      run: bun run scripts/ci-metrics.ts --label "npm registry, unpack, and link" -- npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+
+    - name: Install Electron binary
+      if: inputs.install-electron == 'true'
+      shell: bash
+      run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
+
+    - name: Rebuild Electron native modules
+      if: inputs.rebuild-native == 'true'
+      shell: bash
+      run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild

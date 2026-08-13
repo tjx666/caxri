@@ -98,7 +98,9 @@ describe('Go local CI fallback', () => {
             .flatMap((step) => (step.uses ? [step.uses] : []))
             .filter(
                 (action) =>
-                    !/^(actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun)@/.test(action),
+                    !/^(?:actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun)@/.test(
+                        action,
+                    ) && action !== './.github/actions/setup-caxri-job',
             );
         const commands = checkSteps
             .filter((step) => step.if === fullChecksCondition && step.run)
