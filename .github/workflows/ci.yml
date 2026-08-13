@@ -210,7 +210,20 @@ jobs:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.pool }}
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_E2E_RUN_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.pool }}
-      CAXRI_E2E_RUNNER_KIND: ${{ runner.environment }}
+      CAXRI_E2E_RUNNER_KIND: >-
+        ${{ ((
+          github.event_name == 'pull_request' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666' &&
+          github.event.pull_request.user.login == 'tjx666' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          !contains(github.event.pull_request.labels.*.name, 'ci:github-hosted-e2e')
+        ) || (
+          github.event_name == 'workflow_dispatch' &&
+          inputs.e2e_runner == 'self-hosted' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666'
+        )) && 'self-hosted' || 'github-hosted' }}
       CAXRI_E2E_RUNNER_REASON: >-
         ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:github-hosted-e2e')
           && 'PR label ci:github-hosted-e2e'
