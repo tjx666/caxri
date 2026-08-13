@@ -84,7 +84,7 @@ async function measureFirstOpen(
     fileName: string,
     expectedText: string,
 ): Promise<EditorTiming> {
-    const file = page.getByRole('button', { name: fileName, exact: true });
+    const file = page.getByRole('treeitem', { name: fileName, exact: true });
     await file.waitFor();
     await installHighlightObserver(page, expectedText);
     await file.click();
@@ -126,14 +126,14 @@ async function measureRepeatOpen(
     detourFileName: string,
     expectedText: string,
 ): Promise<number> {
-    await page.getByRole('button', { name: detourFileName, exact: true }).click();
+    await page.getByRole('treeitem', { name: detourFileName, exact: true }).click();
     await expect
         .poll(() =>
             page.locator('.monaco-editor .view-line').filter({ hasText: expectedText }).count(),
         )
         .toBe(0);
     await installHighlightObserver(page, expectedText);
-    await page.getByRole('button', { name: fileName, exact: true }).click();
+    await page.getByRole('treeitem', { name: fileName, exact: true }).click();
     return page.evaluate(async () => {
         const observer = (window as BenchmarkWindow).caxriFirstEditorHighlight;
         if (!observer) throw new Error('Editor highlight observer was not installed');
