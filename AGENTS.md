@@ -15,8 +15,9 @@
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run --silent test:smoke`
-- Self-hosted macOS E2E runner operation and recovery: `docs/self-hosted-runner.md`; trusted owner
-  PRs use `m2-24`, while `ci:github-hosted-e2e` explicitly selects the hosted fallback.
+- Self-hosted macOS E2E and Release runner operation and recovery: `docs/self-hosted-runner.md`;
+  trusted owner PRs and exact release commits use `m2-24`, while `ci:github-hosted-e2e` explicitly
+  selects the PR-only hosted fallback.
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Common editor highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
 - Build/package: `bun run build`, `bun run package`, `bun run package:dmg`; for a locally requested
@@ -135,8 +136,10 @@ step-by-step workflows beyond this summary.
   `bun run test:e2e` result in the Go ledger. Keep the hosted check externally failed; never relabel
   it green. Code/test failures, missing required authorization, release packaging, and deployment
   are never eligible.
-- Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
-  requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
+- Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs on the repository
+  self-hosted runner for trusted pull requests and exact release commits; ordinary pushes to `main`
+  must not consume a macOS runner. Release packaging also uses the self-hosted `caxri-release`
+  capability and has no automatic hosted macOS fallback.
 - Before retrying after a verified zero-step billing or spending-limit failure, dispatch `CI` with
   `runner_probe=true`; it must complete only the cheap `retry-policy` job. Do not use `e2e_profile=skip`
   as a probe because that still runs the full Linux checks job. After a successful probe, allow one

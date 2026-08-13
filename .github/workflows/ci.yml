@@ -183,6 +183,29 @@ jobs:
           (needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') &&
           needs.checks.result == 'skipped'
         )
+      ) &&
+      (
+        (
+          github.event_name == 'pull_request' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666' &&
+          (
+            (
+              github.event.pull_request.user.login == 'tjx666' &&
+              github.event.pull_request.head.repo.full_name == github.repository
+            ) || contains(github.event.pull_request.labels.*.name, 'ci:github-hosted-e2e')
+          )
+        ) || (
+          github.event_name == 'workflow_dispatch' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666'
+        ) || (
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666' &&
+          startsWith(github.event.head_commit.message, 'release: v')
+        )
       )
     strategy:
       fail-fast: false
@@ -202,6 +225,12 @@ jobs:
           inputs.e2e_runner == 'self-hosted' &&
           github.actor == 'tjx666' &&
           github.triggering_actor == 'tjx666'
+        ) || (
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666' &&
+          startsWith(github.event.head_commit.message, 'release: v')
         ))
           && '["self-hosted","macOS","ARM64","caxri-e2e"]'
           || '["macos-latest"]'
@@ -223,6 +252,12 @@ jobs:
           inputs.e2e_runner == 'self-hosted' &&
           github.actor == 'tjx666' &&
           github.triggering_actor == 'tjx666'
+        ) || (
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          github.actor == 'tjx666' &&
+          github.triggering_actor == 'tjx666' &&
+          startsWith(github.event.head_commit.message, 'release: v')
         )) && 'self-hosted' || 'github-hosted' }}
       CAXRI_E2E_RUNNER_REASON: >-
         ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:github-hosted-e2e')
@@ -231,6 +266,8 @@ jobs:
           && 'trusted same-repository tjx666 PR head'
           || github.event_name == 'workflow_dispatch' && inputs.e2e_runner == 'self-hosted' && github.actor == 'tjx666' && github.triggering_actor == 'tjx666'
           && 'explicit tjx666 validation dispatch'
+          || github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'tjx666' && github.triggering_actor == 'tjx666' && startsWith(github.event.head_commit.message, 'release: v')
+          && 'trusted tjx666 release commit'
           || 'non-trusted or non-PR event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
@@ -238,6 +275,7 @@ jobs:
       - name: Verify self-hosted trust boundary
         if: env.CAXRI_E2E_RUNNER_KIND == 'self-hosted'
         env:
+          EVENT_HEAD_MESSAGE: ${{ github.event.head_commit.message }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
@@ -248,6 +286,9 @@ jobs:
           test "$EVENT_REPOSITORY" = "$GITHUB_REPOSITORY"
           if [[ "$EVENT_NAME" == pull_request ]]; then
             test "$PR_AUTHOR" = tjx666
+          elif [[ "$EVENT_NAME" == push ]]; then
+            test "$GITHUB_REF" = refs/heads/main
+            [[ "$EVENT_HEAD_MESSAGE" == "release: v"* ]]
           else
             test "$EVENT_NAME" = workflow_dispatch
             test "${{ inputs.e2e_runner }}" = self-hosted
