@@ -38,6 +38,7 @@ remainder on separate macOS runners.
 | [Ready PR failure](https://github.com/tjx666/caxri/actions/runs/31664514393)     | `544c775`  | exposed a stale path-browser query wait; exclusive pool green                        |
 | [Ready PR failure](https://github.com/tjx666/caxri/actions/runs/31665289454)     | `379ed75`  | exposed an ambiguous Monaco warmup locator; exclusive pool green                     |
 | [Draft focused checks](https://github.com/tjx666/caxri/actions/runs/31667490248) | `7a0a836`  | runner allocation restored; focused source checks green, macOS intentionally skipped |
+| [Final ready PR](https://github.com/tjx666/caxri/actions/runs/31668179503)       | `44e7801`  | all gates green; checks 2.3m, parallel-safe 4.3m, desktop-exclusive 6.9m             |
 
 Hosted native rebuild dropped from roughly 30 seconds to 4–10 seconds depending on the runner.
 The original full Vitest suite took 64.95 seconds; optimized exact-head runs measured 57.24 seconds
