@@ -155,6 +155,7 @@ jobs:
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
 
   e2e:
+    name: e2e / ${{ matrix.pool }}
     needs: [retry-policy, checks]
     if: >-
       always() &&
@@ -167,6 +168,10 @@ jobs:
           needs.checks.result == 'skipped'
         )
       )
+    strategy:
+      fail-fast: false
+      matrix:
+        pool: ${{ fromJSON(needs.retry-policy.outputs.e2e_profile == 'optimized' && '["parallel-safe","desktop-exclusive"]' || '["control"]') }}
     runs-on: macos-latest
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
@@ -221,31 +226,38 @@ jobs:
       - name: Build Electron bundles
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
       - name: Run focused repair specs
-        if: needs.retry-policy.outputs.mode == 'e2e-repair'
+        if: matrix.pool == 'control' && needs.retry-policy.outputs.mode == 'e2e-repair'
         env:
           CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
         run: bun run scripts/run-e2e-repair.ts
       - name: Run one-worker control suite
-        if: needs.retry-policy.outputs.e2e_profile == 'control'
+        if: matrix.pool == 'control'
         env:
           CAXRI_E2E_OUTPUT_DIR: test-results/control
         run: bun run scripts/ci-metrics.ts --label "Playwright control workers=1" -- bunx playwright test --workers=1
       - name: Prove desktop worker interruption recovery
-        if: needs.retry-policy.outputs.e2e_profile == 'optimized'
+        if: matrix.pool == 'parallel-safe'
         run: >-
           bun run scripts/ci-metrics.ts --label "Desktop worker interruption recovery" --
           bun run scripts/run-e2e-failure-isolation.ts
-      - name: Run isolated optimized pools
-        if: needs.retry-policy.outputs.e2e_profile == 'optimized'
-        run: bun run scripts/ci-metrics.ts --label "Playwright optimized pools" -- bun run scripts/run-e2e-pools.ts
+      - name: Run parallel-safe pool
+        if: matrix.pool == 'parallel-safe'
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Playwright parallel-safe workers=2" --
+          bun run scripts/run-e2e-pools.ts --pool parallel-safe
+      - name: Run desktop-exclusive pool
+        if: matrix.pool == 'desktop-exclusive'
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Playwright desktop-exclusive workers=1" --
+          bun run scripts/run-e2e-pools.ts --pool desktop-exclusive
       - name: Run deterministic hosted-parity cases
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && (matrix.pool == 'control' || matrix.pool == 'desktop-exclusive')
         run: bun run scripts/ci-metrics.ts --label "Hosted parity workers=1 repeat=3" -- bun run scripts/run-hosted-parity.ts
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-failure-artifacts
+          name: e2e-${{ matrix.pool }}-failure-artifacts
           path: |
             test-results/
             logs/

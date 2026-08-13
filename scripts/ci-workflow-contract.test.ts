@@ -48,14 +48,21 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('run: bun run scripts/run-ci-focused-checks.ts');
         expect(workflow).toContain("needs.retry-policy.outputs.run_e2e == 'true'");
         const interruptionIndex = workflow.indexOf('Desktop worker interruption recovery');
-        const optimizedPoolIndex = workflow.indexOf('bun run scripts/run-e2e-pools.ts');
+        const optimizedPoolIndex = workflow.indexOf('--pool parallel-safe');
 
         expect(interruptionIndex).toBeGreaterThan(0);
         expect(optimizedPoolIndex).toBeGreaterThan(interruptionIndex);
         expect(workflow).toContain('bun run scripts/run-e2e-failure-isolation.ts');
-        expect(workflow).toContain('bun run scripts/run-e2e-pools.ts');
+        expect(workflow).toContain('name: e2e / ${{ matrix.pool }}');
+        expect(workflow).toContain(
+            'needs.retry-policy.outputs.e2e_profile == \'optimized\' && \'["parallel-safe","desktop-exclusive"]\'',
+        );
+        expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool parallel-safe');
+        expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool desktop-exclusive');
         expect(workflow).toContain('bunx playwright test --workers=1');
-        expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
+        expect(workflow).toContain(
+            "if: github.event_name == 'workflow_dispatch' && (matrix.pool == 'control' || matrix.pool == 'desktop-exclusive')",
+        );
         expect(workflow).toContain('bun run scripts/run-hosted-parity.ts');
     });
 
