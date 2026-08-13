@@ -36,6 +36,18 @@ function lockfiles(directory: string): string[] {
     return found;
 }
 
+function productionTypeScriptFiles(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (['dist', 'node_modules', '__tests__'].includes(entry.name)) continue;
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) found.push(...productionTypeScriptFiles(path));
+        else if (/\.ts$/u.test(entry.name) && !/\.(?:spec|test)\.ts$/u.test(entry.name))
+            found.push(path);
+    }
+    return found;
+}
+
 describe('npm workspace contract', () => {
     const rootManifest = manifest(join(root, 'package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
@@ -55,6 +67,21 @@ describe('npm workspace contract', () => {
         for (const dependency of nativeDesktopDependencies) {
             expect(cliManifest.dependencies).not.toHaveProperty(dependency);
             expect(protocolManifest.dependencies ?? {}).not.toHaveProperty(dependency);
+        }
+    });
+
+    it('keeps protocol source browser-safe and emitted ESM imports resolvable by Node.js', () => {
+        const sourceFiles = productionTypeScriptFiles(join(root, 'packages/protocol/src'));
+        const forbiddenImport =
+            /(?:from\s+|import\s*\()\s*['"](?:node:|electron(?:\/|['"]|$)|node-pty(?:\/|['"]|$)|better-sqlite3(?:\/|['"]|$)|@parcel\/watcher(?:\/|['"]|$))/u;
+        const relativeImport = /(?:from\s+|import\s*\()\s*['"](\.{1,2}\/[^'"]+)['"]/gu;
+
+        for (const file of sourceFiles) {
+            const source = readFileSync(file, 'utf8');
+            expect(source.match(forbiddenImport), file).toBeNull();
+            for (const match of source.matchAll(relativeImport)) {
+                expect(match[1], `${file}: relative ESM import`).toMatch(/\.js$/u);
+            }
         }
     });
 

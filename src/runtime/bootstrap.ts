@@ -412,6 +412,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
 
     const handlers: RuntimeHandlers = {
         'app.bootstrap': () => bootstrapState(),
+        'events.recover': () => mainOwned('events.recover'),
         'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
@@ -508,6 +509,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
+        'project.list': () => ({ view: 'desktop', projects: database.listProjects() }),
         'project.reorder': ({ projectId, targetIndex }) => {
             const reordered = database.reorderProject(projectId, targetIndex);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });

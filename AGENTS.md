@@ -91,7 +91,10 @@ step-by-step workflows beyond this summary.
 ## Architecture boundaries
 
 - Renderer code never imports Node.js, Electron, PTY, Git, or filesystem APIs.
-- The preload exposes only the typed `window.caxri` allowlist from `src/shared/ipc`, whose method table, domain schemas, event union, and error taxonomy are the single source of truth for both processes.
+- The preload exposes only the typed `window.caxri` allowlist backed by `packages/protocol`, whose
+  method table, domain schemas, principal projections, event union, and error taxonomy are the
+  transport-neutral single source of truth. `src/shared/ipc` contains compatibility re-exports and
+  Electron adapters only; do not add a second contract there.
 - Sanctioned exception: the Process Explorer diagnostic window uses its own dedicated preload bridge and IPC channels (`src/shared/process-explorer-channels.ts`); it is read-only diagnostics and must not grow project/session/file operations — those belong to the structured `window.caxri` contract.
 - Main owns windows, native dialogs, application lifecycle, and Runtime supervision.
 - The utility-process Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.

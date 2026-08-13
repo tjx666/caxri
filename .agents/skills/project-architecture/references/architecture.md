@@ -31,13 +31,36 @@ The Process Explorer is a singleton Main-owned window with its own renderer entr
 
 ## IPC contract
 
-Renderer requests use `{ id, method, params }`; Runtime replies use `{ id, ok, result | error }`; runtime events use `{ event, payload }`. `src/shared/ipc` holds one method table that pairs every method name with its owner (`main` or `runtime`), a Zod params schema, and a Zod result schema; domain types, the runtime event union, and the terminal split layout are Zod schemas in the same module, so both processes and the Renderer infer their types from a single declaration. Internal methods live in a separate table that the Renderer envelope rejects. Zod validates all renderer request parameters before forwarding. Main keeps a pending request table with timeouts and request correlation IDs. Runtime output events are batched and bounded before crossing process boundaries. Structural state changes request the full bootstrap convergence snapshot; steady-state Terminal and Agent metadata events carry typed Session/Terminal identities and use the bounded `app.records` read so they never resend the whole application graph. An unrecognized state-change scope normalizes to the full convergence path.
+`packages/protocol` is the browser-safe, transport-neutral source of truth for command and event
+contracts. A command request uses `{ protocolVersion, id, method, params }`; every method declares
+one owner (`host` or `desktop`), effect (`read`, `write`, or `control`), required capabilities,
+idempotency policy, Zod parameter/result schemas, and an optional principal projection. The
+negotiation welcome identifies the authenticated principal and enumerates granted capabilities and
+supported commands, so callers can query support without inferring it from errors. Desktop bridge
+imports continue through `src/shared/ipc` compatibility re-exports, but that directory must not
+define a second method or schema table.
+
+The shared dispatcher validates protocol version, command, parameters, principal, capabilities,
+owner availability, and results before it returns `{ protocolVersion, ok, result | error }`. Read
+commands may execute again; write and control commands coalesce the same principal/request ID and
+reject an ID reused with different command content. The Electron adapter additionally validates the
+requesting WebContents before invoking that dispatcher. Internal Runtime methods remain outside the
+public command registry.
+
+Runtime output events are batched and bounded before crossing process boundaries. Durable
+structural events use a monotonic, bounded cursor journal: a reconnect receives an intact suffix or
+a bounded ID/revision snapshot when its cursor has fallen behind. Terminal output never enters that
+journal and retains its specialized attachment, snapshot, and backpressure path. Structural state
+changes request the full bootstrap convergence snapshot; steady-state Terminal and Agent metadata
+events carry typed Session/Terminal identities and use the bounded `app.records` read so they never
+resend the whole application graph. An unrecognized state-change scope normalizes to the full
+convergence path.
 
 The Runtime resolves that table through one composition root. `createRuntime(deps)` constructs and wires every service from injected dependencies (data directory, logger, event sink, and PTY/Agent seams) and returns an exhaustive handler table plus a single disposal path, so the entry point only connects the parent port and the whole request surface is exercisable in-process without Electron. One dispatcher validates each request, invokes its handler, records the request boundary, and classifies failures.
 
 Runtime module placement follows one scale rule: a domain may remain flat while it has at most two production modules; at three or more cohesive modules it owns `src/runtime/<domain>/`, exposes its boundary through `index.ts`, and keeps its tests in that directory's `__tests__/`. Git, Terminal, Agents, Files, and DB use this nested shape. Production cross-domain Runtime imports stay relative and target only the domain root; a focused structure test rejects a missing barrel or deep cross-domain import.
 
-Failures carry a closed error code (`VALIDATION`, `NOT_FOUND`, `PATH_DENIED`, `CAPACITY`, `UNAVAILABLE`, `TIMEOUT`, `CONFLICT`, `IO`, `GIT`, `INTERNAL`). Runtime and Main encode a `CaxriError` into the wire reply, and the supervisor and preload rebuild it on the other side, so a code survives every process hop instead of degrading into an opaque message. Unrecognized codes decay to `INTERNAL`, and only `INTERNAL` failures log a stack.
+Failures carry a closed error code (`VALIDATION`, `FORBIDDEN`, `NOT_FOUND`, `PATH_DENIED`, `CAPACITY`, `UNAVAILABLE`, `TIMEOUT`, `CONFLICT`, `IO`, `GIT`, `INTERNAL`). Runtime and Main encode a `CaxriError` into the wire reply, and the supervisor and preload rebuild it on the other side, so a code survives every process hop instead of degrading into an opaque message. Unrecognized codes decay to `INTERNAL`, and only `INTERNAL` failures log a stack.
 
 The workbench preload exposes one `request` method backed by a fixed method union plus `onEvent` and
 a content-free `reportError` classifier. The Process Explorer preload has the same error classifier
