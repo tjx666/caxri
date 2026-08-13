@@ -5,6 +5,7 @@ export interface ParsedCliArguments {
     json: boolean;
     profile?: string;
     quiet: boolean;
+    requestId?: string;
     timeoutMs: number;
     tokens: string[];
     version: boolean;
@@ -49,6 +50,14 @@ export function parseCliArguments(argv: readonly string[]): ParsedCliArguments {
             if (parsed.profile !== undefined)
                 throw new CaxriError('VALIDATION', '--profile may be provided only once');
             parsed.profile = value;
+            index = consumed;
+        } else if (argument === '--request-id') {
+            const [value, consumed] = takeValue(argv, index, '--request-id');
+            if (parsed.requestId !== undefined)
+                throw new CaxriError('VALIDATION', '--request-id may be provided only once');
+            if (value.length > 200)
+                throw new CaxriError('VALIDATION', '--request-id exceeds 200 characters');
+            parsed.requestId = value;
             index = consumed;
         } else if (argument === '--timeout') {
             const [value, consumed] = takeValue(argv, index, '--timeout');

@@ -519,8 +519,10 @@ export class HostClient {
         id: string,
         method: M,
         ...args: ParamsArg<M>
-    ): Promise<MethodResult<M>> {
-        return this.sendRequest(id, method, args[0]) as Promise<MethodResult<M>>;
+    ): Promise<MethodResult<M>>;
+    requestWithId(id: string, method: CaxriMethod, params: unknown): Promise<unknown>;
+    requestWithId(id: string, method: CaxriMethod, params?: unknown): Promise<unknown> {
+        return this.sendRequest(id, method, params);
     }
 
     private sendRequest(id: string, method: CaxriMethod, params: unknown): Promise<unknown> {

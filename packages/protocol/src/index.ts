@@ -1,4 +1,5 @@
 export * from './agents.js';
+export * from './business-contract.js';
 export * from './configuration-contract.js';
 export * from './dispatcher.js';
 export * from './desktop-runtime.js';
@@ -14,6 +15,7 @@ export * from './introspection.js';
 export * from './layout.js';
 export * from './local-transport.js';
 export * from './methods.js';
+export * from './method-spec.js';
 export * from './principal.js';
 export * from './projections.js';
 export * from './request-lifetime.js';

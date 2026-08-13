@@ -4,6 +4,8 @@ import {
     CaxriError,
     describeCaxriMethod,
     methods,
+    type LogQueryResult,
+    type ObservableEventRecovery,
     type CaxriMethod,
     type ProtocolWelcome,
 } from '@caxri/protocol';
@@ -40,6 +42,7 @@ export interface CliIo {
 export interface CliHostClient {
     close: () => void;
     request: (method: CaxriMethod, params: unknown) => Promise<unknown>;
+    requestWithId: (id: string, method: CaxriMethod, params: unknown) => Promise<unknown>;
     welcome: ProtocolWelcome;
 }
 
@@ -57,6 +60,7 @@ export interface RunCliOptions {
     io?: CliIo;
     platform?: NodeJS.Platform;
     signal?: AbortSignal;
+    wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 }
 
 const defaultIo: CliIo = {
@@ -91,6 +95,7 @@ function topLevelHelp() {
             '--json',
             '--quiet',
             '--profile <absolute-path>',
+            '--request-id <id>',
             '--timeout <milliseconds>',
             '--yes',
             '--help',
@@ -162,6 +167,72 @@ function writeSuccess(io: CliIo, mode: CliOutputMode, value: unknown, human?: st
         return;
     }
     io.writeStdout(human ?? `${renderHumanValue(value)}\n`);
+}
+
+function quietProjection(command: RemoteCommandDefinition, value: unknown): unknown {
+    if (!command.quietKey) return value;
+    if (typeof value !== 'object' || value === null) return value;
+    return Reflect.get(value, command.quietKey);
+}
+
+function writeStreamValue(io: CliIo, mode: CliOutputMode, value: unknown): void {
+    if (mode === 'quiet')
+        throw new CaxriError('VALIDATION', 'Streaming commands do not support quiet output');
+    io.writeStdout(mode === 'json' ? `${stableJson(value)}\n` : `${renderHumanValue(value)}\n`);
+}
+
+function defaultWait(milliseconds: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.resolve();
+    return new Promise((resolve) => {
+        const timer = setTimeout(finish, milliseconds);
+        function finish(): void {
+            signal?.removeEventListener('abort', finish);
+            clearTimeout(timer);
+            resolve();
+        }
+        signal?.addEventListener('abort', finish, { once: true });
+    });
+}
+
+async function streamRemote(
+    command: RemoteCommandDefinition,
+    initialParams: unknown,
+    client: CliHostClient,
+    mode: CliOutputMode,
+    io: CliIo,
+    options: RunCliOptions,
+): Promise<number> {
+    if (mode === 'quiet')
+        throw new CaxriError('VALIDATION', 'Streaming commands do not support quiet output');
+    const wait = options.wait ?? defaultWait;
+    let params = initialParams as Record<string, unknown>;
+    let lastOutputAt = Date.now();
+    while (!options.signal?.aborted) {
+        const result = await client.request(command.method, params);
+        if (command.stream === 'logs') {
+            const page = result as LogQueryResult;
+            for (const record of page.records) writeStreamValue(io, mode, record);
+            if (page.gap) io.writeStderr('Warning: log cursor gap detected.\n');
+            if (page.records.length > 0) lastOutputAt = Date.now();
+            if (page.nextCursor) params = { ...params, afterCursor: page.nextCursor };
+        } else {
+            const recovery = result as ObservableEventRecovery;
+            if (recovery.kind === 'events') {
+                for (const event of recovery.events) writeStreamValue(io, mode, event);
+                if (recovery.events.length > 0) lastOutputAt = Date.now();
+            } else {
+                writeStreamValue(io, mode, recovery);
+                lastOutputAt = Date.now();
+            }
+            params = { afterCursor: recovery.cursor };
+        }
+        if (Date.now() - lastOutputAt >= 30_000) {
+            io.writeStderr('keepalive\n');
+            lastOutputAt = Date.now();
+        }
+        await wait(250, options.signal);
+    }
+    return 130;
 }
 
 function capabilities() {
@@ -295,12 +366,14 @@ export async function runCli(
         }
         const command = remoteCommand(parsed.tokens);
         const params = command.parseParams(parsed.tokens.slice(command.path.length));
-        if (methods[command.method].effect !== 'read' && !parsed.profile)
+        const mutates =
+            methods[command.method].effect !== 'read' && (command.mutates?.(params) ?? true);
+        if (mutates && !parsed.profile)
             throw new CaxriError(
                 'VALIDATION',
                 'Mutation commands require an explicit --profile Host selector',
             );
-        await confirmMutation(command, parsed, automation, options, io);
+        if (mutates) await confirmMutation(command, parsed, automation, options, io);
         const connect =
             options.connect ??
             ((connection: CliConnectOptions) =>
@@ -316,9 +389,12 @@ export async function runCli(
                 'CONFLICT',
                 `The Caxri Host does not support command ${command.method}`,
             );
-        const result = await client.request(command.method, params);
+        if (command.stream) return await streamRemote(command, params, client, mode, io, options);
+        const result = parsed.requestId
+            ? await client.requestWithId(parsed.requestId, command.method, params)
+            : await client.request(command.method, params);
         if (options.signal?.aborted) return 130;
-        writeSuccess(io, mode, result);
+        writeSuccess(io, mode, mode === 'quiet' ? quietProjection(command, result) : result);
         return 0;
     } catch (error) {
         if (options.signal?.aborted) return 130;

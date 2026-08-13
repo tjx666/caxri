@@ -31,6 +31,7 @@ import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files';
 import { GitService } from './git';
+import { createIntrospectionServices } from './introspection';
 import { ProjectStatusService } from './project-status';
 import {
     ShellIntegrationService,
@@ -180,6 +181,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         () => terminals.runningCount(),
         startedAt,
     );
+    const introspection = createIntrospectionServices(database, logger);
 
     function bootstrapState(): BootstrapState {
         const settings = configuration.getSettings();
@@ -413,6 +415,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const handlers: RuntimeHandlers = {
         'app.bootstrap': () => bootstrapState(),
         'events.recover': () => mainOwned('events.recover'),
+        'events.query': () => mainOwned('events.query'),
         'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
@@ -516,6 +519,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return bootstrapState();
         },
         'project.list': () => ({ view: 'desktop', projects: database.listProjects() }),
+        'project.query': () => mainOwned('project.query'),
+        'project.queryForPrincipal': ({ principal, query }) =>
+            introspection.records.project(query, principal),
         'project.reorder': ({ projectId, targetIndex }) => {
             const reordered = database.reorderProject(projectId, targetIndex);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
@@ -597,6 +603,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             database.updateSessionState(state);
             return database.getSessionState(state.sessionId);
         },
+        'session.query': () => mainOwned('session.query'),
+        'session.queryForPrincipal': ({ principal, query }) =>
+            introspection.records.session(query, principal),
         'terminal.create': async ({ sessionId, kind, cwd }) => {
             const terminal = await createAndStartTerminal(sessionId, kind, cwd);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
@@ -657,6 +666,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'terminal.snapshot': ({ terminalId }) => database.getSnapshot(terminalId) ?? null,
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
+        'terminal.query': () => mainOwned('terminal.query'),
+        'terminal.queryForPrincipal': ({ principal, query }) =>
+            introspection.records.terminal(query, principal),
         'terminal.terminateAll': () => {
             terminalRestores.close();
             coordinator.close();
@@ -696,6 +708,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),
+        'settings.inspect': () => configuration.inspectSettings(),
+        'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
         'agentHooks.get': () => agentHooks.getHealth(),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
@@ -728,6 +742,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             theme: configuration.themePath,
         }),
         'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
+        'diagnostics.snapshot': () => diagnostics.snapshot(),
+        'logs.query': (params) => introspection.logs.query(params),
         'runtime.shutdown': async () => {
             await close();
             return null;

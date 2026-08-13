@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest';
+
+import { CLI_COMMANDS, findCliCommand } from './command-catalog';
+
+describe('CLI business command catalog', () => {
+    it('registers every bounded business and diagnostics command', () => {
+        const paths = CLI_COMMANDS.map(({ path }) => path.join(' '));
+
+        expect(paths).toEqual(
+            expect.arrayContaining([
+                'project list',
+                'project show',
+                'project current',
+                'session list',
+                'session show',
+                'session current',
+                'terminal list',
+                'terminal show',
+                'settings get',
+                'settings validate',
+                'settings patch',
+                'logs query',
+                'logs follow',
+                'diagnostics snapshot',
+                'events watch',
+            ]),
+        );
+    });
+
+    it('parses scoped selectors and bounded diagnostic filters', () => {
+        const session = findCliCommand(['session', 'show', 'Work', '--project', 'project-1']);
+        const logs = findCliCommand([
+            'logs',
+            'query',
+            '--process',
+            'runtime',
+            '--level',
+            'error',
+            '--limit',
+            '25',
+        ]);
+
+        expect(session?.kind).toBe('remote');
+        expect(
+            session?.kind === 'remote'
+                ? session.parseParams(['Work', '--project', 'project-1'])
+                : null,
+        ).toEqual({ mode: 'show', selector: 'Work', projectId: 'project-1' });
+        expect(logs?.kind).toBe('remote');
+        expect(
+            logs?.kind === 'remote'
+                ? logs.parseParams(['--process', 'runtime', '--level', 'error', '--limit', '25'])
+                : null,
+        ).toEqual({ process: 'runtime', level: 'error', limit: 25 });
+    });
+});

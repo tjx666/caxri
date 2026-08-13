@@ -354,7 +354,7 @@ describe('file mutation contracts', () => {
         expect(methods['files.copy'].owner).toBe('host');
         expect(methods['files.rename'].owner).toBe('host');
         expect(methods['files.move'].owner).toBe('host');
-        expect(methods['files.reveal'].owner).toBe('desktop');
+        expect(methods['files.reveal'].owner).toBe('host');
         expect(methods['files.trash'].owner).toBe('desktop');
         expect(internalMethods['files.authorizeOpen'].owner).toBe('host');
         expect(internalMethods['files.authorizeTrash'].owner).toBe('host');

@@ -7,8 +7,11 @@ import { ZipArchive } from 'archiver';
 
 import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue, redactSecrets } from '../shared/node/redaction';
+import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { AppSettings } from '../shared/types';
 import type { CaxriDatabase } from './db';
+
+const DIAGNOSTIC_LOG_NAME = /^(host|main|runtime)\.jsonl(?:\.1)?$/u;
 
 export function normalizeHome(path: string): string {
     const home = homedir();
@@ -134,6 +137,33 @@ export class DiagnosticsService {
         private readonly startedAt: number,
     ) {}
 
+    private async readLogs(): Promise<string[]> {
+        const logDirectory = dirname(this.logger.path);
+        const logNames = (await readdir(logDirectory).catch(() => []))
+            .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
+            .sort();
+        return Promise.all(
+            logNames.map((name) => readFile(join(logDirectory, name), 'utf8').catch(() => '')),
+        );
+    }
+
+    /** Returns only bounded counters and identifiers; paths, messages, and log fields stay local. */
+    async snapshot() {
+        const logs = await this.readLogs();
+        return {
+            appVersion: process.env.CAXRI_APP_VERSION ?? 'unknown',
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            runtimeStatus: 'ready' as const,
+            startedAt: this.startedAt,
+            activePtyCount: this.activePtyCount(),
+            projectCount: this.database.listProjects().length,
+            sessionCount: this.database.listSessions().length,
+            terminalCount: this.database.listTerminals().length,
+            recentErrorIds: summarizeRecentErrorIds(logs.join('\n')),
+            performance: summarizePerformanceLogs(logs).slice(0, 256),
+        };
+    }
+
     async reportContext(): Promise<{
         appVersion: string;
         architecture: string;
@@ -141,11 +171,7 @@ export class DiagnosticsService {
         platform: string;
         recentErrorIds: string[];
     }> {
-        const logDirectory = dirname(this.logger.path);
-        const logNames = (await readdir(logDirectory)).filter((name) => name.endsWith('.jsonl'));
-        const logs = await Promise.all(
-            logNames.map((name) => readFile(join(logDirectory, name), 'utf8').catch(() => '')),
-        );
+        const logs = await this.readLogs();
         return {
             appVersion: process.env.CAXRI_APP_VERSION ?? 'unknown',
             architecture: process.arch,
@@ -185,7 +211,9 @@ export class DiagnosticsService {
             updatedAt: terminal.updatedAt,
         }));
         const logDirectory = dirname(this.logger.path);
-        const logNames = (await readdir(logDirectory)).filter((name) => name.endsWith('.jsonl'));
+        const logNames = (await readdir(logDirectory))
+            .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
+            .sort();
         const redactedLogs = await Promise.all(
             logNames.map(async (name) => ({
                 name,
