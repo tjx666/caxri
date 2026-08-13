@@ -28,7 +28,26 @@ interface ArchivedSessionView {
     totalCount: number;
 }
 
+/** Stable display order for Agent filter options; only kinds actually present in the archive show. */
 const AGENT_ORDER: TerminalKind[] = ['shell', 'claude', 'codex'];
+
+let requestedProjectId: string | undefined;
+
+/**
+ * Lets a per-Project archived-count affix (`ProjectGroup`) deep-link into the centralized Archived
+ * Sessions dialog pre-filtered to that Project, without adding a field to the shared dialog store
+ * (`stores/dialogs.ts` is out of this work package's file set). The dialog consumes this exactly
+ * once, on its next open.
+ */
+export function requestArchivedSessionsForProject(projectId: string): void {
+    requestedProjectId = projectId;
+}
+
+export function consumeRequestedArchivedProjectId(): string | undefined {
+    const projectId = requestedProjectId;
+    requestedProjectId = undefined;
+    return projectId;
+}
 
 /** Builds the archived management read model from the existing bootstrap snapshot. */
 export function deriveArchivedSessionView(
@@ -46,14 +65,17 @@ export function deriveArchivedSessionView(
             firstTerminalBySession.set(terminal.sessionId, terminal);
 
     const sessionsByProject = new Map<string, ArchivedSessionItem[]>();
+    const usedAgentKinds = new Set<TerminalKind>();
     for (const session of sessions) {
         if (session.archivedAt === undefined) continue;
         const terminal =
             (session.primaryAgentTerminalId
                 ? terminalById.get(session.primaryAgentTerminalId)
                 : undefined) ?? firstTerminalBySession.get(session.id);
+        const agent = terminal?.kind ?? 'shell';
+        usedAgentKinds.add(agent);
         const item: ArchivedSessionItem = {
-            agent: terminal?.kind ?? 'shell',
+            agent,
             archivedAt: session.archivedAt,
             session,
             terminal,
@@ -98,7 +120,12 @@ export function deriveArchivedSessionView(
     }
 
     return {
-        agentOptions: AGENT_ORDER,
+        /**
+         * Derived from what is actually archived, not the fixed catalog: an Agent kind with zero
+         * archived Sessions would otherwise be selectable and immediately dead-end into "no
+         * results" instead of not appearing as an option at all.
+         */
+        agentOptions: AGENT_ORDER.filter((kind) => usedAgentKinds.has(kind)),
         groups,
         matchingCount: groups.reduce((count, group) => count + group.sessions.length, 0),
         projectId,
