@@ -63,7 +63,7 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         const readmeTab = running.page.locator('.work-tab', { hasText: 'README.md' });
         await expect(readmeTab).toBeVisible();
 
-        const editor = running.page.locator('.monaco-editor');
+        const editor = running.page.locator('.monaco-editor').first();
         await editor.click({ position: { x: 120, y: 24 } });
         await expect
             .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
