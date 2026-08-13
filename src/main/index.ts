@@ -6,35 +6,24 @@ import {
     BrowserWindow,
     clipboard,
     dialog,
-    ipcMain,
     Menu,
     nativeImage,
     shell,
-    type IpcMainInvokeEvent,
     type WebContents,
 } from 'electron';
 
 import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError, errorMessage, toWireError } from '../shared/ipc/errors';
+import type { CommandAdapter } from '../shared/ipc/dispatcher';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { isMainRequest, type CaxriRequest, type MainRequest } from '../shared/ipc/methods';
-import {
-    parseCaxriResult,
-    parseCaxriRequest,
-    requestEnvelopeSchema,
-    type CaxriReply,
-} from '../shared/ipc/transport';
 import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
-import {
-    isRendererErrorKind,
-    RENDERER_ERROR_CHANNELS,
-    type RendererErrorKind,
-} from '../shared/renderer-error';
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
@@ -46,6 +35,7 @@ import {
 } from './confirmations';
 import { decideCrashRecovery } from './crash-policy';
 import { openExternalUrl } from './external-links';
+import { createMainEventRelay } from './event-relay';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
@@ -57,6 +47,7 @@ import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService } from './updates';
 import { resolveE2EWindowMode } from './window-mode';
 import { createWindowCloseHandler } from './window-close';
+import { installWorkbenchIpc } from './workbench-ipc';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -96,6 +87,15 @@ const e2eWindowMode = resolveE2EWindowMode({
     requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
 });
 const e2eAgentPolicy = readE2EAgentPolicy();
+const eventRelay = createMainEventRelay({
+    deliver: (message) => {
+        if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send('caxri:event', message);
+    },
+    loadState: () => supervisor.request('app.bootstrap'),
+    logger: () => mainLogger,
+    onKeybindingsChanged: () => void installMenu(),
+});
 function createMainLogger(): StructuredLogger {
     return new StructuredLogger(
         resolveLogDirectory({
@@ -109,13 +109,7 @@ function createMainLogger(): StructuredLogger {
 }
 
 function sendEvent(event: RuntimeEvent): void {
-    if (event.event === 'runtime.status') {
-        mainLogger?.write(event.payload.status === 'failed' ? 'error' : 'info', 'runtime.status', {
-            fields: { status: event.payload.status, restartCount: event.payload.restartCount },
-        });
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('caxri:event', event);
-    if (event.event === 'keybindings.changed' && !event.payload.error) void installMenu();
+    eventRelay.send(event);
 }
 
 async function handleExternalUrl(
@@ -187,7 +181,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     window.on('maximize', scheduleWindowState);
     window.on('unmaximize', scheduleWindowState);
     const sendFullScreenState = (): void => {
-        window.webContents.send('caxri:event', {
+        sendEvent({
             event: 'window.fullScreen',
             payload: { isFullScreen: window.isFullScreen() },
         });
@@ -372,11 +366,6 @@ async function openMainWindow(): Promise<void> {
         }));
     mainWindow = createWindow(initialState);
     mainRenderer = mainWindow.webContents;
-}
-
-function assertSender(event: IpcMainInvokeEvent): void {
-    if (!mainRenderer || event.sender !== mainRenderer)
-        throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
 }
 
 function assertNever(value: never): never {
@@ -581,48 +570,28 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
     return assertNever(request);
 }
 
-async function handleCaxriRequest(request: CaxriRequest): Promise<unknown> {
-    /** Runtime results are validated by the supervisor; only Main-owned results need parsing here. */
-    if (isMainRequest(request))
-        return parseCaxriResult(request.method, await handleMainMethod(request));
-    return supervisor.forward(request.method, request.params);
-}
-
 function installIpc(): void {
-    ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
-        if (!mainRenderer || event.sender !== mainRenderer || !isRendererErrorKind(rawKind)) return;
-        const kind: RendererErrorKind = rawKind;
-        mainLogger?.write(
-            'error',
-            kind === 'page-exception' ? 'renderer.page_exception' : 'renderer.unhandled_rejection',
-            {
-                fields: {
-                    code: kind === 'page-exception' ? 'PAGE_EXCEPTION' : 'UNHANDLED_REJECTION',
-                },
-            },
-        );
+    const dispatchCommand = createElectronIpcCommandAdapter({
+        host: {
+            invoke: (request) =>
+                request.method === 'events.recover'
+                    ? eventRelay.recover(request.params.afterCursor)
+                    : supervisor.forward(request.method, request.params),
+        },
+        desktop: {
+            isAvailable: () => Boolean(mainWindow && !mainWindow.isDestroyed()),
+            invoke: ((request: CaxriRequest) => {
+                if (!isMainRequest(request))
+                    throw new CaxriError('INTERNAL', 'Host command reached the Desktop adapter');
+                return handleMainMethod(request);
+            }) satisfies CommandAdapter['invoke'],
+        },
     });
-    ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
-        try {
-            assertSender(event);
-            /** Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown. */
-            if (quitStarted)
-                return {
-                    ok: false,
-                    error: toWireError(new CaxriError('UNAVAILABLE', 'Application is quitting')),
-                };
-            const envelope = requestEnvelopeSchema.parse(raw);
-            const request = parseCaxriRequest(envelope.method, envelope.params);
-            const result = await handleCaxriRequest(request);
-            return { ok: true, result };
-        } catch (error) {
-            /** Replying with a classified envelope keeps the error code intact across the preload. */
-            const wire = toWireError(error);
-            mainLogger?.write('error', 'ipc.request_failed', {
-                fields: { code: wire.code, error: wire.message },
-            });
-            return { ok: false, error: wire };
-        }
+    installWorkbenchIpc({
+        isQuitting: () => quitStarted,
+        logger: () => mainLogger,
+        renderer: () => mainRenderer,
+        transport: dispatchCommand,
     });
 }
 

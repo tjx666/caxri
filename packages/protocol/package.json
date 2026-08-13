@@ -19,6 +19,9 @@
         "test": "vitest run --root ../.. packages/protocol/src/index.test.ts",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
+    "dependencies": {
+        "zod": "4.4.3"
+    },
     "engines": {
         "node": ">=22.12.0"
     }

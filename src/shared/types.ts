@@ -1,6 +1,7 @@
 /**
- * Domain types are inferred from the Zod schemas in `src/shared/ipc` so the IPC contract and the
- * TypeScript model can never drift. This module stays as the stable import path for consumers.
+ * Domain types are inferred from the browser-safe Zod schemas in `packages/protocol` so every
+ * transport and the TypeScript model share one contract. This module stays as the stable Desktop
+ * import path for consumers.
  */
 export {
     DEFAULT_FILES_EXCLUDE,

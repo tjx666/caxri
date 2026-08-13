@@ -1,0 +1,34 @@
+import { z } from 'zod';
+
+import { CaxriError } from './errors.js';
+import { capabilitySchema, principalSchema } from './principal.js';
+
+/** First transport-neutral Caxri protocol generation. */
+export const CAXRI_PROTOCOL_VERSION = 1 as const;
+export const supportedProtocolVersions = [CAXRI_PROTOCOL_VERSION] as const;
+export const protocolVersionSchema = z.literal(CAXRI_PROTOCOL_VERSION);
+
+export type CaxriProtocolVersion = typeof CAXRI_PROTOCOL_VERSION;
+
+export const protocolHelloSchema = z.object({
+    supportedVersions: z.array(z.number().int().positive()).min(1).max(16),
+});
+
+export const protocolWelcomeSchema = z.object({
+    protocolVersion: protocolVersionSchema,
+    principal: principalSchema,
+    capabilities: z.array(capabilitySchema).max(64),
+    commands: z.array(z.string().min(1).max(120)).max(256),
+});
+
+export type ProtocolHello = z.infer<typeof protocolHelloSchema>;
+export type ProtocolWelcome = z.infer<typeof protocolWelcomeSchema>;
+
+/** Chooses the newest common version without binding negotiation to a concrete transport. */
+export function negotiateProtocolVersion(clientVersions: readonly number[]): CaxriProtocolVersion {
+    const version = [...supportedProtocolVersions]
+        .reverse()
+        .find((candidate) => clientVersions.includes(candidate));
+    if (!version) throw new CaxriError('CONFLICT', 'No compatible Caxri protocol version');
+    return version;
+}
