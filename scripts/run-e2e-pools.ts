@@ -13,6 +13,18 @@ import { createE2EPoolPlan } from '../e2e/pools';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const parallelWorkers = 2;
+export type E2EPool = 'desktop-exclusive' | 'parallel-safe';
+
+export function parseE2EPool(args: readonly string[]): E2EPool {
+    if (
+        args.length !== 2 ||
+        args[0] !== '--pool' ||
+        (args[1] !== 'desktop-exclusive' && args[1] !== 'parallel-safe')
+    ) {
+        throw new Error('Usage: run-e2e-pools.ts --pool <parallel-safe|desktop-exclusive>');
+    }
+    return args[1];
+}
 
 async function discoverE2ESpecs(): Promise<string[]> {
     return (await readdir(resolve(projectRoot, 'e2e'), { withFileTypes: true }))
@@ -48,7 +60,7 @@ async function countTests(specs: readonly string[]): Promise<number> {
 
 async function runPool(
     specs: readonly string[],
-    pool: 'desktop-exclusive' | 'parallel-safe',
+    pool: E2EPool,
     workers: number,
     coordinatorToken?: string,
 ): Promise<number> {
@@ -86,67 +98,50 @@ async function assertParallelLeasesReleased(): Promise<void> {
 
 async function appendSummary(
     plan: ReturnType<typeof createE2EPoolPlan>,
-    counts: { desktopExclusive: number; parallelSafe: number },
-    results: { desktopExclusive: number; parallelSafe: number },
+    pool: E2EPool,
+    count: number,
+    result: number,
 ): Promise<void> {
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (!summary) return;
+    const specs =
+        pool === 'parallel-safe' ? plan.parallelSafe.length : plan.desktopExclusive.length;
+    const workers = pool === 'parallel-safe' ? parallelWorkers : 1;
     await appendFile(
         summary,
         [
             '## E2E pool manifest',
             '',
-            '| Pool | Marker | Specs | Tests | Workers | Result |',
-            '| --- | --- | ---: | ---: | ---: | --- |',
-            `| Parallel safe | \`@parallel-safe\` | ${plan.parallelSafe.length} | ${counts.parallelSafe} | ${parallelWorkers} | ${results.parallelSafe === 0 ? 'passed' : 'failed'} |`,
-            `| Desktop exclusive | \`@desktop-exclusive\` | ${plan.desktopExclusive.length} | ${counts.desktopExclusive} | 1 | ${results.desktopExclusive === 0 ? 'passed' : 'failed'} |`,
-            `| Total | | ${plan.parallelSafe.length + plan.desktopExclusive.length} | ${counts.parallelSafe + counts.desktopExclusive} | | ${results.parallelSafe === 0 && results.desktopExclusive === 0 ? 'passed' : 'failed'} |`,
+            '| Pool | Specs | Tests | Workers | Result |',
+            '| --- | ---: | ---: | ---: | --- |',
+            `| \`${pool}\` | ${specs} | ${count} | ${workers} | ${result === 0 ? 'passed' : 'failed'} |`,
             '',
         ].join('\n'),
     );
 }
 
 async function main(): Promise<void> {
+    const pool = parseE2EPool(process.argv.slice(2));
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
-    const [parallelSafeCount, desktopExclusiveCount] = await Promise.all([
-        countTests(plan.parallelSafe),
-        countTests(plan.desktopExclusive),
-    ]);
-
-    const coordinator = await acquireDesktopLease(
-        projectRoot,
-        'Parallel-safe E2E pool coordinator',
-    );
-    let parallelSafeResult: number;
-    let parallelSafeFailure: unknown;
-    try {
-        parallelSafeResult = await runPool(
-            plan.parallelSafe,
-            'parallel-safe',
-            parallelWorkers,
-            coordinator.token,
+    const specs = pool === 'parallel-safe' ? plan.parallelSafe : plan.desktopExclusive;
+    const count = await countTests(specs);
+    let result: number;
+    if (pool === 'parallel-safe') {
+        const coordinator = await acquireDesktopLease(
+            projectRoot,
+            'Parallel-safe E2E pool coordinator',
         );
-    } catch (error) {
-        parallelSafeFailure = error;
-        parallelSafeResult = 1;
-    } finally {
-        await releaseDesktopLease(coordinator);
+        try {
+            result = await runPool(specs, pool, parallelWorkers, coordinator.token);
+        } finally {
+            await releaseDesktopLease(coordinator);
+        }
+        await assertParallelLeasesReleased();
+    } else {
+        result = await runPool(specs, pool, 1);
     }
-    await assertParallelLeasesReleased();
-
-    /** A test failure still runs the exclusive pool after clean teardown to prove no cascade. */
-    const desktopExclusiveResult = await runPool(plan.desktopExclusive, 'desktop-exclusive', 1);
-    await appendSummary(
-        plan,
-        { desktopExclusive: desktopExclusiveCount, parallelSafe: parallelSafeCount },
-        { desktopExclusive: desktopExclusiveResult, parallelSafe: parallelSafeResult },
-    );
-    if (parallelSafeFailure) {
-        throw parallelSafeFailure instanceof Error
-            ? parallelSafeFailure
-            : new Error('Parallel-safe E2E pool failed with a non-Error value');
-    }
-    if (parallelSafeResult !== 0 || desktopExclusiveResult !== 0) process.exitCode = 1;
+    await appendSummary(plan, pool, count, result);
+    if (result !== 0) process.exitCode = 1;
 }
 
 if (import.meta.main) await main();
