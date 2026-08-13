@@ -79,6 +79,24 @@ per plan item. The round must be inside this repository's `.records/` directory
 and its name must match `round-<positive integer>`. The first round writes the
 shared `requirement.txt`; later rounds and finalization must match it exactly.
 
+If a non-product repair changes the exact delivery head before the round is
+finalized or published, rebind the generated scaffold through the structured
+command instead of projecting or patching `result.json` manually:
+
+```bash
+bun run .agents/skills/acceptance/scripts/report.ts rebind-head \
+  --dir "$REPORT_DIR" \
+  --from-commit "$OLD_HEAD" \
+  --commit "$NEW_HEAD" \
+  --entry "$ENTRY" \
+  --reason "$REBIND_REASON"
+```
+
+The command atomically checks the expected old head, updates `commit`, `entry`,
+and `createdAt`, and appends an audit record. It rejects finalized reports. A
+product-affecting repair requires a fresh round and fresh desktop evidence;
+never rebind a published immutable round.
+
 ## Record observations
 
 Replace each generated `cases[]` placeholder with the observed result:

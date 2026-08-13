@@ -5,11 +5,17 @@ import {
     recordCiFallbackResult,
 } from './ci-fallback';
 import { publishAcceptanceRound, recordOrphanedAcceptance } from './acceptance-publication';
-import { generateFinalization, recordFinalizationDelivery } from './finalization';
+import {
+    formatFinalizationSummary,
+    generateFinalization,
+    recordFinalizationDelivery,
+} from './finalization';
 import { generateHandoffReport, recordHandoffDelivery } from './handoff-report';
 import {
     assessExpectationDrift,
     driftKindSchema,
+    materialDriftKindSchema,
+    nonMaterialDriftKindSchema,
     publishExpectationDriftComment,
     publishExpectationDriftViaGh,
 } from './issue-drift';
@@ -122,39 +128,82 @@ function measured(options: Options, key: string): number | 'unavailable' {
     return parsed;
 }
 
-function help(): string {
-    return `Go run-state ledger
+const COMMAND_USAGE: Record<string, string> = {
+    'acceptance':
+        'acceptance --state PATH [--status STATUS] [--id ID] [--url URL] [--round N] [--accepted-head-sha SHA] [--waived-head-sha SHA --waiver-reason TEXT]',
+    'acceptance-orphan':
+        'acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]',
+    'acceptance-publish': 'acceptance-publish --state PATH --report-dir DIR --head-sha SHA',
+    'checkpoint':
+        'checkpoint --state PATH [--tokens N|unavailable] [--elapsed-seconds N|unavailable] [--commit-count N|unavailable] [--file-count N|unavailable]',
+    'ci-fallback-admit':
+        'ci-fallback-admit --state PATH --failure-kind KIND --failure-detail TEXT --failure-job NAME --failure-url URL --head-sha SHA [--verified-zero-steps] [--authorization TEXT]',
+    'ci-fallback-result':
+        'ci-fallback-result --state PATH --head-sha SHA --platform-command COMMAND --platform-result RESULT --e2e-command COMMAND --e2e-result RESULT',
+    'drift-assess':
+        'drift-assess --state PATH --number N --head-sha SHA --kind KIND --drift-key KEY [--expectation TEXT --evidence TEXT --decision TEXT --acceptance-impact TEXT] [--decision-required]',
+    'drift-comment': 'drift-comment --state PATH --number N --record-id ID',
+    'finalization-delivered': 'finalization-delivered --state PATH',
+    'finalization-generate':
+        'finalization-generate --state PATH --head-sha SHA --merge-sha SHA --issue NUMBER:CLOSED:Done',
+    'init': 'init --objective TEXT [--run-id ID] [--branch NAME] [--worktree-path PATH --main-checkout-path PATH --base-sha SHA]',
+    'issue':
+        'issue --state PATH --number N [--title TEXT] [--status STATUS] [--check ID] [--commit SHA] [--dependency N] [--priority TEXT] [--validation ID]',
+    'note': 'note --state PATH --kind KIND --text TEXT',
+    'notes': 'notes --state PATH [--json]',
+    'phase': 'phase --state PATH --phase NAME [--reason TEXT]',
+    'pr': 'pr --state PATH [--number N] [--url URL] [--status STATUS] [--head-sha SHA] [--branch NAME]',
+    'report-delivered': 'report-delivered --state PATH --head-sha SHA [--acceptance-url URL]',
+    'report-generate': 'report-generate --state PATH --head-sha SHA',
+    'resume': 'resume --state PATH [--json]',
+    'review':
+        'review --state PATH --head-sha SHA --mode full|quick|light --p0 N --p1 N --scope TEXT --reviewed-range RANGE [--baseline-review-id ID] [--baseline-head-sha SHA] [--parent-review-id ID] [--freeze]',
+    'review-policy': 'review-policy --state PATH --mode full-once|quick|light --source TEXT',
+    'scope-admit': 'scope-admit --state PATH --title TEXT [--blocking]',
+    'show': 'show --state PATH',
+    'validate': 'validate --state PATH',
+    'validation-complete': 'validation-complete --state PATH --id ID --exit-code N',
+    'validation-start':
+        'validation-start --state PATH --kind KIND --lineage-id ID --head-sha SHA --command COMMAND --session-id ID --log-path PATH',
+    'worktree':
+        'worktree --state PATH --worktree-path PATH --main-checkout-path PATH --base-sha SHA [--branch NAME]',
+};
+
+const COMMAND_VALUES: Partial<Record<string, string[]>> = {
+    'acceptance': [`status: ${acceptanceStatusSchema.options.join('|')}`],
+    'ci-fallback-admit': [`failure-kind: ${ciFailureKindSchema.options.join('|')}`],
+    'drift-assess': [
+        `kind: ${[...materialDriftKindSchema.options, ...nonMaterialDriftKindSchema.options].join('|')}`,
+    ],
+    'issue': [`status: ${issueStatusSchema.options.join('|')}`],
+    'note': [`kind: ${noteKindSchema.options.join('|')}`],
+    'phase': [`phase: ${phaseSchema.options.join('|')}`],
+    'pr': [`status: ${pullRequestStatusSchema.options.join('|')}`],
+    'review': [`mode: ${reviewModeSchema.options.join('|')}`],
+    'review-policy': [`mode: ${reviewPolicyModeSchema.options.join('|')}`],
+    'validation-start': [`kind: ${validationKindSchema.options.join('|')}`],
+};
+
+export function stateCliHelp(command?: string): string {
+    if (!command) {
+        return `Go run-state ledger
+
+Usage:
+  bun run .agents/skills/go/scripts/state.ts help <command>
 
 Commands:
-  init --objective TEXT [--run-id ID] [--branch NAME] [--worktree-path PATH]
-       [--main-checkout-path PATH] [--base-sha SHA]
-  worktree --state PATH --worktree-path PATH --main-checkout-path PATH --base-sha SHA
-           [--branch NAME]
-  phase --state PATH --phase NAME [--reason TEXT]
-  issue --state PATH --number N [--title TEXT] [--status STATUS] [--check ID]
-  drift-assess --state PATH --number N --head-sha SHA --kind KIND --drift-key KEY
-         [--expectation TEXT --evidence TEXT --decision TEXT --acceptance-impact TEXT]
-         [--decision-required]
-  drift-comment --state PATH --number N --record-id ID
-  pr --state PATH [--number N] [--url URL] [--status STATUS] [--head-sha SHA]
-  review-policy --state PATH --mode full-once|quick|light --source TEXT
-  review --state PATH --head-sha SHA --mode full|quick|light --p0 N --p1 N
-         --scope TEXT --reviewed-range RANGE [--baseline-review-id ID]
-         [--baseline-head-sha SHA] [--parent-review-id ID] [--freeze]
-  validation-start --state PATH --kind KIND --lineage-id ID --head-sha SHA
-         --command COMMAND --session-id ID --log-path PATH
-  validation-complete --state PATH --id ID --exit-code N
-  checkpoint --state PATH [--tokens N|unavailable] [--elapsed-seconds N|unavailable]
-         [--commit-count N|unavailable] [--file-count N|unavailable]
-  scope-admit --state PATH --title TEXT [--blocking]
-  report-generate --state PATH --head-sha SHA
-  report-delivered --state PATH --head-sha SHA [--acceptance-url URL]
-  finalization-generate --state PATH --head-sha SHA --merge-sha SHA
-         --issue NUMBER:CLOSED:Done
-  finalization-delivered --state PATH
-  acceptance-publish --state PATH --report-dir DIR --head-sha SHA
-  acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]
-  ci-fallback-admit | ci-fallback-result | acceptance | note | notes | resume | show | validate`;
+${Object.keys(COMMAND_USAGE)
+    .sort()
+    .map((name) => `  ${name}`)
+    .join('\n')}`;
+    }
+    const usage = COMMAND_USAGE[command];
+    if (!usage) throw new Error(`Unknown Go state command: ${command}`);
+    const values = COMMAND_VALUES[command];
+    return `Go run-state ledger
+
+Usage:
+  bun run .agents/skills/go/scripts/state.ts ${usage}${values ? `\n\nAllowed values:\n${values.map((value) => `  ${value}`).join('\n')}` : ''}`;
 }
 
 async function initialize(options: Options): Promise<void> {
@@ -204,9 +253,14 @@ function parseFinalIssues(values: string[]) {
 }
 
 export async function runStateCli(argv: string[]): Promise<void> {
+    if (argv[0] === 'help') {
+        if (argv.length > 2) throw new Error('Usage: state.ts help <command>');
+        console.log(stateCliHelp(argv[1]));
+        return;
+    }
     const { command, options } = parseOptions(argv);
-    if (!command || command === 'help' || options.help) {
-        console.log(help());
+    if (!command || command === '--help' || options.help) {
+        console.log(stateCliHelp(command === '--help' ? undefined : command));
         return;
     }
     if (command === 'init') return initialize(options);
@@ -214,6 +268,7 @@ export async function runStateCli(argv: string[]): Promise<void> {
     const path = await resolveStatePath(supplied);
     return withStateLock(path, async () => {
         const state = await readState(path);
+        let commandOutput: string | undefined;
         if (command === 'resume') {
             const checkpoint = createResumeCheckpoint(state);
             console.log(
@@ -375,13 +430,18 @@ export async function runStateCli(argv: string[]): Promise<void> {
                 headSha: one(options, 'head-sha', true)!,
             });
         } else if (command === 'finalization-generate') {
-            await generateFinalization(state, runDirectoryForStatePath(path), {
+            const finalization = await generateFinalization(state, runDirectoryForStatePath(path), {
                 headSha: one(options, 'head-sha', true)!,
                 issues: parseFinalIssues(many(options, 'issue')),
                 mergeSha: one(options, 'merge-sha', true)!,
             });
+            commandOutput = formatFinalizationSummary(finalization);
         } else if (command === 'finalization-delivered') {
-            await recordFinalizationDelivery(state, runDirectoryForStatePath(path));
+            const finalization = await recordFinalizationDelivery(
+                state,
+                runDirectoryForStatePath(path),
+            );
+            commandOutput = formatFinalizationSummary(finalization);
         } else if (command === 'acceptance-publish') {
             await publishAcceptanceRound(
                 state,
@@ -437,6 +497,8 @@ export async function runStateCli(argv: string[]): Promise<void> {
             throw new Error(`Unknown command: ${command}`);
         }
         await writeState(path, state);
-        if (command !== 'scope-admit') console.log(path.startsWith(PROJECT_ROOT) ? path : supplied);
+        if (commandOutput) console.log(commandOutput);
+        else if (command !== 'scope-admit')
+            console.log(path.startsWith(PROJECT_ROOT) ? path : supplied);
     });
 }

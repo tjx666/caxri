@@ -18,7 +18,7 @@ export const materialDriftKindSchema = z.enum([
     'scope_change',
     'already_satisfied',
 ]);
-const nonMaterialDriftKindSchema = z.enum([
+export const nonMaterialDriftKindSchema = z.enum([
     'equivalent_refactor',
     'test_split',
     'formatting',

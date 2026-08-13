@@ -53,14 +53,16 @@ After human acceptance or an exact-head waiver:
 1. Merge the exact decision head and refresh the remote PR merge SHA.
 2. Verify every intended GitHub issue is `CLOSED` and its Project item is `Done`.
 3. Generate `.records/go/<run-id>/finalization.json` containing the decision
-   head, merge SHA, PR number, issue evidence, verification time, and delivery
-   receipt.
-4. Deliver a short final receipt. Reuse the handoff report; do not regenerate
-   the expensive audit.
+   head, merge SHA, PR number, issue evidence, verification time, delivery
+   receipt, and non-empty Workflow/automation response summaries.
+4. Deliver a short final receipt using the generated command output. Include
+   both `Workflow 改进` and `自动化候选`, including their explicit none entries.
+   Reuse the handoff report; do not regenerate the expensive audit.
 5. Record both delivery timestamps, validate persisted checksums/JSON, and only
    then transition to `complete`.
 
 The final response highlights the merged PR, merge SHA, closed issues, whether
-Acceptance was accepted or explicitly waived, and any remaining boundary. It
-must not expose local artifact paths, internal session ids, presigned URLs, or
-raw remote responses.
+Acceptance was accepted or explicitly waived, the persisted Workflow
+improvements, automation candidates, and any remaining boundary. It must not
+expose local artifact paths, internal session ids, presigned URLs, or raw remote
+responses.
