@@ -30,9 +30,9 @@
         "build": "electron-vite build",
         "package": "bun run build && electron-builder --mac dir",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
-        "postinstall": "electron-builder install-app-deps",
+        "postinstall": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
-        "rebuild": "electron-builder install-app-deps",
+        "rebuild": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "spike:native": "bun run scripts/native-spike.ts",
         "spike:pty": "bun run scripts/pty-spike.ts",
         "spike:agents": "bun run scripts/agent-discovery-spike.ts"
@@ -83,6 +83,7 @@
     "devDependencies": {
         "@base-ui/react": "1.6.0",
         "@electron-toolkit/tsconfig": "2.0.0",
+        "@electron/rebuild": "4.2.0",
         "@eslint/js": "^10.0.1",
         "@lobehub/assets-fileicon": "^1.0.0",
         "@lobehub/icons-static-svg": "^1.94.0",

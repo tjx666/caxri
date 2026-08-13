@@ -17,7 +17,17 @@ export function e2eWorkerTemporaryDirectory(
 
 /** Derives worker-scoped native ownership only for the explicitly classified parallel pool. */
 export function resolveE2EWorkerIsolation(environment: NodeJS.ProcessEnv): E2EWorkerIsolation {
-    if (environment.CAXRI_E2E_POOL !== 'parallel-safe') return {};
+    if (environment.CAXRI_E2E_POOL !== 'parallel-safe') {
+        const coordinatorToken = environment.CAXRI_DESKTOP_COORDINATOR_TOKEN;
+        if (!coordinatorToken) return {};
+        if (!/^[0-9a-f-]{36}$/u.test(coordinatorToken)) {
+            throw new Error('desktop command requires a valid coordinator token');
+        }
+        return {
+            coordinatorToken,
+            leaseNamespace: 'e2e-desktop-command',
+        };
+    }
     const parallelIndex = environment.TEST_PARALLEL_INDEX;
     const coordinatorToken = environment.CAXRI_E2E_COORDINATOR_TOKEN;
     if (!parallelIndex || !/^\d+$/u.test(parallelIndex)) {

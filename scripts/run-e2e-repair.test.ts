@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSpecPaths } from './run-e2e-repair';
+import { parseE2EPool, parseSpecPaths } from './run-e2e-repair';
 
 describe('focused E2E repair argv', () => {
     it('accepts only unique repository E2E spec paths', () => {
@@ -18,5 +18,12 @@ describe('focused E2E repair argv', () => {
         '["e2e/not-a-spec.ts"]',
     ])('rejects non-spec argv %s', (value) => {
         expect(() => parseSpecPaths(value)).toThrow('validated E2E spec paths');
+    });
+
+    it('keeps focused retries aligned with the failed hosted pool', () => {
+        expect(parseE2EPool(undefined)).toBe('control');
+        expect(parseE2EPool('parallel-safe')).toBe('parallel-safe');
+        expect(parseE2EPool('desktop-exclusive')).toBe('desktop-exclusive');
+        expect(() => parseE2EPool('unknown')).toThrow('CI_E2E_POOL');
     });
 });

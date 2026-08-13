@@ -86,6 +86,8 @@ export interface TerminalManagerOptions {
     onLifecycleRetired?: (terminalId: string) => void;
     /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
     onOutputActivity?: (terminalId: string, processId: number) => void;
+    /** Test seam for exercising retention behavior without parsing the production 2 MiB ceiling. */
+    snapshotMaximumBytes?: number;
     snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -127,6 +129,7 @@ export class TerminalManager {
     private readonly lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
+    private readonly snapshotMaximumBytes?: number;
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -144,6 +147,7 @@ export class TerminalManager {
         this.lifecycleEnvironment = options.lifecycleEnvironment;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
+        this.snapshotMaximumBytes = options.snapshotMaximumBytes;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
@@ -242,7 +246,7 @@ export class TerminalManager {
             const initialSnapshot = `${initialImageRecovery.push(
                 storedSnapshot?.payload ?? '',
             )}${initialImageRecovery.finish()}`;
-            const snapshot = new TerminalSnapshotBuffer(initialSnapshot);
+            const snapshot = new TerminalSnapshotBuffer(initialSnapshot, this.snapshotMaximumBytes);
             if (storedSnapshot && initialSnapshot !== storedSnapshot.payload) {
                 this.database.saveSnapshot({
                     terminalId: record.id,

@@ -15,7 +15,12 @@ Vite 8 requires `electron-vite@6`; while that integration is still beta, it expl
 
 TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri follows the official side-by-side layout: `@typescript/native` supplies the TypeScript 7 `tsc` binary, while the `typescript` package name aliases `@typescript/typescript6` so typed ESLint rules continue to receive the supported TypeScript 6 API. Re-evaluate the alias after TypeScript 7.1 and native typed-lint support ship.
 
-`@parcel/watcher`, `better-sqlite3`, and `node-pty` remain production dependencies, are rebuilt by `electron-builder install-app-deps`, and are unpacked from ASAR. Packaging verification must execute a probe from the packaged Runtime before release.
+`@parcel/watcher`, `better-sqlite3`, and `node-pty` remain production dependencies and are unpacked
+from ASAR. `@parcel/watcher` loads its platform-specific Node-API package directly; rebuilding its
+wrapper package compiles an unused duplicate binary, so development and CI rebuild only
+`better-sqlite3` and `node-pty`. The Electron native spike must load all three modules after that
+selective rebuild. Packaging verification must execute a probe from the packaged Runtime before
+release.
 
 The private GitHub Release path runs on an Apple Silicon macOS runner and publishes an unsigned
 arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly matches
