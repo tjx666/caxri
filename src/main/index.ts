@@ -192,6 +192,8 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     let persistTimer: NodeJS.Timeout | undefined;
     let rendererCrashTimestampsMs: number[] = [];
     const persistWindowState = (): void => {
+        /** `before-quit` performs the final ordered write before Runtime shutdown. */
+        if (quitStarted || window.isDestroyed()) return;
         const state = readWindowState(window);
         void supervisor.request('app.windowState.update', state).catch(() => undefined);
     };
