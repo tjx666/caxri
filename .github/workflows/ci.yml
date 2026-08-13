@@ -7,6 +7,11 @@ on:
     types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
   workflow_dispatch:
     inputs:
+      runner_probe:
+        description: Allocate only the cheapest policy runner before paid macOS validation
+        required: true
+        default: false
+        type: boolean
       e2e_profile:
         description: Full-suite profile for hosted control or optimized A/B runs
         required: true
@@ -41,6 +46,7 @@ jobs:
       base_run: ${{ steps.policy.outputs.base_run }}
       validated_tree: ${{ steps.policy.outputs.validated_tree }}
       e2e_tests: ${{ steps.policy.outputs.e2e_tests }}
+      e2e_pool: ${{ steps.policy.outputs.e2e_pool }}
       checks_scope: ${{ steps.policy.outputs.checks_scope }}
       run_e2e: ${{ steps.policy.outputs.run_e2e }}
       e2e_profile: ${{ steps.policy.outputs.e2e_profile }}
@@ -61,7 +67,9 @@ jobs:
 
   checks:
     needs: retry-policy
-    if: needs.retry-policy.outputs.mode == 'full'
+    if: >-
+      needs.retry-policy.outputs.mode == 'full' &&
+      needs.retry-policy.outputs.checks_scope != 'skipped'
     # Platform-neutral gates stay on Linux so private-repository macOS minutes are reserved for
     # Electron behavior and release validation that actually depend on macOS.
     runs-on: ubuntu-latest
@@ -228,6 +236,7 @@ jobs:
       - name: Run focused repair specs
         if: matrix.pool == 'control' && needs.retry-policy.outputs.mode == 'e2e-repair'
         env:
+          CI_E2E_POOL: ${{ needs.retry-policy.outputs.e2e_pool }}
           CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
         run: bun run scripts/run-e2e-repair.ts
       - name: Run one-worker control suite
@@ -266,7 +275,9 @@ jobs:
 
   ci:
     name: CI gate
-    if: always()
+    if: >-
+      always() &&
+      !(github.event_name == 'workflow_dispatch' && inputs.runner_probe)
     needs: [retry-policy, checks, e2e]
     runs-on: ubuntu-latest
     steps:
@@ -281,8 +292,12 @@ jobs:
         run: |
           test "$RETRY_POLICY_RESULT" = success
           if test "$MODE" = full; then
-            test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
-            test "$CHECKS_RESULT" = success
+            if test "$CHECKS_SCOPE" = skipped; then
+              test "$CHECKS_RESULT" = skipped
+            else
+              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
+              test "$CHECKS_RESULT" = success
+            fi
           else
             test "$MODE" = e2e-only || test "$MODE" = e2e-repair
             test "$CHECKS_SCOPE" = skipped

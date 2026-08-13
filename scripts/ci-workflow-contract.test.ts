@@ -40,6 +40,9 @@ describe('CI workflow contract', () => {
     });
 
     it('supports fail-closed focused checks and hosted control or optimized E2E profiles', () => {
+        expect(workflow).toContain('runner_probe:');
+        expect(workflow).toContain("needs.retry-policy.outputs.checks_scope != 'skipped'");
+        expect(workflow).toContain('if test "$CHECKS_SCOPE" = skipped; then');
         expect(workflow).toContain(
             'types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]',
         );

@@ -135,6 +135,10 @@ step-by-step workflows beyond this summary.
   are never eligible.
 - Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs only for pull
   requests and exact release commits; ordinary pushes to `main` must not consume a macOS runner.
+- Before retrying after a verified zero-step billing or spending-limit failure, dispatch `CI` with
+  `runner_probe=true`; it must complete only the cheap `retry-policy` job. Do not use `e2e_profile=skip`
+  as a probe because that still runs the full Linux checks job. After a successful probe, allow one
+  paid macOS validation attempt for the exact frozen head.
 - Run focused local Electron coverage only when the change requires it, using
   `bun run --silent check <e2e-file> --e2e`; add `--e2e-grep '<test name>'` when only one workflow changed.
   The checker builds first and collapses successful build and Playwright output into one summary.
@@ -154,7 +158,13 @@ step-by-step workflows beyond this summary.
 - For a hosted-only timing failure, reproduce only the exact failed cases against the production
   build with one worker and `--repeat-each=3`. Make slowness deterministic at the owning async
   boundary or wait for an observable product invariant; preserve relevant CI viewport and temporary
-  path conditions. Do not rely on machine-wide throttling or a timeout-only fix.
+  path conditions. If the failure came from `parallel-safe`, also reproduce the exact specs through
+  the same namespaced two-worker pool before pushing. Do not rely on machine-wide throttling or a
+  timeout-only fix.
+- Treat hosted CI as a final validator, not an implementation loop. Download the first red run's
+  artifacts, collect all failures on that head, finish and locally validate the complete repair
+  batch, then push once. For an eligible unprotected delta use exact-tree `e2e-repair`; protected CI,
+  dependency, pool, fixture, or workflow changes remain fail-closed and require one final full run.
 - Electron E2E helpers, Acceptance, and performance benchmarks acquire one repository-wide desktop
   lease before launch. Never bypass their launch helpers or run a second desktop task concurrently;
   use `$switch-worktree`'s `desktop` command for any additional Electron desktop workflow.

@@ -61,6 +61,12 @@ machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed hosted run red while diagnosing it.
 
+If the failed job was `e2e / parallel-safe`, the serial repetitions are necessary but not
+sufficient. Run the exact failed specs again under the repository-owned namespaced two-worker pool,
+because loaded-runner races can expose stale async state and hidden warmup surfaces that one worker
+cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
+arbitrary delays.
+
 Issue #116 hosted evidence uses the repository-owned workflow dispatch instead of an ad-hoc command:
 
 - `e2e_profile=control` runs the exact full manifest with one worker.
@@ -92,6 +98,20 @@ only for the same PR, base SHA, workflow, ancestor head, and exact tree; malform
 or protected-configuration evidence falls back to full CI. A focused pass is diagnostic only and
 always continues to the complete suite on the same macOS runner. For the same SHA, prefer
 `gh run rerun <run-id> --failed` without adding trailers.
+
+Do not push one repair per observed assertion. Download the original failure artifacts, inspect the
+whole failed spec and its async/locator assumptions, finish the repair batch locally, then create one
+new hosted head. When protected workflow, dependency, fixture, pool, or retry-policy files changed,
+the shortcut intentionally falls back to full CI; treat that as a reason to converge locally before
+pushing, never as a reason to iterate through paid full runs.
+
+## Cost guard
+
+After a zero-step billing or spending-limit failure, first dispatch `CI` with `runner_probe=true`.
+The probe allocates only `retry-policy` on Ubuntu and skips checks, E2E, and the final gate. Do not
+use `e2e_profile=skip` for this purpose: it still buys the full Linux checks job. A successful probe
+permits one paid macOS validation attempt for the same frozen head; another zero-step rejection must
+not be retried in a loop.
 
 ## Remote full suite
 
