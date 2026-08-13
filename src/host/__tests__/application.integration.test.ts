@@ -100,9 +100,35 @@ const agentEndpointRuntimeFixture = `
 import { writeFile } from 'node:fs/promises';
 const startedAt = Date.now();
 const launchId = 'launch-1';
+let endpointRef;
+const pendingDispatchWaits = new Map();
+function dispatchReceipt(dispatchId) {
+    const launch = {
+        provider: 'codex',
+        mode: 'fresh',
+        executable: 'codex',
+        argumentCount: 0,
+        fingerprint: 'a'.repeat(64),
+    };
+    return {
+        dispatchId,
+        operation: 'start',
+        status: 'running',
+        projectId: 'project-1',
+        sessionId: 'session-1',
+        terminalId: 'terminal-2',
+        provider: 'codex',
+        requestedLaunch: launch,
+        effectiveLaunch: launch,
+        revision: 2,
+        createdAt: 1,
+        updatedAt: 2,
+    };
+}
 process.on('message', async (message) => {
     if (!message || typeof message !== 'object') return;
     if (message.type === 'host-control.reply' && message.id === 'endpoint-begin') {
+        endpointRef = message.result.ref;
         await writeFile(process.env.CAXRI_ENDPOINT_FIXTURE_PATH, JSON.stringify(message.result));
         process.send?.({ event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } });
         return;
@@ -129,6 +155,74 @@ process.on('message', async (message) => {
     }
     if (message.method === 'terminal.close') {
         process.send?.({ id: message.id, ok: true, result: null });
+        return;
+    }
+    if (message.method === 'agent.dispatch.startInternal') {
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: dispatchReceipt(message.params.dispatchId),
+        });
+        return;
+    }
+    if (message.method === 'agent.dispatch.statusInternal') {
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: dispatchReceipt(message.params.dispatchId),
+        });
+        return;
+    }
+    if (message.method === 'agent.dispatch.waitInternal') {
+        pendingDispatchWaits.set(message.params.waitId, message.id);
+        if (process.env.CAXRI_DISPATCH_WAIT_FIXTURE_PATH)
+            await writeFile(process.env.CAXRI_DISPATCH_WAIT_FIXTURE_PATH, message.params.waitId);
+        return;
+    }
+    if (message.method === 'agent.dispatch.cancelWaitInternal') {
+        const pendingId = pendingDispatchWaits.get(message.params.waitId);
+        if (pendingId) {
+            pendingDispatchWaits.delete(message.params.waitId);
+            process.send?.({
+                id: pendingId,
+                ok: true,
+                result: {
+                    receipt: dispatchReceipt('dispatch-wait'),
+                    outcome: 'canceled',
+                },
+            });
+        }
+        if (process.env.CAXRI_DISPATCH_CANCEL_FIXTURE_PATH)
+            await writeFile(process.env.CAXRI_DISPATCH_CANCEL_FIXTURE_PATH, message.params.waitId);
+        process.send?.({ id: message.id, ok: true, result: { canceled: Boolean(pendingId) } });
+        return;
+    }
+    if (
+        message.method === 'agent.control.interruptInternal' ||
+        message.method === 'agent.control.stopInternal'
+    ) {
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: {
+                endpoint: endpointRef,
+                terminalId: 'terminal-1',
+                outcome: 'signaled',
+            },
+        });
+        return;
+    }
+    if (message.method === 'terminal.sendInternal') {
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: {
+                terminalId: message.params.terminalId,
+                accepted: true,
+                byteLength: Buffer.byteLength(message.params.text),
+                enter: message.params.enter,
+            },
+        });
         return;
     }
     if (message.method === 'runtime.shutdown') {
@@ -243,6 +337,18 @@ async function waitForRemoval(path: string): Promise<void> {
     throw new Error(`Timed out waiting for Host metadata removal: ${path}`);
 }
 
+async function waitForFile(path: string): Promise<void> {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+        try {
+            await access(path);
+            return;
+        } catch {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+    }
+    throw new Error(`Timed out waiting for fixture output: ${path}`);
+}
+
 describe('Headless Host application', () => {
     it('binds an Agent principal to one Runtime-owned PTY generation and retires it before close', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
@@ -281,6 +387,20 @@ describe('Headless Host application', () => {
         await expect(agent.request('agent.list')).resolves.toMatchObject({
             agents: [expect.objectContaining({ ref: endpoint.ref })],
         });
+        expect(agent.welcome.commands).toContain('agent.dispatch.status');
+        expect(agent.welcome.commands).not.toContain('agent.dispatch.start');
+        expect(agent.welcome.commands).not.toContain('agent.control.interrupt');
+        expect(agent.welcome.commands).not.toContain('terminal.send');
+        await expect(
+            agent.request('agent.dispatch.status', { dispatchId: 'dispatch-readable' }),
+        ).resolves.toMatchObject({ dispatchId: 'dispatch-readable', projectId: 'project-1' });
+        await expect(
+            agent.request('agent.dispatch.start', {
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                provider: 'codex',
+            }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
         await expect(agent.request('project.query', { mode: 'current' })).resolves.toEqual({
             view: 'agent',
             projects: [{ id: 'project-1', displayTitle: 'Project' }],
@@ -290,6 +410,55 @@ describe('Headless Host application', () => {
             application.lease.manifest,
             application.lease.desktopCredential.desktopToken,
         );
+        const operator = await connectToHost(userDataPath, 2_000);
+        await operator.request('agent.grant', {
+            endpoint: endpoint.ref,
+            policy: 'agent:control',
+            ttlMs: 60_000,
+        });
+        const agentDispatch = await agent.requestWithId(
+            'shared-dispatch-request',
+            'agent.dispatch.start',
+            {
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                provider: 'codex',
+            },
+        );
+        expect(agentDispatch).toMatchObject({ operation: 'start', status: 'running' });
+        const operatorDispatch = await operator.requestWithId(
+            'shared-dispatch-request',
+            'agent.dispatch.start',
+            {
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                provider: 'codex',
+            },
+        );
+        expect(operatorDispatch.dispatchId).not.toBe(agentDispatch.dispatchId);
+        expect(agentDispatch.dispatchId).not.toBe('shared-dispatch-request');
+        await expect(
+            agent.request('agent.control.interrupt', { endpoint: endpoint.ref }),
+        ).resolves.toMatchObject({ outcome: 'signaled', terminalId: 'terminal-1' });
+        await expect(
+            agent.request('agent.control.interrupt', {
+                endpoint: { ...endpoint.ref, generation: endpoint.ref.generation + 1 },
+            }),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        await expect(
+            agent.request('terminal.send', {
+                terminalId: 'terminal-1',
+                text: 'agent must not steer',
+                enter: true,
+            }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        await expect(
+            operator.request('terminal.send', {
+                terminalId: 'terminal-1',
+                text: 'human steer',
+                enter: true,
+            }),
+        ).resolves.toMatchObject({ accepted: true, byteLength: 11 });
         desktop.socket.write(
             `${JSON.stringify({
                 type: 'command',
@@ -309,7 +478,49 @@ describe('Headless Host application', () => {
         expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
             endpoint.token,
         );
+        operator.close();
         agent.close();
+    });
+
+    it('cancels a typed dispatch wait when its local Host client disconnects', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-dispatch-wait-'));
+        directories.push(userDataPath);
+        const runtimePath = join(userDataPath, 'runtime-child.mjs');
+        const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
+        const waitFixturePath = join(userDataPath, 'dispatch-wait.txt');
+        const cancelFixturePath = join(userDataPath, 'dispatch-cancel.txt');
+        await writeFile(runtimePath, agentEndpointRuntimeFixture);
+        const application = await startHostApplication({
+            commit: 'test',
+            executable: process.execPath,
+            runtimeEnvironment: {
+                CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath,
+                CAXRI_DISPATCH_WAIT_FIXTURE_PATH: waitFixturePath,
+                CAXRI_DISPATCH_CANCEL_FIXTURE_PATH: cancelFixturePath,
+            },
+            runtimePath,
+            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
+            userDataPath,
+            version: '1.0.0',
+        });
+        applications.push(application);
+        const operator = await connectToHost(userDataPath, 2_000);
+        const waiting = operator
+            .request('agent.dispatch.wait', {
+                dispatchId: 'dispatch-wait',
+                afterRevision: 2,
+                timeoutMs: 120_000,
+            })
+            .catch(() => undefined);
+        await waitForFile(waitFixturePath);
+
+        operator.close();
+
+        await waitForFile(cancelFixturePath);
+        await waiting;
+        expect(await readFile(cancelFixturePath, 'utf8')).toBe(
+            await readFile(waitFixturePath, 'utf8'),
+        );
     });
 
     it('outlives client detach and requires confirmation before stopping a live PTY', async () => {

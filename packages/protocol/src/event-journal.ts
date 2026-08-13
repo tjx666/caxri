@@ -85,6 +85,7 @@ const OBSERVABLE_EVENT_NAMES = {
     'files.operationChanged': true,
     'settings.changed': true,
     'agentHooks.changed': true,
+    'agent.dispatch.changed': true,
     'keybindings.changed': true,
     'theme.changed': true,
     'updates.state': true,

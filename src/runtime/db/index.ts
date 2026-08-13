@@ -8,6 +8,7 @@ import {
     openDatabase,
 } from './connection';
 import { AppStateModel } from './models/app-state';
+import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { ProjectsModel } from './models/projects';
 import { SessionsModel, type SessionStateRepair } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
@@ -36,6 +37,7 @@ export class CaxriDb {
     readonly terminals: TerminalsModel;
     readonly snapshots: SnapshotsModel;
     readonly appState: AppStateModel;
+    readonly agentDispatchReceipts: AgentDispatchReceiptsModel;
 
     constructor(path: string, options: CaxriDbOptions = {}) {
         const opened = openDatabase(path);
@@ -46,6 +48,7 @@ export class CaxriDb {
         this.terminals = new TerminalsModel(this.db);
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);
+        this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
         this.appState.set('schemaVersion', CURRENT_SCHEMA_VERSION);
     }
 

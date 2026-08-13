@@ -21,6 +21,7 @@ import {
     createLocalAgentAdapters,
     defaultAgentEnvironment,
 } from './agents';
+import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import type { Runtime, RuntimeDeps } from './bootstrap-types';
 import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './db';
@@ -134,6 +135,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
      * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
      * composition root, instead of hiding a provider check inside a shared event sink.
      */
+    const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
         ...deps.terminal,
         agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
@@ -165,6 +167,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
+        onStateChanged: (terminalId, state) =>
+            agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
     });
@@ -393,6 +397,19 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             });
     }
 
+    const dispatchService = new AgentDispatchService({
+        database,
+        coordinator,
+        emit: send,
+        endpoints: deps.agentEndpoints,
+        launchSettings: agentLaunchSettings,
+        terminalDirectoryIdentity,
+        terminalWorkingDirectory,
+        terminals,
+    });
+    agentDispatchState.service = dispatchService;
+    dispatchService.initialize();
+
     let closed = false;
     async function close(): Promise<void> {
         if (closed) return;
@@ -400,6 +417,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         terminalRestores.close();
         coordinator.close();
         terminals.shutdown('orderly');
+        dispatchService.close();
         unsubscribeHookSettings();
         await agentSettingsReconcile;
         await agentHooks.close();
@@ -414,6 +432,13 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'agent.grants': () => mainOwned('agent.grants'),
         'agent.grant': () => mainOwned('agent.grant'),
         'agent.revoke': () => mainOwned('agent.revoke'),
+        ...createAgentCommandHandlers({
+            coordinator,
+            dispatch: dispatchService,
+            endpoints: deps.agentEndpoints,
+            mainOwned,
+            terminals,
+        }),
         'agent.message.send': () => mainOwned('agent.message.send'),
         'agent.message.reply': () => mainOwned('agent.message.reply'),
         'agent.message.wait': () => mainOwned('agent.message.wait'),

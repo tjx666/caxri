@@ -48,6 +48,11 @@ arguments; `settings validate` and `settings patch --dry-run` use the real Runti
 writing. Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
 Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
 
+Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
+operations (`agent dispatch` and `agent control`), and owner-only simulated input (`terminal send`).
+They do not alias or fall back to one another. See
+[Agent command authority](docs/agent-command-authority.md) for the capability and audit boundaries.
+
 Default Terminal shortcuts are configurable in Settings → Keybindings:
 
 | Shortcut    | Action                              |

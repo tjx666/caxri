@@ -198,6 +198,22 @@ before that boundary requeues the message at the FIFO front. Desktop approval mo
 message into the receiver Inbox. Peer text carries `origin: peer` and can never grant a permission,
 change settings, invoke a slash command, wake an Agent, or write a user prompt.
 
+Agent dispatch/control and human Terminal steer are separate command domains rather than Peer Inbox
+fallbacks. A default Agent Endpoint can read same-Project dispatch receipts, but `agent:control` is a
+bounded generation grant that adds `agents.dispatch` and `agents.control` for that Project only.
+Runtime persists a dispatch receipt before a fresh Terminal or resumed PTY can spawn, fences resume
+to the Terminal's exact provider session binding, and reports lifecycle changes from process events
+without reading output or silence. Host and Runtime both revalidate an exact Endpoint generation
+before an interrupt or stop reaches the current Caxri-owned PTY. A client disconnect explicitly
+cancels its dispatch long poll.
+
+`terminal.send` requires a Desktop or human CLI owner with `terminals.steer`. Its text is bounded by
+UTF-8 bytes, rejects C0/C1 controls except Tab, and adds Enter only through the explicit flag. It
+shares the existing content-free PTY input metrics and logs only target, byte count, and Enter state;
+it never claims peer origin. Explicit message `--wake` requires both dispatch and control authority,
+resumes only a bounded tombstone for the exact stopped generation, confirms the replacement Endpoint,
+then admits the message under the same request identity. See `docs/agent-command-authority.md`.
+
 Each Endpoint also exposes one typed messaging capability (`deliveryMode`, `health`, stable `reason`,
 `checkedAt`, and `nextAction`). The Runtime probes the configured executable and version behind a
 bounded cache; disabling the integration or invalidating the probe revokes messaging without stopping

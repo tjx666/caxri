@@ -81,8 +81,13 @@ export class AgentInboxRegistry {
         context: CommandExecutionContext,
         input: AgentMessageSendInput,
         requestId: string,
+        wakeDispatchId?: string,
     ): AgentMessageReceipt {
-        return this.admit(context, input, input.idempotencyKey ?? requestId);
+        return this.admit(
+            context,
+            wakeDispatchId ? { ...input, dispatchId: wakeDispatchId } : input,
+            input.idempotencyKey ?? requestId,
+        );
     }
 
     reply(
@@ -354,6 +359,7 @@ export class AgentInboxRegistry {
             body: input.body,
             replyTo: input.replyTo ?? null,
             ttlMs: input.ttlMs,
+            dispatchId: input.dispatchId ?? null,
         });
         const idempotencyMapKey = `${endpointKey(from.ref)}:${idempotencyKey}`;
         const previous = this.idempotency.get(idempotencyMapKey);
@@ -581,6 +587,7 @@ export class AgentInboxRegistry {
             updatedAt: createdAt,
             expiresAt: Math.max(createdAt + 1, expiresAt),
             ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+            ...(input.dispatchId ? { dispatchId: input.dispatchId } : {}),
         };
     }
 

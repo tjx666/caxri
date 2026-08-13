@@ -64,6 +64,7 @@ function operatorContext(profileId: string): CommandExecutionContext {
             'diagnostics.read',
             'agents.read',
             'agents.control',
+            'agents.dispatch',
             'agents.grant',
             'events.read',
             'host.read',
@@ -73,6 +74,7 @@ function operatorContext(profileId: string): CommandExecutionContext {
             'settings.read',
             'settings.write',
             'terminals.read',
+            'terminals.steer',
         ],
         /** The authenticated profile is the retry identity across short-lived CLI connections. */
         principal: { kind: 'human-cli', id: `human-cli:${profileId}` },

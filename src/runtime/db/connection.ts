@@ -67,6 +67,7 @@ function initializeSchema(database: Database.Database): void {
         if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
             /** Pre-release metadata can be rebuilt; Project directories and user files are never touched. */
             database.exec(`
+                DROP TABLE IF EXISTS agent_dispatch_receipts;
                 DROP TABLE IF EXISTS terminal_snapshots;
                 DROP TABLE IF EXISTS session_state;
                 DROP TABLE IF EXISTS terminals;

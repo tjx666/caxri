@@ -20,6 +20,7 @@ import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     TerminalFailureReason,
     TerminalKind,
+    ProcessState,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
@@ -27,7 +28,7 @@ import type {
 import { discoverExecutable } from '../agents';
 import { runtimeProcessEnvironment } from '../executables';
 import type { CaxriDatabase } from '../db';
-import type { ShutdownReason } from '../session-policy';
+import { shutdownOutcome, type ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
@@ -87,6 +88,8 @@ export interface TerminalManagerOptions {
     ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
     /** Revokes lifecycle integration for a PTY generation before its durable record can be reused. */
     onLifecycleRetired?: (terminalId: string) => void;
+    /** Dispatch receipts observe durable process state without reading Terminal output. */
+    onStateChanged?: (terminalId: string, state: ProcessState) => void;
     /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
     onOutputActivity?: (terminalId: string, processId: number) => void;
     /** Test seam for exercising retention behavior without parsing the production 2 MiB ceiling. */
@@ -132,6 +135,7 @@ export class TerminalManager {
     private readonly lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
+    private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
     private readonly snapshotMaximumBytes?: number;
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
@@ -150,6 +154,7 @@ export class TerminalManager {
         this.lifecycleEnvironment = options.lifecycleEnvironment;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
+        this.onStateChanged = options.onStateChanged;
         this.snapshotMaximumBytes = options.snapshotMaximumBytes;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
@@ -449,6 +454,7 @@ export class TerminalManager {
         /** node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected death. */
         const exitedNormally = exitCode === 0 && !signal;
         this.database.updateTerminalState(live.record.id, exitedNormally ? 'stopped' : 'dead');
+        this.onStateChanged?.(live.record.id, exitedNormally ? 'stopped' : 'dead');
         this.emit({
             event: 'terminal.exit',
             payload: { terminalId: live.record.id, exitCode, signal },
@@ -471,6 +477,14 @@ export class TerminalManager {
         live.metricInputBytes += Buffer.byteLength(data, 'utf8');
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
         live.process.write(data);
+        return true;
+    }
+
+    /** Signals only the currently-owned PTY identity captured by the caller. */
+    signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
+        const live = this.terminals.get(terminalId);
+        if (!live || live.process.pid !== expectedProcessId) return false;
+        live.process.kill(signal);
         return true;
     }
 
@@ -581,6 +595,7 @@ export class TerminalManager {
         if (preserveAttachment) this.attached.add(terminalId);
         if (preservedSize) this.attachedSizes.set(terminalId, preservedSize);
         this.database.updateTerminalState(terminalId, 'starting');
+        this.onStateChanged?.(terminalId, 'starting');
         const restarting = this.database.getTerminal(terminalId);
         if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
         return this.start(restarting, options);
@@ -635,6 +650,7 @@ export class TerminalManager {
         this.attached.delete(terminalId);
         this.attachedSizes.delete(terminalId);
         this.resolveAttachedSizeWaiters(terminalId);
+        this.onStateChanged?.(terminalId, 'stopped');
         this.database.closeTerminal(terminalId);
     }
 
@@ -643,6 +659,7 @@ export class TerminalManager {
             this.attached.delete(terminal.id);
             this.attachedSizes.delete(terminal.id);
             this.resolveAttachedSizeWaiters(terminal.id);
+            this.onStateChanged?.(terminal.id, 'stopped');
         }
         for (const live of [...this.terminals.values()]) {
             if (live.record.sessionId !== sessionId) continue;
@@ -677,9 +694,11 @@ export class TerminalManager {
          *  the Runtime alive solely for the visible-Terminal grid grace period. */
         for (const terminalId of [...this.attachedSizeWaiters.keys()])
             this.resolveAttachedSizeWaiters(terminalId);
+        const terminalProcessState = shutdownOutcome(reason).terminalProcessState;
         for (const live of [...this.terminals.values()]) {
             this.detach(live, true);
             live.process.kill();
+            this.onStateChanged?.(live.record.id, terminalProcessState);
         }
         this.database.markShutdown(reason);
     }

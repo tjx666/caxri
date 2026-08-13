@@ -51,6 +51,8 @@ export const agentMessageReceiptSchema = z
         updatedAt: z.number().int().positive(),
         expiresAt: z.number().int().positive(),
         replyTo: identifierSchema.optional(),
+        /** Present only when an explicit wake dispatch created the receiving generation. */
+        dispatchId: identifierSchema.optional(),
     })
     .strict();
 
@@ -100,6 +102,7 @@ const sendParamsSchema = z
         body: agentMessageBodySchema,
         idempotencyKey: identifierSchema.optional(),
         ttlMs: z.number().int().min(1_000).max(3_600_000).default(AGENT_MESSAGE_APPROVAL_TTL_MS),
+        wake: z.boolean().default(false),
     })
     .strict();
 

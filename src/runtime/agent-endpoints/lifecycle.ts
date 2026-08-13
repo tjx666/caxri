@@ -9,6 +9,8 @@ import type {
     AgentEndpointRetireParams,
 } from '../../shared/ipc/agent-endpoint-control';
 import type { AgentPermissionClass } from '../../shared/ipc/agent-endpoint-contract';
+import type { AgentEndpointRef } from '../../shared/ipc/agent-endpoint-contract';
+import { CaxriError } from '../../shared/ipc/errors';
 import type { AgentProvider, TerminalRecord } from '../../shared/types';
 import { AgentMessagingCapabilityProbe, type AgentMessagingProbeInput } from '../agent-messaging';
 
@@ -23,6 +25,13 @@ interface ActiveEndpoint {
     launchId: string;
     provider: AgentProvider;
     ref: AgentEndpointBeginResult['ref'];
+    terminalId: string;
+}
+
+export interface RuntimeAgentControlTarget {
+    launchId: string;
+    ref: AgentEndpointRef;
+    terminalId: string;
 }
 
 const ELEVATED_ARGUMENTS: Record<AgentProvider, ReadonlySet<string>> = {
@@ -82,6 +91,7 @@ export class RuntimeAgentEndpointLifecycle {
             launchId,
             provider: terminal.kind,
             ref: endpoint.ref,
+            terminalId: terminal.id,
         });
         return {
             CAXRI_AGENT_ENDPOINT_HOST_ID: endpoint.ref.hostId,
@@ -118,6 +128,35 @@ export class RuntimeAgentEndpointLifecycle {
         if (!endpoint) return;
         await this.control.retire({ ref: endpoint.ref, launchId: endpoint.launchId });
         if (this.active.get(terminalId) === endpoint) this.active.delete(terminalId);
+    }
+
+    endpointForTerminal(terminalId: string): RuntimeAgentControlTarget | undefined {
+        const endpoint = this.active.get(terminalId);
+        return endpoint
+            ? { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId }
+            : undefined;
+    }
+
+    /** Resolves an exact live Endpoint generation before a Runtime-owned PTY side effect. */
+    controlTarget(ref: AgentEndpointRef): RuntimeAgentControlTarget {
+        const endpoint = [...this.active.values()].find(
+            (candidate) =>
+                candidate.ref.hostId === ref.hostId &&
+                candidate.ref.endpointId === ref.endpointId &&
+                candidate.ref.generation === ref.generation,
+        );
+        if (!endpoint) throw new CaxriError('UNAVAILABLE', 'Agent Endpoint is unavailable');
+        return { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId };
+    }
+
+    isCurrent(target: RuntimeAgentControlTarget): boolean {
+        const current = this.active.get(target.terminalId);
+        return Boolean(
+            current &&
+            current.launchId === target.launchId &&
+            current.ref.endpointId === target.ref.endpointId &&
+            current.ref.generation === target.ref.generation,
+        );
     }
 
     async close(): Promise<void> {
