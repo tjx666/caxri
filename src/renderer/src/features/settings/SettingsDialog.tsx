@@ -1,7 +1,6 @@
-import { Braces, FileJson, Save, SlidersHorizontal } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Braces, FileJson, SlidersHorizontal } from 'lucide-react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import { findKeybindingConflicts } from '@shared/configuration';
 import type { AgentHookHealthMap, AppSettings, Keybinding } from '@shared/types';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/ChromeTabs';
@@ -13,21 +12,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
-import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
-import { cn } from '../../lib/utils';
 import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
 import { describeFailure, pushToast } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
-import {
-    applyFormEdit,
-    CONFIG_FILE_NAMES,
-    CONFIG_KINDS,
-    dirtyConfigKinds,
-    isConfigDirty,
-    type ConfigDrafts,
-    type ConfigKind,
-} from './config-edit';
+import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS, type ConfigKind } from './config-edit';
 import { ConfigurationSourceView } from './ConfigurationSourceView';
 import {
     appendKeybindingSource,
@@ -43,6 +32,13 @@ const onApplied = (): void => void refreshWorkbench();
 const onError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
 
+/**
+ * Coalesces a burst of structured-control edits (rapid typing, a dragged color picker) into one
+ * persisted write per kind instead of a request per keystroke. The visible value always updates
+ * instantly through the reducer; only the network write is delayed.
+ */
+const WRITE_DEBOUNCE_MS = 300;
+
 function useSettingsDialogController() {
     const open = useDialogStore((state) => state.settingsOpen);
     const request = useDialogStore((state) => state.settingsRequest);
@@ -51,11 +47,77 @@ function useSettingsDialogController() {
     const [view, setView] = useState<'ui' | 'source'>('ui');
     const [sourceErrors, setSourceErrors] = useState<Partial<Record<ConfigKind, string>>>({});
     const [loaded, setLoaded] = useState(false);
-    const [saving, setSaving] = useState(false);
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
+    // `commitSource`/`handleExternalChange` are stable callbacks (empty/narrow dep arrays) that
+    // still need the latest reducer state; a ref synced in an effect (never during render) gives
+    // them that without resubscribing the event listener on every dispatch.
+    const stateRef = useRef(state);
+    useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
+
+    // Per-kind write coordination: `writeTimers` holds a pending debounced write, and
+    // `writeGeneration` lets an in-flight response detect it has been superseded by a newer edit
+    // (or an external disk change) so it can drop itself silently instead of clobbering newer text.
+    const writeTimers = useRef<Partial<Record<ConfigKind, number>>>({});
+    const writeGeneration = useRef<Record<ConfigKind, number>>({
+        settings: 0,
+        keybindings: 0,
+        theme: 0,
+    });
+
+    const persistNow = useCallback((kind: ConfigKind, source: string): void => {
+        const timer = writeTimers.current[kind];
+        if (timer !== undefined) window.clearTimeout(timer);
+        delete writeTimers.current[kind];
+        const generation = ++writeGeneration.current[kind];
+        void (async (): Promise<void> => {
+            try {
+                if (kind === 'settings') {
+                    const result = await caxri.request('settings.update', { source });
+                    if (writeGeneration.current.settings !== generation) return;
+                    dispatch({
+                        type: 'settings/applied',
+                        value: result.value,
+                        source: result.source,
+                    });
+                } else if (kind === 'keybindings') {
+                    const result = await caxri.request('keybindings.update', { source });
+                    if (writeGeneration.current.keybindings !== generation) return;
+                    dispatch({
+                        type: 'keybindings/applied',
+                        value: result.value,
+                        source: result.source,
+                        conflicts: result.conflicts,
+                    });
+                } else {
+                    const result = await caxri.request('theme.update', { source });
+                    if (writeGeneration.current.theme !== generation) return;
+                    dispatch({ type: 'theme/applied', value: result.value, source: result.source });
+                }
+                onApplied();
+            } catch (error) {
+                // Never applied to state on failure, so the field the user just changed stays
+                // exactly as they left it — the "tell the user, do not revert" rule.
+                onError(error, CONFIG_FILE_NAMES[kind]);
+            }
+        })();
+    }, []);
+
+    const schedulePersist = useCallback(
+        (kind: ConfigKind, source: string): void => {
+            const timer = writeTimers.current[kind];
+            if (timer !== undefined) window.clearTimeout(timer);
+            writeTimers.current[kind] = window.setTimeout(
+                () => persistNow(kind, source),
+                WRITE_DEBOUNCE_MS,
+            );
+        },
+        [persistNow],
+    );
 
     const load = useCallback((): void => {
         void Promise.all([
@@ -81,40 +143,6 @@ function useSettingsDialogController() {
             .catch((error: unknown) => onError(error, 'Unable to load configuration'));
     }, []);
 
-    useEffect(
-        () =>
-            caxri.onEvent((event) => {
-                if (event.event === 'agentHooks.changed') setAgentHookHealth(event.payload);
-            }),
-        [],
-    );
-
-    // Only load once per app session: reopening the dialog after edits must keep the
-    // in-memory drafts instead of silently overwriting them with the on-disk versions.
-    useEffect(() => {
-        if (open && !loaded) load();
-    }, [load, open, loaded]);
-
-    const drafts: ConfigDrafts = useMemo(
-        () => ({
-            settings: {
-                source: state.settings.source,
-                appliedSource: state.settings.appliedSource,
-            },
-            keybindings: {
-                source: state.keybindings.source,
-                appliedSource: state.keybindings.appliedSource,
-            },
-            theme: { source: state.theme.source, appliedSource: state.theme.appliedSource },
-        }),
-        [state.settings, state.keybindings, state.theme],
-    );
-    const dirtyKinds = dirtyConfigKinds(drafts);
-    const draftKeybindingConflicts = useMemo(() => {
-        const parsed = parseConfigSource('keybindings', state.keybindings.source);
-        return parsed.ok ? findKeybindingConflicts(parsed.value) : [];
-    }, [state.keybindings.source]);
-
     const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
         setSourceErrors((current) => {
             if (current[kind] === error) return current;
@@ -125,35 +153,132 @@ function useSettingsDialogController() {
         });
     }, []);
 
-    const synchronizeSource = useCallback(
-        (kind: ConfigKind): boolean => {
+    /**
+     * Parses the raw source text for `kind` and, when valid, refreshes the structured value and
+     * persists immediately — no debounce, since losing focus (or switching away) is already the
+     * deliberate commit boundary. An invalid parse reports inline next to the editor and is never
+     * sent to the Runtime.
+     */
+    const commitSource = useCallback(
+        (kind: ConfigKind): void => {
             if (kind === 'settings') {
-                const result = parseConfigSource('settings', state.settings.source);
+                const entry = stateRef.current.settings;
+                const result = parseConfigSource('settings', entry.source);
                 if (!result.ok) {
-                    setSourceError(kind, result.error);
-                    return false;
+                    setSourceError('settings', result.error);
+                    return;
                 }
+                setSourceError('settings');
                 dispatch({ type: 'settings/sourceParsed', value: result.value });
-            } else if (kind === 'keybindings') {
-                const result = parseConfigSource('keybindings', state.keybindings.source);
-                if (!result.ok) {
-                    setSourceError(kind, result.error);
-                    return false;
-                }
-                dispatch({ type: 'keybindings/sourceParsed', value: result.value });
-            } else {
-                const result = parseConfigSource('theme', state.theme.source);
-                if (!result.ok) {
-                    setSourceError(kind, result.error);
-                    return false;
-                }
-                dispatch({ type: 'theme/sourceParsed', value: result.value });
+                if (entry.source !== entry.appliedSource) persistNow('settings', entry.source);
+                return;
             }
-            setSourceError(kind);
-            return true;
+            if (kind === 'keybindings') {
+                const entry = stateRef.current.keybindings;
+                const result = parseConfigSource('keybindings', entry.source);
+                if (!result.ok) {
+                    setSourceError('keybindings', result.error);
+                    return;
+                }
+                setSourceError('keybindings');
+                dispatch({ type: 'keybindings/sourceParsed', value: result.value });
+                if (entry.source !== entry.appliedSource) persistNow('keybindings', entry.source);
+                return;
+            }
+            const entry = stateRef.current.theme;
+            const result = parseConfigSource('theme', entry.source);
+            if (!result.ok) {
+                setSourceError('theme', result.error);
+                return;
+            }
+            setSourceError('theme');
+            dispatch({ type: 'theme/sourceParsed', value: result.value });
+            if (entry.source !== entry.appliedSource) persistNow('theme', entry.source);
         },
-        [setSourceError, state.keybindings.source, state.settings.source, state.theme.source],
+        [persistNow, setSourceError],
     );
+
+    /**
+     * Reflects an external `*.changed` push (an edit made through "Open Config File", or our own
+     * write echoing back) into the dialog, so it never shows stale data — the live-verified bug
+     * this closes had the Theme tab keep showing the previous theme's name and swatches after the
+     * active theme changed. Disk changes replace the current buffer unconditionally, matching the
+     * app's explicit external-change rule, and supersede any in-flight write for that kind.
+     */
+    const handleExternalChange = useCallback(
+        (kind: ConfigKind, payload: { source: string; error?: string }): void => {
+            const current = stateRef.current[kind];
+            // Our own write's broadcast echoes back exactly the text we just persisted — skip the
+            // redundant reparse/redispatch instead of treating it as a foreign change.
+            if (payload.source === current.appliedSource) return;
+            const timer = writeTimers.current[kind];
+            if (timer !== undefined) window.clearTimeout(timer);
+            delete writeTimers.current[kind];
+            writeGeneration.current[kind] += 1;
+            if (kind === 'settings') {
+                const parsed = parseConfigSource('settings', payload.source);
+                dispatch({
+                    type: 'settings/externalChanged',
+                    source: payload.source,
+                    value: parsed.ok ? parsed.value : undefined,
+                });
+                setSourceError('settings', payload.error ?? (parsed.ok ? undefined : parsed.error));
+                return;
+            }
+            if (kind === 'keybindings') {
+                const parsed = parseConfigSource('keybindings', payload.source);
+                dispatch({
+                    type: 'keybindings/externalChanged',
+                    source: payload.source,
+                    value: parsed.ok ? parsed.value : undefined,
+                });
+                setSourceError(
+                    'keybindings',
+                    payload.error ?? (parsed.ok ? undefined : parsed.error),
+                );
+                return;
+            }
+            const parsed = parseConfigSource('theme', payload.source);
+            dispatch({
+                type: 'theme/externalChanged',
+                source: payload.source,
+                value: parsed.ok ? parsed.value : undefined,
+            });
+            setSourceError('theme', payload.error ?? (parsed.ok ? undefined : parsed.error));
+        },
+        [setSourceError],
+    );
+
+    useEffect(
+        () =>
+            caxri.onEvent((event) => {
+                if (event.event === 'agentHooks.changed') {
+                    setAgentHookHealth(event.payload);
+                    return;
+                }
+                // Reducer state is meaningless before the first `load()`, so external pushes that
+                // arrive before the dialog has ever been opened are ignored; the eventual `load()`
+                // reads the current file anyway.
+                if (!loaded) return;
+                if (event.event === 'settings.changed') {
+                    handleExternalChange('settings', event.payload);
+                    return;
+                }
+                if (event.event === 'keybindings.changed') {
+                    handleExternalChange('keybindings', event.payload);
+                    return;
+                }
+                if (event.event === 'theme.changed') handleExternalChange('theme', event.payload);
+            }),
+        [handleExternalChange, loaded],
+    );
+
+    // Only load once per app session: reopening the dialog after edits must keep the in-memory
+    // state instead of re-reading from disk (external changes already stay in sync via the event
+    // subscription above).
+    useEffect(() => {
+        if (open && !loaded) load();
+    }, [load, open, loaded]);
 
     useEffect(() => {
         if (!loaded || handledRequestId.current === request.id) return;
@@ -162,34 +287,37 @@ function useSettingsDialogController() {
         queueMicrotask(() => {
             if (cancelled || handledRequestId.current === request.id) return;
             handledRequestId.current = request.id;
+            if (view === 'source') commitSource(tab);
             if (request.view === 'source') {
-                if (view === 'source' && tab !== 'settings' && !synchronizeSource(tab)) return;
                 setTab('settings');
                 setView('source');
                 return;
             }
             if (request.view === 'trusted-domains') {
-                if (view === 'source' && !synchronizeSource(tab)) return;
                 setTab('settings');
                 setView('ui');
                 return;
             }
-            if (view === 'source' && !synchronizeSource(tab)) return;
+            if (request.view === 'keybindings') {
+                setTab('keybindings');
+                setView('ui');
+                return;
+            }
             setView('ui');
         });
         return () => {
             cancelled = true;
         };
-    }, [loaded, request.id, request.view, synchronizeSource, tab, view]);
+    }, [commitSource, loaded, request.id, request.view, tab, view]);
 
     const changeTab = (next: ConfigKind): void => {
         if (next === tab) return;
-        if (view === 'source' && !synchronizeSource(tab)) return;
+        if (view === 'source') commitSource(tab);
         setTab(next);
     };
 
     const showUi = (): void => {
-        if (!synchronizeSource(tab)) return;
+        commitSource(tab);
         setView('ui');
     };
 
@@ -206,101 +334,55 @@ function useSettingsDialogController() {
         setSourceError(kind, parsed.ok ? undefined : parsed.error);
     };
 
-    const applyAll = async (): Promise<void> => {
-        if (saving || dirtyKinds.length === 0) return;
-        setSaving(true);
-        try {
-            // The three config kinds are independent runtime operations, so apply them
-            // concurrently instead of awaiting each one sequentially. Each kind catches
-            // its own failure so one rejection never blocks the others from applying.
-            const results = await Promise.all(
-                dirtyKinds.map(async (kind): Promise<string | null> => {
-                    try {
-                        if (kind === 'settings') {
-                            const result = await caxri.request('settings.update', {
-                                source: state.settings.source,
-                            });
-                            dispatch({
-                                type: 'settings/applied',
-                                value: result.value,
-                                source: result.source,
-                            });
-                        } else if (kind === 'keybindings') {
-                            const result = await caxri.request('keybindings.update', {
-                                source: state.keybindings.source,
-                            });
-                            dispatch({
-                                type: 'keybindings/applied',
-                                value: result.value,
-                                source: result.source,
-                                conflicts: result.conflicts,
-                            });
-                        } else {
-                            const result = await caxri.request('theme.update', {
-                                source: state.theme.source,
-                            });
-                            dispatch({
-                                type: 'theme/applied',
-                                value: result.value,
-                                source: result.source,
-                            });
-                        }
-                        return null;
-                    } catch (error) {
-                        const label = CONFIG_FILE_NAMES[kind];
-                        return `${label} — ${describeFailure(error, label)}`;
-                    }
-                }),
-            );
-            const failures = results.filter((failure): failure is string => failure !== null);
-            if (failures.length < dirtyKinds.length) onApplied();
-            if (failures.length > 0) pushToast('error', failures.join('; '));
-        } finally {
-            setSaving(false);
-        }
-    };
-
     const updateSettingsField = <K extends keyof AppSettings>(
         key: K,
         value: AppSettings[K],
     ): void => {
         if (!state.settings.value) return;
+        const nextSource = applyFormEdit(state.settings.source, [key], value);
         dispatch({
             type: 'settings/changed',
             value: { ...state.settings.value, [key]: value },
-            source: applyFormEdit(state.settings.source, [key], value),
+            source: nextSource,
         });
+        schedulePersist('settings', nextSource);
     };
 
     const updateBinding = (index: number, key: string): void => {
+        const nextSource = updateKeybindingSource(state.keybindings.source, index, key);
         dispatch({
             type: 'keybindings/changed',
             value: state.keybindings.value.map((binding, at) =>
                 at === index ? { ...binding, key } : binding,
             ),
-            source: updateKeybindingSource(state.keybindings.source, index, key),
+            source: nextSource,
         });
+        schedulePersist('keybindings', nextSource);
     };
 
     const addBinding = (command: string, key: string): void => {
         const binding: Keybinding = { command, key };
+        const nextSource = appendKeybindingSource(
+            state.keybindings.source,
+            state.keybindings.value.length,
+            binding,
+        );
         dispatch({
             type: 'keybindings/changed',
             value: [...state.keybindings.value, binding],
-            source: appendKeybindingSource(
-                state.keybindings.source,
-                state.keybindings.value.length,
-                binding,
-            ),
+            source: nextSource,
         });
+        schedulePersist('keybindings', nextSource);
     };
 
     const removeBinding = (index: number): void => {
+        const nextSource = removeKeybindingSource(state.keybindings.source, index);
         dispatch({
             type: 'keybindings/changed',
             value: state.keybindings.value.filter((_, at) => at !== index),
-            source: removeKeybindingSource(state.keybindings.source, index),
+            source: nextSource,
         });
+        schedulePersist('keybindings', nextSource);
     };
 
     const updateThemeColor = (
@@ -325,14 +407,19 @@ function useSettingsDialogController() {
             },
             source: nextSource,
         });
+        schedulePersist('theme', nextSource);
     };
 
     const importTheme = async (): Promise<void> => {
         try {
             const imported = await caxri.request('theme.import');
             if (!imported) return;
-            // The importer writes theme.json directly, so re-read only the theme tab
-            // instead of a full `load()` that would discard drafts on the other tabs.
+            // The importer writes theme.json directly: drop any pending debounced write and bump
+            // the generation so a stale response cannot clobber the just-imported theme afterward.
+            const timer = writeTimers.current.theme;
+            if (timer !== undefined) window.clearTimeout(timer);
+            delete writeTimers.current.theme;
+            writeGeneration.current.theme += 1;
             const result = await caxri.request('theme.get');
             dispatch({ type: 'theme/imported', value: result.value, source: result.source });
             onApplied();
@@ -344,16 +431,13 @@ function useSettingsDialogController() {
     return {
         addBinding,
         agentHookHealth,
-        applyAll,
         changeTab,
-        dirtyKinds,
-        draftKeybindingConflicts,
-        drafts,
+        commitSource,
         importTheme,
+        keybindingsFocusRequestId: request.view === 'keybindings' ? request.id : undefined,
         onOpenChange,
         open,
         removeBinding,
-        saving,
         showSource,
         showUi,
         sourceErrors,
@@ -371,16 +455,13 @@ function useSettingsDialogController() {
 function SettingsDialogView({
     addBinding,
     agentHookHealth,
-    applyAll,
     changeTab,
-    dirtyKinds,
-    draftKeybindingConflicts,
-    drafts,
+    commitSource,
     importTheme,
+    keybindingsFocusRequestId,
     onOpenChange,
     open,
     removeBinding,
-    saving,
     showSource,
     showUi,
     sourceErrors,
@@ -400,28 +481,6 @@ function SettingsDialogView({
     // affordance. Focusing the popup container itself instead avoids that, while Tab
     // still moves focus into the dialog's controls normally.
     const popupRef = useRef<HTMLDivElement>(null);
-    const appliedSettings = useMemo(() => {
-        const parsed = parseConfigSource('settings', state.settings.appliedSource);
-        return parsed.ok ? parsed.value : state.settings.value;
-    }, [state.settings.appliedSource, state.settings.value]);
-    const dirtySourceErrorKinds = dirtyKinds.filter((kind) => sourceErrors[kind] !== undefined);
-    const hasDirtyKeybindingConflicts =
-        dirtyKinds.includes('keybindings') && draftKeybindingConflicts.length > 0;
-    const applyDisabled =
-        saving ||
-        dirtyKinds.length === 0 ||
-        dirtySourceErrorKinds.length > 0 ||
-        hasDirtyKeybindingConflicts;
-    // Explains *why* Apply is disabled so a blocked user isn't left guessing; derived from the
-    // same state that computes `applyDisabled` above.
-    const applyDisabledReason =
-        !saving && dirtyKinds.length > 0
-            ? dirtySourceErrorKinds.length > 0
-                ? 'Fix source errors before applying'
-                : hasDirtyKeybindingConflicts
-                  ? `Resolve ${draftKeybindingConflicts.length} shortcut ${draftKeybindingConflicts.length === 1 ? 'conflict' : 'conflicts'} before applying`
-                  : undefined
-            : undefined;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
@@ -432,7 +491,7 @@ function SettingsDialogView({
                 <DialogHeader>
                     <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>
-                        Edit structured values or their source, then apply them together.
+                        Changes apply immediately and are stored as editable files.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex border-b border-border">
@@ -443,22 +502,7 @@ function SettingsDialogView({
                         items={CONFIG_KINDS.map((value) => ({
                             value,
                             label: value[0].toUpperCase() + value.slice(1),
-                            content: (
-                                <>
-                                    <span data-slot="chrome-tab-label">
-                                        {value[0].toUpperCase() + value.slice(1)}
-                                    </span>
-                                    {isConfigDirty(drafts[value]) && (
-                                        <span
-                                            aria-hidden="true"
-                                            className="text-warning"
-                                            data-dirty="true"
-                                        >
-                                            •
-                                        </span>
-                                    )}
-                                </>
-                            ),
+                            content: value[0].toUpperCase() + value.slice(1),
                         }))}
                         tabClassName="min-h-9 px-4"
                         value={tab}
@@ -489,7 +533,6 @@ function SettingsDialogView({
                 >
                     {tab === 'settings' &&
                         state.settings.value &&
-                        appliedSettings &&
                         state.theme.value &&
                         (view === 'source' ? (
                             <ConfigurationSourceView
@@ -497,12 +540,12 @@ function SettingsDialogView({
                                 kind="settings"
                                 source={state.settings.source}
                                 theme={state.theme.value}
+                                onBlur={() => commitSource('settings')}
                                 onChange={(source) => updateSource('settings', source)}
                             />
                         ) : (
                             <SettingsForm
                                 agentHookHealth={agentHookHealth}
-                                appliedSettings={appliedSettings}
                                 settings={state.settings.value}
                                 trustedDomainsFocusRequestId={trustedDomainsFocusRequestId}
                                 onFieldChange={updateSettingsField}
@@ -524,10 +567,12 @@ function SettingsDialogView({
                                 kind="keybindings"
                                 source={state.keybindings.source}
                                 theme={state.theme.value}
+                                onBlur={() => commitSource('keybindings')}
                                 onChange={(source) => updateSource('keybindings', source)}
                             />
                         ) : (
                             <KeybindingsForm
+                                focusRequestId={keybindingsFocusRequestId}
                                 keybindings={state.keybindings.value}
                                 onAdd={addBinding}
                                 onChange={updateBinding}
@@ -550,6 +595,7 @@ function SettingsDialogView({
                                 kind="theme"
                                 source={state.theme.source}
                                 theme={state.theme.value}
+                                onBlur={() => commitSource('theme')}
                                 onChange={(source) => updateSource('theme', source)}
                             />
                         ) : (
@@ -561,29 +607,13 @@ function SettingsDialogView({
                         ))}
                 </ChromeTabPanel>
 
-                <footer
-                    className={cn(
-                        'dialog-actions',
-                        'flex justify-end gap-2 border-t border-border px-3 py-2',
-                    )}
-                >
+                <footer className="dialog-actions flex justify-end gap-2 border-t border-border px-3 py-2">
                     <Button
                         variant="ghost"
                         onClick={() => void caxri.request('app.openConfigFile', { kind: tab })}
                     >
                         <FileJson size={14} /> Open Config File
                     </Button>
-                    {applyDisabledReason ? (
-                        <Tooltip content={applyDisabledReason}>
-                            <Button disabled={applyDisabled} onClick={() => void applyAll()}>
-                                <Save size={14} /> Apply
-                            </Button>
-                        </Tooltip>
-                    ) : (
-                        <Button disabled={applyDisabled} onClick={() => void applyAll()}>
-                            <Save size={14} /> Apply
-                        </Button>
-                    )}
                 </footer>
             </DialogContent>
         </Dialog>
