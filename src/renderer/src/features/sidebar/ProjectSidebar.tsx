@@ -1,6 +1,6 @@
 import { Archive, Plus } from 'lucide-react';
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { Button } from '../../components/ui/button';
@@ -14,12 +14,7 @@ import {
     useSessions,
     useTerminals,
 } from '../../stores/selectors';
-import {
-    archiveSession,
-    beginSessionCreation,
-    renameSession,
-    selectProject,
-} from '../session/session-actions';
+import { archiveSession, beginSessionCreation, selectProject } from '../session/session-actions';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { hasProjectDragType } from './project-order';
 import { ProjectGroup } from './ProjectGroup';
@@ -31,6 +26,7 @@ import {
     sidebarHorizontalIntent,
 } from './sidebar-tree';
 import { useProjectOrder } from './useProjectOrder';
+import { useSessionRename } from './useSessionRename';
 
 const NO_RECORDS: never[] = [];
 /** Vite serves this repo-only asset in development without bundling it into production. */
@@ -48,14 +44,10 @@ export function ProjectSidebar() {
     const archivedCount = sessions.filter((session) => session.archivedAt !== undefined).length;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    const [renamingSessionId, setRenamingSessionId] = useState<string>();
-    const [renameValue, setRenameValue] = useState('');
-    const [renameError, setRenameError] = useState<string>();
     /** The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution. */
     const [focusedRowId, setFocusedRowId] = useState<string>();
-    const renamingSessionIdRef = useRef<string | undefined>(undefined);
-    const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
     const treeRef = useRef<HTMLDivElement>(null);
+    const sessionRename = useSessionRename(sessions);
 
     /** Per-Project archived counts for the heading affix (item 5); the footer keeps the global total. */
     const archivedCountByProject = useMemo(() => {
@@ -74,15 +66,16 @@ export function ProjectSidebar() {
 
     /** Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes. */
     const treeRows = useMemo(() => {
-        const projectNodes = projects.map((project) => ({
-            id: project.id,
-            sessionIds: sessions
-                .filter(
-                    (session) =>
-                        session.projectId === project.id && session.archivedAt === undefined,
-                )
-                .map((session) => session.id),
-        }));
+        const projectNodes = projects.map((project) => {
+            // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
+            // flags the chained form even though both walk the same small `sessions` array.
+            const sessionIds: string[] = [];
+            for (const session of sessions) {
+                if (session.projectId === project.id && session.archivedAt === undefined)
+                    sessionIds.push(session.id);
+            }
+            return { id: project.id, sessionIds };
+        });
         return flattenSidebarRows(projectNodes, isProjectExpanded);
     }, [projects, sessions, isProjectExpanded]);
 
@@ -102,66 +95,6 @@ export function ProjectSidebar() {
         const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
         if (rowId) setFocusedRowId(rowId);
     }, []);
-
-    const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
-        element?.focus();
-        element?.select();
-    }, []);
-
-    useEffect(() => {
-        if (renamingSessionId) return;
-        const sessionId = restoreFocusSessionIdRef.current;
-        if (!sessionId) return;
-        document.querySelector<HTMLElement>(`[data-session-id="${sessionId}"]`)?.focus();
-        restoreFocusSessionIdRef.current = undefined;
-    }, [renamingSessionId, sessions]);
-
-    const beginRename = (sessionId: string, displayTitle: string): void => {
-        renamingSessionIdRef.current = sessionId;
-        setRenamingSessionId(sessionId);
-        setRenameValue(displayTitle);
-        setRenameError(undefined);
-    };
-
-    /**
-     * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately
-     * skips focus restoration so the control the user clicked keeps focus.
-     */
-    const finishRename = (sessionId: string, restoreFocus: boolean): void => {
-        if (renamingSessionIdRef.current !== sessionId) return;
-        renamingSessionIdRef.current = undefined;
-        if (restoreFocus) restoreFocusSessionIdRef.current = sessionId;
-        setRenamingSessionId((current) => (current === sessionId ? undefined : current));
-        setRenameError(undefined);
-    };
-
-    const cancelRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
-        if (sessionId) finishRename(sessionId, true);
-    };
-
-    const commitRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
-        if (!sessionId) return;
-        const displayTitle = renameValue.trim();
-        if (!displayTitle) {
-            setRenameError('Session name is required');
-            return;
-        }
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
-        finishRename(sessionId, true);
-        if (displayTitle !== currentTitle) void renameSession(sessionId, displayTitle);
-    };
-
-    const blurRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
-        if (!sessionId) return;
-        const displayTitle = renameValue.trim();
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
-        finishRename(sessionId, false);
-        if (displayTitle && displayTitle !== currentTitle)
-            void renameSession(sessionId, displayTitle);
-    };
 
     const toggleProject = (projectId: string): void => {
         setAnimatedProjectIds((current) => new Set(current).add(projectId));
@@ -304,11 +237,11 @@ export function ProjectSidebar() {
                             animateProject={animatedProjectIds.has(project.id)}
                             dragged={projectOrder.draggedProjectId === project.id}
                             expanded={isProjectExpanded(project.id)}
-                            focusRenameInput={focusRenameInput}
-                            onBeginRename={beginRename}
-                            onBlurRename={blurRename}
-                            onCancelRename={cancelRename}
-                            onCommitRename={commitRename}
+                            focusRenameInput={sessionRename.focusRenameInput}
+                            onBeginRename={sessionRename.beginRename}
+                            onBlurRename={sessionRename.blurRename}
+                            onCancelRename={sessionRename.cancelRename}
+                            onCommitRename={sessionRename.commitRename}
                             onCreateSession={() => beginSessionCreation(project.id)}
                             onDragEnd={projectOrder.endDrag}
                             onDragOver={(event) => projectOrder.updateDropTarget(event, project.id)}
@@ -317,10 +250,7 @@ export function ProjectSidebar() {
                             onMove={(delta) =>
                                 projectOrder.move(project.id, project.displayTitle, delta)
                             }
-                            onRenameValueChange={(value) => {
-                                setRenameValue(value);
-                                setRenameError(undefined);
-                            }}
+                            onRenameValueChange={sessionRename.onRenameValueChange}
                             onSelect={() => selectProject(project.id)}
                             onToggle={() => toggleProject(project.id)}
                             project={project}
@@ -329,9 +259,9 @@ export function ProjectSidebar() {
                                     ? projectOrder.projectDropTarget
                                     : undefined
                             }
-                            renameError={renameError}
-                            renameValue={renameValue}
-                            renamingSessionId={renamingSessionId}
+                            renameError={sessionRename.renameError}
+                            renameValue={sessionRename.renameValue}
+                            renamingSessionId={sessionRename.renamingSessionId}
                             rovingRowId={rovingRowId}
                             selectedSessionId={selectedSessionId}
                             terminals={terminals}
