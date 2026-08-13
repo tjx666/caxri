@@ -49,6 +49,7 @@ const projectItemSchema = z.object({
     repository: z.string(),
     status: z.string().nullish(),
 });
+const lobeHubIdentitySchema = z.object({ userId: z.string().min(1) });
 
 export interface IntakeSnapshotOptions {
     cwd: string;
@@ -214,62 +215,72 @@ export async function createIntakeSnapshot(
     );
     const projectOwner = options.projectOwner ?? repository.nameWithOwner.split('/')[0];
     const issueState = options.issueNumbers.length > 0 ? 'all' : 'open';
-    const [login, issuesSource, pullRequestsSource, projectItemsSource, branch, headSha, status] =
-        await Promise.all([
-            captureReadOnlyGitHub(runner, ['api', 'user', '--jq', '.login'], cwd),
-            captureReadOnlyGitHub(
-                runner,
-                [
-                    'issue',
-                    'list',
-                    '--repo',
-                    repository.nameWithOwner,
-                    '--state',
-                    issueState,
-                    '--limit',
-                    String(MAX_GITHUB_ITEMS),
-                    '--json',
-                    'number,title,state,url,labels,updatedAt',
-                ],
-                cwd,
-            ),
-            captureReadOnlyGitHub(
-                runner,
-                [
-                    'pr',
-                    'list',
-                    '--repo',
-                    repository.nameWithOwner,
-                    '--state',
-                    'all',
-                    '--limit',
-                    String(MAX_GITHUB_ITEMS),
-                    '--json',
-                    'number,title,state,url,isDraft,headRefName,headRefOid,baseRefName,updatedAt,closingIssuesReferences',
-                ],
-                cwd,
-            ),
-            captureReadOnlyGitHub(
-                runner,
-                [
-                    'project',
-                    'item-list',
-                    String(options.projectNumber),
-                    '--owner',
-                    projectOwner,
-                    '--format',
-                    'json',
-                    '--limit',
-                    String(MAX_GITHUB_ITEMS),
-                    '--jq',
-                    projectItemQuery(),
-                ],
-                cwd,
-            ),
-            runner.capture('git', ['branch', '--show-current'], cwd),
-            runner.capture('git', ['rev-parse', 'HEAD'], cwd),
-            runner.capture('git', ['status', '--short', '--untracked-files=all'], cwd),
-        ]);
+    const [
+        login,
+        lobeHubIdentitySource,
+        issuesSource,
+        pullRequestsSource,
+        projectItemsSource,
+        branch,
+        headSha,
+        status,
+    ] = await Promise.all([
+        captureReadOnlyGitHub(runner, ['api', 'user', '--jq', '.login'], cwd),
+        runner.capture('lobehub', ['whoami', '--json'], cwd),
+        captureReadOnlyGitHub(
+            runner,
+            [
+                'issue',
+                'list',
+                '--repo',
+                repository.nameWithOwner,
+                '--state',
+                issueState,
+                '--limit',
+                String(MAX_GITHUB_ITEMS),
+                '--json',
+                'number,title,state,url,labels,updatedAt',
+            ],
+            cwd,
+        ),
+        captureReadOnlyGitHub(
+            runner,
+            [
+                'pr',
+                'list',
+                '--repo',
+                repository.nameWithOwner,
+                '--state',
+                'all',
+                '--limit',
+                String(MAX_GITHUB_ITEMS),
+                '--json',
+                'number,title,state,url,isDraft,headRefName,headRefOid,baseRefName,updatedAt,closingIssuesReferences',
+            ],
+            cwd,
+        ),
+        captureReadOnlyGitHub(
+            runner,
+            [
+                'project',
+                'item-list',
+                String(options.projectNumber),
+                '--owner',
+                projectOwner,
+                '--format',
+                'json',
+                '--limit',
+                String(MAX_GITHUB_ITEMS),
+                '--jq',
+                projectItemQuery(),
+            ],
+            cwd,
+        ),
+        runner.capture('git', ['branch', '--show-current'], cwd),
+        runner.capture('git', ['rev-parse', 'HEAD'], cwd),
+        runner.capture('git', ['status', '--short', '--untracked-files=all'], cwd),
+    ]);
+    parseJson(lobeHubIdentitySource, lobeHubIdentitySchema, 'LobeHub whoami');
     const allIssues = parseJson(issuesSource, z.array(issueSchema), 'GitHub issues');
     const requested = new Set(options.issueNumbers);
     const issues = options.issueNumbers.length
@@ -334,6 +345,7 @@ export async function createIntakeSnapshot(
                 };
             })
             .sort((left, right) => left.number - right.number),
+        lobeHubAuthenticated: true,
         project: { number: options.projectNumber, owner: projectOwner },
         pullRequests: pullRequests
             .filter(
@@ -360,7 +372,7 @@ export async function createIntakeSnapshot(
             defaultBranch: repository.defaultBranchRef.name,
             nameWithOwner: repository.nameWithOwner,
         },
-        schemaVersion: 1,
+        schemaVersion: 2,
         source: {
             ahead: Number(aheadText),
             behind: Number(behindText),

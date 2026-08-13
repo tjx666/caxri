@@ -10,21 +10,45 @@ const finalIssueSchema = z.object({
     state: z.literal('CLOSED'),
 });
 
-export const finalizationSchema = z.object({
-    deliveredAt: z.string().nullable(),
-    headSha: z.string().min(1),
-    issues: z
-        .array(finalIssueSchema)
-        .min(1)
-        .refine(
-            (issues) => new Set(issues.map(({ number }) => number)).size === issues.length,
-            'Finalization issue evidence must not contain duplicates',
-        ),
-    mergeSha: z.string().min(1),
-    path: z.literal('finalization.json'),
-    pullRequestNumber: z.number().int().positive(),
-    verifiedAt: z.string(),
+const finalResponseSchema = z.object({
+    automationCandidates: z.array(z.string().min(1)).min(1),
+    workflowImprovements: z.array(z.string().min(1)).min(1),
 });
+
+export const finalizationSchema = z
+    .object({
+        deliveredAt: z.string().nullable(),
+        finalResponse: finalResponseSchema.optional(),
+        headSha: z.string().min(1),
+        issues: z
+            .array(finalIssueSchema)
+            .min(1)
+            .refine(
+                (issues) => new Set(issues.map(({ number }) => number)).size === issues.length,
+                'Finalization issue evidence must not contain duplicates',
+            ),
+        mergeSha: z.string().min(1),
+        path: z.literal('finalization.json'),
+        pullRequestNumber: z.number().int().positive(),
+        receiptVersion: z.literal(2).optional(),
+        verifiedAt: z.string(),
+    })
+    .superRefine((receipt, context) => {
+        if (receipt.receiptVersion === 2 && !receipt.finalResponse) {
+            context.addIssue({
+                code: 'custom',
+                message: 'Finalization v2 requires the final response audit',
+                path: ['finalResponse'],
+            });
+        }
+        if (receipt.finalResponse && receipt.receiptVersion !== 2) {
+            context.addIssue({
+                code: 'custom',
+                message: 'Final response audit requires finalization receiptVersion 2',
+                path: ['receiptVersion'],
+            });
+        }
+    });
 
 export type FinalizationReceipt = z.infer<typeof finalizationSchema>;
 
@@ -38,8 +62,56 @@ interface FinalizationContext {
         number: number;
         status: string;
     }>;
+    notes: {
+        token_waste: Array<{ text: string }>;
+        workflow: Array<{ text: string }>;
+    };
     phase: string;
     pullRequest: { headSha: string | null; number: number | null; status: string };
+    runBudget: { routedWork: Array<{ title: string }> };
+}
+
+type FinalResponseContext = Pick<FinalizationContext, 'notes' | 'runBudget'>;
+
+export function createFinalResponseSummary(state: FinalResponseContext) {
+    const workflowImprovements = [...new Set(state.notes.workflow.map(({ text }) => text))];
+    const automationCandidates = [
+        ...new Set([
+            ...state.notes.token_waste.map(({ text }) => text),
+            ...state.runBudget.routedWork.map(({ title }) => title),
+        ]),
+    ];
+    return finalResponseSchema.parse({
+        automationCandidates:
+            automationCandidates.length > 0
+                ? automationCandidates
+                : ['本次运行未记录新增自动化候选。'],
+        workflowImprovements:
+            workflowImprovements.length > 0
+                ? workflowImprovements
+                : ['本次运行未记录新增 Workflow 改进。'],
+    });
+}
+
+export function formatFinalizationSummary(receiptInput: unknown): string {
+    const receipt = finalizationSchema.parse(receiptInput);
+    const finalResponse =
+        receipt.finalResponse ??
+        finalResponseSchema.parse({
+            automationCandidates: ['旧版收据未记录自动化候选。'],
+            workflowImprovements: ['旧版收据未记录 Workflow 改进。'],
+        });
+    const bullets = (values: string[]) => values.map((value) => `- ${value}`).join('\n');
+    return `合并完成：PR #${receipt.pullRequestNumber}，merge SHA ${receipt.mergeSha}
+关闭事项：${receipt.issues.map(({ number }) => `#${number}`).join(', ')}
+
+Workflow 改进
+
+${bullets(finalResponse.workflowImprovements)}
+
+自动化候选
+
+${bullets(finalResponse.automationCandidates)}`;
 }
 
 function assertFinalizationDriftReady(state: FinalizationContext, headSha: string): void {
@@ -93,11 +165,13 @@ export async function generateFinalization(
     }
     const receipt = finalizationSchema.parse({
         deliveredAt: null,
+        finalResponse: createFinalResponseSummary(state),
         headSha: input.headSha,
         issues: input.issues,
         mergeSha: input.mergeSha,
         path: 'finalization.json',
         pullRequestNumber: state.pullRequest.number,
+        receiptVersion: 2,
         verifiedAt,
     });
     const path = join(runDirectory, 'finalization.json');

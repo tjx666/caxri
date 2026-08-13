@@ -151,6 +151,13 @@ bun run .agents/skills/go/scripts/state.ts resume --state "$STATE" --json
 bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
 ```
 
+Use command-level help instead of guessing option order or enum values:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts help validation-start
+bun run .agents/skills/go/scripts/state.ts phase --help
+```
+
 - Update state only through the script. Every command acquires an atomic per-run lock directory and
   fails closed when another process owns it. If a process is forcibly killed, remove `state.lock`
   only after verifying that no state command for that exact run is alive; then retry. State and

@@ -9,6 +9,7 @@ import {
     finalizeReport,
     initializeReport,
     markCaseLifecycleReady,
+    rebindReportHead,
     type InitializeReportInput,
     validateAcceptanceCaseLaunch,
 } from './report';
@@ -137,6 +138,48 @@ describe('Acceptance report scaffold', () => {
         await expect(readFile(join(directory, 'report.md'), 'utf8')).resolves.toBe(
             '本轮暂无补充说明。\n',
         );
+    });
+
+    it('atomically rebinds an unfinished round to an exact replacement head with an audit record', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, { commit: 'old-head' });
+
+        await rebindReportHead({
+            commit: 'new-head',
+            createdAt: '2026-08-13T08:00:00.000Z',
+            directory,
+            entry: '在 new-head 上执行 Caxri Electron 桌面验收。',
+            fromCommit: 'old-head',
+            reason: 'Workflow-only repair changed the exact delivery head.',
+        });
+
+        const result = parseReport(await readFile(join(directory, 'result.json'), 'utf8'));
+        expect(result).toMatchObject({
+            commit: 'new-head',
+            createdAt: '2026-08-13T08:00:00.000Z',
+            entry: '在 new-head 上执行 Caxri Electron 桌面验收。',
+            headRebinds: [
+                {
+                    fromCommit: 'old-head',
+                    reason: 'Workflow-only repair changed the exact delivery head.',
+                    reboundAt: '2026-08-13T08:00:00.000Z',
+                    toCommit: 'new-head',
+                },
+            ],
+        });
+        expect(result.cases).toEqual([
+            expect.objectContaining({ id: 'terminal-layout', status: 'TODO' }),
+        ]);
+
+        await expect(
+            rebindReportHead({
+                commit: 'another-head',
+                directory,
+                entry: '在 another-head 上执行 Caxri Electron 桌面验收。',
+                fromCommit: 'stale-head',
+                reason: 'Stale caller must fail closed.',
+            }),
+        ).rejects.toThrow('does not match --from-commit');
     });
 
     it('derives summary, verifies evidence coverage, and preserves supported extension fields', async () => {

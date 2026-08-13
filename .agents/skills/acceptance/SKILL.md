@@ -38,7 +38,9 @@ substitutes for the real desktop path when the claim is user-visible.
 
 1. Read `.agents/acceptance/PROJECT.md` for the exact build, isolated launch,
    stop, CDP, and logging commands. Fix adapter drift when observed.
-2. Confirm production LobeHub authentication with the adapter command.
+2. Confirm production LobeHub authentication with `lobehub whoami --json`. Do
+   not guess an `auth status` subcommand; the Go intake snapshot runs this same
+   fail-closed probe automatically.
 3. Resolve the immutable one-sentence business requirement for the whole
    acceptance. Write it in Simplified Chinese. The scaffold freezes it in the
    acceptance root so every later round must reuse the exact same requirement.
