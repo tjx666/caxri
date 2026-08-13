@@ -216,9 +216,7 @@ done
             }),
         ).toBeVisible();
         await running.page.locator('.project-select').focus();
-        await running.page.keyboard.press('Tab');
-        await expect(running.page.getByRole('button', { name: /^New Session in / })).toBeFocused();
-        await running.page.keyboard.press('Tab');
+        await running.page.keyboard.press('ArrowDown');
         await expect(firstRow).toBeFocused();
         await expect(activityCard).toBeVisible({ timeout: 200 });
         await expect(activityCard).toContainText('Waiting for you');

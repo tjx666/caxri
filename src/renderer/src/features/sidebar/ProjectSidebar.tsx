@@ -1,5 +1,5 @@
 import { Archive, Plus } from 'lucide-react';
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
@@ -14,11 +14,22 @@ import {
     useSessions,
     useTerminals,
 } from '../../stores/selectors';
-import { beginSessionCreation, renameSession, selectProject } from '../session/session-actions';
+import {
+    archiveSession,
+    beginSessionCreation,
+    renameSession,
+    selectProject,
+} from '../session/session-actions';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { hasProjectDragType } from './project-order';
 import { ProjectGroup } from './ProjectGroup';
-import { flattenSidebarRows, nextSidebarRowId, sidebarHorizontalIntent } from './sidebar-tree';
+import {
+    flattenSidebarRows,
+    nextSidebarRowId,
+    rovingSidebarRowId,
+    sidebarArchiveIntent,
+    sidebarHorizontalIntent,
+} from './sidebar-tree';
 import { useProjectOrder } from './useProjectOrder';
 
 const NO_RECORDS: never[] = [];
@@ -40,6 +51,8 @@ export function ProjectSidebar() {
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
+    /** The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution. */
+    const [focusedRowId, setFocusedRowId] = useState<string>();
     const renamingSessionIdRef = useRef<string | undefined>(undefined);
     const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
     const treeRef = useRef<HTMLDivElement>(null);
@@ -72,6 +85,23 @@ export function ProjectSidebar() {
         }));
         return flattenSidebarRows(projectNodes, isProjectExpanded);
     }, [projects, sessions, isProjectExpanded]);
+
+    /**
+     * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern).
+     * Falls back through the selected Session, then the selected Project, then the first row
+     * whenever `focusedRowId` is unset or has gone stale (archived Session, collapsed Project).
+     */
+    const rovingRowId = useMemo(
+        () => rovingSidebarRowId(treeRows, focusedRowId, selectedSessionId, selectedProjectId),
+        [treeRows, focusedRowId, selectedSessionId, selectedProjectId],
+    );
+
+    const handleTreeFocus = useCallback((event: FocusEvent<HTMLDivElement>): void => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
+        if (rowId) setFocusedRowId(rowId);
+    }, []);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
         element?.focus();
@@ -150,14 +180,16 @@ export function ProjectSidebar() {
     };
 
     /**
-     * Additive Up/Down/Left/Right/Home/End navigation across every Project heading and its active
-     * Sessions (item 3 of the Sidebar keyboard-navigation audit). This intentionally layers on top
-     * of — rather than replaces — the existing per-row Tab stops: several E2E specs already assert
-     * a specific Tab order between the Project heading, "New Session", and the first Session card
-     * (see `e2e/session-attention.e2e.ts` and `e2e/sidebar-chrome.e2e.ts`), so collapsing the whole
-     * tree to a single roving Tab stop would need those specs updated in lockstep, which is outside
-     * this work package's file set. Arrow keys resolve the actual reported pain point (reaching a
-     * deep Session took dozens of Tab presses) without touching Tab order at all.
+     * The Sidebar tree is a single roving Tab stop (standard ARIA tree authoring pattern): only
+     * the row in `rovingRowId` is a Tab stop, and every inner control (disclosure, "New Session",
+     * archived-count, per-row Archive) is `tabIndex={-1}`. This handler supplies the keyboard
+     * equivalents that stop being reachable by Tab:
+     * - Up/Down/Home/End walk every Project heading and its active Sessions.
+     * - Left/Right expand/collapse a Project, or move a Session row to its owning Project.
+     * - Delete/Backspace on a focused Session row archives it (reversible via the Archived
+     *   Sessions dialog, so no confirmation) — the keyboard equivalent of the Archive button.
+     *   Focus moves to the next row (falling back to the previous row when the archived row was
+     *   last) before the row leaves the DOM, so the roving Tab stop never falls out of the tree.
      */
     const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -193,6 +225,21 @@ export function ProjectSidebar() {
             if (intent.focusRowId) {
                 event.preventDefault();
                 focusRow(intent.focusRowId);
+            }
+            return;
+        }
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+            const row = treeRows.find((item) => item.id === rowId);
+            if (!row) return;
+            if (sidebarArchiveIntent(row, event.key) === 'archive') {
+                event.preventDefault();
+                // Compute where focus lands before the row leaves the DOM: the Project heading is
+                // always above a Session row, so the ArrowUp fallback never comes up empty here.
+                const focusAfterArchive =
+                    nextSidebarRowId(treeRows, rowId, 'ArrowDown') ??
+                    nextSidebarRowId(treeRows, rowId, 'ArrowUp');
+                archiveSession(row.id);
+                if (focusAfterArchive) focusRow(focusAfterArchive);
             }
         }
     };
@@ -238,6 +285,7 @@ export function ProjectSidebar() {
                     if (!hasProjectDragType(event.dataTransfer.types)) return;
                     projectOrder.onListDragOver(event);
                 }}
+                onFocusCapture={handleTreeFocus}
                 onKeyDown={handleTreeKeyDown}
             >
                 {projects.map((project) => {
@@ -284,6 +332,7 @@ export function ProjectSidebar() {
                             renameError={renameError}
                             renameValue={renameValue}
                             renamingSessionId={renamingSessionId}
+                            rovingRowId={rovingRowId}
                             selectedSessionId={selectedSessionId}
                             terminals={terminals}
                         />

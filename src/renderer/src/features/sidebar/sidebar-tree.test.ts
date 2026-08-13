@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
     flattenSidebarRows,
     nextSidebarRowId,
+    rovingSidebarRowId,
+    sidebarArchiveIntent,
     sidebarHorizontalIntent,
     type SidebarProjectNode,
 } from './sidebar-tree';
@@ -83,5 +85,59 @@ describe('sidebarHorizontalIntent', () => {
             focusRowId: 'alpha',
         });
         expect(sidebarHorizontalIntent(sessionRow, true, 'ArrowRight')).toEqual({});
+    });
+});
+
+describe('rovingSidebarRowId', () => {
+    const rows = flattenSidebarRows(projects, () => true);
+
+    it('prefers the last focused row when it is still present', () => {
+        expect(rovingSidebarRowId(rows, 'beta-1', 'alpha-1', 'alpha')).toBe('beta-1');
+    });
+
+    it('falls back to the selected Session row when nothing has been focused yet', () => {
+        expect(rovingSidebarRowId(rows, undefined, 'beta-1', 'alpha')).toBe('beta-1');
+    });
+
+    it('falls back to the selected Project heading when no Session is selected', () => {
+        expect(rovingSidebarRowId(rows, undefined, undefined, 'beta')).toBe('beta');
+    });
+
+    it('falls back to the first row when nothing is focused or selected', () => {
+        expect(rovingSidebarRowId(rows, undefined, undefined, undefined)).toBe('alpha');
+    });
+
+    it('falls through the same chain when the focused row no longer exists', () => {
+        expect(rovingSidebarRowId(rows, 'stale-id', 'beta-1', 'alpha')).toBe('beta-1');
+        expect(rovingSidebarRowId(rows, 'stale-id', undefined, 'beta')).toBe('beta');
+        expect(rovingSidebarRowId(rows, 'stale-id', undefined, undefined)).toBe('alpha');
+    });
+
+    it('falls through when the selected Session row is hidden by a collapsed Project', () => {
+        const collapsedRows = flattenSidebarRows(projects, (projectId) => projectId !== 'alpha');
+        expect(rovingSidebarRowId(collapsedRows, 'alpha-1', 'alpha-1', 'alpha')).toBe('alpha');
+    });
+
+    it('returns undefined for an empty tree', () => {
+        expect(rovingSidebarRowId([], undefined, undefined, undefined)).toBeUndefined();
+    });
+});
+
+describe('sidebarArchiveIntent', () => {
+    const projectRow = { id: 'alpha', kind: 'project' as const, projectId: 'alpha' };
+    const sessionRow = { id: 'alpha-1', kind: 'session' as const, projectId: 'alpha' };
+
+    it('resolves Delete and Backspace on a Session row to archive', () => {
+        expect(sidebarArchiveIntent(sessionRow, 'Delete')).toBe('archive');
+        expect(sidebarArchiveIntent(sessionRow, 'Backspace')).toBe('archive');
+    });
+
+    it('is a no-op for any other key on a Session row', () => {
+        expect(sidebarArchiveIntent(sessionRow, 'Enter')).toBeUndefined();
+    });
+
+    it('is always a no-op for a Project row', () => {
+        expect(sidebarArchiveIntent(projectRow, 'Delete')).toBeUndefined();
+        expect(sidebarArchiveIntent(projectRow, 'Backspace')).toBeUndefined();
     });
 });
