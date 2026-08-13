@@ -61,7 +61,7 @@ machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 
-If the failed job was `e2e / parallel-safe`, the serial repetitions are necessary but not
+If the failed logical pool was `parallel-safe`, the serial repetitions are necessary but not
 sufficient. Run the exact failed specs again under the repository-owned namespaced two-worker pool,
 because loaded-runner races can expose stale async state and hidden warmup surfaces that one worker
 cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
@@ -71,9 +71,11 @@ Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an
 
 - `e2e_profile=control` runs the exact full manifest with one worker.
 - `e2e_profile=optimized` runs the explicit `@parallel-safe` spec allowlist with two workers, then
-  the fail-closed `@desktop-exclusive` remainder with one worker.
-- Both profiles install and build once, publish cache/install/Playwright metrics, and run the four
-  deterministic CI-parity cases through `scripts/run-ci-parity.ts`.
+  the fail-closed `@desktop-exclusive` remainder with one worker in the same E2E job. Individually
+  audited tagged tests may join the safe pool while untagged tests remain exclusive.
+- Both profiles install and build once. The optimized job attempts both logical pools after a pool
+  failure, publishes an actual-execution receipt and per-pool artifacts, and workflow dispatches
+  run the deterministic CI-parity cases through `scripts/run-ci-parity.ts`.
 - Run each profile until it has three consecutive green samples on the same Node/npm/lockfile,
   runner label, test manifest, and workflow parameters. Record every non-green attempt.
 - Adopt optimized only when it preserves isolation and test counts and improves median feedback.

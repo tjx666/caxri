@@ -5,8 +5,10 @@ import {
     assertE2EAgentInput,
     assertE2EAgentLaunch,
     assertE2EShellLaunch,
+    e2eAgentShellShimProviders,
     e2eAgentShellShims,
     e2eFakeExecutableEnvironment,
+    e2eFakeExecutableEnvironmentKey,
     readE2EFakeExecutables,
     e2eAgentPolicyEnvironment,
     readE2EAgentPolicy,
@@ -51,6 +53,7 @@ describe('E2E Agent policy', () => {
         expect(environment).toEqual({
             CAXRI_E2E_FAKE_SYNTHETIC_AGENT_EXECUTABLE: '/tmp/fake-synthetic-agent',
         });
+        expect(e2eFakeExecutableEnvironmentKey('claude')).toBe('CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE');
         expect(readE2EFakeExecutables(environment, providers)).toEqual(executables);
         const fakeShim = e2eAgentShellShims(executables, shimProviders).find(
             (shim) => shim.executable === 'synthetic-cli',
@@ -76,6 +79,9 @@ describe('E2E Agent policy', () => {
     });
 
     it('generates one default Shell shim for every catalog provider', () => {
+        expect(e2eAgentShellShimProviders().map(({ provider }) => provider)).toEqual(
+            agentProviderIds,
+        );
         expect(e2eAgentShellShims({}).map((shim) => shim.provider)).toEqual(agentProviderIds);
     });
 

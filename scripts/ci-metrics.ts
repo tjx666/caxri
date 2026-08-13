@@ -10,6 +10,25 @@ interface ProcessSample {
     rssKiB: number;
 }
 
+interface CommandMetricReceipt {
+    elapsedSeconds: number;
+    exitCode: number;
+    label: string;
+    peakRSSKiB?: number;
+}
+
+/** Keeps wall-time and RSS evidence machine-readable in the immutable Actions job log. */
+export function formatMetricReceipt(receipt: CommandMetricReceipt): string {
+    return `CAXRI_CI_METRIC ${JSON.stringify({
+        elapsedSeconds: Number(receipt.elapsedSeconds.toFixed(3)),
+        exitCode: receipt.exitCode,
+        label: receipt.label.replace(/[\r\n|]/gu, ' '),
+        ...(receipt.peakRSSKiB === undefined
+            ? { peakRSSMiB: null }
+            : { peakRSSMiB: Number((receipt.peakRSSKiB / 1_024).toFixed(1)) }),
+    })}`;
+}
+
 export function processTreeRSSKiB(snapshot: string, rootPid: number): number | undefined {
     const processes = snapshot.split('\n').flatMap((line): ProcessSample[] => {
         const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s*$/u.exec(line);
@@ -83,6 +102,7 @@ async function main(): Promise<void> {
     });
     clearInterval(timer);
     const elapsedSeconds = (performance.now() - started) / 1_000;
+    console.log(formatMetricReceipt({ elapsedSeconds, exitCode, label, peakRSSKiB }));
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (summary) {
         const safeLabel = label.replace(/[\r\n|]/gu, ' ');

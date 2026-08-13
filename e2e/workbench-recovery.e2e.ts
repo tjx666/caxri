@@ -163,7 +163,6 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.app.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0]?.setBounds({ width: 960, height: 640 }),
         );
-        await running.page.waitForTimeout(400);
         await running.app.close();
         running = await launchCaxri({ userDataDir: userData, testRootPath: sessionRoot });
         await expect(running.page.locator('.project-group')).toHaveCount(1);

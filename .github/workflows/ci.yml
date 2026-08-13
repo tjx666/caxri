@@ -19,6 +19,18 @@ on:
         default: 'off'
         type: choice
         options: ['off', '2', auto]
+      vitest_partition:
+        description: Vitest serial partition for self-hosted A/B runs
+        required: true
+        default: optimized
+        type: choice
+        options: [legacy, optimized]
+      vitest_max_workers:
+        description: Vitest worker cap for self-hosted A/B runs
+        required: true
+        default: '2'
+        type: choice
+        options: ['1', '2', '3', '4']
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -140,7 +152,13 @@ jobs:
         run: bun run format:check
       - name: Run unit and integration tests
         if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run scripts/ci-metrics.ts --label "Vitest full suite" -- bun run test
+        env:
+          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
+          CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
+        run: >-
+          bun run scripts/ci-metrics.ts
+          --label "Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}" --
+          bun run test
       - name: Build Electron bundles
         if: needs.retry-policy.outputs.checks_scope == 'full'
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
@@ -149,7 +167,7 @@ jobs:
         run: bun run scripts/self-hosted-runner.ts cleanup
 
   e2e:
-    name: e2e / ${{ matrix.pool }}
+    name: e2e
     needs: [retry-policy, checks]
     if: >-
       always() &&
@@ -181,13 +199,9 @@ jobs:
           startsWith(github.event.head_commit.message, 'release: v')
         )
       )
-    strategy:
-      fail-fast: false
-      matrix:
-        pool: ${{ fromJSON(needs.retry-policy.outputs.e2e_profile == 'optimized' && '["parallel-safe","desktop-exclusive"]' || '["control"]') }}
     runs-on: [self-hosted, macOS, ARM64, caxri-e2e]
     env:
-      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.pool }}
+      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_E2E_RUNNER_KIND: self-hosted
       CAXRI_E2E_RUNNER_REASON: >-
@@ -200,7 +214,7 @@ jobs:
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
-      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.pool }}
+      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
       - name: Verify self-hosted trust boundary
         env:
@@ -251,43 +265,97 @@ jobs:
       - name: Verify Electron native modules
         run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
       - name: Build Electron bundles
+        id: e2e-build
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
-      - name: Record exact E2E manifest
-        run: bun run scripts/report-e2e-manifest.ts
       - name: Run focused repair specs
-        if: matrix.pool == 'control' && needs.retry-policy.outputs.mode == 'e2e-repair'
+        id: focused-repair
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.mode == 'e2e-repair'
         env:
           CI_E2E_POOL: ${{ needs.retry-policy.outputs.e2e_pool }}
           CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
         run: bun run scripts/run-e2e-repair.ts
       - name: Run one-worker control suite
-        if: matrix.pool == 'control'
+        id: control
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'control'
         env:
           CAXRI_E2E_OUTPUT_DIR: test-results/control
-        run: bun run scripts/ci-metrics.ts --label "Playwright control workers=1" -- bunx playwright test --workers=1
+          CAXRI_E2E_POOL: control
+          CAXRI_E2E_RECEIPT_PATH: test-results/receipts/control.json
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Playwright control workers=1" --
+          bunx playwright test --workers=1 --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
       - name: Prove desktop worker interruption recovery
-        if: matrix.pool == 'parallel-safe'
+        id: failure-isolation
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: >-
           bun run scripts/ci-metrics.ts --label "Desktop worker interruption recovery" --
           bun run scripts/run-e2e-failure-isolation.ts
       - name: Run parallel-safe pool
-        if: matrix.pool == 'parallel-safe'
+        id: parallel-safe
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: >-
           bun run scripts/ci-metrics.ts --label "Playwright parallel-safe workers=2" --
           bun run scripts/run-e2e-pools.ts --pool parallel-safe
       - name: Run desktop-exclusive pool
-        if: matrix.pool == 'desktop-exclusive'
+        id: desktop-exclusive
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: >-
           bun run scripts/ci-metrics.ts --label "Playwright desktop-exclusive workers=1" --
           bun run scripts/run-e2e-pools.ts --pool desktop-exclusive
       - name: Run deterministic CI-parity cases
-        if: github.event_name == 'workflow_dispatch' && (matrix.pool == 'control' || matrix.pool == 'desktop-exclusive')
+        id: ci-parity
+        if: always() && steps.e2e-build.outcome == 'success' && github.event_name == 'workflow_dispatch'
         run: bun run scripts/ci-metrics.ts --label "CI parity workers=1 repeat=3" -- bun run scripts/run-ci-parity.ts
-      - name: Upload failure artifacts
-        if: failure()
+      - name: Record actual E2E execution receipt
+        id: execution-receipt
+        if: always() && steps.e2e-build.outcome == 'success'
+        run: >-
+          bun run scripts/report-e2e-manifest.ts
+          ${{ needs.retry-policy.outputs.e2e_profile == 'optimized' && 'parallel-safe desktop-exclusive' || 'control' }}
+      - name: Upload parallel-safe failure artifacts
+        if: always() && steps.parallel-safe.outcome == 'failure'
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-${{ matrix.pool }}-failure-artifacts
+          name: e2e-parallel-safe-failure-artifacts
+          path: |
+            test-results/parallel-safe/
+            test-results/receipts/parallel-safe.json
+            logs/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload desktop-exclusive failure artifacts
+        if: always() && steps.desktop-exclusive.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-desktop-exclusive-failure-artifacts
+          path: |
+            test-results/desktop-exclusive/
+            test-results/receipts/desktop-exclusive.json
+            logs/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload control failure artifacts
+        if: always() && steps.control.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-control-failure-artifacts
+          path: |
+            test-results/control/
+            test-results/receipts/control.json
+            logs/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload auxiliary E2E failure artifacts
+        if: >-
+          always() && (
+            steps.focused-repair.outcome == 'failure' ||
+            steps.failure-isolation.outcome == 'failure' ||
+            steps.ci-parity.outcome == 'failure' ||
+            steps.execution-receipt.outcome == 'failure'
+          )
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-auxiliary-failure-artifacts
           path: |
             test-results/
             logs/

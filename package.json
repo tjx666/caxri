@@ -55,6 +55,7 @@
             ".agents/skills/acceptance/scripts/stop-electron.ts",
             ".agents/skills/go/scripts/state.ts",
             ".agents/skills/go/scripts/xterm-beta-line.ts",
+            "scripts/reporters/e2e-receipt-reporter.ts",
             "scripts/run-e2e-failure-isolation.ts",
             "scripts/run-e2e-pools.ts"
         ],

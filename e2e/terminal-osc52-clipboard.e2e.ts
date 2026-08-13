@@ -55,7 +55,12 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
 
         await typeTerminal(running.page, osc52(encoded('DEFAULT_BLOCKED')));
         await typeTerminal(running.page, osc52('?'));
-        await running.page.waitForTimeout(200);
+        /** A write blocked because the setting is off now reports through the same notification
+         *  path as a real clipboard failure, with plain language pointing at Settings. Both writes
+         *  above land inside the same per-reason throttle window, so only one toast is expected. */
+        await expect(
+            running.page.getByText(OSC52_BLOCKED_TOASTS.disabled, { exact: true }),
+        ).toBeVisible();
         expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
             'OSC52_SENTINEL',
         );
@@ -64,12 +69,6 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
                 () => (window as unknown as { __osc52ReadCount: number }).__osc52ReadCount,
             ),
         ).toBe(0);
-        /** A write blocked because the setting is off now reports through the same notification
-         *  path as a real clipboard failure, with plain language pointing at Settings. Both writes
-         *  above land inside the same per-reason throttle window, so only one toast is expected. */
-        await expect(
-            running.page.getByText(OSC52_BLOCKED_TOASTS.disabled, { exact: true }),
-        ).toBeVisible();
 
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
@@ -107,15 +106,14 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await running.page.waitForTimeout(1_050);
         await typeTerminal(running.page, osc52('%%%'));
         await typeTerminal(running.page, osc52(encoded('PRIMARY_BLOCKED'), 'p'));
-        await running.page.waitForTimeout(200);
-        expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
-            'FIRST_WRITE',
-        );
         /** Malformed base64 ('%%%') reports its own message; a valid write to a non-primary
          *  selection ('p') stays a silent no-op, so exactly one new toast is expected here. */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.malformed, { exact: true }),
         ).toBeVisible();
+        expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
+            'FIRST_WRITE',
+        );
 
         await createAdditionalShellSession(running.page);
         const secondTerminalTab = running.page.locator('.work-tab.active[data-terminal-id]');

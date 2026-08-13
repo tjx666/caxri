@@ -30,5 +30,5 @@ Validate the smallest observable behavior below the Electron desktop boundary.
 7. Run the full `bun run test` suite only for release/CI parity, when explicitly requested, or when
    a shared cross-cutting contract makes focused coverage insufficient.
 
-This skill does not own Playwright, Electron desktop lifecycle, real PTYs, window focus, hosted full
+This skill does not own Playwright, Electron desktop lifecycle, real PTYs, window focus, remote full
 E2E, or the guarded Go fallback. Invoke `e2e-testing` for those surfaces.

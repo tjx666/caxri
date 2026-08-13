@@ -11,7 +11,7 @@ import {
     transferDesktopLease,
     type DesktopLeaseHandle,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
-import { assertBuildOutputsFresh } from '../src/shared/node/build-freshness.ts';
+import { createBuildFreshnessGuard } from '../src/shared/node/build-freshness.ts';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,
@@ -62,13 +62,15 @@ const e2eAgentEnvironmentKeys = [
  * (`bun run --silent check e2e/foo.e2e.ts --e2e`) builds first, while direct Playwright invocations may
  * skip that step and otherwise silently launch a previously built `out/main/index.js`.
  */
+const buildFreshnessGuard = createBuildFreshnessGuard({
+    inputPaths: buildInputPaths,
+    outputPaths: buildOutputPaths,
+    watchedDirectoryExtensions: watchedBuildInputExtensions,
+    staleMessage: staleBuildMessage,
+});
+
 async function assertBuildIsFresh(): Promise<void> {
-    await assertBuildOutputsFresh({
-        inputPaths: buildInputPaths,
-        outputPaths: buildOutputPaths,
-        watchedDirectoryExtensions: watchedBuildInputExtensions,
-        staleMessage: staleBuildMessage,
-    });
+    await buildFreshnessGuard.assertFresh();
 }
 
 export interface LaunchCaxriOptions {
