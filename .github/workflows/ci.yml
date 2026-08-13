@@ -51,6 +51,8 @@ jobs:
       run_e2e: ${{ steps.policy.outputs.run_e2e }}
       e2e_profile: ${{ steps.policy.outputs.e2e_profile }}
       changed_files: ${{ steps.policy.outputs.changed_files }}
+      reused_e2e_run: ${{ steps.policy.outputs.reused_e2e_run }}
+      reused_e2e_head: ${{ steps.policy.outputs.reused_e2e_head }}
     steps:
       - uses: actions/checkout@v7
         with:

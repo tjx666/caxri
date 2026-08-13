@@ -64,6 +64,10 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - Finish the complete repair batch and focused local gates before pushing once. Use exact-tree
   `e2e-repair` for an eligible unprotected delta. Workflow, dependency, pool, fixture, and retry
   policy changes remain fail-closed and require one final full run.
+- After one ready-PR run has full Linux checks, every E2E pool, and `CI gate` green, a later strict
+  ancestor may reuse that macOS evidence only when its entire delta is documentation or the
+  repository-owned `acceptance`/`go` skill. The current head still runs focused Linux checks;
+  product, workflow, dependency, fixture, pool, and other skill changes fail closed to full CI.
 - Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
   fixture cost and orchestration rather than coverage.
 
