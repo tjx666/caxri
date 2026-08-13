@@ -74,7 +74,9 @@ runs:
 
         test ! -e .cache
         mkdir -p "$electron_cache" "$cache_root/eslint" .cache
-        touch "$cache_root/prettier"
+        if [[ ! -s "$cache_root/prettier" ]]; then
+          rm -f "$cache_root/prettier"
+        fi
         ln -s "$cache_root/eslint" .cache/eslint
         ln -s "$cache_root/prettier" .cache/prettier
         echo "ELECTRON_CACHE=$electron_cache" >> "$GITHUB_ENV"
