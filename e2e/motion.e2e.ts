@@ -196,10 +196,10 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         expect(await animationDurationMs(dialogPopup)).toBe(enterMs);
 
         // Close through the dialog's own Close button rather than Escape: the just-created
-        // Session leaves its Terminal focused (`e2e/settings.e2e.ts`'s "Settings shortcut opens
-        // while Terminal input has focus" documents that opening Settings via the keyboard
-        // shortcut does not steal focus into the dialog), so Escape would be delivered to the
-        // Terminal instead of the dialog and never close it.
+        // Session leaves its Terminal focused (`e2e/settings-parallel-safe.e2e.ts`'s
+        // "Settings shortcut opens while Terminal input has focus" documents that opening Settings
+        // via the keyboard shortcut does not steal focus into the dialog), so Escape would be
+        // delivered to the Terminal instead of the dialog and never close it.
         await dialogPopup.getByRole('button', { name: 'Close' }).click();
         // Base UI keeps the popup mounted with data-closed set until its exit animation
         // finishes (dialog.tsx documents this), so the exit keyframe/duration is observable in

@@ -50,6 +50,7 @@ describe('CI workflow contract', () => {
         );
         expect(setupAction).not.toContain('oven-sh/setup-bun');
         expect(setupAction).toContain('cache_root="$RUNNER_TOOL_CACHE/caxri"');
+        expect(setupAction).toContain('CAXRI_CACHE_STATE');
         expect(setupAction).toContain(
             'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund',
         );
@@ -58,12 +59,30 @@ describe('CI workflow contract', () => {
         expect(bunVersion).toBe('1.3.14');
         expect(workflow).toContain('Electron native compatibility');
         expect(workflow).toContain('bun run spike:native');
-        expect(workflow).toContain('--label "Vitest full suite" -- bun run test');
+        expect(workflow).toContain(
+            "CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}",
+        );
+        expect(workflow).toContain(
+            "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}",
+        );
+        expect(workflow).toContain(
+            'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
+        );
+        expect(workflow).toContain('CAXRI_VALIDATION_ENV');
+        expect(workflow).toContain('lockfileSha256: process.env.LOCKFILE_SHA256');
         expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(2);
         expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
         expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
         expect(workflow.match(/install-electron:/gu)).toHaveLength(2);
         expect(workflow.match(/rebuild-native:/gu)).toHaveLength(2);
+    });
+
+    it('always tears down the self-hosted boundary, including a partial setup failure', () => {
+        expect(workflow.match(/name: Clean self-hosted runner boundary/gu)).toHaveLength(3);
+        expect(
+            workflow.match(/name: Clean self-hosted runner boundary\n {8}if: always\(\)/gu),
+        ).toHaveLength(3);
+        expect(workflow).not.toContain("steps.setup.outputs.prepared == 'true'");
     });
 
     it('recovers an empty persistent Prettier cache before reuse', async () => {
@@ -73,6 +92,7 @@ describe('CI workflow contract', () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-prettier-cache-'));
         const workspace = join(root, 'workspace');
         const toolCache = join(root, 'tool-cache');
+        const npmCache = join(root, 'npm-cache');
         const persistentCache = join(toolCache, 'caxri', 'prettier');
         const githubEnv = join(root, 'github-env');
         const githubSummary = join(root, 'github-summary');
@@ -81,21 +101,36 @@ describe('CI workflow contract', () => {
             expect(cacheStep?.run).toBeTruthy();
             await mkdir(workspace, { recursive: true });
             await mkdir(join(toolCache, 'caxri'), { recursive: true });
+            await mkdir(npmCache, { recursive: true });
+            await writeFile(join(npmCache, 'cache-entry'), 'warm');
             await writeFile(persistentCache, '');
             await writeFile(githubEnv, '');
             await writeFile(githubSummary, '');
 
-            await execFile('bash', ['-e', '-o', 'pipefail', '-c', cacheStep?.run ?? 'exit 1'], {
-                cwd: workspace,
-                env: {
-                    ...process.env,
-                    GITHUB_ENV: githubEnv,
-                    GITHUB_STEP_SUMMARY: githubSummary,
-                    RUNNER_TOOL_CACHE: toolCache,
+            const { stdout } = await execFile(
+                'bash',
+                ['-e', '-o', 'pipefail', '-c', cacheStep?.run ?? 'exit 1'],
+                {
+                    cwd: workspace,
+                    env: {
+                        ...process.env,
+                        GITHUB_ENV: githubEnv,
+                        GITHUB_STEP_SUMMARY: githubSummary,
+                        RUNNER_TOOL_CACHE: toolCache,
+                        npm_config_cache: npmCache,
+                    },
                 },
-            });
+            );
 
             expect(await readlink(join(workspace, '.cache', 'prettier'))).toBe(persistentCache);
+            const cacheMetric = stdout
+                .split('\n')
+                .find((line) => line.startsWith('CAXRI_CACHE_STATE '));
+            expect(JSON.parse(cacheMetric?.replace('CAXRI_CACHE_STATE ', '') ?? '')).toEqual({
+                electron: 'cold',
+                npm: 'warm',
+                quality: 'warm',
+            });
             await writeFile(join(workspace, 'fixture.js'), 'const value = 1;\n');
             await execFile(
                 fileURLToPath(new URL('../node_modules/.bin/prettier', import.meta.url)),
@@ -136,17 +171,22 @@ describe('CI workflow contract', () => {
         expect(interruptionIndex).toBeGreaterThan(0);
         expect(optimizedPoolIndex).toBeGreaterThan(interruptionIndex);
         expect(workflow).toContain('bun run scripts/run-e2e-failure-isolation.ts');
-        expect(workflow).toContain('name: e2e / ${{ matrix.pool }}');
-        expect(workflow).toContain(
-            'needs.retry-policy.outputs.e2e_profile == \'optimized\' && \'["parallel-safe","desktop-exclusive"]\'',
-        );
+        expect(workflow).toContain('name: e2e');
+        expect(workflow).not.toContain('matrix.pool');
         expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool parallel-safe');
         expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool desktop-exclusive');
         expect(workflow).toContain('bunx playwright test --workers=1');
         expect(workflow).toContain(
-            "if: github.event_name == 'workflow_dispatch' && (matrix.pool == 'control' || matrix.pool == 'desktop-exclusive')",
+            "if: always() && steps.e2e-build.outcome == 'success' && github.event_name == 'workflow_dispatch'",
         );
         expect(workflow).toContain('bun run scripts/run-ci-parity.ts');
+        expect(workflow).toContain('id: parallel-safe');
+        expect(workflow).toContain('id: desktop-exclusive');
+        expect(workflow).toContain("if: always() && steps.parallel-safe.outcome == 'failure'");
+        expect(workflow).toContain("if: always() && steps.desktop-exclusive.outcome == 'failure'");
+        expect(workflow).toContain("steps.failure-isolation.outcome == 'failure'");
+        expect(workflow).toContain("steps.execution-receipt.outcome == 'failure'");
+        expect(workflow).toContain('bun run scripts/report-e2e-manifest.ts');
     });
 
     it('runs focused repair specs before the complete E2E suite and exposes one stable gate', () => {
@@ -157,6 +197,12 @@ describe('CI workflow contract', () => {
         expect(focusedIndex).toBeGreaterThan(0);
         expect(fullIndex).toBeGreaterThan(focusedIndex);
         expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
+        expect(e2eJob).toContain(
+            "if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'",
+        );
+        expect(e2eJob).toContain(
+            "if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'control'",
+        );
         expect(workflow).toContain('name: CI gate');
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
     });
@@ -208,7 +254,9 @@ describe('CI workflow contract', () => {
         expect(workflow.match(/CAXRI_RUNNER_AGENT_DISCOVERY: blocked/gu)).toHaveLength(3);
         expect(checksJob).not.toContain('CAXRI_E2E_AGENT_MODE');
         expect(e2eJob).toContain('CAXRI_E2E_AGENT_MODE: blocked');
-        expect(workflow.match(/steps\.setup\.outputs\.prepared == 'true'/gu)).toHaveLength(3);
+        expect(
+            workflow.match(/name: Clean self-hosted runner boundary\n {8}if: always\(\)/gu),
+        ).toHaveLength(3);
         expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
     });
 });

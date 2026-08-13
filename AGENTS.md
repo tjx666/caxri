@@ -125,6 +125,8 @@ step-by-step workflows beyond this summary.
   source batch is complete. Re-run only gates invalidated by later edits. Rebuild before focused
   Electron E2E whenever relevant `src/` files changed after the previous build.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
+- Focused `--test` selection combines bounded colocated/domain candidates with static direct-import
+  suites. It does not follow dynamic or transitive imports into broad composition-root tests.
 - Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `e2e-testing` skill's topic-branch and draft-PR workflow.
 - A local full-E2E substitution is allowed only inside an explicit Go run after the current-head
   self-hosted Actions jobs are verified to have failed before execution for external GitHub Actions
@@ -136,6 +138,9 @@ step-by-step workflows beyond this summary.
   Platform checks and the final gate use `caxri-ci`, full Electron E2E uses `caxri-e2e`, and Release
   packaging uses `caxri-release`. There is no GitHub-hosted fallback. Ordinary trusted pushes to
   `main` run checks but not full E2E; exact release commits and trusted ready PRs run full E2E.
+- Full E2E uses one setup/build and then runs the `parallel-safe` and `desktop-exclusive` logical
+  pools sequentially. A failed first pool must not suppress the second; actual-execution receipts
+  and failure artifacts remain scoped per pool.
 - Run focused local Electron coverage only when the change requires it, using
   `bun run --silent check <e2e-file> --e2e`; add `--e2e-grep '<test name>'` when only one workflow changed.
   The checker builds first and collapses successful build and Playwright output into one summary.

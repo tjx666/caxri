@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import { agentProviderIds } from '../../agents';
 import {
     assertE2EAgentInput,
     assertE2EAgentLaunch,
     assertE2EShellLaunch,
+    e2eAgentShellShimProviders,
+    e2eAgentShellShims,
+    e2eFakeExecutableEnvironment,
+    e2eFakeExecutableEnvironmentKey,
+    readE2EFakeExecutables,
     e2eAgentPolicyEnvironment,
+    readE2EAgentPolicy,
     resolveE2EAgentPolicy,
     selectE2EAgentExecutable,
 } from '../e2e-agent-policy';
@@ -32,6 +39,77 @@ describe('E2E Agent policy', () => {
             CAXRI_E2E_AGENT_MODE: 'fake',
             CAXRI_E2E_FAKE_CODEX_EXECUTABLE: '/tmp/fake-codex',
         });
+    });
+
+    it('derives fake environment keys and Shell shims for every supplied provider id', () => {
+        const providers = ['claude', 'codex', 'synthetic-agent'] as const;
+        const executables = { 'synthetic-agent': '/tmp/fake-synthetic-agent' };
+        const shimProviders = providers.map((provider) => ({
+            provider,
+            executableName: provider === 'synthetic-agent' ? 'synthetic-cli' : provider,
+        }));
+        const environment = e2eFakeExecutableEnvironment(executables, providers);
+
+        expect(environment).toEqual({
+            CAXRI_E2E_FAKE_SYNTHETIC_AGENT_EXECUTABLE: '/tmp/fake-synthetic-agent',
+        });
+        expect(e2eFakeExecutableEnvironmentKey('claude')).toBe('CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE');
+        expect(readE2EFakeExecutables(environment, providers)).toEqual(executables);
+        const fakeShim = e2eAgentShellShims(executables, shimProviders).find(
+            (shim) => shim.executable === 'synthetic-cli',
+        );
+        const blockedShim = e2eAgentShellShims({}, shimProviders).find(
+            (shim) => shim.executable === 'synthetic-cli',
+        );
+        expect(fakeShim?.source).toContain('/tmp/fake-synthetic-agent');
+        expect(blockedShim?.source).toContain('Caxri E2E blocked synthetic-cli');
+        expect(
+            e2eAgentShellShims({ 'synthetic-agent': "/tmp/fake'synthetic-agent" }, shimProviders)[2]
+                ?.source,
+        ).toContain(`exec '/tmp/fake'"'"'synthetic-agent'`);
+    });
+
+    it('rejects colliding fake environment keys instead of dropping provider authority', () => {
+        expect(() =>
+            e2eFakeExecutableEnvironment(
+                { 'foo-bar': '/tmp/fake-dash', 'foo_bar': '/tmp/fake-underscore' },
+                ['foo-bar', 'foo_bar'],
+            ),
+        ).toThrow('E2E fake executable environment keys collide');
+    });
+
+    it('generates one default Shell shim for every catalog provider', () => {
+        expect(e2eAgentShellShimProviders().map(({ provider }) => provider)).toEqual(
+            agentProviderIds,
+        );
+        expect(e2eAgentShellShims({}).map((shim) => shim.provider)).toEqual(agentProviderIds);
+    });
+
+    it('rejects duplicate or unsafe Shell shim executable names', () => {
+        expect(() =>
+            e2eAgentShellShims({}, [
+                { provider: 'first', executableName: 'same-cli' },
+                { provider: 'second', executableName: 'same-cli' },
+            ]),
+        ).toThrow('must be unique');
+        for (const executableName of ['../agent', 'agent/cli', 'agent\u0000cli', '.']) {
+            expect(() =>
+                e2eAgentShellShims({}, [{ provider: 'synthetic', executableName }]),
+            ).toThrow('must be a portable basename');
+        }
+    });
+
+    it('round-trips every catalog fake executable through the Main-to-Runtime environment', () => {
+        const executables = Object.fromEntries(
+            agentProviderIds.map((provider) => [provider, `/tmp/fake-${provider}`]),
+        );
+        const policy = resolveE2EAgentPolicy({
+            isE2E: true,
+            requestedMode: 'fake',
+            requestedExecutables: executables,
+        });
+
+        expect(readE2EAgentPolicy(e2eAgentPolicyEnvironment(policy))).toEqual(policy);
     });
 
     it('allows production discovery for exactly one real provider', () => {

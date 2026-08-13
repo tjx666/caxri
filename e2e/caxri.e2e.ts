@@ -448,11 +448,30 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('unsaved deletion cancel');
         await running.app.evaluate(({ dialog }) => {
-            dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
+            const dialogState = globalThis as typeof globalThis & {
+                __caxriDeleteSessionDialogCalls?: number;
+            };
+            dialogState.__caxriDeleteSessionDialogCalls = 0;
+            dialog.showMessageBox = () => {
+                dialogState.__caxriDeleteSessionDialogCalls =
+                    (dialogState.__caxriDeleteSessionDialogCalls ?? 0) + 1;
+                return Promise.resolve({ response: 1, checkboxChecked: false });
+            };
         });
         await running.page.keyboard.press('Meta+Shift+P');
         await running.page.getByText('Delete Session', { exact: true }).click();
-        await running.page.waitForTimeout(300);
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () =>
+                        (
+                            globalThis as typeof globalThis & {
+                                __caxriDeleteSessionDialogCalls?: number;
+                            }
+                        ).__caxriDeleteSessionDialogCalls,
+                ),
+            )
+            .toBe(1);
 
         await expect(running.page.locator('.session-card')).toHaveCount(1);
         await expect(running.page.locator('.view-lines')).toContainText('unsaved deletion cancel');

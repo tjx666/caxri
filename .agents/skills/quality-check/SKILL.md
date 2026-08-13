@@ -17,7 +17,10 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - With no file arguments, inspect staged, unstaged, and untracked files. `--staged` narrows this to the index.
 - Explicit files take priority over Git discovery.
 - `--lint` applies ESLint and Prettier fixes to supported files. Always inspect the resulting diff.
-- `--test` runs changed test files and colocated tests named `foo.test.*` or `__tests__/foo.test.*`.
+- `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest
+  suites that directly import or re-export a changed source through a static relative specifier.
+  It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
+  focused check into a broad test run.
 - `--type` runs the repository-wide TypeScript check because TypeScript cannot safely validate one file in isolation.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract changes.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
@@ -25,7 +28,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   real-Agent and intentional failure-isolation specs retain their dedicated guarded entrypoints.
 - `--e2e-grep '<pattern>'` narrows `--e2e` to one Playwright test-title pattern.
 
-Pass a test path explicitly when a source file has a nonstandard integration test. The checker
+Pass a test path explicitly when a source file has a nonstandard test that does not directly import
+the source boundary. The checker
 never launches full Electron E2E, packaging, or performance gates automatically. Use explicit
 `--e2e` files for the smallest Electron workflow and the dedicated commands in `AGENTS.md` for
 broader authorized gates.

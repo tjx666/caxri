@@ -480,6 +480,24 @@ export function useTerminalPaneRuntime({
                 );
         });
         const observer = new ResizeObserver(fitAndResize);
+        let attachFocusSuperseded = false;
+        let terminalReceivedFocus = false;
+        const trackNewerFocus = (event: FocusEvent): void => {
+            const target = event.target;
+            if (!(target instanceof Node)) return;
+            if (container.contains(target)) {
+                terminalReceivedFocus = true;
+                return;
+            }
+            if (terminalReceivedFocus && target !== document.body) attachFocusSuperseded = true;
+        };
+        const trackExplicitInteraction = (event: Event): void => {
+            const target = event.target;
+            if (target instanceof Node && !container.contains(target)) attachFocusSuperseded = true;
+        };
+        document.addEventListener('focusin', trackNewerFocus);
+        document.addEventListener('keydown', trackExplicitInteraction, true);
+        document.addEventListener('pointerdown', trackExplicitInteraction, true);
         /** Restore into the final visible grid instead of xterm's default 80x24 viewport. */
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
@@ -502,8 +520,18 @@ export function useTerminalPaneRuntime({
             fitAndResize();
             observer.observe(container);
             requestAnimationFrame(() => {
+                document.removeEventListener('focusin', trackNewerFocus);
+                document.removeEventListener('keydown', trackExplicitInteraction, true);
+                document.removeEventListener('pointerdown', trackExplicitInteraction, true);
                 if (disposed) return;
-                if (latestRef.current.active && latestRef.current.processState === 'running')
+                /** Dialog teardown may restore focus before xterm ever receives it, which is not a
+                 *  newer user choice. After Terminal focus or an explicit pointer/key action,
+                 *  asynchronous attach completion must not reclaim focus from another control. */
+                if (
+                    latestRef.current.active &&
+                    latestRef.current.processState === 'running' &&
+                    !attachFocusSuperseded
+                )
                     xterm.focus();
             });
         };
@@ -512,6 +540,9 @@ export function useTerminalPaneRuntime({
         return () => {
             disposed = true;
             observer.disconnect();
+            document.removeEventListener('focusin', trackNewerFocus);
+            document.removeEventListener('keydown', trackExplicitInteraction, true);
+            document.removeEventListener('pointerdown', trackExplicitInteraction, true);
             document.removeEventListener('visibilitychange', restoreRenderer);
             window.removeEventListener('focus', restoreRenderer);
             window.removeEventListener('pageshow', restoreRenderer);

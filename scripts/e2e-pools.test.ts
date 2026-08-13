@@ -3,7 +3,7 @@ import { readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import { createE2EPoolPlan, parallelSafeSpecs } from '../e2e/pools';
-import { parseE2EPool } from './run-e2e-pools';
+import { combinePoolReceipts, parseE2EPool } from './run-e2e-pools';
 
 const allSpecs = [
     'e2e/editor-dotfiles.e2e.ts',
@@ -13,7 +13,7 @@ const allSpecs = [
 ];
 
 describe('E2E pools', () => {
-    it('requires one explicit pool per hosted job', () => {
+    it('requires one explicit logical pool per single-machine job step', () => {
         expect(parseE2EPool(['--pool', 'parallel-safe'])).toBe('parallel-safe');
         expect(parseE2EPool(['--pool', 'desktop-exclusive'])).toBe('desktop-exclusive');
         expect(() => parseE2EPool([])).toThrow('Usage: run-e2e-pools.ts');
@@ -76,5 +76,67 @@ describe('E2E pools', () => {
             repositorySpecs.length,
         );
         expect([...plan.desktopExclusive, ...plan.parallelSafe].sort()).toEqual(repositorySpecs);
+        expect(parallelSafeSpecs).toContain('e2e/settings-parallel-safe.e2e.ts');
+        expect(plan.desktopExclusive).toContain('e2e/settings.e2e.ts');
+        expect(plan.parallelSafeInvocations).toEqual([{ specs: plan.parallelSafe }]);
+        expect(plan.desktopExclusiveInvocations).toEqual([{ specs: plan.desktopExclusive }]);
+    });
+
+    it('combines receipt invocations without accepting duplicate tests', () => {
+        const receipt = combinePoolReceipts('parallel-safe', [
+            {
+                failed: 0,
+                finished: 1,
+                finishedAt: '2026-01-01T00:00:01.000Z',
+                hash: 'first',
+                passed: 1,
+                planned: 1,
+                pool: 'parallel-safe',
+                skipped: 0,
+                started: 1,
+                startedAt: '2026-01-01T00:00:00.000Z',
+                status: 'passed',
+                tests: [{ id: 'safe', location: 'e2e/safe.e2e.ts:1:1', title: 'safe' }],
+            },
+            {
+                failed: 0,
+                finished: 1,
+                finishedAt: '2026-01-01T00:00:02.000Z',
+                hash: 'second',
+                passed: 1,
+                planned: 1,
+                pool: 'parallel-safe',
+                skipped: 0,
+                started: 1,
+                startedAt: '2026-01-01T00:00:01.000Z',
+                status: 'passed',
+                tests: [
+                    { id: 'settings-safe', location: 'e2e/settings.e2e.ts:1:1', title: 'safe' },
+                ],
+            },
+        ]);
+
+        expect(receipt).toMatchObject({
+            failed: 0,
+            finished: 2,
+            passed: 2,
+            planned: 2,
+            skipped: 0,
+            started: 2,
+            status: 'passed',
+        });
+        expect(() =>
+            combinePoolReceipts('parallel-safe', [
+                receipt,
+                {
+                    ...receipt,
+                    finished: 1,
+                    passed: 1,
+                    planned: 1,
+                    started: 1,
+                    tests: [receipt.tests[0]],
+                },
+            ]),
+        ).toThrow('overlap');
     });
 });

@@ -25,11 +25,12 @@ remains red.
 
 ## Adopted optimization evidence
 
-The optimized workflow rebuilds only `better-sqlite3` and `node-pty`; `@parcel/watcher` uses its
-Node-API platform package and remains covered by `spike:native`. It keeps the full Vitest manifest
-while replacing production-sized waits and buffers with injected test seams. Playwright is split
-into an explicit two-worker `parallel-safe` allowlist and a one-worker `desktop-exclusive`
-remainder on separate macOS runners.
+The historical optimized workflow rebuilt only `better-sqlite3` and `node-pty`;
+`@parcel/watcher` used its Node-API platform package and remained covered by `spike:native`. It kept
+the full Vitest manifest while replacing production-sized waits and buffers with injected test
+seams. At the time, Playwright was split into separate `parallel-safe` and `desktop-exclusive`
+matrix jobs. Those jobs did not run concurrently after CI moved to the single physical `m2-24`;
+the runner queued them serially and each job repeated setup and build.
 
 | Evidence                                                                         | Exact head | Result                                                                               |
 | -------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
@@ -72,10 +73,31 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
   fixture cost and orchestration rather than coverage.
 
+## Current single-runner execution contract
+
+- One E2E job checks out, installs, verifies native modules, and builds once. It then runs
+  `parallel-safe` with two namespaced workers followed by `desktop-exclusive` with one worker on
+  the same `m2-24`; a failed first pool does not suppress the second pool.
+- Individually audited tests may move into a dedicated spec in the `parallelSafeSpecs` allowlist.
+  Every unclassified spec remains desktop-exclusive, so each logical pool needs only one
+  Playwright invocation.
+- The Playwright invocation itself writes each pool receipt. Receipts distinguish planned,
+  started, finished, passed, skipped, and failed tests; their verified union supplies the manifest
+  hash without a separate `playwright --list` collection. CI logs the verified union as
+  `CAXRI_E2E_MANIFEST` JSON.
+- Every required output is checked before every launch. Each Playwright worker performs one full
+  recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
+  the cache; watcher failure falls back to scanning.
+- Vitest defaults to the audited `optimized` partition with two workers. The `legacy` partition and
+  worker caps 1-4 remain workflow-dispatch controls for same-head measurement; real watcher,
+  process-global, bridge, and Git suites stay in `serial-native`.
+
 ## Comparison contract
 
 Freeze exact head, manifest, Node/npm versions, lockfile hash, runner label, workflow inputs, cache
 state, and counts before comparing profiles. Report median end-to-end wall time, dominant steps,
 peak process-tree RSS, cache state, and every non-green attempt. Adopt a parallelism or concurrency
 change only when correctness and isolation stay green and self-hosted medians improve; otherwise
-restore control and record the rejection.
+restore control and record the rejection. `CAXRI_VALIDATION_ENV`, `CAXRI_CACHE_STATE`,
+`CAXRI_CI_METRIC`, and `CAXRI_E2E_MANIFEST` provide the machine-readable inputs for that report;
+the owning issue or PR records the candidate-specific samples and adoption decision.

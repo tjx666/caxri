@@ -24,7 +24,7 @@ import {
     requestEnvelopeSchema,
     type CaxriReply,
 } from '../shared/ipc/transport';
-import { resolveE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
+import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import {
@@ -95,15 +95,7 @@ const e2eWindowMode = resolveE2EWindowMode({
     isE2E: process.env.CAXRI_E2E === '1',
     requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
 });
-const e2eAgentPolicy = resolveE2EAgentPolicy({
-    isE2E: process.env.CAXRI_E2E === '1',
-    requestedMode: process.env.CAXRI_E2E_AGENT_MODE,
-    requestedProvider: process.env.CAXRI_E2E_AGENT_PROVIDER,
-    requestedExecutables: {
-        claude: process.env.CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE,
-        codex: process.env.CAXRI_E2E_FAKE_CODEX_EXECUTABLE,
-    },
-});
+const e2eAgentPolicy = readE2EAgentPolicy();
 function createMainLogger(): StructuredLogger {
     return new StructuredLogger(
         resolveLogDirectory({

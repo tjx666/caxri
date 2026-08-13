@@ -20,6 +20,131 @@ export interface E2EAgentPolicyInput {
     requestedExecutables?: Partial<Record<AgentProvider, string | undefined>>;
 }
 
+type E2EFakeExecutables = Partial<Record<string, string | undefined>>;
+
+/**
+ * Encodes one provider-specific fake executable into the narrow Main-to-Runtime environment
+ * contract. Provider ids remain the source of truth, so a new catalog entry cannot be silently
+ * omitted from the E2E process boundary or isolated Shell PATH.
+ */
+export function e2eFakeExecutableEnvironmentKey(provider: string): string {
+    return `CAXRI_E2E_FAKE_${provider.toUpperCase().replaceAll(/[^A-Z0-9]/g, '_')}_EXECUTABLE`;
+}
+
+/** Lists every provider-specific fake executable key accepted at the process boundary. */
+export function e2eFakeExecutableEnvironmentKeys(
+    providers: readonly string[] = agentProviderIds,
+): string[] {
+    const entries = providers.map((provider) => ({
+        provider,
+        key: e2eFakeExecutableEnvironmentKey(provider),
+    }));
+    const providersByKey = new Map<string, string>();
+    for (const entry of entries) {
+        const existingProvider = providersByKey.get(entry.key);
+        if (existingProvider && existingProvider !== entry.provider) {
+            throw new Error(
+                `E2E fake executable environment keys collide for ${existingProvider} and ${entry.provider}: ${entry.key}`,
+            );
+        }
+        providersByKey.set(entry.key, entry.provider);
+    }
+    return entries.map((entry) => entry.key);
+}
+
+/** Serializes fake executable authority for exactly the supplied provider ids. */
+export function e2eFakeExecutableEnvironment(
+    executables: E2EFakeExecutables,
+    providers: readonly string[] = agentProviderIds,
+): NodeJS.ProcessEnv {
+    const environmentKeys = e2eFakeExecutableEnvironmentKeys(providers);
+    return Object.fromEntries(
+        providers.flatMap((provider, index) => {
+            const executable = executables[provider];
+            return executable ? [[environmentKeys[index], executable]] : [];
+        }),
+    );
+}
+
+/** Reads fake executable authority only from the generated provider-specific environment keys. */
+export function readE2EFakeExecutables(
+    environment: NodeJS.ProcessEnv,
+    providers: readonly string[] = agentProviderIds,
+): E2EFakeExecutables {
+    const environmentKeys = e2eFakeExecutableEnvironmentKeys(providers);
+    return Object.fromEntries(
+        providers.flatMap((provider, index) => {
+            const executable = environment[environmentKeys[index]];
+            return executable ? [[provider, executable]] : [];
+        }),
+    );
+}
+
+export interface E2EAgentShellShim {
+    provider: string;
+    executable: string;
+    source: string;
+}
+
+export interface E2EAgentShellShimProvider {
+    executableName: string;
+    provider: string;
+}
+
+/** Returns one Shell shim descriptor per catalog entry, including a provider's CLI executable name. */
+export function e2eAgentShellShimProviders(): E2EAgentShellShimProvider[] {
+    return agentProviderIds.map((provider) => ({
+        provider,
+        executableName: agentProviderCatalog[provider].executableName,
+    }));
+}
+
+/**
+ * Produces a Caxri-owned executable for every managed provider in an isolated Shell PATH. A fake
+ * target preserves explicit test authority; otherwise the shim blocks ambient host CLIs.
+ */
+export function e2eAgentShellShims(
+    executables: E2EFakeExecutables,
+    providers: readonly E2EAgentShellShimProvider[] = e2eAgentShellShimProviders(),
+): E2EAgentShellShim[] {
+    assertE2EAgentShellShimProviders(providers);
+    return providers.map((provider) => {
+        const target = executables[provider.provider];
+        return {
+            provider: provider.provider,
+            executable: provider.executableName,
+            source: target
+                ? `#!/bin/sh\nexec ${shellQuote(target)} "$@"\n`
+                : `#!/bin/sh\nprintf 'Caxri E2E blocked ${provider.executableName}\\n' >&2\nexit 127\n`,
+        };
+    });
+}
+
+const portableShellExecutableName = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/** Rejects names that could escape the generated PATH directory or shadow each other. */
+function assertE2EAgentShellShimProviders(providers: readonly E2EAgentShellShimProvider[]): void {
+    const providersByExecutable = new Map<string, string>();
+    for (const provider of providers) {
+        if (!portableShellExecutableName.test(provider.executableName)) {
+            throw new Error(
+                `E2E Agent Shell shim executable must be a portable basename: ${provider.executableName}`,
+            );
+        }
+        const existingProvider = providersByExecutable.get(provider.executableName);
+        if (existingProvider) {
+            throw new Error(
+                `E2E Agent Shell shim executable must be unique: ${provider.executableName} (${existingProvider}, ${provider.provider})`,
+            );
+        }
+        providersByExecutable.set(provider.executableName, provider.provider);
+    }
+}
+
+function shellQuote(value: string): string {
+    return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 function isAgentProvider(value: string | undefined): value is AgentProvider {
     return agentProviderIds.some((provider) => provider === value);
 }
@@ -142,16 +267,7 @@ export function e2eAgentPolicyEnvironment(policy: E2EAgentPolicy | undefined): N
         CAXRI_E2E: '1',
         CAXRI_E2E_AGENT_MODE: policy.mode,
         ...(policy.mode === 'real' ? { CAXRI_E2E_AGENT_PROVIDER: policy.provider } : {}),
-        ...(policy.mode === 'fake'
-            ? {
-                  ...(policy.executables.claude
-                      ? { CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE: policy.executables.claude }
-                      : {}),
-                  ...(policy.executables.codex
-                      ? { CAXRI_E2E_FAKE_CODEX_EXECUTABLE: policy.executables.codex }
-                      : {}),
-              }
-            : {}),
+        ...(policy.mode === 'fake' ? e2eFakeExecutableEnvironment(policy.executables) : {}),
     };
 }
 
@@ -163,9 +279,6 @@ export function readE2EAgentPolicy(
         isE2E: environment.CAXRI_E2E === '1',
         requestedMode: environment.CAXRI_E2E_AGENT_MODE,
         requestedProvider: environment.CAXRI_E2E_AGENT_PROVIDER,
-        requestedExecutables: {
-            claude: environment.CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE,
-            codex: environment.CAXRI_E2E_FAKE_CODEX_EXECUTABLE,
-        },
+        requestedExecutables: readE2EFakeExecutables(environment),
     });
 }
