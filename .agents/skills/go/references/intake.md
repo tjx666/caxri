@@ -35,9 +35,13 @@ evidence for why the work is new; title similarity alone is not enough.
 Check only prerequisites relevant to the planned workflow:
 
 - GitHub authentication and repository identity;
-- LobeHub Acceptance authentication;
+- LobeHub Acceptance authentication: use `lobehub whoami --json`; the CLI has no
+  `lobehub auth status` command, so do not infer or guess an auth subcommand;
 - dependencies needed by selected issues;
 - availability of the macOS Electron acceptance path.
+
+The intake snapshot retries each read-only GitHub query once when the CLI fails. If both attempts
+fail, stop and report the final failure rather than bypassing the snapshot or broadening the query.
 
 Resolve safe agent-owned mechanics without asking the user. Do not start the
 desktop app merely to approve the plan.

@@ -7,6 +7,12 @@ import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
+import { openTerminalSearch } from './terminal-search';
+import { clearTerminalProgress } from './terminal-progress';
+import {
+    navigateTerminalCommand,
+    type TerminalCommandNavigationDirection,
+} from './terminal-commands';
 
 /** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
@@ -50,7 +56,10 @@ export async function createTerminal(
 export function closeTerminal(terminalId: string): void {
     void tryCommand(
         'Terminal close failed',
-        () => caxri.request('terminal.close', { terminalId }),
+        async () => {
+            await caxri.request('terminal.close', { terminalId });
+            clearTerminalProgress(terminalId);
+        },
         {
             refresh: true,
         },
@@ -109,6 +118,17 @@ export function registerTerminalClearHandler(terminalId: string, handler: () => 
 
 export function clearActiveTerminal(terminalId: string): void {
     clearHandlers.get(terminalId)?.();
+}
+
+export function findInActiveTerminal(terminalId: string): void {
+    openTerminalSearch(terminalId);
+}
+
+export function navigateActiveTerminalCommand(
+    terminalId: string,
+    direction: TerminalCommandNavigationDirection,
+): void {
+    navigateTerminalCommand(terminalId, direction);
 }
 
 /**

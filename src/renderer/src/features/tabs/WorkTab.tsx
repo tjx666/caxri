@@ -19,6 +19,7 @@ const processIndicatorClassName =
 
 interface WorkTabProps {
     active: boolean;
+    accessory?: ReactNode;
     closeLabel: string;
     dirty?: boolean;
     fileIconName?: string;
@@ -40,6 +41,7 @@ const TAB_MAX_WIDTH = 180;
 
 export function WorkTab({
     active,
+    accessory,
     closeLabel,
     dirty = false,
     fileIconName,
@@ -108,7 +110,7 @@ export function WorkTab({
                 type="button"
                 role="tab"
                 aria-selected={visuallyActive}
-                className="tab-select flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit cursor-pointer [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap"
+                className="tab-select flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit cursor-pointer"
                 onClick={onSelect}
             >
                 {icon === 'file' ? (
@@ -116,8 +118,16 @@ export function WorkTab({
                 ) : (
                     <AgentIdentityIcon identity={icon} size={13} />
                 )}
-                <span className={cn(preview && 'italic')}>{label}</span>
+                <span
+                    className={cn(
+                        'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+                        preview && 'italic',
+                    )}
+                >
+                    {label}
+                </span>
                 {dirty && <b className="text-warning text-[10px]">●</b>}
+                {accessory}
             </button>
             <span className="tab-tail relative w-6 h-6 flex-none">
                 {status && (

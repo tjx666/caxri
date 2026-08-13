@@ -153,6 +153,7 @@ describe('Go Acceptance round publication', () => {
             expect.arrayContaining(['--requirement', report('head-1').requirement]),
         );
         expect(runner.mock.calls[1][1]).not.toContain('--acceptance');
+        expect(runner.mock.calls[1][2]).toBe(10 * 60_000);
         expect(state.acceptance).toMatchObject({
             id: 'acc-1',
             round: 1,
@@ -324,6 +325,29 @@ describe('Go Acceptance round publication', () => {
         ]);
     });
 
+    it('clears an explicitly orphaned matching pending publication', () => {
+        const state = publicationState('orphan-pending');
+        state.acceptance.publication.pendingAttempt = {
+            acceptanceId: 'acc-partial',
+            checkIds: ['acceptance-round-lineage'],
+            createdAt: '2026-08-12T01:00:00.000Z',
+            headSha: 'head-1',
+            reportPath: '.records/go/orphan-pending/acceptance/round-1',
+            roundIndex: 1,
+            verdict: 'pass',
+            verifyRunId: 'run-partial',
+        };
+
+        recordOrphanedAcceptance(state, {
+            acceptanceId: 'acc-partial',
+            reason: '大证据上传超时，保留部分提交历史并重新发布完整轮次。',
+            verifyRunId: 'run-partial',
+        });
+
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+        expect(state.acceptance.publication.orphanedStandalones).toHaveLength(1);
+    });
+
     it('persists an unresolved ingest and retries only its remote readback', async () => {
         const state = publicationState('readback-recovery');
         const directory = await writeRound(1, 'head-1');
@@ -403,5 +427,53 @@ describe('Go Acceptance round publication', () => {
             runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
         ).toHaveLength(0);
         expect(state.acceptance.publication.history).toHaveLength(1);
+    });
+
+    it('ignores unrelated legacy and incomplete runs during exact round discovery', async () => {
+        const state = publicationState('legacy-run-history');
+        const directory = await writeRound(1, 'head-1');
+        const exactRun = {
+            acceptanceId: 'acc-1',
+            context: { commit: 'head-1', testedAt: '2026-08-12T00:00:00.000Z' },
+            id: 'run-1',
+            plan: [{ id: 'acceptance-round-lineage' }],
+            roundIndex: 1,
+            source: 'agent-testing',
+        };
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(
+                JSON.stringify([
+                    {
+                        acceptanceId: 'legacy-acceptance',
+                        context: null,
+                        id: 'legacy-run',
+                        plan: [],
+                        roundIndex: 1,
+                        source: 'agent',
+                    },
+                    {
+                        acceptanceId: null,
+                        context: { commit: 'other-head', testedAt: '2026-08-11T00:00:00.000Z' },
+                        id: 'incomplete-run',
+                        plan: [],
+                        roundIndex: null,
+                        source: 'agent-testing',
+                    },
+                    exactRun,
+                ]),
+            )
+            .mockResolvedValueOnce(viewJson());
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ acceptanceId: 'acc-1', verifyRunId: 'run-1' });
+        expect(
+            runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
+        ).toHaveLength(0);
     });
 });

@@ -30,10 +30,12 @@ import type { CaxriDatabase } from '../db';
 import type { ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
+import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
 
 export { TerminalRestoreSupervisor } from './restore-supervisor';
+export { ShellIntegrationService } from './shell-integration';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
@@ -54,6 +56,8 @@ export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): No
 }
 
 interface LiveTerminal {
+    imageRecovery: TerminalImageRecoveryFilter;
+    imageOutput: TerminalImageOutputFilter;
     process: pty.IPty;
     record: TerminalRecord;
     screen: TerminalScreenState;
@@ -85,6 +89,10 @@ export interface TerminalManagerOptions {
     snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
+    shellIntegration?: (
+        executable: string,
+        environment: NodeJS.ProcessEnv,
+    ) => { args: string[]; environment: NodeJS.ProcessEnv } | undefined;
 }
 
 export interface TerminalWorkingDirectoryIdentity {
@@ -122,6 +130,7 @@ export class TerminalManager {
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
+    private readonly shellIntegration?: TerminalManagerOptions['shellIntegration'];
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -138,6 +147,7 @@ export class TerminalManager {
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
+        this.shellIntegration = options.shellIntegration;
     }
 
     start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
@@ -176,7 +186,7 @@ export class TerminalManager {
                 );
             failureReason = 'executable_not_found';
             const executable = await this.resolveExecutable(record.kind, launch);
-            const args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
+            let args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
             if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
                 args.push(
                     ...agentProviderCatalog[record.kind].resumeArguments(
@@ -199,7 +209,7 @@ export class TerminalManager {
             failureReason = 'working_directory_unavailable';
             await this.assertWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
             failureReason = 'spawn_failed';
-            const env = {
+            let env = {
                 ...(record.kind === 'shell'
                     ? terminalEnvironment()
                     : {
@@ -209,7 +219,38 @@ export class TerminalManager {
                       }),
                 ...this.lifecycleEnvironment?.(record),
             };
-            const initialSnapshot = this.database.getSnapshot(record.id)?.payload ?? '';
+            if (record.kind === 'shell') {
+                try {
+                    const integrated = this.shellIntegration?.(executable, env);
+                    if (integrated) {
+                        args = integrated.args;
+                        env = integrated.environment;
+                    }
+                } catch (error) {
+                    /** Shell integration is optional decoration metadata; startup must retain the
+                     *  ordinary login-shell path if its resolver becomes unavailable. */
+                    this.logger.write('warn', 'pty.shell_integration_unavailable', {
+                        fields: {
+                            terminalId: record.id,
+                            error: errorMessage(error, 'unknown'),
+                        },
+                    });
+                }
+            }
+            const storedSnapshot = this.database.getSnapshot(record.id);
+            const initialImageRecovery = new TerminalImageRecoveryFilter();
+            const initialSnapshot = `${initialImageRecovery.push(
+                storedSnapshot?.payload ?? '',
+            )}${initialImageRecovery.finish()}`;
+            const snapshot = new TerminalSnapshotBuffer(initialSnapshot);
+            if (storedSnapshot && initialSnapshot !== storedSnapshot.payload) {
+                this.database.saveSnapshot({
+                    terminalId: record.id,
+                    encodingVersion: 1,
+                    ...snapshot.read(),
+                    updatedAt: Date.now(),
+                });
+            }
             const initialSize = this.attachedSizes.get(record.id) ?? { cols: 100, rows: 30 };
             const child = this.spawnProcess(executable, args, {
                 name: 'xterm-256color',
@@ -224,6 +265,8 @@ export class TerminalManager {
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
             const live: LiveTerminal = {
+                imageRecovery: new TerminalImageRecoveryFilter(),
+                imageOutput: new TerminalImageOutputFilter(),
                 process: child,
                 record,
                 screen: new TerminalScreenState(
@@ -237,7 +280,7 @@ export class TerminalManager {
                             }),
                     },
                 ),
-                snapshot: new TerminalSnapshotBuffer(initialSnapshot),
+                snapshot,
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,
                 metricOutputBytes: 0,
@@ -317,10 +360,11 @@ export class TerminalManager {
         }, 16);
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
-        live.screen.write(data);
-        live.snapshot.append(data);
+        const recoveryData = live.imageRecovery.push(data);
+        live.screen.write(recoveryData);
+        live.snapshot.append(recoveryData);
         if (this.attached.has(live.record.id)) {
-            const droppedBytes = live.outputQueue.appendBounded(data);
+            const droppedBytes = live.imageOutput.push(data, live.outputQueue);
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
@@ -507,6 +551,7 @@ export class TerminalManager {
         if (!live) return;
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
+        live.imageOutput.finish();
         live.droppedBytes = 0;
     }
 
@@ -546,9 +591,15 @@ export class TerminalManager {
     private retireLiveTerminal(live: LiveTerminal, options: { persist: boolean }): boolean {
         if (this.terminals.get(live.record.id) !== live) return false;
         this.clearTerminalTimers(live);
+        live.droppedBytes += live.imageOutput.finish();
         this.flushOutput(live);
         this.flushMetrics(live);
-        if (options.persist) this.persistSnapshot(live);
+        if (options.persist) {
+            const recoveryTail = live.imageRecovery.finish();
+            live.screen.write(recoveryTail);
+            live.snapshot.append(recoveryTail);
+            this.persistSnapshot(live);
+        }
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
         this.attachedSizes.delete(live.record.id);

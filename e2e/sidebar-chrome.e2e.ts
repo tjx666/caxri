@@ -675,8 +675,10 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
         ).toEqual({ clientWidth: 800, scrollWidth: 800 });
 
         await running.page.keyboard.press('Meta+,');
-        await expect(running.page.getByRole('dialog')).toContainText('Settings');
-        await running.page.keyboard.press('Escape');
+        const settings = running.page.getByRole('dialog');
+        await expect(settings).toContainText('Settings');
+        await settings.getByRole('button', { name: 'Close' }).click();
+        await expect(settings).toHaveCount(0);
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         const paletteSearch = running.page.getByPlaceholder(

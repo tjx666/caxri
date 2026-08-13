@@ -5,7 +5,7 @@ import { inspectorModeRegistrations } from '@shared/inspector';
 
 import { isEditableEventTarget } from '../lib/keybindings';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
-import { executeCommand, runCommand, type CommandContext } from './execute';
+import { executeCommand, isCommandAvailable, runCommand, type CommandContext } from './execute';
 import { registerCommand } from './registry';
 
 /**
@@ -36,6 +36,9 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             terminal: {
                 create: record('terminal.create'),
                 clearActive: record('terminal.clear'),
+                findActive: record('terminal.find'),
+                hasActive: () => true,
+                navigateCommand: record('terminal.navigateCommand'),
                 restartActive: record('terminal.restart'),
                 startNewAgentSession: record('terminal.startNewAgentSession'),
                 closeActive: record('terminal.close'),
@@ -100,6 +103,16 @@ describe('executeCommand', () => {
         executeCommand('session.selectPrevious', undefined, context);
 
         expect(calls).toEqual(['session.selectAdjacent(1)', 'session.selectAdjacent(-1)']);
+    });
+
+    it('keeps Terminal Find contextual so Monaco can own the same shortcut in an editor', () => {
+        const { calls, context } = recordingContext();
+        context.terminal.hasActive = () => false;
+
+        expect(isCommandAvailable('terminal.find', context)).toBe(false);
+        executeCommand('terminal.find', undefined, context);
+
+        expect(calls).toEqual([]);
     });
 
     it('maps each Inspector command to its mode', () => {

@@ -4,7 +4,7 @@ import type { Keybinding } from '@shared/types';
 
 import { buildShortcutMap, isEditableEventTarget, keyboardEventShortcut } from '../lib/keybindings';
 import { useWorkbenchStore } from '../stores/workbench';
-import { runCommand } from './execute';
+import { isCommandAvailable, runCommand } from './execute';
 import { getRegisteredCommand } from './registry';
 
 /**
@@ -33,6 +33,9 @@ export function useCommandShortcuts(): void {
             const commandId = shortcutMap.get(keyboardEventShortcut(event));
             if (!commandId) return;
             const definition = getRegisteredCommand(commandId);
+            /** A contextual shortcut must fall through untouched so the owning editor can handle
+             *  the same chord (Terminal `Cmd+F` versus Monaco's native Find widget). */
+            if (!isCommandAvailable(commandId)) return;
             /** The terminal and the editor are editable surfaces too; only opted-in commands reach through. */
             if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
             event.preventDefault();

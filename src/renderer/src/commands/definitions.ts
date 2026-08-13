@@ -45,6 +45,18 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.selectPrevious', (ctx) => ctx.session.selectAdjacent(-1)),
     fromCatalog('terminal.new', (ctx) => ctx.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.clear', (ctx) => ctx.terminal.clearActive(), { allowInEditable: true }),
+    fromCatalog('terminal.find', (ctx) => ctx.terminal.findActive(), {
+        allowInEditable: true,
+        when: (ctx) => ctx.terminal.hasActive(),
+    }),
+    fromCatalog('terminal.previousCommand', (ctx) => ctx.terminal.navigateCommand(-1), {
+        allowInEditable: true,
+        when: (ctx) => ctx.terminal.hasActive(),
+    }),
+    fromCatalog('terminal.nextCommand', (ctx) => ctx.terminal.navigateCommand(1), {
+        allowInEditable: true,
+        when: (ctx) => ctx.terminal.hasActive(),
+    }),
     fromCatalog('terminal.restart', (ctx) => ctx.terminal.restartActive()),
     fromCatalog('terminal.startNewAgentSession', (ctx) => ctx.terminal.startNewAgentSession()),
     fromCatalog('terminal.close', (ctx) => ctx.terminal.closeActive(), { allowInEditable: true }),

@@ -8,6 +8,7 @@ import { captureCommand } from './command-runner';
 const MAX_COMMAND_OUTPUT_BYTES = 8 * 1024 * 1024;
 const MAX_CHANGED_FILES = 100;
 const MAX_GITHUB_ITEMS = 1_000;
+const GITHUB_SNAPSHOT_ATTEMPTS = 2;
 
 const repositorySchema = z.object({
     defaultBranchRef: z.object({ name: z.string().min(1) }),
@@ -170,6 +171,27 @@ function closingRepositoryName(repository: z.infer<typeof closingRepositorySchem
         : `${repository.owner.login}/${repository.name}`;
 }
 
+/**
+ * Retries read-only GitHub discovery once because the CLI can surface transient GraphQL transport
+ * failures such as an unexpected EOF. Keep this wrapper local to intake so remote mutations are
+ * never retried implicitly.
+ */
+async function captureReadOnlyGitHub(
+    runner: CommandRunner,
+    args: string[],
+    cwd: string,
+): Promise<string> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= GITHUB_SNAPSHOT_ATTEMPTS; attempt += 1) {
+        try {
+            return await runner.capture('gh', args, cwd);
+        } catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError;
+}
+
 export async function createIntakeSnapshot(
     options: IntakeSnapshotOptions,
     runner: CommandRunner = defaultRunner,
@@ -186,7 +208,7 @@ export async function createIntakeSnapshot(
         'nameWithOwner,defaultBranchRef',
     ];
     const repository = parseJson(
-        await runner.capture('gh', repositoryArguments, cwd),
+        await captureReadOnlyGitHub(runner, repositoryArguments, cwd),
         repositorySchema,
         'GitHub repository',
     );
@@ -194,9 +216,9 @@ export async function createIntakeSnapshot(
     const issueState = options.issueNumbers.length > 0 ? 'all' : 'open';
     const [login, issuesSource, pullRequestsSource, projectItemsSource, branch, headSha, status] =
         await Promise.all([
-            runner.capture('gh', ['api', 'user', '--jq', '.login'], cwd),
-            runner.capture(
-                'gh',
+            captureReadOnlyGitHub(runner, ['api', 'user', '--jq', '.login'], cwd),
+            captureReadOnlyGitHub(
+                runner,
                 [
                     'issue',
                     'list',
@@ -211,8 +233,8 @@ export async function createIntakeSnapshot(
                 ],
                 cwd,
             ),
-            runner.capture(
-                'gh',
+            captureReadOnlyGitHub(
+                runner,
                 [
                     'pr',
                     'list',
@@ -227,8 +249,8 @@ export async function createIntakeSnapshot(
                 ],
                 cwd,
             ),
-            runner.capture(
-                'gh',
+            captureReadOnlyGitHub(
+                runner,
                 [
                     'project',
                     'item-list',

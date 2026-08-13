@@ -6,7 +6,9 @@ import {
     type CommandRunner,
 } from './intake-snapshot';
 
-function fixtureRunner(overrides: Record<string, string> = {}) {
+type FixtureResponse = string | Error;
+
+function fixtureRunner(overrides: Record<string, FixtureResponse | FixtureResponse[]> = {}) {
     const calls: string[] = [];
     const defaults: Record<string, string> = {
         'gh api user --jq .login': 'builder\n',
@@ -36,9 +38,12 @@ function fixtureRunner(overrides: Record<string, string> = {}) {
             const projectPrefix =
                 'gh project item-list 2 --owner tjx666 --format json --limit 1000 --jq ';
             const key = exact.startsWith(projectPrefix) ? projectPrefix.trimEnd() : exact;
-            const value = overrides[key] ?? defaults[key];
-            if (value === undefined) throw new Error(`Unexpected command: ${exact}`);
-            return Promise.resolve(value);
+            const configured = overrides[key];
+            const value = Array.isArray(configured) ? configured.shift() : configured;
+            const response = value ?? defaults[key];
+            if (response === undefined) throw new Error(`Unexpected command: ${exact}`);
+            if (response instanceof Error) return Promise.reject(response);
+            return Promise.resolve(response);
         },
     };
     return { calls, runner };
@@ -181,5 +186,30 @@ describe('Go intake snapshot', () => {
             'OWNER/REPOSITORY',
         );
         expect(() => parseIntakeSnapshotArguments(['--repo'])).toThrow('Missing --repo value');
+    });
+
+    it('retries a transient read-only GitHub snapshot failure once', async () => {
+        const issueCommand =
+            'gh issue list --repo tjx666/caxri --state all --limit 1000 --json number,title,state,url,labels,updatedAt';
+        const pullRequestCommand =
+            'gh pr list --repo tjx666/caxri --state all --limit 1000 --json number,title,state,url,isDraft,headRefName,headRefOid,baseRefName,updatedAt,closingIssuesReferences';
+        const { calls, runner } = fixtureRunner({
+            [issueCommand]: issues,
+            [pullRequestCommand]: [new Error('GraphQL transport EOF'), pullRequests],
+        });
+
+        await expect(
+            createIntakeSnapshot(
+                {
+                    cwd: '/repo',
+                    fetch: false,
+                    issueNumbers: [65],
+                    projectNumber: 2,
+                    repository: 'tjx666/caxri',
+                },
+                runner,
+            ),
+        ).resolves.toMatchObject({ authenticatedAs: 'builder' });
+        expect(calls.filter((call) => call === pullRequestCommand)).toHaveLength(2);
     });
 });

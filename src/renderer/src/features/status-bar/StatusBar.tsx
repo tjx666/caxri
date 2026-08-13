@@ -1,12 +1,16 @@
 import {
     Braces,
     Cast,
+    CircleAlert,
     FileDiff,
+    Gauge,
     GitBranch,
     GitCommitHorizontal,
     GitPullRequest,
+    LoaderCircle,
     MemoryStick,
     Monitor,
+    Pause,
     Workflow,
     type LucideIcon,
 } from 'lucide-react';
@@ -40,6 +44,11 @@ import {
     useEditorStatusStore,
 } from '../editor/editor-status';
 import { useScreencastStore } from '../screencast/screencast';
+import {
+    terminalProgressAriaLabel,
+    terminalProgressLabel,
+    useTerminalProgress,
+} from '../terminal/terminal-progress';
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
@@ -160,31 +169,61 @@ function ActiveFileStatus({ sessionId, path }: { sessionId: string; path: string
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
 function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
+    const progress = useTerminalProgress(terminalId);
     const usage = useCaxriQuery(
         'terminal.resources',
         { terminalId },
         { refetchInterval: 2_000, staleTime: 1_000, retry: false },
     ).data;
-    if (!usage) return null;
-    const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
+    if (!usage && !progress) return null;
+    const childLabel = usage
+        ? `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`
+        : undefined;
+    const ProgressIcon =
+        progress?.kind === 'error'
+            ? CircleAlert
+            : progress?.kind === 'paused'
+              ? Pause
+              : progress?.kind === 'indeterminate'
+                ? LoaderCircle
+                : Gauge;
     return (
         <>
-            <StatusItem
-                ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
-                icon={MemoryStick}
-                title={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
-                onClick={openProcessExplorer}
-            >
-                {usage.memoryMb} MB
-            </StatusItem>
-            <StatusItem
-                ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
-                icon={Workflow}
-                title={`Open Process Explorer — Terminal: ${childLabel}`}
-                onClick={openProcessExplorer}
-            >
-                {usage.childProcessCount}
-            </StatusItem>
+            {progress && (
+                <StatusInfo
+                    ariaLabel={terminalProgressAriaLabel(progress)}
+                    className={cn(
+                        'statusbar-terminal-progress tabular-nums',
+                        progress.kind === 'normal' && 'text-accent',
+                        progress.kind === 'error' && 'text-danger',
+                        progress.kind === 'paused' && 'text-warning',
+                    )}
+                    icon={ProgressIcon}
+                    title={terminalProgressAriaLabel(progress)}
+                >
+                    {terminalProgressLabel(progress)}
+                </StatusInfo>
+            )}
+            {usage && (
+                <StatusItem
+                    ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
+                    icon={MemoryStick}
+                    title={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
+                    onClick={openProcessExplorer}
+                >
+                    {usage.memoryMb} MB
+                </StatusItem>
+            )}
+            {usage && childLabel && (
+                <StatusItem
+                    ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
+                    icon={Workflow}
+                    title={`Open Process Explorer — Terminal: ${childLabel}`}
+                    onClick={openProcessExplorer}
+                >
+                    {usage.childProcessCount}
+                </StatusItem>
+            )}
         </>
     );
 }
