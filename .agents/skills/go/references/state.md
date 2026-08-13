@@ -171,8 +171,8 @@ bun run .agents/skills/go/scripts/state.ts phase --help
   receipts, and any freeze that does not already bind the replacement head.
 - Recover pending validations from their recorded session/log before retrying.
 - Do not rerun a passed exact-head validation without invalidation.
-- Preserve original zero-step billing evidence and keep hosted CI externally
-  blocked when the guarded fallback passes.
+- Preserve original zero-step infrastructure evidence and keep Actions CI externally blocked when
+  the guarded fallback passes.
 - Store raw logs in the run directories, not in `state.json`; never copy the
   Codex transcript into the run record.
 - Notes are typed, limited to 4,096 characters, and secret-shaped values are redacted before they

@@ -172,14 +172,12 @@ After all issue commits:
    certify a broader PR.
 8. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
 9. Route code failures through repair, focused validation, one light delta
-   review, commit, and push. A zero-step hosted-runner billing or infrastructure
-   failure remains external and blocked. A verified GitHub Actions payment or spending-limit
-   failure is automatically authorized for the documented exact-head local
-   fallback; do not ask the user again. Other infrastructure failures still need
-   separate authorization. Record the policy or user authorization before
-   running the exact platform-neutral gates and one full isolated Electron E2E
-   suite. Start the fallback only after the review-clean PR head is explicitly
-   frozen. Never call the hosted check green.
+   review, commit, and push. A zero-step self-hosted Actions infrastructure
+   failure remains external and blocked. Exact-head local substitution always
+   needs separate user authorization. Record the authorization before running
+   the exact platform-check gates and one full isolated Electron E2E suite.
+   Start the fallback only after the review-clean PR head is explicitly frozen.
+   Never call the Actions check green.
 
 Read [references/workflow.md](references/workflow.md) for the transition table
 and repair routing.

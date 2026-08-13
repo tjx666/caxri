@@ -15,9 +15,8 @@
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run --silent test:smoke`
-- Self-hosted macOS E2E and Release runner operation and recovery: `docs/self-hosted-runner.md`;
-  trusted owner PRs and exact release commits use `m2-24`, while `ci:github-hosted-e2e` explicitly
-  selects the PR-only hosted fallback.
+- Self-hosted CI and Release runner operation and recovery: `docs/self-hosted-runner.md`; every
+  GitHub Actions job uses `m2-24`, and there is no GitHub-hosted fallback.
 - Large-Project performance gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:startup`
 - Common editor highlight gate: `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:editor`
 - Build/package: `bun run build`, `bun run package`, `bun run package:dmg`; for a locally requested
@@ -48,9 +47,8 @@ step-by-step workflows beyond this summary.
 - Treat `$go` as an explicit, manual authorization for the project-local long-running delivery
   workflow. It may create or update in-scope GitHub issues, commit and push the working branch,
   create and update a PR, publish LobeHub Acceptance rounds, merge the accepted PR, and close its
-  issues. A verified zero-step GitHub Actions payment or spending-limit failure automatically
-  authorizes the exact-head local CI fallback defined below; do not ask again. It does not
-  authorize destructive data operations, releases, secrets, account changes, or unrelated work.
+  issues. It does not authorize bypassing failed or queued CI, destructive data operations,
+  releases, secrets, account changes, or unrelated work.
 - Start a new `$go` run through `.agents/skills/go/scripts/start.ts`: it pins the latest
   `origin/main`, creates a dedicated adjacent worktree, and records that worktree in the ledger.
   Resume in the recorded worktree; keep the main checkout branch, HEAD, and working tree unchanged.
@@ -128,22 +126,16 @@ step-by-step workflows beyond this summary.
   Electron E2E whenever relevant `src/` files changed after the previous build.
 - Run focused Vitest files with `bunx vitest run --silent='passed-only' <test-file...>`.
 - Never run the full Electron E2E suite locally (`bun run test:e2e` or an unscoped `bunx playwright test`) during an ordinary run; it can steal focus from the developer. Full E2E and release-level packaged-app validation belong in GitHub Actions. When a development change needs full coverage, follow the `e2e-testing` skill's topic-branch and draft-PR workflow.
-- A local full-E2E fallback is allowed only inside an explicit Go run after the current-head hosted
-  jobs are verified to have failed before runner allocation for external billing or infrastructure,
-  with automatic authorization for verified payment or spending-limit failures. Other
-  infrastructure failures still require separate user authorization. Record the head, failure
-  evidence, policy or user authorization, exact platform-neutral CI commands and results, and one
-  `bun run test:e2e` result in the Go ledger. Keep the hosted check externally failed; never relabel
-  it green. Code/test failures, missing required authorization, release packaging, and deployment
-  are never eligible.
-- Remote CI runs platform-neutral checks on Ubuntu. Its macOS full-E2E job runs on the repository
-  self-hosted runner for trusted pull requests and exact release commits; ordinary pushes to `main`
-  must not consume a macOS runner. Release packaging also uses the self-hosted `caxri-release`
-  capability and has no automatic hosted macOS fallback.
-- Before retrying after a verified zero-step billing or spending-limit failure, dispatch `CI` with
-  `runner_probe=true`; it must complete only the cheap `retry-policy` job. Do not use `e2e_profile=skip`
-  as a probe because that still runs the full Linux checks job. After a successful probe, allow one
-  paid macOS validation attempt for the exact frozen head.
+- A local full-E2E substitution is allowed only inside an explicit Go run after the current-head
+  self-hosted Actions jobs are verified to have failed before execution for external GitHub Actions
+  infrastructure, with separate user authorization. Record the head, failure evidence,
+  authorization, exact platform-check commands and results, and one `bun run test:e2e` result in
+  the Go ledger. Keep the Actions check externally failed; never relabel it green. Code/test
+  failures, missing authorization, release packaging, and deployment are never eligible.
+- Every remote CI and Release job runs on the repository self-hosted Apple Silicon `m2-24` runner.
+  Platform checks and the final gate use `caxri-ci`, full Electron E2E uses `caxri-e2e`, and Release
+  packaging uses `caxri-release`. There is no GitHub-hosted fallback. Ordinary trusted pushes to
+  `main` run checks but not full E2E; exact release commits and trusted ready PRs run full E2E.
 - Run focused local Electron coverage only when the change requires it, using
   `bun run --silent check <e2e-file> --e2e`; add `--e2e-grep '<test name>'` when only one workflow changed.
   The checker builds first and collapses successful build and Playwright output into one summary.
@@ -160,13 +152,13 @@ step-by-step workflows beyond this summary.
   its final launch owns cleanup. Terminal/visual fixtures must pass the cell-width/grid/generation
   preflight before recording. Go-owned rounds publish only through the exact-lineage wrapper, not a
   raw `lobehub acceptance run ingest` command.
-- For a hosted-only timing failure, reproduce only the exact failed cases against the production
+- For a CI-only timing failure, reproduce only the exact failed cases against the production
   build with one worker and `--repeat-each=3`. Make slowness deterministic at the owning async
   boundary or wait for an observable product invariant; preserve relevant CI viewport and temporary
   path conditions. If the failure came from `parallel-safe`, also reproduce the exact specs through
   the same namespaced two-worker pool before pushing. Do not rely on machine-wide throttling or a
   timeout-only fix.
-- Treat hosted CI as a final validator, not an implementation loop. Download the first red run's
+- Treat self-hosted Actions CI as a final validator, not an implementation loop. Download the first red run's
   artifacts, collect all failures on that head, finish and locally validate the complete repair
   batch, then push once. For an eligible unprotected delta use exact-tree `e2e-repair`; protected CI,
   dependency, pool, fixture, or workflow changes remain fail-closed and require one final full run.

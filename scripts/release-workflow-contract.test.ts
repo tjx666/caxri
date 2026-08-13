@@ -26,8 +26,8 @@ describe('Release workflow contract', () => {
         expect(workflow).toContain('contents: write');
         expect(workflow).toContain('persist-credentials: false');
         expect(workflow).toContain('CAXRI_E2E_AGENT_MODE: blocked');
-        expect(workflow).toContain('bun run scripts/self-hosted-e2e-runner.ts prepare');
-        expect(workflow).toContain('bun run scripts/self-hosted-e2e-runner.ts cleanup');
+        expect(workflow).toContain('bun run scripts/self-hosted-runner.ts prepare');
+        expect(workflow).toContain('bun run scripts/self-hosted-runner.ts cleanup');
         expect(workflow).toContain("if: always() && steps.checkout.outcome == 'success'");
         expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
         expect(workflow).toContain('gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}"');

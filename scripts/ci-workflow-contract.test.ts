@@ -41,12 +41,13 @@ describe('CI workflow contract', () => {
         ).toHaveLength(2);
     });
 
-    it('supports fail-closed focused checks and hosted control or optimized E2E profiles', () => {
-        expect(workflow).toContain('runner_probe:');
+    it('supports fail-closed focused checks and self-hosted control or optimized E2E profiles', () => {
+        expect(workflow).not.toContain('runner_probe:');
+        expect(workflow).not.toContain('e2e_runner:');
         expect(workflow).toContain("needs.retry-policy.outputs.checks_scope != 'skipped'");
         expect(workflow).toContain('if test "$CHECKS_SCOPE" = skipped; then');
         expect(workflow).toContain(
-            'types: [opened, synchronize, reopened, converted_to_draft, ready_for_review, labeled, unlabeled]',
+            'types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]',
         );
         expect(workflow).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
         expect(workflow).toContain('focused-skills');
@@ -69,7 +70,7 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain(
             "if: github.event_name == 'workflow_dispatch' && (matrix.pool == 'control' || matrix.pool == 'desktop-exclusive')",
         );
-        expect(workflow).toContain('bun run scripts/run-hosted-parity.ts');
+        expect(workflow).toContain('bun run scripts/run-ci-parity.ts');
     });
 
     it('runs focused repair specs before the complete E2E suite and exposes one stable gate', () => {
@@ -84,29 +85,49 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
     });
 
-    it('routes only trusted owner PR code to the repository self-hosted runner', () => {
+    it('routes every job to the repository self-hosted runner without a hosted fallback', () => {
+        const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
+        const checksJob = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}e2e:/u)?.[1];
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
+        const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1];
 
-        expect(e2eJob).toContain('["self-hosted","macOS","ARM64","caxri-e2e"]');
-        expect(e2eJob).toContain("github.actor == 'tjx666'");
-        expect(e2eJob).toContain("github.triggering_actor == 'tjx666'");
-        expect(e2eJob).toContain("github.event.pull_request.user.login == 'tjx666'");
-        expect(e2eJob).toContain(
-            'github.event.pull_request.head.repo.full_name == github.repository',
-        );
+        expect(retryPolicyJob).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-ci]');
+        expect(checksJob).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-ci]');
+        expect(e2eJob).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-e2e]');
+        expect(gateJob).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-ci]');
+        expect(workflow).not.toContain('ubuntu-latest');
+        expect(workflow).not.toContain('macos-latest');
+        expect(workflow).not.toContain('github-hosted');
+    });
+
+    it('executes repository source only for trusted owner events and fails other PRs closed', () => {
+        const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
+        const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
+        const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1];
+
+        for (const job of [retryPolicyJob, e2eJob]) {
+            expect(job).toContain("github.actor == 'tjx666'");
+            expect(job).toContain("github.triggering_actor == 'tjx666'");
+            expect(job).toContain("github.event.pull_request.user.login == 'tjx666'");
+            expect(job).toContain(
+                'github.event.pull_request.head.repo.full_name == github.repository',
+            );
+        }
         expect(e2eJob).toContain("github.ref == 'refs/heads/main'");
         expect(e2eJob).toContain("startsWith(github.event.head_commit.message, 'release: v')");
         expect(e2eJob).toContain("'trusted tjx666 release commit'");
-        expect(e2eJob).toContain("'ci:github-hosted-e2e'");
-        expect(e2eJob).toContain(
-            ") || contains(github.event.pull_request.labels.*.name, 'ci:github-hosted-e2e')",
-        );
         expect(e2eJob).toContain('persist-credentials: false');
-        expect(e2eJob).toContain('bun run scripts/self-hosted-e2e-runner.ts prepare');
-        expect(e2eJob).toContain("if: always() && env.CAXRI_E2E_RUNNER_KIND == 'self-hosted'");
-        expect(e2eJob).toContain('bun run scripts/self-hosted-e2e-runner.ts cleanup');
+        expect(gateJob).toContain('test "$TRUSTED_EVENT" = true');
+        expect(gateJob).not.toContain('actions/checkout');
+    });
+
+    it('prepares and cleans every job that executes repository source', () => {
+        const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
+
+        expect(workflow.match(/bun run scripts\/self-hosted-runner\.ts prepare/gu)).toHaveLength(3);
+        expect(workflow.match(/bun run scripts\/self-hosted-runner\.ts cleanup/gu)).toHaveLength(3);
+        expect(workflow.match(/persist-credentials: false/gu)).toHaveLength(3);
+        expect(workflow).toContain('CAXRI_RUNNER_OWNER:');
         expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
-        expect(e2eJob).not.toContain('CAXRI_E2E_RUNNER_KIND: ${{ runner.environment }}');
-        expect(workflow).toContain('options: [github-hosted, self-hosted]');
     });
 });

@@ -29,8 +29,8 @@ jobs:
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
       CAXRI_E2E_AGENT_MODE: blocked
-      CAXRI_E2E_RUN_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
       CAXRI_EXPECTED_HEAD: ${{ github.event.workflow_run.head_sha }}
+      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
     steps:
       - name: Verify self-hosted release boundary
         env:
@@ -55,8 +55,8 @@ jobs:
           node-version: 22
           cache: npm
       - uses: oven-sh/setup-bun@v2
-      - name: Prepare self-hosted release boundary
-        run: bun run scripts/self-hosted-e2e-runner.ts prepare
+      - name: Prepare self-hosted runner boundary
+        run: bun run scripts/self-hosted-runner.ts prepare
 
       - name: Validate release commit
         id: release
@@ -131,6 +131,6 @@ jobs:
             --title "Caxri ${RELEASE_TAG}" \
             --generate-notes \
             --fail-on-no-commits
-      - name: Clean self-hosted release boundary
+      - name: Clean self-hosted runner boundary
         if: always() && steps.checkout.outcome == 'success'
-        run: bun run scripts/self-hosted-e2e-runner.ts cleanup
+        run: bun run scripts/self-hosted-runner.ts cleanup

@@ -14,9 +14,6 @@ export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build',
 ] as const;
 const FULL_ELECTRON_E2E_COMMAND = 'bun run test:e2e';
-export const BILLING_POLICY_AUTHORIZATION =
-    'Explicit Go policy automatically authorizes exact-head local substitution for verified zero-step GitHub Actions billing failures.';
-const BILLING_EVIDENCE_PATTERN = /billing|payment|spending limit|account payments/i;
 
 const authorizationSchema = z.object({ at: z.string(), detail: z.string().min(1) });
 const externalFailureSchema = z.object({
@@ -125,7 +122,7 @@ export function admitCiFallback(
         throw new Error('Local CI fallback can be admitted only during delivery');
     }
     if (state.pullRequest.status !== 'checks_blocked') {
-        throw new Error('Local CI fallback requires hosted checks to remain externally blocked');
+        throw new Error('Local CI fallback requires Actions checks to remain externally blocked');
     }
     if (state.ciFallback.status !== 'not_requested') {
         throw new Error(
@@ -146,16 +143,11 @@ export function admitCiFallback(
         );
     }
     if (!input.verifiedZeroSteps) {
-        throw new Error('Local CI fallback requires a verified zero-step hosted job failure');
+        throw new Error('Local CI fallback requires a verified zero-step Actions job failure');
     }
     const explicitAuthorization = input.authorization?.trim() ?? '';
-    if (input.failureKind === 'infrastructure' && !explicitAuthorization) {
-        throw new Error('Infrastructure local CI fallback requires explicit user authorization');
-    }
-    if (input.failureKind === 'billing' && !BILLING_EVIDENCE_PATTERN.test(input.failureDetail)) {
-        throw new Error(
-            'Billing fallback requires the original GitHub payment, billing, or spending-limit failure detail',
-        );
+    if (!explicitAuthorization) {
+        throw new Error('Local CI fallback requires explicit user authorization');
     }
     const externalFailure = externalFailureSchema.parse({
         detail: input.failureDetail,
@@ -168,9 +160,7 @@ export function admitCiFallback(
     state.ciFallback = {
         authorization: {
             at: recordedAt,
-            detail:
-                explicitAuthorization ||
-                `${BILLING_POLICY_AUTHORIZATION} GitHub evidence: ${input.failureDetail}`,
+            detail: explicitAuthorization,
         },
         electronE2e: null,
         externalFailure,
@@ -246,6 +236,6 @@ export function assertDeliveryCanAdvance(state: DeliveryContext): void {
         return;
     }
     throw new Error(
-        'Acceptance requires green hosted checks or a passed exact-head local CI fallback',
+        'Acceptance requires green Actions checks or a passed exact-head local CI fallback',
     );
 }

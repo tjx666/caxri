@@ -33,15 +33,15 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
                     return 'Record a clean exact-head review decision and freeze the PR head';
                 }
                 if (state.ciFallback.status === 'passed') {
-                    return 'Transition to Acceptance with hosted CI still externally blocked';
+                    return 'Transition to Acceptance with Actions CI still externally blocked';
                 }
                 if (state.ciFallback.status === 'failed') {
-                    return 'Repair the failure, push a new head, and wait for new hosted checks';
+                    return 'Repair the failure, push a new head, and wait for new Actions checks';
                 }
                 if (state.ciFallback.status === 'admitted') {
                     return 'Run the admitted local CI parity commands against the recorded head';
                 }
-                return 'Classify the zero-step failure; auto-admit billing or request infrastructure authorization';
+                return 'Classify the zero-step failure and request explicit fallback authorization';
             }
             if (state.pullRequest.status === 'ready') return 'Transition to acceptance';
             return 'Finish PR delivery and required review';
@@ -88,7 +88,7 @@ export function createResumeCheckpoint(state: GoState) {
         null;
     const blockers = [
         ...(state.pullRequest.status === 'checks_blocked' && state.ciFallback.status !== 'passed'
-            ? ['Required hosted CI could not start']
+            ? ['Required Actions CI could not start']
             : []),
         ...(state.phase === 'delivery' &&
         state.pullRequest.headSha !== state.reviewGate.frozenHeadSha

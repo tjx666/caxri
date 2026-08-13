@@ -89,7 +89,7 @@ describe('Go persisted handoff artifacts', () => {
         expect(markdown).toContain('<!-- section:delivery -->');
         expect(markdown).toContain('<!-- section:boundaries -->');
         expect(markdown).toContain('commits=2, files=8, fullReviews=1');
-        expect(markdown).toContain('Actions: hosted=ready; localFallback=not_requested');
+        expect(markdown).toContain('Actions: remote=ready; localFallback=not_requested');
         expect(markdown).toContain('baseline=review-001; lineageComplete=true');
         expect(receipt).toMatchObject({ deliveredAt: null, headSha: 'head-1' });
         expect(receipt.evidence).toMatchObject({

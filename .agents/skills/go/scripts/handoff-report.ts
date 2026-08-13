@@ -157,7 +157,7 @@ function buildHandoffEvidence(state: ReportContext, headSha: string) {
         ? 'recorded'
         : 'unavailable';
     return handoffEvidenceSchema.parse({
-        actionsUse: `hosted=${state.pullRequest.status}; localFallback=${state.ciFallback.status}`,
+        actionsUse: `remote=${state.pullRequest.status}; localFallback=${state.ciFallback.status}`,
         commitFileMetrics,
         costCheckpointCount: state.runBudget.checkpoints.length,
         issueDriftAssessmentCount: state.issues.filter(

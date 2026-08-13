@@ -101,33 +101,32 @@ scope decision, run `checkpoint` and `scope-admit`.
 
 ## Discovery routing
 
-| Discovery                                         | Route                                                                                       |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| In-scope regression or missing requirement        | Reopen the owning issue and repair now                                                      |
-| New defect that blocks the frozen business goal   | Create a blocking issue and insert it into the queue                                        |
-| Unrelated pre-existing defect                     | Create or update a follow-up issue; do not expand this Goal                                 |
-| Validation infrastructure defect                  | Repair the owning adapter, fixture, capture, or report tooling only when it blocks delivery |
-| Hosted CI payment/spending-limit failure          | Keep externally blocked; use the guarded exact-head fallback                                |
-| Other zero-step hosted infrastructure failure     | Request separate authorization before fallback                                              |
-| Durable product technical debt                    | Record it and create a follow-up issue before completion                                    |
-| Non-blocking workflow improvement after threshold | Route through `scope-admit` to a follow-up                                                  |
-| Issue expectation differs materially              | Append a structured issue comment; request a decision before scope expansion                |
+| Discovery                                            | Route                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| In-scope regression or missing requirement           | Reopen the owning issue and repair now                                                      |
+| New defect that blocks the frozen business goal      | Create a blocking issue and insert it into the queue                                        |
+| Unrelated pre-existing defect                        | Create or update a follow-up issue; do not expand this Goal                                 |
+| Validation infrastructure defect                     | Repair the owning adapter, fixture, capture, or report tooling only when it blocks delivery |
+| Zero-step self-hosted Actions infrastructure failure | Keep externally blocked; request separate authorization before fallback                     |
+| Durable product technical debt                       | Record it and create a follow-up issue before completion                                    |
+| Non-blocking workflow improvement after threshold    | Route through `scope-admit` to a follow-up                                                  |
+| Issue expectation differs materially                 | Append a structured issue comment; request a decision before scope expansion                |
 
 ## Guarded local CI fallback
 
-Inside `$go`, a verified GitHub Actions payment or spending-limit failure is
-already authorized for local substitution. Admit a fallback only when:
+Inside `$go`, local substitution always requires separate user authorization.
+Admit a fallback only when:
 
-- the hosted job failed before runner allocation with zero executed steps;
-- the cause is external billing or infrastructure, not repository code/tests;
+- the self-hosted Actions job failed before execution with zero executed steps;
+- the cause is external infrastructure, not repository code/tests;
 - the original GitHub failure text is recorded;
-- project policy authorizes billing, or the user authorizes other infrastructure;
+- the user authorizes the exact-head substitution;
 - the exact PR head and aggregate/light review lineage are frozen.
 
 Run the platform-neutral commands exported by `ci-fallback.ts`, in order,
 followed by one `bun run test:e2e` on the same clean head. Both surfaces must
 pass before Acceptance. Keep the PR `checks_blocked`; local evidence never turns
-the hosted check green. Normally one full Electron E2E is allowed. A product
+the Actions check green. Normally one full Electron E2E is allowed. A product
 failure or human rejection can permit one final run after a new reviewed head;
 the ledger rejects a third.
 

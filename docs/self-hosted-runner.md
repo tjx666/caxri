@@ -2,22 +2,23 @@
 
 ## Scope and trust boundary
 
-Caxri uses the repository-level `m2-24` runner for trusted macOS Electron E2E and unsigned arm64
-GitHub Releases. Its labels are `self-hosted`, `macOS`, `ARM64`, `caxri-e2e`, and
-`caxri-release`. Platform-neutral checks remain GitHub-hosted on Linux.
+Caxri uses the repository-level `m2-24` runner for every GitHub Actions job: retry policy,
+platform checks, Electron E2E, the final gate, and unsigned arm64 GitHub Releases. Its labels are
+`self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`. There is no
+GitHub-hosted runner route.
 
 The runner deliberately reuses an existing macOS user. This is a trust decision, not an isolation
 boundary: workflow code can access anything that user can access, including Home and Keychain
 material. Temporary profiles, blocked Agent discovery, owner-scoped cleanup, and a clean checkout
 prevent accidental inheritance; they do not contain malicious workflow code.
 
-Only a same-repository PR authored, triggered, and retriggered by `tjx666`, an exact trusted
-`release: v<package-version>` main commit, or an explicit owner-run validation can select the
-self-hosted labels. Forks, other actors, ordinary pushes, and ordinary manual dispatches cannot run
-on this machine.
+Only a same-repository PR authored, triggered, and retriggered by `tjx666`, a trusted `main` push,
+or an explicit owner-run validation can execute repository source on this machine. Untrusted PRs
+run only the fixed final gate from the trusted base workflow: it performs no checkout and fails
+closed. Exact trusted `release: v<package-version>` commits additionally run full E2E and Release.
 
-The downstream Release job runs only after the same release commit passes Linux checks and the full
-self-hosted macOS E2E suite. That job receives a short-lived `GITHUB_TOKEN` with `contents: write`
+The downstream Release job runs only after the same release commit passes self-hosted checks and
+the full Electron E2E suite. That job receives a short-lived `GITHUB_TOKEN` with `contents: write`
 only for tag and Release publication. Checkout credentials are not persisted. No Apple signing,
 notarization, personal, or production credentials belong in the workflow.
 
@@ -51,7 +52,7 @@ PR traffic.
 
 ## Preflight and teardown contract
 
-Every self-hosted E2E or Release job:
+Every self-hosted job that checks out and executes repository source:
 
 1. verifies the trusted actor, repository, event, macOS/ARM64 runner, exact checkout head, clean
    workspace, and free repository desktop lease before installing dependencies;
@@ -66,36 +67,26 @@ Every self-hosted E2E or Release job:
 Cleanup failures are job failures. Do not replace owner checks with `pkill`, process-name matching,
 or a broad temporary-directory deletion.
 
-## GitHub-hosted fallback
+## Offline behavior
 
-If `m2-24` is offline, unhealthy, or under maintenance, add the
-`ci:github-hosted-e2e` label to the PR. The `labeled` event cancels the queued run through workflow
-concurrency and starts a replacement run attached to the same PR required check on `macos-latest`.
-The job summary records the label route and exact head. Remove the label only after the runner is
-healthy; `unlabeled` starts a new self-hosted run for a trusted owner PR.
+If `m2-24` is offline, unhealthy, busy, or under maintenance, every matching CI or Release job
+remains queued until the machine returns. There is no hosted fallback label, runner input, billing
+probe, or temporary workflow override. Do not treat a queued job as successful.
 
-Untrusted PRs do not automatically consume hosted macOS. They remain fail-closed after Linux checks
-until `tjx666` explicitly adds the same fallback label. Non-owner workflow dispatches and release
-pushes cannot allocate either macOS route.
-
-Do not treat an offline queued job as successful, and do not modify the workflow temporarily to
-simulate fallback.
-
-Release commits intentionally have no automatic GitHub-hosted macOS fallback. If `m2-24` is
-offline, both release E2E and packaging remain queued until the machine returns. This prevents a
-maintenance event from silently creating paid macOS work.
+Because one physical runner owns all capability labels, jobs execute serially even when the
+workflow uses an E2E matrix. This preserves one desktop owner and prevents checks, E2E, and Release
+from competing for the same workspace or native UI.
 
 ## Validation and recovery
 
 Before making the runner the normal PR target, freeze one exact head and record:
 
-- one existing GitHub-hosted control run for comparison; do not create paid control runs solely for
-  self-hosted adoption;
 - three consecutive self-hosted full E2E runs with the same Node/npm/lockfile, profile, manifest
   hash, test count, and skip count;
+- one complete self-hosted platform-check run and final `CI gate` on the same frozen head;
 - one interrupted-worker run that fails while the following run starts with a free lease and clean
   profile;
-- one offline run that remains queued until the explicit fallback label creates a hosted run.
+- one offline run that remains queued and resumes only after `m2-24` reconnects;
 - one dry release-path validation proving the `caxri-release` label, trusted workflow-run identity,
   clean packaged probe, and teardown without creating a tag or Release.
 
