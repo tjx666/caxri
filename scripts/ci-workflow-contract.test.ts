@@ -1,6 +1,15 @@
+import { execFile as execFileCallback } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readlink, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
+
+const execFile = promisify(execFileCallback);
 
 const workflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const setupAction = await readFile(
@@ -11,6 +20,9 @@ const bunVersion = (await readFile(new URL('../.bun-version', import.meta.url), 
 const packageManifest = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
 ) as { scripts: Record<string, string> };
+const setupActionDocument = parse(setupAction) as {
+    runs: { steps: Array<{ name?: string; run?: string }> };
+};
 
 describe('CI workflow contract', () => {
     it('evaluates retry trailers on the pushed PR head instead of the synthetic merge commit', () => {
@@ -52,6 +64,57 @@ describe('CI workflow contract', () => {
         expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
         expect(workflow.match(/install-electron:/gu)).toHaveLength(2);
         expect(workflow.match(/rebuild-native:/gu)).toHaveLength(2);
+    });
+
+    it('recovers an empty persistent Prettier cache before reuse', async () => {
+        const cacheStep = setupActionDocument.runs.steps.find(
+            (step) => step.name === 'Configure runner-local caches',
+        );
+        const root = await mkdtemp(join(tmpdir(), 'caxri-prettier-cache-'));
+        const workspace = join(root, 'workspace');
+        const toolCache = join(root, 'tool-cache');
+        const persistentCache = join(toolCache, 'caxri', 'prettier');
+        const githubEnv = join(root, 'github-env');
+        const githubSummary = join(root, 'github-summary');
+
+        try {
+            expect(cacheStep?.run).toBeTruthy();
+            await mkdir(workspace, { recursive: true });
+            await mkdir(join(toolCache, 'caxri'), { recursive: true });
+            await writeFile(persistentCache, '');
+            await writeFile(githubEnv, '');
+            await writeFile(githubSummary, '');
+
+            await execFile('bash', ['-e', '-o', 'pipefail', '-c', cacheStep?.run ?? 'exit 1'], {
+                cwd: workspace,
+                env: {
+                    ...process.env,
+                    GITHUB_ENV: githubEnv,
+                    GITHUB_STEP_SUMMARY: githubSummary,
+                    RUNNER_TOOL_CACHE: toolCache,
+                },
+            });
+
+            expect(await readlink(join(workspace, '.cache', 'prettier'))).toBe(persistentCache);
+            await writeFile(join(workspace, 'fixture.js'), 'const value = 1;\n');
+            await execFile(
+                fileURLToPath(new URL('../node_modules/.bin/prettier', import.meta.url)),
+                [
+                    '--check',
+                    'fixture.js',
+                    '--cache',
+                    '--cache-strategy',
+                    'content',
+                    '--cache-location',
+                    '.cache/prettier',
+                ],
+                { cwd: workspace },
+            );
+
+            expect(JSON.parse(await readFile(persistentCache, 'utf8'))).toBeDefined();
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
     });
 
     it('supports fail-closed focused checks and self-hosted control or optimized E2E profiles', () => {
