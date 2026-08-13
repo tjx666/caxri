@@ -22,6 +22,7 @@ export const capabilityIds = [
     'agents.message',
     'agents.dispatch',
     'agents.control',
+    'agents.grant',
     'desktop.window',
 ] as const;
 

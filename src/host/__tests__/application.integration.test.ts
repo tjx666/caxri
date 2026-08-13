@@ -96,6 +96,69 @@ process.send?.({
 });
 `;
 
+const agentEndpointRuntimeFixture = `
+import { writeFile } from 'node:fs/promises';
+const startedAt = Date.now();
+const launchId = 'launch-1';
+process.on('message', async (message) => {
+    if (!message || typeof message !== 'object') return;
+    if (message.type === 'host-control.reply' && message.id === 'endpoint-begin') {
+        await writeFile(process.env.CAXRI_ENDPOINT_FIXTURE_PATH, JSON.stringify(message.result));
+        process.send?.({ event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } });
+        return;
+    }
+    if (typeof message.id !== 'string') return;
+    if (message.method === 'app.health') {
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: { ready: true, pid: process.pid, startedAt, activePtyCount: 1 },
+        });
+        return;
+    }
+    if (message.method === 'project.queryForPrincipal') {
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: {
+                view: message.params.principal.kind,
+                projects: [{ id: 'project-1', displayTitle: 'Project' }],
+            },
+        });
+        return;
+    }
+    if (message.method === 'terminal.close') {
+        process.send?.({ id: message.id, ok: true, result: null });
+        return;
+    }
+    if (message.method === 'runtime.shutdown') {
+        process.send?.({ id: message.id, ok: true, result: null });
+        setTimeout(() => process.exit(0), 10);
+        return;
+    }
+    process.send?.({
+        id: message.id,
+        ok: false,
+        error: { code: 'NOT_FOUND', message: 'Unsupported fixture method' },
+    });
+});
+process.send?.({
+    type: 'host-control.request',
+    id: 'endpoint-begin',
+    operation: 'agent-endpoint.begin',
+    params: {
+        terminalId: 'terminal-1',
+        sessionId: 'session-1',
+        projectId: 'project-1',
+        provider: 'codex',
+        launchId,
+        name: 'Codex',
+        permissionClass: 'standard',
+        deliveryMode: 'unavailable',
+    },
+});
+`;
+
 const applications: HostApplication[] = [];
 const directories: string[] = [];
 const sockets: Socket[] = [];
@@ -175,6 +238,74 @@ async function waitForRemoval(path: string): Promise<void> {
 }
 
 describe('Headless Host application', () => {
+    it('binds an Agent principal to one Runtime-owned PTY generation and retires it before close', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
+        directories.push(userDataPath);
+        const runtimePath = join(userDataPath, 'runtime-child.mjs');
+        const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
+        await writeFile(runtimePath, agentEndpointRuntimeFixture);
+        const application = await startHostApplication({
+            commit: 'test',
+            executable: process.execPath,
+            runtimeEnvironment: { CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath },
+            runtimePath,
+            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
+            userDataPath,
+            version: '1.0.0',
+        });
+        applications.push(application);
+        const endpoint = JSON.parse(await readFile(endpointFixturePath, 'utf8')) as {
+            ref: { hostId: string; endpointId: string; generation: number };
+            token: string;
+        };
+        const agent = await HostClient.connect(application.lease.manifest, 2_000, {
+            kind: 'agent',
+            ...endpoint.ref,
+            token: endpoint.token,
+        });
+
+        await expect(agent.request('agent.context')).resolves.toMatchObject({
+            endpoint: {
+                ref: endpoint.ref,
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+            },
+        });
+        await expect(agent.request('agent.list')).resolves.toMatchObject({
+            agents: [expect.objectContaining({ ref: endpoint.ref })],
+        });
+        await expect(agent.request('project.query', { mode: 'current' })).resolves.toEqual({
+            view: 'agent',
+            projects: [{ id: 'project-1', displayTitle: 'Project' }],
+        });
+
+        const desktop = await connectDesktop(
+            application.lease.manifest,
+            application.lease.desktopCredential.desktopToken,
+        );
+        desktop.socket.write(
+            `${JSON.stringify({
+                type: 'command',
+                request: {
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id: 'close-agent',
+                    method: 'terminal.close',
+                    params: { terminalId: 'terminal-1' },
+                },
+            })}\n`,
+        );
+        await expect(desktop.read()).resolves.toMatchObject({
+            type: 'reply',
+            reply: { id: 'close-agent', ok: true },
+        });
+        await expect(agent.request('agent.context')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
+            endpoint.token,
+        );
+        agent.close();
+    });
+
     it('outlives client detach and requires confirmation before stopping a live PTY', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-host-'));
         directories.push(userDataPath);

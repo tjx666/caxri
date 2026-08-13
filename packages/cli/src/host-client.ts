@@ -74,6 +74,13 @@ interface PendingRequest {
 export type HostClientCredential =
     | { kind: 'operator' }
     | {
+          kind: 'agent';
+          hostId: string;
+          endpointId: string;
+          generation: number;
+          token: string;
+      }
+    | {
           kind: 'desktop';
           desktopId: string;
           credential: HostDesktopCredential;
@@ -308,11 +315,13 @@ export class HostClient {
                         credential:
                             credential.kind === 'operator'
                                 ? { kind: 'operator', token: manifest.operatorToken }
-                                : {
-                                      kind: 'desktop',
-                                      token: credential.credential.desktopToken,
-                                      desktopId: credential.desktopId,
-                                  },
+                                : credential.kind === 'agent'
+                                  ? credential
+                                  : {
+                                        kind: 'desktop',
+                                        token: credential.credential.desktopToken,
+                                        desktopId: credential.desktopId,
+                                    },
                     })}\n`,
                 );
             });
@@ -595,8 +604,11 @@ export class HostClient {
 export async function connectToHost(
     userDataPath: string,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    credential: Extract<HostClientCredential, { kind: 'operator' | 'agent' }> = {
+        kind: 'operator',
+    },
 ): Promise<HostClient> {
-    return HostClient.connect(await discoverHostManifest(userDataPath), timeoutMs);
+    return HostClient.connect(await discoverHostManifest(userDataPath), timeoutMs, credential);
 }
 
 export async function connectDesktopToHost(

@@ -158,6 +158,38 @@ function eventRecovery(tokens: readonly string[]): Record<string, number> {
     return { afterCursor };
 }
 
+function endpointRef(source: string | undefined) {
+    const [hostId, endpointId, generationSource, ...extra] = source?.split(':') ?? [];
+    const generation = Number(generationSource);
+    if (
+        !hostId ||
+        !endpointId ||
+        extra.length > 0 ||
+        !Number.isInteger(generation) ||
+        generation < 1
+    )
+        throw new CaxriError(
+            'VALIDATION',
+            'Endpoint ref must be <host-id>:<endpoint-id>:<generation>',
+        );
+    return { hostId, endpointId, generation };
+}
+
+function agentGrant(tokens: readonly string[]): Record<string, unknown> {
+    if (tokens.length < 2)
+        throw new CaxriError('VALIDATION', 'agent grant requires an Endpoint ref and policy');
+    const result: Record<string, unknown> = {
+        endpoint: endpointRef(tokens[0]),
+        policy: tokens[1],
+    };
+    if (tokens.length > 2) {
+        if (tokens.length !== 4 || tokens[2] !== '--ttl-ms')
+            throw new CaxriError('VALIDATION', `Unknown option: ${tokens[2]}`);
+        result.ttlMs = Number(tokens[3]);
+    }
+    return result;
+}
+
 export const CLI_COMMANDS = [
     {
         kind: 'local',
@@ -168,6 +200,52 @@ export const CLI_COMMANDS = [
         kind: 'local',
         path: ['agent-context'],
         summary: 'Print local automation and protocol context without requiring a Host.',
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'list'],
+        method: 'agent.list',
+        summary: 'List online Agent Endpoints visible to this principal.',
+        parseParams: rejectOptions,
+        quietKey: 'agents',
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'grants'],
+        method: 'agent.grants',
+        summary: 'List grants for one exact Agent Endpoint generation.',
+        usage: '<host-id>:<endpoint-id>:<generation>',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1)
+                throw new CaxriError('VALIDATION', 'agent grants requires one Endpoint ref');
+            return { endpoint: endpointRef(tokens[0]) };
+        },
+        quietKey: 'grants',
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'grant'],
+        method: 'agent.grant',
+        summary: 'Grant a bounded policy to one Agent Endpoint generation.',
+        usage: '<host-id>:<endpoint-id>:<generation> <policy> [--ttl-ms <milliseconds>]',
+        confirmation: 'Grant this policy to the selected Agent Endpoint generation?',
+        parseParams: agentGrant,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'revoke'],
+        method: 'agent.revoke',
+        summary: 'Revoke one generation-scoped Agent grant.',
+        usage: '<host-id>:<endpoint-id>:<generation> <grant-id>',
+        confirmation: 'Revoke this Agent Endpoint grant?',
+        parseParams: (tokens) => {
+            if (tokens.length !== 2)
+                throw new CaxriError(
+                    'VALIDATION',
+                    'agent revoke requires an Endpoint ref and grant ID',
+                );
+            return { endpoint: endpointRef(tokens[0]), grantId: tokens[1] };
+        },
     },
     {
         kind: 'remote',

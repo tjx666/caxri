@@ -20,7 +20,13 @@ import {
     type CliCommandDefinition,
     type RemoteCommandDefinition,
 } from './command-catalog';
-import { detectAutomation, resolveCliProfile, type CliAutomation } from './environment';
+import {
+    detectAutomation,
+    resolveAgentEndpointCredential,
+    resolveCliProfile,
+    type AgentEndpointCredential,
+    type CliAutomation,
+} from './environment';
 import {
     exitCodeFor,
     normalizeCliError,
@@ -47,6 +53,7 @@ export interface CliHostClient {
 }
 
 export interface CliConnectOptions {
+    credential?: AgentEndpointCredential;
     profilePath: string;
     signal?: AbortSignal;
     timeoutMs: number;
@@ -254,6 +261,17 @@ function localResult(
     },
 ): unknown {
     if (command.path[0] === 'capabilities') return capabilities();
+    if (command.path[0] === 'agent-context')
+        return {
+            status: 'unavailable',
+            reason: 'endpoint-credential-missing',
+            action: 'Run this command inside a directly managed Caxri Agent Terminal.',
+            automation: options.automation,
+            cliVersion: CLI_VERSION,
+            outputMode: options.mode,
+            profileSource: options.profileSource,
+            protocolVersion: CLI_PROTOCOL_VERSION,
+        };
     return {
         automation: options.automation,
         cliVersion: CLI_VERSION,
@@ -349,14 +367,48 @@ export async function runCli(
             home: options.home,
             platform: options.platform,
         });
+        const endpointCredential = resolveAgentEndpointCredential(environment);
+        const connect =
+            options.connect ??
+            ((connection: CliConnectOptions) =>
+                connectToHost(
+                    connection.profilePath,
+                    connection.timeoutMs,
+                    connection.credential ?? { kind: 'operator' },
+                ));
         if (selected.kind === 'local') {
             if (parsed.tokens.length !== selected.path.length)
                 throw new CaxriError('VALIDATION', `Unexpected argument: ${parsed.tokens[1]}`);
-            const value = localResult(selected, {
+            let value = localResult(selected, {
                 automation,
                 mode,
                 profileSource: profile.source,
             });
+            if (endpointCredential) {
+                client = await connect({
+                    credential: endpointCredential,
+                    profilePath: profile.path,
+                    signal: options.signal,
+                    timeoutMs: parsed.timeoutMs,
+                });
+                if (selected.path[0] === 'agent-context') {
+                    if (!client.welcome.commands.includes('agent.context'))
+                        throw new CaxriError(
+                            'CONFLICT',
+                            'The Caxri Host does not support Agent Endpoint context',
+                        );
+                    value = await client.request('agent.context', {});
+                } else {
+                    value = {
+                        ...(value as Record<string, unknown>),
+                        endpoint: {
+                            principal: client.welcome.principal,
+                            capabilities: client.welcome.capabilities,
+                            commands: client.welcome.commands,
+                        },
+                    };
+                }
+            }
             const output =
                 mode === 'quiet' && selected.path[0] === 'capabilities'
                     ? (Object.keys(methods) as CaxriMethod[]).map((id) => ({ id }))
@@ -368,17 +420,14 @@ export async function runCli(
         const params = command.parseParams(parsed.tokens.slice(command.path.length));
         const mutates =
             methods[command.method].effect !== 'read' && (command.mutates?.(params) ?? true);
-        if (mutates && !parsed.profile)
+        if (mutates && !parsed.profile && !endpointCredential)
             throw new CaxriError(
                 'VALIDATION',
                 'Mutation commands require an explicit --profile Host selector',
             );
         if (mutates) await confirmMutation(command, parsed, automation, options, io);
-        const connect =
-            options.connect ??
-            ((connection: CliConnectOptions) =>
-                connectToHost(connection.profilePath, connection.timeoutMs));
         client = await connect({
+            ...(endpointCredential ? { credential: endpointCredential } : {}),
             profilePath: profile.path,
             signal: options.signal,
             timeoutMs: parsed.timeoutMs,

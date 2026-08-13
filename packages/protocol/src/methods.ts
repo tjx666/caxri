@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentEndpointMethods } from './agent-endpoint-contract.js';
 import { businessInternalMethods, businessMethods } from './business-contract.js';
 import { configurationSourceSchema, MAX_KEYBINDINGS } from './configuration-contract.js';
 import { desktopHostMethods, desktopStatusResultSchema } from './desktop-contract.js';
@@ -126,6 +127,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
  * may route an entry but must never copy its application handler.
  */
 export const methods = {
+    ...agentEndpointMethods,
     ...businessMethods,
     'app.bootstrap': { ...hostRead, params: noParams, result: bootstrapStateSchema },
     'app.records': {

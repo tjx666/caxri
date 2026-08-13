@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriError, CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
 
-import { runCli, type CliHostClient, type CliIo } from './application';
+import { runCli, type CliConnectOptions, type CliHostClient, type CliIo } from './application';
 
 function io(options: Partial<CliIo> = {}) {
     let stdout = '';
@@ -112,6 +112,73 @@ describe('CLI application', () => {
         ).resolves.toBe(0);
         expect(output.stdout()).toContain('"automation":"agent"');
         expect(output.stdout()).not.toContain('/Users/private');
+    });
+
+    it('uses the complete generation credential for remote Agent context without printing it', async () => {
+        const output = io();
+        const token = 'ab'.repeat(32);
+        const context = {
+            status: 'active',
+            endpoint: {
+                ref: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 2 },
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+                provider: 'codex',
+                name: 'Codex',
+                permissionClass: 'standard',
+                deliveryMode: 'unavailable',
+                expiresAt: 10_000,
+            },
+            capabilities: ['agents.read'],
+            grants: [],
+        };
+        const client = host(context, ['agent.context']);
+        client.welcome = {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            principal: {
+                kind: 'agent',
+                id: 'agent:endpoint-1',
+                endpointId: 'endpoint-1',
+                generation: 2,
+                projectIds: ['project-1'],
+            },
+            capabilities: ['agents.read'],
+            commands: ['agent.context'],
+        };
+        const connect = vi.fn((options: CliConnectOptions) => {
+            void options;
+            return Promise.resolve(client);
+        });
+
+        await expect(
+            runCli(['agent-context', '--json'], {
+                connect,
+                environment: {
+                    CODEX_THREAD_ID: 'thread-1',
+                    CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),
+                    CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
+                    CAXRI_AGENT_ENDPOINT_GENERATION: '2',
+                    CAXRI_AGENT_ENDPOINT_TOKEN: token,
+                    CAXRI_USER_DATA_DIR: '/profiles/agent',
+                },
+                io: output.io,
+            }),
+        ).resolves.toBe(0);
+
+        expect(connect.mock.calls[0]?.[0]).toMatchObject({
+            profilePath: '/profiles/agent',
+            credential: {
+                kind: 'agent',
+                hostId: 'a'.repeat(32),
+                endpointId: 'endpoint-1',
+                generation: 2,
+                token,
+            },
+        });
+        expect(client.request).toHaveBeenCalledWith('agent.context', {});
+        expect(output.stdout()).toContain('"endpointId":"endpoint-1"');
+        expect(`${output.stdout()}${output.stderr()}`).not.toContain(token);
     });
 
     it('negotiates the command with the selected profile and emits stable JSON', async () => {

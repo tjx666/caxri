@@ -18,7 +18,7 @@ export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
 
-const agentProviderSchema = z.enum(agentProviderIds);
+export const agentProviderSchema = z.enum(agentProviderIds);
 const agentActivityStateSchema = z.enum([
     'running',
     'waiting',

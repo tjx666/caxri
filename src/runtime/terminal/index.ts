@@ -81,7 +81,10 @@ export interface TerminalManagerOptions {
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     /** Adds generation-scoped, non-secret integration variables immediately before PTY spawn. */
-    lifecycleEnvironment?: (record: TerminalRecord) => NodeJS.ProcessEnv;
+    lifecycleEnvironment?: (
+        record: TerminalRecord,
+        launch?: AgentLaunchSettings,
+    ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
     /** Revokes lifecycle integration for a PTY generation before its durable record can be reused. */
     onLifecycleRetired?: (terminalId: string) => void;
     /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
@@ -221,7 +224,7 @@ export class TerminalManager {
                           TERM: 'xterm-256color',
                           COLORTERM: 'truecolor',
                       }),
-                ...this.lifecycleEnvironment?.(record),
+                ...(await this.lifecycleEnvironment?.(record, launch)),
             };
             if (record.kind === 'shell') {
                 try {

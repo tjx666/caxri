@@ -16,6 +16,7 @@ Electron Main
 Headless Host (Electron RunAsNode)
   -> one profile lock + private Unix socket
   -> command/capability dispatcher + bounded event journal
+  -> in-memory generation-scoped Agent Endpoint registry
   -> one Node-mode Runtime child
 
 Preload
@@ -65,6 +66,13 @@ share closed error codes; Agent and CI contexts default to JSON and never prompt
 an explicit profile plus any command-specific Project, Session, or Terminal selector and cannot
 infer a target from uniqueness. The CLI may discover the private Host manifest and connect through
 its local socket, but it cannot read Runtime persistence, logs, configuration files, or Desktop IPC.
+For a directly managed Agent PTY, Runtime requests a separate Endpoint credential over correlated
+private child IPC immediately before spawn. Host stores only its digest and fences every command by
+Host, Endpoint, generation, and launch identity; restart, exit, close, deletion, Runtime crash, and
+expiry revoke it. The inherited Agent credential supplies same-Project read capabilities by default,
+while bounded generation grants add debug, business-write, or Agent-control capabilities. A Shell
+promotion never receives an Endpoint. These bearer capabilities are a product authorization boundary,
+not a sandbox from same-user code that can independently read the private owner manifest.
 
 Runtime output events are batched and bounded before crossing process boundaries. Host owns the durable
 structural events use a monotonic, bounded cursor journal: a reconnect receives an intact suffix or
@@ -171,6 +179,14 @@ rename, move, Trash, and PTY cwd launch.
 Git operations run via `execFile('git', argv)` with fixed argv constructors and a filtered environment. The only repository mutation exposed to the Renderer is switching to an existing local branch: Runtime resolves the opaque approved repository ID, re-lists its bounded local refs, and invokes `git switch -- <branch>` only after an exact match. There is no arbitrary checkout, fetch, reset, discard, or command surface. One Runtime-wide semaphore admits at most eight Git subprocesses, metadata commands cap output at 4 MiB, and bounded file-diff commands retain the configured file-size cap. A shared Runtime resolver checks the GUI PATH, then reads only a bounded marker-prefixed PATH from the login shell; it caches validated absolute executables and revalidates stale entries. Agent adapters, Agent PTYs, version probes, and the fixed Project Status allowlist (`gh`, `vc`, `linear`) use this resolver and its filtered environment without inheriting the rest of the shell environment. Claude Code integration reads only compact live-session metadata: at most 512 candidates, eight reads at once, and no more than 128 KiB from any file. Codex integration locates state beneath the documented `CODEX_HOME`/`CODEX_SQLITE_HOME` roots and queries a capability-detected thread index read-only; neither adapter opens transcripts. Available title, session ID, activity, and usage metadata are correlated with the persisted cwd of the matching provider Terminal. A provider-owned Agent session ID may be claimed by only one Terminal; unbound probes exclude IDs already claimed by another Terminal and IDs discarded by a restart. Every new Session starts with the automatic sidebar title `Untitled`, while its first Terminal keeps the provider-specific `Shell`, `Claude Code`, or `Codex` title. The first Agent Terminal becomes the Session's primary Agent Terminal and exclusively owns later automatic sidebar-title promotion from useful metadata; later Agent Terminals retain independent metadata without replacing it. A manual title remains stable across Agent metadata refresh, restart, and primary-Terminal succession. Closing the primary promotes the next Agent Terminal. Missing or changed storage produces `unknown`; it never interrupts PTY input/output or resets a known Session title.
 
 A Shell Terminal can become an Agent Terminal when its unpublished input line launches `claude` or `codex`, either directly or through a shell alias. Runtime keeps a simple-command candidate in memory for a bounded window and confirms aliases from the PTY's active foreground process group using a fixed, bounded `ps` query; compound commands and background processes are excluded. Once the provider executable is confirmed, Runtime promotes the durable Terminal atomically so its shared icon and title update even before the provider writes session metadata. A later same-Project, unclaimed metadata session created after command submission supplies the Agent session ID and generated title. Shell input and process-list output are never logged or persisted, and ordinary output alone does not infer Agent identity.
+
+Each directly launched Agent PTY generation receives an independent, short-lived Agent Endpoint ref
+and token after Runtime has resolved its Project, Session, Terminal, provider, and launch configuration.
+The filtered PTY environment carries the credential only for that direct launch; Host never persists
+the token or publishes it through events, diagnostics, snapshots, or command output. Provider launch
+evidence classifies only the built-in executable with an empty argument list as `standard`, exact
+documented bypass flags as `elevated`, and custom executables or arguments as `unknown`. Endpoint
+selectors use the opaque ref; duplicate display names never redirect a mutation to a newer generation.
 
 Provider lifecycle hooks follow one generic Runtime contract: provider-local adapters define documented events, config targets, schema inspection, render, and removal, while `src/runtime/agents/hooks/` exclusively owns filesystem reads, a cross-process install lock, mode-`0600` atomic replacements, debounced provider-config watching with a slow polling fallback, bridge staging, the authenticated local socket, and health reporting. Adapters add three content-free phases (`turnStarted`, `attentionRequested`, `turnFinished`) and remove only handlers carrying Caxri's marker. Foreign hooks and comments are preserved, malformed trees and policy-disabled configs fail closed, Codex inline-hook conflicts are reported instead of merged, and removal independently preserves every newer marked schema even when another conflict is present. Main supplies the fixed per-user bridge root; test/E2E composition omits it so isolated runs cannot mutate real CLI configuration.
 

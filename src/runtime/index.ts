@@ -5,6 +5,10 @@ import type { RuntimeEvent } from '../shared/ipc/events';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import { createRuntime } from './bootstrap';
+import {
+    RuntimeAgentEndpointControlClient,
+    RuntimeAgentEndpointLifecycle,
+} from './agent-endpoints';
 import { createDispatcher, type RuntimeRequestEnvelope } from './dispatch';
 import { createRuntimeParentPort } from './port';
 
@@ -29,6 +33,8 @@ const processErrorMonitor = installProcessErrorMonitor({
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
 const parentPort = createRuntimeParentPort(process);
+const agentEndpointControl = new RuntimeAgentEndpointControlClient(parentPort);
+const agentEndpoints = new RuntimeAgentEndpointLifecycle(agentEndpointControl, userDataPath);
 
 await mkdir(userDataPath, { recursive: true });
 const logger = runtimeLogger ?? createBootstrapLogger();
@@ -38,6 +44,7 @@ const runtime = await createRuntime({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     userDataPath,
     logger,
+    agentEndpoints,
     send: (event: RuntimeEvent) => parentPort.send(event),
 });
 const dispatch = createDispatcher(runtime.handlers, logger);
@@ -50,6 +57,7 @@ parentPort.onDisconnect?.(closeOrphanedRuntime);
 if (!parentPort.connected()) closeOrphanedRuntime();
 
 parentPort.onMessage((message) => {
+    if (agentEndpointControl.handleMessage(message)) return;
     void (async () => {
         const envelope = message as RuntimeRequestEnvelope;
         parentPort.send(await dispatch(envelope));

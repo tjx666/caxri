@@ -60,6 +60,13 @@ export const localClientHelloSchema = protocolHelloSchema.extend({
     credential: z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('operator'), token: hostCredentialTokenSchema }),
         z.object({
+            kind: z.literal('agent'),
+            hostId: hostProcessIdentitySchema,
+            endpointId: identifierSchema,
+            generation: z.number().int().positive(),
+            token: hostCredentialTokenSchema,
+        }),
+        z.object({
             kind: z.literal('desktop'),
             token: hostCredentialTokenSchema,
             desktopId: identifierSchema,
