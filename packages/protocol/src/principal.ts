@@ -11,6 +11,7 @@ export const capabilityIds = [
     'sessions.write',
     'terminals.read',
     'terminals.control',
+    'terminals.steer',
     'files.read',
     'files.write',
     'git.read',

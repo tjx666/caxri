@@ -53,6 +53,7 @@ export interface AgentInboxRegistryOptions {
 
 export interface AgentMessageSendInput {
     body: string;
+    dispatchId?: string;
     idempotencyKey?: string;
     replyTo?: string;
     to: AgentEndpointRef;

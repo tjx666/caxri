@@ -160,6 +160,7 @@ describe('local Host transport', () => {
             'diagnostics.read',
             'agents.read',
             'agents.control',
+            'agents.dispatch',
             'agents.grant',
             'events.read',
             'host.read',
@@ -169,6 +170,7 @@ describe('local Host transport', () => {
             'settings.read',
             'settings.write',
             'terminals.read',
+            'terminals.steer',
         ]);
         expect(welcome.commands).toContain('app.health');
         expect(welcome.commands).toContain('host.status');
@@ -180,6 +182,10 @@ describe('local Host transport', () => {
         expect(welcome.commands).toContain('events.query');
         expect(welcome.commands).toContain('agent.list');
         expect(welcome.commands).toContain('agent.grant');
+        expect(welcome.commands).toContain('agent.dispatch.start');
+        expect(welcome.commands).toContain('agent.control.stop');
+        expect(welcome.commands).toContain('terminal.send');
+        expect(welcome.commands).not.toContain('agent.message.send');
         expect(welcome.commands).not.toContain('events.recover');
         socket.write(
             `${JSON.stringify({

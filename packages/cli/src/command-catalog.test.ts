@@ -27,6 +27,12 @@ describe('CLI business command catalog', () => {
                 'agent grants',
                 'agent grant',
                 'agent revoke',
+                'agent dispatch start',
+                'agent dispatch resume',
+                'agent dispatch status',
+                'agent dispatch wait',
+                'agent control interrupt',
+                'agent control stop',
                 'agent message send',
                 'agent message wait',
                 'agent message check',
@@ -34,6 +40,7 @@ describe('CLI business command catalog', () => {
                 'agent message receipt',
                 'agent message policy',
                 'agent message policy-set',
+                'terminal send',
             ]),
         );
     });
@@ -97,5 +104,52 @@ describe('CLI business command catalog', () => {
             replyTo: 'message-1',
             body: 'plain peer text',
         });
+
+        const wake = findCliCommand(['agent', 'message', 'send']);
+        expect(
+            wake?.kind === 'remote'
+                ? wake.parseParams([
+                      '--to',
+                      `${'a'.repeat(32)}:endpoint-2:3`,
+                      '--body',
+                      'wake safely',
+                      '--wake',
+                  ])
+                : null,
+        ).toMatchObject({ wake: true, body: 'wake safely' });
+
+        const dispatch = findCliCommand(['agent', 'dispatch', 'resume']);
+        expect(
+            dispatch?.kind === 'remote'
+                ? dispatch.parseParams([
+                      '--project',
+                      'project-1',
+                      '--session',
+                      'session-1',
+                      '--terminal',
+                      'terminal-1',
+                      '--provider-session',
+                      'provider-session-1',
+                  ])
+                : null,
+        ).toEqual({
+            projectId: 'project-1',
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            providerSessionId: 'provider-session-1',
+        });
+
+        const steer = findCliCommand(['terminal', 'send']);
+        expect(
+            steer?.kind === 'remote'
+                ? steer.parseParams([
+                      '--terminal',
+                      'terminal-1',
+                      '--text',
+                      'human input',
+                      '--enter',
+                  ])
+                : null,
+        ).toEqual({ terminalId: 'terminal-1', text: 'human input', enter: true });
     });
 });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentDispatchInternalMethods, agentDispatchMethods } from './agent-dispatch-contract.js';
 import { agentEndpointMethods } from './agent-endpoint-contract.js';
 import { agentInboxMethods } from './agent-inbox-contract.js';
 import { businessInternalMethods, businessMethods } from './business-contract.js';
@@ -128,6 +129,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
  * may route an entry but must never copy its application handler.
  */
 export const methods = {
+    ...agentDispatchMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
@@ -628,6 +630,7 @@ export const methods = {
 
 /** Main-to-Runtime methods that are never reachable from the Renderer request allowlist. */
 export const internalMethods = {
+    ...agentDispatchInternalMethods,
     ...businessInternalMethods,
     'app.windowState.get': {
         ...hostRead,

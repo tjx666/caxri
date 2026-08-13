@@ -472,12 +472,19 @@ export async function runCli(
         }
         const command = remoteCommand(parsed.tokens);
         let params = command.parseParams(parsed.tokens.slice(command.path.length));
-        /** A pull maps `--timeout` to its long poll; `--connect-timeout` may split setup timing. */
+        /** Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split. */
         if (command.method === 'agent.message.wait') params = { timeoutMs: parsed.timeoutMs };
+        if (command.method === 'agent.dispatch.wait')
+            params = { ...(params as object), timeoutMs: parsed.timeoutMs };
         if (command.requiresAgentEndpoint && !endpointCredential)
             throw new CaxriError(
                 'FORBIDDEN',
                 'This command requires a directly managed Caxri Agent Endpoint credential',
+            );
+        if (command.requiresHumanOwner && endpointCredential)
+            throw new CaxriError(
+                'FORBIDDEN',
+                'This command requires the authenticated human profile owner',
             );
         const mutates =
             methods[command.method].effect !== 'read' && (command.mutates?.(params) ?? true);

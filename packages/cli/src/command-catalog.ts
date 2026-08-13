@@ -37,6 +37,7 @@ export interface RemoteCommandDefinition {
     parseParams(tokens: readonly string[]): unknown;
     path: readonly [CliGroupName, string, ...string[]];
     requiresAgentEndpoint?: boolean;
+    requiresHumanOwner?: boolean;
     summary: string;
     quietKey?: string;
     stream?: 'events' | 'logs';
@@ -220,8 +221,16 @@ function namedOptions(
 }
 
 function agentMessage(tokens: readonly string[], reply: boolean): Record<string, unknown> {
+    let wake = false;
+    const valueTokens: string[] = [];
+    for (const token of tokens) {
+        if (token === '--wake') {
+            if (wake) throw new CaxriError('VALIDATION', '--wake may be provided only once');
+            wake = true;
+        } else valueTokens.push(token);
+    }
     const options = namedOptions(
-        tokens,
+        valueTokens,
         new Map([
             ['--to', 'to'],
             ['--body', 'body'],
@@ -232,12 +241,78 @@ function agentMessage(tokens: readonly string[], reply: boolean): Record<string,
     );
     if (!reply && options.replyTo !== undefined)
         throw new CaxriError('VALIDATION', '--reply-to is valid only for agent message reply');
+    if (reply && wake)
+        throw new CaxriError('VALIDATION', '--wake is valid only for agent message send');
     return {
         to: endpointRef(options.to),
         body: options.body,
         ...(options.replyTo ? { replyTo: options.replyTo } : {}),
         ...(options.ttlMs ? { ttlMs: Number(options.ttlMs) } : {}),
+        ...(wake ? { wake: true } : {}),
     };
+}
+
+function dispatchTarget(tokens: readonly string[], resume: boolean): Record<string, unknown> {
+    const options = namedOptions(
+        tokens,
+        new Map([
+            ['--project', 'projectId'],
+            ['--session', 'sessionId'],
+            ['--provider', 'provider'],
+            ['--terminal', 'terminalId'],
+            ['--provider-session', 'providerSessionId'],
+        ]),
+        resume
+            ? ['projectId', 'sessionId', 'terminalId', 'providerSessionId']
+            : ['projectId', 'sessionId', 'provider'],
+    );
+    if (resume && options.provider !== undefined)
+        throw new CaxriError('VALIDATION', '--provider is valid only for agent dispatch start');
+    if (!resume && (options.terminalId !== undefined || options.providerSessionId !== undefined))
+        throw new CaxriError(
+            'VALIDATION',
+            '--terminal and --provider-session are valid only for agent dispatch resume',
+        );
+    return options;
+}
+
+function dispatchWait(tokens: readonly string[]): Record<string, unknown> {
+    const positional: string[] = [];
+    let afterRevision = 0;
+    for (let index = 0; index < tokens.length; index += 1) {
+        if (tokens[index] !== '--after-revision') {
+            positional.push(tokens[index]);
+            continue;
+        }
+        const value = Number(tokens[index + 1]);
+        if (!Number.isInteger(value) || value < 0)
+            throw new CaxriError('VALIDATION', '--after-revision requires a non-negative integer');
+        afterRevision = value;
+        index += 1;
+    }
+    if (positional.length !== 1)
+        throw new CaxriError('VALIDATION', 'agent dispatch wait requires one dispatch ID');
+    return { dispatchId: positional[0], afterRevision };
+}
+
+function terminalSend(tokens: readonly string[]): Record<string, unknown> {
+    let enter = false;
+    const valueTokens: string[] = [];
+    for (const token of tokens) {
+        if (token === '--enter') {
+            if (enter) throw new CaxriError('VALIDATION', '--enter may be provided only once');
+            enter = true;
+        } else valueTokens.push(token);
+    }
+    const options = namedOptions(
+        valueTokens,
+        new Map([
+            ['--terminal', 'terminalId'],
+            ['--text', 'text'],
+        ]),
+        ['terminalId', 'text'],
+    );
+    return { ...options, enter };
 }
 
 export const CLI_COMMANDS = [
@@ -299,10 +374,80 @@ export const CLI_COMMANDS = [
     },
     {
         kind: 'remote',
+        path: ['agent', 'dispatch', 'start'],
+        method: 'agent.dispatch.start',
+        summary: 'Start one fresh Agent conversation in an exact Project Session.',
+        usage: '--project <project-id> --session <session-id> --provider <claude|codex>',
+        confirmation: 'Start this Agent dispatch?',
+        parseParams: (tokens) => dispatchTarget(tokens, false),
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'dispatch', 'resume'],
+        method: 'agent.dispatch.resume',
+        summary: 'Resume one exactly bound Provider conversation in its Terminal.',
+        usage: '--project <project-id> --session <session-id> --terminal <terminal-id> --provider-session <id>',
+        confirmation: 'Resume this exact Agent dispatch target?',
+        parseParams: (tokens) => dispatchTarget(tokens, true),
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'dispatch', 'status'],
+        method: 'agent.dispatch.status',
+        summary: 'Read one durable Agent dispatch receipt.',
+        usage: '<dispatch-id>',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1)
+                throw new CaxriError(
+                    'VALIDATION',
+                    'agent dispatch status requires one dispatch ID',
+                );
+            return { dispatchId: tokens[0] };
+        },
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'dispatch', 'wait'],
+        method: 'agent.dispatch.wait',
+        summary: 'Wait for a typed lifecycle change to one durable Agent dispatch.',
+        usage: '<dispatch-id> [--after-revision <revision>] [--timeout <milliseconds>]',
+        parseParams: dispatchWait,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'control', 'interrupt'],
+        method: 'agent.control.interrupt',
+        summary: 'Interrupt one exact active Agent Endpoint generation.',
+        usage: '<host-id>:<endpoint-id>:<generation>',
+        confirmation: 'Interrupt this exact Agent generation?',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1)
+                throw new CaxriError(
+                    'VALIDATION',
+                    'agent control interrupt requires one Endpoint ref',
+                );
+            return { endpoint: endpointRef(tokens[0]) };
+        },
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'control', 'stop'],
+        method: 'agent.control.stop',
+        summary: 'Stop one exact active Agent Endpoint generation.',
+        usage: '<host-id>:<endpoint-id>:<generation>',
+        confirmation: 'Stop this exact Agent generation?',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1)
+                throw new CaxriError('VALIDATION', 'agent control stop requires one Endpoint ref');
+            return { endpoint: endpointRef(tokens[0]) };
+        },
+    },
+    {
+        kind: 'remote',
         path: ['agent', 'message', 'send'],
         method: 'agent.message.send',
         summary: 'Send bounded inert text to one exact peer Agent generation.',
-        usage: '--to <host-id>:<endpoint-id>:<generation> --body <text> [--ttl-ms <milliseconds>]',
+        usage: '--to <host-id>:<endpoint-id>:<generation> --body <text> [--ttl-ms <milliseconds>] [--wake]',
         parseParams: (tokens) => agentMessage(tokens, false),
         requiresAgentEndpoint: true,
     },
@@ -476,6 +621,16 @@ export const CLI_COMMANDS = [
         parseParams: (tokens) =>
             selectorQuery(tokens, 'show', { flag: '--session', key: 'sessionId' }),
         quietKey: 'terminals',
+    },
+    {
+        kind: 'remote',
+        path: ['terminal', 'send'],
+        method: 'terminal.send',
+        summary: 'Send bounded human input to a live Terminal; this is not a Peer Message.',
+        usage: '--terminal <terminal-id> --text <text> [--enter]',
+        confirmation: 'Send this human input to the selected Terminal?',
+        parseParams: terminalSend,
+        requiresHumanOwner: true,
     },
     {
         kind: 'remote',

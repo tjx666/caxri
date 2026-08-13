@@ -25,6 +25,7 @@ import {
 } from '../../shared/ipc/principal';
 
 const ENDPOINT_TTL_MS = 24 * 60 * 60 * 1_000;
+const MAX_RETIRED_ENDPOINTS = 256;
 
 const BASELINE_CAPABILITIES = [
     'agents.read',
@@ -87,6 +88,7 @@ export class AgentEndpointRegistry {
     private readonly generations = new Map<string, number>();
     private readonly messagingChangedListeners = new Set<AgentEndpointMessagingChangedListener>();
     private readonly retiredListeners = new Set<AgentEndpointRetiredListener>();
+    private readonly retired = new Map<string, AgentEndpointSummary>();
     private readonly now: () => number;
     private readonly token: () => string;
 
@@ -254,6 +256,29 @@ export class AgentEndpointRegistry {
         return this.exact(ref).summary;
     }
 
+    /** Bounded tombstones let an explicit wake target one exact stopped generation. */
+    resolveRetired(ref: AgentEndpointRef): AgentEndpointSummary {
+        const endpoint = this.retired.get(ref.endpointId);
+        if (
+            !endpoint ||
+            endpoint.expiresAt <= this.now() ||
+            endpoint.ref.hostId !== ref.hostId ||
+            endpoint.ref.generation !== ref.generation
+        ) {
+            if (endpoint?.expiresAt && endpoint.expiresAt <= this.now())
+                this.retired.delete(ref.endpointId);
+            throw new CaxriError('UNAVAILABLE', 'Agent Endpoint is unavailable');
+        }
+        return endpoint;
+    }
+
+    resolveTerminal(terminalId: string): AgentEndpointSummary {
+        const record = this.byTerminal.get(terminalId);
+        if (!record || !this.active(record.summary.ref.endpointId))
+            throw new CaxriError('UNAVAILABLE', 'Agent Endpoint is unavailable');
+        return record.summary;
+    }
+
     private exact(ref: AgentEndpointRef): StoredEndpoint {
         const record = this.active(ref.endpointId);
         if (!record || !this.matches(record, ref))
@@ -319,6 +344,10 @@ export class AgentEndpointRegistry {
             this.byTerminal.delete(record.terminalId);
         record.grants.clear();
         record.tokenDigest.fill(0);
+        this.retired.delete(record.summary.ref.endpointId);
+        this.retired.set(record.summary.ref.endpointId, record.summary);
+        while (this.retired.size > MAX_RETIRED_ENDPOINTS)
+            this.retired.delete(this.retired.keys().next().value!);
         for (const listener of this.retiredListeners) listener(record.summary);
     }
 }

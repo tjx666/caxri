@@ -113,6 +113,29 @@ describe('AgentEndpointRegistry', () => {
         expect(registry.grants(second.ref)).toEqual([]);
     });
 
+    it('grants control separately and retains only an inert exact wake tombstone', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        registry.grant(endpoint.ref, 'agent:control', 60_000);
+        expect(
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: endpoint.ref.endpointId,
+                generation: endpoint.ref.generation,
+                token: TOKEN,
+            }).capabilities,
+        ).toEqual(expect.arrayContaining(['agents.dispatch', 'agents.control']));
+        expect(registry.retire({ ref: endpoint.ref, launchId: 'launch-1' })).toBe(true);
+        expect(registry.resolveRetired(endpoint.ref)).toMatchObject({
+            terminalId: 'terminal-1',
+            projectId: 'project-1',
+        });
+        expect(() => registry.resolve(endpoint.ref)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(JSON.stringify(registry.resolveRetired(endpoint.ref))).not.toContain(TOKEN);
+    });
+
     it('projects only same-Project peers while owner sees duplicate display names', () => {
         const tokens = [TOKEN, 'cd'.repeat(32), 'ef'.repeat(32)];
         const registry = new AgentEndpointRegistry('host-1', { token: () => tokens.shift()! });

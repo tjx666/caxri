@@ -74,6 +74,7 @@ describe('@caxri/protocol contract', () => {
         expect(() => negotiateProtocolVersion([2])).toThrow();
         expect(errorCodes).toContain('FORBIDDEN');
         expect(capabilityIds).toContain('desktop.window');
+        expect(capabilityIds).toContain('terminals.steer');
         const welcome = protocolWelcomeSchema.parse({
             protocolVersion: 1,
             principal: desktop.principal,
@@ -100,6 +101,11 @@ describe('@caxri/protocol contract', () => {
         expect(methods['app.health'].requiredCapabilities).toEqual(['host.read']);
         expect(methods['host.stop'].requiredCapabilities).toEqual(['host.stop']);
         expect(methods['project.list'].requiredCapabilities).toEqual(['projects.read']);
+        expect(methods['agent.dispatch.start'].requiredCapabilities).toEqual(['agents.dispatch']);
+        expect(methods['agent.dispatch.status'].requiredCapabilities).toEqual(['agents.read']);
+        expect(methods['agent.dispatch.wait'].requiredCapabilities).toEqual(['agents.read']);
+        expect(methods['agent.control.stop'].requiredCapabilities).toEqual(['agents.control']);
+        expect(methods['terminal.send'].requiredCapabilities).toEqual(['terminals.steer']);
     });
 
     it('rejects opaque task payloads from the text-only Agent Inbox schema', () => {
@@ -112,10 +118,39 @@ describe('@caxri/protocol contract', () => {
         ).toBe(false);
     });
 
-    it('keeps copy and write alive until their authoritative Runtime result', () => {
+    it('keeps bounded authoritative Runtime operations alive until their own result', () => {
         expect(isNonExpiringRuntimeMethod('files.copy')).toBe(true);
         expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);
+        expect(isNonExpiringRuntimeMethod('agent.dispatch.waitInternal')).toBe(true);
         expect(isNonExpiringRuntimeMethod('files.read')).toBe(false);
+    });
+
+    it('keeps human steer bounded and distinct from peer text', () => {
+        expect(
+            methods['terminal.send'].params.safeParse({
+                terminalId: 'terminal-1',
+                text: 'human input',
+                enter: true,
+            }).success,
+        ).toBe(true);
+        expect(
+            methods['terminal.send'].params.safeParse({
+                terminalId: 'terminal-1',
+                text: 'unsafe\rinput',
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['terminal.send'].params.safeParse({
+                terminalId: 'terminal-1',
+                text: `unsafe${String.fromCodePoint(0x9b)}input`,
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['agent.message.send'].params.parse({
+                to: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                body: 'peer text',
+            }),
+        ).toMatchObject({ wake: false });
     });
 
     it('negotiates only commands reachable by the authenticated principal', () => {

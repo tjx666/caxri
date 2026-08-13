@@ -52,6 +52,11 @@ describe('CaxriDb', () => {
                 (column) => column.name,
             ),
         ).toContain('order_index');
+        expect(
+            (
+                db.database.pragma('table_info(agent_dispatch_receipts)') as Array<{ name: string }>
+            ).map((column) => column.name),
+        ).toContain('dispatch_id');
         db.close();
     });
 
@@ -267,13 +272,7 @@ describe('CaxriDb', () => {
             payload: 'restored',
             updatedAt: 123,
         });
-        const sessionStateColumns = previous.database.pragma('table_info(session_state)') as Array<{
-            name: string;
-        }>;
-        if (sessionStateColumns.some((candidate) => candidate.name === 'editor_remap_operation_id'))
-            previous.database.exec(
-                'ALTER TABLE session_state DROP COLUMN editor_remap_operation_id',
-            );
+        previous.database.exec('DROP TABLE agent_dispatch_receipts');
         previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
@@ -283,6 +282,7 @@ describe('CaxriDb', () => {
             CURRENT_SCHEMA_VERSION,
         );
         expect(upgraded.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(upgraded.database.pragma('table_info(agent_dispatch_receipts)')).not.toHaveLength(0);
         expect(upgraded.projects.list()).toEqual([
             expect.objectContaining({ id: project.id, orderIndex: 0 }),
             expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),

@@ -15,7 +15,7 @@ describe('migration manifest', () => {
             migrationJournal.entries.map((entry) => entry.tag),
         );
         expect(preservingMigrations.map((migration) => migration.version)).toEqual([
-            8, 9, 10, 11, 12, 13,
+            8, 9, 10, 11, 12, 13, 14,
         ]);
         expect(CURRENT_SCHEMA_VERSION).toBe(PRESERVED_SCHEMA_VERSION + preservingMigrations.length);
     });

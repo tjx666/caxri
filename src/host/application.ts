@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import type { CommandAdapter } from '../shared/ipc/dispatcher';
@@ -9,6 +10,7 @@ import {
 } from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { getMethodSpec, type RuntimeRequest } from '../shared/ipc/methods';
+import { hasRequiredCapabilities, type CommandExecutionContext } from '../shared/ipc/principal';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import { StructuredLogger } from '../shared/node/logger';
 import { LocalHostServer } from './local-server';
@@ -89,6 +91,7 @@ export async function startHostApplication(
     let commandStopFallback: NodeJS.Immediate | undefined;
     let mutationAdmissionClosed = false;
     let mutationsInFlight = 0;
+    const dispatchWaitIds = new Map<string, Set<string>>();
     const mutationDrainWaiters = new Set<() => void>();
 
     const finishMutation = (): void => {
@@ -101,6 +104,30 @@ export async function startHostApplication(
         mutationsInFlight === 0
             ? Promise.resolve()
             : new Promise((resolve) => mutationDrainWaiters.add(resolve));
+
+    const projectScope = (context: CommandExecutionContext): string[] | null =>
+        context.principal.kind === 'agent' || context.principal.kind === 'paired-device'
+            ? [...context.principal.projectIds]
+            : null;
+
+    const assertProjectScope = (context: CommandExecutionContext, projectId: string): void => {
+        const scope = projectScope(context);
+        if (scope && !scope.includes(projectId))
+            throw new CaxriError('FORBIDDEN', 'Agent control is outside the granted Project');
+    };
+
+    const principalRequestKey = (context: CommandExecutionContext, requestId: string): string => {
+        const principal = context.principal;
+        const generation =
+            principal.kind === 'agent' || principal.kind === 'desktop'
+                ? principal.generation
+                : null;
+        return JSON.stringify([principal.kind, principal.id, generation, requestId]);
+    };
+
+    /** Keeps public dispatch identity independent while preserving principal-scoped request retry. */
+    const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
+        `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
 
     const forwardRuntime = async (request: RuntimeRequest): Promise<unknown> => {
         const spec = getMethodSpec(request.method);
@@ -192,10 +219,155 @@ export async function startHostApplication(
                 return {
                     revoked: agentEndpoints.revoke(request.params.endpoint, request.params.grantId),
                 };
-            if (request.method === 'agent.message.send')
-                return agentInbox.send(context, request.params, invocation.requestId);
-            if (request.method === 'agent.message.reply')
+            if (request.method === 'agent.dispatch.start') {
+                assertProjectScope(context, request.params.projectId);
+                return forwardRuntime({
+                    method: 'agent.dispatch.startInternal',
+                    params: {
+                        dispatchId: dispatchIdFor(context, invocation.requestId),
+                        principal: context.principal,
+                        input: request.params,
+                    },
+                });
+            }
+            if (request.method === 'agent.dispatch.resume') {
+                assertProjectScope(context, request.params.projectId);
+                return forwardRuntime({
+                    method: 'agent.dispatch.resumeInternal',
+                    params: {
+                        dispatchId: dispatchIdFor(context, invocation.requestId),
+                        principal: context.principal,
+                        input: request.params,
+                    },
+                });
+            }
+            if (request.method === 'agent.dispatch.status')
+                return supervisor.request('agent.dispatch.statusInternal', {
+                    dispatchId: request.params.dispatchId,
+                    projectScope: projectScope(context),
+                });
+            if (request.method === 'agent.dispatch.wait') {
+                const key = principalRequestKey(context, invocation.requestId);
+                const waitId = randomUUID();
+                const waitIds = dispatchWaitIds.get(key) ?? new Set<string>();
+                waitIds.add(waitId);
+                dispatchWaitIds.set(key, waitIds);
+                try {
+                    return await supervisor.request('agent.dispatch.waitInternal', {
+                        ...request.params,
+                        projectScope: projectScope(context),
+                        waitId,
+                    });
+                } finally {
+                    waitIds.delete(waitId);
+                    if (waitIds.size === 0) dispatchWaitIds.delete(key);
+                }
+            }
+            if (
+                request.method === 'agent.control.interrupt' ||
+                request.method === 'agent.control.stop'
+            ) {
+                const endpoint = agentEndpoints.resolve(request.params.endpoint);
+                assertProjectScope(context, endpoint.projectId);
+                return forwardRuntime({
+                    method:
+                        request.method === 'agent.control.interrupt'
+                            ? 'agent.control.interruptInternal'
+                            : 'agent.control.stopInternal',
+                    params: request.params,
+                });
+            }
+            if (request.method === 'terminal.send') {
+                if (context.principal.kind !== 'human-cli' && context.principal.kind !== 'desktop')
+                    throw new CaxriError(
+                        'FORBIDDEN',
+                        'Terminal steer requires a human owner principal',
+                    );
+                const result = await forwardRuntime({
+                    method: 'terminal.sendInternal',
+                    params: request.params,
+                });
+                logger.write('info', 'terminal.human_steer', {
+                    fields: {
+                        terminalId: request.params.terminalId,
+                        byteLength: Buffer.byteLength(request.params.text, 'utf8'),
+                        enter: request.params.enter,
+                    },
+                });
+                return result;
+            }
+            if (request.method === 'agent.message.send') {
+                if (!request.params.wake)
+                    return agentInbox.send(context, request.params, invocation.requestId);
+                if (!hasRequiredCapabilities(context, ['agents.dispatch', 'agents.control']))
+                    throw new CaxriError(
+                        'FORBIDDEN',
+                        'Waking an Agent requires an agent:control grant',
+                    );
+                let targetIsActive = true;
+                try {
+                    agentEndpoints.resolve(request.params.to);
+                } catch {
+                    targetIsActive = false;
+                }
+                if (targetIsActive)
+                    return agentInbox.send(context, request.params, invocation.requestId);
+                /** Only an exact bounded tombstone can be promoted into a wake dispatch. */
+                const retired = agentEndpoints.resolveRetired(request.params.to);
+                assertProjectScope(context, retired.projectId);
+                if (mutationAdmissionClosed)
+                    throw new CaxriError('UNAVAILABLE', 'Host is stopping');
+                mutationsInFlight += 1;
+                try {
+                    const dispatch = await supervisor.request('agent.dispatch.wakeInternal', {
+                        dispatchId: dispatchIdFor(context, invocation.requestId),
+                        principal: context.principal,
+                        target: {
+                            projectId: retired.projectId,
+                            sessionId: retired.sessionId,
+                            terminalId: retired.terminalId,
+                        },
+                    });
+                    if (dispatch.status !== 'running' || !dispatch.endpoint)
+                        throw new CaxriError('UNAVAILABLE', 'Agent wake dispatch failed', {
+                            dispatchId: dispatch.dispatchId,
+                            status: dispatch.status,
+                        });
+                    const current = agentEndpoints.resolveTerminal(retired.terminalId);
+                    if (
+                        current.ref.endpointId !== dispatch.endpoint.endpointId ||
+                        current.ref.generation !== dispatch.endpoint.generation
+                    )
+                        throw new CaxriError(
+                            'UNAVAILABLE',
+                            'Agent generation changed after wake dispatch',
+                            { dispatchId: dispatch.dispatchId },
+                        );
+                    return agentInbox.send(
+                        context,
+                        {
+                            body: request.params.body,
+                            to: current.ref,
+                            ttlMs: request.params.ttlMs,
+                            ...(request.params.idempotencyKey
+                                ? { idempotencyKey: request.params.idempotencyKey }
+                                : {}),
+                        },
+                        invocation.requestId,
+                        dispatch.dispatchId,
+                    );
+                } finally {
+                    finishMutation();
+                }
+            }
+            if (request.method === 'agent.message.reply') {
+                if (request.params.wake)
+                    throw new CaxriError(
+                        'VALIDATION',
+                        'Agent message replies cannot wake a target',
+                    );
                 return agentInbox.reply(context, request.params, invocation.requestId);
+            }
             if (request.method === 'agent.message.wait')
                 return agentInbox.wait(context, request.params.timeoutMs, invocation.requestId);
             if (request.method === 'agent.message.check')
@@ -336,7 +508,14 @@ export async function startHostApplication(
                     void stop('command');
                 }
             },
-            onRequestDisconnected: (requestId) => agentInbox.cancelWait(requestId),
+            onRequestDisconnected: (requestId, context) => {
+                agentInbox.cancelWait(requestId);
+                const waitIds = dispatchWaitIds.get(principalRequestKey(context, requestId));
+                for (const waitId of waitIds ?? [])
+                    void supervisor
+                        .request('agent.dispatch.cancelWaitInternal', { waitId })
+                        .catch(() => undefined);
+            },
             refreshContext: (context) => agentEndpoints.refresh(context),
         });
         desktopRouter = new HostDesktopRouter({

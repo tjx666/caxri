@@ -1,9 +1,14 @@
-const nonExpiringRuntimeMethods = new Set(['agent.message.wait', 'files.copy', 'files.write']);
+const nonExpiringRuntimeMethods = new Set([
+    'agent.dispatch.waitInternal',
+    'agent.message.wait',
+    'files.copy',
+    'files.write',
+]);
 
 /**
- * Copy/save lack a durable completion journal, while Agent Inbox wait carries its own validated
- * long-poll deadline. Their transports must wait for the authoritative result instead of racing a
- * second generic timer.
+ * Copy/save lack a durable completion journal, while Agent Inbox and dispatch waits carry their own
+ * validated long-poll deadlines. Their transports must wait for the authoritative result instead
+ * of racing a second generic timer.
  */
 export function isNonExpiringRuntimeMethod(method: string): boolean {
     return nonExpiringRuntimeMethods.has(method);
