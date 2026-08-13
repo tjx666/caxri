@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
     evaluateRetryPolicy,
     extractBaseRunIdentity,
+    extractGreenRunEvidence,
+    greenReuseDiffArguments,
     isProtectedRetryPath,
     parseRetryHint,
     type RetryPolicyInput,
@@ -91,6 +93,58 @@ describe('CI retry policy', () => {
         ).toBe('full');
     });
 
+    it('extracts an auditable full-green candidate from workflow run jobs', () => {
+        expect(
+            extractGreenRunEvidence(
+                {
+                    conclusion: 'success',
+                    event: 'pull_request',
+                    head_sha: 'a'.repeat(40),
+                    id: 456,
+                    path: '.github/workflows/ci.yml',
+                    pull_requests: [],
+                    repository: { full_name: 'tjx666/caxri' },
+                },
+                [
+                    {
+                        conclusion: 'success',
+                        name: `retry-policy / pr-17 / base-${'b'.repeat(40)}`,
+                    },
+                    {
+                        conclusion: 'success',
+                        name: 'checks',
+                        steps: [{ conclusion: 'success', name: 'Run ESLint' }],
+                    },
+                    { conclusion: 'success', name: 'e2e' },
+                    { conclusion: 'success', name: 'CI gate' },
+                ],
+            ),
+        ).toEqual({
+            baseSha: 'b'.repeat(40),
+            checksConclusion: 'success',
+            e2eConclusion: 'success',
+            event: 'pull_request',
+            fullChecksConclusion: 'success',
+            gateConclusion: 'success',
+            headSha: 'a'.repeat(40),
+            id: 456,
+            pullRequestNumber: 17,
+            repository: 'tjx666/caxri',
+            runConclusion: 'success',
+            workflowPath: '.github/workflows/ci.yml',
+        });
+    });
+
+    it('disables rename detection so moving product code into an allowed path cannot hide it', () => {
+        expect(greenReuseDiffArguments('ancestor', 'current')).toEqual([
+            'diff',
+            '--no-renames',
+            '--name-only',
+            '-z',
+            'ancestor...current',
+        ]);
+    });
+
     it('fails malformed or unverifiable hints back to full CI', () => {
         expect(evaluateRetryPolicy({ ...eligible, hint: undefined, hintError: 'bad' })).toEqual({
             mode: 'full',
@@ -115,6 +169,7 @@ describe('CI retry policy', () => {
             'e2e/pools.ts',
             'e2e/worker-isolation.ts',
             'scripts/ci-execution-plan.ts',
+            'scripts/ci-green-reuse.ts',
             'scripts/ci-metrics.ts',
             'scripts/ci-retry-policy.ts',
             'scripts/run-ci-focused-checks.ts',
