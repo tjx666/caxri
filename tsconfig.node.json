@@ -6,6 +6,7 @@
         "vitest.config.*",
         "playwright.config.*",
         "eslint.config.*",
+        "src/host/**/*.ts",
         "src/main/**/*.ts",
         "src/preload/**/*.ts",
         "src/renderer/__tests__/**/*.ts",

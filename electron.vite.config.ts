@@ -50,6 +50,7 @@ export default defineConfig(async ({ command }) => {
                 externalizeDeps: true,
                 rollupOptions: {
                     input: {
+                        host: resolve('src/host/process.ts'),
                         index: resolve('src/main/index.ts'),
                         runtime: resolve('src/runtime/index.ts'),
                     },

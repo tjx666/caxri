@@ -5,7 +5,7 @@
 
 ## Decision
 
-Use `electron-vite` for separate Main, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
+Use `electron-vite` for separate Main, Headless Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
 The root remains the private npm workspace owner and the only lockfile owner. `packages/protocol`
 owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
@@ -19,6 +19,13 @@ links from its broad `node_modules` input; a workspace artifact enters the app o
 explicit Desktop build or packaging entry. This prevents npm symlink traversal from accidentally
 shipping the standalone CLI while preserving the hoisted native dependency locations and ASAR
 unpack rules.
+
+The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
+and the profile-scoped Headless Host execute the packaged Caxri binary with
+`ELECTRON_RUN_AS_NODE=1`; the Host then supervises `out/main/runtime.js` as an advanced-serialization
+Node IPC child so it retains Electron ABI parity without launching Chromium. Packaging validation
+must keep proving that `host.js` and `runtime.js` load from `app.asar` while their native modules load
+from `app.asar.unpacked`. Disabling this fuse requires replacing both production launch paths first.
 
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Preload, and Runtime remain on their existing Node-oriented transforms.
 

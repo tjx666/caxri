@@ -420,6 +420,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             startedAt,
             activePtyCount: terminals.runningCount(),
         }),
+        'host.status': () => mainOwned('host.status'),
+        'host.stop': () => mainOwned('host.stop'),
         'app.windowState.get': () => ({
             bounds:
                 database.getAppState<PersistedWindowState['bounds']>('windowBounds') ??

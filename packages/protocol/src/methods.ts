@@ -75,6 +75,8 @@ const hostControl = commandPolicy('host', 'control');
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
+const hostStatusRead = commandPolicy('host', 'read', ['host.read']);
+const hostStopControl = commandPolicy('host', 'control', ['host.stop']);
 const projectRead = commandPolicy('host', 'read', ['projects.read']);
 const eventRead = commandPolicy('host', 'read', ['events.read']);
 
@@ -162,13 +164,37 @@ export const methods = {
         }),
     },
     'app.health': {
-        ...hostRead,
+        ...hostStatusRead,
         params: noParams,
         result: z.object({
             ready: z.boolean(),
             pid: z.number(),
             startedAt: z.number(),
             activePtyCount: z.number(),
+        }),
+    },
+    'host.status': {
+        ...hostStatusRead,
+        params: noParams,
+        result: z.object({
+            profileId: identifierSchema,
+            version: z.string().min(1).max(100),
+            pid: z.number().int().positive(),
+            startedAt: z.number().int().positive(),
+            clientCount: z.number().int().nonnegative(),
+            activePtyCount: z.number().int().nonnegative(),
+            protocolVersion: z.number().int().positive(),
+            protocolCompatible: z.boolean(),
+        }),
+    },
+    'host.stop': {
+        ...hostStopControl,
+        params: z
+            .object({ confirmLivePtys: z.boolean().default(false) })
+            .default({ confirmLivePtys: false }),
+        result: z.object({
+            stopping: z.literal(true),
+            activePtyCount: z.number().int().nonnegative(),
         }),
     },
     'events.recover': {

@@ -8,6 +8,7 @@ export * from './event-journal.js';
 export * from './events.js';
 export * from './inspector.js';
 export * from './layout.js';
+export * from './local-transport.js';
 export * from './methods.js';
 export * from './principal.js';
 export * from './projections.js';
