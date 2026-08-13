@@ -311,7 +311,7 @@ test('Files directory tree expands instantly with no disclosure-motion wrapper',
 
         const directoryRow = filesPanel.getByRole('button', { name: 'subdir' });
         await directoryRow.click();
-        const fileRow = filesPanel.getByRole('button', { name: 'example.txt' });
+        const fileRow = filesPanel.getByRole('treeitem', { name: 'example.txt' });
         await expect(fileRow).toBeVisible();
         await expect(filesPanel.locator('.disclosure-motion')).toHaveCount(0);
 

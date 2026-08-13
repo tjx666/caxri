@@ -53,10 +53,10 @@ test('Files keeps ignored entries browsable while muting and refreshing them', a
 
         await running.page.getByRole('button', { name: 'ignored-dir', exact: true }).click();
         await expect(
-            running.page.getByRole('button', { name: 'inside.txt', exact: true }),
+            running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
 
-        await running.page.getByRole('button', { name: 'src', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'src', exact: true }).click();
         const newlyIgnored = running.page.getByRole('button', { name: 'new.log', exact: true });
         await expect(newlyIgnored).not.toHaveAttribute('data-git-ignored', 'true');
         await writeFile(ignorePath, 'ignored.log\nignored-dir/\ntracked.log\nsrc/*.log\n', 'utf8');

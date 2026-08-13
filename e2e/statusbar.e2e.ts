@@ -69,10 +69,19 @@ exec /bin/zsh -l
         );
         await expect(childProcesses).toBeVisible();
         await expect(childProcesses).toHaveText(/^\d+$/);
-        await expect(childProcesses).toHaveAttribute(
-            'title',
+        // The status bar renders a bare count, so the explanation has to reach sighted mouse users
+        // too, not just the accessible name. It moved off the native `title` attribute onto the
+        // shared `Tooltip` primitive, so assert the popup actually renders rather than that an
+        // attribute exists — a `title` can be present and still never be shown.
+        await childProcesses.hover();
+        await expect(running.page.locator('.tooltip-popup')).toHaveText(
             /^Open Process Explorer — Terminal: \d+ child processes?$/,
         );
+        // The status bar sits at the window's bottom edge, so the popup flips above its trigger and
+        // covers the neighbouring status items. Park the pointer away and wait for the close
+        // animation to finish before the branch picker below is clicked.
+        await running.page.mouse.move(0, 0);
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         const project = running.page.getByRole('button', {
             name: 'Open project files: status-project',
         });
@@ -137,7 +146,7 @@ exec /bin/zsh -l
         expect((await readFile(ghCalls, 'utf8')).trim().split('\n')).toHaveLength(2);
 
         await project.click();
-        await running.page.getByRole('button', { name: 'source.ts', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(
             running.page.getByRole('button', { name: /^Open Process Explorer — Terminal/ }),
         ).toHaveCount(0);

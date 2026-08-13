@@ -20,6 +20,14 @@ function osc52(payload: string, selection = 'c'): string {
 
 const encoded = (text: string): string => Buffer.from(text).toString('base64');
 
+const OSC52_BLOCKED_TOASTS = {
+    disabled:
+        'A Terminal program tried to copy to the clipboard, but OSC 52 access is off in Settings.',
+    malformed: 'A Terminal program sent a malformed clipboard request; it was ignored.',
+    rateLimited:
+        'A Terminal program is copying to the clipboard too quickly; extra requests are being ignored.',
+} as const;
+
 test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-safe', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-osc52-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -56,13 +64,20 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
                 () => (window as unknown as { __osc52ReadCount: number }).__osc52ReadCount,
             ),
         ).toBe(0);
+        /** A write blocked because the setting is off now reports through the same notification
+         *  path as a real clipboard failure, with plain language pointing at Settings. Both writes
+         *  above land inside the same per-reason throttle window, so only one toast is expected. */
+        await expect(
+            running.page.getByText(OSC52_BLOCKED_TOASTS.disabled, { exact: true }),
+        ).toBeVisible();
 
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
         const setting = dialog.getByLabel('Allow OSC 52 clipboard writes');
         await expect(setting).not.toBeChecked();
         await setting.check();
-        await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+        /** Settings apply immediately (there is no Apply button); the observable invariant is the
+         *  Runtime actually persisting the change, not an arbitrary wait. */
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -77,6 +92,14 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             running.page,
             `printf '\\033]52;c;${encoded('FIRST_WRITE')}\\007\\033]52;c;${encoded('RATE_BLOCKED')}\\007'`,
         );
+        /** The second write inside the same 1s window is blocked by rate limiting, not silently
+         *  dropped, and reports through its own distinct message. Asserted before the clipboard
+         *  poll below because an `info` toast auto-dismisses after 4s (`stores/toasts.ts`) while
+         *  the clipboard keeps its contents indefinitely: waiting on the expiring signal first
+         *  costs the durable one nothing, but not the other way round. */
+        await expect(
+            running.page.getByText(OSC52_BLOCKED_TOASTS.rateLimited, { exact: true }),
+        ).toBeVisible();
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
             .toBe('FIRST_WRITE');
@@ -88,6 +111,11 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
             'FIRST_WRITE',
         );
+        /** Malformed base64 ('%%%') reports its own message; a valid write to a non-primary
+         *  selection ('p') stays a silent no-op, so exactly one new toast is expected here. */
+        await expect(
+            running.page.getByText(OSC52_BLOCKED_TOASTS.malformed, { exact: true }),
+        ).toBeVisible();
 
         await createAdditionalShellSession(running.page);
         const secondTerminalTab = running.page.locator('.work-tab.active[data-terminal-id]');

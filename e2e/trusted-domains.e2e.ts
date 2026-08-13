@@ -140,7 +140,8 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
         await settings
             .getByRole('button', { name: 'Remove trusted domain https://example.com' })
             .click();
-        await settings.getByRole('button', { name: 'Apply', exact: true }).click();
+        // Trusted-domain rule edits write immediately (debounced) now that the dialog has no Apply
+        // button; the persisted value read back is the synchronization point.
         await expect
             .poll(async () => {
                 const result = await pageRequest<{

@@ -11,9 +11,20 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test, type Locator, type Page } from './fixtures.ts';
 
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+
+/**
+ * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see
+ * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads
+ * as "Copy⌘C" once the shortcut badge renders. Matching by the label's own exact text (rather than
+ * the whole menuitem's accessible name) keeps this test independent of that badge's exact rendering
+ * while still disambiguating "Copy" from "Copy Path" / "Copy Relative Path" in the same menu.
+ */
+function exactMenuItem(page: Page, label: string): Locator {
+    return page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) });
+}
 
 async function readExpectedFile(path: string): Promise<string | undefined> {
     try {
@@ -80,7 +91,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             running.page
                 .locator('.file-list')
                 .first()
-                .getByRole('button', { name: 'created.txt', exact: true }),
+                .getByRole('treeitem', { name: 'created.txt', exact: true }),
         ).toBeFocused();
         await expect(readFile(join(root, 'created.txt'), 'utf8')).resolves.toBe('');
 
@@ -96,7 +107,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             running.page
                 .locator('.file-list')
                 .first()
-                .getByRole('button', { name: 'created-folder', exact: true }),
+                .getByRole('treeitem', { name: 'created-folder', exact: true }),
         ).toBeFocused();
         await expect
             .poll(() =>
@@ -107,7 +118,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             .toBe(true);
 
         const fileList = running.page.locator('.file-list').first();
-        const createdRow = fileList.getByRole('button', { name: 'created.txt', exact: true });
+        const createdRow = fileList.getByRole('treeitem', { name: 'created.txt', exact: true });
         await createdRow.focus();
         await running.page.keyboard.press('Enter');
         const conflictingName = running.page.getByRole('textbox', { name: 'Rename created.txt' });
@@ -120,8 +131,8 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await conflictingName.press('Escape');
         await expect(createdRow).toBeFocused();
 
-        const draftRow = fileList.getByRole('button', { name: 'draft.txt', exact: true });
-        const destinationRow = fileList.getByRole('button', {
+        const draftRow = fileList.getByRole('treeitem', { name: 'draft.txt', exact: true });
+        const destinationRow = fileList.getByRole('treeitem', {
             name: 'destination',
             exact: true,
         });
@@ -198,14 +209,14 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             .poll(() => readFile(join(root, 'draft copy.txt'), 'utf8').catch(() => undefined))
             .toBe('draft\n');
 
-        const sourceFolderRow = fileList.getByRole('button', {
+        const sourceFolderRow = fileList.getByRole('treeitem', {
             name: 'source-folder',
             exact: true,
         });
         await sourceFolderRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Copy', exact: true }).click();
+        await exactMenuItem(running.page, 'Copy').click();
         await destinationRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Paste', exact: true }).click();
+        await exactMenuItem(running.page, 'Paste').click();
         await expect
             .poll(() =>
                 readFile(join(destination, 'source-folder', 'nested', 'value.txt'), 'utf8').catch(
@@ -214,7 +225,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             )
             .toBe('nested\n');
 
-        const cutRow = fileList.getByRole('button', { name: 'cut.txt', exact: true });
+        const cutRow = fileList.getByRole('treeitem', { name: 'cut.txt', exact: true });
         await cutRow.dblclick();
         await running.page.locator('.monaco-editor').click({ position: { x: 100, y: 24 } });
         await running.page.keyboard.press('End');
@@ -256,7 +267,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await expect(access(join(root, 'draft.txt'))).rejects.toThrow();
         await expect(access(join(root, 'renamed.txt'))).resolves.toBeUndefined();
 
-        const renamedRow = fileList.getByRole('button', { name: 'renamed.txt', exact: true });
+        const renamedRow = fileList.getByRole('treeitem', { name: 'renamed.txt', exact: true });
         await expect(renamedRow).toBeFocused();
         await renamedRow.dragTo(destinationRow);
         const movedPath = join(destination, 'renamed.txt');
@@ -270,7 +281,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await destinationRow.click();
         const movedRow = running.page
             .locator('.file-list')
-            .getByRole('button', { name: 'renamed.txt', exact: true });
+            .getByRole('treeitem', { name: 'renamed.txt', exact: true });
         await expect(movedRow).toBeVisible();
 
         await renamedTab.click();

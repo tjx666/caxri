@@ -11,10 +11,10 @@ import {
 } from './terminal-search';
 
 /**
- * VS Code's Match Case/Whole Word/Regex chords, mapped to the toggle each fires. Built from
- * `keyboardEventShortcut` (the same `event.code`-based reader the root agent fixed for the native
- * menu) so Option+letter resolves correctly on macOS instead of the composed accented character
- * (e.g. Option+C would otherwise type "ç" into the Find input instead of toggling Match Case).
+ * VS Code's Match Case/Whole Word/Regex chords, mapped to the toggle each fires. Resolved through
+ * `keyboardEventShortcut`, which reads `event.code` rather than `event.key`, so Option+letter works
+ * on macOS: the OS composes those into an accented character, so matching on `event.key` would see
+ * "ç" for Option+C and type it into the Find input instead of toggling Match Case.
  */
 const SEARCH_TOGGLE_SHORTCUTS: Record<string, keyof TerminalSearchOptions> = {
     'alt+c': 'caseSensitive',

@@ -47,7 +47,7 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        await running.page.getByRole('button', { name: 'theme.json', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'theme.json', exact: true }).click();
         const jsonLine = running.page.locator('.view-line').filter({ hasText: '"name"' });
         await expect(jsonLine).toBeVisible();
         // Tokenization runs asynchronously in the language worker, so poll until the line is

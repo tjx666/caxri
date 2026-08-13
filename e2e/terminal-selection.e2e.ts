@@ -193,6 +193,28 @@ test('Terminal selection copies exact text and stays isolated across split panes
         await secondInput.press('Meta+V');
         await secondInput.press('Enter');
         await expect(secondRows).toContainText('PASTE_STILL_WORKS');
+
+        /**
+         * `terminal.copy` (Cmd+C) is a distinct affordance from copy-on-select, and this proves it
+         * without touching `terminal.copyOnSelect`: turning that setting off would race the
+         * `settings.changed` broadcast the Renderer needs before `use-terminal-pane` stops copying.
+         * Instead, re-select (copy-on-select fires, as asserted above), then overwrite the clipboard
+         * while the selection stays live. Copy-on-select only reacts to a selection *change*, so
+         * nothing can restore the text except the command under test.
+         */
+        await selectTerminalText(running.page, secondTerminalId, splitText, splitText);
+        await expect
+            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
+            .toBe(splitText);
+        await running.app.evaluate(({ clipboard }) => clipboard.writeText('COPY_COMMAND_SENTINEL'));
+        await secondInput.focus();
+        expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
+            'COPY_COMMAND_SENTINEL',
+        );
+        await secondInput.press('Meta+C');
+        await expect
+            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
+            .toBe(splitText);
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });
