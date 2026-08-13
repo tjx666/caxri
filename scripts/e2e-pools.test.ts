@@ -3,6 +3,7 @@ import { readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import { createE2EPoolPlan, parallelSafeSpecs } from '../e2e/pools';
+import { parseE2EPool } from './run-e2e-pools';
 
 const allSpecs = [
     'e2e/editor-dotfiles.e2e.ts',
@@ -12,6 +13,13 @@ const allSpecs = [
 ];
 
 describe('E2E pools', () => {
+    it('requires one explicit pool per hosted job', () => {
+        expect(parseE2EPool(['--pool', 'parallel-safe'])).toBe('parallel-safe');
+        expect(parseE2EPool(['--pool', 'desktop-exclusive'])).toBe('desktop-exclusive');
+        expect(() => parseE2EPool([])).toThrow('Usage: run-e2e-pools.ts');
+        expect(() => parseE2EPool(['--pool', 'unknown'])).toThrow('Usage: run-e2e-pools.ts');
+    });
+
     it('keeps unclassified and machine-global specs desktop-exclusive', () => {
         const plan = createE2EPoolPlan(allSpecs, ['e2e/editor-dotfiles.e2e.ts']);
 

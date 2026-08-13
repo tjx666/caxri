@@ -81,6 +81,13 @@ function print(value: unknown, json: boolean): void {
     else console.log(JSON.stringify(value, null, 2));
 }
 
+export function desktopCommandEnvironment(
+    environment: NodeJS.ProcessEnv,
+    coordinatorToken: string,
+): NodeJS.ProcessEnv {
+    return { ...environment, CAXRI_DESKTOP_COORDINATOR_TOKEN: coordinatorToken };
+}
+
 async function runDesktop(args: ParsedArguments): Promise<void> {
     if (!args.label) throw new CommandError('desktop requires --label <name>', 2);
     if (args.trailing.length === 0) throw new CommandError('desktop requires -- <command>', 2);
@@ -103,7 +110,7 @@ async function runDesktop(args: ParsedArguments): Promise<void> {
     try {
         const exitCode = await runInherited(args.trailing[0], args.trailing.slice(1), {
             cwd: process.cwd(),
-            env: process.env,
+            env: desktopCommandEnvironment(process.env, lease.token),
             stdoutToStderr: args.json,
         });
         if (exitCode !== 0)

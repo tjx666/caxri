@@ -7,6 +7,11 @@ on:
     types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
   workflow_dispatch:
     inputs:
+      runner_probe:
+        description: Allocate only the cheapest policy runner before paid macOS validation
+        required: true
+        default: false
+        type: boolean
       e2e_profile:
         description: Full-suite profile for hosted control or optimized A/B runs
         required: true
@@ -41,6 +46,7 @@ jobs:
       base_run: ${{ steps.policy.outputs.base_run }}
       validated_tree: ${{ steps.policy.outputs.validated_tree }}
       e2e_tests: ${{ steps.policy.outputs.e2e_tests }}
+      e2e_pool: ${{ steps.policy.outputs.e2e_pool }}
       checks_scope: ${{ steps.policy.outputs.checks_scope }}
       run_e2e: ${{ steps.policy.outputs.run_e2e }}
       e2e_profile: ${{ steps.policy.outputs.e2e_profile }}
@@ -63,7 +69,9 @@ jobs:
 
   checks:
     needs: retry-policy
-    if: needs.retry-policy.outputs.mode == 'full'
+    if: >-
+      needs.retry-policy.outputs.mode == 'full' &&
+      needs.retry-policy.outputs.checks_scope != 'skipped'
     # Platform-neutral gates stay on Linux so private-repository macOS minutes are reserved for
     # Electron behavior and release validation that actually depend on macOS.
     runs-on: ubuntu-latest
@@ -149,12 +157,15 @@ jobs:
         run: bun run typecheck
       - if: needs.retry-policy.outputs.checks_scope == 'full'
         run: bun run format:check
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run test
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run build
+      - name: Run unit and integration tests
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run scripts/ci-metrics.ts --label "Vitest full suite" -- bun run test
+      - name: Build Electron bundles
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
 
   e2e:
+    name: e2e / ${{ matrix.pool }}
     needs: [retry-policy, checks]
     if: >-
       always() &&
@@ -167,6 +178,10 @@ jobs:
           needs.checks.result == 'skipped'
         )
       )
+    strategy:
+      fail-fast: false
+      matrix:
+        pool: ${{ fromJSON(needs.retry-policy.outputs.e2e_profile == 'optimized' && '["parallel-safe","desktop-exclusive"]' || '["control"]') }}
     runs-on: macos-latest
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron-download
@@ -216,33 +231,44 @@ jobs:
         run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
       - name: Rebuild Electron native modules
         run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild
-      - run: bun run build
+      - name: Verify Electron native modules
+        run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
+      - name: Build Electron bundles
+        run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
       - name: Run focused repair specs
-        if: needs.retry-policy.outputs.mode == 'e2e-repair'
+        if: matrix.pool == 'control' && needs.retry-policy.outputs.mode == 'e2e-repair'
         env:
+          CI_E2E_POOL: ${{ needs.retry-policy.outputs.e2e_pool }}
           CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
         run: bun run scripts/run-e2e-repair.ts
       - name: Run one-worker control suite
-        if: needs.retry-policy.outputs.e2e_profile == 'control'
+        if: matrix.pool == 'control'
         env:
           CAXRI_E2E_OUTPUT_DIR: test-results/control
         run: bun run scripts/ci-metrics.ts --label "Playwright control workers=1" -- bunx playwright test --workers=1
       - name: Prove desktop worker interruption recovery
-        if: needs.retry-policy.outputs.e2e_profile == 'optimized'
+        if: matrix.pool == 'parallel-safe'
         run: >-
           bun run scripts/ci-metrics.ts --label "Desktop worker interruption recovery" --
           bun run scripts/run-e2e-failure-isolation.ts
-      - name: Run isolated optimized pools
-        if: needs.retry-policy.outputs.e2e_profile == 'optimized'
-        run: bun run scripts/ci-metrics.ts --label "Playwright optimized pools" -- bun run scripts/run-e2e-pools.ts
+      - name: Run parallel-safe pool
+        if: matrix.pool == 'parallel-safe'
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Playwright parallel-safe workers=2" --
+          bun run scripts/run-e2e-pools.ts --pool parallel-safe
+      - name: Run desktop-exclusive pool
+        if: matrix.pool == 'desktop-exclusive'
+        run: >-
+          bun run scripts/ci-metrics.ts --label "Playwright desktop-exclusive workers=1" --
+          bun run scripts/run-e2e-pools.ts --pool desktop-exclusive
       - name: Run deterministic hosted-parity cases
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && (matrix.pool == 'control' || matrix.pool == 'desktop-exclusive')
         run: bun run scripts/ci-metrics.ts --label "Hosted parity workers=1 repeat=3" -- bun run scripts/run-hosted-parity.ts
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-failure-artifacts
+          name: e2e-${{ matrix.pool }}-failure-artifacts
           path: |
             test-results/
             logs/
@@ -251,7 +277,9 @@ jobs:
 
   ci:
     name: CI gate
-    if: always()
+    if: >-
+      always() &&
+      !(github.event_name == 'workflow_dispatch' && inputs.runner_probe)
     needs: [retry-policy, checks, e2e]
     runs-on: ubuntu-latest
     steps:
@@ -266,8 +294,12 @@ jobs:
         run: |
           test "$RETRY_POLICY_RESULT" = success
           if test "$MODE" = full; then
-            test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
-            test "$CHECKS_RESULT" = success
+            if test "$CHECKS_SCOPE" = skipped; then
+              test "$CHECKS_RESULT" = skipped
+            else
+              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
+              test "$CHECKS_RESULT" = success
+            fi
           else
             test "$MODE" = e2e-only || test "$MODE" = e2e-repair
             test "$CHECKS_SCOPE" = skipped

@@ -34,6 +34,14 @@ describe('Terminal buffers', () => {
         expect(buffer.hasUnpersistedChanges()).toBe(false);
     });
 
+    it('supports a smaller injected retention limit without changing the production ceiling', () => {
+        const buffer = new TerminalSnapshotBuffer('old', 16);
+        buffer.append('new'.repeat(10));
+
+        expect(buffer.read()).toMatchObject({ byteCount: 16, payload: 'wnewnewnewnewnew' });
+        expect(MAX_SNAPSHOT_BYTES).toBe(2 * 1024 * 1024);
+    });
+
     it('bounds queued Renderer output using a byte counter', () => {
         const queue = new TerminalOutputQueue(5);
         expect(queue.appendBounded('é')).toBe(0);

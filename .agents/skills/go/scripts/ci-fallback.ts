@@ -10,8 +10,8 @@ export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run doctor:changed',
     'bun run typecheck',
     'bun run format:check',
-    'bun run test',
-    'bun run build',
+    'bun run scripts/ci-metrics.ts --label "Vitest full suite" -- bun run test',
+    'bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build',
 ] as const;
 const FULL_ELECTRON_E2E_COMMAND = 'bun run test:e2e';
 export const BILLING_POLICY_AUTHORIZATION =

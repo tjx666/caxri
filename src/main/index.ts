@@ -192,6 +192,8 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     let persistTimer: NodeJS.Timeout | undefined;
     let rendererCrashTimestampsMs: number[] = [];
     const persistWindowState = (): void => {
+        /** `before-quit` performs the final ordered write before Runtime shutdown. */
+        if (quitStarted || window.isDestroyed()) return;
         const state = readWindowState(window);
         void supervisor.request('app.windowState.update', state).catch(() => undefined);
     };
@@ -630,6 +632,12 @@ function installIpc(): void {
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         try {
             assertSender(event);
+            /** Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown. */
+            if (quitStarted)
+                return {
+                    ok: false,
+                    error: toWireError(new CaxriError('UNAVAILABLE', 'Application is quitting')),
+                };
             const envelope = requestEnvelopeSchema.parse(raw);
             const request = parseCaxriRequest(envelope.method, envelope.params);
             const result = await handleCaxriRequest(request);

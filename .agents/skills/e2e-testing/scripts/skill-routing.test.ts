@@ -35,6 +35,9 @@ describe('testing skill routing', () => {
         expect(e2eSkill).toContain('--workers=1 --repeat-each=3');
         expect(e2eSkill).toContain('long temporary-path conditions');
         expect(e2eSkill).toContain('observable product invariant');
+        expect(e2eSkill).toContain('runner_probe=true');
+        expect(e2eSkill).toContain('namespaced two-worker pool');
+        expect(e2eSkill).toContain('never as a reason to iterate through paid full runs');
     });
 
     it('removes the legacy combined skill and routes repository contracts explicitly', () => {

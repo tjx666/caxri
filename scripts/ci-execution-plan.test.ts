@@ -45,7 +45,7 @@ describe('CI execution plan', () => {
         });
         expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: false })).toMatchObject({
             checksScope: 'full',
-            e2eProfile: 'control',
+            e2eProfile: 'optimized',
             runE2E: true,
         });
     });
@@ -125,6 +125,22 @@ describe('CI execution plan', () => {
             e2eProfile: 'optimized',
             reason: 'hosted performance dispatch',
             runE2E: true,
+        });
+    });
+
+    it('uses only the policy job for a runner allocation probe', () => {
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: [],
+                dispatchE2EProfile: 'optimized',
+                eventName: 'workflow_dispatch',
+                runnerProbe: true,
+            }),
+        ).toEqual({
+            checksScope: 'skipped',
+            e2eProfile: 'control',
+            reason: 'runner allocation probe',
+            runE2E: false,
         });
     });
 });

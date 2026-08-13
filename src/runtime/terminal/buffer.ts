@@ -38,11 +38,17 @@ export class TerminalSnapshotBuffer {
     private revision = 0;
     private persistedRevision = 0;
 
-    constructor(initial: string) {
+    constructor(
+        initial: string,
+        private readonly maximumBytes = MAX_SNAPSHOT_BYTES,
+    ) {
+        if (!Number.isInteger(maximumBytes) || maximumBytes < 1)
+            throw new RangeError('Terminal snapshot byte limit must be a positive integer');
         const bounded = boundSnapshot(initial);
         this.chunks = bounded.payload ? [toChunk(bounded.payload)] : [];
         this.byteCount = bounded.byteCount;
         this.newlineCount = Math.max(0, bounded.lineCount - 1);
+        this.trimBytes(true);
     }
 
     append(data: string): void {
@@ -93,7 +99,7 @@ export class TerminalSnapshotBuffer {
     }
 
     private trimBytes(force = false): void {
-        let excess = this.byteCount - MAX_SNAPSHOT_BYTES;
+        let excess = this.byteCount - this.maximumBytes;
         if (!force && excess < SNAPSHOT_TRIM_BATCH_BYTES) return;
         while (excess > 0 && this.chunks.length > 0) {
             const first = this.chunks[0];
