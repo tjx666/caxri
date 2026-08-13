@@ -35,15 +35,15 @@ test('Files keeps ignored entries browsable while muting and refreshing them', a
         await openAddProjectDialog(running.page);
         await running.page.getByRole('dialog').getByRole('button', { name: 'Shell' }).click();
 
-        const ignored = running.page.getByRole('button', { name: 'ignored.log', exact: true });
-        const tracked = running.page.getByRole('button', { name: 'tracked.log', exact: true });
+        const ignored = running.page.getByRole('treeitem', { name: 'ignored.log', exact: true });
+        const tracked = running.page.getByRole('treeitem', { name: 'tracked.log', exact: true });
         await expect(ignored).toHaveAttribute('data-git-ignored', 'true');
         await expect(tracked).not.toHaveAttribute('data-git-ignored', 'true');
         expect(await ignored.evaluate((element) => getComputedStyle(element).color)).not.toBe(
             await tracked.evaluate((element) => getComputedStyle(element).color),
         );
 
-        const metadataIgnored = running.page.getByRole('button', {
+        const metadataIgnored = running.page.getByRole('treeitem', {
             name: 'metadata.log',
             exact: true,
         });
@@ -51,13 +51,13 @@ test('Files keeps ignored entries browsable while muting and refreshing them', a
         await writeFile(join(root, '.git', 'info', 'exclude'), 'metadata.log\n', 'utf8');
         await expect(metadataIgnored).toHaveAttribute('data-git-ignored', 'true');
 
-        await running.page.getByRole('button', { name: 'ignored-dir', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'ignored-dir', exact: true }).click();
         await expect(
             running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
 
         await running.page.getByRole('treeitem', { name: 'src', exact: true }).click();
-        const newlyIgnored = running.page.getByRole('button', { name: 'new.log', exact: true });
+        const newlyIgnored = running.page.getByRole('treeitem', { name: 'new.log', exact: true });
         await expect(newlyIgnored).not.toHaveAttribute('data-git-ignored', 'true');
         await writeFile(ignorePath, 'ignored.log\nignored-dir/\ntracked.log\nsrc/*.log\n', 'utf8');
         await expect(newlyIgnored).toHaveAttribute('data-git-ignored', 'true');

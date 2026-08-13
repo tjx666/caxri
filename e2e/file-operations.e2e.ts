@@ -46,9 +46,12 @@ async function injectTransientFileAbsence(path: string): Promise<{ restored: Pro
 }
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
+    // Two deliberate collisions: renaming onto an existing name, and pasting a cut file into a
+    // directory that already holds that name. The second one used to auto-rename instead of
+    // failing, so its `CONFLICT` pair is new rather than an unexplained count bump.
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 1 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 1 },
+        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 2 },
+        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 2 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -230,21 +233,47 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await running.page.locator('.monaco-editor').click({ position: { x: 100, y: 24 } });
         await running.page.keyboard.press('End');
         await running.page.keyboard.type(' moved');
-        const cutTab = running.page.locator('.work-tab', { hasText: 'cut.txt' });
+        // `:not([inert])` because the move below remaps the tab to the new path and leaves the old
+        // one on screen as an inert exit-animation ghost with the same label, exactly as the rename
+        // case further down already has to handle.
+        const cutTab = running.page.locator('.work-tab:not([inert])', { hasText: 'cut.txt' });
         await expect(cutTab).toContainText('●');
         await cutRow.focus();
         await running.page.keyboard.press('Meta+X');
         await expect(cutRow).toHaveAttribute('data-cut', 'true');
+        // Pasting onto an existing name is rejected, never silently auto-suffixed to "cut copy.txt".
+        // Cut-paste used to pass `conflict: 'rename'` while drag-and-drop passed `'reject'`, so the
+        // same collision either moved the file somewhere the user never named or refused outright
+        // depending on how it was triggered (`file-actions.ts`'s `moveFile` doc comment). Both now
+        // reject and explain themselves through the same error toast.
         await destinationRow.focus();
         await running.page.keyboard.press('Meta+V');
-        const cutMovedPath = join(destination, 'cut copy.txt');
+        await expect(
+            running.page.locator('.toast', {
+                hasText: 'A file or folder with that name already exists',
+            }),
+        ).toBeVisible();
+        await expect(readFile(join(destination, 'cut.txt'), 'utf8')).resolves.toBe('existing\n');
+        await expect(access(join(destination, 'cut copy.txt'))).rejects.toThrow();
+        await expect(readFile(join(root, 'cut.txt'), 'utf8')).resolves.toBe('cut\n');
+        // The rejection leaves the clipboard armed, so retrying somewhere else costs no second cut.
+        await expect(cutRow).toHaveAttribute('data-cut', 'true');
+
+        const createdFolderRow = fileList.getByRole('treeitem', {
+            name: 'created-folder',
+            exact: true,
+        });
+        await createdFolderRow.focus();
+        await running.page.keyboard.press('Meta+V');
+        const cutMovedPath = join(root, 'created-folder', 'cut.txt');
         await expect
             .poll(() => readFile(cutMovedPath, 'utf8').catch(() => undefined))
             .toBe('cut\n');
         await expect(access(join(root, 'cut.txt'))).rejects.toThrow();
-        const cutMovedTab = running.page.locator('.work-tab', { hasText: 'cut copy.txt' });
-        await expect(cutMovedTab).toContainText('●');
-        await cutMovedTab.click();
+        // The unsaved buffer follows the file to its new path instead of being stranded on the old
+        // one: the tab stays dirty and the save below has to land at `cutMovedPath`.
+        await expect(cutTab).toContainText('●');
+        await cutTab.click();
         await running.page.keyboard.press('Meta+S');
         await expect.poll(() => readFile(cutMovedPath, 'utf8')).toContain(' moved');
 

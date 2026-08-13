@@ -391,9 +391,9 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
         await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
         await nestedRepository.locator('.git-repository-row').click();
         await nestedRepository.getByRole('button', { name: 'packages', exact: true }).click();
-        await expect(nestedRepository.getByRole('treeitem', { name: 'nested.txt' })).toHaveCount(0);
+        await expect(nestedRepository.getByRole('button', { name: 'nested.txt' })).toHaveCount(0);
         await nestedRepository.getByRole('button', { name: 'packages', exact: true }).click();
-        await nestedRepository.getByRole('treeitem', { name: 'nested.txt' }).click();
+        await nestedRepository.getByRole('button', { name: 'nested.txt' }).click();
         await expect(running.page.locator('.work-tab', { hasText: 'nested.txt' })).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('before');
@@ -585,7 +585,7 @@ test('switching Sessions discards expanded file-tree state from the previous roo
     try {
         await createShellSession(running.page);
         for (const directory of expandedDirectories) {
-            await running.page.getByRole('button', { name: directory, exact: true }).click();
+            await running.page.getByRole('treeitem', { name: directory, exact: true }).click();
         }
         await expect(
             running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),

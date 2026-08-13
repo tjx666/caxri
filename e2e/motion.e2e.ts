@@ -309,7 +309,7 @@ test('Files directory tree expands instantly with no disclosure-motion wrapper',
         // children in the shared presence layer that every other disclosure site uses.
         await expect(filesPanel.locator('.disclosure-motion')).toHaveCount(0);
 
-        const directoryRow = filesPanel.getByRole('button', { name: 'subdir' });
+        const directoryRow = filesPanel.getByRole('treeitem', { name: 'subdir' });
         await directoryRow.click();
         const fileRow = filesPanel.getByRole('treeitem', { name: 'example.txt' });
         await expect(fileRow).toBeVisible();

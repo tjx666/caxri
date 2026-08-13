@@ -6,6 +6,18 @@ import { expect, test, type Locator, type Page } from './fixtures.ts';
 
 import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
 
+/**
+ * The Monaco container for a config kind, located by `data-config-source` rather than by accessible
+ * name. `ConfigurationEditor` deliberately passes the label through Monaco's `options.ariaLabel` so
+ * it lands on the textarea a screen reader actually focuses, instead of on a role-less wrapper
+ * `<div>` where assistive tech ignores it. `.monaco-editor` and `.view-lines` are that textarea's
+ * siblings, so anything scoped to the editor has to start from this hook. The accessible name is
+ * asserted on its own below, so moving it back would still fail.
+ */
+function configSource(dialog: Locator, kind: 'keybindings' | 'settings' | 'theme'): Locator {
+    return dialog.locator(`[data-config-source="${kind}"]`);
+}
+
 async function replaceMonacoText(
     app: Awaited<ReturnType<typeof launchCaxri>>['app'],
     page: Page,
@@ -32,8 +44,12 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
-        const settingsEditor = dialog.getByLabel('settings.jsonc source');
+        const settingsEditor = configSource(dialog, 'settings');
         await expect(settingsEditor.locator('.view-lines')).toContainText('terminal.fontSize');
+        // The accessible name has to sit on Monaco's own textarea, the surface a screen reader
+        // focuses. On the role-less wrapper `<div>` it announces nothing, which is why the
+        // container above is located by `data-config-source` instead of by label.
+        await expect(settingsEditor.getByLabel('settings.jsonc source')).toHaveCount(1);
 
         const tokenColors = await settingsEditor
             .locator('.view-lines span')
@@ -95,15 +111,16 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(dialog.locator('[data-agent-provider="claude"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
         );
-        // Structured controls write immediately (debounced) now that the Apply button is gone; the
-        // status label settles once the Runtime reconciles and installs the hook file, which is the
-        // observable invariant that used to be gated behind clicking Apply. Matched on the health
-        // caption alone rather than the full string: `hookHealthLabel` appends the adapter's own
-        // advisory message, and pinning that here would couple this spec to Runtime copy that says
-        // nothing about whether checking the box installed anything.
+        // Structured controls write immediately (debounced) now that the Apply button is gone, so
+        // the health caption leaves 'Disabled' on its own — no Apply click in between. It settles
+        // on the discovery-dependent state rather than 'Installed': E2E launches with Agent
+        // discovery `blocked`, so the CLI is deliberately absent and the hook cannot install. The
+        // durable proof that the write landed is the persisted `hooks.enabled` assertion below;
+        // this only pins that the toggle reached the Runtime. Matched on the caption alone because
+        // `hookHealthLabel` appends the adapter's own advisory message.
         await expect(
             dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
-        ).toContainText('Installed — activates once you start a session');
+        ).toContainText('Waiting for the agent CLI to be installed');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -187,7 +204,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await expect(dialog.getByRole('button', { name: 'Open Config File' })).toBeVisible();
 
         await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
-        let sourceEditor = dialog.getByLabel('settings.jsonc source');
+        let sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
@@ -205,7 +222,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             .toBe(17);
 
         await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
-        sourceEditor = dialog.getByLabel('settings.jsonc source');
+        sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(
             running.app,
             running.page,
@@ -231,15 +248,15 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // Re-enter source mode and fix it while still in the view, then confirm the fix survives a
         // tab switch away and back (the "preserves drafts across tabs" half of this test).
         await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
-        sourceEditor = dialog.getByLabel('settings.jsonc source');
+        sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
-        await expect(dialog.getByLabel('keybindings.jsonc source')).toBeVisible();
+        await expect(configSource(dialog, 'keybindings')).toBeVisible();
         await dialog.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(dialog.getByLabel('theme.json source')).toBeVisible();
         await dialog.getByRole('tab', { name: 'Settings', exact: true }).click();
-        const restoredSettingsSource = dialog.getByLabel('settings.jsonc source');
+        const restoredSettingsSource = configSource(dialog, 'settings');
         await restoredSettingsSource
             .locator('.monaco-editor')
             .click({ position: { x: 120, y: 24 } });
@@ -274,10 +291,10 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             'aria-selected',
             'true',
         );
-        await expect(dialog.getByLabel('settings.jsonc source')).toBeVisible();
+        await expect(configSource(dialog, 'settings')).toBeVisible();
 
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
-        const keybindingsEditor = dialog.getByLabel('keybindings.jsonc source');
+        const keybindingsEditor = configSource(dialog, 'keybindings');
         await replaceMonacoText(running.app, running.page, keybindingsEditor, '[ invalid');
         await expect(dialog.getByRole('alert')).toContainText('keybindings.jsonc');
 
@@ -296,7 +313,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             'aria-selected',
             'true',
         );
-        await expect(dialog.getByLabel('settings.jsonc source')).toBeVisible();
+        await expect(configSource(dialog, 'settings')).toBeVisible();
 
         // The invalid keybindings edit was discarded, not persisted: the on-disk file still holds
         // the untouched default binding this test never committed a change to.
@@ -351,7 +368,10 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
 
         const search = dialog.getByLabel('Search keyboard shortcuts');
         await search.fill('toggle inspector');
-        const inspectorRow = dialog.getByRole('listitem').filter({ hasText: 'Toggle Inspector' });
+        // Filtered on the command id, not the title: a conflict is now reported on both colliding
+        // rows, so each row's text contains the *other* command's title and a title filter would
+        // match two rows once the conflict below exists. The id appears only on its own row.
+        const inspectorRow = dialog.getByRole('listitem').filter({ hasText: 'inspector.toggle' });
         const inspectorEdit = inspectorRow.getByRole('button', {
             name: 'Edit shortcut for Toggle Inspector',
         });
@@ -383,9 +403,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         // Keep both rows visible (a narrower "toggle primary sidebar" search would hide Toggle
         // Inspector) so the conflict this creates can be checked on both colliding rows.
         await search.fill('toggle');
-        const sidebarRow = dialog
-            .getByRole('listitem')
-            .filter({ hasText: 'Toggle Primary Sidebar' });
+        const sidebarRow = dialog.getByRole('listitem').filter({ hasText: 'sidebar.toggle' });
         const sidebarEdit = sidebarRow.getByRole('button', {
             name: 'Edit shortcut for Toggle Primary Sidebar',
         });
