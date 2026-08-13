@@ -555,6 +555,7 @@ export class TerminalManager {
         if (!live) return;
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
+        /** No destination: no Renderer view remains attached to read a placeholder here. */
         live.imageOutput.finish();
         live.droppedBytes = 0;
     }
@@ -595,7 +596,9 @@ export class TerminalManager {
     private retireLiveTerminal(live: LiveTerminal, options: { persist: boolean }): boolean {
         if (this.terminals.get(live.record.id) !== live) return false;
         this.clearTerminalTimers(live);
-        live.droppedBytes += live.imageOutput.finish();
+        /** A view may still be attached at close/exit/restart, so pass the queue: an image still
+         *  mid-capture becomes one honest placeholder instead of a silent gap in the final output. */
+        live.droppedBytes += live.imageOutput.finish(live.outputQueue);
         this.flushOutput(live);
         this.flushMetrics(live);
         if (options.persist) {

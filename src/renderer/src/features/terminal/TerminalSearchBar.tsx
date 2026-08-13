@@ -3,11 +3,24 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
+import { keyboardEventShortcut } from '../../lib/keybindings';
 import {
     terminalSearchResultLabel,
     type TerminalSearchOptions,
     type TerminalSearchResults,
 } from './terminal-search';
+
+/**
+ * VS Code's Match Case/Whole Word/Regex chords, mapped to the toggle each fires. Built from
+ * `keyboardEventShortcut` (the same `event.code`-based reader the root agent fixed for the native
+ * menu) so Option+letter resolves correctly on macOS instead of the composed accented character
+ * (e.g. Option+C would otherwise type "ç" into the Find input instead of toggling Match Case).
+ */
+const SEARCH_TOGGLE_SHORTCUTS: Record<string, keyof TerminalSearchOptions> = {
+    'alt+c': 'caseSensitive',
+    'alt+r': 'regex',
+    'alt+w': 'wholeWord',
+};
 
 const searchActionClassName =
     'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted text-[11px] cursor-pointer hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground disabled:cursor-default disabled:opacity-45';
@@ -56,10 +69,20 @@ export function TerminalSearchBar({
         onNavigate(event.shiftKey ? 'previous' : 'next');
     };
 
+    /** Listens at the search bar root (not just the input) so the chords work while a toggle button
+     *  or a navigation button owns focus too, not only while typing a query. */
+    const handleSearchBarKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+        const option = SEARCH_TOGGLE_SHORTCUTS[keyboardEventShortcut(event.nativeEvent)];
+        if (!option) return;
+        event.preventDefault();
+        onToggle(option);
+    };
+
     return (
         <search
             aria-label="Terminal buffer search"
             className="terminal-search absolute top-2 right-2 z-[4] flex max-w-[calc(100%-1rem)] items-center gap-1 rounded border border-border bg-surface p-1 shadow-lg"
+            onKeyDown={handleSearchBarKeyDown}
         >
             <InputGroup appearance="workbench" className="w-56" size="dense">
                 <Input
