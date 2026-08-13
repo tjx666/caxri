@@ -1,5 +1,5 @@
 import { errorMessage, isCaxriError, type MethodResult } from '@shared/ipc';
-import type { MutableFileEntry } from '@shared/types';
+import type { FileEntry, MutableFileEntry } from '@shared/types';
 
 import { caxri } from '../../../../lib/caxri';
 import { projectRelativePath } from '../../../../lib/file-path';
@@ -16,14 +16,32 @@ import {
     openFile,
 } from '../../../editor/document-actions';
 import { createTerminal } from '../../../terminal/terminal-actions';
+import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
 import {
+    clearFailureToastSuppression,
     reconcileFileMutation,
+    suppressFailureToast,
     waitForFileMutationReconciliation,
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
+
+/** Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`). */
+function pathBasename(path: string): string {
+    return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/** Looks up one entry's kind from its directory listing; undefined when not found or unreadable. */
+async function entryKind(
+    sessionId: string,
+    directory: string,
+    name: string,
+): Promise<FileEntry['kind'] | undefined> {
+    const entries = await caxri.request('files.list', { sessionId, directory }).catch(() => []);
+    return entries.find((entry) => entry.name === name)?.kind;
+}
 
 async function invalidateDirectory(sessionId: string, directory: string): Promise<void> {
     await Promise.all(
@@ -211,29 +229,27 @@ export async function renameFile(
 }
 
 /**
- * Move-conflict policy is unified across every caller (drag-and-drop and cut-paste alike): a
- * same-name collision always rejects instead of silently auto-suffixing to "name copy". The
- * `files.move` contract only offers `reject`/`rename` — an interactive Replace/Keep Both/Cancel
- * choice would need a new IPC field this package is not authorized to add — so `reject` is the
- * simpler unified policy. It is also the one that already surfaces a clear, user-visible
- * explanation for free: the Runtime's `CONFLICT` error message ("A file or folder with that name
- * already exists") reaches the same error-toast path every failed mutation uses, so both drag-drop
- * and paste explain themselves identically instead of one throwing and the other silently renaming.
+ * Runs one `files.move` attempt. `operationId` defaults to a fresh id, but the propagating first
+ * attempt in `moveFile` below passes its own id in so it can register/clear failure-toast
+ * suppression around the call (see `suppressFailureToast` in `file-operation-reconciliation.ts`) —
+ * `attemptMove` itself owns none of that handshake, only the request/tracking plumbing.
  */
-export function moveFile(
+function attemptMove(
     sessionId: string,
     path: string,
     directory: string,
-    conflict: 'reject' | 'rename' = 'reject',
+    conflict: 'reject' | 'rename' | 'replace',
+    propagateFailure: boolean,
+    operationId: string = crypto.randomUUID(),
 ): Promise<MethodResult<'files.move'> | undefined> {
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
-    const operationId = crypto.randomUUID();
     return runDurableFileMutation({
         affectedPaths: [path, parentDirectoryPath(path), directory],
         errorLabel: 'Unable to move item',
         id: operationId,
         label: 'Moving item…',
         projectId,
+        propagateFailure,
         run: () =>
             caxri.request('files.move', {
                 operationId,
@@ -243,6 +259,74 @@ export function moveFile(
                 conflict,
             }),
     });
+}
+
+/**
+ * Every move call site (drag-and-drop in the file tree, drop on the panel root, cut-paste on a
+ * row, cut-paste on the root) funnels through this single interactive orchestrator instead of each
+ * one choosing its own conflict policy.
+ *
+ * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining
+ * whatever that attempt fails with. It generates that attempt's operation id itself, registers it
+ * with `suppressFailureToast` before calling `attemptMove` (`propagateFailure: true` makes the
+ * rejection reach this `catch` instead of `runDurableFileMutation`'s own error-toast path), and
+ * always clears the registration in `finally` via `clearFailureToastSuppression` — on success, on a
+ * `CONFLICT`, on any other failure, and even if the failed operation never makes it back through
+ * `reconcileFileMutation` at all, so the registry entry can never outlive this call.
+ *
+ * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`)
+ * instead of a toast. Availability of Replace is gated on both sides of the collision actually
+ * being plain files, fetched fresh via `files.list` (Runtime can only atomically overwrite a file
+ * target, never a folder; see `assertReplaceableMove` in `mutations.ts`). Replace retries with
+ * `conflict: 'replace'`; Keep Both retries with `conflict: 'rename'` (the existing auto-suffix
+ * "name copy" behavior); Cancel resolves with no retry and no toast, leaving a cut clipboard entry
+ * armed for another attempt elsewhere. Every retry is a fresh, unregistered operation id on the
+ * normal (non-propagating) toast path, so its own success or failure explains itself the same way
+ * any other file mutation does.
+ *
+ * Any non-`CONFLICT` failure from the first attempt is not retried or dialoged: reconciliation
+ * stays silent for the registered id (see `file-operation-reconciliation.ts`), and this function
+ * toasts it exactly once itself before returning `undefined` — preserving the pre-existing
+ * single-toast behavior for every other error instead of doubling it up.
+ *
+ * In-place rename (`renameFile` below) deliberately keeps its non-interactive inline CONFLICT
+ * error instead of this prompt: it edits a single row in place, and a modal dialog over one text
+ * field would be disproportionate chrome for a collision the user can just retype.
+ */
+export async function moveFile(
+    sessionId: string,
+    path: string,
+    directory: string,
+): Promise<MethodResult<'files.move'> | undefined> {
+    const operationId = crypto.randomUUID();
+    suppressFailureToast(operationId);
+    try {
+        return await attemptMove(sessionId, path, directory, 'reject', true, operationId);
+    } catch (error) {
+        if (!isCaxriError(error) || error.code !== 'CONFLICT') {
+            pushToast('error', errorMessage(error, 'Unable to move item'));
+            return undefined;
+        }
+        const name = pathBasename(path);
+        const [targetKind, sourceKind] = await Promise.all([
+            entryKind(sessionId, directory, name),
+            entryKind(sessionId, parentDirectoryPath(path), name),
+        ]);
+        const choice = await requestFileConflictChoice({
+            name,
+            folderGated: isFolderGatedConflict(sourceKind, targetKind),
+        });
+        if (choice === 'cancel') return undefined;
+        return attemptMove(
+            sessionId,
+            path,
+            directory,
+            choice === 'replace' ? 'replace' : 'rename',
+            false,
+        );
+    } finally {
+        clearFailureToastSuppression(operationId);
+    }
 }
 
 /**
@@ -284,7 +368,7 @@ export async function pasteFile(
         return undefined;
     }
     if (clipboard.mode === 'copy') return copyItem(sessionId, clipboard.path, directory);
-    const moved = await moveFile(sessionId, clipboard.path, directory, 'reject');
+    const moved = await moveFile(sessionId, clipboard.path, directory);
     if (moved) useFileClipboardStore.getState().clear();
     return moved;
 }

@@ -15,6 +15,7 @@ import { cn } from '../../../../lib/utils';
 import { useSelectedProject, useSelectedSession } from '../../../../stores/selectors';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
+import { FileConflictDialog } from './FileConflictDialog';
 import {
     CANCEL_REVEAL_THRESHOLD_MS,
     isPathBlockedByFileOperations,
@@ -316,6 +317,7 @@ export function FileTreePanel() {
                     </ContextMenuContent>
                 </ContextMenu>
             )}
+            <FileConflictDialog />
         </div>
     );
 }

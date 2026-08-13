@@ -361,7 +361,7 @@ export const fileMutationOperationSchema = z.discriminatedUnion('kind', [
         input: z.object({
             path: pathSchema,
             directory: pathSchema,
-            conflict: z.enum(['reject', 'rename']),
+            conflict: z.enum(['reject', 'rename', 'replace']),
         }),
         expectedResult: stagedMovedFileEntrySchema.optional(),
         result: movedFileEntrySchema.optional(),
