@@ -480,6 +480,13 @@ export function useTerminalPaneRuntime({
                 );
         });
         const observer = new ResizeObserver(fitAndResize);
+        let attachFocusSuperseded = false;
+        const trackNewerFocus = (event: FocusEvent): void => {
+            const target = event.target;
+            if (target instanceof Node && target !== document.body && !container.contains(target))
+                attachFocusSuperseded = true;
+        };
+        document.addEventListener('focusin', trackNewerFocus);
         /** Restore into the final visible grid instead of xterm's default 80x24 viewport. */
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
@@ -502,8 +509,15 @@ export function useTerminalPaneRuntime({
             fitAndResize();
             observer.observe(container);
             requestAnimationFrame(() => {
+                document.removeEventListener('focusin', trackNewerFocus);
                 if (disposed) return;
-                if (latestRef.current.active && latestRef.current.processState === 'running')
+                /** Attach may finish after the activation effect ran before xterm existed. Complete
+                 *  that initial focus only while no newer interaction has moved focus elsewhere. */
+                if (
+                    latestRef.current.active &&
+                    latestRef.current.processState === 'running' &&
+                    !attachFocusSuperseded
+                )
                     xterm.focus();
             });
         };
@@ -512,6 +526,7 @@ export function useTerminalPaneRuntime({
         return () => {
             disposed = true;
             observer.disconnect();
+            document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('visibilitychange', restoreRenderer);
             window.removeEventListener('focus', restoreRenderer);
             window.removeEventListener('pageshow', restoreRenderer);

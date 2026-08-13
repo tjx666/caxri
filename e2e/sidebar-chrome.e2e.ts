@@ -294,6 +294,7 @@ test('Session rows support keyboard selection independently from rename', async 
         await firstCard.press('Space');
         await expect(firstCard).toHaveClass(/active/);
         expect(await selectedSessionId(running.page)).toBe(firstSessionId);
+        await expect(running.page.locator('.xterm-helper-textarea')).toBeFocused();
 
         // Delete is the keyboard equivalent of the (now Tab-unreachable) per-row Archive button.
         // Archiving the focused row must not throw focus out of the tree: it lands on a neighbor
