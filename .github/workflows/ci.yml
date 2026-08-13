@@ -262,6 +262,16 @@ jobs:
             echo "| \`$RUNNER_NAME\` | \`$CAXRI_E2E_RUNNER_KIND\` | $CAXRI_E2E_RUNNER_REASON | \`$CAXRI_EXPECTED_HEAD\` |"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Record validation environment
+        env:
+          E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
+          RUNNER_LABELS: self-hosted,macOS,ARM64,caxri-e2e
+          VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
+          VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
+        run: |
+          NPM_VERSION="$(npm --version)" \
+            LOCKFILE_SHA256="$(shasum -a 256 package-lock.json | awk '{print $1}')" \
+            bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.version, npm: process.env.NPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
       - name: Verify Electron native modules
         run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
       - name: Build Electron bundles

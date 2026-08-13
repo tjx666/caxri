@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { summarizeE2EReceipts } from './report-e2e-manifest';
+import { formatE2EManifestMetric, summarizeE2EReceipts } from './report-e2e-manifest';
 import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 
 function receipt(pool: string, id: string, status: 'failed' | 'passed' = 'passed'): E2EPoolReceipt {
@@ -38,6 +38,9 @@ describe('E2E execution receipt summary', () => {
             status: 'passed',
         });
         expect(first.hash).toMatch(/^[0-9a-f]{64}$/u);
+        expect(
+            JSON.parse(formatE2EManifestMetric(first).replace('CAXRI_E2E_MANIFEST ', '')),
+        ).toEqual(first);
         expect(
             summarizeE2EReceipts([
                 receipt('desktop-exclusive', 'exclusive'),

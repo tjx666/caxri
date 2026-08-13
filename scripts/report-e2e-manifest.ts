@@ -61,6 +61,10 @@ export function summarizeE2EReceipts(receipts: readonly E2EPoolReceipt[]): E2EMa
     };
 }
 
+export function formatE2EManifestMetric(manifest: E2EManifestSummary): string {
+    return `CAXRI_E2E_MANIFEST ${JSON.stringify(manifest)}`;
+}
+
 async function main(): Promise<void> {
     const pools = process.argv.slice(2);
     if (pools.length === 0) {
@@ -88,9 +92,7 @@ async function main(): Promise<void> {
             'utf8',
         );
     }
-    process.stdout.write(
-        `E2E receipt: ${manifest.pools.join(', ')}, planned=${manifest.planned}, started=${manifest.started}, finished=${manifest.finished}, passed=${manifest.passed}, skipped=${manifest.skipped}, failed=${manifest.failed}, status=${manifest.status}, sha256=${manifest.hash}\n`,
-    );
+    process.stdout.write(`${formatE2EManifestMetric(manifest)}\n`);
 }
 
 if (import.meta.main) await main();

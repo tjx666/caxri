@@ -82,7 +82,8 @@ Vite's `.vite` directory is not a reusable production-output cache.
   unclassified spec remain desktop-exclusive, so tags only narrow an explicit exception.
 - The Playwright invocation itself writes each pool receipt. Receipts distinguish planned,
   started, finished, passed, skipped, and failed tests; their verified union supplies the manifest
-  hash without a separate `playwright --list` collection.
+  hash without a separate `playwright --list` collection. CI logs the verified union as
+  `CAXRI_E2E_MANIFEST` JSON.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.
@@ -96,8 +97,6 @@ Freeze exact head, manifest, Node/npm versions, lockfile hash, runner label, wor
 state, and counts before comparing profiles. Report median end-to-end wall time, dominant steps,
 peak process-tree RSS, cache state, and every non-green attempt. Adopt a parallelism or concurrency
 change only when correctness and isolation stay green and self-hosted medians improve; otherwise
-restore control and record the rejection.
-
-The current Issue #123 candidate must record three green `control` and three green `optimized`
-runs on one exact head before its final measurements are added here. Until those receipts exist,
-the structural reductions above are implementation facts, not measured wall-time improvements.
+restore control and record the rejection. `CAXRI_VALIDATION_ENV`, `CAXRI_CACHE_STATE`,
+`CAXRI_CI_METRIC`, and `CAXRI_E2E_MANIFEST` provide the machine-readable inputs for that report;
+the owning issue or PR records the candidate-specific samples and adoption decision.

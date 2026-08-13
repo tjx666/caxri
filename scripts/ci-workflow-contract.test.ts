@@ -50,6 +50,7 @@ describe('CI workflow contract', () => {
         );
         expect(setupAction).not.toContain('oven-sh/setup-bun');
         expect(setupAction).toContain('cache_root="$RUNNER_TOOL_CACHE/caxri"');
+        expect(setupAction).toContain('CAXRI_CACHE_STATE');
         expect(setupAction).toContain(
             'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund',
         );
@@ -67,6 +68,8 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain(
             'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
         );
+        expect(workflow).toContain('CAXRI_VALIDATION_ENV');
+        expect(workflow).toContain('lockfileSha256: process.env.LOCKFILE_SHA256');
         expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(2);
         expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
         expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
@@ -89,6 +92,7 @@ describe('CI workflow contract', () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-prettier-cache-'));
         const workspace = join(root, 'workspace');
         const toolCache = join(root, 'tool-cache');
+        const npmCache = join(root, 'npm-cache');
         const persistentCache = join(toolCache, 'caxri', 'prettier');
         const githubEnv = join(root, 'github-env');
         const githubSummary = join(root, 'github-summary');
@@ -97,21 +101,36 @@ describe('CI workflow contract', () => {
             expect(cacheStep?.run).toBeTruthy();
             await mkdir(workspace, { recursive: true });
             await mkdir(join(toolCache, 'caxri'), { recursive: true });
+            await mkdir(npmCache, { recursive: true });
+            await writeFile(join(npmCache, 'cache-entry'), 'warm');
             await writeFile(persistentCache, '');
             await writeFile(githubEnv, '');
             await writeFile(githubSummary, '');
 
-            await execFile('bash', ['-e', '-o', 'pipefail', '-c', cacheStep?.run ?? 'exit 1'], {
-                cwd: workspace,
-                env: {
-                    ...process.env,
-                    GITHUB_ENV: githubEnv,
-                    GITHUB_STEP_SUMMARY: githubSummary,
-                    RUNNER_TOOL_CACHE: toolCache,
+            const { stdout } = await execFile(
+                'bash',
+                ['-e', '-o', 'pipefail', '-c', cacheStep?.run ?? 'exit 1'],
+                {
+                    cwd: workspace,
+                    env: {
+                        ...process.env,
+                        GITHUB_ENV: githubEnv,
+                        GITHUB_STEP_SUMMARY: githubSummary,
+                        RUNNER_TOOL_CACHE: toolCache,
+                        npm_config_cache: npmCache,
+                    },
                 },
-            });
+            );
 
             expect(await readlink(join(workspace, '.cache', 'prettier'))).toBe(persistentCache);
+            const cacheMetric = stdout
+                .split('\n')
+                .find((line) => line.startsWith('CAXRI_CACHE_STATE '));
+            expect(JSON.parse(cacheMetric?.replace('CAXRI_CACHE_STATE ', '') ?? '')).toEqual({
+                electron: 'cold',
+                npm: 'warm',
+                quality: 'warm',
+            });
             await writeFile(join(workspace, 'fixture.js'), 'const value = 1;\n');
             await execFile(
                 fileURLToPath(new URL('../node_modules/.bin/prettier', import.meta.url)),
