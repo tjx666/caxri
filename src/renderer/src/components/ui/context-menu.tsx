@@ -1,5 +1,7 @@
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
+import { useId } from 'react';
 
+import { ShortcutBadge } from '@/components/ShortcutBadge';
 import { cn } from '@/lib/utils';
 
 export function ContextMenu(props: ContextMenuPrimitive.Root.Props) {
@@ -43,16 +45,44 @@ export function ContextMenuContent({ className, ...props }: ContextMenuPrimitive
     );
 }
 
-export function ContextMenuItem({ className, ...props }: ContextMenuPrimitive.Item.Props) {
+export interface ContextMenuItemProps extends ContextMenuPrimitive.Item.Props {
+    /**
+     * Accessible-only explanation for a disabled item (e.g. "Nothing to paste"). Screen readers
+     * announce it via `aria-describedby`; sighted users get it from the native `title` tooltip.
+     */
+    disabledReason?: string;
+    /** Right-aligned live-keybinding hint, reusing the command palette's compact keycap chip. */
+    hint?: string;
+}
+
+export function ContextMenuItem({
+    children,
+    className,
+    disabledReason,
+    hint,
+    ...props
+}: ContextMenuItemProps) {
+    const generatedId = useId();
+    const reasonId = disabledReason ? `context-menu-item-reason-${generatedId}` : undefined;
     return (
         <ContextMenuPrimitive.Item
             data-slot="context-menu-item"
+            aria-describedby={reasonId}
+            title={disabledReason}
             className={cn(
-                'flex h-7 cursor-default items-center rounded px-2 text-[12px] outline-none data-highlighted:bg-[var(--selection)] data-disabled:pointer-events-none data-disabled:opacity-45',
+                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-highlighted:bg-[var(--selection)] data-disabled:pointer-events-none data-disabled:opacity-45',
                 className,
             )}
             {...props}
-        />
+        >
+            <span className="flex-1 truncate">{children}</span>
+            {hint && <ShortcutBadge compact shortcut={hint} />}
+            {reasonId && (
+                <span id={reasonId} className="sr-only">
+                    {disabledReason}
+                </span>
+            )}
+        </ContextMenuPrimitive.Item>
     );
 }
 

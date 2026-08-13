@@ -229,4 +229,75 @@ describe('file action lifecycle', () => {
 
         expect(useToastStore.getState().toasts).toEqual([]);
     });
+
+    it('tells Main about unsaved changes and keeps a persistent notice that they were discarded', async () => {
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        openTabs: [{ path: '/project/source.txt', dirty: true }],
+                        inspectorMode: 'files',
+                        layout: {},
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockResolvedValue({
+            kind: 'file',
+            name: 'source.txt',
+            path: '/project/source.txt',
+        });
+
+        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(true);
+
+        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
+            sessionId: 'session-a',
+            path: '/project/source.txt',
+            hasUnsavedChanges: true,
+        });
+        expect(useToastStore.getState().toasts).toContainEqual(
+            expect.objectContaining({
+                kind: 'info',
+                persist: true,
+                message:
+                    "Unsaved changes to 'source.txt' were discarded; only the last saved version moved to Trash",
+            }),
+        );
+    });
+
+    it('reports no unsaved changes for a clean file', async () => {
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        openTabs: [{ path: '/project/source.txt', dirty: false }],
+                        inspectorMode: 'files',
+                        layout: {},
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockResolvedValue({
+            kind: 'file',
+            name: 'source.txt',
+            path: '/project/source.txt',
+        });
+
+        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(true);
+
+        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
+            sessionId: 'session-a',
+            path: '/project/source.txt',
+            hasUnsavedChanges: false,
+        });
+        expect(useToastStore.getState().toasts).not.toContainEqual(
+            expect.objectContaining({ kind: 'info' }),
+        );
+    });
 });

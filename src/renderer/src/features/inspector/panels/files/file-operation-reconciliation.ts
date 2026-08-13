@@ -55,9 +55,22 @@ function operationLabel(operation: FileMutationOperation): string {
 }
 
 function operationSuccess(operation: FileMutationOperation): string {
-    if (operation.kind === 'create') return 'Item created';
-    if (operation.kind === 'rename') return 'Item renamed';
-    return 'Item moved';
+    const name = operation.result?.name ?? 'Item';
+    if (operation.kind === 'create') return `'${name}' created`;
+    if (operation.kind === 'rename') return `Renamed to '${name}'`;
+    return `'${name}' moved`;
+}
+
+/** Mirrors the affected-subtree scoping `file-actions.ts` uses when it first starts an operation. */
+function operationAffectedPaths(operation: FileMutationOperation): string[] {
+    if (operation.kind === 'create') return [operation.input.directory];
+    if (operation.kind === 'rename')
+        return [operation.input.path, parentDirectoryPath(operation.input.path)];
+    return [
+        operation.input.path,
+        parentDirectoryPath(operation.input.path),
+        operation.input.directory,
+    ];
 }
 
 async function invalidateDirectory(sessionId: string, directory: string): Promise<void> {
@@ -115,7 +128,13 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
     if (existing) return existing;
     const projectId = getSessionProjectId(operation.sessionId) ?? `session:${operation.sessionId}`;
     const store = useFileOperationStore.getState();
-    store.begin({ id: operation.id, label: operationLabel(operation), projectId });
+    store.begin({
+        id: operation.id,
+        label: operationLabel(operation),
+        projectId,
+        affectedPaths: operationAffectedPaths(operation),
+        cancelable: true,
+    });
     store.update(operation.id, operationLabel(operation));
     if (operation.phase === 'pre_stage' || operation.phase === 'staged') return Promise.resolve();
 
