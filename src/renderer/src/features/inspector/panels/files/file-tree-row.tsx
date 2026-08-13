@@ -1,64 +1,22 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import {
-    useEffect,
-    useId,
-    useRef,
-    useState,
-    type DragEvent,
-    type FormEvent,
-    type KeyboardEvent,
-} from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
 import { Input } from '../../../../components/ui/input';
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuTrigger,
-} from '../../../../components/ui/context-menu';
+import { ContextMenu, ContextMenuTrigger } from '../../../../components/ui/context-menu';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 import { openFile } from '../../../editor/document-actions';
-import {
-    copyFilePath,
-    duplicateFile,
-    moveFile,
-    openFileInTerminal,
-    pasteFile,
-    createItem,
-    rememberFile,
-    renameFile,
-    revealFile,
-    trashFile,
-} from './file-actions';
-import { useFileClipboardStore } from './file-clipboard';
-import { dragPath, FILE_TREE_DRAG_TYPE, hasDraggedPath } from './file-tree-drag';
-import { isPathBlockedByFileOperations, type PendingFileOperation } from './file-operation-state';
-import {
-    focusAdjacentTreeItem,
-    focusParentTreeItem,
-    focusTreeItemEdge,
-} from './file-tree-navigation';
-import { parentDirectoryPath } from './file-tree-refresh';
+import { createItem, rememberFile, renameFile } from './file-actions';
+import { FileTreeItemMenu } from './FileTreeItemMenu';
+import { hasDraggedPath, FILE_TREE_DRAG_TYPE } from './file-tree-drag';
+import { BUSY_DISABLED_REASON, type EditRequest, type FocusTarget } from './file-tree-item-types';
+import type { PendingFileOperation } from './file-operation-state';
+import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
-/** Shared copy for every Paste/Duplicate/Drag affordance disabled by an in-flight file operation. */
-export const BUSY_DISABLED_REASON = 'Busy — a file operation is in progress here';
-
-export type EditRequest =
-    | {
-          kind: 'create';
-          directory: string;
-          itemKind: 'file' | 'directory';
-          returnFocus: FocusTarget;
-      }
-    | { kind: 'rename'; entry: FileEntry };
-
-export type FocusTarget =
-    { kind: 'caption'; itemKind: 'file' | 'directory' } | { kind: 'path'; path: string };
+export { BUSY_DISABLED_REASON, type EditRequest, type FocusTarget };
 
 export interface TreeProps {
     clearFocusPath: () => void;
@@ -255,136 +213,45 @@ function FileTreeItem({
     setEditing,
     setSelectedPath,
 }: Omit<TreeProps, 'directory'> & { entry: FileEntry; index: number }) {
-    const [expanded, setExpanded] = useState(false);
-    const [isDropTarget, setIsDropTarget] = useState(false);
-    const rowRef = useRef<HTMLButtonElement>(null);
-    const symlinkReasonId = useId();
-    const clipboard = useFileClipboardStore((state) => state.entry);
-    const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
-    const editable = entry.kind !== 'symlink';
-    const parentDirectory = parentDirectoryPath(entry.path);
-    const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
-    const clipboardEmpty = !clipboard || clipboard.projectId !== projectId;
-    const pasteBlocked = isPathBlockedByFileOperations(operations, projectId, pasteDirectory);
-    const pasteDisabled = clipboardEmpty || pasteBlocked;
-    const pasteDisabledReason = clipboardEmpty
-        ? 'Nothing to paste'
-        : pasteBlocked
-          ? BUSY_DISABLED_REASON
-          : undefined;
-    const duplicateBlocked = isPathBlockedByFileOperations(operations, projectId, parentDirectory);
-    const dragBlocked =
-        isPathBlockedByFileOperations(operations, projectId, entry.path) ||
-        isPathBlockedByFileOperations(operations, projectId, parentDirectory);
-    /**
-     * Roving tabindex: exactly one row in the whole tree is a Tab stop. The selected row owns it;
-     * with no selection, the very first root-level row is the fallback so Tab always lands
-     * somewhere sensible instead of nowhere.
-     */
-    const isRovingTabStop = selectedPath ? selectedPath === entry.path : depth === 0 && index === 0;
-
-    const startRename = (): void => {
-        if (editable) setEditing({ kind: 'rename', entry });
-    };
-    const startCreate = (itemKind: 'file' | 'directory'): void => {
-        if (entry.kind !== 'directory') return;
-        setExpanded(true);
-        setEditing({
-            kind: 'create',
-            directory: entry.path,
-            itemKind,
-            returnFocus: { kind: 'path', path: entry.path },
-        });
-    };
-    const openEntry = (): void => {
-        if (entry.kind === 'directory') setExpanded(true);
-        else void openFile(entry.path);
-    };
-    const pasteIntoEntry = async (): Promise<void> => {
-        const currentClipboard = useFileClipboardStore.getState().entry;
-        if (!currentClipboard) return;
-        const pasted = await pasteFile(sessionId, projectId, pasteDirectory, currentClipboard);
-        if (pasted) setSelectedPath(pasted.path);
-    };
-    const duplicateEntry = async (): Promise<void> => {
-        const copied = await duplicateFile(sessionId, entry.path);
-        if (copied) setSelectedPath(copied.path);
-    };
-    const confirmTrash = async (): Promise<void> => {
-        if (await trashFile(sessionId, entry.path)) {
-            setSelectedPath(undefined);
-            setEditing(undefined);
-        }
-    };
-    const dropIntoDirectory = (event: DragEvent): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsDropTarget(false);
-        const source = dragPath(event);
-        if (pasteBlocked) return;
-        if (!source || entry.kind !== 'directory') return;
-        void moveFile(sessionId, source, entry.path).then((moved) => {
-            if (moved) setSelectedPath(moved.path);
-        });
-    };
-    const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-        if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            focusAdjacentTreeItem(event.currentTarget, 1);
-            return;
-        }
-        if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            focusAdjacentTreeItem(event.currentTarget, -1);
-            return;
-        }
-        if (event.key === 'Home') {
-            event.preventDefault();
-            focusTreeItemEdge(event.currentTarget, 'first');
-            return;
-        }
-        if (event.key === 'End') {
-            event.preventDefault();
-            focusTreeItemEdge(event.currentTarget, 'last');
-            return;
-        }
-        if (event.key === 'ArrowRight') {
-            if (entry.kind !== 'directory') return;
-            event.preventDefault();
-            // Collapsed -> expand in place; already expanded -> move focus into the first child,
-            // matching the standard ARIA treeview keyboard pattern.
-            if (!expanded) setExpanded(true);
-            else focusAdjacentTreeItem(event.currentTarget, 1);
-            return;
-        }
-        if (event.key === 'ArrowLeft') {
-            event.preventDefault();
-            if (entry.kind === 'directory' && expanded) setExpanded(false);
-            else focusParentTreeItem(event.currentTarget);
-            return;
-        }
-        if (event.key === 'Enter' && editable) {
-            event.preventDefault();
-            event.stopPropagation();
-            startRename();
-            return;
-        }
-        if (!event.metaKey || !editable) return;
-        const key = event.key.toLowerCase();
-        if (!['backspace', 'c', 'v', 'x'].includes(key)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (key === 'backspace') void confirmTrash();
-        else if (key === 'c') rememberFile(projectId, entry.path, 'copy');
-        else if (key === 'x') rememberFile(projectId, entry.path, 'cut');
-        else if (!pasteBlocked) void pasteIntoEntry();
-    };
-
-    useEffect(() => {
-        if (focusPath !== entry.path || isRenaming) return;
-        rowRef.current?.focus();
-        clearFocusPath();
-    }, [clearFocusPath, entry.path, focusPath, isRenaming]);
+    const {
+        clipboard,
+        confirmTrash,
+        dragBlocked,
+        dropIntoDirectory,
+        duplicateBlocked,
+        duplicateEntry,
+        editable,
+        expanded,
+        handleKeyDown,
+        isDropTarget,
+        isRenaming,
+        isRovingTabStop,
+        openEntry,
+        parentDirectory,
+        pasteBlocked,
+        pasteDisabled,
+        pasteDisabledReason,
+        pasteIntoEntry,
+        rowRef,
+        setExpanded,
+        setIsDropTarget,
+        startCreate,
+        startRename,
+        symlinkReasonId,
+    } = useFileTreeItemInteractions({
+        clearFocusPath,
+        depth,
+        editing,
+        entry,
+        focusPath,
+        index,
+        operations,
+        projectId,
+        selectedPath,
+        sessionId,
+        setEditing,
+        setSelectedPath,
+    });
 
     if (isRenaming)
         return (
@@ -494,75 +361,22 @@ function FileTreeItem({
     const item = editable ? (
         <ContextMenu>
             <ContextMenuTrigger render={row} />
-            <ContextMenuContent>
-                <ContextMenuItem onClick={openEntry}>Open</ContextMenuItem>
-                <ContextMenuItem onClick={() => void revealFile(sessionId, entry.path)}>
-                    Reveal in Finder
-                </ContextMenuItem>
-                <ContextMenuItem
-                    onClick={() =>
-                        void openFileInTerminal(
-                            entry.kind === 'directory' ? entry.path : parentDirectory,
-                        )
-                    }
-                >
-                    Open in Terminal
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                    hint="cmd+x"
-                    onClick={() => rememberFile(projectId, entry.path, 'cut')}
-                >
-                    Cut
-                </ContextMenuItem>
-                <ContextMenuItem
-                    hint="cmd+c"
-                    onClick={() => rememberFile(projectId, entry.path, 'copy')}
-                >
-                    Copy
-                </ContextMenuItem>
-                {/* Always shown so Paste's availability (and why it's unavailable) is discoverable
-                    from the mouse menu instead of only surfacing through a Cmd+V error toast. */}
-                <ContextMenuItem
-                    disabled={pasteDisabled}
-                    disabledReason={pasteDisabledReason}
-                    hint={pasteDisabled ? undefined : 'cmd+v'}
-                    onClick={() => void pasteIntoEntry()}
-                >
-                    Paste
-                </ContextMenuItem>
-                <ContextMenuItem
-                    disabled={duplicateBlocked}
-                    disabledReason={duplicateBlocked ? BUSY_DISABLED_REASON : undefined}
-                    onClick={() => void duplicateEntry()}
-                >
-                    Duplicate
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => void copyFilePath(entry.path)}>
-                    Copy Path
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => void copyFilePath(entry.path, projectRoot)}>
-                    Copy Relative Path
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                {entry.kind === 'directory' && (
-                    <>
-                        <ContextMenuItem onClick={() => startCreate('file')}>
-                            New File
-                        </ContextMenuItem>
-                        <ContextMenuItem onClick={() => startCreate('directory')}>
-                            New Folder
-                        </ContextMenuItem>
-                    </>
-                )}
-                <ContextMenuItem hint="enter" onClick={startRename}>
-                    Rename
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem hint="cmd+backspace" onClick={() => void confirmTrash()}>
-                    Move to Trash
-                </ContextMenuItem>
-            </ContextMenuContent>
+            <FileTreeItemMenu
+                confirmTrash={confirmTrash}
+                duplicateBlocked={duplicateBlocked}
+                duplicateEntry={duplicateEntry}
+                entry={entry}
+                openEntry={openEntry}
+                parentDirectory={parentDirectory}
+                pasteDisabled={pasteDisabled}
+                pasteDisabledReason={pasteDisabledReason}
+                pasteIntoEntry={pasteIntoEntry}
+                projectId={projectId}
+                projectRoot={projectRoot}
+                sessionId={sessionId}
+                startCreate={startCreate}
+                startRename={startRename}
+            />
         </ContextMenu>
     ) : (
         row

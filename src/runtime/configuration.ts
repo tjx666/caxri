@@ -74,16 +74,11 @@ const originalDefaultKeybindings: Keybinding[] = [
  * so a new default has to be stripped here as well — otherwise every older set would also claim to
  * contain bindings that release never had, and no untouched file would match any of them.
  */
-const preTerminalCopyDefaultKeybindings = defaultKeybindings
-    .filter(
-        (binding) =>
-            !['terminal.copy', 'workbench.nextTab', 'workbench.previousTab'].includes(
-                binding.command,
-            ),
-    )
-    .map((binding) =>
-        binding.command === 'pathBrowser.open' ? { ...binding, key: 'cmd+p' } : binding,
-    );
+const preTerminalCopyDefaultKeybindings = defaultKeybindings.flatMap((binding) => {
+    if (['terminal.copy', 'workbench.nextTab', 'workbench.previousTab'].includes(binding.command))
+        return [];
+    return binding.command === 'pathBrowser.open' ? [{ ...binding, key: 'cmd+p' }] : [binding];
+});
 const preCommandNavigationDefaultKeybindings = preTerminalCopyDefaultKeybindings.filter(
     (binding) => !['terminal.previousCommand', 'terminal.nextCommand'].includes(binding.command),
 );

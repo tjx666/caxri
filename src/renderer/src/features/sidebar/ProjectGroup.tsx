@@ -319,6 +319,10 @@ export function ProjectGroup({
                 className="project-heading group/project-heading flex min-h-7 items-center gap-1 rounded-md text-foreground cursor-grab active:cursor-grabbing hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
                 data-project-id={project.id}
                 role="treeitem"
+                // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
+                // a11y contract (react-doctor/interactive-supports-focus); the roving Tab stop
+                // stays on the inner `.project-select` button below, not on this wrapper.
+                tabIndex={-1}
                 draggable
                 onDragOver={(event) => {
                     if (!hasProjectDragType(event.dataTransfer.types)) return;
