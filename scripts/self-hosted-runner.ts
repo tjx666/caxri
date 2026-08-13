@@ -1,7 +1,16 @@
 #!/usr/bin/env bun
 
 import { execFile } from 'node:child_process';
-import { appendFile, lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+    appendFile,
+    lstat,
+    mkdir,
+    readFile,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -71,6 +80,21 @@ function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): strin
 export function validateRunnerOwner(owner: string): string {
     if (!ownerPattern.test(owner)) throw new Error('Invalid CAXRI_RUNNER_OWNER');
     return owner;
+}
+
+/**
+ * macOS rejects AF_UNIX socket paths longer than 104 bytes (sun_path), and RUNNER_TEMP sits deep
+ * inside the runner install, so pointing TMPDIR at the owned run root breaks every Unix-socket
+ * consumer under it — the Runtime agent-hook bridge socket and Chromium's singleton socket both
+ * live in TMPDIR. Jobs therefore reach the run-owned temp directory through this short
+ * /private/tmp symlink; the budget keeps roughly 40 bytes free for socket file names.
+ */
+export function shortTemporaryLinkPath(owner: string): string {
+    const linkPath = join('/private/tmp', owner);
+    if (Buffer.byteLength(linkPath, 'utf8') > 60) {
+        throw new Error('Short temporary link path exceeds the Unix socket budget');
+    }
+    return linkPath;
 }
 
 async function capture(command: string, args: string[], cwd: string): Promise<string> {
@@ -174,6 +198,9 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         mkdir(codexHome, { recursive: true, mode: 0o700 }),
         mkdir(claudeConfig, { recursive: true, mode: 0o700 }),
     ]);
+    // Fails closed on EEXIST, mirroring the non-recursive mkdir of the run root above.
+    const temporaryLink = shortTemporaryLinkPath(owner);
+    await symlink(temporaryDirectory, temporaryLink);
     const githubEnvironment = requiredEnvironment(environment, 'GITHUB_ENV');
     await appendFile(
         githubEnvironment,
@@ -181,9 +208,9 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
             `CAXRI_RUNNER_ROOT=${runRoot}`,
             `CODEX_HOME=${codexHome}`,
             `CLAUDE_CONFIG_DIR=${claudeConfig}`,
-            `TEMP=${temporaryDirectory}`,
-            `TMP=${temporaryDirectory}`,
-            `TMPDIR=${temporaryDirectory}`,
+            `TEMP=${temporaryLink}`,
+            `TMP=${temporaryLink}`,
+            `TMPDIR=${temporaryLink}`,
             '',
         ].join('\n'),
         'utf8',
@@ -230,12 +257,27 @@ async function removeOwnedRunRoot(environment: NodeJS.ProcessEnv, owner: string)
     return true;
 }
 
+async function removeShortTemporaryLink(owner: string): Promise<boolean> {
+    const linkPath = shortTemporaryLinkPath(owner);
+    const stats = await lstat(linkPath).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return undefined;
+        throw error;
+    });
+    if (!stats) return false;
+    if (!stats.isSymbolicLink()) {
+        throw new Error('Owned short temporary path must be a symlink');
+    }
+    await rm(linkPath);
+    return true;
+}
+
 async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
     const workspace = resolve(requiredEnvironment(environment, 'GITHUB_WORKSPACE'));
     const owner = validateRunnerOwner(requiredEnvironment(environment, 'CAXRI_RUNNER_OWNER'));
     const processes = await terminateOwnedProcesses(owner, workspace);
     const leases = await reclaimDesktopLeasesByOwner(workspace, owner);
     await assertDesktopLeasesReleased(workspace);
+    const removedTemporaryLink = await removeShortTemporaryLink(owner);
     const removedRunRoot = await removeOwnedRunRoot(environment, owner);
     await Promise.all(
         generatedWorkspacePaths.map((path) =>
@@ -253,6 +295,7 @@ async function cleanup(environment: NodeJS.ProcessEnv): Promise<void> {
             `| Stale owned leases reclaimed | \`${leases}\` |`,
             '| Desktop lease | `free` |',
             `| Temporary profile | \`${removedRunRoot ? 'removed' : 'not created'}\` |`,
+            `| Short TMPDIR link | \`${removedTemporaryLink ? 'removed' : 'not created'}\` |`,
             '| Generated workspace outputs | `removed` |',
             '| Workspace | `clean` |',
             '',
