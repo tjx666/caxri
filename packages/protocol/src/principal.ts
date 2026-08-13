@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const capabilityIds = [
     'desktop',
+    'host.read',
+    'host.stop',
     'events.read',
     'projects.read',
     'projects.write',

@@ -9,6 +9,7 @@ import {
     createProtocolWelcome,
     createRecoveringEventClient,
     errorCodes,
+    hostManifestSchema,
     methods,
     negotiateProtocolVersion,
     principalProjectionSchemas,
@@ -25,6 +26,10 @@ const desktop = {
 const human = {
     capabilities: ['projects.read'],
     principal: { kind: 'human-cli', id: 'cli-1' },
+} satisfies CommandExecutionContext;
+const hostOperator = {
+    capabilities: ['events.read', 'host.read', 'host.stop'],
+    principal: { kind: 'human-cli', id: 'cli-host-operator' },
 } satisfies CommandExecutionContext;
 const agent = {
     capabilities: ['projects.read'],
@@ -90,6 +95,8 @@ describe('@caxri/protocol contract', () => {
             expect(spec.result.safeParse(undefined), name).toHaveProperty('success');
         }
         expect(methods['app.bootstrap'].requiredCapabilities).toEqual(['desktop']);
+        expect(methods['app.health'].requiredCapabilities).toEqual(['host.read']);
+        expect(methods['host.stop'].requiredCapabilities).toEqual(['host.stop']);
         expect(methods['project.list'].requiredCapabilities).toEqual(['projects.read']);
     });
 
@@ -107,6 +114,35 @@ describe('@caxri/protocol contract', () => {
         expect(welcome.commands).toContain('project.list');
         expect(welcome.commands).not.toContain('app.bootstrap');
         expect(welcome.commands).not.toContain('processExplorer.open');
+    });
+
+    it('keeps Host discovery parseable across protocol versions without exposing credentials', () => {
+        const manifest = hostManifestSchema.parse({
+            manifestVersion: 1,
+            profileId: 'profile-1',
+            endpoint: '/private/tmp/caxri.sock',
+            pid: 42,
+            startedAt: 1,
+            processIdentity: '1'.repeat(32),
+            protocolVersion: 2,
+            version: '2.0.0',
+            ownerToken: '2'.repeat(64),
+        });
+        expect(manifest.protocolVersion).toBe(2);
+        expect(Object.keys(methods['host.status'].result.shape)).not.toContain('ownerToken');
+    });
+
+    it('negotiates the bounded Host control surface for an authenticated operator', () => {
+        const welcome = createProtocolWelcome(
+            { host: { invoke: () => null } },
+            { supportedVersions: [1] },
+            hostOperator,
+        );
+        expect(welcome.commands).toContain('app.health');
+        expect(welcome.commands).toContain('host.status');
+        expect(welcome.commands).toContain('host.stop');
+        expect(welcome.commands).toContain('events.recover');
+        expect(welcome.commands).not.toContain('project.list');
     });
 });
 
@@ -353,6 +389,40 @@ describe('recoverable event cursor', () => {
                 payload: { command: 'session.delete' },
             }),
         ).toThrow('Transient events cannot enter durable protocol replay');
+    });
+
+    it('keeps events published during an asynchronous snapshot behind its frozen cursor', async () => {
+        let releaseSnapshot!: () => void;
+        const snapshotBlocked = new Promise<void>((resolve) => {
+            releaseSnapshot = resolve;
+        });
+        const journal = createEventJournal({
+            maximumEvents: 1,
+            snapshot: async (cursor) => {
+                await snapshotBlocked;
+                return {
+                    cursor,
+                    projectIds: [],
+                    sessionIds: [],
+                    terminalIds: [],
+                    settingsRevision: cursor,
+                    diagnosticsRevision: cursor,
+                    agentRevision: cursor,
+                };
+            },
+        });
+        journal.publish(changed('project.create'));
+        journal.publish(changed('session.create'));
+        const recovering = journal.recover(0);
+        const later = journal.publish(changed('project.create'));
+        releaseSnapshot();
+
+        await expect(recovering).resolves.toMatchObject({ kind: 'snapshot', cursor: 2 });
+        await expect(journal.recover(2)).resolves.toEqual({
+            kind: 'events',
+            cursor: 3,
+            events: [later],
+        });
     });
 
     it('converges a reconnect while preserving the direct Terminal output path', async () => {

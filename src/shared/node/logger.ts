@@ -6,7 +6,7 @@ import { isSecretKey, redactLogValue } from './redaction';
 /** Node-only structured JSONL logger; never import from src/renderer. */
 export interface LogRecord {
     timestamp: string;
-    process: 'main' | 'runtime';
+    process: 'host' | 'main' | 'runtime';
     level: 'debug' | 'info' | 'warn' | 'error';
     event: string;
     correlationId?: string;

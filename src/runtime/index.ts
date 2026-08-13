@@ -6,6 +6,7 @@ import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import { createRuntime } from './bootstrap';
 import { createDispatcher, type RuntimeRequestEnvelope } from './dispatch';
+import { createRuntimeParentPort } from './port';
 
 const bootStartedAt = performance.now();
 let runtimeLogger: StructuredLogger | undefined;
@@ -27,8 +28,7 @@ const processErrorMonitor = installProcessErrorMonitor({
 });
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
-const parentPort = process.parentPort;
-if (!parentPort) throw new Error('Caxri Runtime must run as an Electron utilityProcess');
+const parentPort = createRuntimeParentPort(process);
 
 await mkdir(userDataPath, { recursive: true });
 const logger = runtimeLogger ?? createBootstrapLogger();
@@ -38,14 +38,21 @@ const runtime = await createRuntime({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     userDataPath,
     logger,
-    send: (event: RuntimeEvent) => parentPort.postMessage(event),
+    send: (event: RuntimeEvent) => parentPort.send(event),
 });
 const dispatch = createDispatcher(runtime.handlers, logger);
 
-parentPort.on('message', (event) => {
+/** A Host crash closes Node IPC; the Runtime must not survive as an orphan SQLite/PTY owner. */
+const closeOrphanedRuntime = (): void => {
+    void runtime.close().finally(() => process.exit(0));
+};
+parentPort.onDisconnect?.(closeOrphanedRuntime);
+if (!parentPort.connected()) closeOrphanedRuntime();
+
+parentPort.onMessage((message) => {
     void (async () => {
-        const envelope = event.data as RuntimeRequestEnvelope;
-        parentPort.postMessage(await dispatch(envelope));
+        const envelope = message as RuntimeRequestEnvelope;
+        parentPort.send(await dispatch(envelope));
         /** Shutdown acknowledges before exiting so Main observes an ordered termination. */
         if (envelope.method === 'runtime.shutdown') setTimeout(() => process.exit(0), 10);
     })();
@@ -55,7 +62,7 @@ logger.write('info', 'runtime.ready', {
     durationMs: performance.now() - bootStartedAt,
     fields: { pid: process.pid },
 });
-parentPort.postMessage({
+parentPort.send({
     event: 'runtime.status',
     payload: { status: 'ready', restartCount: 0 },
 } satisfies RuntimeEvent);

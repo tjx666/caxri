@@ -84,21 +84,25 @@ export function createEventJournal(options: {
         },
         async recover(afterCursor) {
             cursorSchema.parse(afterCursor);
-            if (afterCursor > cursor)
+            /** Freeze the barrier before any async snapshot read; later events remain replayable. */
+            const recoveryCursor = cursor;
+            if (afterCursor > recoveryCursor)
                 throw new CaxriError('VALIDATION', 'Event cursor is ahead of the Host');
-            const earliest = events[0]?.cursor ?? cursor + 1;
+            const earliest = events[0]?.cursor ?? recoveryCursor + 1;
             if (afterCursor < earliest - 1) {
                 const snapshot = protocolRecoverySnapshotSchema.parse(
-                    await options.snapshot(cursor),
+                    await options.snapshot(recoveryCursor),
                 );
-                if (snapshot.cursor !== cursor)
+                if (snapshot.cursor !== recoveryCursor)
                     throw new CaxriError('INTERNAL', 'Recovery snapshot cursor does not match');
-                return { kind: 'snapshot', cursor, snapshot };
+                return { kind: 'snapshot', cursor: recoveryCursor, snapshot };
             }
             return {
                 kind: 'events',
-                cursor,
-                events: events.filter((event) => event.cursor > afterCursor),
+                cursor: recoveryCursor,
+                events: events.filter(
+                    (event) => event.cursor > afterCursor && event.cursor <= recoveryCursor,
+                ),
             };
         },
     };
