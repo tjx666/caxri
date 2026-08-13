@@ -2,22 +2,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BootstrapState, SessionState } from '@shared/types';
 
-const mocks = vi.hoisted(() => ({
-    onEvent: vi.fn(() => () => undefined),
-    request: vi.fn((_method: unknown, params: unknown) =>
-        Promise.resolve({
-            path: (params as { path: string }).path,
-            content: 'content',
-            dirty: false,
-            mtimeMs: 1,
-            size: 7,
+const mocks = vi.hoisted(() => {
+    const state: { handler?: (event: unknown) => void } = {};
+    return {
+        state,
+        onEvent: vi.fn((handler: (event: unknown) => void) => {
+            state.handler = handler;
+            return () => undefined;
         }),
-    ),
-}));
+        request: vi.fn((_method: unknown, params: unknown) =>
+            Promise.resolve({
+                path: (params as { path: string }).path,
+                content: 'content',
+                dirty: false,
+                mtimeMs: 1,
+                size: 7,
+            }),
+        ),
+    };
+});
 
 vi.mock('../../lib/caxri', () => ({ caxri: mocks }));
 
 import { useSessionViewStore } from '../../stores/session-view';
+import { useToastStore } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../inspector/panels/files/file-operation-state';
 import { subscribeExternalDocumentSync } from './external-sync';
@@ -66,6 +74,7 @@ beforeEach(() => {
 afterEach(() => {
     useFileOperationStore.getState().clear();
     useWorkbenchStore.setState({ bootstrap: undefined });
+    useToastStore.getState().dismiss();
 });
 
 describe('subscribeExternalDocumentSync', () => {
@@ -75,6 +84,7 @@ describe('subscribeExternalDocumentSync', () => {
             id: 'move-1',
             label: 'Moving old.ts',
             projectId: 'project-1',
+            affectedPaths: [oldPath],
         });
 
         useWorkbenchStore.setState((state) => ({
@@ -99,6 +109,42 @@ describe('subscribeExternalDocumentSync', () => {
         expect(mocks.request).toHaveBeenCalledWith('files.read', {
             sessionId: 'session-2',
             path: nextPath,
+        });
+        unsubscribe();
+    });
+
+    it('keeps the external-reload notice on screen because it can discard unsaved work', async () => {
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/first.ts',
+            content: 'dirty content',
+            dirty: true,
+            mtimeMs: 1,
+            size: 7,
+        });
+        mocks.request.mockImplementationOnce((_method, params) =>
+            Promise.resolve({
+                path: (params as { path: string }).path,
+                content: 'disk content',
+                dirty: false,
+                mtimeMs: 2,
+                size: 12,
+            }),
+        );
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                overflow: false,
+                changes: [{ kind: 'update', path: '/project/first.ts' }],
+            },
+        });
+
+        await vi.waitFor(() => {
+            expect(useToastStore.getState().toasts).toContainEqual(
+                expect.objectContaining({ kind: 'info', persist: true }),
+            );
         });
         unsubscribe();
     });
