@@ -100,6 +100,7 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain("if: always() && env.CAXRI_E2E_RUNNER_KIND == 'self-hosted'");
         expect(e2eJob).toContain('bun run scripts/self-hosted-e2e-runner.ts cleanup');
         expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
+        expect(e2eJob).not.toContain('CAXRI_E2E_RUNNER_KIND: ${{ runner.environment }}');
         expect(workflow).toContain('options: [github-hosted, self-hosted]');
     });
 });
