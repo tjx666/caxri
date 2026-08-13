@@ -34,6 +34,10 @@ import {
 } from './workbench';
 import { useSessionViewStore } from './session-view';
 
+function eventHandlers() {
+    return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
+}
+
 afterEach(() => {
     mocks.request.mockClear();
     mocks.onEvent.mockClear();
@@ -60,7 +64,7 @@ describe('workbench Runtime events', () => {
                 });
             return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
         });
-        const unsubscribe = subscribeWorkbenchEvents({ onCommand: vi.fn() });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
 
         mocks.emit({
             event: 'terminal.exit',
@@ -102,7 +106,7 @@ describe('workbench Runtime events', () => {
                 });
             return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
         });
-        const unsubscribe = subscribeWorkbenchEvents({ onCommand: vi.fn() });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
 
         mocks.emit({
             event: 'state.changed',
@@ -123,7 +127,7 @@ describe('workbench Runtime events', () => {
     });
 
     it('uses app.bootstrap for the full convergence fallback', async () => {
-        const unsubscribe = subscribeWorkbenchEvents({ onCommand: vi.fn() });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
         mocks.emit({ event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } });
 
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
@@ -132,7 +136,7 @@ describe('workbench Runtime events', () => {
     });
 
     it('mirrors the native window fullscreen state', () => {
-        const unsubscribe = subscribeWorkbenchEvents({ onCommand: vi.fn() });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
         expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
 
         mocks.emit({ event: 'window.fullScreen', payload: { isFullScreen: true } });
@@ -140,6 +144,17 @@ describe('workbench Runtime events', () => {
 
         mocks.emit({ event: 'window.fullScreen', payload: { isFullScreen: false } });
         expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
+        unsubscribe();
+    });
+
+    it('routes a one-shot Desktop open request without persisting it as Runtime state', () => {
+        const handlers = eventHandlers();
+        const unsubscribe = subscribeWorkbenchEvents(handlers);
+        mocks.emit({
+            event: 'desktop.openRequested',
+            payload: { sessionId: 'session-1', kind: 'file', path: '/project/file.ts' },
+        });
+        expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts');
         unsubscribe();
     });
 });

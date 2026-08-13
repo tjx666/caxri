@@ -124,7 +124,7 @@ function lineReader(socket: Socket): () => Promise<unknown> {
     };
 }
 
-async function connectDesktop(manifest: HostManifest) {
+async function connectDesktop(manifest: HostManifest, desktopToken: string) {
     const socket = createConnection(manifest.endpoint);
     sockets.push(socket);
     await new Promise<void>((resolve, reject) => {
@@ -137,8 +137,7 @@ async function connectDesktop(manifest: HostManifest) {
             type: 'hello',
             supportedVersions: [CAXRI_PROTOCOL_VERSION],
             profileId: manifest.profileId,
-            ownerToken: manifest.ownerToken,
-            clientKind: 'desktop',
+            credential: { kind: 'desktop', token: desktopToken, desktopId: 'desktop-test' },
         })}\n`,
     );
     localServerWelcomeSchema.parse(await read());
@@ -189,7 +188,7 @@ describe('Headless Host application', () => {
             activePtyCount: 1,
             protocolCompatible: true,
         });
-        expect(JSON.stringify(status)).not.toContain(application.lease.manifest.ownerToken);
+        expect(JSON.stringify(status)).not.toContain(application.lease.manifest.operatorToken);
 
         await expect(second.request('host.stop', { confirmLivePtys: false })).rejects.toMatchObject(
             { code: 'CONFLICT' },
@@ -200,7 +199,7 @@ describe('Headless Host application', () => {
         expect(confirmed).toMatchObject({ stopping: true, activePtyCount: 1 });
         await waitForRemoval(application.lease.paths.manifest);
         expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
-            application.lease.manifest.ownerToken,
+            application.lease.manifest.operatorToken,
         );
     });
 
@@ -218,7 +217,10 @@ describe('Headless Host application', () => {
             version: '1.0.0',
         });
         applications.push(application);
-        const desktop = await connectDesktop(application.lease.manifest);
+        const desktop = await connectDesktop(
+            application.lease.manifest,
+            application.lease.desktopCredential.desktopToken,
+        );
         const operator = await connectToHost(userDataPath, 2_000);
 
         desktop.socket.write(
@@ -257,7 +259,10 @@ describe('Headless Host application', () => {
             version: '1.0.0',
         });
         applications.push(application);
-        const desktop = await connectDesktop(application.lease.manifest);
+        const desktop = await connectDesktop(
+            application.lease.manifest,
+            application.lease.desktopCredential.desktopToken,
+        );
         await new Promise<void>((resolve, reject) => {
             desktop.socket.write(
                 `${JSON.stringify({

@@ -7,6 +7,7 @@ import {
     fileChangeSchema,
     fileMutationOperationSchema,
     identifierSchema,
+    pathSchema,
     runtimeStatusSchema,
     updateStateSchema,
 } from './domain.js';
@@ -83,6 +84,11 @@ export const runtimeEventPayloads = {
     'theme.changed': configurationChangedSchema,
     'updates.state': updateStateSchema,
     'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
+    'desktop.openRequested': z.object({
+        sessionId: identifierSchema,
+        kind: z.enum(['file', 'directory']),
+        path: pathSchema.optional(),
+    }),
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one
      * fired by an actual mouse/touch click, so the Renderer can apply the editable-focus shortcut

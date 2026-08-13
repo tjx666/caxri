@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test, type ElectronApplication } from './fixtures.ts';
+import { connectToHost } from '@caxri/cli';
 
 import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './helpers.ts';
 
@@ -18,11 +19,16 @@ interface PerformanceLog {
     fields?: Record<string, string | number | boolean | null>;
 }
 
-function launch(userData: string, sessionRoot: string): Promise<ElectronApplication> {
+function launch(
+    userData: string,
+    sessionRoot: string,
+    preserveHostOnClose: boolean,
+): Promise<ElectronApplication> {
     return launchCaxriApp({
         userDataDir: userData,
         testRootPath: sessionRoot,
         executablePath,
+        preserveHostOnClose,
     }).then(({ app }) => app);
 }
 
@@ -44,7 +50,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
     const sessionRoot = resolve(process.env.CAXRI_BENCHMARK_PROJECT_ROOT!);
     const userData = await mkdtemp(join(tmpdir(), 'caxri-startup-benchmark-'));
     const launchedAt = performance.now();
-    let app = await launch(userData, sessionRoot);
+    let app = await launch(userData, sessionRoot, true);
 
     try {
         const page = await app.firstWindow();
@@ -89,7 +95,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
 
         await app.close();
         const restoredAt = performance.now();
-        app = await launch(userData, sessionRoot);
+        app = await launch(userData, sessionRoot, false);
         const restoredPage = await app.firstWindow();
         const restoredTerminalSurface = restoredPage
             .locator('.terminal-surface .xterm-rows')
@@ -113,10 +119,9 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await restoredPage.locator('.inspector .tree-row').first().waitFor();
         const restoredFilesReadyMs = performance.now() - restoredFilesStartedAt;
 
-        const runtimePid = await app.evaluate(
-            ({ app: electronApp }) =>
-                electronApp.getAppMetrics().find((metric) => metric.name === 'Caxri Runtime')?.pid,
-        );
+        const host = await connectToHost(userData, 2_000);
+        const runtimePid = (await host.request('host.status')).runtimePid;
+        host.close();
         if (!runtimePid) throw new Error('Caxri Runtime process was not found');
         const { stdout: openFiles } = await execFileAsync('lsof', ['-p', String(runtimePid)]);
         const runtimeOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;

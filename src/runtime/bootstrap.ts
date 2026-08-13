@@ -422,6 +422,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         }),
         'host.status': () => mainOwned('host.status'),
         'host.stop': () => mainOwned('host.stop'),
+        'desktop.status': () => mainOwned('desktop.status'),
+        'desktop.focus': () => mainOwned('desktop.focus'),
+        'desktop.openProject': () => mainOwned('desktop.openProject'),
+        'desktop.openFile': () => mainOwned('desktop.openFile'),
         'app.windowState.get': () => ({
             bounds:
                 database.getAppState<PersistedWindowState['bounds']>('windowBounds') ??

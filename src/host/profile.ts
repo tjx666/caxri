@@ -7,8 +7,11 @@ import { join } from 'node:path';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import {
     HOST_MANIFEST_VERSION,
+    HOST_DESKTOP_CREDENTIAL_VERSION,
+    hostDesktopCredentialSchema,
     hostLockSchema,
     hostManifestSchema,
+    type HostDesktopCredential,
     type HostLock,
     type HostManifest,
 } from '../shared/ipc/local-transport';
@@ -20,6 +23,7 @@ const MAX_UNIX_SOCKET_PATH_BYTES = 103;
 const DARWIN_OPEN_EXCLUSIVE_LOCK = 0x20;
 
 export interface HostProfilePaths {
+    desktopCredential: string;
     directory: string;
     endpoint: string;
     lock: string;
@@ -29,6 +33,7 @@ export interface HostProfilePaths {
 }
 
 export interface HostProfileLease {
+    desktopCredential: HostDesktopCredential;
     manifest: HostManifest;
     paths: HostProfilePaths;
     publish(): Promise<void>;
@@ -73,6 +78,7 @@ export async function resolveHostProfilePaths(
         throw new CaxriError('VALIDATION', 'Host Unix socket path exceeds the platform limit');
     const directory = join(canonicalUserDataPath, 'host');
     return {
+        desktopCredential: join(directory, 'desktop-credential.json'),
         directory,
         endpoint,
         lock: join(directory, 'owner.lock'),
@@ -285,6 +291,7 @@ async function cleanPreviousOwner(
         );
     await removeStaleEndpoint(paths);
     if (previousManifest) await rm(paths.manifest, { force: true });
+    await rm(paths.desktopCredential, { force: true });
 }
 
 async function manifestOwnedBy(path: string, processIdentity: string) {
@@ -341,11 +348,18 @@ export async function acquireHostProfile(options: {
         endpoint: paths.endpoint,
         protocolVersion: CAXRI_PROTOCOL_VERSION,
         version: options.version,
-        ownerToken: randomBytes(32).toString('hex'),
+        operatorToken: randomBytes(32).toString('hex'),
+    });
+    const desktopCredential = hostDesktopCredentialSchema.parse({
+        credentialVersion: HOST_DESKTOP_CREDENTIAL_VERSION,
+        profileId: paths.profileId,
+        processIdentity,
+        desktopToken: randomBytes(32).toString('hex'),
     });
     let published = false;
     let released = false;
     return {
+        desktopCredential,
         manifest,
         paths,
         async publish() {
@@ -356,6 +370,7 @@ export async function acquireHostProfile(options: {
             if (typeof process.getuid === 'function' && endpoint.uid !== process.getuid())
                 throw new CaxriError('PATH_DENIED', 'Host endpoint belongs to another user');
             await chmod(paths.endpoint, 0o600);
+            await replacePrivateJson(paths.directory, paths.desktopCredential, desktopCredential);
             await replacePrivateJson(paths.directory, paths.manifest, manifest);
             published = true;
         },
@@ -368,6 +383,7 @@ export async function acquireHostProfile(options: {
             } catch {
                 /** A corrupted manifest must not prevent release of the authenticated live owner. */
             }
+            await rm(paths.desktopCredential, { force: true }).catch(() => undefined);
             try {
                 try {
                     if ((await lstat(paths.endpoint)).isSocket())

@@ -287,6 +287,8 @@ export interface WorkbenchEventHandlers {
      * click, so the caller can apply the editable-focus shortcut policy only to the accelerator path.
      */
     onCommand(command: string, viaAccelerator: boolean): void;
+    /** Applies an authenticated Host open request after Main redeemed its one-use target. */
+    onDesktopOpen(sessionId: string, path?: string): void;
 }
 
 /**
@@ -318,6 +320,8 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
         }
         if (event.event === 'command.execute')
             handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
+        if (event.event === 'desktop.openRequested')
+            handlers.onDesktopOpen(event.payload.sessionId, event.payload.path);
         if (event.event === 'window.fullScreen')
             useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
     });

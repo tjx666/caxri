@@ -28,19 +28,22 @@ describe('workbench IPC sender boundary', () => {
     );
     const negotiate = vi.fn(() => ({
         protocolVersion: 1 as const,
-        principal: { kind: 'desktop' as const, id: 'desktop-1' },
+        principal: { kind: 'desktop' as const, id: 'desktop-1', generation: 1 },
         capabilities: ['desktop' as const],
         commands: ['app.health'],
     }));
+    const onEventsReady = vi.fn();
 
     beforeEach(() => {
         electronMock.handles.clear();
         electronMock.listeners.clear();
         dispatch.mockClear();
         negotiate.mockClear();
+        onEventsReady.mockClear();
         installWorkbenchIpc({
             isQuitting: () => false,
             logger: () => undefined,
+            onEventsReady,
             renderer: () => renderer as never,
             transport: { dispatch, negotiate },
         });
@@ -63,5 +66,14 @@ describe('workbench IPC sender boundary', () => {
         expect(hello({ sender: renderer }, { supportedVersions: [1] })).toMatchObject({
             protocolVersion: 1,
         });
+    });
+
+    it('accepts the Renderer event-readiness signal only from the trusted workbench', () => {
+        const ready = electronMock.listeners.get('caxri:renderer-events-ready')!;
+
+        expect(() => ready({ sender: {} })).toThrow('Untrusted IPC sender');
+        expect(onEventsReady).not.toHaveBeenCalled();
+        ready({ sender: renderer });
+        expect(onEventsReady).toHaveBeenCalledOnce();
     });
 });

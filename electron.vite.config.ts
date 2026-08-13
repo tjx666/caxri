@@ -47,7 +47,7 @@ export default defineConfig(async ({ command }) => {
                 __CAXRI_COMMIT__: JSON.stringify(gitCommit),
             },
             build: {
-                externalizeDeps: true,
+                externalizeDeps: { exclude: ['@caxri/cli', '@caxri/protocol'] },
                 rollupOptions: {
                     input: {
                         host: resolve('src/host/process.ts'),

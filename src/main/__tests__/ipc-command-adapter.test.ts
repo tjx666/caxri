@@ -7,7 +7,7 @@ import { createElectronIpcCommandAdapter } from '../ipc-command-adapter';
 
 const desktop = {
     capabilities: ['desktop'],
-    principal: { kind: 'desktop', id: 'in-memory-desktop' },
+    principal: { kind: 'desktop', id: 'in-memory-desktop', generation: 1 },
 } satisfies CommandExecutionContext;
 
 const cases = [
@@ -79,7 +79,7 @@ describe('Electron IPC command adapter', () => {
         const welcome = electron.negotiate({ supportedVersions: [1] });
         expect(welcome).toMatchObject({
             protocolVersion: 1,
-            principal: { kind: 'desktop', id: 'electron-main' },
+            principal: { kind: 'desktop', id: 'electron-main', generation: 1 },
             capabilities: ['desktop'],
         });
         expect(welcome.commands).toContain('app.health');

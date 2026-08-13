@@ -58,6 +58,7 @@ const bridge: CaxriBridge = {
         eventListeners.add(listener);
         if (eventListeners.size === 1) {
             ipcRenderer.on('caxri:event', eventHandler);
+            ipcRenderer.send('caxri:renderer-events-ready');
             void eventClient.start();
         }
         return () => {

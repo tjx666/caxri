@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmod, lstat } from 'node:fs/promises';
 import { createServer, type Server, type Socket } from 'node:net';
 
@@ -8,23 +8,41 @@ import {
     type CommandDispatcher,
     type CommandDispatcherOptions,
 } from '../shared/ipc/dispatcher';
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError, fromWireError, toWireError } from '../shared/ipc/errors';
 import type { ProtocolEventEnvelope, TransientRuntimeEvent } from '../shared/ipc/event-journal';
 import {
     localClientCommandSchema,
+    localClientDesktopReplySchema,
+    localClientDesktopReadySchema,
+    localClientDesktopRuntimeCommandSchema,
+    localClientDesktopTargetConsumeSchema,
     localClientHelloSchema,
+    localClientLeaseRenewSchema,
+    localServerDesktopCommandSchema,
+    localServerDesktopRuntimeReplySchema,
+    localServerDesktopTargetReplySchema,
     localServerEventSchema,
+    localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
+    type DesktopLease,
+    type DesktopOperation,
+    type DesktopTargetPayload,
+    type HostDesktopCredential,
     type LocalClientCommand,
     type LocalServerReply,
     type HostManifest,
 } from '../shared/ipc/local-transport';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
+import { parseRuntimeRequest, type CommandReplyEnvelope } from '../shared/ipc/transport';
+import type { RuntimeRequest } from '../shared/ipc/methods';
+import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 
 const MAX_MESSAGE_BYTES = 1024 * 1024;
 const MAX_SOCKET_BUFFER_BYTES = 2 * MAX_MESSAGE_BYTES;
 const HANDSHAKE_TIMEOUT_MS = 2_000;
+const DESKTOP_LEASE_MS = 60_000;
+const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
 
 function fileSystemCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
@@ -38,27 +56,76 @@ function tokenMatches(candidate: string, expected: string): boolean {
     return timingSafeEqual(candidateDigest, expectedDigest);
 }
 
-function contextFor(kind: 'desktop' | 'human-cli'): CommandExecutionContext {
-    const id = `${kind}:${randomBytes(12).toString('hex')}`;
-    if (kind === 'desktop') return { capabilities: ['desktop'], principal: { kind, id } };
+function operatorContext(): CommandExecutionContext {
+    const id = `human-cli:${randomBytes(12).toString('hex')}`;
     return {
-        capabilities: ['events.read', 'host.read', 'host.stop'],
-        principal: { kind, id },
+        capabilities: ['desktop.window', 'events.read', 'host.read', 'host.stop'],
+        principal: { kind: 'human-cli', id },
     };
+}
+
+async function executeReply(
+    id: string,
+    action: () => Promise<unknown>,
+): Promise<CommandReplyEnvelope> {
+    try {
+        return {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            id,
+            ok: true,
+            result: await action(),
+        };
+    } catch (error) {
+        return {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            id,
+            ok: false,
+            error: toWireError(error),
+        };
+    }
+}
+
+interface ClientState {
+    context: CommandExecutionContext;
+    desktopLease?: DesktopLease;
+    desktopReady: boolean;
+    leaseTimer?: NodeJS.Timeout;
+    socket: Socket;
+}
+
+interface PendingDesktopCommand {
+    reject(error: CaxriError): void;
+    resolve(value: unknown): void;
+    state: ClientState;
+    timer: NodeJS.Timeout;
+}
+
+interface DesktopLeaseWaiter {
+    reject(error: CaxriError): void;
+    resolve(lease: DesktopLease): void;
+    timer: NodeJS.Timeout;
 }
 
 export interface LocalHostServerOptions {
     adapters: CommandDispatcherOptions;
+    consumeDesktopTarget?(targetId: string, generation: number): Promise<DesktopTargetPayload>;
+    desktopCredential: HostDesktopCredential;
+    invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
     manifest: HostManifest;
     onClientCountChanged?(count: number): void;
+    onDesktopUnavailable?(): void;
     onReplyFlushed?(request: LocalClientCommand['request'], reply: LocalServerReply['reply']): void;
 }
 
 /** Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients. */
 export class LocalHostServer {
-    private readonly clients = new Set<Socket>();
+    private readonly clients = new Map<Socket, ClientState>();
     private readonly sockets = new Set<Socket>();
     private readonly dispatch: CommandDispatcher;
+    private readonly pendingDesktopCommands = new Map<string, PendingDesktopCommand>();
+    private readonly desktopLeaseWaiters = new Set<DesktopLeaseWaiter>();
+    private currentDesktop?: ClientState;
+    private desktopGeneration = 0;
     private server?: Server;
 
     constructor(private readonly options: LocalHostServerOptions) {
@@ -67,6 +134,93 @@ export class LocalHostServer {
 
     clientCount(): number {
         return this.clients.size;
+    }
+
+    desktopLease(): DesktopLease | undefined {
+        return this.currentDesktop?.desktopReady ? this.currentDesktop.desktopLease : undefined;
+    }
+
+    waitForDesktopLease(timeoutMs: number): Promise<DesktopLease> {
+        const lease = this.desktopLease();
+        if (lease) return Promise.resolve(lease);
+        if (this.desktopLeaseWaiters.size >= 32)
+            return Promise.reject(
+                new CaxriError('CAPACITY', 'Too many Desktop launches are pending'),
+            );
+        return new Promise((resolve, reject) => {
+            const waiter: DesktopLeaseWaiter = {
+                reject,
+                resolve,
+                timer: setTimeout(() => {
+                    this.desktopLeaseWaiters.delete(waiter);
+                    reject(
+                        new CaxriError('TIMEOUT', 'Desktop did not connect before the deadline'),
+                    );
+                }, timeoutMs),
+            };
+            this.desktopLeaseWaiters.add(waiter);
+        });
+    }
+
+    /** Routes one typed window operation to exactly the current Desktop generation. */
+    invokeDesktop(operation: DesktopOperation, expectedGeneration: number): Promise<unknown> {
+        const state = this.currentDesktop;
+        const lease = state?.desktopLease;
+        if (!state || !lease || !state.desktopReady)
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Desktop is unavailable'));
+        if (lease.generation !== expectedGeneration)
+            return Promise.reject(
+                new CaxriError('CONFLICT', 'Desktop capability lease changed before routing'),
+            );
+        const id = randomUUID();
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pendingDesktopCommands.delete(id);
+                reject(new CaxriError('TIMEOUT', 'Desktop command timed out'));
+            }, DESKTOP_COMMAND_TIMEOUT_MS);
+            this.pendingDesktopCommands.set(id, { reject, resolve, state, timer });
+            this.write(
+                state.socket,
+                localServerDesktopCommandSchema.parse({
+                    type: 'desktop-command',
+                    lease,
+                    request: {
+                        protocolVersion: CAXRI_PROTOCOL_VERSION,
+                        id,
+                        operation,
+                    },
+                }),
+            );
+        });
+    }
+
+    private settleDesktopReply(state: ClientState, raw: unknown): boolean {
+        const parsed = localClientDesktopReplySchema.safeParse(raw);
+        if (!parsed.success) return false;
+        const pending = parsed.data.reply.id
+            ? this.pendingDesktopCommands.get(parsed.data.reply.id)
+            : undefined;
+        if (!pending) return true;
+        if (
+            pending.state !== state ||
+            this.currentDesktop !== state ||
+            parsed.data.generation !== state.desktopLease?.generation
+        )
+            return true;
+        clearTimeout(pending.timer);
+        this.pendingDesktopCommands.delete(parsed.data.reply.id!);
+        if (parsed.data.reply.ok) pending.resolve(parsed.data.reply.result);
+        else pending.reject(fromWireError(parsed.data.reply.error));
+        return true;
+    }
+
+    private rejectDesktopCommands(state: ClientState): void {
+        for (const [id, pending] of this.pendingDesktopCommands) {
+            if (pending.state !== state) continue;
+            clearTimeout(pending.timer);
+            this.pendingDesktopCommands.delete(id);
+            pending.reject(new CaxriError('UNAVAILABLE', 'Desktop capability lease ended'));
+        }
     }
 
     async start(): Promise<void> {
@@ -109,7 +263,34 @@ export class LocalHostServer {
 
     broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
-        for (const client of this.clients) this.write(client, message);
+        if ('event' in event && event.event === 'terminal.output') {
+            if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
+            return;
+        }
+        for (const { socket } of this.clients.values()) this.write(socket, message);
+    }
+
+    private revokeDesktop(state: ClientState, notifyUnavailable = true): void {
+        if (state.leaseTimer) clearTimeout(state.leaseTimer);
+        state.leaseTimer = undefined;
+        this.rejectDesktopCommands(state);
+        this.clients.delete(state.socket);
+        const wasCurrent = this.currentDesktop === state;
+        if (wasCurrent) this.currentDesktop = undefined;
+        this.options.onClientCountChanged?.(this.clients.size);
+        if (wasCurrent && notifyUnavailable) this.options.onDesktopUnavailable?.();
+    }
+
+    private renewDesktop(state: ClientState): DesktopLease {
+        const lease = state.desktopLease;
+        if (!lease || this.currentDesktop !== state)
+            throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
+        if (state.leaseTimer) clearTimeout(state.leaseTimer);
+        const renewed = { ...lease, expiresAt: Date.now() + DESKTOP_LEASE_MS };
+        state.desktopLease = renewed;
+        state.leaseTimer = setTimeout(() => this.revokeDesktop(state), DESKTOP_LEASE_MS);
+        state.leaseTimer.unref();
+        return renewed;
     }
 
     private accept(socket: Socket): void {
@@ -117,15 +298,19 @@ export class LocalHostServer {
         socket.setEncoding('utf8');
         socket.setNoDelay(true);
         const handshakeTimer = setTimeout(() => socket.destroy(), HANDSHAKE_TIMEOUT_MS);
-        let context: CommandExecutionContext | undefined;
+        let state: ClientState | undefined;
         let source = '';
         let queue = Promise.resolve();
 
         const remove = (): void => {
             clearTimeout(handshakeTimer);
             this.sockets.delete(socket);
-            if (!this.clients.delete(socket)) return;
-            this.options.onClientCountChanged?.(this.clients.size);
+            if (!state || !this.clients.has(socket)) return;
+            if (state.desktopLease) this.revokeDesktop(state);
+            else {
+                this.clients.delete(socket);
+                this.options.onClientCountChanged?.(this.clients.size);
+            }
         };
         socket.on('close', remove);
         socket.on('error', () => undefined);
@@ -143,20 +328,75 @@ export class LocalHostServer {
                     socket.destroy();
                     return;
                 }
+                let raw: unknown;
+                try {
+                    raw = JSON.parse(line) as unknown;
+                } catch {
+                    socket.destroy();
+                    return;
+                }
+                /** Reverse replies must settle outside the per-client command queue to avoid a
+                 * Desktop request deadlocking while Host routes a nested window operation back. */
+                if (state && this.settleDesktopReply(state, raw)) {
+                    newline = source.indexOf('\n');
+                    continue;
+                }
                 queue = queue
                     .then(async () => {
-                        if (!context) {
-                            const hello = localClientHelloSchema.parse(JSON.parse(line));
-                            if (
-                                hello.profileId !== this.options.manifest.profileId ||
-                                !tokenMatches(hello.ownerToken, this.options.manifest.ownerToken)
-                            ) {
+                        if (!state) {
+                            const hello = localClientHelloSchema.parse(raw);
+                            if (hello.profileId !== this.options.manifest.profileId) {
                                 socket.destroy();
                                 return;
                             }
-                            context = contextFor(hello.clientKind);
+                            let context: CommandExecutionContext;
+                            let desktopLease: DesktopLease | undefined;
+                            if (hello.credential.kind === 'operator') {
+                                if (
+                                    !tokenMatches(
+                                        hello.credential.token,
+                                        this.options.manifest.operatorToken,
+                                    )
+                                ) {
+                                    socket.destroy();
+                                    return;
+                                }
+                                context = operatorContext();
+                            } else {
+                                const credential = this.options.desktopCredential;
+                                if (
+                                    credential.profileId !== this.options.manifest.profileId ||
+                                    credential.processIdentity !==
+                                        this.options.manifest.processIdentity ||
+                                    !tokenMatches(hello.credential.token, credential.desktopToken)
+                                ) {
+                                    socket.destroy();
+                                    return;
+                                }
+                                const generation = ++this.desktopGeneration;
+                                desktopLease = {
+                                    desktopId: hello.credential.desktopId,
+                                    generation,
+                                    expiresAt: Date.now() + DESKTOP_LEASE_MS,
+                                };
+                                context = {
+                                    capabilities: ['desktop'],
+                                    principal: {
+                                        kind: 'desktop',
+                                        id: hello.credential.desktopId,
+                                        generation,
+                                    },
+                                };
+                                if (this.currentDesktop)
+                                    this.revokeDesktop(this.currentDesktop, false);
+                            }
+                            state = { context, desktopLease, desktopReady: false, socket };
                             clearTimeout(handshakeTimer);
-                            this.clients.add(socket);
+                            this.clients.set(socket, state);
+                            if (desktopLease) {
+                                this.currentDesktop = state;
+                                this.renewDesktop(state);
+                            }
                             this.options.onClientCountChanged?.(this.clients.size);
                             this.write(
                                 socket,
@@ -164,13 +404,138 @@ export class LocalHostServer {
                                     type: 'welcome',
                                     profileId: this.options.manifest.profileId,
                                     processIdentity: this.options.manifest.processIdentity,
-                                    ...createProtocolWelcome(this.options.adapters, hello, context),
+                                    ...(desktopLease ? { desktopLease: state.desktopLease } : {}),
+                                    ...createProtocolWelcome(
+                                        this.options.adapters,
+                                        hello,
+                                        state.context,
+                                    ),
                                 }),
                             );
                             return;
                         }
-                        const command = localClientCommandSchema.parse(JSON.parse(line));
-                        const reply = await this.dispatch(command.request, context);
+                        const clientState = state;
+                        const ready = localClientDesktopReadySchema.safeParse(raw);
+                        if (ready.success) {
+                            if (
+                                clientState.context.principal.kind !== 'desktop' ||
+                                this.currentDesktop !== clientState ||
+                                clientState.desktopLease?.generation !== ready.data.generation
+                            )
+                                throw new CaxriError(
+                                    'CONFLICT',
+                                    'Desktop capability lease is stale',
+                                );
+                            clientState.desktopReady = true;
+                            for (const waiter of this.desktopLeaseWaiters) {
+                                clearTimeout(waiter.timer);
+                                waiter.resolve(clientState.desktopLease);
+                            }
+                            this.desktopLeaseWaiters.clear();
+                            return;
+                        }
+                        const renew = localClientLeaseRenewSchema.safeParse(raw);
+                        if (renew.success) {
+                            if (
+                                clientState.context.principal.kind !== 'desktop' ||
+                                clientState.desktopLease?.generation !== renew.data.generation
+                            )
+                                throw new CaxriError(
+                                    'CONFLICT',
+                                    'Desktop capability lease is stale',
+                                );
+                            this.write(
+                                socket,
+                                localServerLeaseRenewedSchema.parse({
+                                    type: 'desktop-lease.renewed',
+                                    lease: this.renewDesktop(clientState),
+                                }),
+                            );
+                            return;
+                        }
+                        const runtimeCommand =
+                            localClientDesktopRuntimeCommandSchema.safeParse(raw);
+                        if (runtimeCommand.success) {
+                            const reply = await executeReply(
+                                runtimeCommand.data.request.id,
+                                async () => {
+                                    if (
+                                        clientState.context.principal.kind !== 'desktop' ||
+                                        this.currentDesktop !== clientState
+                                    )
+                                        throw new CaxriError(
+                                            'CONFLICT',
+                                            'Desktop capability lease is stale',
+                                        );
+                                    if (!this.options.invokeDesktopRuntime)
+                                        throw new CaxriError(
+                                            'UNAVAILABLE',
+                                            'Desktop Runtime bridge is unavailable',
+                                        );
+                                    const request = parseRuntimeRequest(
+                                        runtimeCommand.data.request.method,
+                                        runtimeCommand.data.request.params,
+                                    );
+                                    return this.options.invokeDesktopRuntime(request);
+                                },
+                            );
+                            this.write(
+                                socket,
+                                localServerDesktopRuntimeReplySchema.parse({
+                                    type: 'desktop-runtime-reply',
+                                    reply,
+                                }),
+                            );
+                            return;
+                        }
+                        const consume = localClientDesktopTargetConsumeSchema.safeParse(raw);
+                        if (consume.success) {
+                            const reply = await executeReply(consume.data.id, async () => {
+                                if (
+                                    clientState.context.principal.kind !== 'desktop' ||
+                                    this.currentDesktop !== clientState ||
+                                    clientState.desktopLease?.generation !== consume.data.generation
+                                )
+                                    throw new CaxriError(
+                                        'CONFLICT',
+                                        'Desktop capability lease is stale',
+                                    );
+                                if (!this.options.consumeDesktopTarget)
+                                    throw new CaxriError(
+                                        'UNAVAILABLE',
+                                        'Desktop target bridge is unavailable',
+                                    );
+                                return this.options.consumeDesktopTarget(
+                                    consume.data.targetId,
+                                    consume.data.generation,
+                                );
+                            });
+                            this.write(
+                                socket,
+                                localServerDesktopTargetReplySchema.parse({
+                                    type: 'desktop-target.reply',
+                                    reply,
+                                }),
+                            );
+                            return;
+                        }
+                        const command = localClientCommandSchema.parse(raw);
+                        const currentContext = clientState.context;
+                        const reply =
+                            currentContext.principal.kind === 'desktop' &&
+                            this.currentDesktop !== clientState
+                                ? {
+                                      protocolVersion: CAXRI_PROTOCOL_VERSION,
+                                      id: command.request.id,
+                                      ok: false as const,
+                                      error: toWireError(
+                                          new CaxriError(
+                                              'CONFLICT',
+                                              'Desktop capability lease is stale',
+                                          ),
+                                      ),
+                                  }
+                                : await this.dispatch(command.request, currentContext);
                         this.write(
                             socket,
                             localServerReplySchema.parse({ type: 'reply', reply }),
@@ -194,9 +559,21 @@ export class LocalHostServer {
     }
 
     async close(): Promise<void> {
+        for (const pending of this.pendingDesktopCommands.values()) {
+            clearTimeout(pending.timer);
+            pending.reject(new CaxriError('UNAVAILABLE', 'Host transport is closing'));
+        }
+        this.pendingDesktopCommands.clear();
+        for (const waiter of this.desktopLeaseWaiters) {
+            clearTimeout(waiter.timer);
+            waiter.reject(new CaxriError('UNAVAILABLE', 'Host transport is closing'));
+        }
+        this.desktopLeaseWaiters.clear();
         for (const socket of this.sockets) socket.destroy();
         this.sockets.clear();
         this.clients.clear();
+        if (this.currentDesktop?.leaseTimer) clearTimeout(this.currentDesktop.leaseTimer);
+        this.currentDesktop = undefined;
         this.options.onClientCountChanged?.(0);
         const server = this.server;
         this.server = undefined;

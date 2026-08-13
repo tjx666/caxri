@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { HostClient } from '../../../packages/cli/src/host-client';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
 import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
@@ -70,6 +71,7 @@ describe('local Host transport', () => {
         const counts: number[] = [];
         const server = new LocalHostServer({
             adapters: { host },
+            desktopCredential: lease.desktopCredential,
             manifest: lease.manifest,
             onClientCountChanged: (count) => counts.push(count),
         });
@@ -85,16 +87,24 @@ describe('local Host transport', () => {
                 type: 'hello',
                 supportedVersions: [1],
                 profileId: lease.manifest.profileId,
-                ownerToken: lease.manifest.ownerToken,
-                clientKind: 'human-cli',
+                credential: {
+                    kind: 'operator',
+                    token: lease.manifest.operatorToken,
+                },
             })}\n`,
         );
         const welcome = localServerWelcomeSchema.parse(await read());
         expect(welcome.type).toBe('welcome');
         expect(welcome.principal.kind).toBe('human-cli');
-        expect(welcome.capabilities).toEqual(['events.read', 'host.read', 'host.stop']);
+        expect(welcome.capabilities).toEqual([
+            'desktop.window',
+            'events.read',
+            'host.read',
+            'host.stop',
+        ]);
         expect(welcome.commands).toContain('app.health');
         expect(welcome.commands).toContain('host.status');
+        expect(welcome.commands).toContain('desktop.status');
         expect(welcome.commands).toContain('host.stop');
         socket.write(
             `${JSON.stringify({
@@ -119,6 +129,7 @@ describe('local Host transport', () => {
         const invoke = vi.fn();
         const server = new LocalHostServer({
             adapters: { host: { invoke } },
+            desktopCredential: lease.desktopCredential,
             manifest: lease.manifest,
         });
         await server.start();
@@ -129,18 +140,44 @@ describe('local Host transport', () => {
                 type: 'hello',
                 supportedVersions: [1],
                 profileId: lease.manifest.profileId,
-                ownerToken: '0'.repeat(64),
-                clientKind: 'human-cli',
+                credential: { kind: 'operator', token: '0'.repeat(64) },
             })}\n`,
         );
         await new Promise<void>((resolve) => socket.once('close', () => resolve()));
         expect(invoke).not.toHaveBeenCalled();
     });
 
+    it('does not let the operator credential self-assert the Desktop principal', async () => {
+        const lease = await profile();
+        const server = new LocalHostServer({
+            adapters: { host: { invoke: vi.fn() } },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const socket = await connect(lease.paths.endpoint);
+        socket.write(
+            `${JSON.stringify({
+                type: 'hello',
+                supportedVersions: [1],
+                profileId: lease.manifest.profileId,
+                credential: {
+                    kind: 'desktop',
+                    token: lease.manifest.operatorToken,
+                    desktopId: 'desktop-test',
+                },
+            })}\n`,
+        );
+
+        await new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    });
+
     it('fails closed when the client has no compatible protocol version', async () => {
         const lease = await profile();
         const server = new LocalHostServer({
             adapters: { host: { invoke: vi.fn() } },
+            desktopCredential: lease.desktopCredential,
             manifest: lease.manifest,
         });
         await server.start();
@@ -151,10 +188,123 @@ describe('local Host transport', () => {
                 type: 'hello',
                 supportedVersions: [2],
                 profileId: lease.manifest.profileId,
-                ownerToken: lease.manifest.ownerToken,
-                clientKind: 'human-cli',
+                credential: {
+                    kind: 'operator',
+                    token: lease.manifest.operatorToken,
+                },
             })}\n`,
         );
         await new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    });
+
+    it('routes reverse commands and transient PTY output only to the current Desktop generation', async () => {
+        const lease = await profile();
+        const unavailable = vi.fn();
+        const server = new LocalHostServer({
+            adapters: {
+                host: {
+                    invoke: (request) =>
+                        request.method === 'app.health'
+                            ? { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 }
+                            : null,
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+            onDesktopUnavailable: unavailable,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const credential = lease.desktopCredential;
+        const firstHandler = vi.fn(() => Promise.resolve(null));
+        const secondHandler = vi.fn(() => Promise.resolve(null));
+        const first = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'desktop',
+            desktopId: 'desktop-first',
+            credential,
+            handleCommand: firstHandler,
+        });
+        const firstEvents = vi.fn();
+        first.onEvent(firstEvents);
+        cleanups.push(() => {
+            first.close();
+            return Promise.resolve();
+        });
+        const second = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'desktop',
+            desktopId: 'desktop-second',
+            credential,
+            handleCommand: secondHandler,
+        });
+        const secondEvents = vi.fn();
+        second.onEvent(secondEvents);
+        cleanups.push(() => {
+            second.close();
+            return Promise.resolve();
+        });
+
+        const secondGeneration = second.desktopLease!.generation;
+        const ready = server.waitForDesktopLease(2_000);
+        await expect(
+            server.invokeDesktop({ kind: 'focus' }, secondGeneration),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        await second.markDesktopReady();
+        await expect(ready).resolves.toMatchObject({ generation: secondGeneration });
+        await server.invokeDesktop({ kind: 'focus' }, secondGeneration);
+        expect(firstHandler).not.toHaveBeenCalled();
+        expect(secondHandler).toHaveBeenCalledWith({ kind: 'focus' }, expect.any(Function));
+        await expect(first.request('app.health')).rejects.toMatchObject({ code: 'CONFLICT' });
+        server.broadcast({
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 'live' },
+        });
+        await vi.waitFor(() => expect(secondEvents).toHaveBeenCalledTimes(1));
+        expect(firstEvents).not.toHaveBeenCalled();
+        expect(unavailable).not.toHaveBeenCalled();
+
+        second.close();
+        await vi.waitFor(() => expect(unavailable).toHaveBeenCalledTimes(1));
+    });
+
+    it('keeps copy and write requests pending until their authoritative result arrives', async () => {
+        const lease = await profile();
+        const server = new LocalHostServer({
+            adapters: {
+                host: {
+                    invoke: async (request) => {
+                        if (request.method !== 'files.write') return null;
+                        await new Promise((resolve) => setTimeout(resolve, 80));
+                        return {
+                            path: request.params.path,
+                            content: request.params.content,
+                            mtimeMs: 1,
+                            size: request.params.content.length,
+                        };
+                    },
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest, 40, {
+            kind: 'desktop',
+            desktopId: 'desktop-long-write',
+            credential: lease.desktopCredential,
+            handleCommand: () => Promise.resolve(null),
+        });
+        cleanups.push(() => {
+            client.close();
+            return Promise.resolve();
+        });
+
+        await expect(
+            client.request('files.write', {
+                sessionId: 'session-1',
+                path: '/project/file.ts',
+                content: 'saved',
+            }),
+        ).resolves.toMatchObject({ path: '/project/file.ts', content: 'saved' });
     });
 });

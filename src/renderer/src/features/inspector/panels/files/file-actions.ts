@@ -380,10 +380,10 @@ export function duplicateFile(
     return copyItem(sessionId, path, parentDirectoryPath(path));
 }
 
-export function revealFile(sessionId: string, path: string): Promise<null | undefined> {
-    return tryCommand('Unable to reveal item in Finder', () =>
-        caxri.request('files.reveal', { sessionId, path }),
-    );
+export function revealFile(sessionId: string, path: string): Promise<void | undefined> {
+    return tryCommand('Unable to reveal item in Finder', async () => {
+        await caxri.request('files.reveal', { sessionId, path });
+    });
 }
 
 export function openFileInTerminal(directory: string): Promise<void> {

@@ -21,7 +21,7 @@ export interface MainEventRelayOptions {
     onKeybindingsChanged(): void;
 }
 
-/** Owns the Host-side durable cursor while leaving PTY bytes on their direct attachment path. */
+/** Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host. */
 export function createMainEventRelay(options: MainEventRelayOptions) {
     const journal = createEventJournal({
         snapshot: async (cursor) => {

@@ -1,6 +1,9 @@
 export * from './agents.js';
 export * from './configuration-contract.js';
 export * from './dispatcher.js';
+export * from './desktop-runtime.js';
+export * from './desktop-contract.js';
+export * from './desktop-launch.js';
 export * from './domain.js';
 export * from './errors.js';
 export * from './event-client.js';
@@ -12,6 +15,7 @@ export * from './local-transport.js';
 export * from './methods.js';
 export * from './principal.js';
 export * from './projections.js';
+export * from './request-lifetime.js';
 export * from './renderer-error.js';
 export * from './transport.js';
 export * from './trusted-domains.js';

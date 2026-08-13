@@ -7,18 +7,28 @@ import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 const cursorSchema = z.number().int().nonnegative();
 export type TransientRuntimeEvent = Extract<
     RuntimeEvent,
-    { event: 'command.execute' | 'terminal.output' }
+    { event: 'command.execute' | 'desktop.openRequested' | 'terminal.output' }
 >;
+export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
+
+export function isTransientRuntimeEvent(event: RuntimeEvent): event is TransientRuntimeEvent {
+    return (
+        event.event === 'terminal.output' ||
+        event.event === 'command.execute' ||
+        event.event === 'desktop.openRequested'
+    );
+}
+
+export const transientRuntimeEventSchema = runtimeEventSchema.refine(
+    isTransientRuntimeEvent,
+    'Only transient events can use direct delivery',
+) as z.ZodType<TransientRuntimeEvent>;
 
 /** PTY bytes and one-shot UI commands retain direct delivery and never enter durable replay. */
 export const durableRuntimeEventSchema = runtimeEventSchema.refine(
-    (event) => event.event !== 'terminal.output' && event.event !== 'command.execute',
+    (event) => !isTransientRuntimeEvent(event),
     'Transient events cannot enter durable protocol replay',
-);
-
-export function isTransientRuntimeEvent(event: RuntimeEvent): event is TransientRuntimeEvent {
-    return event.event === 'terminal.output' || event.event === 'command.execute';
-}
+) as z.ZodType<DurableRuntimeEvent>;
 
 export const protocolEventEnvelopeSchema = z.object({
     protocolVersion: protocolVersionSchema,
