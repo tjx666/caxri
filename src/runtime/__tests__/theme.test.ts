@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -85,5 +85,56 @@ describe('theme import mapping', () => {
         const theme = await importTheme(path, draculaTheme);
         expect(theme.source).toBe('vscode');
         expect(theme.editor.background).toBe('#123456');
+    });
+});
+
+/** WCAG 2.1 relative luminance of an `#rrggbb` color. */
+function relativeLuminance(hex: string): number {
+    const channels = [1, 3, 5].map((offset) => {
+        const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+        return value <= 0.039_28 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(foreground: string, background: string): number {
+    const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)].sort(
+        (a, b) => b - a,
+    );
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+describe('built-in theme contrast', () => {
+    /**
+     * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every
+     * chrome surface. Imported themes clone this palette and never override `muted`, which makes
+     * this single constant the contrast floor for all 133 `text-muted` call sites in the Renderer.
+     */
+    it('keeps muted secondary text at WCAG AA on every chrome surface', () => {
+        const { muted, background, surface, elevated } = draculaTheme.colors;
+        for (const backdrop of [background, surface, elevated])
+            expect(contrastRatio(muted, backdrop)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps primary foreground text well clear of AA on every chrome surface', () => {
+        const { foreground, background, surface, elevated } = draculaTheme.colors;
+        for (const backdrop of [background, surface, elevated])
+            expect(contrastRatio(foreground, backdrop)).toBeGreaterThanOrEqual(7);
+    });
+
+    /**
+     * `styles/theme.css` hardcodes the same palette as the pre-Runtime fallback that paints the
+     * first frame before `applyCssTheme` runs. Drift between the two shows up as a color flash, so
+     * the stylesheet is asserted against the source of truth rather than eyeballed.
+     */
+    it('mirrors the built-in palette in the Renderer stylesheet fallback', async () => {
+        const stylesheet = await readFile(
+            new URL('../../renderer/src/styles/theme.css', import.meta.url),
+            'utf8',
+        );
+        for (const [token, value] of Object.entries(draculaTheme.colors)) {
+            if (token === 'selection') continue;
+            expect(stylesheet).toContain(`--${token}: ${value};`);
+        }
     });
 });
