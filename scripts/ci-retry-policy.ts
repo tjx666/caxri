@@ -14,6 +14,7 @@ export interface BaseRunEvidence {
     baseSha?: string;
     checksConclusion?: string;
     e2eConclusion?: string;
+    e2eFailurePool?: 'control' | 'desktop-exclusive' | 'parallel-safe';
     event: string;
     headSha: string;
     pullRequestNumber?: number;
@@ -38,6 +39,7 @@ export interface RetryPolicyInput {
 
 export interface RetryPolicyDecision {
     baseRunId?: number;
+    e2ePool?: 'control' | 'desktop-exclusive' | 'parallel-safe';
     e2eTests?: string[];
     mode: 'e2e-only' | 'e2e-repair' | 'full';
     reason: string;
@@ -49,7 +51,7 @@ const protectedPathPatterns = [
     /^(?:package|package-lock)\.json$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-execution-plan|ci-metrics|ci-retry-policy|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-hosted-parity)\.ts$/,
+    /^scripts\/(?:ci-execution-plan|ci-metrics|ci-retry-policy|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|run-hosted-parity)\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
@@ -60,6 +62,35 @@ const protectedPathPatterns = [
 
 export function isProtectedRetryPath(path: string): boolean {
     return protectedPathPatterns.some((pattern) => pattern.test(path));
+}
+
+/** Aggregates both the legacy single E2E job and the split pool matrix without hiding failures. */
+export function summarizeE2EJobs(
+    jobs: Array<{ conclusion?: string; name?: string }> | undefined,
+): Pick<BaseRunEvidence, 'e2eConclusion' | 'e2eFailurePool'> {
+    const e2eJobs = jobs?.filter(({ name }) => name === 'e2e' || name?.startsWith('e2e / ')) ?? [];
+    const failed = e2eJobs.filter(({ conclusion }) => conclusion === 'failure');
+    const failedPools = [
+        ...new Set(
+            failed.map(({ name }) => (name === 'e2e' ? 'control' : name?.slice('e2e / '.length))),
+        ),
+    ];
+    const e2eFailurePool =
+        failedPools.length === 1 &&
+        (failedPools[0] === 'control' ||
+            failedPools[0] === 'desktop-exclusive' ||
+            failedPools[0] === 'parallel-safe')
+            ? failedPools[0]
+            : undefined;
+    return {
+        e2eConclusion:
+            failed.length > 0
+                ? 'failure'
+                : e2eJobs.length > 0 && e2eJobs.every(({ conclusion }) => conclusion === 'success')
+                  ? 'success'
+                  : undefined,
+        e2eFailurePool,
+    };
 }
 
 function oneTrailer(message: string, name: string): string | undefined {
@@ -152,6 +183,7 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
     }
     return {
         baseRunId: hint.baseRunId,
+        e2ePool: base.e2eFailurePool ?? 'control',
         e2eTests: hint.e2eTests,
         mode: hint.mode,
         reason: 'validated exact-tree retry is eligible',
@@ -220,10 +252,11 @@ async function loadBaseRun(repository: string, runId: number): Promise<BaseRunEv
     };
     const jobs = jobsValue as { jobs?: Array<{ conclusion?: string; name?: string }> };
     const identity = extractBaseRunIdentity(run.pull_requests, jobs.jobs);
+    const e2e = summarizeE2EJobs(jobs.jobs);
     return {
         baseSha: identity.baseSha,
         checksConclusion: jobs.jobs?.find(({ name }) => name === 'checks')?.conclusion,
-        e2eConclusion: jobs.jobs?.find(({ name }) => name === 'e2e')?.conclusion,
+        ...e2e,
         event: run.event ?? '',
         headSha: run.head_sha ?? '',
         pullRequestNumber: identity.pullRequestNumber,
@@ -249,6 +282,7 @@ async function writeDecision(
                 `base_run=${decision.baseRunId ?? ''}`,
                 `validated_tree=${decision.validatedTree ?? ''}`,
                 `e2e_tests=${JSON.stringify(decision.e2eTests ?? [])}`,
+                `e2e_pool=${decision.e2ePool ?? 'control'}`,
                 `checks_scope=${execution.checksScope}`,
                 `run_e2e=${String(execution.runE2E)}`,
                 `e2e_profile=${execution.e2eProfile}`,
@@ -259,7 +293,7 @@ async function writeDecision(
     if (summary) {
         await appendFile(
             summary,
-            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Changed files: ${changedFiles.length}\n`,
+            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Changed files: ${changedFiles.length}\n`,
         );
     }
     process.stdout.write(`${JSON.stringify(decision)}\n`);
@@ -271,7 +305,10 @@ async function main(): Promise<void> {
     if (!eventPath || !repository) throw new Error('GitHub Actions environment is required');
     const event = JSON.parse(await readFile(eventPath, 'utf8')) as {
         before?: string;
-        inputs?: { e2e_profile?: 'control' | 'optimized' | 'skip' };
+        inputs?: {
+            e2e_profile?: 'control' | 'optimized' | 'skip';
+            runner_probe?: boolean | 'false' | 'true';
+        };
         pull_request?: {
             base?: { sha?: string };
             draft?: boolean;
@@ -338,6 +375,7 @@ async function main(): Promise<void> {
         isReleaseCommit:
             typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`,
         pullRequestDraft: event.pull_request?.draft,
+        runnerProbe: event.inputs?.runner_probe === true || event.inputs?.runner_probe === 'true',
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,
     });
     await writeDecision(retryDecision, execution, allChangedFiles);

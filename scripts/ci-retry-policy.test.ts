@@ -5,6 +5,7 @@ import {
     extractBaseRunIdentity,
     isProtectedRetryPath,
     parseRetryHint,
+    summarizeE2EJobs,
     type RetryPolicyInput,
 } from './ci-retry-policy';
 
@@ -91,6 +92,31 @@ describe('CI retry policy', () => {
         ).toBe('full');
     });
 
+    it('aggregates legacy and split E2E jobs while preserving one failed pool', () => {
+        expect(summarizeE2EJobs([{ name: 'e2e', conclusion: 'failure' }])).toEqual({
+            e2eConclusion: 'failure',
+            e2eFailurePool: 'control',
+        });
+        expect(
+            summarizeE2EJobs([
+                { name: 'e2e / parallel-safe', conclusion: 'failure' },
+                { name: 'e2e / desktop-exclusive', conclusion: 'success' },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: 'parallel-safe' });
+        expect(
+            summarizeE2EJobs([
+                { name: 'e2e / parallel-safe', conclusion: 'success' },
+                { name: 'e2e / desktop-exclusive', conclusion: 'success' },
+            ]),
+        ).toEqual({ e2eConclusion: 'success', e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                { name: 'e2e / parallel-safe', conclusion: 'failure' },
+                { name: 'e2e / desktop-exclusive', conclusion: 'failure' },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+    });
+
     it('fails malformed or unverifiable hints back to full CI', () => {
         expect(evaluateRetryPolicy({ ...eligible, hint: undefined, hintError: 'bad' })).toEqual({
             mode: 'full',
@@ -120,6 +146,7 @@ describe('CI retry policy', () => {
             'scripts/run-ci-focused-checks.ts',
             'scripts/run-e2e-failure-isolation.ts',
             'scripts/run-e2e-pools.ts',
+            'scripts/run-e2e-repair.ts',
             'scripts/run-hosted-parity.ts',
             'e2e/failure-isolation.e2e.ts',
             'RELEASING.md',

@@ -8,6 +8,7 @@ export interface CIExecutionPlanInput {
     eventName: string;
     isReleaseCommit?: boolean;
     pullRequestDraft?: boolean;
+    runnerProbe?: boolean;
     retryMode?: 'e2e-only' | 'e2e-repair';
 }
 
@@ -35,6 +36,15 @@ function containsOnly(paths: readonly string[], predicate: (path: string) => boo
  * `ready_for_review` re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
  */
 export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutionPlan {
+    if (input.eventName === 'workflow_dispatch' && input.runnerProbe) {
+        return {
+            checksScope: 'skipped',
+            e2eProfile: 'control',
+            reason: 'runner allocation probe',
+            runE2E: false,
+        };
+    }
+
     if (input.retryMode) {
         return {
             checksScope: 'skipped',
