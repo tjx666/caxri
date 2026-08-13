@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TerminalOutputQueue } from '../buffer';
 import {
+    TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER,
     TERMINAL_IMAGE_RECOVERY_PLACEHOLDER,
     TerminalImageOutputFilter,
     TerminalImageRecoveryFilter,
@@ -114,14 +115,45 @@ describe('TerminalImageOutputFilter', () => {
         },
     );
 
-    it('discards an oversized control through its terminator and resumes ordinary output', () => {
+    it('discards an oversized control through its terminator and reports one honest placeholder instead of raw dropped bytes', () => {
         const filter = new TerminalImageOutputFilter(16);
         const output = new TerminalOutputQueue(128);
 
-        const firstDropped = filter.push('\x1b]1337;File=inline=1:TOO_LARGE', output);
-        const secondDropped = filter.push('_SECRET\x1b\\after', output);
+        const firstBackpressure = filter.push('\x1b]1337;File=inline=1:TOO_LARGE', output);
+        const secondBackpressure = filter.push('_SECRET\x1b\\after', output);
 
-        expect(firstDropped + secondDropped).toBeGreaterThan(16);
-        expect(output.drain()).toBe('after');
+        /** The oversized image itself never counts as backpressure: only genuine `destination`
+         *  capacity refusals would, and this queue has plenty of room for the small placeholder. */
+        expect(firstBackpressure).toBe(0);
+        expect(secondBackpressure).toBe(0);
+        expect(output.drain()).toBe(`${TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER}after`);
+    });
+
+    describe('finish', () => {
+        it('discards a still-buffered sequence silently when no destination is given', () => {
+            const filter = new TerminalImageOutputFilter();
+            filter.push('\x1b]1337;File=inline=1:UNFINISHED', new TerminalOutputQueue(128));
+
+            expect(filter.finish()).toBe(0);
+        });
+
+        it('replaces a still-capturing sequence with the placeholder when a destination is given', () => {
+            const filter = new TerminalImageOutputFilter();
+            const output = new TerminalOutputQueue(128);
+            filter.push('\x1b]1337;File=inline=1:UNFINISHED', output);
+
+            expect(filter.finish(output)).toBe(0);
+            expect(output.drain()).toBe(TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER);
+        });
+
+        it('reports nothing when nothing was mid-capture', () => {
+            const filter = new TerminalImageOutputFilter();
+            const output = new TerminalOutputQueue(128);
+            filter.push('plain text', output);
+            output.drain();
+
+            expect(filter.finish(output)).toBe(0);
+            expect(output.drain()).toBe('');
+        });
     });
 });

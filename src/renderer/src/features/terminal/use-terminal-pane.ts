@@ -18,7 +18,10 @@ import { caxri } from '../../lib/caxri';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { revealEditorLocation } from '../editor/editor-reveal';
-import { registerTerminalClearHandler } from './terminal-actions';
+import {
+    registerTerminalClearHandler,
+    registerTerminalSelectionHandlers,
+} from './terminal-actions';
 import {
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
@@ -31,13 +34,14 @@ import {
     terminalKeyboardInput,
 } from './terminal-keyboard';
 import { registerTerminalLinks } from './terminal-links';
-import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
+import { ControlledOsc52Clipboard, type Osc52BlockReason } from './terminal-osc52-clipboard';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import {
     TerminalRendererController,
     type TerminalGpuAcceleration,
+    type TerminalRendererReason,
     type TerminalRendererStatus,
 } from './terminal-renderer';
 import { TerminalReplayCoordinator } from './terminal-replay';
@@ -72,7 +76,33 @@ interface TerminalPaneRuntimeOptions {
 
 const onError = (message: string): void => pushToast('error', message);
 
+/**
+ * A blocked OSC 52 write is expected policy enforcement, not a failure — it uses `info` (which
+ * auto-dismisses) rather than the persistent `error` styling reserved for `onWriteFailure` below.
+ */
+const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
+    'disabled':
+        'A Terminal program tried to copy to the clipboard, but OSC 52 access is off in Settings.',
+    'malformed': 'A Terminal program sent a malformed clipboard request; it was ignored.',
+    'oversized': 'A Terminal program tried to copy too much text at once; the request was ignored.',
+    'rate-limited':
+        'A Terminal program is copying to the clipboard too quickly; extra requests are being ignored.',
+};
+
 const emptySearchResults: TerminalSearchResults = { resultCount: 0, resultIndex: -1 };
+
+/**
+ * Only the reasons the user did not choose are worth a toast: `disabled` reflects their own GPU
+ * acceleration setting, `active`/`disposed` are healthy or teardown states, so neither needs one.
+ */
+const RENDERER_FALLBACK_MESSAGES: Partial<Record<TerminalRendererReason, string>> = {
+    'context-loss':
+        'GPU acceleration was lost for this Terminal; it fell back to standard rendering.',
+    'load-failed':
+        'GPU acceleration could not start for this Terminal; it is using standard rendering.',
+    'unsupported':
+        'This Terminal is using standard rendering because GPU acceleration is unavailable.',
+};
 
 /** SearchAddon requires opaque `#RRGGBB`; imported semantic tokens may include an alpha byte. */
 function opaqueSearchColor(color: string): string {
@@ -98,6 +128,9 @@ export function useTerminalPaneRuntime({
 }: TerminalPaneRuntimeOptions) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | undefined>(undefined);
+    /** Set by the mount effect below; the context menu's Paste action reads through this instead of
+     *  capturing the imperative xterm instance directly, since the effect (re)runs per attach epoch. */
+    const pasteRef = useRef<(() => Promise<void>) | undefined>(undefined);
     const searchRef = useRef<SearchAddon | undefined>(undefined);
     const searchActiveRef = useRef(false);
     const searchSignatureRef = useRef('');
@@ -188,6 +221,7 @@ export function useTerminalPaneRuntime({
         const unicode11 = new Unicode11Addon();
         const osc52Clipboard = new ControlledOsc52Clipboard({
             enabled: () => latestRef.current.osc52ClipboardWrite,
+            onBlocked: (reason) => pushToast('info', OSC52_BLOCK_MESSAGES[reason]),
             onWriteFailure: () =>
                 onError('OSC 52 clipboard write was denied. Check macOS clipboard permissions.'),
             writeClipboard: (text) => navigator.clipboard.writeText(text),
@@ -362,11 +396,19 @@ export function useTerminalPaneRuntime({
             }
         };
 
+        let rendererFallbackNotified = false;
         const publishRendererStatus = (status: TerminalRendererStatus): void => {
             container.dataset.terminalRenderer = status.mode;
             container.dataset.terminalRendererReason = status.reason;
             container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
             container.dataset.terminalRendererRedraws = String(status.redrawCount);
+            /** A dropped GPU context can recur many times; only the first fallback for this pane's
+             *  lifetime is worth a toast; repeats would just be noise about the same known state. */
+            const message = RENDERER_FALLBACK_MESSAGES[status.reason];
+            if (message && !rendererFallbackNotified) {
+                rendererFallbackNotified = true;
+                pushToast('info', message);
+            }
         };
         const renderer = new TerminalRendererController(
             xterm,
@@ -407,10 +449,31 @@ export function useTerminalPaneRuntime({
             if (!latestRef.current.copyOnSelect) return;
             void selectionClipboard.copy(xterm.getSelection());
         });
+        const unregisterSelectionHandlers = registerTerminalSelectionHandlers(terminalId, {
+            copySelection: () => {
+                const selection = xterm.getSelection();
+                if (selection) void selectionClipboard.copy(selection);
+            },
+            hasSelection: () => xterm.hasSelection(),
+        });
+        const pasteFromClipboard = async (): Promise<void> => {
+            if (latestRef.current.processState !== 'running') return;
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) xterm.paste(text);
+            } catch (error) {
+                onError(errorMessage(error, 'Terminal paste failed'));
+            }
+        };
+        pasteRef.current = pasteFromClipboard;
         const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
             replay.push(event.payload.data);
+            /** Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an
+             *  inline `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of
+             *  folding them into this counter, so a nonzero value here is genuine output-queue
+             *  backpressure only. */
             if (event.payload.droppedBytes)
                 replay.push(
                     `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
@@ -457,6 +520,8 @@ export function useTerminalPaneRuntime({
             progressDisposable.dispose();
             searchResultsDisposable.dispose();
             selectionDisposable.dispose();
+            unregisterSelectionHandlers();
+            if (pasteRef.current === pasteFromClipboard) pasteRef.current = undefined;
             dataDisposable.dispose();
             unregisterLinks();
             unregisterCommandNavigation();
@@ -623,5 +688,17 @@ export function useTerminalPaneRuntime({
 
     const focusTerminal = useCallback((): void => xtermRef.current?.focus(), []);
 
-    return { beginSearch, containerRef, endSearch, find, focusTerminal, searchResults };
+    const pasteFromClipboard = useCallback((): void => {
+        void pasteRef.current?.();
+    }, []);
+
+    return {
+        beginSearch,
+        containerRef,
+        endSearch,
+        find,
+        focusTerminal,
+        pasteFromClipboard,
+        searchResults,
+    };
 }
