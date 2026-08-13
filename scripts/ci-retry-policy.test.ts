@@ -183,6 +183,8 @@ describe('CI retry policy', () => {
     it('protects workflow, dependency, test, Electron, and release configuration', () => {
         for (const path of [
             '.github/workflows/ci.yml',
+            '.github/actions/setup-caxri-job/action.yml',
+            '.bun-version',
             'package.json',
             'package-lock.json',
             'vitest.config.ts',

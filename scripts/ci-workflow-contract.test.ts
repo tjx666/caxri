@@ -3,6 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const workflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const setupAction = await readFile(
+    new URL('../.github/actions/setup-caxri-job/action.yml', import.meta.url),
+    'utf8',
+);
+const bunVersion = (await readFile(new URL('../.bun-version', import.meta.url), 'utf8')).trim();
 const packageManifest = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
 ) as { scripts: Record<string, string> };
@@ -23,22 +28,30 @@ describe('CI workflow contract', () => {
         expect(retryPolicyJob).toContain('reused_e2e_head:');
     });
 
-    it('keeps one explicit npm cache owner and measures install phases separately', () => {
-        expect(workflow.match(/package-manager-cache: false/gu)).toHaveLength(2);
-        expect(workflow.match(/path: ~\/\.npm/gu)).toHaveLength(2);
-        expect(workflow).toContain('npm ci --ignore-scripts --prefer-offline --no-audit --no-fund');
-        expect(workflow).toContain('bun run rebuild');
+    it('uses one shared setup action with runner-local caches and pinned tools', () => {
+        expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(3);
+        expect(workflow).not.toContain('actions/cache@');
+        expect(setupAction).toContain('uses: actions/setup-node@v7');
+        expect(setupAction).toContain('package-manager-cache: false');
+        expect(setupAction).toContain(
+            'bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"',
+        );
+        expect(setupAction).not.toContain('oven-sh/setup-bun');
+        expect(setupAction).toContain('cache_root="$RUNNER_TOOL_CACHE/caxri"');
+        expect(setupAction).toContain(
+            'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund',
+        );
+        expect(setupAction).toContain('npm rebuild electron');
+        expect(setupAction).toContain('bun run rebuild');
+        expect(bunVersion).toBe('1.3.14');
         expect(workflow).toContain('Electron native compatibility');
         expect(workflow).toContain('bun run spike:native');
         expect(workflow).toContain('--label "Vitest full suite" -- bun run test');
         expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(2);
         expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
         expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
-        expect(
-            workflow.match(
-                /needs\.retry-policy\.outputs\.checks_scope == 'full' \|\| needs\.retry-policy\.outputs\.checks_scope == 'focused-source'/gu,
-            ),
-        ).toHaveLength(2);
+        expect(workflow.match(/install-electron:/gu)).toHaveLength(2);
+        expect(workflow.match(/rebuild-native:/gu)).toHaveLength(2);
     });
 
     it('supports fail-closed focused checks and self-hosted control or optimized E2E profiles', () => {
@@ -122,12 +135,17 @@ describe('CI workflow contract', () => {
     });
 
     it('prepares and cleans every job that executes repository source', () => {
+        const checksJob = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}e2e:/u)?.[1];
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
 
-        expect(workflow.match(/bun run scripts\/self-hosted-runner\.ts prepare/gu)).toHaveLength(3);
+        expect(setupAction).toContain('bun run scripts/self-hosted-runner.ts prepare');
         expect(workflow.match(/bun run scripts\/self-hosted-runner\.ts cleanup/gu)).toHaveLength(3);
         expect(workflow.match(/persist-credentials: false/gu)).toHaveLength(3);
         expect(workflow).toContain('CAXRI_RUNNER_OWNER:');
+        expect(workflow.match(/CAXRI_RUNNER_AGENT_DISCOVERY: blocked/gu)).toHaveLength(3);
+        expect(checksJob).not.toContain('CAXRI_E2E_AGENT_MODE');
+        expect(e2eJob).toContain('CAXRI_E2E_AGENT_MODE: blocked');
+        expect(workflow.match(/steps\.setup\.outputs\.prepared == 'true'/gu)).toHaveLength(3);
         expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
     });
 });

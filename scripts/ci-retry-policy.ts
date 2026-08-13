@@ -77,6 +77,8 @@ export interface RetryPolicyDecision {
 
 const protectedPathPatterns = [
     /^\.github\/workflows\//,
+    /^\.github\/actions\//,
+    /^\.bun-version$/,
     /^(?:package|package-lock)\.json$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
