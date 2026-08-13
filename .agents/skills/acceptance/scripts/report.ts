@@ -11,6 +11,10 @@ import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
+import { rebindReportDocument, type RebindReportHeadInput } from './report-head';
+import { reportCliHelp } from './report-help';
+
+export type { RebindReportHeadInput } from './report-head';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -465,6 +469,18 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
     return resultPath;
 }
 
+/**
+ * Rebinds an unfinished local round without reconstructing generated JSON by hand. The expected
+ * old head makes stale callers fail closed, while the audit entry keeps the evidence lineage
+ * visible when a non-product repair changes the exact delivery head before publication.
+ */
+export async function rebindReportHead(input: RebindReportHeadInput): Promise<void> {
+    const directory = await validateExistingReportDirectory(input.directory);
+    const resultPath = join(directory, 'result.json');
+    const raw: unknown = JSON.parse(await readFile(resultPath, 'utf8'));
+    await writeJsonAtomically(resultPath, rebindReportDocument(raw, input));
+}
+
 function evidencePath(evidence: z.infer<typeof evidenceSchema>): string {
     return typeof evidence === 'string' ? evidence : evidence.path;
 }
@@ -701,28 +717,41 @@ async function readPlan(path: string): Promise<PlanItem[]> {
     return z.array(planItemSchema).min(1).parse(plan);
 }
 
-function help(): string {
-    return `Caxri Acceptance report scaffold
-
-Commands:
-  init --dir DIR --plan PLAN_JSON --title TEXT --entry TEXT --requirement TEXT
-       [--branch NAME] [--commit SHA] [--pull-request N]
-  finalize --dir DIR --requirement TEXT [--conclusion TEXT]`;
-}
-
 async function main(argv: string[]): Promise<void> {
     const [command, ...tokens] = argv;
     if (!command || command === 'help' || command === '--help' || tokens.includes('--help')) {
-        console.log(help());
+        console.log(reportCliHelp());
         return;
     }
-    if (command !== 'init' && command !== 'finalize') {
+    if (command !== 'init' && command !== 'rebind-head' && command !== 'finalize') {
         throw new Error(`Unknown command: ${command}`);
     }
     const options = parseOptions(tokens);
     const directory = option(options, 'dir', true);
+    if (!directory) throw new Error('Missing report directory');
+
+    if (command === 'rebind-head') {
+        const commit = option(options, 'commit', true);
+        const entry = option(options, 'entry', true);
+        const fromCommit = option(options, 'from-commit', true);
+        const reason = option(options, 'reason', true);
+        if (!commit || !entry || !fromCommit || !reason) {
+            throw new Error('Missing report head rebind input');
+        }
+        await rebindReportHead({
+            commit,
+            createdAt: option(options, 'created-at'),
+            directory,
+            entry,
+            fromCommit,
+            reason,
+        });
+        console.log(join(resolve(PROJECT_ROOT, directory), 'result.json'));
+        return;
+    }
+
     const requirement = option(options, 'requirement', true);
-    if (!directory || !requirement) throw new Error('Missing report directory or requirement');
+    if (!requirement) throw new Error('Missing report requirement');
 
     if (command === 'init') {
         const planPath = option(options, 'plan', true);

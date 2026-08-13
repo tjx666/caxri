@@ -40,8 +40,10 @@ Check only prerequisites relevant to the planned workflow:
 - dependencies needed by selected issues;
 - availability of the macOS Electron acceptance path.
 
-The intake snapshot retries each read-only GitHub query once when the CLI fails. If both attempts
-fail, stop and report the final failure rather than bypassing the snapshot or broadening the query.
+The intake snapshot runs the canonical LobeHub probe and records only a boolean
+success marker, never the returned profile payload. It retries each read-only
+GitHub query once when the CLI fails. If both attempts fail, stop and report the
+final failure rather than bypassing the snapshot or broadening the query.
 
 Resolve safe agent-owned mechanics without asking the user. Do not start the
 desktop app merely to approve the plan.

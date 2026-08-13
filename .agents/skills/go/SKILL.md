@@ -58,7 +58,8 @@ reconstruct the audit by rereading the transcript at the end.
 Read [references/intake.md](references/intake.md) in full.
 
 1. Refresh the working tree, current branch, open issues, related PRs, and
-   authentication state without modifying them.
+   authentication state without modifying them. Use the intake snapshot so its
+   canonical `lobehub whoami --json` probe fails closed before Acceptance work.
 2. Normalize the user's requirements. Deduplicate them and classify each as
    execute now, already satisfied, defer, reject, or discuss before execution.
 3. Invoke the `competitors` skill before proposing issue solutions. Use current
@@ -120,6 +121,11 @@ For each queued issue in dependency order:
    stable Acceptance ids in the ledger. Issue completion fails closed when the
    assessment is missing, stale, unpublished, or awaiting a decision. Continue
    immediately to the next issue.
+
+Before installing a new `@xterm/*` beta package, run `xterm-beta-line.ts` with
+one `--resolve` per new package. Use only the exact specs it prints for `ni`;
+the resolver must verify every manifest package and candidate against one
+monorepo `gitHead` and the pinned `@xterm/xterm` peer contract first.
 
 Do not capture final Acceptance evidence yet; later cross-issue repairs can make
 it stale.
@@ -232,8 +238,10 @@ accepted head and requires review plus another Acceptance round.
 4. Read [references/report.md](references/report.md). Reuse the already persisted
    handoff report rather than regenerating it. Write `finalization.json` from
    refreshed remote evidence for the accepted/waived head, merged PR, merge SHA,
-   every intended closed issue, and Project `Done` state. Deliver the brief
-   finalization receipt and record both delivery timestamps before completion.
+   every intended closed issue, and Project `Done` state. The generated command
+   output is the brief final-response template; include its `Workflow 改进` and
+   `自动化候选` sections even when either contains an explicit none entry. Record
+   both delivery timestamps before completion.
 5. Always identify concrete token waste from this run and repeated manual steps
    that should become scripts. Record both the observed cost and the prevention;
    explicitly say none was found instead of omitting either audit.

@@ -31,6 +31,20 @@ reproducible. Keep commits cohesive and independently explainable. A shared root
 cause may satisfy multiple issues, but the ledger and issue-level Acceptance
 contracts retain each observable outcome.
 
+For a new `@xterm/*` beta dependency, resolve its package-specific beta number
+before installation; monorepo packages published from one commit do not share a
+common beta suffix:
+
+```bash
+bun run .agents/skills/go/scripts/xterm-beta-line.ts \
+  --resolve @xterm/addon-webgl
+```
+
+The command performs no install. It verifies existing exact manifest pins, the
+candidate's `gitHead`, and its `@xterm/xterm` peer range, then prints the exact
+specifier to pass to `ni`. Never guess an addon's beta suffix from the core
+package version.
+
 Before completion, compare the observed implementation and evidence with the
 issue's public expectation. Record an explicit assessment for the issue commit.
 Material root-cause, architecture, Acceptance, scope, compatibility, or
