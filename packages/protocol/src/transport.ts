@@ -75,7 +75,7 @@ export function parseRuntimeResult<M extends RuntimeMethod>(
     return parsed.data as RuntimeMethodResult<M>;
 }
 
-const wireErrorSchema = z
+export const wireErrorSchema = z
     .object({
         code: z.unknown(),
         message: z.string().min(1),

@@ -7,9 +7,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HostClient } from '../../../packages/cli/src/host-client';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
+import type { CaxriError } from '../../shared/ipc/errors';
 import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { LocalHostServer } from '../local-server';
+import { AgentEndpointRegistry } from '../agent-endpoints';
 import { acquireHostProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -155,6 +157,9 @@ describe('local Host transport', () => {
         expect(welcome.capabilities).toEqual([
             'desktop.window',
             'diagnostics.read',
+            'agents.read',
+            'agents.control',
+            'agents.grant',
             'events.read',
             'host.read',
             'host.stop',
@@ -172,6 +177,8 @@ describe('local Host transport', () => {
         expect(welcome.commands).toContain('settings.patch');
         expect(welcome.commands).toContain('logs.query');
         expect(welcome.commands).toContain('events.query');
+        expect(welcome.commands).toContain('agent.list');
+        expect(welcome.commands).toContain('agent.grant');
         expect(welcome.commands).not.toContain('events.recover');
         socket.write(
             `${JSON.stringify({
@@ -212,6 +219,77 @@ describe('local Host transport', () => {
         );
         await new Promise<void>((resolve) => socket.once('close', () => resolve()));
         expect(invoke).not.toHaveBeenCalled();
+    });
+
+    it('authenticates Agent credentials and revalidates grants and generation per command', async () => {
+        const lease = await profile();
+        const token = 'ab'.repeat(32);
+        const endpoints = new AgentEndpointRegistry(lease.manifest.processIdentity, {
+            token: () => token,
+        });
+        const endpoint = endpoints.begin({
+            terminalId: 'terminal-1',
+            sessionId: 'session-1',
+            projectId: 'project-1',
+            provider: 'codex',
+            launchId: 'launch-1',
+            name: 'Codex',
+            permissionClass: 'standard',
+            deliveryMode: 'unavailable',
+        });
+        const server = new LocalHostServer({
+            adapters: {
+                host: {
+                    invoke: (request, context) => {
+                        if (request.method === 'agent.context') return endpoints.context(context);
+                        if (request.method === 'diagnostics.snapshot')
+                            return {
+                                appVersion: '1.0.0',
+                                protocolVersion: 1,
+                                runtimeStatus: 'ready',
+                                startedAt: 1,
+                                activePtyCount: 0,
+                                projectCount: 1,
+                                sessionCount: 1,
+                                terminalCount: 1,
+                                recentErrorIds: [],
+                                performance: [],
+                            };
+                        return null;
+                    },
+                },
+            },
+            authenticateAgent: (credential) => endpoints.authenticate(credential),
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+            refreshContext: (context) => endpoints.refresh(context),
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'agent',
+            hostId: endpoint.ref.hostId,
+            endpointId: endpoint.ref.endpointId,
+            generation: endpoint.ref.generation,
+            token,
+        });
+
+        expect(client.welcome.principal).toMatchObject({
+            kind: 'agent',
+            endpointId: endpoint.ref.endpointId,
+            projectIds: ['project-1'],
+        });
+        expect(client.welcome.commands).not.toContain('diagnostics.snapshot');
+        await expect(client.request('agent.context')).resolves.toMatchObject({ status: 'active' });
+        endpoints.grant(endpoint.ref, 'debug:read', 60_000);
+        await expect(client.request('diagnostics.snapshot')).resolves.toMatchObject({
+            projectCount: 1,
+        });
+        expect(endpoints.retire({ ref: endpoint.ref, launchId: 'launch-1' })).toBe(true);
+        await expect(client.request('agent.context')).rejects.toEqual(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as CaxriError,
+        );
+        client.close();
     });
 
     it('does not let the operator credential self-assert the Desktop principal', async () => {

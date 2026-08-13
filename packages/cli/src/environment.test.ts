@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveCliProfile } from './environment';
+import { resolveAgentEndpointCredential, resolveCliProfile } from './environment';
 
 describe('CLI profile resolution', () => {
+    it('requires one complete Agent Endpoint generation credential', () => {
+        expect(
+            resolveAgentEndpointCredential({
+                CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),
+                CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
+                CAXRI_AGENT_ENDPOINT_GENERATION: '2',
+                CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
+            }),
+        ).toEqual({
+            kind: 'agent',
+            hostId: 'a'.repeat(32),
+            endpointId: 'endpoint-1',
+            generation: 2,
+            token: 'ab'.repeat(32),
+        });
+        expect(() =>
+            resolveAgentEndpointCredential({ CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1' }),
+        ).toThrow('incomplete or invalid');
+    });
+
     it('uses the explicit selector before the shared profile environment', () => {
         expect(
             resolveCliProfile({

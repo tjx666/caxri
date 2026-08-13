@@ -3,6 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
 import { CaxriError, fromWireError } from '../shared/ipc/errors';
+import { toWireError } from '../shared/ipc/errors';
+import {
+    runtimeHostControlRequestSchema,
+    type RuntimeHostControlRequest,
+} from '../shared/ipc/agent-endpoint-control';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod, RuntimeMethodResult, RuntimeParamsArg } from '../shared/ipc/methods';
 import { isNonExpiringRuntimeMethod } from '../shared/ipc/request-lifetime';
@@ -28,6 +33,7 @@ interface RuntimeReadiness {
 }
 
 export interface HostRuntimeSupervisorOptions {
+    agentEndpointControl?(request: RuntimeHostControlRequest): unknown;
     agentHooksPath?: string;
     appVersion: string;
     commit: string;
@@ -154,6 +160,11 @@ export class HostRuntimeSupervisor extends EventEmitter {
     }
 
     private onMessage(raw: unknown): void {
+        const control = runtimeHostControlRequestSchema.safeParse(raw);
+        if (control.success) {
+            void this.handleControl(control.data);
+            return;
+        }
         let message: RuntimeMessage;
         try {
             message = parseRuntimeMessage(raw);
@@ -193,10 +204,40 @@ export class HostRuntimeSupervisor extends EventEmitter {
         }
     }
 
+    private async handleControl(request: RuntimeHostControlRequest): Promise<void> {
+        const child = this.child;
+        if (!child?.connected) return;
+        let reply: unknown;
+        try {
+            if (!this.options.agentEndpointControl)
+                throw new CaxriError('UNAVAILABLE', 'Agent Endpoint control is unavailable');
+            reply = {
+                type: 'host-control.reply',
+                id: request.id,
+                ok: true,
+                result: await this.options.agentEndpointControl(request),
+            };
+        } catch (error) {
+            reply = {
+                type: 'host-control.reply',
+                id: request.id,
+                ok: false,
+                error: toWireError(error),
+            };
+        }
+        if (this.child !== child || !child.connected) return;
+        try {
+            child.send(reply as Parameters<ChildProcess['send']>[0]);
+        } catch {
+            // Runtime exit owns revocation; no credential is retained in this reply path.
+        }
+    }
+
     private onExit(code: number): void {
         if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
         this.stabilityTimer = undefined;
         this.child = undefined;
+        this.emit('runtimeExit');
         for (const pending of this.pending.values()) {
             if (pending.timer) clearTimeout(pending.timer);
             pending.reject(new CaxriError('UNAVAILABLE', `Runtime exited with code ${code}`));

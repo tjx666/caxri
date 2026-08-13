@@ -23,6 +23,10 @@ describe('CLI business command catalog', () => {
                 'logs follow',
                 'diagnostics snapshot',
                 'events watch',
+                'agent list',
+                'agent grants',
+                'agent grant',
+                'agent revoke',
             ]),
         );
     });
@@ -52,5 +56,21 @@ describe('CLI business command catalog', () => {
                 ? logs.parseParams(['--process', 'runtime', '--level', 'error', '--limit', '25'])
                 : null,
         ).toEqual({ process: 'runtime', level: 'error', limit: 25 });
+
+        const grant = findCliCommand(['agent', 'grant']);
+        expect(
+            grant?.kind === 'remote'
+                ? grant.parseParams([
+                      `${'a'.repeat(32)}:endpoint-1:2`,
+                      'debug:read',
+                      '--ttl-ms',
+                      '60000',
+                  ])
+                : null,
+        ).toEqual({
+            endpoint: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 2 },
+            policy: 'debug:read',
+            ttlMs: 60_000,
+        });
     });
 });

@@ -62,6 +62,58 @@ describe('Host Runtime supervisor', () => {
         await expect(health).resolves.toMatchObject({ ready: true, pid: 42 });
     });
 
+    it('correlates private Agent Endpoint control without publishing a Runtime event', async () => {
+        const child = new FakeChild();
+        const agentEndpointControl = vi.fn(() => ({
+            ref: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 1 },
+            token: 'ab'.repeat(32),
+            expiresAt: 10_000,
+        }));
+        const supervisor = new HostRuntimeSupervisor(
+            { ...options(), agentEndpointControl },
+            vi.fn(() => child as never),
+        );
+        const event = vi.fn();
+        supervisor.on('event', event);
+        const starting = supervisor.start();
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await starting;
+        child.send.mockClear();
+
+        child.emit('message', {
+            type: 'host-control.request',
+            id: 'control-1',
+            operation: 'agent-endpoint.begin',
+            params: {
+                terminalId: 'terminal-1',
+                sessionId: 'session-1',
+                projectId: 'project-1',
+                provider: 'codex',
+                launchId: 'launch-1',
+                name: 'Codex',
+                permissionClass: 'standard',
+                deliveryMode: 'unavailable',
+            },
+        });
+        await vi.waitFor(() => expect(child.send).toHaveBeenCalledTimes(1));
+
+        expect(agentEndpointControl).toHaveBeenCalledOnce();
+        expect(child.send).toHaveBeenCalledWith({
+            type: 'host-control.reply',
+            id: 'control-1',
+            ok: true,
+            result: {
+                ref: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 1 },
+                token: 'ab'.repeat(32),
+                expiresAt: 10_000,
+            },
+        });
+        expect(event).toHaveBeenCalledTimes(1);
+    });
+
     it('restarts a crashed Runtime with a bounded backoff', async () => {
         vi.useFakeTimers();
         const first = new FakeChild();
@@ -74,7 +126,10 @@ describe('Host Runtime supervisor', () => {
             payload: { status: 'ready', restartCount: 0 },
         });
         await starting;
+        const runtimeExit = vi.fn();
+        supervisor.on('runtimeExit', runtimeExit);
         first.emit('exit', 1);
+        expect(runtimeExit).toHaveBeenCalledOnce();
         await vi.advanceTimersByTimeAsync(250);
         expect(fork).toHaveBeenCalledTimes(2);
         second.emit('message', {

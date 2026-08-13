@@ -61,6 +61,9 @@ function operatorContext(profileId: string): CommandExecutionContext {
         capabilities: [
             'desktop.window',
             'diagnostics.read',
+            'agents.read',
+            'agents.control',
+            'agents.grant',
             'events.read',
             'host.read',
             'host.stop',
@@ -119,6 +122,12 @@ interface DesktopLeaseWaiter {
 
 export interface LocalHostServerOptions {
     adapters: CommandDispatcherOptions;
+    authenticateAgent?(credential: {
+        hostId: string;
+        endpointId: string;
+        generation: number;
+        token: string;
+    }): CommandExecutionContext;
     consumeDesktopTarget?(targetId: string, generation: number): Promise<DesktopTargetPayload>;
     desktopCredential: HostDesktopCredential;
     invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
@@ -126,6 +135,7 @@ export interface LocalHostServerOptions {
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;
     onReplyFlushed?(request: LocalClientCommand['request'], reply: LocalServerReply['reply']): void;
+    refreshContext?(context: CommandExecutionContext): CommandExecutionContext;
 }
 
 /** Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients. */
@@ -370,6 +380,17 @@ export class LocalHostServer {
                                     return;
                                 }
                                 context = operatorContext(this.options.manifest.profileId);
+                            } else if (hello.credential.kind === 'agent') {
+                                if (!this.options.authenticateAgent) {
+                                    socket.destroy();
+                                    return;
+                                }
+                                try {
+                                    context = this.options.authenticateAgent(hello.credential);
+                                } catch {
+                                    socket.destroy();
+                                    return;
+                                }
                             } else {
                                 const credential = this.options.desktopCredential;
                                 if (
@@ -528,7 +549,25 @@ export class LocalHostServer {
                             return;
                         }
                         const command = localClientCommandSchema.parse(raw);
-                        const currentContext = clientState.context;
+                        let currentContext: CommandExecutionContext;
+                        try {
+                            currentContext =
+                                this.options.refreshContext?.(clientState.context) ??
+                                clientState.context;
+                        } catch (error) {
+                            const reply = {
+                                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                                id: command.request.id,
+                                ok: false as const,
+                                error: toWireError(error),
+                            };
+                            this.write(
+                                socket,
+                                localServerReplySchema.parse({ type: 'reply', reply }),
+                                () => this.options.onReplyFlushed?.(command.request, reply),
+                            );
+                            return;
+                        }
                         const reply =
                             currentContext.principal.kind === 'desktop' &&
                             this.currentDesktop !== clientState

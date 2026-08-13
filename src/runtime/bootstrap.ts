@@ -25,6 +25,7 @@ import {
     type AgentAdapter,
     type AgentEnvironment,
 } from './agents';
+import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
 import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './db';
 import { DiagnosticsService } from './diagnostics';
@@ -74,6 +75,8 @@ export interface RuntimeDeps {
     agentHooksPath?: string;
     /** Executable the staged bridge uses in Node mode. Defaults to the current Electron binary. */
     runtimeExecutable?: string;
+    /** Host-issued endpoint leases are available only in the supervised headless Runtime. */
+    agentEndpoints?: RuntimeAgentEndpointLifecycle;
 }
 
 export interface Runtime {
@@ -164,9 +167,28 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const terminals = new TerminalManager(database, send, logger, {
         ...deps.terminal,
         agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
-        lifecycleEnvironment: (terminal) =>
-            agentHooks.terminalEnvironment(terminal.id, terminal.provider),
-        onLifecycleRetired: (terminalId) => agentHooks.endTerminalLaunch(terminalId),
+        lifecycleEnvironment: async (terminal, launch) => {
+            const hookEnvironment = agentHooks.terminalEnvironment(terminal.id, terminal.provider);
+            if (terminal.kind === 'shell' || !launch || !deps.agentEndpoints)
+                return hookEnvironment;
+            const session = database.getSession(terminal.sessionId);
+            if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
+            return {
+                ...hookEnvironment,
+                ...(await deps.agentEndpoints.environment(terminal, session.projectId, launch)),
+            };
+        },
+        onLifecycleRetired: (terminalId) => {
+            agentHooks.endTerminalLaunch(terminalId);
+            void deps.agentEndpoints?.retire(terminalId).catch((error: unknown) =>
+                logger.write('warn', 'agent_endpoint.retire_failed', {
+                    fields: {
+                        terminalId,
+                        error: error instanceof Error ? error.message : String(error),
+                    },
+                }),
+            );
+        },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
         shellIntegration: (executable, environment) =>
@@ -407,12 +429,18 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         unsubscribeHookSettings();
         await hookSettingsReconcile;
         await agentHooks.close();
+        await deps.agentEndpoints?.close();
         await files.close();
         await configuration.close();
         database.close();
     }
 
     const handlers: RuntimeHandlers = {
+        'agent.context': () => mainOwned('agent.context'),
+        'agent.list': () => mainOwned('agent.list'),
+        'agent.grants': () => mainOwned('agent.grants'),
+        'agent.grant': () => mainOwned('agent.grant'),
+        'agent.revoke': () => mainOwned('agent.revoke'),
         'app.bootstrap': () => bootstrapState(),
         'events.recover': () => mainOwned('events.recover'),
         'events.query': () => mainOwned('events.query'),

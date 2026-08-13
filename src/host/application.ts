@@ -15,6 +15,7 @@ import { LocalHostServer } from './local-server';
 import { HostDesktopRouter } from './desktop-router';
 import { acquireHostProfile, type HostProfileLease } from './profile';
 import { HostRuntimeSupervisor } from './runtime-supervisor';
+import { AgentEndpointRegistry } from './agent-endpoints';
 
 export interface HostApplicationOptions {
     agentHooksPath?: string;
@@ -46,7 +47,13 @@ export async function startHostApplication(
         userDataPath: options.userDataPath,
         version: options.version,
     });
+    const agentEndpoints = new AgentEndpointRegistry(lease.manifest.processIdentity);
     const supervisor = new HostRuntimeSupervisor({
+        agentEndpointControl: (request) => {
+            if (request.operation === 'agent-endpoint.begin')
+                return agentEndpoints.begin(request.params);
+            return { retired: agentEndpoints.retire(request.params) };
+        },
         agentHooksPath: options.agentHooksPath,
         appVersion: options.version,
         commit: options.commit,
@@ -81,6 +88,17 @@ export async function startHostApplication(
         if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
         if (spec.effect === 'read') return supervisor.forward(request.method, request.params);
         if (mutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
+        if (request.method === 'terminal.close' || request.method === 'terminal.restart')
+            agentEndpoints.retireTerminal(request.params.terminalId);
+        else if (request.method === 'session.delete')
+            agentEndpoints.retireSession(request.params.sessionId);
+        else if (request.method === 'project.delete')
+            agentEndpoints.retireProject(request.params.projectId);
+        else if (
+            request.method === 'terminal.terminateAll' ||
+            request.method === 'runtime.shutdown'
+        )
+            agentEndpoints.clear();
         mutationsInFlight += 1;
         try {
             return await supervisor.forward(request.method, request.params);
@@ -105,6 +123,8 @@ export async function startHostApplication(
     });
 
     const deliver = (event: RuntimeEvent): void => {
+        if (event.event === 'terminal.exit')
+            agentEndpoints.retireTerminal(event.payload.terminalId);
         if (event.event === 'runtime.status')
             logger.write(event.payload.status === 'failed' ? 'error' : 'info', 'runtime.status', {
                 fields: {
@@ -115,6 +135,7 @@ export async function startHostApplication(
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
     supervisor.on('event', deliver);
+    supervisor.on('runtimeExit', () => agentEndpoints.clear());
 
     const stop = (reason = 'requested'): Promise<void> => {
         mutationAdmissionClosed = true;
@@ -136,6 +157,20 @@ export async function startHostApplication(
                 return projectObservableEventRecovery(
                     await journal.recover(request.params.afterCursor),
                 );
+            if (request.method === 'agent.context') return agentEndpoints.context(context);
+            if (request.method === 'agent.list') return { agents: agentEndpoints.list(context) };
+            if (request.method === 'agent.grants')
+                return { grants: agentEndpoints.grants(request.params.endpoint) };
+            if (request.method === 'agent.grant')
+                return agentEndpoints.grant(
+                    request.params.endpoint,
+                    request.params.policy,
+                    request.params.ttlMs,
+                );
+            if (request.method === 'agent.revoke')
+                return {
+                    revoked: agentEndpoints.revoke(request.params.endpoint, request.params.grantId),
+                };
             if (request.method === 'host.status') {
                 const health = await supervisor.request('app.health');
                 return {
@@ -195,16 +230,32 @@ export async function startHostApplication(
                     if (!accepted) mutationAdmissionClosed = false;
                 }
             }
-            if (request.method === 'project.query')
+            if (request.method === 'project.query') {
+                const endpoint =
+                    context.principal.kind === 'agent'
+                        ? agentEndpoints.context(context).endpoint
+                        : undefined;
                 return supervisor.request('project.queryForPrincipal', {
                     principal: context.principal,
-                    query: request.params,
+                    query:
+                        endpoint && request.params.mode === 'current'
+                            ? { mode: 'show', selector: endpoint.projectId }
+                            : request.params,
                 });
-            if (request.method === 'session.query')
+            }
+            if (request.method === 'session.query') {
+                const endpoint =
+                    context.principal.kind === 'agent'
+                        ? agentEndpoints.context(context).endpoint
+                        : undefined;
                 return supervisor.request('session.queryForPrincipal', {
                     principal: context.principal,
-                    query: request.params,
+                    query:
+                        endpoint && request.params.mode === 'current'
+                            ? { mode: 'show', selector: endpoint.sessionId }
+                            : request.params,
                 });
+            }
             if (request.method === 'terminal.query')
                 return supervisor.request('terminal.queryForPrincipal', {
                     principal: context.principal,
@@ -218,6 +269,7 @@ export async function startHostApplication(
         await supervisor.start();
         server = new LocalHostServer({
             adapters: { host },
+            authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)
                     throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
@@ -237,6 +289,7 @@ export async function startHostApplication(
                 commandStopFallback = undefined;
                 void stop('command');
             },
+            refreshContext: (context) => agentEndpoints.refresh(context),
         });
         desktopRouter = new HostDesktopRouter({
             bridge: {
