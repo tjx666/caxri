@@ -16,6 +16,8 @@ describe('CI workflow contract', () => {
         expect(retryPolicyJob).toContain(
             'ref: ${{ github.event.pull_request.head.sha || github.sha }}',
         );
+        expect(retryPolicyJob).toContain('reused_e2e_run:');
+        expect(retryPolicyJob).toContain('reused_e2e_head:');
     });
 
     it('keeps one explicit npm cache owner and measures install phases separately', () => {
@@ -37,6 +39,7 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
         expect(workflow).toContain('focused-skills');
         expect(workflow).toContain('run: bun run scripts/run-ci-focused-checks.ts');
+        expect(workflow).toContain('- name: Run ESLint');
         expect(workflow).toContain("needs.retry-policy.outputs.run_e2e == 'true'");
         const interruptionIndex = workflow.indexOf('Desktop worker interruption recovery');
         const optimizedPoolIndex = workflow.indexOf('bun run scripts/run-e2e-pools.ts');

@@ -1,3 +1,5 @@
+import { isReusableGreenDeltaPath, isReusableGreenSkillPath } from './ci-green-reuse';
+
 export type CIChecksScope =
     'focused-docs' | 'focused-skills' | 'focused-source' | 'full' | 'skipped';
 type CIE2EProfile = 'control' | 'optimized';
@@ -8,7 +10,14 @@ export interface CIExecutionPlanInput {
     eventName: string;
     isReleaseCommit?: boolean;
     pullRequestDraft?: boolean;
+    reusableGreenRun?: CIReusableGreenRun;
     retryMode?: 'e2e-only' | 'e2e-repair';
+}
+
+export interface CIReusableGreenRun {
+    changedFiles: string[];
+    headSha: string;
+    runId: number;
 }
 
 export interface CIExecutionPlan {
@@ -55,6 +64,22 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
     }
 
     if (input.eventName === 'pull_request') {
+        const reusable = input.reusableGreenRun;
+        if (
+            reusable &&
+            Number.isInteger(reusable.runId) &&
+            reusable.runId > 0 &&
+            /^[0-9a-f]{40}$/u.test(reusable.headSha) &&
+            containsOnly(reusable.changedFiles, isReusableGreenDeltaPath)
+        ) {
+            const skillDelta = reusable.changedFiles.some(isReusableGreenSkillPath);
+            return {
+                checksScope: skillDelta ? 'focused-skills' : 'focused-docs',
+                e2eProfile: 'control',
+                reason: `ancestor full-green run ${reusable.runId}; ${skillDelta ? 'repository-skill' : 'documentation'} delta`,
+                runE2E: false,
+            };
+        }
         if (
             input.changedFiles.some(isRepositorySkillPath) &&
             containsOnly(

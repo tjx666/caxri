@@ -1,7 +1,13 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 
-import { evaluateCIExecutionPlan, type CIExecutionPlan } from './ci-execution-plan';
+import {
+    evaluateCIExecutionPlan,
+    type CIExecutionPlan,
+    type CIExecutionPlanInput,
+    type CIReusableGreenRun,
+} from './ci-execution-plan';
+import { evaluateGreenReusePolicy, type GreenRunEvidence } from './ci-green-reuse';
 
 export interface RetryHint {
     baseRunId: number;
@@ -20,6 +26,29 @@ export interface BaseRunEvidence {
     repository: string;
     workflowPath?: string;
 }
+
+interface WorkflowJobRecord {
+    conclusion?: string;
+    name?: string;
+    steps?: Array<{ conclusion?: string; name?: string }>;
+}
+
+interface WorkflowRunRecord {
+    conclusion?: string;
+    event?: string;
+    head_sha?: string;
+    id?: number;
+    path?: string;
+    pull_requests?: Array<{ base?: { sha?: string }; number?: number }>;
+    repository?: { full_name?: string };
+}
+
+interface GreenReuseResolution extends CIReusableGreenRun {
+    reason: string;
+}
+
+/** The workflow contract pins this step as the receipt that the checks job used full scope. */
+const fullChecksReceiptStep = 'Run ESLint';
 
 export interface RetryPolicyInput {
     baseRunChangedFiles: string[];
@@ -49,7 +78,7 @@ const protectedPathPatterns = [
     /^(?:package|package-lock)\.json$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-execution-plan|ci-metrics|ci-retry-policy|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-hosted-parity)\.ts$/,
+    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|run-ci-focused-checks|run-e2e-failure-isolation|run-e2e-pools|run-hosted-parity)\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
@@ -179,6 +208,10 @@ function nullSeparatedPaths(value: string): string[] {
     return value.split('\0').filter(Boolean);
 }
 
+export function greenReuseDiffArguments(ancestor: string, current: string): string[] {
+    return ['diff', '--no-renames', '--name-only', '-z', `${ancestor}...${current}`];
+}
+
 async function githubJson(path: string): Promise<unknown> {
     const api = process.env.GITHUB_API_URL ?? 'https://api.github.com';
     const response = await fetch(`${api}${path}`, {
@@ -204,6 +237,29 @@ export function extractBaseRunIdentity(
         ?.map(({ name }) => /^retry-policy \/ pr-(\d+) \/ base-([0-9a-f]{40})$/u.exec(name ?? ''))
         .find((match) => match !== null);
     return receipt ? { baseSha: receipt[2], pullRequestNumber: Number(receipt[1]) } : {};
+}
+
+export function extractGreenRunEvidence(
+    run: WorkflowRunRecord,
+    jobs: WorkflowJobRecord[],
+): GreenRunEvidence {
+    const identity = extractBaseRunIdentity(run.pull_requests, jobs);
+    const checks = jobs.find(({ name }) => name === 'checks');
+    return {
+        baseSha: identity.baseSha,
+        checksConclusion: checks?.conclusion,
+        e2eConclusion: jobs.find(({ name }) => name === 'e2e')?.conclusion,
+        event: run.event ?? '',
+        fullChecksConclusion: checks?.steps?.find(({ name }) => name === fullChecksReceiptStep)
+            ?.conclusion,
+        gateConclusion: jobs.find(({ name }) => name === 'CI gate')?.conclusion,
+        headSha: run.head_sha ?? '',
+        id: run.id ?? 0,
+        pullRequestNumber: identity.pullRequestNumber,
+        repository: run.repository?.full_name ?? '',
+        runConclusion: run.conclusion,
+        workflowPath: run.path,
+    };
 }
 
 async function loadBaseRun(repository: string, runId: number): Promise<BaseRunEvidence> {
@@ -232,10 +288,90 @@ async function loadBaseRun(repository: string, runId: number): Promise<BaseRunEv
     };
 }
 
+/**
+ * Searches only the latest successful runs on the current PR branch. Missing API, lineage, job,
+ * or path evidence returns no receipt so the caller keeps full Linux and macOS coverage.
+ */
+async function findReusableGreenRun(input: {
+    currentHeadSha: string;
+    eventName: string;
+    headRef: string;
+    pullRequestBaseSha: string;
+    pullRequestNumber: number;
+    repository: string;
+    workflowPath: string;
+}): Promise<{ reason: string; reusableGreenRun?: GreenReuseResolution }> {
+    const workflowId = encodeURIComponent(input.workflowPath.split('/').at(-1) ?? '');
+    const query = new URLSearchParams({
+        branch: input.headRef,
+        event: 'pull_request',
+        per_page: '20',
+        status: 'success',
+    });
+    const value = (await githubJson(
+        `/repos/${input.repository}/actions/workflows/${workflowId}/runs?${query.toString()}`,
+    )) as { workflow_runs?: WorkflowRunRecord[] };
+    const runs = value.workflow_runs ?? [];
+    let lastReason = 'no successful workflow run exists on the pull-request branch';
+
+    for (const run of runs) {
+        if (!run.id || run.head_sha === input.currentHeadSha) continue;
+        let changedFiles: string[];
+        try {
+            await capture('git', [
+                'merge-base',
+                '--is-ancestor',
+                run.head_sha ?? '',
+                input.currentHeadSha,
+            ]);
+            changedFiles = nullSeparatedPaths(
+                await capture(
+                    'git',
+                    greenReuseDiffArguments(run.head_sha ?? '', input.currentHeadSha),
+                ),
+            );
+        } catch {
+            lastReason = `run ${run.id} is not an available ancestor of the current head`;
+            continue;
+        }
+        const jobsValue = (await githubJson(
+            `/repos/${input.repository}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
+        )) as { jobs?: WorkflowJobRecord[] };
+        const candidate = extractGreenRunEvidence(run, jobsValue.jobs ?? []);
+        const decision = evaluateGreenReusePolicy({
+            candidate,
+            changedFiles,
+            currentHeadSha: input.currentHeadSha,
+            eventName: input.eventName,
+            isAncestor: true,
+            pullRequestBaseSha: input.pullRequestBaseSha,
+            pullRequestNumber: input.pullRequestNumber,
+            repository: input.repository,
+            workflowPath: input.workflowPath,
+        });
+        if (decision.eligible) {
+            return {
+                reason: decision.reason,
+                reusableGreenRun: {
+                    changedFiles,
+                    headSha: candidate.headSha,
+                    reason: decision.reason,
+                    runId: candidate.id,
+                },
+            };
+        }
+        lastReason = decision.reason;
+    }
+
+    return { reason: lastReason };
+}
+
 async function writeDecision(
     decision: RetryPolicyDecision,
     execution: CIExecutionPlan,
-    changedFiles: readonly string[],
+    allChangedFiles: readonly string[],
+    executionChangedFiles: readonly string[],
+    greenReuse: { reason: string; reusableGreenRun?: GreenReuseResolution },
 ): Promise<void> {
     const output = process.env.GITHUB_OUTPUT;
     const summary = process.env.GITHUB_STEP_SUMMARY;
@@ -252,14 +388,16 @@ async function writeDecision(
                 `checks_scope=${execution.checksScope}`,
                 `run_e2e=${String(execution.runE2E)}`,
                 `e2e_profile=${execution.e2eProfile}`,
-                `changed_files=${JSON.stringify(changedFiles)}`,
+                `changed_files=${JSON.stringify(executionChangedFiles)}`,
+                `reused_e2e_run=${greenReuse.reusableGreenRun?.runId ?? ''}`,
+                `reused_e2e_head=${greenReuse.reusableGreenRun?.headSha ?? ''}`,
             ].join('\n') + '\n',
         );
     }
     if (summary) {
         await appendFile(
             summary,
-            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Changed files: ${changedFiles.length}\n`,
+            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replace(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
         );
     }
     process.stdout.write(`${JSON.stringify(decision)}\n`);
@@ -275,14 +413,18 @@ async function main(): Promise<void> {
         pull_request?: {
             base?: { sha?: string };
             draft?: boolean;
+            head?: { ref?: string };
             number?: number;
         };
     };
-    const [commitMessage, commitSubject, packageManifest] = await Promise.all([
-        capture('git', ['log', '-1', '--format=%B']),
-        capture('git', ['log', '-1', '--format=%s']),
-        readFile(new URL('../package.json', import.meta.url), 'utf8'),
-    ]);
+    const [commitMessage, commitSubject, packageManifest, currentHeadSha, currentTree] =
+        await Promise.all([
+            capture('git', ['log', '-1', '--format=%B']),
+            capture('git', ['log', '-1', '--format=%s']),
+            readFile(new URL('../package.json', import.meta.url), 'utf8'),
+            capture('git', ['rev-parse', 'HEAD']),
+            capture('git', ['rev-parse', 'HEAD^{tree}']),
+        ]);
     const parsed = parseRetryHint(commitMessage);
     const comparisonBase =
         event.pull_request?.base?.sha ??
@@ -320,7 +462,7 @@ async function main(): Promise<void> {
         baseRun,
         baseRunChangedFiles,
         changedFiles: retryChangedFiles,
-        currentTree: await capture('git', ['rev-parse', 'HEAD^{tree}']),
+        currentTree,
         eventName: process.env.GITHUB_EVENT_NAME ?? '',
         hint: parsed.hint,
         hintError: parsed.error,
@@ -331,7 +473,7 @@ async function main(): Promise<void> {
         workflowPath: '.github/workflows/ci.yml',
     });
     const packageVersion = (JSON.parse(packageManifest) as { version?: string }).version;
-    const execution = evaluateCIExecutionPlan({
+    const executionInput: CIExecutionPlanInput = {
         changedFiles: allChangedFiles,
         dispatchE2EProfile: event.inputs?.e2e_profile,
         eventName: process.env.GITHUB_EVENT_NAME ?? '',
@@ -339,8 +481,47 @@ async function main(): Promise<void> {
             typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`,
         pullRequestDraft: event.pull_request?.draft,
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,
+    };
+    const initialExecution = evaluateCIExecutionPlan(executionInput);
+    let greenReuse: { reason: string; reusableGreenRun?: GreenReuseResolution } = {
+        reason: 'not evaluated for this execution path',
+    };
+    if (
+        retryDecision.mode === 'full' &&
+        !parsed.hint &&
+        !parsed.error &&
+        initialExecution.runE2E &&
+        event.pull_request?.base?.sha &&
+        event.pull_request.head?.ref &&
+        event.pull_request.number
+    ) {
+        try {
+            greenReuse = await findReusableGreenRun({
+                currentHeadSha,
+                eventName: process.env.GITHUB_EVENT_NAME ?? '',
+                headRef: event.pull_request.head.ref,
+                pullRequestBaseSha: event.pull_request.base.sha,
+                pullRequestNumber: event.pull_request.number,
+                repository,
+                workflowPath: '.github/workflows/ci.yml',
+            });
+        } catch (error) {
+            greenReuse = {
+                reason: `verification failed closed: ${error instanceof Error ? error.message : String(error)}`,
+            };
+        }
+    }
+    const execution = evaluateCIExecutionPlan({
+        ...executionInput,
+        reusableGreenRun: greenReuse.reusableGreenRun,
     });
-    await writeDecision(retryDecision, execution, allChangedFiles);
+    await writeDecision(
+        retryDecision,
+        execution,
+        allChangedFiles,
+        greenReuse.reusableGreenRun?.changedFiles ?? allChangedFiles,
+        greenReuse,
+    );
 }
 
 if (import.meta.main) {
@@ -355,6 +536,8 @@ if (import.meta.main) {
                 runE2E: true,
             },
             [],
+            [],
+            { reason },
         );
     });
 }
