@@ -4,6 +4,9 @@ import { join, resolve } from 'node:path';
 
 import { HostClient, discoverHostManifest } from '@caxri/cli';
 
+import type { RuntimeEvent } from '../src/shared/ipc/events';
+import type { AppSettings } from '../src/shared/types';
+
 import { createFakeAgentMode } from './agent-fixture.ts';
 import { expect, test } from './fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
@@ -16,6 +19,11 @@ interface EndpointCapture {
         endpoint: {
             ref: { hostId: string; endpointId: string; generation: number };
             terminalId: string;
+            messaging: {
+                deliveryMode: 'push' | 'pull' | 'unavailable';
+                health: string;
+                reason: string;
+            };
         };
     };
     credential: {
@@ -43,6 +51,7 @@ test('Peer Inbox delivers, holds, denies, fences restart, and keeps bodies out o
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const capturePath = join(testDirectory, 'endpoint-captures.jsonl');
+    const terminalInputPath = join(testDirectory, 'terminal-input.bin');
     await mkdir(root, { recursive: true });
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -68,6 +77,7 @@ fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({
     token: process.env.CAXRI_AGENT_ENDPOINT_TOKEN,
   },
 }) + '\\n');
+process.stdin.on('data', (chunk) => fs.appendFileSync(${JSON.stringify(terminalInputPath)}, chunk));
 process.stdout.write('Peer Inbox ready\\r\\n');
 process.stdin.resume();
 `,
@@ -83,6 +93,16 @@ process.stdin.resume();
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
         const [senderCapture, receiverCapture] = await captures(capturePath);
         if (!senderCapture || !receiverCapture) throw new Error('Agent Endpoint capture missing');
+        expect(senderCapture.context.endpoint.messaging).toMatchObject({
+            deliveryMode: 'pull',
+            health: 'ready',
+            reason: 'fixture_pull_ready',
+        });
+        expect(receiverCapture.context.endpoint.messaging).toMatchObject({
+            deliveryMode: 'pull',
+            health: 'ready',
+            reason: 'fixture_pull_ready',
+        });
         const manifest = await discoverHostManifest(userData);
         sender = await HostClient.connect(manifest, 2_000, {
             kind: 'agent',
@@ -107,6 +127,26 @@ process.stdin.resume();
                     (
                         await sender!.request('agent.message.receipt', {
                             messageId: directReceipt.messageId,
+                        })
+                    ).status,
+            )
+            .toBe('delivered');
+
+        const checkBody = 'provider-message-pull check sentinel';
+        const checkedReceipt = await sender.request('agent.message.send', {
+            to: receiverCapture.context.endpoint.ref,
+            body: checkBody,
+        });
+        await expect(receiver.request('agent.message.check', {})).resolves.toMatchObject({
+            outcome: 'message',
+            message: { body: checkBody, origin: 'peer' },
+        });
+        await expect
+            .poll(
+                async () =>
+                    (
+                        await sender!.request('agent.message.receipt', {
+                            messageId: checkedReceipt.messageId,
                         })
                     ).status,
             )
@@ -182,7 +222,53 @@ process.stdin.resume();
         });
         await expect(receiver.request('agent.message.wait', { timeoutMs: 100 })).resolves.toEqual({
             message: null,
+            outcome: 'timed_out',
         });
+
+        const messagingEvents: RuntimeEvent[] = [];
+        receiver.onEvent((event) => {
+            if (!('cursor' in event)) messagingEvents.push(event);
+        });
+        const currentSettings = await pageRequest<{ value: AppSettings }>(
+            running.page,
+            'settings.get',
+        );
+        const disabledSettings = structuredClone(currentSettings.value);
+        disabledSettings['agents.providers'].codex.messaging.enabled = false;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(disabledSettings, null, 2),
+        });
+        await expect
+            .poll(
+                async () =>
+                    (await receiver!.request('agent.context', {})).endpoint.messaging.reason,
+            )
+            .toBe('integration_disabled');
+        await expect
+            .poll(() =>
+                messagingEvents.some(
+                    (event) =>
+                        event.event === 'agent.messaging.changed' &&
+                        event.payload.messaging.reason === 'integration_disabled',
+                ),
+            )
+            .toBe(true);
+        await expect(
+            sender.request('agent.message.send', {
+                to: restarted.context.endpoint.ref,
+                body: 'provider-message-unavailable sentinel',
+            }),
+        ).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+            details: { reason: 'integration_disabled' },
+        });
+        const bootstrap = await pageRequest<{
+            terminals: Array<{ id: string; lastProcessState: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect(
+            bootstrap.terminals.find(({ id }) => id === restarted.context.endpoint.terminalId)
+                ?.lastProcessState,
+        ).toBe('running');
 
         const [database, hostLog, runtimeLog, diagnostics, snapshot] = await Promise.all([
             readFile(join(userData, 'caxri.db')),
@@ -193,12 +279,14 @@ process.stdin.resume();
                 terminalId: receiverCapture.context.endpoint.terminalId,
             }),
         ]);
-        for (const body of [directBody, heldBody, staleBody]) {
+        const terminalInput = await readFile(terminalInputPath).catch(() => Buffer.alloc(0));
+        for (const body of [directBody, checkBody, heldBody, staleBody]) {
             expect(database.includes(Buffer.from(body))).toBe(false);
             expect(hostLog).not.toContain(body);
             expect(runtimeLog).not.toContain(body);
             expect(JSON.stringify(diagnostics)).not.toContain(body);
             expect(snapshot.payload).not.toContain(body);
+            expect(terminalInput.includes(Buffer.from(body))).toBe(false);
         }
     } finally {
         sender?.close();

@@ -19,9 +19,15 @@ interface AgentHookSettings {
     enabled: boolean;
 }
 
+interface AgentMessagingSettings {
+    /** Allows a managed Agent generation to exchange bounded peer text through the Host Inbox. */
+    enabled: boolean;
+}
+
 export interface AgentProviderSettings {
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
+    messaging: AgentMessagingSettings;
 }
 
 /** Display and executable metadata for one Agent provider. */
@@ -64,6 +70,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
         provider,
         {
             hooks: { enabled: false },
+            messaging: { enabled: true },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,
                 args: [],

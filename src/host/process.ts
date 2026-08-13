@@ -25,10 +25,17 @@ const desktopLaunchSource = process.env[HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? hostDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
     : undefined;
+const hostOutputDirectory = dirname(fileURLToPath(import.meta.url));
+const cliPath =
+    process.env.CAXRI_CLI_PATH ??
+    (process.resourcesPath
+        ? join(process.resourcesPath, 'cli', 'caxri.cjs')
+        : join(hostOutputDirectory, '../../packages/cli/dist/caxri.cjs'));
 
 const application = await startHostApplication({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     commit,
+    cliPath,
     executable: process.execPath,
     ...(desktopLaunch
         ? {
@@ -38,7 +45,7 @@ const application = await startHostApplication({
               }),
           }
         : {}),
-    runtimePath: join(dirname(fileURLToPath(import.meta.url)), 'runtime.js'),
+    runtimePath: join(hostOutputDirectory, 'runtime.js'),
     runtimeEnvironment: e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
     userDataPath,
     version,

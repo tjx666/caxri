@@ -14,6 +14,39 @@ export const agentEndpointRefSchema = z.object({
 
 export const agentPermissionClassSchema = z.enum(['standard', 'elevated', 'unknown']);
 export const agentDeliveryModeSchema = z.enum(['push', 'pull', 'unavailable']);
+export const agentMessagingHealthSchema = z.enum(['ready', 'degraded', 'disabled', 'unsupported']);
+export const agentMessagingReasonSchema = z.enum([
+    'pull_ready',
+    'provider_channel_ready',
+    'fixture_pull_ready',
+    'integration_disabled',
+    'provider_missing',
+    'version_unsupported',
+    'probe_timeout',
+    'probe_failed',
+    'configuration_conflict',
+    'adapter_unavailable',
+    'adapter_revoked',
+]);
+export const agentMessagingNextActionSchema = z.enum([
+    'use_pull',
+    'enable_integration',
+    'install_provider',
+    'upgrade_provider',
+    'fix_configuration',
+    'restart_terminal',
+    'none',
+]);
+export const agentMessagingCapabilitySchema = z
+    .object({
+        deliveryMode: agentDeliveryModeSchema,
+        health: agentMessagingHealthSchema,
+        reason: agentMessagingReasonSchema,
+        checkedAt: z.number().int().positive(),
+        nextAction: agentMessagingNextActionSchema,
+        providerVersion: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict();
 export const agentGrantPolicySchema = z.enum(['debug:read', 'business:write', 'agent:control']);
 
 export const agentEndpointSummarySchema = z.object({
@@ -24,7 +57,7 @@ export const agentEndpointSummarySchema = z.object({
     provider: agentProviderSchema,
     name: z.string().trim().min(1).max(200),
     permissionClass: agentPermissionClassSchema,
-    deliveryMode: agentDeliveryModeSchema,
+    messaging: agentMessagingCapabilitySchema,
     expiresAt: z.number().int().positive(),
 });
 
@@ -84,5 +117,9 @@ export type AgentEndpointSummary = z.infer<typeof agentEndpointSummarySchema>;
 export type AgentEndpointGrant = z.infer<typeof agentEndpointGrantSchema>;
 export type AgentPermissionClass = z.infer<typeof agentPermissionClassSchema>;
 export type AgentDeliveryMode = z.infer<typeof agentDeliveryModeSchema>;
+export type AgentMessagingHealth = z.infer<typeof agentMessagingHealthSchema>;
+export type AgentMessagingReason = z.infer<typeof agentMessagingReasonSchema>;
+export type AgentMessagingNextAction = z.infer<typeof agentMessagingNextActionSchema>;
+export type AgentMessagingCapability = z.infer<typeof agentMessagingCapabilitySchema>;
 export type AgentGrantPolicy = z.infer<typeof agentGrantPolicySchema>;
 export type AgentContextResult = z.infer<typeof agentContextResultSchema>;

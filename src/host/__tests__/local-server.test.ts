@@ -236,7 +236,13 @@ describe('local Host transport', () => {
             launchId: 'launch-1',
             name: 'Codex',
             permissionClass: 'standard',
-            deliveryMode: 'unavailable',
+            messaging: {
+                deliveryMode: 'unavailable',
+                health: 'unsupported',
+                reason: 'adapter_unavailable',
+                checkedAt: 1,
+                nextAction: 'restart_terminal',
+            },
         });
         const server = new LocalHostServer({
             adapters: {
@@ -307,7 +313,13 @@ describe('local Host transport', () => {
             launchId: 'launch-sender',
             name: 'Sender',
             permissionClass: 'standard',
-            deliveryMode: 'pull',
+            messaging: {
+                deliveryMode: 'pull',
+                health: 'ready',
+                reason: 'pull_ready',
+                checkedAt: 1,
+                nextAction: 'use_pull',
+            },
         });
         const receiverEndpoint = endpoints.begin({
             terminalId: 'terminal-receiver',
@@ -317,7 +329,13 @@ describe('local Host transport', () => {
             launchId: 'launch-receiver',
             name: 'Receiver',
             permissionClass: 'standard',
-            deliveryMode: 'pull',
+            messaging: {
+                deliveryMode: 'pull',
+                health: 'ready',
+                reason: 'pull_ready',
+                checkedAt: 1,
+                nextAction: 'use_pull',
+            },
         });
         const inbox = new AgentInboxRegistry(endpoints);
         let waitStartedResolve: (() => void) | undefined;

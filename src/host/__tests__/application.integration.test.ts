@@ -154,7 +154,13 @@ process.send?.({
         launchId,
         name: 'Codex',
         permissionClass: 'standard',
-        deliveryMode: 'unavailable',
+        messaging: {
+            deliveryMode: 'unavailable',
+            health: 'unsupported',
+            reason: 'adapter_unavailable',
+            checkedAt: 1,
+            nextAction: 'restart_terminal',
+        },
     },
 });
 `;

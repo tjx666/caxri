@@ -17,9 +17,11 @@ import { acquireHostProfile, type HostProfileLease } from './profile';
 import { HostRuntimeSupervisor } from './runtime-supervisor';
 import { AgentEndpointRegistry } from './agent-endpoints';
 import { AgentInboxRegistry } from './agent-inbox';
+import { ProviderMessagingAdapterRegistry } from './provider-messaging';
 
 export interface HostApplicationOptions {
     agentHooksPath?: string;
+    cliPath?: string;
     commit: string;
     executable?: string;
     launchDesktop?: () => Promise<void>;
@@ -49,7 +51,13 @@ export async function startHostApplication(
         version: options.version,
     });
     const agentEndpoints = new AgentEndpointRegistry(lease.manifest.processIdentity);
+    const providerMessaging = new ProviderMessagingAdapterRegistry(agentEndpoints);
     let server: LocalHostServer | undefined;
+    agentEndpoints.onMessagingChanged((endpoint) => {
+        const event = { event: 'agent.messaging.changed', payload: endpoint } as const;
+        server?.broadcastAgent(endpoint.ref, event);
+        server?.broadcastDesktop(event);
+    });
     const agentInbox = new AgentInboxRegistry(agentEndpoints, {
         emitHeld: (payload) => server?.broadcastDesktop({ event: 'agent.message.held', payload }),
         emitReceipt: (endpoint, payload) => {
@@ -61,6 +69,8 @@ export async function startHostApplication(
         agentEndpointControl: (request) => {
             if (request.operation === 'agent-endpoint.begin')
                 return agentEndpoints.begin(request.params);
+            if (request.operation === 'agent-endpoint.messaging')
+                return { updated: agentEndpoints.updateMessaging(request.params) };
             return { retired: agentEndpoints.retire(request.params) };
         },
         agentHooksPath: options.agentHooksPath,
@@ -68,6 +78,7 @@ export async function startHostApplication(
         commit: options.commit,
         executable: options.executable,
         extraEnvironment: options.runtimeEnvironment,
+        cliPath: options.cliPath,
         logDirectory,
         logger,
         runtimePath: options.runtimePath,
@@ -151,6 +162,7 @@ export async function startHostApplication(
             logger.write('info', 'host.stopping', { fields: { reason } });
             await server?.close();
             agentInbox.close();
+            await providerMessaging.close();
             await supervisor.shutdown();
             await lease.release();
             logger.write('info', 'host.stopped', { fields: { reason } });
@@ -186,6 +198,8 @@ export async function startHostApplication(
                 return agentInbox.reply(context, request.params, invocation.requestId);
             if (request.method === 'agent.message.wait')
                 return agentInbox.wait(context, request.params.timeoutMs, invocation.requestId);
+            if (request.method === 'agent.message.check')
+                return agentInbox.check(context, invocation.requestId);
             if (request.method === 'agent.message.receipt')
                 return agentInbox.receipt(context, request.params.messageId);
             if (request.method === 'agent.message.policy.get') return agentInbox.policy(context);
@@ -309,7 +323,10 @@ export async function startHostApplication(
                 void supervisor.request('terminal.detachAll').catch(() => undefined);
             },
             onReplyFlushed: (request, reply, context) => {
-                if (request.method === 'agent.message.wait') {
+                if (
+                    request.method === 'agent.message.wait' ||
+                    request.method === 'agent.message.check'
+                ) {
                     if (reply.ok) agentInbox.confirmWait(request.id, context);
                     else agentInbox.cancelWait(request.id);
                 }

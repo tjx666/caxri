@@ -29,6 +29,7 @@ describe('CLI business command catalog', () => {
                 'agent revoke',
                 'agent message send',
                 'agent message wait',
+                'agent message check',
                 'agent message reply',
                 'agent message receipt',
                 'agent message policy',

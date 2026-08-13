@@ -11,6 +11,7 @@ export type TransientRuntimeEvent = Extract<
         event:
             | 'agent.message.held'
             | 'agent.message.receipt'
+            | 'agent.messaging.changed'
             | 'command.execute'
             | 'desktop.openRequested'
             | 'terminal.output';
@@ -21,6 +22,7 @@ export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
 export function isTransientRuntimeEvent(event: RuntimeEvent): event is TransientRuntimeEvent {
     return (
         event.event === 'terminal.output' ||
+        event.event === 'agent.messaging.changed' ||
         event.event === 'agent.message.held' ||
         event.event === 'agent.message.receipt' ||
         event.event === 'command.execute' ||

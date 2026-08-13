@@ -1,6 +1,7 @@
 import { CaxriError } from '@caxri/protocol';
 
 export interface ParsedCliArguments {
+    connectTimeoutMs: number;
     help: boolean;
     json: boolean;
     profile?: string;
@@ -30,6 +31,7 @@ export function parseCliArguments(argv: readonly string[]): ParsedCliArguments {
     )
         throw new CaxriError('VALIDATION', 'CLI arguments exceed the supported limit');
     const parsed: ParsedCliArguments = {
+        connectTimeoutMs: DEFAULT_TIMEOUT_MS,
         help: false,
         json: false,
         quiet: false,
@@ -38,6 +40,7 @@ export function parseCliArguments(argv: readonly string[]): ParsedCliArguments {
         version: false,
         yes: false,
     };
+    let connectTimeoutExplicit = false;
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         if (argument === '--json') parsed.json = true;
@@ -59,12 +62,19 @@ export function parseCliArguments(argv: readonly string[]): ParsedCliArguments {
                 throw new CaxriError('VALIDATION', '--request-id exceeds 200 characters');
             parsed.requestId = value;
             index = consumed;
-        } else if (argument === '--timeout') {
-            const [value, consumed] = takeValue(argv, index, '--timeout');
+        } else if (argument === '--timeout' || argument === '--connect-timeout') {
+            const [value, consumed] = takeValue(argv, index, argument);
             const timeoutMs = Number(value);
             if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000)
-                throw new CaxriError('VALIDATION', '--timeout must be 100-120000 milliseconds');
-            parsed.timeoutMs = timeoutMs;
+                throw new CaxriError('VALIDATION', `${argument} must be 100-120000 milliseconds`);
+            if (argument === '--connect-timeout') {
+                parsed.connectTimeoutMs = timeoutMs;
+                connectTimeoutExplicit = true;
+            } else {
+                parsed.timeoutMs = timeoutMs;
+                /** Preserve `--timeout` as the legacy transport/request deadline unless split. */
+                if (!connectTimeoutExplicit) parsed.connectTimeoutMs = timeoutMs;
+            }
             index = consumed;
         } else parsed.tokens.push(argument);
     }

@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import {
     app,
@@ -700,6 +700,9 @@ void app.whenReady().then(async () => {
                 ? undefined
                 : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
         currentDirectory,
+        cliPath: app.isPackaged
+            ? join(process.resourcesPath, 'cli', 'caxri.cjs')
+            : resolve(currentDirectory, '../../packages/cli/dist/caxri.cjs'),
         desktopId: randomUUID(),
         desktopLaunch: resolveDesktopLaunch({
             currentDirectory,
@@ -770,7 +773,6 @@ void app.whenReady().then(async () => {
     await installMenu();
     await openMainWindow();
 });
-
 app.on('activate', () => {
     if (!mainWindow) void openMainWindow();
 });

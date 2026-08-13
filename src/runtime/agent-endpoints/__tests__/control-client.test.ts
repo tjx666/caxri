@@ -27,7 +27,13 @@ describe('RuntimeAgentEndpointControlClient', () => {
             launchId: 'launch-1',
             name: 'Codex',
             permissionClass: 'standard',
-            deliveryMode: 'unavailable',
+            messaging: {
+                deliveryMode: 'unavailable',
+                health: 'unsupported',
+                reason: 'adapter_unavailable',
+                checkedAt: 1,
+                nextAction: 'restart_terminal',
+            },
         });
         const request = parent.send.mock.calls[0]?.[0] as { id: string };
 

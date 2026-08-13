@@ -4,10 +4,8 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeMethod } from '../shared/ipc/methods';
-import type { StructuredLogger } from '../shared/node/logger';
 import { resolveActiveWork } from '../shared/work-item';
 import type {
     AgentProvider,
@@ -22,10 +20,8 @@ import {
     AgentService,
     createLocalAgentAdapters,
     defaultAgentEnvironment,
-    type AgentAdapter,
-    type AgentEnvironment,
 } from './agents';
-import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
+import type { Runtime, RuntimeDeps } from './bootstrap-types';
 import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './db';
 import { DiagnosticsService } from './diagnostics';
@@ -37,7 +33,6 @@ import { ProjectStatusService } from './project-status';
 import {
     ShellIntegrationService,
     TerminalManager,
-    type TerminalManagerOptions,
     TerminalRestoreSupervisor,
     type TerminalWorkingDirectoryIdentity,
 } from './terminal';
@@ -46,44 +41,7 @@ import { ProjectRootResolver } from './project-roots';
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 
-/**
- * Everything the Runtime cannot discover for itself. The entry point supplies the real Electron
- * utility-process values; an in-process test supplies temporary directories and a fake event sink,
- * which is what makes the handler table testable without launching Electron.
- */
-export interface RuntimeDeps {
-    /** Directory that owns `caxri.db` and the `config/` tree. */
-    userDataPath: string;
-    logger: StructuredLogger;
-    /** Receives every Runtime event; the entry point forwards these to the Electron parent port. */
-    send: (event: RuntimeEvent) => void;
-    /** Wall-clock Runtime start reported by `app.health` and diagnostics. Defaults to now. */
-    startedAt?: number;
-    /** Process identity reported by `app.health`. Defaults to this process. */
-    pid?: number;
-    /** Trailing Agent metadata refresh delay after Agent Terminal output. */
-    agentRefreshDelayMs?: number;
-    /** PTY launch seam so an in-process test never spawns a real shell. */
-    terminal?: TerminalManagerOptions;
-    /** Visible Terminal restore grid grace period. Tests may set zero when no Renderer will attach. */
-    terminalRestoreGridWaitMs?: number;
-    /** Agent adapter seam so an in-process test never executes an Agent CLI. */
-    agentAdapters?: Record<AgentProvider, AgentAdapter>;
-    /** Shared provider-home seam for metadata and hook-config tests. */
-    agentEnvironment?: AgentEnvironment;
-    /** Main-approved shared install root. Omitted in tests/E2E to prevent global CLI mutation. */
-    agentHooksPath?: string;
-    /** Executable the staged bridge uses in Node mode. Defaults to the current Electron binary. */
-    runtimeExecutable?: string;
-    /** Host-issued endpoint leases are available only in the supervised headless Runtime. */
-    agentEndpoints?: RuntimeAgentEndpointLifecycle;
-}
-
-export interface Runtime {
-    handlers: RuntimeHandlers;
-    /** Releases every owned resource: schedulers, PTYs, watchers, and the database. */
-    close(): Promise<void>;
-}
+export type { Runtime, RuntimeDeps } from './bootstrap-types';
 
 /** Methods the Renderer may call but that only Electron Main can satisfy. */
 function mainOwned(method: RuntimeMethod): never {
@@ -148,9 +106,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         userDataPath,
     });
     await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
-    let hookSettingsReconcile = Promise.resolve();
+    let agentSettingsReconcile = Promise.resolve();
     const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
-        hookSettingsReconcile = agentHooks.reconcile(settings['agents.providers']);
+        /** Preserve setting-update order so a slow probe cannot restore authority after disable. */
+        agentSettingsReconcile = agentSettingsReconcile
+            .catch((error: unknown) =>
+                logger.write('warn', 'agent.integration_reconcile_failed', {
+                    fields: { error: errorMessage(error, 'unknown') },
+                }),
+            )
+            .then(() =>
+                Promise.all([
+                    agentHooks.reconcile(settings['agents.providers']),
+                    deps.agentEndpoints?.reconcile(settings['agents.providers']),
+                ]).then(() => undefined),
+            );
     });
     const shellIntegration = await ShellIntegrationService.create(userDataPath).catch(
         (error: unknown) => {
@@ -175,7 +145,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
             return {
                 ...hookEnvironment,
-                ...(await deps.agentEndpoints.environment(terminal, session.projectId, launch)),
+                ...(await deps.agentEndpoints.environment(
+                    terminal,
+                    session.projectId,
+                    configuration.getSettings().value['agents.providers'][terminal.kind],
+                )),
             };
         },
         onLifecycleRetired: (terminalId) => {
@@ -427,7 +401,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         coordinator.close();
         terminals.shutdown('orderly');
         unsubscribeHookSettings();
-        await hookSettingsReconcile;
+        await agentSettingsReconcile;
         await agentHooks.close();
         await deps.agentEndpoints?.close();
         await files.close();
@@ -443,6 +417,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'agent.message.send': () => mainOwned('agent.message.send'),
         'agent.message.reply': () => mainOwned('agent.message.reply'),
         'agent.message.wait': () => mainOwned('agent.message.wait'),
+        'agent.message.check': () => mainOwned('agent.message.check'),
         'agent.message.receipt': () => mainOwned('agent.message.receipt'),
         'agent.message.policy.get': () => mainOwned('agent.message.policy.get'),
         'agent.message.policy.set': () => mainOwned('agent.message.policy.set'),
@@ -749,7 +724,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'agentHooks.get': () => agentHooks.getHealth(),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
-            await hookSettingsReconcile;
+            await agentSettingsReconcile;
             return configuration.getSettings();
         },
         'settings.trustDomain': async ({ domain }) => {

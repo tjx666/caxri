@@ -294,6 +294,14 @@ export function SettingsForm({
                                 hooks: { enabled },
                             },
                         });
+                    const updateMessaging = (enabled: boolean): void =>
+                        onFieldChange('agents.providers', {
+                            ...settings['agents.providers'],
+                            [provider]: {
+                                ...providerSettings,
+                                messaging: { enabled },
+                            },
+                        });
                     return (
                         <section
                             key={provider}
@@ -326,6 +334,24 @@ export function SettingsForm({
                                     className="mt-0.5 size-4 flex-none accent-[var(--accent)]"
                                     type="checkbox"
                                     onChange={(event) => updateHooks(event.target.checked)}
+                                />
+                            </label>
+                            <label className="mb-3 flex items-start justify-between gap-4 text-[11px] text-muted">
+                                <span>
+                                    Peer messaging
+                                    <span className="block max-w-xl">
+                                        Lets this managed Agent exchange bounded peer text through
+                                        the Caxri Inbox. It never pastes messages into the Terminal.
+                                        Disabling takes effect immediately without stopping the
+                                        Terminal; restart only if the CLI adapter is unavailable.
+                                    </span>
+                                </span>
+                                <input
+                                    aria-label={`${agentProviderCatalog[provider].displayName} peer messaging`}
+                                    checked={providerSettings.messaging.enabled}
+                                    className="mt-0.5 size-4 flex-none accent-[var(--accent)]"
+                                    type="checkbox"
+                                    onChange={(event) => updateMessaging(event.target.checked)}
                                 />
                             </label>
                             <label className="mb-2 block text-[11px] text-muted">

@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type {
     AgentEndpointBeginParams,
+    AgentEndpointMessagingParams,
     AgentEndpointRetireParams,
 } from '../../../shared/ipc/agent-endpoint-control';
 import type { TerminalRecord } from '../../../shared/types';
+import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
 
 function terminal(kind: 'codex' | 'shell' = 'codex'): TerminalRecord {
@@ -25,6 +27,15 @@ function terminal(kind: 'codex' | 'shell' = 'codex'): TerminalRecord {
 }
 
 describe('RuntimeAgentEndpointLifecycle', () => {
+    const probe = () =>
+        new AgentMessagingCapabilityProbe({
+            cliAvailable: () => Promise.resolve(true),
+            cliPath: '/caxri',
+            fixtureMode: true,
+            now: () => 1,
+            probe: () => Promise.resolve({ executable: '/bin/codex', version: 'fixture 1.0.0' }),
+        });
+
     it('injects a Host-issued credential only for a direct Agent generation', async () => {
         const begin = vi.fn((params: AgentEndpointBeginParams) => {
             void params;
@@ -38,10 +49,22 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             void params;
             return Promise.resolve(true);
         });
-        const lifecycle = new RuntimeAgentEndpointLifecycle({ begin, retire }, '/profile');
+        const messaging = vi.fn((params: AgentEndpointMessagingParams) => {
+            void params;
+            return Promise.resolve(true);
+        });
+        const lifecycle = new RuntimeAgentEndpointLifecycle(
+            { begin, messaging, retire },
+            '/profile',
+            probe(),
+        );
 
         await expect(
-            lifecycle.environment(terminal(), 'project-1', { executable: 'codex', args: [] }),
+            lifecycle.environment(terminal(), 'project-1', {
+                hooks: { enabled: false },
+                launch: { executable: 'codex', args: [] },
+                messaging: { enabled: true },
+            }),
         ).resolves.toMatchObject({
             CAXRI_AGENT_ENDPOINT_HOST_ID: 'host-1',
             CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
@@ -55,13 +78,17 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 projectId: 'project-1',
                 provider: 'codex',
                 permissionClass: 'standard',
-                deliveryMode: 'pull',
             }),
         );
+        expect(begin.mock.calls[0]?.[0].messaging).toMatchObject({
+            deliveryMode: 'pull',
+            reason: 'fixture_pull_ready',
+        });
         await expect(
             lifecycle.environment(terminal('shell'), 'project-1', {
-                executable: '/bin/zsh',
-                args: [],
+                hooks: { enabled: false },
+                launch: { executable: '/bin/zsh', args: [] },
+                messaging: { enabled: true },
             }),
         ).resolves.toEqual({});
         expect(begin).toHaveBeenCalledTimes(1);
@@ -88,13 +115,19 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                         expiresAt: 10_000,
                     });
                 }),
+                messaging: vi.fn(() => Promise.resolve(true)),
                 retire,
             },
             '/profile',
+            probe(),
         );
-        const launch = { executable: 'codex', args: [] };
-        await lifecycle.environment(terminal(), 'project-1', launch);
-        await lifecycle.environment(terminal(), 'project-1', launch);
+        const settings = {
+            hooks: { enabled: false },
+            launch: { executable: 'codex', args: [] },
+            messaging: { enabled: true },
+        };
+        await lifecycle.environment(terminal(), 'project-1', settings);
+        await lifecycle.environment(terminal(), 'project-1', settings);
 
         expect(retire).toHaveBeenCalledTimes(1);
         expect(retire).toHaveBeenCalledWith(
@@ -103,6 +136,54 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             }),
         );
         expect(typeof retire.mock.calls[0]?.[0].launchId).toBe('string');
+    });
+
+    it('downgrades messaging authority without retiring the running Terminal generation', async () => {
+        const begin = vi.fn(() =>
+            Promise.resolve({
+                ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                token: 'ab'.repeat(32),
+                expiresAt: 10_000,
+            }),
+        );
+        const messaging = vi.fn((params: AgentEndpointMessagingParams) => {
+            void params;
+            return Promise.resolve(true);
+        });
+        const retire = vi.fn(() => Promise.resolve(true));
+        const lifecycle = new RuntimeAgentEndpointLifecycle(
+            { begin, messaging, retire },
+            '/profile',
+            probe(),
+        );
+        const enabled = {
+            codex: {
+                hooks: { enabled: false },
+                launch: { executable: 'codex', args: [] },
+                messaging: { enabled: true },
+            },
+            claude: {
+                hooks: { enabled: false },
+                launch: { executable: 'claude', args: [] },
+                messaging: { enabled: true },
+            },
+        };
+        await lifecycle.environment(terminal(), 'project-1', enabled.codex);
+        await lifecycle.reconcile({
+            ...enabled,
+            codex: { ...enabled.codex, messaging: { enabled: false } },
+        });
+
+        expect(messaging).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+            }),
+        );
+        expect(messaging.mock.calls[0]?.[0].messaging).toMatchObject({
+            deliveryMode: 'unavailable',
+            reason: 'integration_disabled',
+        });
+        expect(retire).not.toHaveBeenCalled();
     });
 
     it('classifies only explicit provider evidence and fails custom launches closed', () => {

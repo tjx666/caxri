@@ -6,6 +6,8 @@ import {
     methods,
     type LogQueryResult,
     type ObservableEventRecovery,
+    type AgentContextResult,
+    type AgentEndpointSummary,
     type CaxriMethod,
     type ProtocolWelcome,
 } from '@caxri/protocol';
@@ -103,6 +105,7 @@ function topLevelHelp() {
             '--quiet',
             '--profile <absolute-path>',
             '--request-id <id>',
+            '--connect-timeout <milliseconds>',
             '--timeout <milliseconds>',
             '--yes',
             '--help',
@@ -282,6 +285,8 @@ function localResult(
 }
 
 function humanLocal(command: CliCommandDefinition, value: unknown): string {
+    if (command.path[0] === 'agent-context' && isAgentContext(value))
+        return humanAgentContext(value);
     if (command.path[0] !== 'capabilities') return `${renderHumanValue(value)}\n`;
     return [
         `Caxri CLI ${CLI_VERSION} (protocol ${CLI_PROTOCOL_VERSION})`,
@@ -289,6 +294,55 @@ function humanLocal(command: CliCommandDefinition, value: unknown): string {
         `${CLI_COMMANDS.length} registered CLI commands`,
         '',
     ].join('\n');
+}
+
+const messagingActions: Record<AgentEndpointSummary['messaging']['nextAction'], string> = {
+    use_pull: 'Use caxri agent message wait or check.',
+    enable_integration: 'Enable peer messaging in Caxri Settings, then restart this Terminal.',
+    install_provider: 'Install the configured Provider executable, then restart this Terminal.',
+    upgrade_provider: 'Upgrade to a verified Provider version, then restart this Terminal.',
+    fix_configuration: 'Review the Provider launch configuration, then restart this Terminal.',
+    restart_terminal: 'Restart this Agent Terminal to restore the Caxri CLI adapter.',
+    none: '',
+};
+
+function endpointRef(endpoint: AgentEndpointSummary): string {
+    return `${endpoint.ref.hostId}:${endpoint.ref.endpointId}:${endpoint.ref.generation}`;
+}
+
+function humanAgentEndpoint(endpoint: AgentEndpointSummary): string {
+    const lines = [
+        `${endpoint.name} (${endpoint.provider})`,
+        `Endpoint: ${endpointRef(endpoint)}`,
+        `Project: ${endpoint.projectId}`,
+        `Delivery: ${endpoint.messaging.deliveryMode}`,
+        `Health: ${endpoint.messaging.health}`,
+        `Reason: ${endpoint.messaging.reason}`,
+    ];
+    const action = messagingActions[endpoint.messaging.nextAction];
+    if (action) lines.push(`Next: ${action}`);
+    return lines.join('\n');
+}
+
+function isAgentContext(value: unknown): value is AgentContextResult {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        Reflect.get(value, 'status') === 'active' &&
+        typeof Reflect.get(value, 'endpoint') === 'object'
+    );
+}
+
+function humanAgentContext(value: AgentContextResult): string {
+    return `${humanAgentEndpoint(value.endpoint)}\nCapabilities: ${value.capabilities.join(', ')}\n`;
+}
+
+function humanRemote(command: RemoteCommandDefinition, value: unknown): string | undefined {
+    if (command.method !== 'agent.list' || typeof value !== 'object' || value === null)
+        return undefined;
+    const agents = (value as { agents?: unknown }).agents;
+    if (!Array.isArray(agents)) return undefined;
+    return `${agents.map((agent) => humanAgentEndpoint(agent as AgentEndpointSummary)).join('\n\n')}\n`;
 }
 
 function remoteCommand(tokens: readonly string[]): RemoteCommandDefinition {
@@ -389,7 +443,7 @@ export async function runCli(
                     credential: endpointCredential,
                     profilePath: profile.path,
                     signal: options.signal,
-                    timeoutMs: parsed.timeoutMs,
+                    timeoutMs: parsed.connectTimeoutMs,
                 });
                 if (selected.path[0] === 'agent-context') {
                     if (!client.welcome.commands.includes('agent.context'))
@@ -418,7 +472,7 @@ export async function runCli(
         }
         const command = remoteCommand(parsed.tokens);
         let params = command.parseParams(parsed.tokens.slice(command.path.length));
-        /** `--timeout` is global for transport setup and is also the bounded long-poll deadline. */
+        /** A pull maps `--timeout` to its long poll; `--connect-timeout` may split setup timing. */
         if (command.method === 'agent.message.wait') params = { timeoutMs: parsed.timeoutMs };
         if (command.requiresAgentEndpoint && !endpointCredential)
             throw new CaxriError(
@@ -437,7 +491,7 @@ export async function runCli(
             ...(endpointCredential ? { credential: endpointCredential } : {}),
             profilePath: profile.path,
             signal: options.signal,
-            timeoutMs: parsed.timeoutMs,
+            timeoutMs: parsed.connectTimeoutMs,
         });
         if (options.signal?.aborted) return 130;
         if (!client.welcome.commands.includes(command.method))
@@ -450,7 +504,12 @@ export async function runCli(
             ? await client.requestWithId(parsed.requestId, command.method, params)
             : await client.request(command.method, params);
         if (options.signal?.aborted) return 130;
-        writeSuccess(io, mode, mode === 'quiet' ? quietProjection(command, result) : result);
+        writeSuccess(
+            io,
+            mode,
+            mode === 'quiet' ? quietProjection(command, result) : result,
+            humanRemote(command, result),
+        );
         return 0;
     } catch (error) {
         if (options.signal?.aborted) return 130;

@@ -179,6 +179,7 @@ const agentProviderSettingsSchema: z.ZodType<Record<AgentProvider, AgentProvider
         z.object({
             hooks: z.object({ enabled: z.boolean() }),
             launch: agentLaunchSettingsSchema,
+            messaging: z.object({ enabled: z.boolean() }),
         }),
     );
 

@@ -40,7 +40,13 @@ function setup() {
             launchId: `launch-${index + 1}`,
             name: `Agent ${index + 1}`,
             permissionClass: 'standard',
-            deliveryMode: 'pull',
+            messaging: {
+                deliveryMode: 'pull',
+                health: 'ready',
+                reason: 'pull_ready',
+                checkedAt: 1,
+                nextAction: 'use_pull',
+            },
             ...overrides,
         });
         const context = endpoints.authenticate({
@@ -108,6 +114,55 @@ describe('AgentInboxRegistry', () => {
         inbox.confirmWait('wait-2', receiver.context);
         expect(inbox.receipt(sender.context, receipt.messageId).status).toBe('delivered');
         expect(JSON.stringify(receiptEvents)).not.toContain(body);
+        inbox.close();
+    });
+
+    it('checks without waiting, rejects pull on push, and fails pending text on downgrade', () => {
+        const { begin, endpoints, inbox } = setup();
+        const sender = begin();
+        const receiver = begin();
+        const receipt = inbox.send(
+            sender.context,
+            sendInput(receiver.result.ref, 'check once'),
+            'request-check',
+        );
+        const checked = inbox.check(receiver.context, 'check-1');
+        expect(checked).toMatchObject({ outcome: 'message', message: { id: receipt.messageId } });
+        expect(inbox.receipt(sender.context, receipt.messageId).status).toBe('waiting');
+        inbox.cancelWait('check-1');
+        expect(inbox.check(receiver.context, 'check-2').message?.id).toBe(receipt.messageId);
+        inbox.cancelWait('check-2');
+
+        expect(
+            endpoints.updateMessaging({
+                ref: receiver.result.ref,
+                launchId: 'launch-2',
+                messaging: {
+                    deliveryMode: 'unavailable',
+                    health: 'disabled',
+                    reason: 'integration_disabled',
+                    checkedAt: 2,
+                    nextAction: 'enable_integration',
+                },
+            }),
+        ).toBe(true);
+        expect(inbox.receipt(sender.context, receipt.messageId).status).toBe('unavailable');
+        expect(() => inbox.check(receiver.context, 'check-disabled')).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+
+        const push = begin({
+            messaging: {
+                deliveryMode: 'push',
+                health: 'ready',
+                reason: 'provider_channel_ready',
+                checkedAt: 3,
+                nextAction: 'none',
+            },
+        });
+        expect(() => inbox.check(push.context, 'check-push')).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }) as Error,
+        );
         inbox.close();
     });
 

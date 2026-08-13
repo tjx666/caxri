@@ -1,1 +1,2 @@
-export { AgentInboxRegistry, decideInboundStatus } from './registry';
+export { AgentInboxRegistry } from './registry';
+export { decideInboundStatus } from './rules';

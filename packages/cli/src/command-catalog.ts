@@ -317,6 +317,14 @@ export const CLI_COMMANDS = [
     },
     {
         kind: 'remote',
+        path: ['agent', 'message', 'check'],
+        method: 'agent.message.check',
+        summary: 'Check once for a FIFO peer message without waiting.',
+        parseParams: rejectOptions,
+        requiresAgentEndpoint: true,
+    },
+    {
+        kind: 'remote',
         path: ['agent', 'message', 'reply'],
         method: 'agent.message.reply',
         summary: 'Reply to one delivered peer message and its exact sender generation.',
