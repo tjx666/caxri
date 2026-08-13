@@ -45,11 +45,17 @@ function applyExternalDocuments(sessionId: string, reloaded: readonly FileDocume
             'External editor state could not be saved',
         );
     }
+    /**
+     * A 4-second auto-dismiss would let this notice vanish while the user is away from the
+     * window, silently taking the only record of a discarded dirty buffer with it. This event
+     * already cost the user unsaved work, so it stays until explicitly dismissed.
+     */
     pushToast(
         'info',
         reloaded.length === 1
             ? `${fileName(reloaded[0].path)} reloaded from disk; external changes take precedence.`
             : `${reloaded.length} open files reloaded from disk; external changes take precedence.`,
+        { persist: true },
     );
 }
 

@@ -13,7 +13,8 @@ async function applyGpuPreference(page: Page, preference: GpuPreference): Promis
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Terminal GPU acceleration').click();
     await page.getByRole('option', { name: preference, exact: true }).click();
-    await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+    /** Settings apply immediately (there is no Apply button); the observable invariant is the
+     *  Runtime actually persisting the change, not an arbitrary wait. */
     await expect
         .poll(async () => {
             const settings = await pageRequest<{
@@ -82,6 +83,20 @@ test('WebGL modes hot-switch, redraw on restore, and fail over without restartin
             return false;
         });
         expect(contextWasLost).toBe(true);
+        /**
+         * A dropped GPU context used to downgrade silently, with the reason only reaching `dataset`
+         * for Playwright. It is now surfaced to the user once per Terminal. Asserted before the
+         * `data-terminal-renderer` attributes below — both are set by the same fallback, but the
+         * toast is an `info` that auto-dismisses after 4s (`stores/toasts.ts`) while the attributes
+         * persist, and the fallback itself is allowed up to 8s here. Waiting on the durable signal
+         * first could therefore consume the whole lifetime of the expiring one.
+         */
+        await expect(
+            running.page.getByText(
+                'GPU acceleration was lost for this Terminal; it fell back to standard rendering.',
+                { exact: true },
+            ),
+        ).toBeVisible({ timeout: 8_000 });
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom', { timeout: 8_000 });
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'context-loss');
         await expect(surface).toHaveAttribute('data-terminal-webgl-context-losses', '1');

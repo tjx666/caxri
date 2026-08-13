@@ -68,4 +68,54 @@ describe('Process Explorer sampling', () => {
             expect.objectContaining({ pid: 103, name: '/bin/zsh -il' }),
         ]);
     });
+
+    /**
+     * Electron reports no `name` for `Tab` processes, so both of Caxri's renderer windows used to
+     * list as a bare `window (renderer)` and a diagnostics tool could not identify its own window.
+     */
+    it('labels each renderer window by role instead of listing two anonymous windows', async () => {
+        const sampler = new ProcessExplorerSampler({
+            rootPid: 100,
+            runtimePid: () => 102,
+            processList: () =>
+                Promise.resolve(
+                    '100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n104 100 1 1024 raw-window\n',
+                ),
+            electronProcesses: () => [
+                { pid: 100, type: 'Browser', cpuPercent: 3, memoryMb: 40 },
+                { pid: 101, type: 'Tab', cpuPercent: 2, memoryMb: 30 },
+                { pid: 104, type: 'Tab', cpuPercent: 1, memoryMb: 20 },
+            ],
+            rendererRoles: () =>
+                new Map([
+                    [101, 'workbench'],
+                    [104, 'process explorer'],
+                ]),
+        });
+
+        const snapshot = await sampler.snapshot();
+
+        expect(snapshot.processes).toEqual([
+            expect.objectContaining({ pid: 100, name: 'caxri' }),
+            expect.objectContaining({ pid: 101, name: 'window (workbench)' }),
+            expect.objectContaining({ pid: 104, name: 'window (process explorer)' }),
+        ]);
+    });
+
+    it('falls back to the anonymous renderer label while a window has no known role', async () => {
+        const sampler = new ProcessExplorerSampler({
+            rootPid: 100,
+            runtimePid: () => undefined,
+            processList: () =>
+                Promise.resolve('100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n'),
+            electronProcesses: () => [{ pid: 101, type: 'Tab', cpuPercent: 2, memoryMb: 30 }],
+            rendererRoles: () => new Map(),
+        });
+
+        const snapshot = await sampler.snapshot();
+
+        expect(snapshot.processes).toContainEqual(
+            expect.objectContaining({ pid: 101, name: 'window (renderer)' }),
+        );
+    });
 });

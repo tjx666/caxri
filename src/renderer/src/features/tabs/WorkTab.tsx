@@ -81,6 +81,7 @@ export function WorkTab({
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
             data-preview={preview || undefined}
+            data-tab-active={visuallyActive || undefined}
             aria-hidden={!isPresent || undefined}
             inert={!isPresent ? true : undefined}
             draggable={Boolean(onDragStart)}
@@ -92,6 +93,12 @@ export function WorkTab({
             // identically to a bubble-phase listener for this leaf element.
             onDragStartCapture={onDragStart}
             onDoubleClick={onDoubleClick}
+            // Middle-click closes the tab, matching the VS Code norm; `auxclick`'s `button`
+            // still needs the explicit check because some platforms also fire it for the
+            // secondary (right) button when `contextmenu` is not prevented.
+            onAuxClick={(event) => {
+                if (event.button === 1) onClose();
+            }}
             initial={{ maxWidth: 0, opacity: 0, overflow: 'hidden' }}
             animate={{
                 maxWidth: TAB_MAX_WIDTH,
@@ -126,11 +133,22 @@ export function WorkTab({
                 >
                     {label}
                 </span>
-                {dirty && <b className="text-warning text-[10px]">●</b>}
                 {accessory}
             </button>
+            {/* DESIGN.md's tab-strip redline: "Dirty dot replaces the close button until
+                hover/focus" — one slot, not two. The dirty dot and the Terminal status dot both
+                live here (mutually exclusive: dirty only applies to editor tabs, status only to
+                Terminal tabs) and fade out in favor of the close button on hover/focus. */}
             <span className="tab-tail relative w-6 h-6 flex-none">
-                {status && (
+                {dirty && (
+                    <b
+                        aria-hidden="true"
+                        className="dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-warning text-[10px] group-hover:opacity-0 group-focus-within:opacity-0"
+                    >
+                        ●
+                    </b>
+                )}
+                {!dirty && status && (
                     <i
                         className={cn(
                             processIndicatorClassName,

@@ -231,7 +231,67 @@ function readLogicalLine(terminal: Terminal, bufferLineNumber: number): LogicalL
     return { positions, text };
 }
 
-function linksForLogicalLine(logicalLine: LogicalLine, context: TerminalLinkContext): ILink[] {
+/**
+ * The label shown on hover, spelled out with the platform key so a user does not have to guess
+ * which modifier `hasLinkActivationModifier` requires before a bare click will do anything.
+ */
+const TERMINAL_LINK_HINT_TEXT = '⌘ click to open';
+
+/**
+ * Pure placement math kept separate from the DOM write below so it can be unit tested without a
+ * browser environment. Offsets the hint above and to the right of the pointer, matching the
+ * `Tooltip` component's `sideOffset`.
+ */
+export function terminalLinkHintPosition(event: { clientX: number; clientY: number }): {
+    left: number;
+    top: number;
+} {
+    return { left: event.clientX + 12, top: event.clientY - 28 };
+}
+
+/**
+ * Creates the single hover-hint element lazily inside `terminal.element`, per xterm's own
+ * `ILinkHandler.hover` guidance: an element with the `xterm-hover` class keeps mouse events from
+ * falling through onto neighboring links while the hint is visible.
+ */
+function createLinkHintController(terminal: Terminal): {
+    dispose(): void;
+    hide(): void;
+    show(event: MouseEvent): void;
+} {
+    let element: HTMLDivElement | undefined;
+    return {
+        show(event) {
+            const host = terminal.element;
+            if (!host) return;
+            if (!element) {
+                element = document.createElement('div');
+                element.className =
+                    'xterm-hover terminal-link-hint pointer-events-none fixed z-[90] rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]';
+                element.textContent = TERMINAL_LINK_HINT_TEXT;
+                element.setAttribute('role', 'tooltip');
+                host.append(element);
+            }
+            const { left, top } = terminalLinkHintPosition(event);
+            element.style.left = `${left}px`;
+            element.style.top = `${top}px`;
+        },
+        hide() {
+            element?.remove();
+            element = undefined;
+        },
+        dispose() {
+            element?.remove();
+            element = undefined;
+        },
+    };
+}
+
+function linksForLogicalLine(
+    logicalLine: LogicalLine,
+    context: TerminalLinkContext,
+    hint: ReturnType<typeof createLinkHintController>,
+): ILink[] {
     return findTerminalLinks(logicalLine.text).flatMap((match) => {
         const start = logicalLine.positions[match.startIndex];
         const end = logicalLine.positions[match.endIndex - 1];
@@ -239,7 +299,18 @@ function linksForLogicalLine(logicalLine: LogicalLine, context: TerminalLinkCont
         return [
             {
                 activate: (event) => activateLink(event, match, context),
+                /**
+                 * The cursor/underline stay unconditional on hover rather than gated behind a live
+                 * Cmd/Ctrl check: xterm only recomputes decorations when a link is (re)provided, so
+                 * gating on the held modifier would need global keydown/keyup listeners forcing a
+                 * fresh `provideLinks` pass (and a visible redraw) on every modifier press while the
+                 * mouse sits still. The `hover` callback below instead shows a "⌘ click to open"
+                 * tooltip, telling the user what a bare click cannot do without that churn — the
+                 * same tradeoff VS Code's terminal makes for its link hover text.
+                 */
                 decorations: { pointerCursor: true, underline: true },
+                hover: (event) => hint.show(event),
+                leave: () => hint.hide(),
                 range: { start, end },
                 text: match.text,
             },
@@ -252,10 +323,11 @@ export function registerTerminalLinks(
     terminal: Terminal,
     context: TerminalLinkContext,
 ): () => void {
+    const hint = createLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
             const logicalLine = readLogicalLine(terminal, bufferLineNumber);
-            const links = logicalLine ? linksForLogicalLine(logicalLine, context) : [];
+            const links = logicalLine ? linksForLogicalLine(logicalLine, context, hint) : [];
             callback(links.length > 0 ? links : undefined);
         },
     });
@@ -270,6 +342,7 @@ export function registerTerminalLinks(
         allowNonHttpProtocols: true,
     };
     return () => {
+        hint.dispose();
         terminal.options.linkHandler = null;
         disposable.dispose();
     };

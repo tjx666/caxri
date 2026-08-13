@@ -139,4 +139,15 @@ describe('archived Session selector', () => {
         expect(afterRestore.groups.map((group) => group.project.id)).toEqual(['beta']);
         expect(afterRestore.projectOptions.map((item) => item.id)).toEqual(['beta']);
     });
+
+    it('omits an Agent kind with zero archived Sessions instead of offering a dead-end filter', () => {
+        const withoutCodex = deriveArchivedSessionView(
+            projects,
+            sessions.filter((item) => item.id !== 'alpha-review'),
+            terminals,
+            { agent: 'all', projectId: 'all', query: '' },
+        );
+
+        expect(withoutCodex.agentOptions).toEqual(['shell', 'claude']);
+    });
 });

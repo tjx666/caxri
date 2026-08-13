@@ -7,6 +7,7 @@ import {
     type EditorTabCloseMode,
 } from '@shared/editor-state';
 import { isGitDiffTabPath } from '@shared/git-diff';
+import type { SessionState } from '@shared/types';
 import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
@@ -23,6 +24,8 @@ import { patchSessionState, persistSessionState, useWorkbenchStore } from '../..
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 
 let fileOpenIntent = 0;
+
+const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
 interface PendingDocumentOperation {
     discarded: boolean;
@@ -172,48 +175,76 @@ export function pinEditorTab(path: string): void {
     if (next !== current) patchSessionState(next);
 }
 
+/** Writes one document's current content to disk; returns false only when the write itself failed. */
+async function saveDocumentAt(sessionId: string, path: string): Promise<boolean> {
+    const document = useSessionViewStore.getState().documents[sessionId]?.[path];
+    if (!document) return true;
+    const operation = trackDocumentOperation(sessionId, path);
+    let saved = false;
+    try {
+        await tryCommand('Save failed', async () => {
+            const result = await caxri.request('files.write', {
+                sessionId,
+                path,
+                content: document.content,
+            });
+            if (!operation.discarded) {
+                const current =
+                    useSessionViewStore.getState().documents[sessionId]?.[operation.path];
+                if (current) {
+                    const changedDuringSave = current.content !== document.content;
+                    useSessionViewStore.getState().cacheDocument(sessionId, {
+                        ...result,
+                        path: operation.path,
+                        content: changedDuringSave ? current.content : result.content,
+                        dirty: changedDuringSave,
+                    });
+                    updateOpenTab(sessionId, operation.path, changedDuringSave);
+                }
+            }
+            saved = true;
+        });
+    } finally {
+        pendingDocumentOperations.delete(operation);
+    }
+    return saved;
+}
+
 export async function saveActiveEditor(): Promise<void> {
     const session = getSelectedSession();
     const active = getResolvedActiveWork();
     if (!session || active?.kind !== 'editor') return;
     const path = active.path;
     if (isGitDiffTabPath(path)) return;
-    const document = useSessionViewStore.getState().documents[session.id]?.[path];
-    if (!document) return;
-    const operation = trackDocumentOperation(session.id, path);
-    try {
-        await tryCommand('Save failed', async () => {
-            const saved = await caxri.request('files.write', {
-                sessionId: session.id,
-                path,
-                content: document.content,
-            });
-            if (!operation.discarded) {
-                const current =
-                    useSessionViewStore.getState().documents[session.id]?.[operation.path];
-                if (current) {
-                    const changedDuringSave = current.content !== document.content;
-                    useSessionViewStore.getState().cacheDocument(session.id, {
-                        ...saved,
-                        path: operation.path,
-                        content: changedDuringSave ? current.content : saved.content,
-                        dirty: changedDuringSave,
-                    });
-                    updateOpenTab(session.id, operation.path, changedDuringSave);
-                }
-            }
-        });
-    } finally {
-        pendingDocumentOperations.delete(operation);
-    }
+    await saveDocumentAt(session.id, path);
 }
 
-function closeEditors(targetPath: string, mode: EditorTabCloseMode): void {
-    const session = getSelectedSession();
-    const current = getSessionState();
-    if (!session || !current) return;
-    const paths = editorTabPathsToClose(current.openTabs, targetPath, mode);
-    if (paths.length === 0) return;
+/**
+ * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to
+ * save…" sheet at a time (macOS only ever shows one modal sheet). Choosing Cancel on any of them
+ * aborts the whole close — a bulk Close Others/Close All must never end up half applied, silently
+ * dropping some dirty buffers while leaving others open.
+ */
+async function confirmDirtyEditorCloses(
+    sessionId: string,
+    openTabs: SessionState['openTabs'],
+    paths: readonly string[],
+): Promise<boolean> {
+    const dirtyPaths = paths.filter((path) => openTabs.find((tab) => tab.path === path)?.dirty);
+    for (const path of dirtyPaths) {
+        const { choice } = await caxri.request('editor.confirmDiscard', { name: fileName(path) });
+        if (choice === 'cancel') return false;
+        if (choice === 'save') await saveDocumentAt(sessionId, path);
+    }
+    return true;
+}
+
+function applyEditorTabClose(
+    session: { id: string },
+    current: SessionState,
+    paths: readonly string[],
+    targetPath: string,
+): void {
     const closing = new Set(paths);
     for (const path of paths) useSessionViewStore.getState().evictDocument(session.id, path);
     const openTabs = current.openTabs.filter((tab) => !closing.has(tab.path));
@@ -244,20 +275,41 @@ function closeEditors(targetPath: string, mode: EditorTabCloseMode): void {
     );
 }
 
-export function closeEditor(path: string): void {
-    closeEditors(path, 'one');
+/**
+ * Closing a dirty tab must never silently destroy work: every dirty path about to close is
+ * confirmed (Save/Don't Save/Cancel) before anything is evicted. The tab list is re-read after the
+ * confirmation round trip in case a concurrent operation (rename, Trash) changed it meanwhile.
+ */
+async function closeEditors(targetPath: string, mode: EditorTabCloseMode): Promise<void> {
+    const session = getSelectedSession();
+    const initial = getSessionState();
+    if (!session || !initial) return;
+    const paths = editorTabPathsToClose(initial.openTabs, targetPath, mode);
+    if (paths.length === 0) return;
+    if (!(await confirmDirtyEditorCloses(session.id, initial.openTabs, paths))) return;
+    const current = getSessionState();
+    if (!current) return;
+    const remainingPaths = paths.filter((path) =>
+        current.openTabs.some((tab) => tab.path === path),
+    );
+    if (remainingPaths.length === 0) return;
+    applyEditorTabClose(session, current, remainingPaths, targetPath);
 }
 
-export function closeOtherEditors(path: string): void {
-    closeEditors(path, 'others');
+export function closeEditor(path: string): Promise<void> {
+    return closeEditors(path, 'one');
 }
 
-export function closeEditorsToRight(path: string): void {
-    closeEditors(path, 'right');
+export function closeOtherEditors(path: string): Promise<void> {
+    return closeEditors(path, 'others');
 }
 
-export function closeAllEditors(path: string): void {
-    closeEditors(path, 'all');
+export function closeEditorsToRight(path: string): Promise<void> {
+    return closeEditors(path, 'right');
+}
+
+export function closeAllEditors(path: string): Promise<void> {
+    return closeEditors(path, 'all');
 }
 
 function remapOpenEditorsInSession(
@@ -386,4 +438,19 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
 export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
     for (const projectSessionId of getProjectSessionIds(sessionId))
         closeOpenEditorsUnderPathInSession(projectSessionId, path);
+}
+
+/**
+ * True when a file at or below `path` is open with unsaved edits in any same-Project Session. Lets
+ * a Trash confirmation stop promising full recoverability when it would actually discard a dirty
+ * buffer that was never written to disk.
+ */
+export function hasUnsavedChangesUnderPath(sessionId: string, path: string): boolean {
+    const bootstrap = useWorkbenchStore.getState().bootstrap;
+    return getProjectSessionIds(sessionId).some((projectSessionId) => {
+        const state = bootstrap?.sessionStates.find((item) => item.sessionId === projectSessionId);
+        return state?.openTabs.some(
+            (tab) => !isGitDiffTabPath(tab.path) && tab.dirty && pathIsAtOrBelow(tab.path, path),
+        );
+    });
 }

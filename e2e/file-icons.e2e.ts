@@ -33,7 +33,7 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
         await expect(running.page.locator('[data-file-icon="testTypeScript"]')).toBeVisible();
         await expect(running.page.locator('[data-file-icon="file"]')).toBeVisible();
 
-        await running.page.getByRole('button', { name: '.github', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: '.github', exact: true }).click();
         await expect(running.page.locator('[data-file-icon="folder-github-open"]')).toBeVisible();
     } finally {
         await running.app.close().catch(() => undefined);

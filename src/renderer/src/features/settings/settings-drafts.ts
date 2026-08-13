@@ -34,6 +34,12 @@ export type ConfigAction =
     | { type: 'settings/sourceChanged'; source: string }
     | { type: 'settings/sourceParsed'; value: AppSettings }
     | { type: 'settings/applied'; value: AppSettings; source: string }
+    /**
+     * The Runtime reports `settings.jsonc` changed on disk (an external editor, or our own write
+     * echoing back). `value` is omitted when the new text fails to parse, so a foreign edit that
+     * breaks the file surfaces its error without discarding the last-known-good structured value.
+     */
+    | { type: 'settings/externalChanged'; source: string; value?: AppSettings }
     | { type: 'keybindings/changed'; value: Keybinding[]; source: string }
     | { type: 'keybindings/sourceChanged'; source: string }
     | { type: 'keybindings/sourceParsed'; value: Keybinding[] }
@@ -43,10 +49,17 @@ export type ConfigAction =
           source: string;
           conflicts: KeybindingConflict[];
       }
+    | {
+          type: 'keybindings/externalChanged';
+          source: string;
+          value?: Keybinding[];
+          conflicts?: KeybindingConflict[];
+      }
     | { type: 'theme/changed'; value: ThemeTokens; source: string }
     | { type: 'theme/sourceChanged'; source: string }
     | { type: 'theme/sourceParsed'; value: ThemeTokens }
     | { type: 'theme/applied'; value: ThemeTokens; source: string }
+    | { type: 'theme/externalChanged'; source: string; value?: ThemeTokens }
     | { type: 'theme/imported'; value: ThemeTokens; source: string };
 
 export function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
@@ -88,6 +101,15 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                     appliedSource: action.source,
                 },
             };
+        case 'settings/externalChanged':
+            return {
+                ...state,
+                settings: {
+                    value: action.value ?? state.settings.value,
+                    source: action.source,
+                    appliedSource: action.source,
+                },
+            };
         case 'keybindings/changed':
             return {
                 ...state,
@@ -107,6 +129,16 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                     conflicts: action.conflicts,
                 },
             };
+        case 'keybindings/externalChanged':
+            return {
+                ...state,
+                keybindings: {
+                    value: action.value ?? state.keybindings.value,
+                    source: action.source,
+                    appliedSource: action.source,
+                    conflicts: action.conflicts ?? state.keybindings.conflicts,
+                },
+            };
         case 'theme/changed':
             return {
                 ...state,
@@ -120,6 +152,15 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
             return {
                 ...state,
                 theme: { value: action.value, source: action.source, appliedSource: action.source },
+            };
+        case 'theme/externalChanged':
+            return {
+                ...state,
+                theme: {
+                    value: action.value ?? state.theme.value,
+                    source: action.source,
+                    appliedSource: action.source,
+                },
             };
         case 'theme/imported':
             return {

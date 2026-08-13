@@ -117,9 +117,24 @@ test('editor previews pin and expose the standard close actions', async () => {
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
+        // Typing into c.js below leaves it dirty when "Close All" closes it later in this test;
+        // closing a dirty tab now shows the native Save/Don't Save/Cancel sheet
+        // (`editor.confirmDiscard`, see `document-actions.ts`), so `dialog.showMessageBox` must be
+        // stubbed before that happens or the close would hang waiting for real user input.
+        // `response: 1` is "Don't Save". The call count is tracked so the "Close All" assertion
+        // below can prove the dirty tab actually went through confirmation instead of silently
+        // closing the way it used to before `tab.dirty` was inspected.
+        await running.app.evaluate(({ dialog }) => {
+            Reflect.set(globalThis, '__caxriConfirmDiscardCalls', 0);
+            dialog.showMessageBox = () => {
+                const calls = Number(Reflect.get(globalThis, '__caxriConfirmDiscardCalls') ?? 0);
+                Reflect.set(globalThis, '__caxriConfirmDiscardCalls', calls + 1);
+                return Promise.resolve({ response: 1, checkboxChecked: false });
+            };
+        });
         await createProjectSession(running.page);
         const editorTabs = running.page.locator('.work-tab[data-preview]');
-        await running.page.getByRole('button', { name: 'a.js', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'a.js', exact: true }).click();
         await expect(editorTabs).toHaveCount(1);
         await expect(editorTabs).toContainText('a.js');
         const aTab = running.page.locator('.work-tab', { hasText: 'a.js' });
@@ -130,7 +145,7 @@ test('editor previews pin and expose the standard close actions', async () => {
         });
 
         await startEditorPresenceProbe(running.page);
-        await running.page.getByRole('button', { name: 'b.js', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'b.js', exact: true }).click();
         await expect(running.page.locator('.work-tab', { hasText: 'a.js' })).toHaveCount(0);
         const bTab = running.page.locator('.work-tab', { hasText: 'b.js' });
         await running.page.waitForTimeout((await tabMotionSettleMs(running.page)) + 50);
@@ -146,7 +161,7 @@ test('editor previews pin and expose the standard close actions', async () => {
         const cdp = await running.page.context().newCDPSession(running.page);
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
         await startEditorPresenceProbe(running.page);
-        await running.page.getByRole('button', { name: '.env', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: '.env', exact: true }).click();
         const environmentTab = running.page.locator('.work-tab', { hasText: '.env' });
         await expect(environmentTab).toBeVisible();
         const addedPreviewEvents = await stopEditorPresenceProbe(running.page);
@@ -176,7 +191,7 @@ test('editor previews pin and expose the standard close actions', async () => {
 
         const nextPreviewIdentity = await environmentTab.getAttribute('data-motion-identity');
         await startEditorPresenceProbe(running.page);
-        await running.page.getByRole('button', { name: 'c.js', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'c.js', exact: true }).click();
         const cTab = running.page.locator('.work-tab', { hasText: 'c.js' });
         await running.page.waitForTimeout((await tabMotionSettleMs(running.page)) + 50);
         expect(await stopEditorPresenceProbe(running.page)).toEqual([]);
@@ -188,7 +203,7 @@ test('editor previews pin and expose the standard close actions', async () => {
         await expect(cTab).not.toHaveAttribute('data-preview');
 
         await startEditorPresenceProbe(running.page);
-        await running.page.getByRole('button', { name: 'd.js', exact: true }).click();
+        await running.page.getByRole('treeitem', { name: 'd.js', exact: true }).click();
         const dTab = running.page.locator('.work-tab', { hasText: 'd.js' });
         await expect(dTab).toHaveAttribute('data-preview', 'true');
         const addedAfterDirtyEvents = await stopEditorPresenceProbe(running.page);
@@ -213,18 +228,27 @@ test('editor previews pin and expose the standard close actions', async () => {
         await expect(bTab).toBeVisible();
         await expect(cTab).toBeVisible();
 
-        await running.page.getByRole('button', { name: 'a.js', exact: true }).dblclick();
+        await running.page.getByRole('treeitem', { name: 'a.js', exact: true }).dblclick();
         await cTab.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Close Others' }).click();
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(1);
         await expect(cTab).toBeVisible();
 
+        await expect(cTab).toContainText('●');
         await cTab.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Close All' }).click();
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
+        // c.js was still dirty (typed a space above, never saved): "Close All" must route it
+        // through the native discard confirmation rather than silently dropping unsaved work, so
+        // the stubbed `dialog.showMessageBox` must have actually been invoked once.
+        expect(
+            await running.app.evaluate(() =>
+                Number(Reflect.get(globalThis, '__caxriConfirmDiscardCalls') ?? 0),
+            ),
+        ).toBe(1);
 
-        await running.page.getByRole('button', { name: 'a.js', exact: true }).dblclick();
+        await running.page.getByRole('treeitem', { name: 'a.js', exact: true }).dblclick();
         await running.page.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
         await startEditorPresenceProbe(running.page);
         await running.page.keyboard.press('Meta+W');

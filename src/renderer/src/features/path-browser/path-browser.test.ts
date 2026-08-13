@@ -6,6 +6,7 @@ import {
     completePathQuery,
     filterPathEntries,
     parentDirectoryWithinRoot,
+    pathBrowserCreateCandidate,
     pathBrowserEmptyMessage,
 } from './path-browser';
 
@@ -45,5 +46,32 @@ describe('path browser navigation', () => {
         expect(parentDirectoryWithinRoot('/project', '/outside')).toBe('/project');
         expect(parentDirectoryWithinRoot('/', '/project/src')).toBe('/project');
         expect(parentDirectoryWithinRoot('/', '/project')).toBe('/');
+    });
+
+    it('offers to create a file for a plain name once nothing matches', () => {
+        expect(pathBrowserCreateCandidate('notes.md', 0, false)).toEqual({
+            kind: 'file',
+            name: 'notes.md',
+        });
+    });
+
+    it('offers to create a folder when the name ends with a trailing slash', () => {
+        expect(pathBrowserCreateCandidate('drafts/', 0, false)).toEqual({
+            kind: 'directory',
+            name: 'drafts',
+        });
+    });
+
+    it('never offers to create while an existing match is still possible', () => {
+        expect(pathBrowserCreateCandidate('README.md', 1, false)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('missing', 0, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('', 0, false)).toBeUndefined();
+    });
+
+    it('rejects names that are not a single path segment', () => {
+        expect(pathBrowserCreateCandidate('.', 0, false)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('..', 0, false)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('nested/name', 0, false)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('/', 0, false)).toBeUndefined();
     });
 });

@@ -1,6 +1,6 @@
 import { Archive, Plus } from 'lucide-react';
-import type { CSSProperties } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { Button } from '../../components/ui/button';
@@ -14,11 +14,19 @@ import {
     useSessions,
     useTerminals,
 } from '../../stores/selectors';
-import { beginSessionCreation, renameSession, selectProject } from '../session/session-actions';
+import { archiveSession, beginSessionCreation, selectProject } from '../session/session-actions';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { hasProjectDragType } from './project-order';
 import { ProjectGroup } from './ProjectGroup';
+import {
+    flattenSidebarRows,
+    nextSidebarRowId,
+    rovingSidebarRowId,
+    sidebarArchiveIntent,
+    sidebarHorizontalIntent,
+} from './sidebar-tree';
 import { useProjectOrder } from './useProjectOrder';
+import { useSessionRename } from './useSessionRename';
 
 const NO_RECORDS: never[] = [];
 /** Vite serves this repo-only asset in development without bundling it into production. */
@@ -36,71 +44,57 @@ export function ProjectSidebar() {
     const archivedCount = sessions.filter((session) => session.archivedAt !== undefined).length;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    const [renamingSessionId, setRenamingSessionId] = useState<string>();
-    const [renameValue, setRenameValue] = useState('');
-    const [renameError, setRenameError] = useState<string>();
-    const renamingSessionIdRef = useRef<string | undefined>(undefined);
-    const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
+    /** The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution. */
+    const [focusedRowId, setFocusedRowId] = useState<string>();
+    const treeRef = useRef<HTMLDivElement>(null);
+    const sessionRename = useSessionRename(sessions);
 
-    const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
-        element?.focus();
-        element?.select();
-    }, []);
+    /** Per-Project archived counts for the heading affix (item 5); the footer keeps the global total. */
+    const archivedCountByProject = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const session of sessions) {
+            if (session.archivedAt === undefined) continue;
+            counts.set(session.projectId, (counts.get(session.projectId) ?? 0) + 1);
+        }
+        return counts;
+    }, [sessions]);
 
-    useEffect(() => {
-        if (renamingSessionId) return;
-        const sessionId = restoreFocusSessionIdRef.current;
-        if (!sessionId) return;
-        document.querySelector<HTMLElement>(`[data-session-id="${sessionId}"]`)?.focus();
-        restoreFocusSessionIdRef.current = undefined;
-    }, [renamingSessionId, sessions]);
+    const isProjectExpanded = useCallback(
+        (projectId: string) => !collapsedProjects.has(projectId),
+        [collapsedProjects],
+    );
 
-    const beginRename = (sessionId: string, displayTitle: string): void => {
-        renamingSessionIdRef.current = sessionId;
-        setRenamingSessionId(sessionId);
-        setRenameValue(displayTitle);
-        setRenameError(undefined);
-    };
+    /** Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes. */
+    const treeRows = useMemo(() => {
+        const projectNodes = projects.map((project) => {
+            // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
+            // flags the chained form even though both walk the same small `sessions` array.
+            const sessionIds: string[] = [];
+            for (const session of sessions) {
+                if (session.projectId === project.id && session.archivedAt === undefined)
+                    sessionIds.push(session.id);
+            }
+            return { id: project.id, sessionIds };
+        });
+        return flattenSidebarRows(projectNodes, isProjectExpanded);
+    }, [projects, sessions, isProjectExpanded]);
 
     /**
-     * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately
-     * skips focus restoration so the control the user clicked keeps focus.
+     * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern).
+     * Falls back through the selected Session, then the selected Project, then the first row
+     * whenever `focusedRowId` is unset or has gone stale (archived Session, collapsed Project).
      */
-    const finishRename = (sessionId: string, restoreFocus: boolean): void => {
-        if (renamingSessionIdRef.current !== sessionId) return;
-        renamingSessionIdRef.current = undefined;
-        if (restoreFocus) restoreFocusSessionIdRef.current = sessionId;
-        setRenamingSessionId((current) => (current === sessionId ? undefined : current));
-        setRenameError(undefined);
-    };
+    const rovingRowId = useMemo(
+        () => rovingSidebarRowId(treeRows, focusedRowId, selectedSessionId, selectedProjectId),
+        [treeRows, focusedRowId, selectedSessionId, selectedProjectId],
+    );
 
-    const cancelRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
-        if (sessionId) finishRename(sessionId, true);
-    };
-
-    const commitRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
-        if (!sessionId) return;
-        const displayTitle = renameValue.trim();
-        if (!displayTitle) {
-            setRenameError('Session name is required');
-            return;
-        }
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
-        finishRename(sessionId, true);
-        if (displayTitle !== currentTitle) void renameSession(sessionId, displayTitle);
-    };
-
-    const blurRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
-        if (!sessionId) return;
-        const displayTitle = renameValue.trim();
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
-        finishRename(sessionId, false);
-        if (displayTitle && displayTitle !== currentTitle)
-            void renameSession(sessionId, displayTitle);
-    };
+    const handleTreeFocus = useCallback((event: FocusEvent<HTMLDivElement>): void => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
+        if (rowId) setFocusedRowId(rowId);
+    }, []);
 
     const toggleProject = (projectId: string): void => {
         setAnimatedProjectIds((current) => new Set(current).add(projectId));
@@ -110,6 +104,77 @@ export function ProjectSidebar() {
             else next.add(projectId);
             return next;
         });
+    };
+
+    const focusRow = (rowId: string): void => {
+        treeRef.current
+            ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
+            ?.focus();
+    };
+
+    /**
+     * The Sidebar tree is a single roving Tab stop (standard ARIA tree authoring pattern): only
+     * the row in `rovingRowId` is a Tab stop, and every inner control (disclosure, "New Session",
+     * archived-count, per-row Archive) is `tabIndex={-1}`. This handler supplies the keyboard
+     * equivalents that stop being reachable by Tab:
+     * - Up/Down/Home/End walk every Project heading and its active Sessions.
+     * - Left/Right expand/collapse a Project, or move a Session row to its owning Project.
+     * - Delete/Backspace on a focused Session row archives it (reversible via the Archived
+     *   Sessions dialog, so no confirmation) — the keyboard equivalent of the Archive button.
+     *   Focus moves to the next row (falling back to the previous row when the archived row was
+     *   last) before the row leaves the DOM, so the roving Tab stop never falls out of the tree.
+     */
+    const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+        if (event.altKey || event.metaKey || event.ctrlKey) return;
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || target.closest('input, textarea')) return;
+        const rowElement = target.closest<HTMLElement>('[data-row-id]');
+        const rowId = rowElement?.dataset.rowId;
+        if (!rowId) return;
+        if (
+            event.key === 'ArrowDown' ||
+            event.key === 'ArrowUp' ||
+            event.key === 'Home' ||
+            event.key === 'End'
+        ) {
+            const nextRowId = nextSidebarRowId(treeRows, rowId, event.key);
+            if (!nextRowId) return;
+            event.preventDefault();
+            focusRow(nextRowId);
+            return;
+        }
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            const row = treeRows.find((item) => item.id === rowId);
+            if (!row) return;
+            const intent = sidebarHorizontalIntent(
+                row,
+                isProjectExpanded(row.projectId),
+                event.key,
+            );
+            if (intent.expanded !== undefined) {
+                event.preventDefault();
+                toggleProject(row.projectId);
+            }
+            if (intent.focusRowId) {
+                event.preventDefault();
+                focusRow(intent.focusRowId);
+            }
+            return;
+        }
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+            const row = treeRows.find((item) => item.id === rowId);
+            if (!row) return;
+            if (sidebarArchiveIntent(row, event.key) === 'archive') {
+                event.preventDefault();
+                // Compute where focus lands before the row leaves the DOM: the Project heading is
+                // always above a Session row, so the ArrowUp fallback never comes up empty here.
+                const focusAfterArchive =
+                    nextSidebarRowId(treeRows, rowId, 'ArrowDown') ??
+                    nextSidebarRowId(treeRows, rowId, 'ArrowUp');
+                archiveSession(row.id);
+                if (focusAfterArchive) focusRow(focusAfterArchive);
+            }
+        }
     };
 
     return (
@@ -145,11 +210,16 @@ export function ProjectSidebar() {
                 </CommandTooltip>
             </div>
             <div
+                ref={treeRef}
+                aria-label="Sidebar"
                 className="project-list min-h-0 flex-1 overflow-auto p-2"
+                role="tree"
                 onDragOver={(event) => {
                     if (!hasProjectDragType(event.dataTransfer.types)) return;
                     projectOrder.onListDragOver(event);
                 }}
+                onFocusCapture={handleTreeFocus}
+                onKeyDown={handleTreeKeyDown}
             >
                 {projects.map((project) => {
                     const projectSessions = sessions.filter(
@@ -163,14 +233,15 @@ export function ProjectSidebar() {
                             key={project.id}
                             active={project.id === selectedProjectId}
                             activeSessions={activeSessions}
+                            archivedCount={archivedCountByProject.get(project.id) ?? 0}
                             animateProject={animatedProjectIds.has(project.id)}
                             dragged={projectOrder.draggedProjectId === project.id}
-                            expanded={!collapsedProjects.has(project.id)}
-                            focusRenameInput={focusRenameInput}
-                            onBeginRename={beginRename}
-                            onBlurRename={blurRename}
-                            onCancelRename={cancelRename}
-                            onCommitRename={commitRename}
+                            expanded={isProjectExpanded(project.id)}
+                            focusRenameInput={sessionRename.focusRenameInput}
+                            onBeginRename={sessionRename.beginRename}
+                            onBlurRename={sessionRename.blurRename}
+                            onCancelRename={sessionRename.cancelRename}
+                            onCommitRename={sessionRename.commitRename}
                             onCreateSession={() => beginSessionCreation(project.id)}
                             onDragEnd={projectOrder.endDrag}
                             onDragOver={(event) => projectOrder.updateDropTarget(event, project.id)}
@@ -179,10 +250,7 @@ export function ProjectSidebar() {
                             onMove={(delta) =>
                                 projectOrder.move(project.id, project.displayTitle, delta)
                             }
-                            onRenameValueChange={(value) => {
-                                setRenameValue(value);
-                                setRenameError(undefined);
-                            }}
+                            onRenameValueChange={sessionRename.onRenameValueChange}
                             onSelect={() => selectProject(project.id)}
                             onToggle={() => toggleProject(project.id)}
                             project={project}
@@ -191,9 +259,10 @@ export function ProjectSidebar() {
                                     ? projectOrder.projectDropTarget
                                     : undefined
                             }
-                            renameError={renameError}
-                            renameValue={renameValue}
-                            renamingSessionId={renamingSessionId}
+                            renameError={sessionRename.renameError}
+                            renameValue={sessionRename.renameValue}
+                            renamingSessionId={sessionRename.renamingSessionId}
+                            rovingRowId={rovingRowId}
                             selectedSessionId={selectedSessionId}
                             terminals={terminals}
                         />

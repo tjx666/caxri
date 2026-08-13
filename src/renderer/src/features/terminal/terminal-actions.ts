@@ -120,6 +120,39 @@ export function clearActiveTerminal(terminalId: string): void {
     clearHandlers.get(terminalId)?.();
 }
 
+/**
+ * The mounted {@link TerminalPane} registers its live xterm selection here, mirroring
+ * {@link registerTerminalClearHandler}: `copySelection` reuses `TerminalSelectionClipboard` (already
+ * serializing writes against a stale selection) instead of a second clipboard write path, and
+ * `hasSelection` backs both the `terminal.copy` command's `when` gate and the context menu's
+ * disabled state.
+ */
+interface TerminalSelectionHandlers {
+    copySelection(): void;
+    hasSelection(): boolean;
+}
+
+const selectionHandlers = new Map<string, TerminalSelectionHandlers>();
+
+export function registerTerminalSelectionHandlers(
+    terminalId: string,
+    handlers: TerminalSelectionHandlers,
+): () => void {
+    selectionHandlers.set(terminalId, handlers);
+    return () => {
+        if (selectionHandlers.get(terminalId) === handlers) selectionHandlers.delete(terminalId);
+    };
+}
+
+export function copyActiveTerminalSelection(terminalId: string): void {
+    selectionHandlers.get(terminalId)?.copySelection();
+}
+
+/** Answers only "does this Terminal currently own a selection" — focus is checked by the caller. */
+export function activeTerminalHasSelection(terminalId: string): boolean {
+    return selectionHandlers.get(terminalId)?.hasSelection() ?? false;
+}
+
 export function findInActiveTerminal(terminalId: string): void {
     openTerminalSearch(terminalId);
 }

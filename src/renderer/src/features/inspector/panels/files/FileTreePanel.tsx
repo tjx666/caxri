@@ -1,10 +1,7 @@
-import { ChevronDown, ChevronRight, FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
-
-import type { FileEntry } from '@shared/types';
+import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 
 import { Button } from '../../../../components/ui/button';
-import { Input } from '../../../../components/ui/input';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -14,478 +11,53 @@ import {
 } from '../../../../components/ui/context-menu';
 import { CommandTooltip, Tooltip } from '../../../../components/ui/tooltip';
 import { executeCommand } from '../../../../commands/execute';
-import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
-import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedProject, useSelectedSession } from '../../../../stores/selectors';
-import { describeFailure } from '../../../../stores/toasts';
-import { openFile } from '../../../editor/document-actions';
-import {
-    copyFilePath,
-    duplicateFile,
-    moveFile,
-    openFileInTerminal,
-    pasteFile,
-    createItem,
-    rememberFile,
-    renameFile,
-    revealFile,
-    trashFile,
-} from './file-actions';
+import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
-import { useFileOperationStore } from './file-operation-state';
+import { FileConflictDialog } from './FileConflictDialog';
+import {
+    CANCEL_REVEAL_THRESHOLD_MS,
+    isPathBlockedByFileOperations,
+    useFileOperationStore,
+    type PendingFileOperation,
+} from './file-operation-state';
+import { dragPath, hasDraggedPath } from './file-tree-drag';
+import {
+    BUSY_DISABLED_REASON,
+    DirectoryEntries,
+    type EditRequest,
+    type FocusTarget,
+} from './file-tree-row';
 import { useFileTreeInvalidation } from './file-tree-refresh';
-import { parentDirectoryPath } from './file-tree-refresh';
 import { ProjectSearch } from './ProjectSearch';
 import { closeFileSearch, useFileSearchStore } from './file-search-state';
 
-const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
-
-type EditRequest =
-    | {
-          kind: 'create';
-          directory: string;
-          itemKind: 'file' | 'directory';
-          returnFocus: FocusTarget;
-      }
-    | { kind: 'rename'; entry: FileEntry };
-
-type FocusTarget =
-    { kind: 'caption'; itemKind: 'file' | 'directory' } | { kind: 'path'; path: string };
-
-interface TreeProps {
-    clearFocusPath: () => void;
-    depth?: number;
-    directory: string;
-    editing?: EditRequest;
-    fileOperationsPending: boolean;
-    focusPath?: string;
-    projectId: string;
-    projectRoot: string;
-    selectedPath?: string;
-    sessionId: string;
-    requestFocus: (target: FocusTarget) => void;
-    setEditing: (editing?: EditRequest) => void;
-    setSelectedPath: (path?: string) => void;
-}
-
-const treeRowClassName =
-    'tree-row flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated disabled:text-muted disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-elevated data-[cut=true]:opacity-50';
 const captionActionClassName =
     'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
 
-function InlineFileName({
-    depth = 0,
-    initialValue,
-    label,
-    onCancel,
-    onSubmit,
-}: {
-    depth: number;
-    initialValue: string;
-    label: string;
-    onCancel: () => void;
-    onSubmit: (value: string) => Promise<void>;
-}) {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const [error, setError] = useState<string>();
-    const [pending, setPending] = useState(false);
-    const [value, setValue] = useState(initialValue);
+/**
+ * A Cancel affordance would be noisy if it appeared for every fast operation, so it only reveals
+ * once `pendingOperation` has been running past `CANCEL_REVEAL_THRESHOLD_MS`. `Date.now()` is
+ * impure and React's render phase must stay pure, so every state update — including the
+ * already-past-threshold case — goes through a `setTimeout` callback (0ms when the threshold has
+ * already elapsed) instead of a synchronous `setState` call in the effect body. This mirrors
+ * `useDebouncedValue` in `StatusBar.tsx`, which defers its own correction the same way.
+ */
+function useCancelRevealed(operation: PendingFileOperation | undefined): boolean {
+    const [revealed, setRevealed] = useState(false);
+    const cancelable = operation?.cancelable ?? false;
+    const startedAt = operation?.startedAt;
     useEffect(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-    }, []);
-
-    const submit = async (event: FormEvent): Promise<void> => {
-        event.preventDefault();
-        if (pending) return;
-        setPending(true);
-        setError(undefined);
-        try {
-            await onSubmit(value);
-        } catch (submissionError) {
-            setError(describeFailure(submissionError, 'Unable to change item'));
-        } finally {
-            setPending(false);
+        if (!cancelable || startedAt === undefined) {
+            const timer = setTimeout(() => setRevealed(false), 0);
+            return () => clearTimeout(timer);
         }
-    };
-
-    return (
-        <form onSubmit={(event) => void submit(event)}>
-            <div className="flex h-7 items-center pr-2" style={{ paddingLeft: 23 + depth * 12 }}>
-                <Input
-                    ref={inputRef}
-                    aria-invalid={Boolean(error)}
-                    aria-label={label}
-                    appearance="inline"
-                    className="flex-1 text-foreground"
-                    disabled={pending}
-                    size="compact"
-                    value={value}
-                    onChange={(event) => setValue(event.target.value)}
-                    onKeyDown={(event) => {
-                        event.stopPropagation();
-                        if (event.key === 'Escape') {
-                            event.preventDefault();
-                            onCancel();
-                        }
-                    }}
-                />
-            </div>
-            {error && (
-                <div
-                    role="alert"
-                    className="pb-1 pr-2 text-[11px] text-danger"
-                    style={{ paddingLeft: 23 + depth * 12 }}
-                >
-                    {error}
-                </div>
-            )}
-        </form>
-    );
-}
-
-function dragPath(event: DragEvent): string | undefined {
-    return event.dataTransfer.getData(FILE_TREE_DRAG_TYPE) || undefined;
-}
-
-function hasDraggedPath(event: DragEvent): boolean {
-    return event.dataTransfer.types.includes(FILE_TREE_DRAG_TYPE);
-}
-
-function DirectoryEntries({
-    sessionId,
-    directory,
-    depth = 0,
-    editing,
-    fileOperationsPending,
-    focusPath,
-    projectId,
-    projectRoot,
-    selectedPath,
-    clearFocusPath,
-    requestFocus,
-    setEditing,
-    setSelectedPath,
-}: TreeProps) {
-    const {
-        data: entries = [],
-        isError,
-        error,
-    } = useCaxriQuery('files.list', { sessionId, directory });
-    useToastOnQueryError(isError, error, 'Unable to read directory');
-
-    return (
-        <div className="file-list">
-            {editing?.kind === 'create' && editing.directory === directory && (
-                <InlineFileName
-                    depth={depth}
-                    initialValue=""
-                    label={editing.itemKind === 'directory' ? 'New folder name' : 'New file name'}
-                    onCancel={() => {
-                        setEditing(undefined);
-                        requestFocus(editing.returnFocus);
-                    }}
-                    onSubmit={async (name) => {
-                        const created = await createItem(
-                            sessionId,
-                            directory,
-                            name,
-                            editing.itemKind,
-                        );
-                        if (!created) {
-                            setEditing(undefined);
-                            requestFocus(editing.returnFocus);
-                            return;
-                        }
-                        setSelectedPath(created.path);
-                        setEditing(undefined);
-                        requestFocus({ kind: 'path', path: created.path });
-                    }}
-                />
-            )}
-            {entries.map((entry) => (
-                <FileTreeItem
-                    key={entry.path}
-                    depth={depth}
-                    editing={editing}
-                    entry={entry}
-                    fileOperationsPending={fileOperationsPending}
-                    focusPath={focusPath}
-                    projectId={projectId}
-                    projectRoot={projectRoot}
-                    selectedPath={selectedPath}
-                    sessionId={sessionId}
-                    clearFocusPath={clearFocusPath}
-                    requestFocus={requestFocus}
-                    setEditing={setEditing}
-                    setSelectedPath={setSelectedPath}
-                />
-            ))}
-        </div>
-    );
-}
-
-function FileTreeItem({
-    entry,
-    sessionId,
-    depth = 0,
-    editing,
-    fileOperationsPending,
-    focusPath,
-    projectId,
-    projectRoot,
-    selectedPath,
-    clearFocusPath,
-    requestFocus,
-    setEditing,
-    setSelectedPath,
-}: Omit<TreeProps, 'directory'> & { entry: FileEntry }) {
-    const [expanded, setExpanded] = useState(false);
-    const rowRef = useRef<HTMLButtonElement>(null);
-    const clipboard = useFileClipboardStore((state) => state.entry);
-    const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
-    const editable = entry.kind !== 'symlink';
-    const pasteDirectory =
-        entry.kind === 'directory' ? entry.path : parentDirectoryPath(entry.path);
-    const canPaste = Boolean(clipboard && clipboard.projectId === projectId);
-    const startRename = (): void => {
-        if (editable) setEditing({ kind: 'rename', entry });
-    };
-    const startCreate = (itemKind: 'file' | 'directory'): void => {
-        if (entry.kind !== 'directory') return;
-        setExpanded(true);
-        setEditing({
-            kind: 'create',
-            directory: entry.path,
-            itemKind,
-            returnFocus: { kind: 'path', path: entry.path },
-        });
-    };
-    const openEntry = (): void => {
-        if (entry.kind === 'directory') setExpanded(true);
-        else void openFile(entry.path);
-    };
-    const pasteIntoEntry = async (): Promise<void> => {
-        const currentClipboard = useFileClipboardStore.getState().entry;
-        if (!currentClipboard) return;
-        const pasted = await pasteFile(sessionId, projectId, pasteDirectory, currentClipboard);
-        if (pasted) setSelectedPath(pasted.path);
-    };
-    const duplicateEntry = async (): Promise<void> => {
-        const copied = await duplicateFile(sessionId, entry.path);
-        if (copied) setSelectedPath(copied.path);
-    };
-    const confirmTrash = async (): Promise<void> => {
-        if (await trashFile(sessionId, entry.path)) {
-            setSelectedPath(undefined);
-            setEditing(undefined);
-        }
-    };
-    const dropIntoDirectory = (event: DragEvent): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        const source = dragPath(event);
-        if (fileOperationsPending) return;
-        if (!source || entry.kind !== 'directory') return;
-        void moveFile(sessionId, source, entry.path).then((moved) => {
-            if (moved) setSelectedPath(moved.path);
-        });
-    };
-
-    useEffect(() => {
-        if (focusPath !== entry.path || isRenaming) return;
-        rowRef.current?.focus();
-        clearFocusPath();
-    }, [clearFocusPath, entry.path, focusPath, isRenaming]);
-
-    if (isRenaming)
-        return (
-            <InlineFileName
-                depth={depth}
-                initialValue={entry.name}
-                label={`Rename ${entry.name}`}
-                onCancel={() => {
-                    setEditing(undefined);
-                    requestFocus({ kind: 'path', path: entry.path });
-                }}
-                onSubmit={async (name) => {
-                    const moved = await renameFile(sessionId, entry.path, name);
-                    if (!moved) {
-                        setEditing(undefined);
-                        requestFocus({ kind: 'path', path: entry.path });
-                        return;
-                    }
-                    setSelectedPath(moved.path);
-                    setEditing(undefined);
-                    requestFocus({ kind: 'path', path: moved.path });
-                }}
-            />
-        );
-
-    const row = (
-        <button
-            ref={rowRef}
-            className={treeRowClassName}
-            data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
-            data-git-ignored={entry.gitIgnored}
-            data-selected={selectedPath === entry.path}
-            draggable={editable && !fileOperationsPending}
-            style={{ paddingLeft: (entry.kind === 'directory' ? 8 : 23) + depth * 12 }}
-            disabled={entry.kind === 'symlink'}
-            title={
-                entry.kind === 'symlink'
-                    ? 'Symlink browsing and changes are disabled for safety'
-                    : entry.gitIgnored
-                      ? `${entry.path} (Git ignored)`
-                      : entry.path
-            }
-            onClick={() => {
-                setSelectedPath(entry.path);
-                if (entry.kind === 'directory') setExpanded((value) => !value);
-                else void openFile(entry.path, { preview: true });
-            }}
-            onDoubleClick={() => {
-                if (entry.kind === 'file') void openFile(entry.path);
-            }}
-            onFocus={() => {
-                if (focusPath && focusPath !== entry.path) clearFocusPath();
-            }}
-            onContextMenu={() => setSelectedPath(entry.path)}
-            onCopy={(event) => {
-                event.preventDefault();
-                rememberFile(projectId, entry.path, 'copy');
-            }}
-            onCut={(event) => {
-                event.preventDefault();
-                rememberFile(projectId, entry.path, 'cut');
-            }}
-            onDragOver={(event) => {
-                if (!fileOperationsPending && entry.kind === 'directory' && hasDraggedPath(event))
-                    event.preventDefault();
-            }}
-            onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, entry.path);
-            }}
-            onDrop={dropIntoDirectory}
-            onPaste={(event) => {
-                event.preventDefault();
-                if (!fileOperationsPending) void pasteIntoEntry();
-            }}
-            onKeyDown={(event) => {
-                if (event.key === 'Enter' && editable) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startRename();
-                    return;
-                }
-                if (!event.metaKey || !editable) return;
-                const key = event.key.toLowerCase();
-                if (!['backspace', 'c', 'v', 'x'].includes(key)) return;
-                event.preventDefault();
-                event.stopPropagation();
-                if (key === 'backspace') void confirmTrash();
-                else if (key === 'c') rememberFile(projectId, entry.path, 'copy');
-                else if (key === 'x') rememberFile(projectId, entry.path, 'cut');
-                else if (!fileOperationsPending) void pasteIntoEntry();
-            }}
-        >
-            {entry.kind === 'directory' &&
-                (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
-            <FileTypeIcon entry={entry} expanded={expanded} />
-            <span className="truncate">{entry.name}</span>
-        </button>
-    );
-
-    const item = editable ? (
-        <ContextMenu>
-            <ContextMenuTrigger render={row} />
-            <ContextMenuContent>
-                <ContextMenuItem onClick={openEntry}>Open</ContextMenuItem>
-                <ContextMenuItem onClick={() => void revealFile(sessionId, entry.path)}>
-                    Reveal in Finder
-                </ContextMenuItem>
-                <ContextMenuItem
-                    onClick={() =>
-                        void openFileInTerminal(
-                            entry.kind === 'directory'
-                                ? entry.path
-                                : parentDirectoryPath(entry.path),
-                        )
-                    }
-                >
-                    Open in Terminal
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => rememberFile(projectId, entry.path, 'cut')}>
-                    Cut
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => rememberFile(projectId, entry.path, 'copy')}>
-                    Copy
-                </ContextMenuItem>
-                {canPaste && (
-                    <ContextMenuItem
-                        disabled={fileOperationsPending}
-                        onClick={() => void pasteIntoEntry()}
-                    >
-                        Paste
-                    </ContextMenuItem>
-                )}
-                <ContextMenuItem
-                    disabled={fileOperationsPending}
-                    onClick={() => void duplicateEntry()}
-                >
-                    Duplicate
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => void copyFilePath(entry.path)}>
-                    Copy Path
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => void copyFilePath(entry.path, projectRoot)}>
-                    Copy Relative Path
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                {entry.kind === 'directory' && (
-                    <>
-                        <ContextMenuItem onClick={() => startCreate('file')}>
-                            New File
-                        </ContextMenuItem>
-                        <ContextMenuItem onClick={() => startCreate('directory')}>
-                            New Folder
-                        </ContextMenuItem>
-                    </>
-                )}
-                <ContextMenuItem onClick={startRename}>Rename</ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => void confirmTrash()}>Move to Trash</ContextMenuItem>
-            </ContextMenuContent>
-        </ContextMenu>
-    ) : (
-        row
-    );
-
-    return (
-        <div>
-            {item}
-            {entry.kind === 'directory' && expanded && (
-                <DirectoryEntries
-                    depth={depth + 1}
-                    directory={entry.path}
-                    editing={editing}
-                    fileOperationsPending={fileOperationsPending}
-                    focusPath={focusPath}
-                    projectId={projectId}
-                    projectRoot={projectRoot}
-                    selectedPath={selectedPath}
-                    sessionId={sessionId}
-                    clearFocusPath={clearFocusPath}
-                    requestFocus={requestFocus}
-                    setEditing={setEditing}
-                    setSelectedPath={setSelectedPath}
-                />
-            )}
-        </div>
-    );
+        const remaining = startedAt + CANCEL_REVEAL_THRESHOLD_MS - Date.now();
+        const timer = setTimeout(() => setRevealed(true), Math.max(remaining, 0));
+        return () => clearTimeout(timer);
+    }, [cancelable, startedAt]);
+    return revealed;
 }
 
 export function FileTreePanel() {
@@ -494,9 +66,12 @@ export function FileTreePanel() {
     const sessionId = session?.id;
     const clipboard = useFileClipboardStore((state) => state.entry);
     const selectedProjectId = project?.id ?? session?.projectId;
-    const pendingOperation = useFileOperationStore((state) =>
-        state.operations.find((operation) => operation.projectId === selectedProjectId),
+    const operations = useFileOperationStore((state) => state.operations);
+    const projectOperations = operations.filter(
+        (operation) => operation.projectId === selectedProjectId,
     );
+    const pendingOperation = projectOperations[0];
+    const cancelRevealed = useCancelRevealed(pendingOperation);
     const fileCaptionRef = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
     const [editingState, setEditingState] = useState<{
@@ -542,6 +117,13 @@ export function FileTreePanel() {
             </div>
         );
     const projectId = selectedProjectId ?? session.projectId;
+    const rootClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
+    const rootPasteBlocked = isPathBlockedByFileOperations(
+        projectOperations,
+        projectId,
+        session.rootPath,
+    );
+    const rootPasteDisabled = rootClipboardEmpty || rootPasteBlocked;
     const pasteIntoProjectRoot = async (): Promise<void> => {
         const currentClipboard = useFileClipboardStore.getState().entry;
         if (!currentClipboard) return;
@@ -550,7 +132,7 @@ export function FileTreePanel() {
     };
     const dropIntoProjectRoot = async (event: DragEvent): Promise<void> => {
         event.preventDefault();
-        if (pendingOperation) return;
+        if (rootPasteBlocked) return;
         const source = dragPath(event);
         if (!source) return;
         const moved = await moveFile(session.id, source, session.rootPath);
@@ -559,9 +141,11 @@ export function FileTreePanel() {
 
     const tree = (
         <div
+            role="tree"
+            aria-label="Files"
             className="min-h-0 flex-1 overflow-auto"
             onDragOver={(event) => {
-                if (!pendingOperation && hasDraggedPath(event)) event.preventDefault();
+                if (!rootPasteBlocked && hasDraggedPath(event)) event.preventDefault();
             }}
             onDrop={(event) => void dropIntoProjectRoot(event)}
         >
@@ -570,7 +154,7 @@ export function FileTreePanel() {
                 key={`${session.id}:${collapseRevision}`}
                 directory={session.rootPath}
                 editing={editing}
-                fileOperationsPending={Boolean(pendingOperation)}
+                operations={projectOperations}
                 focusPath={focusPath}
                 projectId={projectId}
                 projectRoot={session.rootPath}
@@ -671,9 +255,18 @@ export function FileTreePanel() {
                 <div
                     role="status"
                     aria-live="polite"
-                    className="border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
+                    className="flex items-center justify-between gap-2 border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
                 >
-                    {pendingOperation.label}
+                    <span className="truncate">{pendingOperation.label}</span>
+                    {cancelRevealed && (
+                        <button
+                            className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
+                            type="button"
+                            onClick={() => void cancelFileOperation(pendingOperation.id)}
+                        >
+                            Cancel
+                        </button>
+                    )}
                 </div>
             )}
             {searchVisible ? (
@@ -706,20 +299,25 @@ export function FileTreePanel() {
                         >
                             New Folder
                         </ContextMenuItem>
-                        {clipboard && clipboard.projectId === projectId && (
-                            <>
-                                <ContextMenuSeparator />
-                                <ContextMenuItem
-                                    disabled={Boolean(pendingOperation)}
-                                    onClick={() => void pasteIntoProjectRoot()}
-                                >
-                                    Paste
-                                </ContextMenuItem>
-                            </>
-                        )}
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                            disabled={rootPasteDisabled}
+                            disabledReason={
+                                rootClipboardEmpty
+                                    ? 'Nothing to paste'
+                                    : rootPasteBlocked
+                                      ? BUSY_DISABLED_REASON
+                                      : undefined
+                            }
+                            hint={rootPasteDisabled ? undefined : 'cmd+v'}
+                            onClick={() => void pasteIntoProjectRoot()}
+                        >
+                            Paste
+                        </ContextMenuItem>
                     </ContextMenuContent>
                 </ContextMenu>
             )}
+            <FileConflictDialog />
         </div>
     );
 }

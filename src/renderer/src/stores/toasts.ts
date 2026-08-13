@@ -10,6 +10,17 @@ interface Toast {
     id: number;
     kind: ToastKind;
     message: string;
+    /** Stays on screen until dismissed, like an error, without claiming the failure styling. */
+    persist: boolean;
+}
+
+export interface ToastOptions {
+    /**
+     * Keeps a non-error notification on screen until the user dismisses it. Reserved for events
+     * that already cost the user something irreversible — an external write replacing an unsaved
+     * buffer — where a 4-second auto-dismiss can silently take the only record of it away.
+     */
+    persist?: boolean;
 }
 
 /** Matches the previous inline `showMessage` timeout so notification timing is unchanged. */
@@ -23,7 +34,7 @@ const MAX_VISIBLE_TOASTS = 3;
 interface ToastState {
     /** Oldest first, so the newest notification renders closest to the status bar. */
     toasts: Toast[];
-    push(kind: ToastKind, message: string): void;
+    push(kind: ToastKind, message: string, options?: ToastOptions): void;
     /** Dismisses one notification by id, or every notification when the id is omitted. */
     dismiss(id?: number): void;
 }
@@ -39,7 +50,8 @@ function clearDismissTimer(id: number): void {
 
 export const useToastStore = create<ToastState>((set, get) => ({
     toasts: [],
-    push(kind, message) {
+    push(kind, message, options) {
+        const persist = kind === 'error' || options?.persist === true;
         /**
          * A single user-visible event can arrive twice — a file watcher reports a write and the
          * follow-up metadata change, for instance. Replacing one toast with the next used to hide
@@ -48,7 +60,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
         const newest = get().toasts.at(-1);
         if (newest && newest.kind === kind && newest.message === message) {
             clearDismissTimer(newest.id);
-            if (kind !== 'error')
+            if (!persist)
                 dismissTimers.set(
                     newest.id,
                     window.setTimeout(() => get().dismiss(newest.id), AUTO_DISMISS_MS),
@@ -57,13 +69,13 @@ export const useToastStore = create<ToastState>((set, get) => ({
         }
         const id = ++nextToastId;
         set((state) => {
-            const next = [...state.toasts, { id, kind, message }];
+            const next = [...state.toasts, { id, kind, message, persist }];
             for (const dropped of next.splice(0, Math.max(0, next.length - MAX_VISIBLE_TOASTS)))
                 clearDismissTimer(dropped.id);
             return { toasts: next };
         });
-        /** Failures stay until they are dismissed; progress notifications self-expire. */
-        if (kind !== 'error')
+        /** Failures and opted-in notices stay until dismissed; progress notifications self-expire. */
+        if (!persist)
             dismissTimers.set(
                 id,
                 window.setTimeout(() => get().dismiss(id), AUTO_DISMISS_MS),
@@ -80,8 +92,8 @@ export const useToastStore = create<ToastState>((set, get) => ({
     },
 }));
 
-export function pushToast(kind: ToastKind, message: string): void {
-    useToastStore.getState().push(kind, message);
+export function pushToast(kind: ToastKind, message: string, options?: ToastOptions): void {
+    useToastStore.getState().push(kind, message, options);
 }
 
 export function dismissToast(id?: number): void {

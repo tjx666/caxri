@@ -5,18 +5,21 @@ import {
     MAX_OSC52_ENCODED_LENGTH,
     MAX_OSC52_TEXT_CHARACTERS,
     OSC52_MIN_WRITE_INTERVAL_MS,
+    OSC52_NOTIFICATION_THROTTLE_MS,
 } from './terminal-osc52-clipboard';
 
 function osc52Fixture(options?: { enabled?: boolean; now?: () => number }) {
     const writeClipboard = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    const onBlocked = vi.fn();
     const onWriteFailure = vi.fn();
     const clipboard = new ControlledOsc52Clipboard({
         enabled: () => options?.enabled ?? false,
         now: options?.now,
+        onBlocked,
         onWriteFailure,
         writeClipboard,
     });
-    return { clipboard, onWriteFailure, writeClipboard };
+    return { clipboard, onBlocked, onWriteFailure, writeClipboard };
 }
 
 async function writeOsc52(
@@ -30,13 +33,58 @@ async function writeOsc52(
 
 describe('ControlledOsc52Clipboard', () => {
     it('does not access the system clipboard while disabled and never reports its contents', async () => {
-        const { clipboard, writeClipboard } = osc52Fixture();
+        const { clipboard, onBlocked, writeClipboard } = osc52Fixture();
 
         await writeOsc52(clipboard, 'blocked');
 
         expect(writeClipboard).not.toHaveBeenCalled();
         expect(clipboard.readText()).toBe('');
         expect(writeClipboard).not.toHaveBeenCalled();
+        expect(onBlocked).toHaveBeenCalledExactlyOnceWith('disabled');
+    });
+
+    /**
+     * The throttle is per reason. Collapsing a burst of one kind is the anti-spam goal; collapsing
+     * four different explanations into whichever fired first would hide the only one with a next
+     * step (`disabled`) behind a chatty program's repeated oversized writes.
+     */
+    it('throttles a repeated block reason without suppressing a different one', () => {
+        let now = 2_000;
+        const { clipboard, onBlocked, writeClipboard } = osc52Fixture({
+            enabled: true,
+            now: () => now,
+        });
+        const oversized = 'A'.repeat(MAX_OSC52_ENCODED_LENGTH + 1);
+
+        clipboard.decodeText('not base64');
+        expect(onBlocked).toHaveBeenCalledExactlyOnceWith('malformed');
+
+        /** A different reason inside the same window is a different explanation, so it still lands. */
+        clipboard.decodeText(oversized);
+        expect(onBlocked).toHaveBeenCalledTimes(2);
+        expect(onBlocked).toHaveBeenNthCalledWith(2, 'oversized');
+
+        /** Repeats of either reason inside the window are suppressed. */
+        clipboard.decodeText(oversized);
+        clipboard.decodeText('not base64');
+        expect(onBlocked).toHaveBeenCalledTimes(2);
+
+        now += OSC52_NOTIFICATION_THROTTLE_MS;
+        clipboard.decodeText(oversized);
+        expect(onBlocked).toHaveBeenCalledTimes(3);
+        expect(onBlocked).toHaveBeenNthCalledWith(3, 'oversized');
+        expect(writeClipboard).not.toHaveBeenCalled();
+    });
+
+    it('reports a throttled rate-limit block distinct from the write failure path', async () => {
+        let now = 2_000;
+        const { clipboard, onBlocked } = osc52Fixture({ enabled: true, now: () => now });
+
+        await writeOsc52(clipboard, 'first');
+        now += OSC52_MIN_WRITE_INTERVAL_MS - 1;
+        await writeOsc52(clipboard, 'too soon');
+
+        expect(onBlocked).toHaveBeenCalledExactlyOnceWith('rate-limited');
     });
 
     it('writes one valid bounded clipboard selection when enabled', async () => {

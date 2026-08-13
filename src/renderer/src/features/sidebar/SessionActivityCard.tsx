@@ -7,14 +7,19 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { cn } from '../../lib/utils';
-import { formatSessionRelativeTime, sessionActivityPresentation } from './session-activity';
+import {
+    formatSessionRelativeTime,
+    sessionActivityPresentation,
+    sessionToneCalloutClassName,
+    type SessionActivityPresentation,
+} from './session-activity';
 
-function unreadAttentionLabel(session: SessionRecord): string | undefined {
+/** Reuses the same tone table as the activity dot and the Sidebar ring, per the single source of truth. */
+function unreadAttentionPresentation(
+    session: SessionRecord,
+): SessionActivityPresentation | undefined {
     if (!session.hasUnread) return undefined;
-    if (session.lastAttentionKind === 'waiting') return 'Unread attention: Waiting for you';
-    if (session.lastAttentionKind === 'failed') return 'Unread attention: Failed';
-    if (session.lastAttentionKind === 'completed') return 'Unread attention: Finished';
-    return 'Unread Agent attention';
+    return sessionActivityPresentation(session.lastAttentionKind ?? 'unknown');
 }
 
 export function SessionActivityCard({
@@ -34,7 +39,8 @@ export function SessionActivityCard({
     const agent = terminal?.kind ?? 'shell';
     const agentLabel = resolveAgentIcon(agent).label;
     const lastOpened = formatSessionRelativeTime(session.lastOpenedAt);
-    const unread = unreadAttentionLabel(session);
+    const unreadAttention = unreadAttentionPresentation(session);
+    const unread = unreadAttention ? `Unread attention: ${unreadAttention.label}` : undefined;
     const accessibleDescription = [
         `Project ${project.displayTitle}.`,
         `Agent ${agentLabel}.`,
@@ -123,8 +129,13 @@ export function SessionActivityCard({
                             <span>Last opened</span>
                             <span className="text-right text-foreground">{lastOpened}</span>
                         </div>
-                        {unread && (
-                            <p className="mt-2 mb-0 rounded bg-accent/10 px-2 py-1.5 text-[10px] text-accent">
+                        {unread && unreadAttention && (
+                            <p
+                                className={cn(
+                                    'mt-2 mb-0 rounded px-2 py-1.5 text-[10px]',
+                                    sessionToneCalloutClassName(unreadAttention.tone),
+                                )}
+                            >
                                 {unread}
                             </p>
                         )}

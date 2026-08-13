@@ -102,3 +102,53 @@ export function appendKeybindingSource(
 ): string {
     return applyFormEdit(source, [bindingCount], binding);
 }
+
+/** In-progress shortcut capture for one row: armed but not yet holding a captured chord, or
+ * holding the last-captured (but not yet committed) chord. */
+export interface RecordingState {
+    pending?: string;
+    rowId: string;
+}
+
+/** Outcome of a recording state transition: the next state to render, and the chord to persist
+ * when the transition is a commit. */
+export interface RecordingResolution {
+    next: RecordingState | undefined;
+    commit?: string;
+}
+
+/** Arms recording for a row with no chord captured yet. */
+export function startRecording(rowId: string): RecordingState {
+    return { rowId };
+}
+
+/** Records the latest captured chord; a further key press overwrites it, matching how a user
+ * expects to be able to retry a shortcut before committing it. */
+export function captureRecordingKey(state: RecordingState, key: string): RecordingState {
+    return { ...state, pending: key };
+}
+
+/** Escape, Tab, and a blur with nothing captured yet all discard recording the same way. */
+export function cancelRecording(): RecordingResolution {
+    return { next: undefined };
+}
+
+/**
+ * Enter only acts once a chord has been captured; with nothing captured yet it is a no-op (returns
+ * `undefined`) so recording stays open for another attempt instead of silently closing.
+ */
+export function commitOnEnter(state: RecordingState): RecordingResolution | undefined {
+    if (!state.pending) return undefined;
+    return { next: undefined, commit: state.pending };
+}
+
+/**
+ * Blur must never silently drop an already-captured chord — the historical bug this closes, where
+ * clicking away from the recording button discarded the shortcut the user just pressed. A captured
+ * chord commits on blur exactly like Enter; only a blur before any key was captured has nothing to
+ * lose, so it cancels recording instead.
+ */
+export function commitOnBlur(state: RecordingState): RecordingResolution {
+    if (!state.pending) return cancelRecording();
+    return { next: undefined, commit: state.pending };
+}

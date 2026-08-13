@@ -4,7 +4,12 @@ import { join } from 'node:path';
 
 import { expect, test, type Locator, type Page } from './fixtures.ts';
 
-import { createAdditionalShellSession, createShellSession, launchCaxri } from './helpers.ts';
+import {
+    createAdditionalShellSession,
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+} from './helpers.ts';
 
 async function expectIndicatorAligned(tablist: Locator, tab: Locator): Promise<void> {
     await expect
@@ -34,6 +39,30 @@ async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean
     await expect(panel).toHaveAttribute('aria-labelledby', tabId);
     if (visible) await expect(panel).toBeVisible();
     else await expect(panel).toBeHidden();
+}
+
+/**
+ * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is
+ * scaled down by up to 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and
+ * the tab content it tracks are scaled together and stay aligned throughout the animation. Poll for
+ * two consecutive equal readings before pinning an absolute pixel baseline.
+ */
+async function stableWidth(locator: Locator): Promise<number> {
+    let previous = Number.NaN;
+    await expect
+        .poll(async () => {
+            const width = await locator.evaluate(
+                (element) =>
+                    new Promise<number>((resolve) =>
+                        requestAnimationFrame(() => resolve(element.getBoundingClientRect().width)),
+                    ),
+            );
+            const stable = width === previous;
+            previous = width;
+            return stable;
+        })
+        .toBe(true);
+    return previous;
 }
 
 async function settleMediaChange(page: Page): Promise<void> {
@@ -144,19 +173,33 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         await expectPanelAssociation(running.page, keybindingsTab, false);
         await expectPanelAssociation(running.page, themeTab, false);
         await expectIndicatorAligned(settingsTabs, settingsTab);
-        const cleanWidth = await settingsTabs
-            .locator('[data-slot="chrome-tab-indicator"]')
-            .evaluate((element) => element.getBoundingClientRect().width);
+        const cleanWidth = await stableWidth(
+            settingsTabs.locator('[data-slot="chrome-tab-indicator"]'),
+        );
+        /**
+         * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it
+         * changes, with no draft/Apply step and no per-tab dirty badge for the chrome tab to grow
+         * around — `[data-dirty="true"]` no longer exists anywhere in the DOM. The regression this
+         * sub-case protects is the new contract instead: editing a field must persist without an
+         * explicit Apply affordance, and the moving indicator must keep tracking the (visually
+         * unchanged) tab through that write rather than drifting or losing alignment.
+         */
         await dialog.getByLabel('Terminal font size').fill('14');
-        await expect(settingsTab.locator('[data-dirty="true"]')).toBeVisible();
-        await expectIndicatorAligned(settingsTabs, settingsTab);
         await expect
-            .poll(() =>
-                settingsTabs
-                    .locator('[data-slot="chrome-tab-indicator"]')
-                    .evaluate((element) => element.getBoundingClientRect().width),
-            )
-            .toBeGreaterThan(cleanWidth);
+            .poll(async () => {
+                const settings = await pageRequest<{ value: { 'terminal.fontSize': number } }>(
+                    running.page,
+                    'settings.get',
+                );
+                return settings.value['terminal.fontSize'];
+            })
+            .toBe(14);
+        await expectIndicatorAligned(settingsTabs, settingsTab);
+        // Sub-pixel tolerance rather than exact float equality: the point is that the tab did not
+        // grow by a dirty badge, not that layout reproduces bit-for-bit across a re-render.
+        expect(
+            await stableWidth(settingsTabs.locator('[data-slot="chrome-tab-indicator"]')),
+        ).toBeCloseTo(cleanWidth, 0);
 
         await settingsTab.focus();
         await settingsTab.press('ArrowRight');

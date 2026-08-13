@@ -31,6 +31,14 @@ type ProcessListRunner = () => Promise<string>;
 interface ProcessExplorerSamplerOptions {
     electronProcesses: () => ElectronProcessSample[];
     processList?: ProcessListRunner;
+    /**
+     * OS process id -> role for Caxri's renderer windows. Electron's `getAppMetrics()` leaves
+     * `name` undefined for `Tab` processes, so without this every renderer listed as a bare
+     * `window (renderer)` and the workbench was distinguishable from the diagnostics window itself
+     * only by PID. Roles are supplied by Main rather than read from window titles, which carry
+     * user Project names and change as the selection changes.
+     */
+    rendererRoles?: () => ReadonlyMap<number, string>;
     rootPid: number;
     runtimePid: () => number | undefined;
 }
@@ -96,9 +104,9 @@ export function selectProcessTree(
     return selected.sort((left, right) => left.pid - right.pid);
 }
 
-function electronProcessName(sample: ElectronProcessSample): string {
+function electronProcessName(sample: ElectronProcessSample, rendererRole?: string): string {
     if (sample.type === 'Browser') return 'caxri';
-    if (sample.type === 'Tab') return `window (${sample.name ?? 'renderer'})`;
+    if (sample.type === 'Tab') return `window (${rendererRole ?? sample.name ?? 'renderer'})`;
     if (sample.type === 'GPU') return 'gpu-process';
     if (sample.type === 'Utility') {
         const detail = sample.name ?? sample.serviceName ?? 'process';
@@ -141,6 +149,7 @@ export class ProcessExplorerSampler {
             this.options.electronProcesses().map((sample) => [sample.pid, sample] as const),
         );
         const runtimePid = this.options.runtimePid();
+        const rendererRoles = this.options.rendererRoles?.();
         return {
             processes: selected.map((process) => {
                 const sample = electron.get(process.pid);
@@ -148,7 +157,7 @@ export class ProcessExplorerSampler {
                 if (!sample) return process;
                 return {
                     ...process,
-                    name: electronProcessName(sample),
+                    name: electronProcessName(sample, rendererRoles?.get(process.pid)),
                     cpuPercent: sample.cpuPercent,
                     memoryMb: sample.memoryMb,
                 };

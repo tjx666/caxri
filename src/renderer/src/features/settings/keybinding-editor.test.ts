@@ -6,10 +6,15 @@ import { formatShortcut, formatShortcutParts } from '../../lib/keybindings';
 import {
     appendKeybindingSource,
     buildKeybindingRows,
+    cancelRecording,
+    captureRecordingKey,
+    commitOnBlur,
+    commitOnEnter,
     filterKeybindingRows,
     isFocusNavigationKey,
     isModifierKey,
     removeKeybindingSource,
+    startRecording,
     updateKeybindingSource,
 } from './keybinding-editor';
 
@@ -40,7 +45,7 @@ describe('keybinding rows', () => {
             }),
         );
         const unbound = rows.find((row) => row.command === 'project.delete');
-        expect(unbound).toMatchObject({ command: 'project.delete', title: 'Remove Project' });
+        expect(unbound).toMatchObject({ command: 'project.delete', title: 'Delete Project' });
         expect(unbound?.bindingIndex).toBeUndefined();
         expect(unbound?.key).toBeUndefined();
     });
@@ -103,5 +108,44 @@ describe('keybinding JSONC edits', () => {
         expect(appended.indexOf('custom.doThing')).toBeLessThan(
             appended.indexOf('pathBrowser.open'),
         );
+    });
+});
+
+describe('shortcut recording transitions', () => {
+    it('arms a row with no captured chord', () => {
+        expect(startRecording('row-1')).toEqual({ rowId: 'row-1' });
+    });
+
+    it('overwrites the captured chord on a further key press instead of appending', () => {
+        const armed = startRecording('row-1');
+        const first = captureRecordingKey(armed, 'cmd+p');
+        const second = captureRecordingKey(first, 'cmd+shift+p');
+
+        expect(first).toEqual({ rowId: 'row-1', pending: 'cmd+p' });
+        expect(second).toEqual({ rowId: 'row-1', pending: 'cmd+shift+p' });
+    });
+
+    it('Enter is a no-op while nothing has been captured, keeping recording open', () => {
+        expect(commitOnEnter(startRecording('row-1'))).toBeUndefined();
+    });
+
+    it('Enter commits the captured chord and ends recording', () => {
+        const captured = captureRecordingKey(startRecording('row-1'), 'cmd+k');
+
+        expect(commitOnEnter(captured)).toEqual({ next: undefined, commit: 'cmd+k' });
+    });
+
+    it('Escape and a plain click-away always cancel without committing', () => {
+        expect(cancelRecording()).toEqual({ next: undefined });
+    });
+
+    it('blur before any key is captured cancels instead of committing', () => {
+        expect(commitOnBlur(startRecording('row-1'))).toEqual({ next: undefined });
+    });
+
+    it('blur after a chord is captured commits it — losing focus must never discard input', () => {
+        const captured = captureRecordingKey(startRecording('row-1'), 'cmd+alt+t');
+
+        expect(commitOnBlur(captured)).toEqual({ next: undefined, commit: 'cmd+alt+t' });
     });
 });

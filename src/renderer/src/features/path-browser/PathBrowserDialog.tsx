@@ -1,4 +1,4 @@
-import { ChevronLeft, CornerDownLeft } from 'lucide-react';
+import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import type { FileEntry } from '@shared/types';
@@ -12,10 +12,12 @@ import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
+import { createItem } from '../inspector/panels/files/file-actions';
 import {
     completePathQuery,
     filterPathEntries,
     parentDirectoryWithinRoot,
+    pathBrowserCreateCandidate,
     pathBrowserEmptyMessage,
 } from './path-browser';
 
@@ -86,9 +88,14 @@ function PathBrowserContent({
     const emptyMessage = pathBrowserEmptyMessage(matches.length, truncated);
     const exactMatchAvailable = !truncated && matches.length === 1 && matches[0].name === query;
     const resultsReady = settled || exactMatchAvailable;
+    const listboxRendered = resultsReady && !isError;
     const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(matches.length - 1, 0));
     const selected = resultsReady ? matches[effectiveSelectedIndex] : undefined;
     const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
+    const createCandidate = useMemo(
+        () => pathBrowserCreateCandidate(query, matches.length, truncated),
+        [query, matches.length, truncated],
+    );
 
     useEffect(() => {
         if (activeOptionId)
@@ -118,6 +125,28 @@ function PathBrowserContent({
         closePathBrowser();
         void openFile(entry.path);
     };
+    /**
+     * Reuses the file tree's own create action (`createItem`) instead of a second create path, so
+     * this affordance gets the same durable-mutation tracking, toasts, and Project-root containment
+     * (the target `directory` is always `nestedDirectory ?? root`, which navigation already keeps
+     * within root via `parentDirectoryWithinRoot`/listed entry paths).
+     */
+    const createFromQuery = async (): Promise<void> => {
+        if (!createCandidate) return;
+        const created = await createItem(
+            sessionId,
+            directory,
+            createCandidate.name,
+            createCandidate.kind,
+        );
+        if (!created) return;
+        if (createCandidate.kind === 'directory') {
+            enterDirectory(created.path);
+            return;
+        }
+        // `createItem` already opens a newly created file for the selected Session.
+        closePathBrowser();
+    };
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
         if (event.nativeEvent.isComposing) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -140,7 +169,8 @@ function PathBrowserContent({
         }
         if (event.key === 'Enter') {
             event.preventDefault();
-            choose(selected);
+            if (selected) choose(selected);
+            else if (createCandidate) void createFromQuery();
             return;
         }
         if (
@@ -177,8 +207,8 @@ function PathBrowserContent({
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
                     aria-busy={!resultsReady}
-                    aria-controls={listboxId}
-                    aria-expanded="true"
+                    aria-controls={listboxRendered ? listboxId : undefined}
+                    aria-expanded={listboxRendered}
                     aria-label="File path"
                     appearance="embedded"
                     className="min-w-[80px] flex-1 px-1 text-foreground"
@@ -204,10 +234,27 @@ function PathBrowserContent({
                 {!isPending && !isError && !resultsReady && (
                     <p className="p-6 text-center text-muted">Searching…</p>
                 )}
-                {resultsReady && !isError && emptyMessage && (
+                {resultsReady && !isError && emptyMessage && !createCandidate && (
                     <p className="p-6 text-center text-muted">{emptyMessage}</p>
                 )}
-                {resultsReady && !isError && (
+                {resultsReady && !isError && createCandidate && (
+                    <button
+                        type="button"
+                        className="path-browser-create flex h-10 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated"
+                        onClick={() => void createFromQuery()}
+                    >
+                        {createCandidate.kind === 'directory' ? (
+                            <FolderPlus aria-hidden="true" className="text-muted" size={14} />
+                        ) : (
+                            <FilePlus aria-hidden="true" className="text-muted" size={14} />
+                        )}
+                        <span className="min-w-0 flex-1 truncate">
+                            Create {createCandidate.kind === 'directory' ? 'folder' : 'file'} “
+                            {createCandidate.name}”
+                        </span>
+                    </button>
+                )}
+                {listboxRendered && (
                     <div aria-label="Files in current directory" id={listboxId} role="listbox">
                         {matches.map((entry, index) => (
                             <button
@@ -239,7 +286,7 @@ function PathBrowserContent({
                         ))}
                     </div>
                 )}
-                {resultsReady && !isError && truncated && matches.length > 0 && (
+                {listboxRendered && truncated && matches.length > 0 && (
                     <p className="px-2 py-1 text-[10px] text-muted" role="status">
                         Only part of this directory is shown. Refine or open a narrower folder.
                     </p>
@@ -248,7 +295,7 @@ function PathBrowserContent({
             <div className="flex h-8 items-center gap-3 border-t border-border px-3 text-[10px] text-muted">
                 <span>↑↓ Select</span>
                 <span>Tab Complete</span>
-                <span>→/Enter Open</span>
+                <span>{createCandidate ? 'Enter Create' : '→/Enter Open'}</span>
                 <span>← Parent</span>
                 <span>Esc Close</span>
             </div>
