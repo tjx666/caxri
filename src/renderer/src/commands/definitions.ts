@@ -45,6 +45,15 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.selectPrevious', (ctx) => ctx.session.selectAdjacent(-1)),
     fromCatalog('terminal.new', (ctx) => ctx.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.clear', (ctx) => ctx.terminal.clearActive(), { allowInEditable: true }),
+    /**
+     * `Cmd+C` is gated on a live Terminal selection rather than merely on an active Terminal: with
+     * no selection the chord must fall through untouched so Monaco, inputs, and the browser's own
+     * copy handling keep working.
+     */
+    fromCatalog('terminal.copy', (ctx) => ctx.terminal.copySelection(), {
+        allowInEditable: true,
+        when: (ctx) => ctx.terminal.hasSelection(),
+    }),
     fromCatalog('terminal.find', (ctx) => ctx.terminal.findActive(), {
         allowInEditable: true,
         when: (ctx) => ctx.terminal.hasActive(),
@@ -63,6 +72,12 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('workbench.closeActiveTab', (ctx) => ctx.workbench.closeActiveTab(), {
         allowInEditable: true,
     }),
+    fromCatalog('workbench.nextTab', (ctx) => ctx.workbench.cycleTab(1), {
+        allowInEditable: true,
+    }),
+    fromCatalog('workbench.previousTab', (ctx) => ctx.workbench.cycleTab(-1), {
+        allowInEditable: true,
+    }),
     fromCatalog('editor.save', (ctx) => ctx.editor.saveActive(), { allowInEditable: true }),
     ...inspectorModeRegistrations.map(({ commandId, mode }) =>
         fromCatalog(commandId, (ctx) => ctx.inspector.setMode(mode)),
@@ -74,6 +89,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('sidebar.toggle', (ctx) => ctx.sidebar.toggle(), { allowInEditable: true }),
     fromCatalog('settings.open', (ctx) => ctx.dialogs.openSettings(), { allowInEditable: true }),
     fromCatalog('settings.openSource', (ctx) => ctx.dialogs.openSettings('source'), {
+        allowInEditable: true,
+    }),
+    fromCatalog('settings.openKeybindings', (ctx) => ctx.dialogs.openSettings('keybindings'), {
         allowInEditable: true,
     }),
     fromCatalog(

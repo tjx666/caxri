@@ -68,7 +68,23 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+3', command: 'inspector.showAgent' },
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
-const preCommandNavigationDefaultKeybindings = defaultKeybindings.filter(
+/**
+ * The defaults shipped immediately before Terminal Copy and tab cycling were added and
+ * `pathBrowser.open` moved off `Cmd+P`. Each historical set below is derived from the one after it,
+ * so a new default has to be stripped here as well — otherwise every older set would also claim to
+ * contain bindings that release never had, and no untouched file would match any of them.
+ */
+const preTerminalCopyDefaultKeybindings = defaultKeybindings
+    .filter(
+        (binding) =>
+            !['terminal.copy', 'workbench.nextTab', 'workbench.previousTab'].includes(
+                binding.command,
+            ),
+    )
+    .map((binding) =>
+        binding.command === 'pathBrowser.open' ? { ...binding, key: 'cmd+p' } : binding,
+    );
+const preCommandNavigationDefaultKeybindings = preTerminalCopyDefaultKeybindings.filter(
     (binding) => !['terminal.previousCommand', 'terminal.nextCommand'].includes(binding.command),
 );
 const previousDefaultKeybindings = preCommandNavigationDefaultKeybindings.filter(
@@ -87,7 +103,14 @@ const newlyAddedDefaultCommands = new Set([
     'inspector.toggle',
     'sidebar.toggle',
 ]);
-const previousDefaultKeybindingSets = [
+/**
+ * Every historical default set {@link migrateLegacyDefaultKeybindings} still recognizes as
+ * untouched. Exported so tests can drive the migration from the real derivation chain: a test that
+ * rebuilds a past release by filtering the *current* catalog silently rots the moment a default is
+ * added or rebound, because the fixture then contains chords that release never shipped.
+ */
+export const previousDefaultKeybindingSets = [
+    preTerminalCopyDefaultKeybindings,
     preCommandNavigationDefaultKeybindings,
     previousDefaultKeybindings,
     prePathBrowserDefaultKeybindings,
