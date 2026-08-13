@@ -29,24 +29,6 @@ export function applyFormEdit(source: string, path: JSONPath, value: unknown): s
     return applyEdits(source, edits);
 }
 
-/** Per-kind pair of the current draft text and the text last loaded from or saved to disk. */
-export interface ConfigDraft {
-    source: string;
-    appliedSource: string;
-}
-
-export type ConfigDrafts = Record<ConfigKind, ConfigDraft>;
-
-/** A kind is dirty when its draft text no longer matches the last loaded/applied text. */
-export function isConfigDirty(draft: ConfigDraft): boolean {
-    return draft.source !== draft.appliedSource;
-}
-
-/** Returns the dirty kinds in the fixed save order used by Apply-All. */
-export function dirtyConfigKinds(drafts: ConfigDrafts): ConfigKind[] {
-    return CONFIG_KINDS.filter((kind) => isConfigDirty(drafts[kind]));
-}
-
 const BYTES_PER_MEBIBYTE = 1024 * 1024;
 
 /** Converts a persisted byte count into the MB value shown/edited in the form. */

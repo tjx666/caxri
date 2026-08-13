@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    applyFormEdit,
-    bytesToMebibytes,
-    dirtyConfigKinds,
-    formatByteHint,
-    isConfigDirty,
-    mebibytesToBytes,
-    type ConfigDrafts,
-} from './config-edit';
+import { applyFormEdit, bytesToMebibytes, formatByteHint, mebibytesToBytes } from './config-edit';
 
 describe('applyFormEdit', () => {
     it('preserves comments and unrelated formatting when changing a flat key', () => {
@@ -60,30 +52,6 @@ describe('applyFormEdit', () => {
         const next = applyFormEdit(source, ['colors', 'accent'], '#00ff00');
 
         expect(next).toContain('"accent": "#00ff00"');
-    });
-});
-
-describe('dirty tracking', () => {
-    const drafts: ConfigDrafts = {
-        settings: { source: 'a', appliedSource: 'a' },
-        keybindings: { source: 'edited', appliedSource: 'original' },
-        theme: { source: 'b', appliedSource: 'b' },
-    };
-
-    it('isConfigDirty compares draft vs applied text', () => {
-        expect(isConfigDirty(drafts.settings)).toBe(false);
-        expect(isConfigDirty(drafts.keybindings)).toBe(true);
-    });
-
-    it('dirtyConfigKinds returns only dirty kinds in save order', () => {
-        expect(dirtyConfigKinds(drafts)).toEqual(['keybindings']);
-        expect(
-            dirtyConfigKinds({
-                ...drafts,
-                settings: { source: 'x', appliedSource: 'y' },
-                theme: { source: 'p', appliedSource: 'q' },
-            }),
-        ).toEqual(['settings', 'keybindings', 'theme']);
     });
 });
 

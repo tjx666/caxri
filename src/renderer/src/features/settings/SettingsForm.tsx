@@ -17,7 +17,6 @@ import { TrustedDomainsForm } from './TrustedDomainsForm';
 
 interface SettingsFormProps {
     agentHookHealth?: AgentHookHealthMap;
-    appliedSettings: AppSettings;
     trustedDomainsFocusRequestId?: number;
     settings: AppSettings;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -29,33 +28,46 @@ function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
     return 'Ask each time';
 }
 
-/** Full-width structured editor for `settings.jsonc`. */
+/**
+ * Plain-language health caption for a provider's lifecycle-hook adapter (DESIGN.md principle 3
+ * forbids implementation vocabulary like "drifted" or "awaiting first trusted event"). Every state
+ * the user cannot resolve just by waiting pairs with the same concrete next step already described
+ * above the checkbox: restart the provider's Agent Terminals.
+ */
 function hookHealthLabel(
-    draftEnabled: boolean,
-    appliedEnabled: boolean,
+    enabled: boolean,
     health: AgentHookHealthMap['codex'] | undefined,
 ): string {
-    if (draftEnabled !== appliedEnabled)
-        return draftEnabled ? 'Pending Apply · will enable' : 'Pending Apply · will disable';
-    if (!appliedEnabled) return 'Disabled';
+    if (!enabled) return 'Disabled';
     if (!health) return 'Checking installation…';
-    const labels = {
-        unsupported: 'Unavailable',
-        notInstalled: 'Not installed',
-        installedPending: 'Installed · awaiting first trusted event',
-        active: 'Active',
-        stale: 'Update required',
-        newer: 'Managed by a newer Caxri version',
-        drifted: 'Configuration changed',
-        conflict: 'Configuration conflict',
-        error: 'Installation error',
-    } as const;
-    return health.message ? `${labels[health.kind]} — ${health.message}` : labels[health.kind];
+    const label = (() => {
+        switch (health.kind) {
+            case 'unsupported':
+                return 'Not available on this platform';
+            case 'notInstalled':
+                return 'Waiting for the agent CLI to be installed';
+            case 'installedPending':
+                return 'Installed — activates once you start a session';
+            case 'active':
+                return 'Active';
+            case 'stale':
+                return 'Out of date — restart Agent Terminals to update it';
+            case 'newer':
+                return 'Managed by a newer version of Caxri';
+            case 'drifted':
+                return 'Changed outside Caxri — restart Agent Terminals to reapply it';
+            case 'conflict':
+                return 'Conflicts with another tool — restart Agent Terminals after resolving it';
+            case 'error':
+                return 'Setup failed — restart Agent Terminals to try again';
+        }
+    })();
+    return health.message ? `${label} — ${health.message}` : label;
 }
 
+/** Full-width structured editor for `settings.jsonc`. */
 export function SettingsForm({
     agentHookHealth,
-    appliedSettings,
     trustedDomainsFocusRequestId,
     settings,
     onFieldChange,
@@ -304,8 +316,6 @@ export function SettingsForm({
                                     <span className="mt-1 block" role="status">
                                         {hookHealthLabel(
                                             providerSettings.hooks.enabled,
-                                            appliedSettings['agents.providers'][provider].hooks
-                                                .enabled,
                                             agentHookHealth?.[provider],
                                         )}
                                     </span>

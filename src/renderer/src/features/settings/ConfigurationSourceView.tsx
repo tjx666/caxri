@@ -15,15 +15,21 @@ interface ConfigurationSourceViewProps {
     kind: ConfigKind;
     source: string;
     theme: ThemeTokens;
+    onBlur: () => void;
     onChange: (source: string) => void;
 }
 
-/** Lazy application-owned source editor for the active configuration draft. */
+/**
+ * Lazy application-owned source editor for the active configuration file. Text persists when the
+ * editor loses focus (see `onBlur`), not on every keystroke; a parse failure reports inline below
+ * instead of being written.
+ */
 export function ConfigurationSourceView({
     error,
     kind,
     source,
     theme,
+    onBlur,
     onChange,
 }: ConfigurationSourceViewProps) {
     const fileName = CONFIG_FILE_NAMES[kind];
@@ -38,6 +44,7 @@ export function ConfigurationSourceView({
                     path={`/caxri/${fileName}`}
                     theme={theme}
                     value={source}
+                    onBlur={onBlur}
                     onChange={onChange}
                 />
             </Suspense>
