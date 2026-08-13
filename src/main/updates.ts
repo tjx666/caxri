@@ -47,6 +47,17 @@ export interface UpdateServiceOptions {
     openPath(path: string): Promise<string>;
 }
 
+interface AutomaticUpdateCheckOptions {
+    alreadyStarted: boolean;
+    isE2E: boolean;
+    isPackaged: boolean;
+}
+
+/** Packaged E2E profiles stay deterministic and must never contact the release service. */
+export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOptions): boolean {
+    return options.isPackaged && !options.isE2E && !options.alreadyStarted;
+}
+
 function stableVersionParts(version: string): [number, number, number] {
     const match = /^(?:v)?(\d+)\.(\d+)\.(\d+)$/.exec(version);
     if (!match) throw new Error('The release has an unsupported version number.');
