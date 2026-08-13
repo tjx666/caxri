@@ -50,6 +50,41 @@ describe('CI execution plan', () => {
         });
     });
 
+    it('checks only a safe incremental delta after a validated ancestor full-green run', () => {
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: ['src/runtime/index.ts', '.agents/skills/go/scripts/state.ts'],
+                eventName: 'pull_request',
+                pullRequestDraft: false,
+                reusableGreenRun: {
+                    changedFiles: ['.agents/skills/go/scripts/state.ts'],
+                    headSha: 'a'.repeat(40),
+                    runId: 123,
+                },
+            }),
+        ).toEqual({
+            checksScope: 'focused-skills',
+            e2eProfile: 'control',
+            reason: 'ancestor full-green run 123; repository-skill delta',
+            runE2E: false,
+        });
+    });
+
+    it('ignores an invalid reuse receipt and keeps full ready-PR coverage', () => {
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: ['src/runtime/index.ts'],
+                eventName: 'pull_request',
+                pullRequestDraft: false,
+                reusableGreenRun: {
+                    changedFiles: ['src/runtime/index.ts'],
+                    headSha: 'a'.repeat(40),
+                    runId: 123,
+                },
+            }),
+        ).toMatchObject({ checksScope: 'full', runE2E: true });
+    });
+
     it('runs ordinary main without E2E and exact release commits with E2E', () => {
         expect(
             evaluateCIExecutionPlan({
