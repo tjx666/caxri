@@ -6,7 +6,7 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field            | Value                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------ |
 | **First audit**  | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last updated** | 2026-08-15 @ `43af4d6` (`fix/resolve-architecture-debt`)                                               |
+| **Last updated** | 2026-08-15 @ `e1c5948` (`fix/resolve-architecture-debt`)                                               |
 | **Scope**        | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
 | **Maintenance**  | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
@@ -62,7 +62,7 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 ### AD-sec-packaged-renderer-url — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Packaged workbench and Process Explorer windows cannot load an environment-supplied Renderer origin.
-- **Evidence:** `src/main/renderer-entry.ts:20-34` honors `ELECTRON_RENDERER_URL` only when unpackaged and otherwise resolves an application-bundle file URL. `src/main/__tests__/renderer-entry.test.ts:9-80` covers both windows and both modes.
+- **Evidence:** `src/main/renderer-entry.ts:20-34` honors `ELECTRON_RENDERER_URL` only when unpackaged and otherwise resolves an application-bundle file URL. `src/main/__tests__/renderer-entry.test.ts:9-77` covers both windows and both modes.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 3903e7e via [issue caxri#166](https://github.com/tjx666/caxri/issues/166).
 - **Remediation target / Acceptance:** Packaged mode ignores `ELECTRON_RENDERER_URL`; unpackaged development mode retains it.
@@ -71,22 +71,22 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 - **Summary:** Provider-owned Agent lifecycle-hook configuration is bounded before any adapter receives or parses it.
 - **Evidence:** `src/runtime/agents/hooks/manager.ts:175-184` reads provider targets through the shared bounded regular-file reader with a 1 MiB limit. `src/runtime/agents/hooks/__tests__/manager.integration.test.ts:440-486` proves an oversized file is neither parsed nor rewritten.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
 - **Remediation target / Acceptance:** Oversized provider configuration fails closed without parsing or rewriting the file; supported bounded files continue to reconcile.
 
 ### AD-sec-theme-import-bounded-read — [RESOLVED · Confirmed defect · S]
 
-- **Summary:** Theme import now reads through one non-following regular-file handle into a fixed-size buffer and rejects growth before format sniffing or parsing.
-- **Evidence:** `src/runtime/bounded-file-reader.ts:20-48` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `src/runtime/theme.ts:317-327` uses that boundary; `src/runtime/__tests__/theme.test.ts:125-177` covers post-open growth and FIFO rejection.
-- **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-15 @ 43af4d6
+- **Summary:** Theme import now reads through one regular-file handle into a fixed-size buffer and rejects growth before format sniffing or parsing, while preserving final-symlink compatibility for user-owned theme and provider configuration files.
+- **Evidence:** `src/runtime/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `src/runtime/theme.ts:312-328` uses that boundary; `src/runtime/__tests__/theme.test.ts:95-180` covers final symlinks, post-open growth, and FIFO rejection.
+- **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
-- **Remediation target / Acceptance:** No parser receives more than 1 MiB; deterministic replacement or growth returns `CAPACITY`; normal supported imports continue to succeed.
+- **Remediation target / Acceptance:** No parser receives more than 1 MiB; post-open growth returns `CAPACITY`, pathname replacement cannot redirect the opened handle, and normal supported imports continue to succeed.
 
 ### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
-- **Evidence:** `packages/protocol/src/registry/events.ts:81-87` gives `files.changed` immutable Project identity. `src/renderer/src/queries/invalidation.ts:103-137` and `src/renderer/src/features/inspector/panels/files/file-tree-refresh.ts:36-66` fan invalidation out by Project. `src/runtime/files/__tests__/watcher.scope.integration.test.ts:66-189` covers queued rebind and cross-Project fencing.
+- **Evidence:** `packages/protocol/src/registry/events.ts:81-87` gives `files.changed` immutable Project identity. `src/renderer/src/queries/invalidation.ts:103-115` and `src/renderer/src/features/inspector/panels/files/file-tree-refresh.ts:36-66` fan invalidation out by Project. `src/runtime/files/__tests__/watcher.scope.integration.test.ts:66-156` covers queued rebind and cross-Project fencing.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
 - **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.
@@ -126,8 +126,8 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 ### AD-ui-work-tab-tablist — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Open Work now implements automatic keyboard activation, roving focus, an actual active tabpanel association, and text alternatives for dirty and process state.
-- **Evidence:** `src/renderer/src/features/tabs/WorkTabStrip.tsx:138-210` implements Arrow, Home, and End navigation. `src/renderer/src/features/tabs/WorkTab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:285-369` covers mixed Terminal/editor keyboard and accessibility behavior.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Evidence:** `src/renderer/src/features/tabs/WorkTabStrip.tsx:298-318` implements Arrow, Home, and End navigation. `src/renderer/src/features/tabs/WorkTab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ 43af4d6 via [issue caxri#171](https://github.com/tjx666/caxri/issues/171).
 - **Remediation target / Acceptance:** Arrow/Home/End changes and focuses the active work target, one tab participates in sequential focus, the active surface is associated, and color-only state has a screen-reader description.
 
