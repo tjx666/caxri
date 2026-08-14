@@ -570,6 +570,19 @@ export class LocalHostServer {
                     newline = source.indexOf('\n');
                     continue;
                 }
+                const nestedTarget = state
+                    ? localClientDesktopTargetConsumeSchema.safeParse(raw)
+                    : undefined;
+                /** A Host-issued Desktop command redeems its opaque target before it can reply. The
+                 *  redemption must bypass the command that is awaiting that reply or both sides
+                 *  deadlock; generation checks and the one-use target still bound this lane. */
+                if (state?.context.principal.kind === 'desktop' && nestedTarget?.success) {
+                    void this.dispatchDesktopTargetConsume(socket, state, nestedTarget.data).catch(
+                        () => socket.destroy(),
+                    );
+                    newline = source.indexOf('\n');
+                    continue;
+                }
                 /**
                  * Only authenticated Desktop PTY input can bypass a slow ordinary command. The
                  * handshake and all lease-control messages remain on `queue`, and this path keeps

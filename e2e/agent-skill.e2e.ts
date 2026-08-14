@@ -208,7 +208,7 @@ process.stdin.resume();
         await expect(globalSkill.locator('code')).toHaveText(
             'caxri skills install caxri-cli --provider codex --global --yes',
         );
-        await settingsDialog.getByRole('button', { name: 'Close' }).click();
+        await running.page.keyboard.press('Escape');
         await expect(settingsDialog).not.toBeVisible();
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
