@@ -51,12 +51,12 @@ PR traffic.
 
 ## Toolchain and caches
 
-`.github/actions/setup-caxri-job/action.yml` owns the common job setup. `pnpm/setup@v2` installs the
-exact pnpm 12 and Node 24 LTS versions declared by the repository workflow, while the action reads
-the Bun version from `.bun-version`. These runner-owned paths do not replace the user's interactive
-Node, pnpm, or Bun installations.
+`.github/actions/setup-caxri-job/action.yml` owns the common job setup. `actions/setup-node` provides
+the exact Node 24 LTS version, while `pnpm/setup` installs pnpm 12 only when its versioned runner tool
+cache is missing. The action reads the Bun version from `.bun-version`. These runner-owned paths do
+not replace the user's interactive Node, pnpm, or Bun installations.
 
-The pnpm/Node runtime and the Bun binary use versioned directories beneath
+Node uses the standard Actions tool cache. pnpm and the Bun binary use versioned directories beneath
 `RUNNER_TOOL_CACHE/caxri`; the Bun binary must match `.bun-version`, remains separate from `~/.bun`,
 and the job fails closed if it is missing or stale. The pnpm store, Electron, ESLint, and Prettier
 caches live under the same runner-owned root. The workflow does not upload these caches to GitHub.

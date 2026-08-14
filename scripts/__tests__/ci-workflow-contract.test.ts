@@ -43,16 +43,21 @@ describe('CI workflow contract', () => {
     it('uses one shared setup action with runner-local caches and pinned tools', () => {
         expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(3);
         expect(workflow).not.toContain('actions/cache@');
+        expect(setupAction).toContain('uses: actions/setup-node@v7');
+        expect(setupAction).toContain('node-version: 24.19.0');
+        expect(setupAction).toContain('package-manager-cache: false');
         expect(setupAction).toContain('uses: pnpm/setup@v2');
         expect(setupAction).toContain('version: 12.0.0-rc.5');
-        expect(setupAction).toContain('runtime: node@24.19.0');
+        expect(setupAction).not.toContain('runtime: node@24.19.0');
+        expect(setupAction).toContain("steps.pnpm_toolchain.outputs.cached != 'true'");
         expect(setupAction).toContain(
             'dest: ${{ runner.tool_cache }}/caxri/pnpm/12.0.0-rc.5-node-24.19.0',
         );
+        expect(setupAction).toContain('test "$(node --version)" = "v24.19.0"');
+        expect(setupAction).toContain('test "$(pnpm --version)" = "12.0.0-rc.5"');
         expect(setupAction).not.toContain('github.run_id');
         expect(setupAction).toContain('install: false');
         expect(setupAction).toContain('cache: false');
-        expect(setupAction).not.toContain('actions/setup-node@');
         expect(setupAction).toContain(
             'bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"',
         );

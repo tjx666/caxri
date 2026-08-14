@@ -51,7 +51,9 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions except for the guarded Go fallback defined below.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `mise.toml` pins pnpm 12 and Node 24 LTS for local development; `pnpm-lock.yaml` lets `ni`
-  select pnpm without a `packageManager` field. Day-to-day commands still use `ni` and `bun run`.
+  select pnpm without a `packageManager` field. pnpm owns monorepo dependency management: workspace
+  resolution, the lockfile, installs, and links. Bun is the fast script and CLI runner for
+  `bun run`, TypeScript tooling, and repository commands; it does not own the dependency graph.
 - Build or validate the browser-safe protocol and Node-only CLI workspaces with
   `bun run build:workspaces`, `bun run typecheck:workspaces`, and `bun run test:workspaces`;
   root `build`, `typecheck`, and `test` retain those checks.
