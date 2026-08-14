@@ -1,5 +1,21 @@
 # Caxri contributor guide
 
+## Repository layout
+
+| Path                  | Purpose                                                                    |
+| --------------------- | -------------------------------------------------------------------------- |
+| `src/`                | Electron Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
+| `packages/`           | Browser-safe protocol and standalone CLI workspaces                        |
+| `e2e/`                | Playwright Electron workflows and shared desktop fixtures                  |
+| `scripts/`            | Repository-wide CI, validation, benchmark, and runner tooling              |
+| `.agents/`            | Contributor workflows and repository-maintenance skills                    |
+| `skills/`             | Product skill embedded in and distributed with the Caxri CLI               |
+| `build/`              | Tracked packaging inputs, including icons and the CLI launcher             |
+| `docs/` / `licenses/` | Product, operator, architecture-debt, and third-party documentation        |
+
+Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results/`, `.records/`,
+`competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
+
 ## Commands
 
 - Install dependencies: `ni`
