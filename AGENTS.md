@@ -2,19 +2,40 @@
 
 ## Repository layout
 
-| Path                  | Purpose                                                                    |
-| --------------------- | -------------------------------------------------------------------------- |
-| `src/`                | Electron Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
-| `packages/`           | Browser-safe protocol and standalone CLI workspaces                        |
-| `e2e/`                | Playwright Electron workflows and shared desktop fixtures                  |
-| `scripts/`            | Repository-wide CI, validation, benchmark, and runner tooling              |
-| `.agents/`            | Contributor workflows and repository-maintenance skills                    |
-| `skills/`             | Product skill embedded in and distributed with the Caxri CLI               |
-| `build/`              | Tracked packaging inputs, including icons and the CLI launcher             |
-| `docs/` / `licenses/` | Product, operator, architecture-debt, and third-party documentation        |
+| Path        | Purpose                                                                    |
+| ----------- | -------------------------------------------------------------------------- |
+| `src/`      | Electron Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
+| `packages/` | Browser-safe protocol and standalone CLI workspaces                        |
+| `e2e/`      | Playwright Electron workflows and shared desktop fixtures                  |
+| `scripts/`  | Repository-wide CI, validation, benchmark, and runner tooling              |
+| `.agents/`  | Contributor workflows and repository-maintenance skills                    |
+| `skills/`   | Product skill embedded in and distributed with the Caxri CLI               |
+| `build/`    | Tracked packaging inputs, including icons and the CLI launcher             |
+| `docs/`     | Durable product, module, operator, and architecture-debt documentation     |
+| `licenses/` | Vendored third-party license texts                                         |
 
 Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results/`, `.records/`,
 `competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
+
+## Agent-native development
+
+- Caxri is developed exclusively by coding agents using frontier models and agent harnesses such
+  as Codex, Claude Code, and Grok Build. Optimize the repository for autonomous agent discovery,
+  execution, verification, and recovery.
+- Estimate scope and development cost in agent-native terms: ambiguity, architectural reach,
+  ownership boundaries, validation requirements, desktop or CI constraints, and expected agent
+  iterations. Do not use traditional manual implementation time or hand-written code volume as the
+  default cost baseline unless the user explicitly asks for it.
+- After completing each user request, briefly assess what in the execution workflow should become
+  reusable. When the improvement is concrete and broadly useful, extract or strengthen scripts,
+  guards, tests, `AGENTS.md` guidance, or task-routed skills so future agents can execute the same
+  work more reliably. Avoid speculative process churn that has no demonstrated reuse case.
+- Use `docs/` for durable explanations of shipped behavior, core modules, protocols, architectural
+  decisions, and operator knowledge. After completing a core module or a large feature, explicitly
+  assess whether its lasting design or operational knowledge should be documented there.
+- Use `.agents/skills/` for agent-discoverable, task-routed execution workflows and the project
+  architecture or toolchain contracts an agent must load to work safely. Keep reusable automation
+  beside its owning skill and keep each skill description specific enough for reliable routing.
 
 ## Commands
 
