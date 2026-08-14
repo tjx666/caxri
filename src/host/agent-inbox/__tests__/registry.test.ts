@@ -5,6 +5,7 @@ import type { AgentEndpointBeginParams } from '../../../shared/ipc/agent-endpoin
 import type { AgentMessageReceipt } from '../../../shared/ipc/agent-inbox-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { AgentInboxRegistry, decideInboundStatus } from '..';
+import { MAX_RECEIPTS } from '../rules';
 
 function token(index: number): string {
     return index.toString(16).padStart(64, '0');
@@ -49,6 +50,9 @@ function setup() {
             },
             ...overrides,
         });
+        const launchId = `launch-${index + 1}`;
+        if (!endpoints.activate({ ref: result.ref, launchId }))
+            throw new Error('Agent Endpoint activation failed in test setup');
         const context = endpoints.authenticate({
             ...result.ref,
             token: issuedTokens[index],
@@ -259,6 +263,68 @@ describe('AgentInboxRegistry', () => {
                 ).status,
         );
         expect(statuses.at(-1)).toBe('capacity');
+        inbox.close();
+    });
+
+    it('evicts terminal idempotency keys with their bounded receipts', () => {
+        const { begin, inbox } = setup();
+        const sender = begin();
+        const unavailable = {
+            endpointId: 'unavailable-endpoint',
+            generation: 1,
+            hostId: 'host-1',
+        };
+
+        for (let index = 0; index <= MAX_RECEIPTS; index += 1) {
+            inbox.send(
+                sender.context,
+                {
+                    ...sendInput(unavailable, `unique terminal receipt ${index}`),
+                    idempotencyKey: `unique-key-${index}`,
+                },
+                `request-${index}`,
+            );
+        }
+
+        const idempotency = Reflect.get(inbox, 'idempotency') as Map<string, unknown>;
+        expect(idempotency).toHaveLength(MAX_RECEIPTS);
+        expect(() =>
+            inbox.send(
+                sender.context,
+                {
+                    ...sendInput(unavailable, 'reused after receipt eviction'),
+                    idempotencyKey: 'unique-key-0',
+                },
+                'reused-request',
+            ),
+        ).not.toThrow();
+        inbox.close();
+    });
+
+    it('releases terminal receipt idempotency records when the sender generation retires', () => {
+        const { begin, endpoints, inbox } = setup();
+        const sender = begin();
+        const unavailable = {
+            endpointId: 'unavailable-endpoint',
+            generation: 1,
+            hostId: 'host-1',
+        };
+
+        for (let index = 0; index < 3; index += 1) {
+            inbox.send(
+                sender.context,
+                {
+                    ...sendInput(unavailable, `terminal receipt ${index}`),
+                    idempotencyKey: `terminal-key-${index}`,
+                },
+                `terminal-request-${index}`,
+            );
+        }
+
+        const idempotency = Reflect.get(inbox, 'idempotency') as Map<string, unknown>;
+        expect(idempotency).toHaveLength(3);
+        endpoints.retireTerminal('terminal-1');
+        expect(idempotency).toHaveLength(0);
         inbox.close();
     });
 

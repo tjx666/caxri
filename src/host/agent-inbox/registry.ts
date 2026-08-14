@@ -282,6 +282,7 @@ export class AgentInboxRegistry {
             if (reservation.endpointKey === key) this.reservations.delete(requestId);
         }
         for (const message of [...this.messages.values()]) {
+            if (refsEqual(message.receipt.from, ref)) this.releaseIdempotency(message);
             if (
                 (refsEqual(message.receipt.from, ref) || refsEqual(message.receipt.to, ref)) &&
                 (message.state === 'waiting' ||
@@ -527,11 +528,12 @@ export class AgentInboxRegistry {
             depth,
             fingerprint,
             from,
+            idempotencyMapKey,
             receipt,
             state: status,
             to,
         };
-        this.store(message, canonicalDigest, idempotencyMapKey);
+        this.store(message, canonicalDigest);
         this.pendingMessages += 1;
         this.pendingBytes += byteLength;
         this.pushQueued(queue, receiverKey, messageId);
@@ -561,11 +563,12 @@ export class AgentInboxRegistry {
             depth,
             fingerprint,
             from,
+            idempotencyMapKey,
             receipt,
             state: status,
             to,
         };
-        this.store(message, canonicalDigest, idempotencyMapKey);
+        this.store(message, canonicalDigest);
         this.emitReceipt(message);
         return receipt;
     }
@@ -591,14 +594,10 @@ export class AgentInboxRegistry {
         };
     }
 
-    private store(
-        message: StoredMessage,
-        canonicalDigest: string,
-        idempotencyMapKey: string,
-    ): void {
+    private store(message: StoredMessage, canonicalDigest: string): void {
         this.admitReceipt();
         this.messages.set(message.receipt.messageId, message);
-        this.idempotency.set(idempotencyMapKey, {
+        this.idempotency.set(message.idempotencyMapKey, {
             digest: canonicalDigest,
             messageId: message.receipt.messageId,
         });
@@ -619,6 +618,12 @@ export class AgentInboxRegistry {
         if (!terminal)
             throw new CaxriError('CAPACITY', 'Agent message receipt capacity is exhausted');
         this.messages.delete(terminal[0]);
+        this.releaseIdempotency(terminal[1]);
+    }
+
+    private releaseIdempotency({ idempotencyMapKey, receipt }: StoredMessage): void {
+        const entry = this.idempotency.get(idempotencyMapKey);
+        if (entry?.messageId === receipt.messageId) this.idempotency.delete(idempotencyMapKey);
     }
 
     private sender(context: CommandExecutionContext): AgentEndpointSummary {

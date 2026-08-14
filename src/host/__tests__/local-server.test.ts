@@ -250,6 +250,7 @@ describe('local Host transport', () => {
                 nextAction: 'restart_terminal',
             },
         });
+        expect(endpoints.activate({ ref: endpoint.ref, launchId: 'launch-1' })).toBe(true);
         const server = new LocalHostServer({
             adapters: {
                 host: {
@@ -343,6 +344,12 @@ describe('local Host transport', () => {
                 nextAction: 'use_pull',
             },
         });
+        expect(endpoints.activate({ ref: senderEndpoint.ref, launchId: 'launch-sender' })).toBe(
+            true,
+        );
+        expect(endpoints.activate({ ref: receiverEndpoint.ref, launchId: 'launch-receiver' })).toBe(
+            true,
+        );
         const inbox = new AgentInboxRegistry(endpoints);
         let waitStartedResolve: (() => void) | undefined;
         const host: CommandAdapter = {
@@ -538,6 +545,123 @@ describe('local Host transport', () => {
 
         second.close();
         await vi.waitFor(() => expect(unavailable).toHaveBeenCalledTimes(1));
+    });
+
+    it('does not let a slow Desktop command block later terminal traffic on the same socket', async () => {
+        const lease = await profile();
+        let releaseRead!: (value: unknown) => void;
+        const slowRead = new Promise<unknown>((resolve) => {
+            releaseRead = resolve;
+        });
+        const invoke = vi.fn((request: { method: string }) => {
+            if (request.method === 'files.read') return slowRead;
+            if (request.method === 'terminal.input' || request.method === 'terminal.resize')
+                return null;
+            throw new Error(`Unexpected method: ${request.method}`);
+        });
+        const server = new LocalHostServer({
+            adapters: { host: { invoke } },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'desktop',
+            desktopId: 'desktop-terminal-priority',
+            credential: lease.desktopCredential,
+            handleCommand: () => Promise.resolve(null),
+        });
+        cleanups.push(() => {
+            client.close();
+            return Promise.resolve();
+        });
+
+        await client.markDesktopReady();
+        const slow = client.request('files.read', {
+            sessionId: 'session-1',
+            path: '/project/slow.ts',
+        });
+        await vi.waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                expect.objectContaining({ method: 'files.read' }),
+                expect.anything(),
+                expect.anything(),
+            ),
+        );
+
+        try {
+            const input = client.request('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'x',
+            });
+            await vi.waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith(
+                    expect.objectContaining({ method: 'terminal.input' }),
+                    expect.anything(),
+                    expect.anything(),
+                ),
+            );
+            await expect(input).resolves.toBeNull();
+            await expect(
+                client.request('terminal.resize', {
+                    terminalId: 'terminal-1',
+                    cols: 120,
+                    rows: 40,
+                }),
+            ).resolves.toBeNull();
+        } finally {
+            releaseRead({ path: '/project/slow.ts', content: '', mtimeMs: 1, size: 0 });
+            await slow;
+        }
+    });
+
+    it('bounds the Desktop terminal hot lane while preserving its reserved capacity', async () => {
+        const lease = await profile();
+        let releaseInput!: (value: null) => void;
+        const slowInput = new Promise<null>((resolve) => {
+            releaseInput = resolve;
+        });
+        const invoke = vi.fn((request: { method: string }) => {
+            if (request.method === 'terminal.input') return slowInput;
+            if (request.method === 'terminal.resize') return null;
+            throw new Error(`Unexpected method: ${request.method}`);
+        });
+        const server = new LocalHostServer({
+            adapters: { host: { invoke } },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'desktop',
+            desktopId: 'desktop-terminal-capacity',
+            credential: lease.desktopCredential,
+            handleCommand: () => Promise.resolve(null),
+        });
+        cleanups.push(() => {
+            client.close();
+            return Promise.resolve();
+        });
+        await client.markDesktopReady();
+
+        const pending = Array.from({ length: 64 }, (_value, index) =>
+            client.request('terminal.input', { terminalId: 'terminal-1', data: String(index) }),
+        );
+        await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(64));
+        try {
+            await expect(
+                client.request('terminal.resize', {
+                    terminalId: 'terminal-1',
+                    cols: 120,
+                    rows: 40,
+                }),
+            ).rejects.toMatchObject({ code: 'CAPACITY' });
+        } finally {
+            releaseInput(null);
+            await Promise.all(pending);
+        }
     });
 
     it('keeps copy and write requests pending until their authoritative result arrives', async () => {

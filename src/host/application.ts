@@ -71,6 +71,8 @@ export async function startHostApplication(
         agentEndpointControl: (request) => {
             if (request.operation === 'agent-endpoint.begin')
                 return agentEndpoints.begin(request.params);
+            if (request.operation === 'agent-endpoint.activate')
+                return { activated: agentEndpoints.activate(request.params) };
             if (request.operation === 'agent-endpoint.messaging')
                 return { updated: agentEndpoints.updateMessaging(request.params) };
             return { retired: agentEndpoints.retire(request.params) };

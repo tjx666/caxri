@@ -647,7 +647,7 @@ describe('CLI application', () => {
         const output = io({ stdinIsTTY: false });
         const client = host(
             {
-                state: 'opened',
+                state: 'requested',
                 generation: 3,
                 projectId: 'project-1',
                 sessionId: 'session-1',
@@ -680,7 +680,7 @@ describe('CLI application', () => {
             sessionId: 'session-1',
         });
         expect(JSON.parse(output.stdout())).toMatchObject({
-            state: 'opened',
+            state: 'requested',
             projectId: 'project-1',
             sessionId: 'session-1',
         });

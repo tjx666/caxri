@@ -114,4 +114,33 @@ describe('AgentMessagingCapabilityProbe', () => {
             vi.useRealTimers();
         }
     });
+
+    it('coalesces identical concurrent provider and launch checks', async () => {
+        const result = Promise.withResolvers<{ executable: string; version: string }>();
+        const providerProbe = vi.fn(() => result.promise);
+        const probe = new AgentMessagingCapabilityProbe({
+            cliAvailable: () => Promise.resolve(true),
+            cliPath: '/caxri',
+            fixtureMode: false,
+            probe: providerProbe,
+        });
+        const input = {
+            enabled: true,
+            launch: { executable: 'codex', args: ['--profile', 'shared'] },
+            provider: 'codex' as const,
+        };
+
+        const first = probe.check(input);
+        const second = probe.check({
+            ...input,
+            launch: { ...input.launch, args: [...input.launch.args] },
+        });
+        await vi.waitFor(() => expect(providerProbe).toHaveBeenCalledOnce());
+        result.resolve({ executable: '/bin/codex', version: 'codex-cli 0.147.0' });
+
+        await expect(Promise.all([first, second])).resolves.toEqual([
+            expect.objectContaining({ deliveryMode: 'pull', reason: 'pull_ready' }),
+            expect.objectContaining({ deliveryMode: 'pull', reason: 'pull_ready' }),
+        ]);
+    });
 });

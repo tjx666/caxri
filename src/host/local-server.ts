@@ -41,6 +41,9 @@ import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 
 const MAX_MESSAGE_BYTES = 1024 * 1024;
 const MAX_SOCKET_BUFFER_BYTES = 2 * MAX_MESSAGE_BYTES;
+const MAX_IN_FLIGHT_REQUESTS = 64;
+/** Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic. */
+const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 const HANDSHAKE_TIMEOUT_MS = 2_000;
 const DESKTOP_LEASE_MS = 60_000;
 const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
@@ -103,10 +106,13 @@ async function executeReply(
 }
 
 interface ClientState {
+    closed: boolean;
     context: CommandExecutionContext;
     desktopLease?: DesktopLease;
     desktopReady: boolean;
-    inFlightRequestIds: Set<string>;
+    inFlightRequestIds: Map<string, number>;
+    inFlightRequests: number;
+    inFlightTerminalRequests: number;
     leaseTimer?: NodeJS.Timeout;
     socket: Socket;
 }
@@ -340,6 +346,175 @@ export class LocalHostServer {
         return renewed;
     }
 
+    /**
+     * Limits one peer's concurrently executing work without reintroducing head-of-line blocking
+     * between normal Desktop work and Terminal keystrokes/resizes.
+     */
+    private reserveRequest(state: ClientState, terminalHotPath = false): (() => void) | undefined {
+        const nonTerminalRequests = state.inFlightRequests - state.inFlightTerminalRequests;
+        if (
+            state.inFlightRequests >= MAX_IN_FLIGHT_REQUESTS ||
+            (!terminalHotPath && nonTerminalRequests >= MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS)
+        )
+            return undefined;
+        state.inFlightRequests += 1;
+        if (terminalHotPath) state.inFlightTerminalRequests += 1;
+        let released = false;
+        return () => {
+            if (released) return;
+            released = true;
+            if (state.closed) return;
+            state.inFlightRequests -= 1;
+            if (terminalHotPath) state.inFlightTerminalRequests -= 1;
+        };
+    }
+
+    private trackRequest(state: ClientState, id: string): void {
+        state.inFlightRequestIds.set(id, (state.inFlightRequestIds.get(id) ?? 0) + 1);
+    }
+
+    private untrackRequest(state: ClientState, id: string): void {
+        const count = state.inFlightRequestIds.get(id);
+        if (!count || count === 1) state.inFlightRequestIds.delete(id);
+        else state.inFlightRequestIds.set(id, count - 1);
+    }
+
+    private capacityReply(id: string): CommandReplyEnvelope {
+        return {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            id,
+            ok: false,
+            error: toWireError(new CaxriError('CAPACITY', 'Too many requests are in flight')),
+        };
+    }
+
+    private writeCommandReply(
+        socket: Socket,
+        state: ClientState,
+        request: LocalClientCommand['request'],
+        reply: CommandReplyEnvelope,
+        context: CommandExecutionContext,
+        release: () => void,
+    ): void {
+        this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }), () => {
+            release();
+            this.untrackRequest(state, request.id);
+            this.options.onReplyFlushed?.(request, reply, context);
+        });
+    }
+
+    private async dispatchCommand(
+        socket: Socket,
+        state: ClientState,
+        request: LocalClientCommand['request'],
+    ): Promise<void> {
+        const terminalHotPath =
+            request.method === 'terminal.input' || request.method === 'terminal.resize';
+        const release = this.reserveRequest(state, terminalHotPath);
+        if (!release) {
+            this.write(
+                socket,
+                localServerReplySchema.parse({
+                    type: 'reply',
+                    reply: this.capacityReply(request.id),
+                }),
+            );
+            return;
+        }
+        this.trackRequest(state, request.id);
+        let context: CommandExecutionContext;
+        try {
+            context = this.options.refreshContext?.(state.context) ?? state.context;
+        } catch (error) {
+            this.writeCommandReply(
+                socket,
+                state,
+                request,
+                {
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id: request.id,
+                    ok: false,
+                    error: toWireError(error),
+                },
+                state.context,
+                release,
+            );
+            return;
+        }
+        try {
+            const reply =
+                context.principal.kind === 'desktop' && this.currentDesktop !== state
+                    ? {
+                          protocolVersion: CAXRI_PROTOCOL_VERSION,
+                          id: request.id,
+                          ok: false as const,
+                          error: toWireError(
+                              new CaxriError('CONFLICT', 'Desktop capability lease is stale'),
+                          ),
+                      }
+                    : await this.dispatch(request, context);
+            this.writeCommandReply(socket, state, request, reply, context, release);
+        } catch {
+            socket.destroy();
+        }
+    }
+
+    private async dispatchDesktopRuntimeCommand(
+        socket: Socket,
+        state: ClientState,
+        request: { id: string; method: string; params: unknown },
+    ): Promise<void> {
+        const release = this.reserveRequest(state);
+        const reply = release
+            ? await executeReply(request.id, async () => {
+                  if (state.context.principal.kind !== 'desktop' || this.currentDesktop !== state)
+                      throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
+                  if (!this.options.invokeDesktopRuntime)
+                      throw new CaxriError('UNAVAILABLE', 'Desktop Runtime bridge is unavailable');
+                  return this.options.invokeDesktopRuntime(
+                      parseRuntimeRequest(request.method, request.params),
+                  );
+              })
+            : this.capacityReply(request.id);
+        this.write(
+            socket,
+            localServerDesktopRuntimeReplySchema.parse({
+                type: 'desktop-runtime-reply',
+                reply,
+            }),
+            release,
+        );
+    }
+
+    private async dispatchDesktopTargetConsume(
+        socket: Socket,
+        state: ClientState,
+        request: { generation: number; id: string; targetId: string },
+    ): Promise<void> {
+        const release = this.reserveRequest(state);
+        const reply = release
+            ? await executeReply(request.id, async () => {
+                  if (
+                      state.context.principal.kind !== 'desktop' ||
+                      this.currentDesktop !== state ||
+                      state.desktopLease?.generation !== request.generation
+                  )
+                      throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
+                  if (!this.options.consumeDesktopTarget)
+                      throw new CaxriError('UNAVAILABLE', 'Desktop target bridge is unavailable');
+                  return this.options.consumeDesktopTarget(request.targetId, request.generation);
+              })
+            : this.capacityReply(request.id);
+        this.write(
+            socket,
+            localServerDesktopTargetReplySchema.parse({
+                type: 'desktop-target.reply',
+                reply,
+            }),
+            release,
+        );
+    }
+
     private accept(socket: Socket): void {
         this.sockets.add(socket);
         socket.setEncoding('utf8');
@@ -353,9 +528,12 @@ export class LocalHostServer {
             clearTimeout(handshakeTimer);
             this.sockets.delete(socket);
             if (!state) return;
-            for (const requestId of state.inFlightRequestIds)
+            for (const requestId of state.inFlightRequestIds.keys())
                 this.options.onRequestDisconnected?.(requestId, state.context);
             state.inFlightRequestIds.clear();
+            state.closed = true;
+            state.inFlightRequests = 0;
+            state.inFlightTerminalRequests = 0;
             if (!this.clients.has(socket)) return;
             if (state.desktopLease) this.revokeDesktop(state);
             else {
@@ -386,9 +564,27 @@ export class LocalHostServer {
                     socket.destroy();
                     return;
                 }
-                /** Reverse replies must settle outside the per-client command queue to avoid a
+                /** Reverse replies must settle outside the ordered protocol-control queue to avoid a
                  * Desktop request deadlocking while Host routes a nested window operation back. */
                 if (state && this.settleDesktopReply(state, raw)) {
+                    newline = source.indexOf('\n');
+                    continue;
+                }
+                /**
+                 * Only authenticated Desktop PTY input can bypass a slow ordinary command. The
+                 * handshake and all lease-control messages remain on `queue`, and this path keeps
+                 * its own bounded reservation in `dispatchCommand`.
+                 */
+                const hotCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
+                if (
+                    state?.context.principal.kind === 'desktop' &&
+                    hotCommand?.success &&
+                    (hotCommand.data.request.method === 'terminal.input' ||
+                        hotCommand.data.request.method === 'terminal.resize')
+                ) {
+                    void this.dispatchCommand(socket, state, hotCommand.data.request).catch(() =>
+                        socket.destroy(),
+                    );
                     newline = source.indexOf('\n');
                     continue;
                 }
@@ -448,10 +644,13 @@ export class LocalHostServer {
                                     this.revokeDesktop(this.currentDesktop, false);
                             }
                             state = {
+                                closed: false,
                                 context,
                                 desktopLease,
                                 desktopReady: false,
-                                inFlightRequestIds: new Set(),
+                                inFlightRequestIds: new Map(),
+                                inFlightRequests: 0,
+                                inFlightTerminalRequests: 0,
                                 socket,
                             };
                             clearTimeout(handshakeTimer);
@@ -524,125 +723,24 @@ export class LocalHostServer {
                         const runtimeCommand =
                             localClientDesktopRuntimeCommandSchema.safeParse(raw);
                         if (runtimeCommand.success) {
-                            const reply = await executeReply(
-                                runtimeCommand.data.request.id,
-                                async () => {
-                                    if (
-                                        clientState.context.principal.kind !== 'desktop' ||
-                                        this.currentDesktop !== clientState
-                                    )
-                                        throw new CaxriError(
-                                            'CONFLICT',
-                                            'Desktop capability lease is stale',
-                                        );
-                                    if (!this.options.invokeDesktopRuntime)
-                                        throw new CaxriError(
-                                            'UNAVAILABLE',
-                                            'Desktop Runtime bridge is unavailable',
-                                        );
-                                    const request = parseRuntimeRequest(
-                                        runtimeCommand.data.request.method,
-                                        runtimeCommand.data.request.params,
-                                    );
-                                    return this.options.invokeDesktopRuntime(request);
-                                },
-                            );
-                            this.write(
+                            await this.dispatchDesktopRuntimeCommand(
                                 socket,
-                                localServerDesktopRuntimeReplySchema.parse({
-                                    type: 'desktop-runtime-reply',
-                                    reply,
-                                }),
+                                clientState,
+                                runtimeCommand.data.request,
                             );
                             return;
                         }
                         const consume = localClientDesktopTargetConsumeSchema.safeParse(raw);
                         if (consume.success) {
-                            const reply = await executeReply(consume.data.id, async () => {
-                                if (
-                                    clientState.context.principal.kind !== 'desktop' ||
-                                    this.currentDesktop !== clientState ||
-                                    clientState.desktopLease?.generation !== consume.data.generation
-                                )
-                                    throw new CaxriError(
-                                        'CONFLICT',
-                                        'Desktop capability lease is stale',
-                                    );
-                                if (!this.options.consumeDesktopTarget)
-                                    throw new CaxriError(
-                                        'UNAVAILABLE',
-                                        'Desktop target bridge is unavailable',
-                                    );
-                                return this.options.consumeDesktopTarget(
-                                    consume.data.targetId,
-                                    consume.data.generation,
-                                );
-                            });
-                            this.write(
+                            await this.dispatchDesktopTargetConsume(
                                 socket,
-                                localServerDesktopTargetReplySchema.parse({
-                                    type: 'desktop-target.reply',
-                                    reply,
-                                }),
+                                clientState,
+                                consume.data,
                             );
                             return;
                         }
                         const command = localClientCommandSchema.parse(raw);
-                        const commandRequest = command.request;
-                        clientState.inFlightRequestIds.add(commandRequest.id);
-                        let currentContext: CommandExecutionContext;
-                        try {
-                            currentContext =
-                                this.options.refreshContext?.(clientState.context) ??
-                                clientState.context;
-                        } catch (error) {
-                            const reply = {
-                                protocolVersion: CAXRI_PROTOCOL_VERSION,
-                                id: commandRequest.id,
-                                ok: false as const,
-                                error: toWireError(error),
-                            };
-                            this.write(
-                                socket,
-                                localServerReplySchema.parse({ type: 'reply', reply }),
-                                () => {
-                                    clientState.inFlightRequestIds.delete(commandRequest.id);
-                                    this.options.onReplyFlushed?.(
-                                        commandRequest,
-                                        reply,
-                                        clientState.context,
-                                    );
-                                },
-                            );
-                            return;
-                        }
-                        const reply =
-                            currentContext.principal.kind === 'desktop' &&
-                            this.currentDesktop !== clientState
-                                ? {
-                                      protocolVersion: CAXRI_PROTOCOL_VERSION,
-                                      id: commandRequest.id,
-                                      ok: false as const,
-                                      error: toWireError(
-                                          new CaxriError(
-                                              'CONFLICT',
-                                              'Desktop capability lease is stale',
-                                          ),
-                                      ),
-                                  }
-                                : await this.dispatch(commandRequest, currentContext);
-                        this.write(
-                            socket,
-                            localServerReplySchema.parse({ type: 'reply', reply }),
-                            () => {
-                                clientState.inFlightRequestIds.delete(commandRequest.id);
-                                this.options.onReplyFlushed?.(
-                                    commandRequest,
-                                    reply,
-                                    currentContext,
-                                );
-                            },
-                        );
+                        await this.dispatchCommand(socket, clientState, command.request);
                     })
                     .catch(() => {
                         socket.destroy();

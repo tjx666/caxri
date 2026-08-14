@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
+    AgentEndpointActivateParams,
     AgentEndpointBeginParams,
     AgentEndpointMessagingParams,
     AgentEndpointRetireParams,
@@ -9,9 +10,9 @@ import type { TerminalRecord } from '../../../shared/types';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
 
-function terminal(kind: 'codex' | 'shell' = 'codex'): TerminalRecord {
+function terminal(kind: 'codex' | 'shell' = 'codex', id = 'terminal-1'): TerminalRecord {
     return {
-        id: 'terminal-1',
+        id,
         sessionId: 'session-1',
         kind,
         ...(kind === 'shell' ? {} : { provider: kind }),
@@ -49,12 +50,17 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             void params;
             return Promise.resolve(true);
         });
+        let activationInput: AgentEndpointActivateParams | undefined;
+        const activate = vi.fn((params: AgentEndpointActivateParams) => {
+            activationInput = params;
+            return Promise.resolve(true);
+        });
         const messaging = vi.fn((params: AgentEndpointMessagingParams) => {
             void params;
             return Promise.resolve(true);
         });
         const lifecycle = new RuntimeAgentEndpointLifecycle(
-            { begin, messaging, retire },
+            { activate, begin, messaging, retire },
             '/profile',
             probe(),
         );
@@ -81,9 +87,16 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             }),
         );
         expect(begin.mock.calls[0]?.[0].messaging).toMatchObject({
-            deliveryMode: 'pull',
-            reason: 'fixture_pull_ready',
+            deliveryMode: 'unavailable',
+            reason: 'probe_pending',
         });
+        expect(messaging).not.toHaveBeenCalled();
+        await lifecycle.activate('terminal-1');
+        expect(activationInput).toMatchObject({
+            ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+        });
+        expect(typeof activationInput?.launchId).toBe('string');
+        await vi.waitFor(() => expect(messaging).toHaveBeenCalledOnce());
         await expect(
             lifecycle.environment(terminal('shell'), 'project-1', {
                 hooks: { enabled: false },
@@ -102,6 +115,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         });
         const lifecycle = new RuntimeAgentEndpointLifecycle(
             {
+                activate: vi.fn(() => Promise.resolve(true)),
                 begin: vi.fn((params: AgentEndpointBeginParams) => {
                     void params;
                     generation += 1;
@@ -138,6 +152,51 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         expect(typeof retire.mock.calls[0]?.[0].launchId).toBe('string');
     });
 
+    it('synchronously fences a live Endpoint while Host retirement is delayed', async () => {
+        const retirement = Promise.withResolvers<boolean>();
+        const activate = vi.fn(() => Promise.resolve(true));
+        const lifecycle = new RuntimeAgentEndpointLifecycle(
+            {
+                activate,
+                begin: vi.fn(() =>
+                    Promise.resolve({
+                        ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                        token: 'ab'.repeat(32),
+                        expiresAt: 10_000,
+                    }),
+                ),
+                messaging: vi.fn(() => Promise.resolve(true)),
+                retire: vi.fn(() => retirement.promise),
+            },
+            '/profile',
+            probe(),
+        );
+        const settings = {
+            hooks: { enabled: false },
+            launch: { executable: 'codex', args: [] },
+            messaging: { enabled: true },
+        };
+
+        await lifecycle.environment(terminal(), 'project-1', settings);
+        await lifecycle.activate('terminal-1');
+        const target = lifecycle.endpointForTerminal('terminal-1');
+        expect(target).toBeDefined();
+
+        const retiring = lifecycle.retire('terminal-1');
+        await vi.waitFor(() => expect(lifecycle.endpointForTerminal('terminal-1')).toBeUndefined());
+        expect(() => lifecycle.controlTarget(target!.ref)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(lifecycle.isCurrent(target!)).toBe(false);
+        await expect(lifecycle.activate('terminal-1')).rejects.toThrow(
+            'unavailable after PTY launch',
+        );
+        expect(activate).toHaveBeenCalledOnce();
+
+        retirement.resolve(true);
+        await expect(retiring).resolves.toBeUndefined();
+    });
+
     it('downgrades messaging authority without retiring the running Terminal generation', async () => {
         const begin = vi.fn(() =>
             Promise.resolve({
@@ -152,7 +211,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         });
         const retire = vi.fn(() => Promise.resolve(true));
         const lifecycle = new RuntimeAgentEndpointLifecycle(
-            { begin, messaging, retire },
+            { activate: vi.fn(() => Promise.resolve(true)), begin, messaging, retire },
             '/profile',
             probe(),
         );
@@ -169,6 +228,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             },
         };
         await lifecycle.environment(terminal(), 'project-1', enabled.codex);
+        await lifecycle.activate('terminal-1');
         await lifecycle.reconcile({
             ...enabled,
             codex: { ...enabled.codex, messaging: { enabled: false } },
@@ -184,6 +244,63 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             reason: 'integration_disabled',
         });
         expect(retire).not.toHaveBeenCalled();
+    });
+
+    it('reconciles identical live Endpoint launches through one capability probe', async () => {
+        const providerProbe = vi.fn(() =>
+            Promise.resolve({ executable: '/bin/codex', version: 'codex-cli 0.147.0' }),
+        );
+        const capabilityProbe = new AgentMessagingCapabilityProbe({
+            cliAvailable: () => Promise.resolve(true),
+            cliPath: '/caxri',
+            fixtureMode: false,
+            probe: providerProbe,
+        });
+        let generation = 0;
+        const lifecycle = new RuntimeAgentEndpointLifecycle(
+            {
+                activate: vi.fn(() => Promise.resolve(true)),
+                begin: vi.fn((params: AgentEndpointBeginParams) => {
+                    generation += 1;
+                    return Promise.resolve({
+                        ref: {
+                            hostId: 'host-1',
+                            endpointId: `${params.terminalId}-endpoint`,
+                            generation,
+                        },
+                        token: 'ab'.repeat(32),
+                        expiresAt: 10_000,
+                    });
+                }),
+                messaging: vi.fn(() => Promise.resolve(true)),
+                retire: vi.fn(() => Promise.resolve(true)),
+            },
+            '/profile',
+            capabilityProbe,
+        );
+        const settings = {
+            codex: {
+                hooks: { enabled: false },
+                launch: { executable: 'codex', args: [] },
+                messaging: { enabled: true },
+            },
+            claude: {
+                hooks: { enabled: false },
+                launch: { executable: 'claude', args: [] },
+                messaging: { enabled: true },
+            },
+        };
+
+        await lifecycle.environment(terminal('codex', 'terminal-1'), 'project-1', settings.codex);
+        await lifecycle.environment(terminal('codex', 'terminal-2'), 'project-1', settings.codex);
+        await lifecycle.activate('terminal-1');
+        await lifecycle.activate('terminal-2');
+        await vi.waitFor(() => expect(providerProbe).toHaveBeenCalledOnce());
+        providerProbe.mockClear();
+
+        await lifecycle.reconcile(settings);
+
+        expect(providerProbe).toHaveBeenCalledOnce();
     });
 
     it('classifies only explicit provider evidence and fails custom launches closed', () => {

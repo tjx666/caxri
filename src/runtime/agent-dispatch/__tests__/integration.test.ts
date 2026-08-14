@@ -39,6 +39,7 @@ function endpointLifecycle() {
     const generations = new Map<string, number>();
     return new RuntimeAgentEndpointLifecycle(
         {
+            activate: () => Promise.resolve(true),
             begin: (params: AgentEndpointBeginParams) => {
                 const generation = (generations.get(params.terminalId) ?? 0) + 1;
                 generations.set(params.terminalId, generation);

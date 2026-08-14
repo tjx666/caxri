@@ -26,6 +26,14 @@ export const agentEndpointBeginResultSchema = z.object({
     expiresAt: z.number().int().positive(),
 });
 
+/** Publishes a prepared credential only after Runtime has a live PTY for this exact launch. */
+export const agentEndpointActivateParamsSchema = z.object({
+    ref: agentEndpointRefSchema,
+    launchId: identifierSchema,
+});
+
+export const agentEndpointActivateResultSchema = z.object({ activated: z.boolean() });
+
 export const agentEndpointRetireParamsSchema = z.object({
     ref: agentEndpointRefSchema,
     launchId: identifierSchema,
@@ -47,6 +55,12 @@ export const runtimeHostControlRequestSchema = z.discriminatedUnion('operation',
         id: identifierSchema,
         operation: z.literal('agent-endpoint.begin'),
         params: agentEndpointBeginParamsSchema,
+    }),
+    z.object({
+        type: z.literal('host-control.request'),
+        id: identifierSchema,
+        operation: z.literal('agent-endpoint.activate'),
+        params: agentEndpointActivateParamsSchema,
     }),
     z.object({
         type: z.literal('host-control.request'),
@@ -79,6 +93,7 @@ export const runtimeHostControlReplySchema = z.discriminatedUnion('ok', [
 
 export type AgentEndpointBeginParams = z.infer<typeof agentEndpointBeginParamsSchema>;
 export type AgentEndpointBeginResult = z.infer<typeof agentEndpointBeginResultSchema>;
+export type AgentEndpointActivateParams = z.infer<typeof agentEndpointActivateParamsSchema>;
 export type AgentEndpointRetireParams = z.infer<typeof agentEndpointRetireParamsSchema>;
 export type AgentEndpointMessagingParams = z.infer<typeof agentEndpointMessagingParamsSchema>;
 export type RuntimeHostControlRequest = z.infer<typeof runtimeHostControlRequestSchema>;
