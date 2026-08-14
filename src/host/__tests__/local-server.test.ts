@@ -69,6 +69,7 @@ describe('local Host transport', () => {
             return {
                 value: {
                     'session.defaultAgent': null,
+                    'workbench.newWorktreeBehavior': 'ask',
                     'terminal.fontSize': 18,
                     'terminal.scrollback': 2_000,
                     'terminal.copyOnSelect': true,

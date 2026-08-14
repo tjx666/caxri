@@ -17,6 +17,7 @@ const allowedArbitraryClasses = new Set([
     'max-w-[420px]',
     'max-w-[460px]',
     'max-w-[540px]',
+    'max-w-[560px]',
     'min-h-[120px]',
     'min-h-[180px]',
     'min-h-[34px]',

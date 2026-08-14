@@ -514,6 +514,7 @@ describe('Terminal creation contract', () => {
 describe('Terminal layout contract', () => {
     const state = {
         sessionId: 'session-1',
+        workbenchProjectId: 'project-1',
         openTabs: [],
         inspectorMode: 'files',
     };
