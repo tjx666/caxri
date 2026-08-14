@@ -16,4 +16,9 @@ const forbiddenMarker = forbiddenRuntimeMarkers.find((marker) => source.includes
 if (forbiddenMarker)
     throw new Error(`Standalone CLI bundle contains forbidden runtime marker: ${forbiddenMarker}`);
 
+for (const skillMarker of ['name: caxri-cli', 'Start with live introspection']) {
+    if (!source.includes(skillMarker))
+        throw new Error(`Standalone CLI bundle is missing bundled skill marker: ${skillMarker}`);
+}
+
 console.log(`Verified standalone CLI bundle (${Buffer.byteLength(source)} bytes)`);

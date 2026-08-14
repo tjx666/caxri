@@ -53,6 +53,14 @@ operations (`agent dispatch` and `agent control`), and owner-only simulated inpu
 They do not alias or fall back to one another. See
 [Agent command authority](docs/agent-command-authority.md) for the capability and audit boundaries.
 
+Every CLI artifact embeds the version-matched canonical `caxri-cli` Agent skill. `skills list`,
+`skills get`, and `skills status` work without a Host. Installation requires an explicit
+`--provider claude|codex` and `--local|--global` scope; Project-local is recommended, global scope is
+never implied, and Caxri refuses to overwrite unmarked, modified, unknown-schema, or newer entries.
+The canonical source is [`skills/caxri-cli/SKILL.md`](skills/caxri-cli/SKILL.md), and the CLI build
+validates every executable example and declared capability against the live registries before
+embedding it.
+
 Default Terminal shortcuts are configurable in Settings → Keybindings:
 
 | Shortcut    | Action                              |

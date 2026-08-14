@@ -101,6 +101,46 @@ describe('CLI application', () => {
         expect(output.stderr()).toBe('');
     });
 
+    it('projects top-level status through negotiation without expanding Agent authority', async () => {
+        const output = io();
+        const client = host({}, ['agent.context']);
+        client.welcome = {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            principal: {
+                kind: 'agent',
+                id: 'agent:endpoint-1',
+                endpointId: 'endpoint-1',
+                generation: 2,
+                projectIds: ['project-1'],
+            },
+            capabilities: ['agents.read'],
+            commands: ['agent.context'],
+        };
+
+        await expect(
+            runCli(['status', '--json'], {
+                connect: () => Promise.resolve(client),
+                environment: {
+                    CAXRI_AGENT_ENDPOINT_GENERATION: '2',
+                    CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),
+                    CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
+                    CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
+                    CAXRI_USER_DATA_DIR: '/profiles/agent',
+                },
+                io: output.io,
+            }),
+        ).resolves.toBe(0);
+
+        expect(JSON.parse(output.stdout())).toMatchObject({
+            capabilities: ['agents.read'],
+            principal: { kind: 'agent', endpointId: 'endpoint-1', generation: 2 },
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            status: 'ready',
+        });
+        expect(client.request).not.toHaveBeenCalledWith('host.status', {});
+        expect(output.stdout()).not.toContain('profileId');
+    });
+
     it('defaults supported Agent and CI environments to JSON without exposing profile paths', async () => {
         const output = io();
 

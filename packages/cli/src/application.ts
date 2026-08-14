@@ -37,6 +37,7 @@ import {
     stableJson,
     type CliOutputMode,
 } from './output';
+import { executeSkillCommand } from './skills';
 import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
 
 export interface CliIo {
@@ -64,6 +65,7 @@ export interface CliConnectOptions {
 export interface RunCliOptions {
     confirm?: (message: string) => Promise<boolean>;
     connect?: (options: CliConnectOptions) => Promise<CliHostClient>;
+    cwd?: string;
     environment?: NodeJS.ProcessEnv;
     home?: string;
     io?: CliIo;
@@ -95,10 +97,9 @@ function fallbackOutputMode(argv: readonly string[], automation: CliAutomation):
 function topLevelHelp() {
     return {
         usage: 'caxri <command> [options]',
-        commands: CLI_COMMANDS.filter((command) => command.kind === 'local').map((command) => ({
-            name: command.path.join(' '),
-            summary: command.summary,
-        })),
+        commands: CLI_COMMANDS.filter(
+            (command) => command.kind === 'local' && command.path.length === 1,
+        ).map((command) => ({ name: command.path.join(' '), summary: command.summary })),
         groups: CLI_GROUPS,
         options: [
             '--json',
@@ -285,6 +286,14 @@ function localResult(
 }
 
 function humanLocal(command: CliCommandDefinition, value: unknown): string {
+    if (
+        command.path[0] === 'skills' &&
+        command.path[1] === 'get' &&
+        typeof value === 'object' &&
+        value !== null &&
+        typeof Reflect.get(value, 'content') === 'string'
+    )
+        return `${String(Reflect.get(value, 'content')).trimEnd()}\n`;
     if (command.path[0] === 'agent-context' && isAgentContext(value))
         return humanAgentContext(value);
     if (command.path[0] !== 'capabilities') return `${renderHumanValue(value)}\n`;
@@ -353,7 +362,7 @@ function remoteCommand(tokens: readonly string[]): RemoteCommandDefinition {
 }
 
 async function confirmMutation(
-    command: RemoteCommandDefinition,
+    command: { confirmation?: string },
     parsed: ParsedCliArguments,
     automation: CliAutomation,
     options: RunCliOptions,
@@ -431,21 +440,46 @@ export async function runCli(
                     connection.credential ?? { kind: 'operator' },
                 ));
         if (selected.kind === 'local') {
-            if (parsed.tokens.length !== selected.path.length)
-                throw new CaxriError('VALIDATION', `Unexpected argument: ${parsed.tokens[1]}`);
-            let value = localResult(selected, {
-                automation,
-                mode,
-                profileSource: profile.source,
-            });
-            if (endpointCredential) {
+            const params = selected.parseParams(parsed.tokens.slice(selected.path.length));
+            if (selected.mutates) await confirmMutation(selected, parsed, automation, options, io);
+            const home = options.home ?? environment.HOME ?? homedir();
+            let value =
+                selected.path[0] === 'skills'
+                    ? await executeSkillCommand(selected.path[1] ?? '', params, {
+                          cwd: options.cwd ?? process.cwd(),
+                          environment,
+                          home,
+                      })
+                    : localResult(selected, {
+                          automation,
+                          mode,
+                          profileSource: profile.source,
+                      });
+            if (
+                selected.path[0] === 'status' ||
+                (endpointCredential &&
+                    (selected.path[0] === 'agent-context' || selected.path[0] === 'capabilities'))
+            ) {
                 client = await connect({
                     credential: endpointCredential,
                     profilePath: profile.path,
                     signal: options.signal,
                     timeoutMs: parsed.connectTimeoutMs,
                 });
-                if (selected.path[0] === 'agent-context') {
+                if (selected.path[0] === 'status') {
+                    const host = client.welcome.commands.includes('host.status')
+                        ? await client.request('host.status', {})
+                        : undefined;
+                    value = {
+                        capabilities: client.welcome.capabilities,
+                        cliVersion: CLI_VERSION,
+                        commands: client.welcome.commands,
+                        ...(host ? { host } : {}),
+                        principal: client.welcome.principal,
+                        protocolVersion: client.welcome.protocolVersion,
+                        status: 'ready',
+                    };
+                } else if (selected.path[0] === 'agent-context') {
                     if (!client.welcome.commands.includes('agent.context'))
                         throw new CaxriError(
                             'CONFLICT',
