@@ -17,11 +17,10 @@ async function fixture() {
     const cwd = await mkdtemp(join(tmpdir(), 'caxri-local-dmg-'));
     temporaryDirectories.push(cwd);
     const packageSource = '{\n    "name": "caxri",\n    "version": "0.0.6"\n}\n';
-    const lockSource =
-        '{\n    "name": "caxri",\n    "version": "0.0.6",\n    "packages": {\n        "": {\n            "version": "0.0.6"\n        }\n    }\n}\n';
+    const lockSource = "lockfileVersion: '9.0'\n";
     await Promise.all([
         writeFile(join(cwd, 'package.json'), packageSource, 'utf8'),
-        writeFile(join(cwd, 'package-lock.json'), lockSource, 'utf8'),
+        writeFile(join(cwd, 'pnpm-lock.yaml'), lockSource, 'utf8'),
     ]);
     return { cwd, lockSource, packageSource };
 }
@@ -43,7 +42,7 @@ function fakeExecutor(cwd: string, packageFails = false) {
             calls.push(`${command} ${args.join(' ')}`);
             if (command === 'git' && args[0] === 'status') return success('');
             if (command === 'git' && args[0] === 'rev-parse') return success('head-sha\n');
-            if (command === 'npm') {
+            if (command === 'pnpm') {
                 const version = args[1];
                 await writeFile(
                     join(cwd, 'package.json'),
@@ -51,8 +50,8 @@ function fakeExecutor(cwd: string, packageFails = false) {
                     'utf8',
                 );
                 await writeFile(
-                    join(cwd, 'package-lock.json'),
-                    `{\n    "name": "caxri",\n    "version": "${version}",\n    "packages": {\n        "": {\n            "version": "${version}"\n        }\n    }\n}\n`,
+                    join(cwd, 'pnpm-lock.yaml'),
+                    `lockfileVersion: '9.0'\n# temporary version ${version}\n`,
                     'utf8',
                 );
                 return success(`v${version}\n`);
@@ -111,9 +110,9 @@ describe('local DMG packaging', () => {
         });
         expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
         expect(await readFile(join(cwd, 'package.json'), 'utf8')).toBe(packageSource);
-        expect(await readFile(join(cwd, 'package-lock.json'), 'utf8')).toBe(lockSource);
+        expect(await readFile(join(cwd, 'pnpm-lock.yaml'), 'utf8')).toBe(lockSource);
         expect(calls).toContain(
-            'npm version 0.0.7 --no-git-tag-version --ignore-scripts --force',
+            'pnpm version 0.0.7 --no-git-tag-version --no-git-checks',
         );
         expect(calls).toContain('bun run package:dmg');
     });
@@ -126,7 +125,7 @@ describe('local DMG packaging', () => {
             packageLocalDmg({ allowDirty: false, cwd, version: '0.0.7' }, executor),
         ).rejects.toThrow('builder failed');
         expect(await readFile(join(cwd, 'package.json'), 'utf8')).toBe(packageSource);
-        expect(await readFile(join(cwd, 'package-lock.json'), 'utf8')).toBe(lockSource);
+        expect(await readFile(join(cwd, 'pnpm-lock.yaml'), 'utf8')).toBe(lockSource);
     });
 
     it('requires explicit dirty-source packaging and valid SemVer input', async () => {

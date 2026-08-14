@@ -15,11 +15,11 @@ git commit --allow-empty -m "release: v0.1.0"
 git push origin main
 ```
 
-For later releases, update both `package.json` and `package-lock.json` before committing:
+For later releases, update the root application version before committing:
 
 ```bash
-npm version patch --no-git-tag-version
-git add package.json package-lock.json
+pnpm version patch --no-git-tag-version --no-git-checks
+git add package.json
 version="$(node -p 'require("./package.json").version')"
 git commit -m "release: v${version}"
 git push origin main

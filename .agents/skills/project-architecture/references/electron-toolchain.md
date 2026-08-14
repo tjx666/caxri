@@ -7,18 +7,21 @@
 
 Use `electron-vite` for separate Main, Headless Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
-The root remains the private npm workspace owner and the only lockfile owner. `packages/protocol`
+The root remains the private pnpm workspace owner and the only lockfile owner. `packages/protocol`
 owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
 may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop
 source stays under `src/`; introducing workspaces is not an application-directory migration.
-Day-to-day commands continue through `ni` and `bun run`, and `packageManager` remains pinned to npm
-because electron-builder uses npm's dependency layout and `install-app-deps` behavior.
+Day-to-day commands continue through `ni` and `bun run`. `mise.toml` pins Node and pnpm for local
+development, CI provisions those versions explicitly, and the root intentionally omits
+`packageManager` and `devEngines.packageManager` so package-manager selection does not depend on
+Corepack-compatible manifest metadata.
 
 Workspace builds run before the Desktop build. electron-builder excludes the development workspace
 links from its broad `node_modules` input; a workspace artifact enters the app only through an
-explicit Desktop build or packaging entry. This prevents npm symlink traversal from accidentally
-shipping the standalone CLI while preserving the hoisted native dependency locations and ASAR
-unpack rules.
+explicit Desktop build or packaging entry. This prevents workspace-link traversal from accidentally
+shipping the standalone CLI. Local installs keep pnpm's isolated layout; electron-builder flattens
+the packaged dependency graph into its ASAR-facing `node_modules` layout so the existing ASAR
+unpack rules keep matching native modules.
 
 The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
 and the profile-scoped Headless Host execute the packaged Caxri binary with
@@ -29,7 +32,7 @@ from `app.asar.unpacked`. Disabling this fuse requires replacing both production
 
 The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Main while leaving the
 standalone workspace links out of the packaged application. This gives Main the authenticated Host
-client without making packaged startup depend on an npm workspace symlink.
+client without making packaged startup depend on a pnpm workspace symlink.
 
 The CLI build also emits one self-contained CommonJS artifact that imports only Node built-ins. The
 standalone distribution and `Contents/Resources/cli/caxri.cjs` are copied from that same file, while
@@ -73,9 +76,11 @@ Reusing an existing macOS user is an accepted trust decision and must never be d
 isolation from malicious workflow code; see `docs/self-hosted-runner.md` for operation and incident
 recovery.
 
-The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI selects
-Node 22, pins Bun through `.bun-version`, and pins npm through `package.json#packageManager` without
-changing the user's interactive installations. Node and the separately provisioned runner-owned Bun
-executable use the runner tool cache; npm, Electron, ESLint, and Prettier reuse runner-local caches
-without `actions/cache`. Dependency trees remain job-local and are rebuilt from `package-lock.json`
-for every source job.
+The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI provisions
+exact Node 24 through `actions/setup-node`, installs pnpm 12 through `pnpm/setup` only on a runner
+tool-cache miss, and pins Bun through `.bun-version`, without changing the user's interactive
+installations. pnpm owns workspace dependency resolution, installation, linking, and the lockfile;
+Bun is the fast script, TypeScript, and repository CLI runner. Node, pnpm, and Bun use versioned
+runner-owned tool locations; the pnpm store, Electron, ESLint, and Prettier reuse runner-local caches
+without `actions/cache`. Dependency trees remain job-local and are rebuilt from `pnpm-lock.yaml` for
+every source job.

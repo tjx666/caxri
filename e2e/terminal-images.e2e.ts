@@ -162,9 +162,13 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_PIXEL_LIMIT');
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
 
-        for (let image = 0; image < 10; image += 1)
+        /** Terminal input can outrun xterm's asynchronous image decode on loaded CI runners.
+         *  Observe each accepted image before sending the next one so this remains a cache-budget
+         *  test instead of accidentally becoming an unbounded decoder-pressure test. */
+        for (let image = 0; image < 10; image += 1) {
             await typeTerminal(running.page, `cat '${cachePath}'`);
-        await expect(surface).toHaveAttribute('data-terminal-images-added', '13');
+            await expect(surface).toHaveAttribute('data-terminal-images-added', String(image + 4));
+        }
         await expect
             .poll(async () => Number(await surface.getAttribute('data-terminal-image-storage-mb')))
             .toBeLessThanOrEqual(8);

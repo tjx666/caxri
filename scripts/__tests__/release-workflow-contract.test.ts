@@ -28,6 +28,15 @@ describe('Release workflow contract', () => {
         expect(workflow).toContain('CAXRI_E2E_AGENT_MODE: blocked');
         expect(workflow).toContain('CAXRI_RUNNER_AGENT_DISCOVERY: blocked');
         expect(workflow).toContain('uses: ./.github/actions/setup-caxri-job');
+        expect(workflow).toContain("setup-toolchain: 'true'");
+        expect(workflow).toContain("install-dependencies: 'true'");
+        expect(workflow).toContain("install-electron: 'true'");
+        expect(workflow).toContain("rebuild-native: 'true'");
+        expect(workflow).not.toContain('npm ci');
+        expect(workflow.indexOf('name: Validate release commit')).toBeLessThan(
+            workflow.indexOf('uses: ./.github/actions/setup-caxri-job'),
+        );
+        expect(workflow).not.toContain("require('./package.json').version");
         expect(workflow).toContain('bun run scripts/self-hosted-runner.ts cleanup');
         expect(workflow).toContain('name: Clean self-hosted runner boundary\n        if: always()');
         expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
