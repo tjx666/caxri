@@ -41,6 +41,11 @@ interface CachedCapability {
     expiresAt: number;
 }
 
+function normalizedLaunchKey(provider: AgentProvider, launch: AgentLaunchSettings): string {
+    /** Positional serialization makes independently allocated but equivalent launch settings share one probe. */
+    return JSON.stringify([provider, launch.executable, ...launch.args]);
+}
+
 function parseVersion(source: string): [number, number, number] | undefined {
     const match = /(?:^|[^0-9])(\d+)\.(\d+)\.(\d+)(?:[^0-9]|$)/u.exec(source);
     if (!match) return undefined;
@@ -111,9 +116,25 @@ function unavailable(
     };
 }
 
+/**
+ * A prepared Endpoint is not visible yet. Once activated it can be listed and authenticated, but
+ * messaging remains unavailable until this capability probe finishes.
+ */
+export function pendingMessagingCapability(checkedAt = Date.now()): AgentMessagingCapability {
+    return {
+        deliveryMode: 'unavailable',
+        health: 'degraded',
+        reason: 'probe_pending',
+        checkedAt,
+        nextAction: 'none',
+    };
+}
+
 /** Bounded, cached capability probe. Unknown Provider versions fail closed without blocking PTY. */
 export class AgentMessagingCapabilityProbe {
     private readonly cache = new Map<string, CachedCapability>();
+    private readonly inFlight = new Map<string, Promise<AgentMessagingCapability>>();
+    private readonly providerEpochs = new Map<AgentProvider, number>();
     private readonly cliAvailable: (path: string) => Promise<boolean>;
     private readonly cliPath?: string;
     private readonly fixtureMode: boolean;
@@ -131,30 +152,52 @@ export class AgentMessagingCapabilityProbe {
     }
 
     invalidate(provider?: AgentProvider): void {
-        if (!provider) this.cache.clear();
-        else
+        const providers: readonly AgentProvider[] = provider ? [provider] : ['claude', 'codex'];
+        for (const current of providers) {
+            this.providerEpochs.set(current, (this.providerEpochs.get(current) ?? 0) + 1);
             for (const key of this.cache.keys()) {
-                if (key.startsWith(`${provider}:`)) this.cache.delete(key);
+                if (key.startsWith(`${current}\u0000`)) this.cache.delete(key);
             }
+        }
     }
 
     async check(input: AgentMessagingProbeInput): Promise<AgentMessagingCapability> {
         const checkedAt = this.now();
         if (!input.enabled) return unavailable(checkedAt, 'integration_disabled');
-        if (!this.cliPath || !(await this.cliAvailable(this.cliPath)))
-            return unavailable(checkedAt, 'adapter_unavailable');
-        const key = `${input.provider}:${JSON.stringify(input.launch)}`;
+        const epoch = this.providerEpochs.get(input.provider) ?? 0;
+        const key = `${input.provider}\u0000${epoch}\u0000${normalizedLaunchKey(input.provider, input.launch)}`;
         const cached = this.cache.get(key);
         if (cached && cached.expiresAt > checkedAt) return cached.capability;
+        const pending = this.inFlight.get(key);
+        if (pending) return pending;
 
+        const request = this.checkOnce(input, checkedAt, key);
+        this.inFlight.set(key, request);
+        try {
+            return await request;
+        } finally {
+            if (this.inFlight.get(key) === request) this.inFlight.delete(key);
+        }
+    }
+
+    private async checkOnce(
+        input: AgentMessagingProbeInput,
+        checkedAt: number,
+        key: string,
+    ): Promise<AgentMessagingCapability> {
         let timer: NodeJS.Timeout | undefined;
         const timeout = new Promise<'timeout'>((resolve) => {
             timer = setTimeout(() => resolve('timeout'), this.timeoutMs);
             timer.unref();
         });
-        let result: ProbeResult | 'timeout';
+        const probe = async (): Promise<ProbeResult | 'adapter-unavailable'> => {
+            if (!this.cliPath || !(await this.cliAvailable(this.cliPath)))
+                return 'adapter-unavailable';
+            return await this.probe!(input.provider, input.launch);
+        };
+        let result: ProbeResult | 'adapter-unavailable' | 'timeout';
         try {
-            result = await Promise.race([this.probe!(input.provider, input.launch), timeout]);
+            result = await Promise.race([probe(), timeout]);
         } catch {
             result = {};
         } finally {
@@ -163,6 +206,8 @@ export class AgentMessagingCapabilityProbe {
 
         let capability: AgentMessagingCapability;
         if (result === 'timeout') capability = unavailable(checkedAt, 'probe_timeout');
+        else if (result === 'adapter-unavailable')
+            capability = unavailable(checkedAt, 'adapter_unavailable');
         else if (!result.executable) capability = unavailable(checkedAt, 'provider_missing');
         else if (!result.version) capability = unavailable(checkedAt, 'probe_failed');
         else if (this.fixtureMode) {

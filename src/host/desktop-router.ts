@@ -92,12 +92,11 @@ export class HostDesktopRouter {
         requestedKind: 'directory' | 'file' | undefined,
         params: { launchIfNeeded: boolean; path: string; sessionId?: string },
     ): Promise<{
-        state: 'opened' | 'revealed';
+        state: 'requested' | 'revealed';
         generation: number;
         projectId: string;
         sessionId: string;
     }> {
-        const lease = await this.requireLease(params.launchIfNeeded);
         const resolved = await this.resolveTarget(params.path, params.sessionId);
         if (requestedKind && resolved.entry.kind !== requestedKind)
             throw new CaxriError(
@@ -106,6 +105,8 @@ export class HostDesktopRouter {
                     ? 'The requested Desktop target is not a file'
                     : 'The requested Desktop target is not a directory',
             );
+        /** Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop. */
+        const lease = await this.requireLease(params.launchIfNeeded);
         const target = this.issueTarget(operation, lease.generation, resolved);
         try {
             await this.options.bridge.invoke(
@@ -117,7 +118,8 @@ export class HostDesktopRouter {
             throw error;
         }
         return {
-            state: operation === 'reveal' ? 'revealed' : 'opened',
+            /** Renderer work is intentionally one-shot and asynchronous after Main dispatches it. */
+            state: operation === 'reveal' ? 'revealed' : 'requested',
             generation: lease.generation,
             projectId: resolved.projectId,
             sessionId: resolved.sessionId,

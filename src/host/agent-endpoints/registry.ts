@@ -1,10 +1,12 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import {
+    agentEndpointActivateParamsSchema,
     agentEndpointBeginParamsSchema,
     agentEndpointBeginResultSchema,
     agentEndpointMessagingParamsSchema,
     agentEndpointRetireParamsSchema,
+    type AgentEndpointActivateParams,
     type AgentEndpointBeginParams,
     type AgentEndpointBeginResult,
     type AgentEndpointMessagingParams,
@@ -42,6 +44,7 @@ const GRANT_CAPABILITIES = {
 } as const satisfies Record<AgentGrantPolicy, readonly Capability[]>;
 
 interface StoredEndpoint {
+    activated: boolean;
     expiresAt: number;
     grants: Map<string, AgentEndpointGrant>;
     launchId: string;
@@ -124,6 +127,7 @@ export class AgentEndpointRegistry {
             expiresAt,
         } satisfies AgentEndpointSummary;
         const record: StoredEndpoint = {
+            activated: false,
             expiresAt,
             grants: new Map(),
             launchId: input.launchId,
@@ -134,6 +138,20 @@ export class AgentEndpointRegistry {
         this.byEndpoint.set(ref.endpointId, record);
         this.byTerminal.set(input.terminalId, record);
         return agentEndpointBeginResultSchema.parse({ ref, token, expiresAt });
+    }
+
+    /** Makes a prepared credential externally reachable only after Runtime confirms its PTY exists. */
+    activate(raw: AgentEndpointActivateParams): boolean {
+        const input = agentEndpointActivateParamsSchema.parse(raw);
+        const record = this.byEndpoint.get(input.ref.endpointId);
+        if (!record || !this.matches(record, input.ref) || record.launchId !== input.launchId)
+            return false;
+        if (record.expiresAt <= this.now()) {
+            this.remove(record);
+            return false;
+        }
+        record.activated = true;
+        return true;
     }
 
     retire(raw: AgentEndpointRetireParams): boolean {
@@ -213,7 +231,7 @@ export class AgentEndpointRegistry {
             context.principal.kind === 'agent' ? new Set(context.principal.projectIds) : undefined;
         const endpoints: AgentEndpointSummary[] = [];
         for (const record of this.byEndpoint.values()) {
-            if (!projectIds || projectIds.has(record.summary.projectId))
+            if (record.activated && (!projectIds || projectIds.has(record.summary.projectId)))
                 endpoints.push(record.summary);
         }
         return endpoints.sort((left, right) =>
@@ -247,7 +265,7 @@ export class AgentEndpointRegistry {
 
     updateMessaging(raw: AgentEndpointMessagingParams): boolean {
         const input = agentEndpointMessagingParamsSchema.parse(raw);
-        const record = this.byEndpoint.get(input.ref.endpointId);
+        const record = this.active(input.ref.endpointId);
         if (!record || !this.matches(record, input.ref) || record.launchId !== input.launchId)
             return false;
         const previous = record.summary.messaging;
@@ -296,7 +314,7 @@ export class AgentEndpointRegistry {
             this.remove(record);
             return undefined;
         }
-        return record;
+        return record?.activated ? record : undefined;
     }
 
     private activeGrants(record: StoredEndpoint): AgentEndpointGrant[] {

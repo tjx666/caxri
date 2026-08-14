@@ -86,8 +86,10 @@ export interface TerminalManagerOptions {
         record: TerminalRecord,
         launch?: AgentLaunchSettings,
     ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
+    /** Publishes a prepared generation only after its PTY is registered as live. */
+    onLifecycleStarted?: (record: TerminalRecord) => void | Promise<void>;
     /** Revokes lifecycle integration for a PTY generation before its durable record can be reused. */
-    onLifecycleRetired?: (terminalId: string) => void;
+    onLifecycleRetired?: (terminalId: string) => void | Promise<void>;
     /** Dispatch receipts observe durable process state without reading Terminal output. */
     onStateChanged?: (terminalId: string, state: ProcessState) => void;
     /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
@@ -133,6 +135,7 @@ export class TerminalManager {
     private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
     private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
     private readonly lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
+    private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
@@ -152,6 +155,7 @@ export class TerminalManager {
         this.agentLaunchSettings = options.agentLaunchSettings;
         this.agentEnvironment = options.agentEnvironment ?? runtimeProcessEnvironment;
         this.lifecycleEnvironment = options.lifecycleEnvironment;
+        this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
@@ -179,6 +183,8 @@ export class TerminalManager {
          * to the last stage (`spawn_failed`) since a `pty.spawn` failure has no distinct guard.
          */
         let failureReason: TerminalFailureReason = 'spawn_failed';
+        let spawned: pty.IPty | undefined;
+        let live: LiveTerminal | undefined;
         try {
             const e2eAgentPolicy = readE2EAgentPolicy();
             const launch =
@@ -271,12 +277,12 @@ export class TerminalManager {
                 cwd: record.cwd,
                 env,
             });
+            spawned = child;
             /** A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell. */
             if (!this.database.getTerminal(record.id)) {
-                child.kill();
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
-            const live: LiveTerminal = {
+            const startedLive: LiveTerminal = {
                 imageRecovery: new TerminalImageRecoveryFilter(),
                 imageOutput: new TerminalImageOutputFilter(),
                 process: child,
@@ -299,10 +305,12 @@ export class TerminalManager {
                 metricInputBytes: 0,
                 metricDroppedBytes: 0,
             };
-            this.terminals.set(record.id, live);
+            live = startedLive;
+            this.terminals.set(record.id, startedLive);
             this.database.updateTerminalState(record.id, 'running');
-            child.onData((data) => this.onData(live, data));
-            child.onExit(({ exitCode, signal }) => this.onExit(live, exitCode, signal));
+            child.onData((data) => this.onData(startedLive, data));
+            child.onExit(({ exitCode, signal }) => this.onExit(startedLive, exitCode, signal));
+            await this.onLifecycleStarted?.(record);
             this.logger.write('info', 'pty.spawned', {
                 durationMs: performance.now() - startedAt,
                 fields: { terminalId: record.id, kind: record.kind },
@@ -310,7 +318,23 @@ export class TerminalManager {
             return this.database.getTerminal(record.id)!;
         } catch (error) {
             const wire = toWireError(error);
-            this.onLifecycleRetired?.(record.id);
+            if (live && this.terminals.get(record.id) === live) {
+                this.terminals.delete(record.id);
+                this.attached.delete(record.id);
+                this.attachedSizes.delete(record.id);
+                live.screen.dispose();
+            }
+            if (spawned) spawned.kill();
+            try {
+                await this.retireLifecycle(record.id);
+            } catch (retirementError) {
+                this.logger.write('warn', 'pty.lifecycle_retire_failed', {
+                    fields: {
+                        terminalId: record.id,
+                        error: errorMessage(retirementError, 'unknown'),
+                    },
+                });
+            }
             if (this.database.getTerminal(record.id))
                 this.database.updateTerminalState(record.id, 'failed', failureReason);
             this.logger.write('error', 'pty.spawn_failed', {
@@ -628,7 +652,7 @@ export class TerminalManager {
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
         this.attachedSizes.delete(live.record.id);
-        this.onLifecycleRetired?.(live.record.id);
+        this.retireLifecycleSoon(live.record.id);
         live.screen.dispose();
         return true;
     }
@@ -638,6 +662,20 @@ export class TerminalManager {
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.snapshotTimer = clearScheduledTimer(live.snapshotTimer);
         live.metricTimer = clearScheduledTimer(live.metricTimer);
+    }
+
+    /** Normal exit cannot await Host control; failures stay observable without retaining local state. */
+    private retireLifecycleSoon(terminalId: string): void {
+        void this.retireLifecycle(terminalId).catch((error: unknown) =>
+            this.logger.write('warn', 'pty.lifecycle_retire_failed', {
+                fields: { terminalId, error: errorMessage(error, 'unknown') },
+            }),
+        );
+    }
+
+    /** A pre-spawn failure awaits retirement so its prepared credential never outlives the failure. */
+    private async retireLifecycle(terminalId: string): Promise<void> {
+        await this.onLifecycleRetired?.(terminalId);
     }
 
     close(terminalId: string): void {

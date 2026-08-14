@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     CAXRI_PROTOCOL_VERSION,
+    MAX_EVENT_JOURNAL_EVENTS,
     acceptEventSequence,
     agentSkillHealthSchema,
     capabilityIds,
@@ -598,6 +599,72 @@ describe('recoverable event cursor', () => {
         });
         await snapshotClient.start();
         expect(snapshotClientEvents).toEqual([
+            { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
+        ]);
+    });
+
+    it('bounds delayed recovery and converges from a fresh snapshot after the journal capacity', async () => {
+        let releaseFirstRecovery!: () => void;
+        let firstRecoveryStarted!: () => void;
+        const firstRecovery = new Promise<void>((resolve) => {
+            releaseFirstRecovery = resolve;
+        });
+        const recoveryStarted = new Promise<void>((resolve) => {
+            firstRecoveryStarted = resolve;
+        });
+        const journal = createEventJournal({
+            snapshot: (cursor) => ({
+                cursor,
+                projectIds: [],
+                sessionIds: [],
+                terminalIds: [],
+                settingsRevision: cursor,
+                diagnosticsRevision: cursor,
+                agentRevision: cursor,
+            }),
+        });
+        const emitted: RuntimeEvent[] = [];
+        let recoveryCalls = 0;
+        const client = createRecoveringEventClient({
+            emit: (event) => emitted.push(event),
+            recover: async (cursor) => {
+                recoveryCalls += 1;
+                if (recoveryCalls === 1) {
+                    firstRecoveryStarted();
+                    await firstRecovery;
+                }
+                return journal.recover(cursor);
+            },
+        });
+
+        const starting = client.start();
+        await recoveryStarted;
+        client.receive({
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 'direct' },
+        });
+        client.receive({
+            event: 'command.execute',
+            payload: { command: 'session.select' },
+        });
+        for (let index = 0; index <= MAX_EVENT_JOURNAL_EVENTS; index += 1) {
+            client.receive(
+                journal.publish(changed(index % 2 === 0 ? 'project.create' : 'session.create')),
+            );
+        }
+        releaseFirstRecovery();
+
+        await starting;
+        expect(recoveryCalls).toBe(2);
+        expect(emitted).toEqual([
+            {
+                event: 'terminal.output',
+                payload: { terminalId: 'terminal-1', data: 'direct' },
+            },
+            {
+                event: 'command.execute',
+                payload: { command: 'session.select' },
+            },
             { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
         ]);
     });

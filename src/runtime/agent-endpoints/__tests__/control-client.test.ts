@@ -54,6 +54,30 @@ describe('RuntimeAgentEndpointControlClient', () => {
         });
     });
 
+    it('correlates activation for the exact prepared Endpoint generation', async () => {
+        const parent = port();
+        const client = new RuntimeAgentEndpointControlClient(parent.value);
+        const result = client.activate({
+            ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+            launchId: 'launch-1',
+        });
+        const request = parent.send.mock.calls[0]?.[0] as {
+            id: string;
+            operation: string;
+        };
+
+        expect(request.operation).toBe('agent-endpoint.activate');
+        expect(
+            client.handleMessage({
+                type: 'host-control.reply',
+                id: request.id,
+                ok: true,
+                result: { activated: true },
+            }),
+        ).toBe(true);
+        await expect(result).resolves.toBe(true);
+    });
+
     it('keeps ordinary Runtime messages outside the control reply path', () => {
         const parent = port();
         const client = new RuntimeAgentEndpointControlClient(parent.value);

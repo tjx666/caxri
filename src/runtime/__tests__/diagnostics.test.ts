@@ -76,10 +76,22 @@ describe('bug report diagnostics summary', () => {
                         event: 'window.close_failed',
                         fields: { error: 'private output' },
                     }),
+                    JSON.stringify({
+                        timestamp: '2026-08-11T00:00:02.000Z',
+                        process: 'host',
+                        level: 'error',
+                        event: 'runtime_child_error',
+                        correlationId: 'host-safe-error-id',
+                        fields: { error: 'token=private', source: 'secret.ts' },
+                    }),
                 ].join('\n'),
-                2,
+                3,
             ),
-        ).toEqual(['runtime:correlation-1', 'main:window.close_failed:2026-08-11T00:00:01.000Z']);
+        ).toEqual([
+            'runtime:correlation-1',
+            'main:window.close_failed:2026-08-11T00:00:01.000Z',
+            'host:host-safe-error-id',
+        ]);
     });
 
     it('returns no identifiers when the requested limit is zero', () => {

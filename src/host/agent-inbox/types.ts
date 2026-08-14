@@ -16,6 +16,7 @@ export interface StoredMessage {
     depth: number;
     fingerprint: string;
     from: AgentEndpointSummary;
+    idempotencyMapKey: string;
     receipt: AgentMessageReceipt;
     state: PendingState | AgentMessageReceipt['status'];
     timer?: NodeJS.Timeout;

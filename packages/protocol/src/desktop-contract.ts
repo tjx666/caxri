@@ -49,17 +49,18 @@ export const desktopHostMethods = {
     'desktop.openPath': {
         ...hostDesktopControl,
         params: desktopOpenParamsSchema,
-        result: desktopTargetResultSchema.extend({ state: z.literal('opened') }),
+        /** Main has redeemed and dispatched the target; Renderer editor work completes asynchronously. */
+        result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'desktop.openProject': {
         ...hostDesktopControl,
         params: desktopOpenParamsSchema,
-        result: desktopTargetResultSchema.extend({ state: z.literal('opened') }),
+        result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'desktop.openFile': {
         ...hostDesktopControl,
         params: desktopOpenParamsSchema,
-        result: desktopTargetResultSchema.extend({ state: z.literal('opened') }),
+        result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'files.reveal': {
         ...hostDesktopControl,

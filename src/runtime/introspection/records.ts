@@ -72,12 +72,15 @@ export class RecordQueryService {
         private readonly homePath: string,
     ) {}
 
-    private normalizeHome(path: string): string {
-        return path === this.homePath
-            ? '$HOME'
-            : path.startsWith(`${this.homePath}/`)
-              ? `$HOME/${path.slice(this.homePath.length + 1)}`
-              : path;
+    /**
+     * Human CLI output may identify a Project root without disclosing a path outside the user's
+     * HOME. The opaque Project ID still lets callers correlate `list`, `show`, and `current`.
+     */
+    private projectRootIdentity(path: string, projectId: string): string {
+        if (path === this.homePath) return '$HOME';
+        if (path.startsWith(`${this.homePath}/`))
+            return `$HOME/${path.slice(this.homePath.length + 1)}`;
+        return `$PROJECT/${projectId}`;
     }
 
     project(query: ProjectQuery, principal: Principal): ProjectQueryResult {
@@ -104,7 +107,7 @@ export class RecordQueryService {
             projects: selected.map(({ id, displayTitle, rootPath }) => ({
                 id,
                 displayTitle,
-                rootPath: this.normalizeHome(rootPath),
+                rootPath: this.projectRootIdentity(rootPath, id),
             })),
         };
     }

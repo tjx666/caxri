@@ -89,7 +89,7 @@ describe('Host Desktop router', () => {
                 path: authorized.path,
             }),
         ).resolves.toEqual({
-            state: 'opened',
+            state: 'requested',
             generation: 3,
             projectId: project.id,
             sessionId: session.id,
@@ -166,6 +166,38 @@ describe('Host Desktop router', () => {
             }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         expect(invoke).not.toHaveBeenCalled();
+    });
+
+    it('rejects an offline outside-Project target before launching Desktop', async () => {
+        const launch = vi.fn(() => Promise.resolve());
+        const waitForLease = vi.fn(() =>
+            Promise.resolve({ desktopId: 'desktop-launched', generation: 9, expiresAt: 10_000 }),
+        );
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke: () => Promise.resolve(null),
+                launch,
+                lease: () => undefined,
+                waitForLease,
+            },
+            runtime: runtime(
+                vi.fn((method: string) => {
+                    if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
+                    return Promise.reject(
+                        new CaxriError('PATH_DENIED', 'Path escapes the Project'),
+                    );
+                }),
+            ),
+        });
+
+        await expect(
+            router.open('open', 'file', {
+                launchIfNeeded: true,
+                path: '/outside/file.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        expect(launch).not.toHaveBeenCalled();
+        expect(waitForLease).not.toHaveBeenCalled();
     });
 
     it('distinguishes offline, background, and focused Desktop states', async () => {

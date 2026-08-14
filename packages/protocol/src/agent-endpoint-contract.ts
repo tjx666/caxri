@@ -27,6 +27,7 @@ export const agentMessagingReasonSchema = z.enum([
     'configuration_conflict',
     'adapter_unavailable',
     'adapter_revoked',
+    'probe_pending',
 ]);
 export const agentMessagingNextActionSchema = z.enum([
     'use_pull',

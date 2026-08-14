@@ -130,10 +130,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return undefined;
         },
     );
-    /**
-     * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
-     * composition root, instead of hiding a provider check inside a shared event sink.
-     */
+    /** Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a
+     * shared event sink. */
     const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
         ...deps.terminal,
@@ -153,9 +151,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 )),
             };
         },
-        onLifecycleRetired: (terminalId) => {
+        onLifecycleStarted: (terminal) =>
+            terminal.kind === 'shell' ? undefined : deps.agentEndpoints?.activate(terminal.id),
+        onLifecycleRetired: async (terminalId) => {
             agentHooks.endTerminalLaunch(terminalId);
-            void deps.agentEndpoints?.retire(terminalId).catch((error: unknown) =>
+            await deps.agentEndpoints?.retire(terminalId).catch((error: unknown) =>
                 logger.write('warn', 'agent_endpoint.retire_failed', {
                     fields: {
                         terminalId,

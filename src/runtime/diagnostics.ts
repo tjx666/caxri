@@ -61,7 +61,9 @@ export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
             };
             if (
                 record.level !== 'error' ||
-                (record.process !== 'main' && record.process !== 'runtime') ||
+                (record.process !== 'host' &&
+                    record.process !== 'main' &&
+                    record.process !== 'runtime') ||
                 typeof record.event !== 'string' ||
                 typeof record.timestamp !== 'string'
             )

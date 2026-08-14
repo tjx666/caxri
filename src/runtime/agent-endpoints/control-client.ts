@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+    agentEndpointActivateResultSchema,
     agentEndpointBeginResultSchema,
     agentEndpointMessagingResultSchema,
     agentEndpointRetireResultSchema,
     runtimeHostControlReplySchema,
+    type AgentEndpointActivateParams,
     type AgentEndpointBeginParams,
     type AgentEndpointBeginResult,
     type AgentEndpointMessagingParams,
@@ -32,6 +34,12 @@ export class RuntimeAgentEndpointControlClient {
         return this.request('agent-endpoint.begin', params, (value) =>
             agentEndpointBeginResultSchema.parse(value),
         ) as Promise<AgentEndpointBeginResult>;
+    }
+
+    activate(params: AgentEndpointActivateParams): Promise<boolean> {
+        return this.request('agent-endpoint.activate', params, (value) =>
+            agentEndpointActivateResultSchema.parse(value),
+        ).then((result) => (result as { activated: boolean }).activated);
     }
 
     messaging(params: AgentEndpointMessagingParams): Promise<boolean> {
@@ -76,8 +84,16 @@ export class RuntimeAgentEndpointControlClient {
     }
 
     private request(
-        operation: 'agent-endpoint.begin' | 'agent-endpoint.messaging' | 'agent-endpoint.retire',
-        params: AgentEndpointBeginParams | AgentEndpointMessagingParams | AgentEndpointRetireParams,
+        operation:
+            | 'agent-endpoint.begin'
+            | 'agent-endpoint.activate'
+            | 'agent-endpoint.messaging'
+            | 'agent-endpoint.retire',
+        params:
+            | AgentEndpointBeginParams
+            | AgentEndpointActivateParams
+            | AgentEndpointMessagingParams
+            | AgentEndpointRetireParams,
         parse: (value: unknown) => unknown,
     ): Promise<unknown> {
         if (!this.port.connected())

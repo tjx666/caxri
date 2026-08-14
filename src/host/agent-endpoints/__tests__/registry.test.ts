@@ -24,10 +24,41 @@ function begin(registry: AgentEndpointRegistry, overrides: Record<string, unknow
     });
 }
 
+function activate(
+    registry: AgentEndpointRegistry,
+    endpoint: ReturnType<typeof begin>,
+    launchId = 'launch-1',
+) {
+    expect(registry.activate({ ref: endpoint.ref, launchId })).toBe(true);
+}
+
 describe('AgentEndpointRegistry', () => {
+    it('keeps a pre-spawn credential pending until its exact launch activates', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        const credential = { ...endpoint.ref, token: TOKEN };
+
+        expect(() => registry.authenticate(credential)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(
+            registry.list({
+                capabilities: ['agents.read'],
+                principal: { kind: 'human-cli', id: 'owner' },
+            }),
+        ).toEqual([]);
+        expect(() => registry.resolve(endpoint.ref)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(registry.activate({ ref: endpoint.ref, launchId: 'wrong-launch' })).toBe(false);
+        activate(registry, endpoint);
+        expect(registry.authenticate(credential).principal.kind).toBe('agent');
+    });
+
     it('stores only a token digest and authenticates the exact generation', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);
+        activate(registry, endpoint);
 
         expect(JSON.stringify(registry)).not.toContain(TOKEN);
         expect(
@@ -60,6 +91,7 @@ describe('AgentEndpointRegistry', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => tokens.shift()! });
         const first = begin(registry);
         const second = begin(registry, { launchId: 'launch-2' });
+        activate(registry, second, 'launch-2');
 
         expect(second.ref.generation).toBe(2);
         expect(() =>
@@ -90,6 +122,7 @@ describe('AgentEndpointRegistry', () => {
             token: () => tokens.shift()!,
         });
         const first = begin(registry);
+        activate(registry, first);
         const grant = registry.grant(first.ref, 'debug:read', 1_000);
         expect(
             registry.authenticate({
@@ -110,12 +143,14 @@ describe('AgentEndpointRegistry', () => {
             }).capabilities,
         ).not.toContain('diagnostics.read');
         const second = begin(registry, { launchId: 'launch-2' });
+        activate(registry, second, 'launch-2');
         expect(registry.grants(second.ref)).toEqual([]);
     });
 
     it('grants control separately and retains only an inert exact wake tombstone', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);
+        activate(registry, endpoint);
         registry.grant(endpoint.ref, 'agent:control', 60_000);
         expect(
             registry.authenticate({
@@ -140,14 +175,21 @@ describe('AgentEndpointRegistry', () => {
         const tokens = [TOKEN, 'cd'.repeat(32), 'ef'.repeat(32)];
         const registry = new AgentEndpointRegistry('host-1', { token: () => tokens.shift()! });
         const own = begin(registry);
-        begin(registry, { terminalId: 'terminal-2', launchId: 'launch-2', name: 'Codex' });
-        begin(registry, {
+        const peer = begin(registry, {
+            terminalId: 'terminal-2',
+            launchId: 'launch-2',
+            name: 'Codex',
+        });
+        const otherProject = begin(registry, {
             terminalId: 'terminal-3',
             sessionId: 'session-2',
             projectId: 'project-2',
             launchId: 'launch-3',
             name: 'Codex',
         });
+        activate(registry, own);
+        activate(registry, peer, 'launch-2');
+        activate(registry, otherProject, 'launch-3');
         const agent = registry.authenticate({
             hostId: 'host-1',
             endpointId: own.ref.endpointId,
@@ -167,6 +209,7 @@ describe('AgentEndpointRegistry', () => {
     it('updates messaging health only for the exact live launch generation', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);
+        activate(registry, endpoint);
         const changed: string[] = [];
         registry.onMessagingChanged((summary) => changed.push(summary.messaging.reason));
         const messaging = {

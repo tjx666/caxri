@@ -27,6 +27,8 @@ function setup() {
         },
     } satisfies AgentEndpointBeginParams;
     const endpoint = endpoints.begin(params);
+    if (!endpoints.activate({ ref: endpoint.ref, launchId: params.launchId }))
+        throw new Error('Agent Endpoint activation failed in test setup');
     const summary = endpoints.resolve(endpoint.ref);
     const registry = new ProviderMessagingAdapterRegistry(endpoints);
     return { endpoint, endpoints, params, registry, summary };

@@ -21,6 +21,7 @@ import {
     closeOpenEditorsUnderPath,
     openEditorTab,
     openFile,
+    openFileForSession,
     remapOpenEditors,
     saveActiveEditor,
 } from './document-actions';
@@ -291,6 +292,43 @@ describe('session-scoped file mutation completion', () => {
         await expect(opening).resolves.toBe(false);
         expect(useSessionViewStore.getState().documents['session-1']).toBeUndefined();
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([]);
+    });
+
+    it('keeps a Host-routed file bound to its target Session after selection changes', async () => {
+        installSessions('/project/first-existing.ts', 'session-1', '/project/second-existing.ts');
+        const read = deferred<{ content: string; mtimeMs: number; path: string; size: number }>();
+        mocks.request.mockImplementation((method) =>
+            method === 'files.read' ? read.promise : Promise.resolve(null),
+        );
+
+        const opening = openFileForSession('session-1', '/project/host-target.ts');
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? { ...state.bootstrap, selectedSessionId: 'session-2' }
+                : undefined,
+        }));
+        read.resolve({
+            content: 'host target',
+            mtimeMs: 1,
+            path: '/project/host-target.ts',
+            size: 11,
+        });
+
+        await expect(opening).resolves.toBe('/project/host-target.ts');
+        const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
+        expect(states.find((state) => state.sessionId === 'session-1')?.openTabs).toEqual([
+            { path: '/project/first-existing.ts', dirty: true },
+            { path: '/project/host-target.ts', dirty: false },
+        ]);
+        expect(states.find((state) => state.sessionId === 'session-2')?.openTabs).toEqual([
+            { path: '/project/second-existing.ts', dirty: true },
+        ]);
+        expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
+            '/project/host-target.ts': { content: 'host target', dirty: false },
+        });
+        expect(useSessionViewStore.getState().documents['session-2']).not.toHaveProperty(
+            '/project/host-target.ts',
+        );
     });
 
     it('keeps newer dirty content when a save completes after the file moved', async () => {

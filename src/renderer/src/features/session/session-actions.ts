@@ -9,12 +9,13 @@ import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 
-export async function selectSession(sessionId: string): Promise<void> {
-    await tryCommand(
+export async function selectSession(sessionId: string): Promise<boolean> {
+    const selected = await tryCommand(
         'Session selection failed',
         () => caxri.request('session.select', { sessionId }),
         { refresh: true },
     );
+    return selected !== undefined;
 }
 
 async function createSession(projectId: string, defaultAgent: TerminalKind): Promise<void> {

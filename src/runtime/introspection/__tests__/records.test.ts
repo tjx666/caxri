@@ -110,6 +110,47 @@ describe('Runtime record queries', () => {
         });
     });
 
+    it('redacts Project roots outside HOME from every human query mode', () => {
+        const externalRoot = '/Volumes/Private Client/repository';
+        const service = new RecordQueryService(
+            {
+                ...source,
+                currentProjectId: () => 'project-external',
+                projects: () => [
+                    ...source.projects(),
+                    {
+                        id: 'project-external',
+                        displayTitle: 'External Project',
+                        rootPath: externalRoot,
+                        orderIndex: 2,
+                        createdAt: 3,
+                        lastOpenedAt: 3,
+                    },
+                ],
+            },
+            '/Users/test',
+        );
+
+        const results = [
+            service.project({ mode: 'list' }, human),
+            service.project({ mode: 'show', selector: 'project-external' }, human),
+            service.project({ mode: 'current' }, human),
+        ];
+
+        for (const result of results) expect(JSON.stringify(result)).not.toContain(externalRoot);
+        expect(results[1]).toEqual({
+            view: 'human-cli',
+            projects: [
+                {
+                    id: 'project-external',
+                    displayTitle: 'External Project',
+                    rootPath: '$PROJECT/project-external',
+                },
+            ],
+        });
+        expect(results[2]).toEqual(results[1]);
+    });
+
     it('filters Agent scope before selector resolution and strips private metadata', () => {
         const service = new RecordQueryService(source, '/Users/test');
 

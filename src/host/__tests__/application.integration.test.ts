@@ -101,6 +101,7 @@ import { writeFile } from 'node:fs/promises';
 const startedAt = Date.now();
 const launchId = 'launch-1';
 let endpointRef;
+let endpointCredential;
 const pendingDispatchWaits = new Map();
 function dispatchReceipt(dispatchId) {
     const launch = {
@@ -129,7 +130,18 @@ process.on('message', async (message) => {
     if (!message || typeof message !== 'object') return;
     if (message.type === 'host-control.reply' && message.id === 'endpoint-begin') {
         endpointRef = message.result.ref;
-        await writeFile(process.env.CAXRI_ENDPOINT_FIXTURE_PATH, JSON.stringify(message.result));
+        endpointCredential = message.result;
+        process.send?.({
+            type: 'host-control.request',
+            id: 'endpoint-activate',
+            operation: 'agent-endpoint.activate',
+            params: { ref: endpointRef, launchId },
+        });
+        return;
+    }
+    if (message.type === 'host-control.reply' && message.id === 'endpoint-activate') {
+        if (!message.result.activated) throw new Error('Endpoint activation failed');
+        await writeFile(process.env.CAXRI_ENDPOINT_FIXTURE_PATH, JSON.stringify(endpointCredential));
         process.send?.({ event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } });
         return;
     }

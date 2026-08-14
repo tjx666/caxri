@@ -10,6 +10,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    selectedSessionId,
     typeTerminal,
     waitForRuntimeReady,
 } from './helpers.ts';
@@ -89,7 +90,7 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
             '--json',
         ]);
         expect(openFile).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(openFile.stdout)).toMatchObject({ state: 'opened', sessionId });
+        expect(JSON.parse(openFile.stdout)).toMatchObject({ state: 'requested', sessionId });
         await expect(
             running.page.locator('.work-tab', { hasText: 'desktop-open.ts' }),
         ).toBeVisible();
@@ -107,7 +108,7 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
             '--json',
         ]);
         expect(openProject).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(openProject.stdout)).toMatchObject({ state: 'opened', sessionId });
+        expect(JSON.parse(openProject.stdout)).toMatchObject({ state: 'requested', sessionId });
         await expect(
             client.request('desktop.openFile', {
                 path: join(testDirectory, 'outside', 'secret.ts'),
@@ -163,7 +164,7 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
         const reopened = running.app.waitForEvent('window');
         await expect(
             client.request('desktop.openFile', { path: reopenedFile, launchIfNeeded: false }),
-        ).resolves.toMatchObject({ state: 'opened', sessionId });
+        ).resolves.toMatchObject({ state: 'requested', sessionId });
         const reopenedPage = await reopened;
         await waitForRuntimeReady(reopenedPage);
         await expect(
@@ -172,6 +173,72 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
         await expect(
             reopenedPage.locator('.monaco-editor[data-uri*="desktop-reopen.ts"]'),
         ).toContainText('desktopReopen');
+    } finally {
+        client.close();
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('queues concurrent Host open requests by their exact Session targets', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-desktop-open-queue-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const firstFile = join(root, 'first-session.ts');
+    const secondFile = join(root, 'second-session.ts');
+    await mkdir(root, { recursive: true });
+    await Promise.all([
+        writeFile(firstFile, 'export const firstSession = true;\n', 'utf8'),
+        writeFile(secondFile, 'export const secondSession = true;\n', 'utf8'),
+    ]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const client = await connectToHost(userData, 2_000);
+    try {
+        await createShellSession(running.page);
+        const initial = await pageRequest<{
+            selectedSessionId?: string;
+            sessions: Array<{ id: string; projectId: string }>;
+        }>(running.page, 'app.bootstrap');
+        const firstSessionId = initial.selectedSessionId;
+        if (!firstSessionId) throw new Error('Expected the first Session to be selected');
+        const firstSession = initial.sessions.find(({ id }) => id === firstSessionId);
+        if (!firstSession) throw new Error('Expected the selected Session record');
+        const second = await pageRequest<{ session: { id: string } }>(
+            running.page,
+            'session.create',
+            {
+                projectId: firstSession.projectId,
+                defaultAgent: 'shell',
+            },
+        );
+
+        const [first, secondOpen] = await Promise.all([
+            client.request('desktop.openFile', {
+                path: firstFile,
+                sessionId: firstSessionId,
+                launchIfNeeded: false,
+            }),
+            client.request('desktop.openFile', {
+                path: secondFile,
+                sessionId: second.session.id,
+                launchIfNeeded: false,
+            }),
+        ]);
+
+        /** The Host has routed the request; Renderer work remains asynchronous and ordered below. */
+        expect(first).toMatchObject({ state: 'requested', sessionId: firstSessionId });
+        expect(secondOpen).toMatchObject({ state: 'requested', sessionId: second.session.id });
+        await pageRequest(running.page, 'session.select', { sessionId: second.session.id });
+        await expect.poll(() => selectedSessionId(running.page)).toBe(second.session.id);
+        await expect(
+            running.page.locator('.work-tab', { hasText: 'second-session.ts' }),
+        ).toBeVisible();
+        await pageRequest(running.page, 'session.select', { sessionId: firstSessionId });
+        await expect.poll(() => selectedSessionId(running.page)).toBe(firstSessionId);
+        await expect(
+            running.page.locator('.work-tab', { hasText: 'first-session.ts' }),
+        ).toBeVisible();
     } finally {
         client.close();
         await running.app.close().catch(() => undefined);

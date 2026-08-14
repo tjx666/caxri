@@ -5,6 +5,9 @@ import { runtimeEventSchema, type RuntimeEvent } from './events.js';
 import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 
 const cursorSchema = z.number().int().nonnegative();
+
+/** One bounded replay window also caps pending durable events during client recovery. */
+export const MAX_EVENT_JOURNAL_EVENTS = 256;
 export type TransientRuntimeEvent = Extract<
     RuntimeEvent,
     {
@@ -66,7 +69,7 @@ export const eventRecoverySchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('events'),
         cursor: cursorSchema,
-        events: z.array(protocolEventEnvelopeSchema).max(256),
+        events: z.array(protocolEventEnvelopeSchema).max(MAX_EVENT_JOURNAL_EVENTS),
     }),
     z.object({
         kind: z.literal('snapshot'),
@@ -103,7 +106,7 @@ export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
         cursor: cursorSchema,
         events: z
             .array(z.object({ cursor: cursorSchema, event: observableEventNameSchema }))
-            .max(256),
+            .max(MAX_EVENT_JOURNAL_EVENTS),
     }),
     z.object({
         kind: z.literal('snapshot'),
@@ -139,9 +142,16 @@ export function createEventJournal(options: {
     snapshot(cursor: number): Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot;
     maximumEvents?: number;
 }): EventJournal {
-    const maximumEvents = options.maximumEvents ?? 256;
-    if (!Number.isInteger(maximumEvents) || maximumEvents < 1 || maximumEvents > 256)
-        throw new CaxriError('VALIDATION', 'Event journal capacity must be between 1 and 256');
+    const maximumEvents = options.maximumEvents ?? MAX_EVENT_JOURNAL_EVENTS;
+    if (
+        !Number.isInteger(maximumEvents) ||
+        maximumEvents < 1 ||
+        maximumEvents > MAX_EVENT_JOURNAL_EVENTS
+    )
+        throw new CaxriError(
+            'VALIDATION',
+            `Event journal capacity must be between 1 and ${MAX_EVENT_JOURNAL_EVENTS}`,
+        );
     let cursor = 0;
     const events: ProtocolEventEnvelope[] = [];
     return {
