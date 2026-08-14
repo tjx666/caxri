@@ -1,5 +1,11 @@
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
-import type { AgentHookHealthMap, AppSettings } from '@shared/types';
+import type {
+    AgentHookHealthMap,
+    AgentSkillHealth,
+    AgentSkillInstallationHealth,
+    AgentSkillScope,
+    AppSettings,
+} from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { Input } from '../../components/ui/input';
@@ -17,9 +23,34 @@ import { TrustedDomainsForm } from './TrustedDomainsForm';
 
 interface SettingsFormProps {
     agentHookHealth?: AgentHookHealthMap;
+    agentSkillHealth?: AgentSkillHealth;
     trustedDomainsFocusRequestId?: number;
     settings: AppSettings;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+}
+
+function skillScopeHealth(
+    health: AgentSkillHealth | undefined,
+    provider: AgentSkillInstallationHealth['provider'],
+    scope: AgentSkillScope,
+): AgentSkillInstallationHealth | undefined {
+    return health?.installations.find(
+        (installation) => installation.provider === provider && installation.scope === scope,
+    );
+}
+
+function skillScopeSummary(
+    health: AgentSkillHealth | undefined,
+    installation: AgentSkillInstallationHealth | undefined,
+    scope: AgentSkillScope,
+): string {
+    const label = scope === 'local' ? 'Project local' : 'Global';
+    if (!health) return `${label} · Checking installation…`;
+    if (scope === 'local' && !health.selectedProjectId)
+        return `${label} · Select a Project to inspect`;
+    if (!installation) return `${label} · Unable to inspect this location`;
+    const status = installation.status[0].toUpperCase() + installation.status.slice(1);
+    return `${label} · ${status} · ${installation.installedVersion ? `installed v${installation.installedVersion}` : 'not installed'}`;
 }
 
 function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
@@ -68,6 +99,7 @@ function hookHealthLabel(
 /** Full-width structured editor for `settings.jsonc`. */
 export function SettingsForm({
     agentHookHealth,
+    agentSkillHealth,
     trustedDomainsFocusRequestId,
     settings,
     onFieldChange,
@@ -354,6 +386,51 @@ export function SettingsForm({
                                     onChange={(event) => updateMessaging(event.target.checked)}
                                 />
                             </label>
+                            <div
+                                data-agent-skill-health={provider}
+                                className="mb-3 rounded-sm border border-border p-2 text-[11px] text-muted"
+                            >
+                                <span className="flex items-center justify-between gap-3 text-foreground">
+                                    <span>Caxri CLI skill</span>
+                                    <span className="font-mono text-[10px] text-muted">
+                                        {agentSkillHealth
+                                            ? `Bundled v${agentSkillHealth.bundled.bundledVersion}`
+                                            : 'Checking bundle…'}
+                                    </span>
+                                </span>
+                                {(['local', 'global'] as const).map((scope) => {
+                                    const installation = skillScopeHealth(
+                                        agentSkillHealth,
+                                        provider,
+                                        scope,
+                                    );
+                                    return (
+                                        <div
+                                            key={scope}
+                                            data-agent-skill-scope={scope}
+                                            className="mt-2 border-t border-border pt-2"
+                                        >
+                                            <span className="block text-foreground">
+                                                {skillScopeSummary(
+                                                    agentSkillHealth,
+                                                    installation,
+                                                    scope,
+                                                )}
+                                            </span>
+                                            {installation && (
+                                                <span className="mt-0.5 block">
+                                                    {installation.action}
+                                                </span>
+                                            )}
+                                            {installation?.repairCommand && (
+                                                <code className="mt-1 block overflow-x-auto font-mono text-[10px] text-foreground">
+                                                    {installation.repairCommand}
+                                                </code>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                             <label className="mb-2 block text-[11px] text-muted">
                                 Executable
                                 <Input

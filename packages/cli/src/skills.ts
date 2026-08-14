@@ -2,7 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { realpath, rename } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
-import { CaxriError } from '@caxri/protocol';
+import {
+    CaxriError,
+    type AgentSkillHealth,
+    type AgentSkillInstallationHealth,
+    type AgentSkillScope,
+} from '@caxri/protocol';
 
 import { CAXRI_SKILL_FILES } from './caxri-skill.generated';
 import {
@@ -26,9 +31,8 @@ const MAX_MANAGED_FILES = 16;
 const SKILL_NAME = 'caxri-cli';
 const managedFileNames = Object.keys(CAXRI_SKILL_FILES).sort();
 
-type SkillInstallScope = 'global' | 'local';
+type SkillInstallScope = AgentSkillScope;
 type SkillProvider = 'claude' | 'codex';
-type SkillStatus = 'compatible' | 'conflict' | 'missing' | 'stale';
 
 export interface SkillExecutionContext {
     cwd: string;
@@ -64,21 +68,7 @@ interface BundledSkillMetadata {
     schemaVersion: number;
 }
 
-interface InstalledSkillStatus {
-    action: string;
-    bundledVersion: string;
-    compatible: boolean;
-    contentHash?: string;
-    installedSchemaVersion?: number;
-    installedVersion?: string;
-    name: typeof SKILL_NAME;
-    protocolVersion: number;
-    provider: SkillProvider;
-    reason: string;
-    repairCommand?: string;
-    scope: SkillInstallScope;
-    status: SkillStatus;
-}
+type InstalledSkillStatus = AgentSkillInstallationHealth;
 
 interface InspectedSkill {
     identity?: { dev: bigint; ino: bigint };
@@ -161,8 +151,8 @@ function commandFor(action: 'install' | 'update', selection: SkillSelection): st
 
 function statusValue(
     selection: SkillSelection,
-    status: SkillStatus,
-    reason: string,
+    status: InstalledSkillStatus['status'],
+    reason: InstalledSkillStatus['reason'],
     action: string,
     marker?: InstalledSkillMarker,
     repairCommand?: string,
@@ -331,7 +321,9 @@ async function inspectSkill(
         const schemaVersion = rawRecord === undefined ? undefined : rawRecord.schemaVersion;
         const installedVersion =
             typeof rawRecord?.installedVersion === 'string' &&
-            rawRecord.installedVersion.length <= 100
+            rawRecord.installedVersion.length > 0 &&
+            rawRecord.installedVersion.length <= 100 &&
+            semver(rawRecord.installedVersion)
                 ? rawRecord.installedVersion
                 : undefined;
         const value = statusValue(
@@ -348,7 +340,9 @@ async function inspectSkill(
             target,
             value: {
                 ...value,
-                ...(Number.isInteger(schemaVersion)
+                ...(Number.isSafeInteger(schemaVersion) &&
+                Number(schemaVersion) >= 1 &&
+                Number(schemaVersion) <= 1_000_000
                     ? { installedSchemaVersion: Number(schemaVersion) }
                     : {}),
                 ...(installedVersion ? { installedVersion } : {}),
@@ -536,6 +530,39 @@ function assertBundledName(name: unknown): asserts name is typeof SKILL_NAME {
     if (name !== SKILL_NAME) throw new CaxriError('NOT_FOUND', 'Bundled skill was not found');
 }
 
+interface SkillHealthSelection {
+    providers?: readonly SkillProvider[];
+    scopes?: readonly SkillInstallScope[];
+}
+
+/**
+ * Uses the same bounded marker and content inspection as the offline CLI while returning only the
+ * path-free health projection that Desktop Settings may expose over typed IPC.
+ */
+export async function inspectBundledSkillHealth(
+    context: SkillExecutionContext,
+    selection: SkillHealthSelection = {},
+): Promise<AgentSkillHealth> {
+    const providers = selection.providers ?? ['codex', 'claude'];
+    const scopes = selection.scopes ?? ['local', 'global'];
+    const installations: InstalledSkillStatus[] = [];
+    for (const provider of providers) {
+        for (const scope of scopes) {
+            installations.push(
+                (await inspectSkill({ name: SKILL_NAME, provider, scope }, context)).value,
+            );
+        }
+    }
+    return {
+        bundled: {
+            ...bundledMetadata,
+            compatibility: { ...bundledMetadata.compatibility },
+            files: [...bundledMetadata.files],
+        },
+        installations,
+    };
+}
+
 /** Executes an offline bundled-skill command without connecting to a Host or exposing local paths. */
 export async function executeSkillCommand(
     action: string,
@@ -558,15 +585,7 @@ export async function executeSkillCommand(
         const scopes: SkillInstallScope[] = input.scope
             ? [input.scope as SkillInstallScope]
             : ['local', 'global'];
-        const installations: InstalledSkillStatus[] = [];
-        for (const provider of providers) {
-            for (const scope of scopes) {
-                installations.push(
-                    (await inspectSkill({ name: SKILL_NAME, provider, scope }, context)).value,
-                );
-            }
-        }
-        return { bundled: bundledMetadata, installations };
+        return await inspectBundledSkillHealth(context, { providers, scopes });
     }
     assertBundledName(input.name);
     if (action === 'install' || action === 'update' || action === 'uninstall')

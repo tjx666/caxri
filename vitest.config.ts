@@ -57,6 +57,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': resolve(import.meta.dirname, 'src/renderer/src'),
+            '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
             '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
             '@shared': resolve(import.meta.dirname, 'src/shared'),
         },

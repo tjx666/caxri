@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CAXRI_PROTOCOL_VERSION,
     acceptEventSequence,
+    agentSkillHealthSchema,
     capabilityIds,
     createCommandDispatcher,
     createEventJournal,
@@ -98,6 +99,7 @@ describe('@caxri/protocol contract', () => {
             expect(spec.result.safeParse(undefined), name).toHaveProperty('success');
         }
         expect(methods['app.bootstrap'].requiredCapabilities).toEqual(['desktop']);
+        expect(methods['agentSkills.get'].requiredCapabilities).toEqual(['desktop']);
         expect(methods['app.health'].requiredCapabilities).toEqual(['host.read']);
         expect(methods['host.stop'].requiredCapabilities).toEqual(['host.stop']);
         expect(methods['project.list'].requiredCapabilities).toEqual(['projects.read']);
@@ -106,6 +108,38 @@ describe('@caxri/protocol contract', () => {
         expect(methods['agent.dispatch.wait'].requiredCapabilities).toEqual(['agents.read']);
         expect(methods['agent.control.stop'].requiredCapabilities).toEqual(['agents.control']);
         expect(methods['terminal.send'].requiredCapabilities).toEqual(['terminals.steer']);
+    });
+
+    it('keeps Desktop skill health bounded and path-free', () => {
+        const health = agentSkillHealthSchema.parse({
+            bundled: {
+                bundledVersion: '0.0.6',
+                compatibility: { cliVersion: '0.0.6', protocolVersion: 1 },
+                contentHash: `sha256:${'a'.repeat(64)}`,
+                files: ['SKILL.md', 'agents/openai.yaml'],
+                name: 'caxri-cli',
+                schemaVersion: 1,
+            },
+            installations: [
+                {
+                    action: 'No action is required.',
+                    bundledVersion: '0.0.6',
+                    compatible: true,
+                    contentHash: `sha256:${'a'.repeat(64)}`,
+                    installedSchemaVersion: 1,
+                    installedVersion: '0.0.6',
+                    name: 'caxri-cli',
+                    protocolVersion: 1,
+                    provider: 'codex',
+                    reason: 'matches-bundle',
+                    scope: 'local',
+                    status: 'compatible',
+                    path: '/private/project/.agents/skills/caxri-cli',
+                },
+            ],
+            selectedProjectId: 'project-1',
+        });
+        expect(health.installations[0]).not.toHaveProperty('path');
     });
 
     it('rejects opaque task payloads from the text-only Agent Inbox schema', () => {

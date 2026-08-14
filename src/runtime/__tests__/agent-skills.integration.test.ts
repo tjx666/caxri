@@ -1,0 +1,106 @@
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { IPty } from 'node-pty';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { agentSkillHealthSchema } from '../../../packages/protocol/src';
+import { executeSkillCommand } from '../../../packages/cli/src/skills';
+import { StructuredLogger } from '../../shared/node/logger';
+import { createRuntime } from '../bootstrap';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+    await Promise.all(
+        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
+    );
+});
+
+describe('Runtime Agent skill health', () => {
+    it('shares the offline CLI projection without guessing a local root or exposing paths', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-agent-skills-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        const home = join(directory, 'home');
+        const environment = {
+            CLAUDE_CONFIG_DIR: join(directory, 'claude'),
+            CODEX_HOME: join(directory, 'codex'),
+        };
+        await Promise.all([
+            mkdir(projectRoot),
+            mkdir(home),
+            mkdir(environment.CLAUDE_CONFIG_DIR),
+            mkdir(environment.CODEX_HOME),
+        ]);
+        const runtime = await createRuntime({
+            agentEnvironment: { homeDirectory: home, variables: environment },
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: {
+                spawn: vi.fn(
+                    () =>
+                        ({
+                            pid: 42,
+                            kill: vi.fn(),
+                            onData: vi.fn(() => ({ dispose: vi.fn() })),
+                            onExit: vi.fn(() => ({ dispose: vi.fn() })),
+                            resize: vi.fn(),
+                            write: vi.fn(),
+                        }) as unknown as IPty,
+                ),
+            },
+            userDataPath,
+        });
+
+        try {
+            const withoutProject = await runtime.handlers['agentSkills.get']({});
+            expect(withoutProject).toMatchObject({
+                installations: [
+                    { provider: 'codex', scope: 'global', status: 'missing' },
+                    { provider: 'claude', scope: 'global', status: 'missing' },
+                ],
+            });
+            expect(withoutProject.installations.some(({ scope }) => scope === 'local')).toBe(false);
+
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            await runtime.handlers['session.create']({
+                defaultAgent: 'shell',
+                projectId: project.id,
+            });
+            await executeSkillCommand(
+                'install',
+                { name: 'caxri-cli', provider: 'codex', scope: 'local' },
+                { cwd: projectRoot, environment, home },
+            );
+
+            const health = await runtime.handlers['agentSkills.get']({});
+            expect(agentSkillHealthSchema.parse(health)).toEqual(health);
+            expect(health.selectedProjectId).toBe(project.id);
+            expect(health.installations).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        compatible: true,
+                        installedVersion: health.bundled.bundledVersion,
+                        provider: 'codex',
+                        scope: 'local',
+                        status: 'compatible',
+                    }),
+                    expect.objectContaining({
+                        provider: 'codex',
+                        scope: 'global',
+                        status: 'missing',
+                    }),
+                ]),
+            );
+            const serialized = JSON.stringify(health);
+            expect(serialized).not.toContain(directory);
+            expect(serialized).not.toContain('.caxri-skill.json');
+            expect(serialized).not.toContain('SKILL.md\n');
+        } finally {
+            await runtime.close();
+        }
+    });
+});
