@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
 import { inspectorModeRegistrations } from '@shared/inspector';
+import type { BootstrapState } from '@shared/types';
 
+import { useFileSearchStore } from '../features/inspector/panels/files/file-search-state';
 import { isEditableEventTarget } from '../lib/keybindings';
+import { usePanelLayoutStore } from '../stores/panel-layout';
+import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
 import { executeCommand, isCommandAvailable, runCommand, type CommandContext } from './execute';
 import { registerCommand } from './registry';
@@ -52,7 +56,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             editor: { saveActive: record('editor.save') },
             inspector: {
                 searchFiles: record('inspector.searchFiles'),
-                setMode: record('inspector.setMode'),
+                activateMode: record('inspector.activateMode'),
                 toggle: record('inspector.toggle'),
             },
             sidebar: { toggle: record('sidebar.toggle') },
@@ -148,8 +152,93 @@ describe('executeCommand', () => {
             executeCommand(commandId, undefined, context);
 
         expect(calls).toEqual(
-            inspectorModeRegistrations.map(({ mode }) => `inspector.setMode(${mode})`),
+            inspectorModeRegistrations.map(({ mode }) => `inspector.activateMode(${mode})`),
         );
+    });
+
+    describe('Inspector activation', () => {
+        beforeEach(() => {
+            vi.stubGlobal('window', {
+                caxri: {
+                    negotiate: vi.fn(),
+                    onEvent: vi.fn(),
+                    request: vi.fn().mockResolvedValue(undefined),
+                },
+            });
+            useWorkbenchStore.setState({
+                bootstrap: {
+                    selectedSessionId: 'session-1',
+                    sessions: [
+                        {
+                            id: 'session-1',
+                            projectId: 'project-1',
+                            workbenchProjectId: 'project-1',
+                        },
+                    ],
+                    sessionStates: [
+                        {
+                            sessionId: 'session-1',
+                            workbenchProjectId: 'project-1',
+                            openTabs: [],
+                            inspectorMode: 'files',
+                            layout: {},
+                        },
+                    ],
+                } as unknown as BootstrapState,
+                attachEpoch: 0,
+            });
+            useFileSearchStore.setState({ activeSessionId: undefined, focusRevision: 0 });
+        });
+
+        afterEach(() => {
+            useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
+            useFileSearchStore.setState({ activeSessionId: undefined, focusRevision: 0 });
+            vi.unstubAllGlobals();
+        });
+
+        it.each(inspectorModeRegistrations)(
+            'reveals the Inspector and selects $mode for $commandId',
+            ({ commandId, mode }) => {
+                usePanelLayoutStore.setState({ inspectorVisible: false });
+
+                executeCommand(commandId);
+
+                expect(usePanelLayoutStore.getState().inspectorVisible).toBe(true);
+                expect(
+                    useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.inspectorMode,
+                ).toBe(mode);
+            },
+        );
+
+        it('does not re-persist the panel layout while switching an already visible Inspector', () => {
+            usePanelLayoutStore.setState({ inspectorVisible: true });
+            const setInspectorVisible = vi.spyOn(
+                usePanelLayoutStore.getState(),
+                'setInspectorVisible',
+            );
+
+            for (const { commandId } of inspectorModeRegistrations) executeCommand(commandId);
+
+            expect(setInspectorVisible).not.toHaveBeenCalled();
+            expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.inspectorMode).toBe(
+                inspectorModeRegistrations.at(-1)?.mode,
+            );
+        });
+
+        it('routes Search Files through the same Inspector activation before requesting focus', () => {
+            usePanelLayoutStore.setState({ inspectorVisible: false });
+
+            executeCommand('inspector.searchFiles');
+
+            expect(usePanelLayoutStore.getState().inspectorVisible).toBe(true);
+            expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.inspectorMode).toBe(
+                'files',
+            );
+            expect(useFileSearchStore.getState()).toMatchObject({
+                activeSessionId: 'session-1',
+                focusRevision: 1,
+            });
+        });
     });
 
     it('deep-links the Settings source and Trusted Domains commands', () => {
