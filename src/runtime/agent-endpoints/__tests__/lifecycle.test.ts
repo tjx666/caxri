@@ -5,7 +5,7 @@ import type {
     AgentEndpointBeginParams,
     AgentEndpointMessagingParams,
     AgentEndpointRetireParams,
-} from '../../../shared/ipc/agent-endpoint-control';
+} from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { TerminalRecord } from '../../../shared/types';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';

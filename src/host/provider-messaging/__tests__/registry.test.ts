@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentEndpointBeginParams } from '../../../shared/ipc/agent-endpoint-control';
+import type { AgentEndpointBeginParams } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { ProviderMessageAck } from '../../../shared/ipc/provider-messaging-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { ProviderMessagingAdapterRegistry } from '..';

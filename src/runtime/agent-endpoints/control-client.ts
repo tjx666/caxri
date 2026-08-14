@@ -11,7 +11,7 @@ import {
     type AgentEndpointBeginResult,
     type AgentEndpointMessagingParams,
     type AgentEndpointRetireParams,
-} from '../../shared/ipc/agent-endpoint-control';
+} from '../../../packages/protocol/src/agent/agent-endpoint-control';
 import { CaxriError, fromWireError } from '../../shared/ipc/errors';
 import type { RuntimeParentPort } from '../port';
 

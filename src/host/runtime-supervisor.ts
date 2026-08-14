@@ -2,12 +2,12 @@ import { fork, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
-import { CaxriError, fromWireError } from '../shared/ipc/errors';
-import { toWireError } from '../shared/ipc/errors';
 import {
     runtimeHostControlRequestSchema,
     type RuntimeHostControlRequest,
-} from '../shared/ipc/agent-endpoint-control';
+} from '../../packages/protocol/src/agent/agent-endpoint-control';
+import { CaxriError, fromWireError } from '../shared/ipc/errors';
+import { toWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { RuntimeMethod, RuntimeMethodResult, RuntimeParamsArg } from '../shared/ipc/methods';
 import { isNonExpiringRuntimeMethod } from '../shared/ipc/request-lifetime';

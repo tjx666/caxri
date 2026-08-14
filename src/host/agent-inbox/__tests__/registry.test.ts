@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { agentMessageBodySchema } from '../../../shared/ipc/agent-inbox-contract';
-import type { AgentEndpointBeginParams } from '../../../shared/ipc/agent-endpoint-control';
+import type { AgentEndpointBeginParams } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { AgentMessageReceipt } from '../../../shared/ipc/agent-inbox-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { AgentInboxRegistry, decideInboundStatus } from '..';

@@ -68,6 +68,12 @@ function discoversAllProtocolTests(script: string): boolean {
     );
 }
 
+function isProtocolCompatibilityReExport(source: string): boolean {
+    return /^export \* from ['"]\.\.\/\.\.\/\.\.\/packages\/protocol\/src\/(?:index|(?:agent|configuration|desktop|domain|registry|transport)\/[a-z0-9-]+)(?:\.js)?['"];\n?$/u.test(
+        source,
+    );
+}
+
 describe('npm workspace contract', () => {
     const rootManifest = manifest(join(root, 'package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
@@ -153,6 +159,15 @@ describe('npm workspace contract', () => {
             for (const match of source.matchAll(relativeImport)) {
                 expect(match[1], `${file}: relative ESM import`).toMatch(/\.js$/u);
             }
+        }
+    });
+
+    it('keeps shared IPC production files as protocol compatibility re-exports', () => {
+        const sharedIpcRoot = join(root, 'src/shared/ipc');
+        const sourceFiles = productionTypeScriptFiles(sharedIpcRoot);
+
+        for (const file of sourceFiles) {
+            expect(isProtocolCompatibilityReExport(readFileSync(file, 'utf8')), file).toBe(true);
         }
     });
 

@@ -8,7 +8,7 @@ import type {
     AgentEndpointBeginResult,
     AgentEndpointMessagingParams,
     AgentEndpointRetireParams,
-} from '../../shared/ipc/agent-endpoint-control';
+} from '../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { AgentPermissionClass } from '../../shared/ipc/agent-endpoint-contract';
 import type { AgentEndpointRef } from '../../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../../shared/ipc/errors';
