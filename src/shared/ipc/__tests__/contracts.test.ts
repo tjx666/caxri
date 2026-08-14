@@ -163,6 +163,32 @@ describe('error taxonomy', () => {
         expect(toWireError(new Error('boom'))).toEqual({ code: 'INTERNAL', message: 'boom' });
     });
 
+    it('preserves a classified error created by another bundled protocol copy', () => {
+        class ForeignCaxriError extends Error {
+            override readonly name = 'CaxriError';
+
+            constructor(
+                readonly code: 'VALIDATION',
+                message: string,
+                readonly details?: Record<string, unknown>,
+            ) {
+                super(message);
+            }
+        }
+
+        expect(
+            toWireError(
+                new ForeignCaxriError('VALIDATION', 'foreign validation failed', {
+                    method: 'terminal.input',
+                }),
+            ),
+        ).toEqual({
+            code: 'VALIDATION',
+            message: 'foreign validation failed',
+            details: { method: 'terminal.input' },
+        });
+    });
+
     it('reports rejected Runtime parameters as VALIDATION with a readable message', () => {
         try {
             parseRuntimeRequest('files.read', { sessionId: 'session-1' });
