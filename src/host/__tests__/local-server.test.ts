@@ -547,6 +547,69 @@ describe('local Host transport', () => {
         await vi.waitFor(() => expect(unavailable).toHaveBeenCalledTimes(1));
     });
 
+    it('settles nested Desktop target redemption without deadlocking the command queue', async () => {
+        const lease = await profile();
+        const revealed = vi.fn();
+        const server: LocalHostServer = new LocalHostServer({
+            adapters: {
+                host: {
+                    invoke: async (request) => {
+                        if (request.method !== 'files.reveal') return null;
+                        const generation = server.desktopLease()?.generation;
+                        if (!generation) throw new Error('Desktop lease is unavailable');
+                        await server.invokeDesktop(
+                            { kind: 'reveal', targetId: 'target-1' },
+                            generation,
+                        );
+                        return {
+                            state: 'revealed',
+                            generation,
+                            projectId: 'project-1',
+                            sessionId: 'session-1',
+                        };
+                    },
+                },
+            },
+            consumeDesktopTarget: (targetId) =>
+                Promise.resolve({
+                    targetId,
+                    operation: 'reveal',
+                    kind: 'file',
+                    sessionId: 'session-1',
+                    path: '/project/draft.txt',
+                }),
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest, 250, {
+            kind: 'desktop',
+            desktopId: 'desktop-nested-target',
+            credential: lease.desktopCredential,
+            handleCommand: async (operation, consumeTarget) => {
+                if (operation.kind !== 'reveal') return null;
+                const target = await consumeTarget();
+                revealed(target.path);
+                return null;
+            },
+        });
+        cleanups.push(() => {
+            client.close();
+            return Promise.resolve();
+        });
+        await client.markDesktopReady();
+
+        await expect(
+            client.request('files.reveal', {
+                sessionId: 'session-1',
+                path: '/project/draft.txt',
+                launchIfNeeded: false,
+            }),
+        ).resolves.toMatchObject({ state: 'revealed' });
+        expect(revealed).toHaveBeenCalledWith('/project/draft.txt');
+    });
+
     it('does not let a slow Desktop command block later terminal traffic on the same socket', async () => {
         const lease = await profile();
         let releaseRead!: (value: unknown) => void;
