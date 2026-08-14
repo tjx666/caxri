@@ -1,5 +1,4 @@
-import { z } from 'zod';
-
+import type { WorkItem } from '../../packages/protocol/src/work-item';
 import { activeLayoutTerminalId, firstLayoutTerminalId, selectTerminal } from './terminal-layout';
 import type { SessionState } from './types';
 
@@ -8,19 +7,12 @@ import type { SessionState } from './types';
  * editor tab (by file path). Replaces the historical `terminal:<id>` / `editor:<path>` string-prefix
  * encoding that was parsed with `startsWith`/`slice` across the Renderer.
  */
-export type WorkItem = { kind: 'terminal'; terminalId: string } | { kind: 'editor'; path: string };
-
-const terminalIdSchema = z.string().min(1).max(200);
-const workItemPathSchema = z.string().min(1).max(16_384);
-
-export const workItemSchema: z.ZodType<WorkItem, WorkItem> = z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('terminal'), terminalId: terminalIdSchema }),
-    z.object({ kind: z.literal('editor'), path: workItemPathSchema }),
-]);
+export type { WorkItem } from '../../packages/protocol/src/work-item';
 
 /**
- * Stable string key for React list/map identity. Not a persistence format — use `workItemSchema` for
- * that. Built from the discriminant field itself so no `kind`-specific literal needs to be hardcoded.
+ * Stable string key for React list/map identity. It is not a persistence format; the canonical
+ * protocol schema validates durable values. Built from the discriminant field itself so no `kind`
+ * literal needs to be hardcoded.
  */
 export function workItemKey(item: WorkItem | undefined): string {
     if (!item) return 'none';

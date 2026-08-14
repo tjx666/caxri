@@ -7,6 +7,9 @@
     "description": "A project-first, terminal-native local development workbench for macOS.",
     "main": "./out/main/index.js",
     "type": "module",
+    "workspaces": [
+        "packages/*"
+    ],
     "scripts": {
         "dev": "electron-vite dev",
         "format": "prettier --write .",
@@ -19,15 +22,25 @@
         "knip": "knip",
         "doctor": "react-doctor --no-score --blocking warning",
         "doctor:changed": "bun run scripts/doctor-changed.ts",
-        "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+        "typecheck": "bun run typecheck:workspaces && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+        "typecheck:workspaces": "bun run typecheck:protocol && bun run typecheck:cli",
+        "typecheck:protocol": "bun run --cwd packages/protocol typecheck",
+        "typecheck:cli": "bun run --cwd packages/cli typecheck",
         "test": "vitest run",
+        "test:workspaces": "bun run test:protocol && bun run test:cli",
+        "test:protocol": "bun run --cwd packages/protocol test",
+        "test:cli": "bun run --cwd packages/cli test",
         "test:watch": "vitest",
         "test:e2e": "bun run build && playwright test",
         "test:e2e:real-agent": "CAXRI_REAL_AGENT_E2E=1 playwright test e2e/real-agent-smoke.e2e.ts --reporter=line",
         "test:smoke": "bun run --silent check e2e/smoke.e2e.ts --e2e",
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
-        "build": "electron-vite build",
+        "build": "bun run build:workspaces && bun run build:desktop",
+        "build:workspaces": "bun run build:protocol && bun run build:cli",
+        "build:protocol": "bun run --cwd packages/protocol build",
+        "build:cli": "bun run --cwd packages/cli build",
+        "build:desktop": "electron-vite build",
         "package": "bun run build && electron-builder --mac dir",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
         "postinstall": "electron-rebuild --only better-sqlite3,node-pty --parallel",
@@ -47,21 +60,30 @@
         ]
     },
     "knip": {
-        "entry": [
-            ".agents/skills/acceptance/scripts/capture-renderer.ts",
-            ".agents/skills/acceptance/scripts/fixture-preflight.ts",
-            ".agents/skills/acceptance/scripts/report.ts",
-            ".agents/skills/acceptance/scripts/start-electron.ts",
-            ".agents/skills/acceptance/scripts/stop-electron.ts",
-            ".agents/skills/go/scripts/state.ts",
-            ".agents/skills/go/scripts/xterm-beta-line.ts",
-            "scripts/reporters/e2e-receipt-reporter.ts",
-            "scripts/run-e2e-failure-isolation.ts",
-            "scripts/run-e2e-pools.ts"
-        ],
-        "ignore": [
-            ".agents/skills/deep-review/scripts/vitest.config.ts"
-        ]
+        "workspaces": {
+            ".": {
+                "entry": [
+                    ".agents/skills/acceptance/scripts/capture-renderer.ts",
+                    ".agents/skills/acceptance/scripts/fixture-preflight.ts",
+                    ".agents/skills/acceptance/scripts/report.ts",
+                    ".agents/skills/acceptance/scripts/start-electron.ts",
+                    ".agents/skills/acceptance/scripts/stop-electron.ts",
+                    ".agents/skills/go/scripts/state.ts",
+                    ".agents/skills/go/scripts/xterm-beta-line.ts",
+                    "scripts/reporters/e2e-receipt-reporter.ts",
+                    "scripts/run-e2e-failure-isolation.ts",
+                    "scripts/run-e2e-pools.ts"
+                ],
+                "ignore": [
+                    ".agents/skills/deep-review/scripts/vitest.config.ts"
+                ]
+            },
+            "packages/cli": {
+                "entry": [
+                    "src/bin.ts"
+                ]
+            }
+        }
     },
     "dependencies": {
         "@parcel/watcher": "2.5.6",
@@ -137,6 +159,9 @@
     "build": {
         "appId": "com.caxri.app",
         "productName": "Caxri",
+        "electronFuses": {
+            "runAsNode": true
+        },
         "directories": {
             "output": "release"
         },
@@ -147,12 +172,24 @@
             "node_modules/better-sqlite3/**",
             "node_modules/node-pty/**"
         ],
+        "extraResources": [
+            {
+                "from": "packages/cli/dist/caxri.cjs",
+                "to": "cli/caxri.cjs"
+            },
+            {
+                "from": "build/caxri",
+                "to": "bin/caxri"
+            }
+        ],
         "files": [
             "out/**",
             "package.json",
             "THIRD_PARTY_NOTICES.md",
             "licenses/**",
-            "node_modules/**"
+            "node_modules/**",
+            "!node_modules/@caxri/cli{,/**}",
+            "!node_modules/@caxri/protocol{,/**}"
         ],
         "mac": {
             "category": "public.app-category.developer-tools",

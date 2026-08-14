@@ -1,0 +1,232 @@
+import { describe, expect, it } from 'vitest';
+
+import { AgentEndpointRegistry } from '..';
+
+const TOKEN = 'ab'.repeat(32);
+
+function begin(registry: AgentEndpointRegistry, overrides: Record<string, unknown> = {}) {
+    return registry.begin({
+        terminalId: 'terminal-1',
+        sessionId: 'session-1',
+        projectId: 'project-1',
+        provider: 'codex',
+        launchId: 'launch-1',
+        name: 'Codex',
+        permissionClass: 'standard',
+        messaging: {
+            deliveryMode: 'unavailable',
+            health: 'unsupported',
+            reason: 'adapter_unavailable',
+            checkedAt: 1,
+            nextAction: 'restart_terminal',
+        },
+        ...overrides,
+    });
+}
+
+function activate(
+    registry: AgentEndpointRegistry,
+    endpoint: ReturnType<typeof begin>,
+    launchId = 'launch-1',
+) {
+    expect(registry.activate({ ref: endpoint.ref, launchId })).toBe(true);
+}
+
+describe('AgentEndpointRegistry', () => {
+    it('keeps a pre-spawn credential pending until its exact launch activates', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        const credential = { ...endpoint.ref, token: TOKEN };
+
+        expect(() => registry.authenticate(credential)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(
+            registry.list({
+                capabilities: ['agents.read'],
+                principal: { kind: 'human-cli', id: 'owner' },
+            }),
+        ).toEqual([]);
+        expect(() => registry.resolve(endpoint.ref)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(registry.activate({ ref: endpoint.ref, launchId: 'wrong-launch' })).toBe(false);
+        activate(registry, endpoint);
+        expect(registry.authenticate(credential).principal.kind).toBe('agent');
+    });
+
+    it('stores only a token digest and authenticates the exact generation', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        activate(registry, endpoint);
+
+        expect(JSON.stringify(registry)).not.toContain(TOKEN);
+        expect(
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: endpoint.ref.endpointId,
+                generation: endpoint.ref.generation,
+                token: TOKEN,
+            }),
+        ).toMatchObject({
+            principal: {
+                kind: 'agent',
+                endpointId: endpoint.ref.endpointId,
+                generation: 1,
+                projectIds: ['project-1'],
+            },
+        });
+        expect(() =>
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: endpoint.ref.endpointId,
+                generation: endpoint.ref.generation + 1,
+                token: TOKEN,
+            }),
+        ).toThrow(expect.objectContaining({ code: 'UNAVAILABLE' }) as Error);
+    });
+
+    it('fences restart and retirement by endpoint, generation, and launch ID', () => {
+        const tokens = [TOKEN, 'cd'.repeat(32)];
+        const registry = new AgentEndpointRegistry('host-1', { token: () => tokens.shift()! });
+        const first = begin(registry);
+        const second = begin(registry, { launchId: 'launch-2' });
+        activate(registry, second, 'launch-2');
+
+        expect(second.ref.generation).toBe(2);
+        expect(() =>
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: first.ref.endpointId,
+                generation: first.ref.generation,
+                token: TOKEN,
+            }),
+        ).toThrow(expect.objectContaining({ code: 'UNAVAILABLE' }) as Error);
+        expect(registry.retire({ ref: second.ref, launchId: 'launch-1' })).toBe(false);
+        expect(
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: second.ref.endpointId,
+                generation: second.ref.generation,
+                token: 'cd'.repeat(32),
+            }).principal.kind,
+        ).toBe('agent');
+        expect(registry.retire({ ref: second.ref, launchId: 'launch-2' })).toBe(true);
+    });
+
+    it('expires and revokes generation-scoped grants without transferring them', () => {
+        let now = 10_000;
+        const tokens = [TOKEN, 'cd'.repeat(32)];
+        const registry = new AgentEndpointRegistry('host-1', {
+            now: () => now,
+            token: () => tokens.shift()!,
+        });
+        const first = begin(registry);
+        activate(registry, first);
+        const grant = registry.grant(first.ref, 'debug:read', 1_000);
+        expect(
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: first.ref.endpointId,
+                generation: 1,
+                token: TOKEN,
+            }).capabilities,
+        ).toContain('diagnostics.read');
+
+        now = grant.expiresAt;
+        expect(
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: first.ref.endpointId,
+                generation: 1,
+                token: TOKEN,
+            }).capabilities,
+        ).not.toContain('diagnostics.read');
+        const second = begin(registry, { launchId: 'launch-2' });
+        activate(registry, second, 'launch-2');
+        expect(registry.grants(second.ref)).toEqual([]);
+    });
+
+    it('grants control separately and retains only an inert exact wake tombstone', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        activate(registry, endpoint);
+        registry.grant(endpoint.ref, 'agent:control', 60_000);
+        expect(
+            registry.authenticate({
+                hostId: 'host-1',
+                endpointId: endpoint.ref.endpointId,
+                generation: endpoint.ref.generation,
+                token: TOKEN,
+            }).capabilities,
+        ).toEqual(expect.arrayContaining(['agents.dispatch', 'agents.control']));
+        expect(registry.retire({ ref: endpoint.ref, launchId: 'launch-1' })).toBe(true);
+        expect(registry.resolveRetired(endpoint.ref)).toMatchObject({
+            terminalId: 'terminal-1',
+            projectId: 'project-1',
+        });
+        expect(() => registry.resolve(endpoint.ref)).toThrow(
+            expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
+        );
+        expect(JSON.stringify(registry.resolveRetired(endpoint.ref))).not.toContain(TOKEN);
+    });
+
+    it('projects only same-Project peers while owner sees duplicate display names', () => {
+        const tokens = [TOKEN, 'cd'.repeat(32), 'ef'.repeat(32)];
+        const registry = new AgentEndpointRegistry('host-1', { token: () => tokens.shift()! });
+        const own = begin(registry);
+        const peer = begin(registry, {
+            terminalId: 'terminal-2',
+            launchId: 'launch-2',
+            name: 'Codex',
+        });
+        const otherProject = begin(registry, {
+            terminalId: 'terminal-3',
+            sessionId: 'session-2',
+            projectId: 'project-2',
+            launchId: 'launch-3',
+            name: 'Codex',
+        });
+        activate(registry, own);
+        activate(registry, peer, 'launch-2');
+        activate(registry, otherProject, 'launch-3');
+        const agent = registry.authenticate({
+            hostId: 'host-1',
+            endpointId: own.ref.endpointId,
+            generation: own.ref.generation,
+            token: TOKEN,
+        });
+        const owner = {
+            capabilities: ['agents.read'] as const,
+            principal: { kind: 'human-cli' as const, id: 'owner' },
+        };
+
+        expect(registry.list(agent)).toHaveLength(2);
+        expect(registry.list(owner)).toHaveLength(3);
+        expect(registry.list(owner).map(({ name }) => name)).toEqual(['Codex', 'Codex', 'Codex']);
+    });
+
+    it('updates messaging health only for the exact live launch generation', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const endpoint = begin(registry);
+        activate(registry, endpoint);
+        const changed: string[] = [];
+        registry.onMessagingChanged((summary) => changed.push(summary.messaging.reason));
+        const messaging = {
+            deliveryMode: 'pull' as const,
+            health: 'ready' as const,
+            reason: 'pull_ready' as const,
+            checkedAt: 2,
+            nextAction: 'use_pull' as const,
+        };
+
+        expect(
+            registry.updateMessaging({ ref: endpoint.ref, launchId: 'stale-launch', messaging }),
+        ).toBe(false);
+        expect(
+            registry.updateMessaging({ ref: endpoint.ref, launchId: 'launch-1', messaging }),
+        ).toBe(true);
+        expect(registry.resolve(endpoint.ref).messaging).toEqual(messaging);
+        expect(changed).toEqual(['pull_ready']);
+    });
+});

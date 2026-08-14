@@ -1,0 +1,95 @@
+import { CaxriError, isCaxriError, type CaxriErrorCode, type WireError } from '@caxri/protocol';
+
+export type CliOutputMode = 'human' | 'json' | 'quiet';
+
+function sorted(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (typeof value !== 'object' || value === null) return value;
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([, entry]) => entry !== undefined)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, entry]) => [key, sorted(entry)]),
+    );
+}
+
+export function stableJson(value: unknown): string {
+    return JSON.stringify(sorted(value));
+}
+
+export function quietLines(value: unknown): string[] {
+    const entries: unknown[] = Array.isArray(value) ? (value as unknown[]) : [value];
+    return entries.map((entry) => {
+        if (
+            typeof entry !== 'object' ||
+            entry === null ||
+            !('id' in entry) ||
+            typeof entry.id !== 'string' ||
+            entry.id.length === 0
+        )
+            throw new CaxriError('VALIDATION', 'Quiet output has no stable ID');
+        return entry.id;
+    });
+}
+
+const exitCodes: Record<CaxriErrorCode, number> = {
+    VALIDATION: 2,
+    NOT_FOUND: 3,
+    CONFLICT: 4,
+    PATH_DENIED: 5,
+    FORBIDDEN: 5,
+    UNAVAILABLE: 6,
+    TIMEOUT: 7,
+    CAPACITY: 8,
+    IO: 9,
+    GIT: 9,
+    INTERNAL: 10,
+};
+
+function redactString(value: string, home: string | undefined): string {
+    let redacted = home ? value.replaceAll(home, '$HOME') : value;
+    redacted = redacted.replace(/\b[0-9a-f]{48,}\b/giu, '[redacted]');
+    redacted = redacted.replace(/\b(token|secret|password|credential)=\S+/giu, '$1=[redacted]');
+    return redacted;
+}
+
+function redactDetails(value: unknown, home: string | undefined): unknown {
+    if (typeof value === 'string') return redactString(value, home);
+    if (Array.isArray(value)) return value.slice(0, 32).map((entry) => redactDetails(entry, home));
+    if (typeof value !== 'object' || value === null) return value;
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([key]) => !/(token|secret|password|credential)/iu.test(key))
+            .slice(0, 32)
+            .map(([key, entry]) => [key, redactDetails(entry, home)]),
+    );
+}
+
+export function normalizeCliError(error: unknown, home?: string): WireError {
+    if (!isCaxriError(error)) return { code: 'INTERNAL', message: 'Internal Caxri CLI error' };
+    if (error.code === 'INTERNAL') return { code: 'INTERNAL', message: 'Internal Caxri CLI error' };
+    const details = error.details ? redactDetails(error.details, home) : undefined;
+    return {
+        code: error.code,
+        message: redactString(error.message, home),
+        ...(details && typeof details === 'object'
+            ? { details: details as Record<string, unknown> }
+            : {}),
+    };
+}
+
+export function exitCodeFor(error: WireError): number {
+    return exitCodes[error.code];
+}
+
+export function renderHumanValue(value: unknown): string {
+    if (value === null || value === undefined) return 'OK';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint')
+        return String(value);
+    if (typeof value !== 'object') return stableJson(value);
+    if (Array.isArray(value)) return value.map((entry) => stableJson(entry)).join('\n');
+    return Object.entries(value)
+        .map(([key, entry]) => `${key}: ${renderHumanValue(entry)}`)
+        .join('\n');
+}

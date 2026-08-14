@@ -2,7 +2,12 @@ import { resolve } from 'node:path';
 
 import { defineConfig } from 'vitest/config';
 
-const testFiles = ['src/**/*.test.ts', '.agents/skills/**/scripts/*.test.ts', 'scripts/*.test.ts'];
+const testFiles = [
+    'src/**/*.test.ts',
+    'packages/**/*.test.ts',
+    '.agents/skills/**/scripts/*.test.ts',
+    'scripts/*.test.ts',
+];
 const serialNativeTestPrefix = [
     'src/runtime/__tests__/agent-hooks.integration.test.ts',
     'src/runtime/__tests__/configuration.test.ts',
@@ -51,8 +56,10 @@ export const parallelMaxWorkers = partition.maxWorkers;
 export default defineConfig({
     resolve: {
         alias: {
-            '@': resolve('src/renderer/src'),
-            '@shared': resolve('src/shared'),
+            '@': resolve(import.meta.dirname, 'src/renderer/src'),
+            '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
+            '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
+            '@shared': resolve(import.meta.dirname, 'src/shared'),
         },
     },
     test: {

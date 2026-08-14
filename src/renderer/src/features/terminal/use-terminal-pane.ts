@@ -15,6 +15,7 @@ import { errorMessage } from '@shared/ipc';
 import type { ProcessState, ThemeTokens } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
+import { useDialogStore } from '../../stores/dialogs';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { revealEditorLocation } from '../editor/editor-reveal';
@@ -36,6 +37,7 @@ import {
 import { registerTerminalLinks } from './terminal-links';
 import { ControlledOsc52Clipboard, type Osc52BlockReason } from './terminal-osc52-clipboard';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
+import { reconcileTerminalProcessFocus } from './terminal-process-focus';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import {
@@ -526,11 +528,14 @@ export function useTerminalPaneRuntime({
                 if (disposed) return;
                 /** Dialog teardown may restore focus before xterm ever receives it, which is not a
                  *  newer user choice. After Terminal focus or an explicit pointer/key action,
-                 *  asynchronous attach completion must not reclaim focus from another control. */
+                 *  asynchronous attach completion must not reclaim focus from another control.
+                 *  A modal can also open before xterm ever receives focus, so its registry is the
+                 *  authoritative keyboard owner even when no prior Terminal focus was observed. */
                 if (
                     latestRef.current.active &&
                     latestRef.current.processState === 'running' &&
-                    !attachFocusSuperseded
+                    !attachFocusSuperseded &&
+                    !useDialogStore.getState().isModalOpen()
                 )
                     xterm.focus();
             });
@@ -613,8 +618,14 @@ export function useTerminalPaneRuntime({
         if (!xterm) return;
         const isRunning = processState === 'running';
         xterm.options.disableStdin = !isRunning;
-        if (active && isRunning) requestAnimationFrame(() => xterm.focus());
-        else xterm.blur();
+        reconcileTerminalProcessFocus({
+            active,
+            blur: () => xterm.blur(),
+            focus: () => xterm.focus(),
+            isModalOpen: () => useDialogStore.getState().isModalOpen(),
+            isRunning,
+            requestFrame: (callback) => requestAnimationFrame(callback),
+        });
         if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
         /** The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.
          *  Reattach once at the measured grid so Runtime resizes its parsed screen behind an ordering

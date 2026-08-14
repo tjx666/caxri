@@ -26,6 +26,11 @@ import {
     withTerminalRemovedFromLayout,
 } from '../session-policy';
 import type { AgentLifecycleSignal } from '../agents';
+import type {
+    AgentDispatchReceiptPatch,
+    NewAgentDispatchReceipt,
+    StoredAgentDispatchReceipt,
+} from './models/agent-dispatch-receipts';
 import {
     CaxriDb,
     type CaxriDbOptions,
@@ -397,20 +402,50 @@ export class CaxriDatabase {
     }
 
     createTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
+        return this.db.transaction(() => this.insertTerminal(sessionId, kind, cwd));
+    }
+
+    /** Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn. */
+    createAgentDispatchWithTerminal(
+        input: NewAgentDispatchReceipt,
+        kind: AgentProvider,
+        cwd?: string,
+    ): { stored: StoredAgentDispatchReceipt; terminal: TerminalRecord } {
         return this.db.transaction(() => {
-            const session = this.db.sessions.get(sessionId);
-            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-            this.assertTerminalCapacity(sessionId);
-            const terminal = this.db.terminals.insert({
-                sessionId,
-                kind,
-                cwd: cwd ?? session.rootPath,
-                title: defaultTerminalTitle(kind),
-            });
-            const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-            if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
-            return terminal;
+            this.db.agentDispatchReceipts.insert(input);
+            const terminal = this.insertTerminal(input.sessionId, kind, cwd);
+            return {
+                stored: this.db.agentDispatchReceipts.update(input.dispatchId, {
+                    status: 'starting',
+                    terminalId: terminal.id,
+                    now: input.now,
+                }),
+                terminal,
+            };
         });
+    }
+
+    createAgentDispatch(input: NewAgentDispatchReceipt): StoredAgentDispatchReceipt {
+        return this.db.transaction(() => this.db.agentDispatchReceipts.insert(input));
+    }
+
+    getAgentDispatch(dispatchId: string): StoredAgentDispatchReceipt | undefined {
+        return this.db.agentDispatchReceipts.get(dispatchId);
+    }
+
+    updateAgentDispatch(
+        dispatchId: string,
+        patch: AgentDispatchReceiptPatch,
+    ): StoredAgentDispatchReceipt {
+        return this.db.transaction(() => this.db.agentDispatchReceipts.update(dispatchId, patch));
+    }
+
+    activeAgentDispatches(): StoredAgentDispatchReceipt[] {
+        return this.db.agentDispatchReceipts.active();
+    }
+
+    agentDispatchesForTerminal(terminalId: string): StoredAgentDispatchReceipt[] {
+        return this.db.agentDispatchReceipts.forTerminal(terminalId);
     }
 
     private assertTerminalCapacity(sessionId?: string): void {
@@ -428,6 +463,21 @@ export class CaxriDatabase {
                 `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
             );
         }
+    }
+
+    private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
+        const session = this.db.sessions.get(sessionId);
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        this.assertTerminalCapacity(sessionId);
+        const terminal = this.db.terminals.insert({
+            sessionId,
+            kind,
+            cwd: cwd ?? session.rootPath,
+            title: defaultTerminalTitle(kind),
+        });
+        const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
+        if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
+        return terminal;
     }
 
     updateTerminalState(

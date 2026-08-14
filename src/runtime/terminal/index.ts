@@ -20,6 +20,7 @@ import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     TerminalFailureReason,
     TerminalKind,
+    ProcessState,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
@@ -27,7 +28,7 @@ import type {
 import { discoverExecutable } from '../agents';
 import { runtimeProcessEnvironment } from '../executables';
 import type { CaxriDatabase } from '../db';
-import type { ShutdownReason } from '../session-policy';
+import { shutdownOutcome, type ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
@@ -81,9 +82,16 @@ export interface TerminalManagerOptions {
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     /** Adds generation-scoped, non-secret integration variables immediately before PTY spawn. */
-    lifecycleEnvironment?: (record: TerminalRecord) => NodeJS.ProcessEnv;
+    lifecycleEnvironment?: (
+        record: TerminalRecord,
+        launch?: AgentLaunchSettings,
+    ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
+    /** Publishes a prepared generation only after its PTY is registered as live. */
+    onLifecycleStarted?: (record: TerminalRecord) => void | Promise<void>;
     /** Revokes lifecycle integration for a PTY generation before its durable record can be reused. */
-    onLifecycleRetired?: (terminalId: string) => void;
+    onLifecycleRetired?: (terminalId: string) => void | Promise<void>;
+    /** Dispatch receipts observe durable process state without reading Terminal output. */
+    onStateChanged?: (terminalId: string, state: ProcessState) => void;
     /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
     onOutputActivity?: (terminalId: string, processId: number) => void;
     /** Test seam for exercising retention behavior without parsing the production 2 MiB ceiling. */
@@ -127,8 +135,10 @@ export class TerminalManager {
     private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
     private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
     private readonly lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
+    private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
+    private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
     private readonly snapshotMaximumBytes?: number;
     private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
@@ -145,8 +155,10 @@ export class TerminalManager {
         this.agentLaunchSettings = options.agentLaunchSettings;
         this.agentEnvironment = options.agentEnvironment ?? runtimeProcessEnvironment;
         this.lifecycleEnvironment = options.lifecycleEnvironment;
+        this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
+        this.onStateChanged = options.onStateChanged;
         this.snapshotMaximumBytes = options.snapshotMaximumBytes;
         this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
         this.spawnProcess = options.spawn ?? pty.spawn;
@@ -171,6 +183,8 @@ export class TerminalManager {
          * to the last stage (`spawn_failed`) since a `pty.spawn` failure has no distinct guard.
          */
         let failureReason: TerminalFailureReason = 'spawn_failed';
+        let spawned: pty.IPty | undefined;
+        let live: LiveTerminal | undefined;
         try {
             const e2eAgentPolicy = readE2EAgentPolicy();
             const launch =
@@ -221,7 +235,7 @@ export class TerminalManager {
                           TERM: 'xterm-256color',
                           COLORTERM: 'truecolor',
                       }),
-                ...this.lifecycleEnvironment?.(record),
+                ...(await this.lifecycleEnvironment?.(record, launch)),
             };
             if (record.kind === 'shell') {
                 try {
@@ -263,12 +277,12 @@ export class TerminalManager {
                 cwd: record.cwd,
                 env,
             });
+            spawned = child;
             /** A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell. */
             if (!this.database.getTerminal(record.id)) {
-                child.kill();
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
-            const live: LiveTerminal = {
+            const startedLive: LiveTerminal = {
                 imageRecovery: new TerminalImageRecoveryFilter(),
                 imageOutput: new TerminalImageOutputFilter(),
                 process: child,
@@ -291,10 +305,12 @@ export class TerminalManager {
                 metricInputBytes: 0,
                 metricDroppedBytes: 0,
             };
-            this.terminals.set(record.id, live);
+            live = startedLive;
+            this.terminals.set(record.id, startedLive);
             this.database.updateTerminalState(record.id, 'running');
-            child.onData((data) => this.onData(live, data));
-            child.onExit(({ exitCode, signal }) => this.onExit(live, exitCode, signal));
+            child.onData((data) => this.onData(startedLive, data));
+            child.onExit(({ exitCode, signal }) => this.onExit(startedLive, exitCode, signal));
+            await this.onLifecycleStarted?.(record);
             this.logger.write('info', 'pty.spawned', {
                 durationMs: performance.now() - startedAt,
                 fields: { terminalId: record.id, kind: record.kind },
@@ -302,7 +318,23 @@ export class TerminalManager {
             return this.database.getTerminal(record.id)!;
         } catch (error) {
             const wire = toWireError(error);
-            this.onLifecycleRetired?.(record.id);
+            if (live && this.terminals.get(record.id) === live) {
+                this.terminals.delete(record.id);
+                this.attached.delete(record.id);
+                this.attachedSizes.delete(record.id);
+                live.screen.dispose();
+            }
+            if (spawned) spawned.kill();
+            try {
+                await this.retireLifecycle(record.id);
+            } catch (retirementError) {
+                this.logger.write('warn', 'pty.lifecycle_retire_failed', {
+                    fields: {
+                        terminalId: record.id,
+                        error: errorMessage(retirementError, 'unknown'),
+                    },
+                });
+            }
             if (this.database.getTerminal(record.id))
                 this.database.updateTerminalState(record.id, 'failed', failureReason);
             this.logger.write('error', 'pty.spawn_failed', {
@@ -446,6 +478,7 @@ export class TerminalManager {
         /** node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected death. */
         const exitedNormally = exitCode === 0 && !signal;
         this.database.updateTerminalState(live.record.id, exitedNormally ? 'stopped' : 'dead');
+        this.onStateChanged?.(live.record.id, exitedNormally ? 'stopped' : 'dead');
         this.emit({
             event: 'terminal.exit',
             payload: { terminalId: live.record.id, exitCode, signal },
@@ -468,6 +501,14 @@ export class TerminalManager {
         live.metricInputBytes += Buffer.byteLength(data, 'utf8');
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
         live.process.write(data);
+        return true;
+    }
+
+    /** Signals only the currently-owned PTY identity captured by the caller. */
+    signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
+        const live = this.terminals.get(terminalId);
+        if (!live || live.process.pid !== expectedProcessId) return false;
+        live.process.kill(signal);
         return true;
     }
 
@@ -578,6 +619,7 @@ export class TerminalManager {
         if (preserveAttachment) this.attached.add(terminalId);
         if (preservedSize) this.attachedSizes.set(terminalId, preservedSize);
         this.database.updateTerminalState(terminalId, 'starting');
+        this.onStateChanged?.(terminalId, 'starting');
         const restarting = this.database.getTerminal(terminalId);
         if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
         return this.start(restarting, options);
@@ -610,7 +652,7 @@ export class TerminalManager {
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
         this.attachedSizes.delete(live.record.id);
-        this.onLifecycleRetired?.(live.record.id);
+        this.retireLifecycleSoon(live.record.id);
         live.screen.dispose();
         return true;
     }
@@ -620,6 +662,20 @@ export class TerminalManager {
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.snapshotTimer = clearScheduledTimer(live.snapshotTimer);
         live.metricTimer = clearScheduledTimer(live.metricTimer);
+    }
+
+    /** Normal exit cannot await Host control; failures stay observable without retaining local state. */
+    private retireLifecycleSoon(terminalId: string): void {
+        void this.retireLifecycle(terminalId).catch((error: unknown) =>
+            this.logger.write('warn', 'pty.lifecycle_retire_failed', {
+                fields: { terminalId, error: errorMessage(error, 'unknown') },
+            }),
+        );
+    }
+
+    /** A pre-spawn failure awaits retirement so its prepared credential never outlives the failure. */
+    private async retireLifecycle(terminalId: string): Promise<void> {
+        await this.onLifecycleRetired?.(terminalId);
     }
 
     close(terminalId: string): void {
@@ -632,6 +688,7 @@ export class TerminalManager {
         this.attached.delete(terminalId);
         this.attachedSizes.delete(terminalId);
         this.resolveAttachedSizeWaiters(terminalId);
+        this.onStateChanged?.(terminalId, 'stopped');
         this.database.closeTerminal(terminalId);
     }
 
@@ -640,6 +697,7 @@ export class TerminalManager {
             this.attached.delete(terminal.id);
             this.attachedSizes.delete(terminal.id);
             this.resolveAttachedSizeWaiters(terminal.id);
+            this.onStateChanged?.(terminal.id, 'stopped');
         }
         for (const live of [...this.terminals.values()]) {
             if (live.record.sessionId !== sessionId) continue;
@@ -674,9 +732,11 @@ export class TerminalManager {
          *  the Runtime alive solely for the visible-Terminal grid grace period. */
         for (const terminalId of [...this.attachedSizeWaiters.keys()])
             this.resolveAttachedSizeWaiters(terminalId);
+        const terminalProcessState = shutdownOutcome(reason).terminalProcessState;
         for (const live of [...this.terminals.values()]) {
             this.detach(live, true);
             live.process.kill();
+            this.onStateChanged?.(live.record.id, terminalProcessState);
         }
         this.database.markShutdown(reason);
     }

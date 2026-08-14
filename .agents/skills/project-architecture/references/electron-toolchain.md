@@ -5,9 +5,39 @@
 
 ## Decision
 
-Use `electron-vite` for separate Main, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
+Use `electron-vite` for separate Main, Headless Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
-The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Preload, and Runtime remain on their existing Node-oriented transforms.
+The root remains the private npm workspace owner and the only lockfile owner. `packages/protocol`
+owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
+may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop
+source stays under `src/`; introducing workspaces is not an application-directory migration.
+Day-to-day commands continue through `ni` and `bun run`, and `packageManager` remains pinned to npm
+because electron-builder uses npm's dependency layout and `install-app-deps` behavior.
+
+Workspace builds run before the Desktop build. electron-builder excludes the development workspace
+links from its broad `node_modules` input; a workspace artifact enters the app only through an
+explicit Desktop build or packaging entry. This prevents npm symlink traversal from accidentally
+shipping the standalone CLI while preserving the hoisted native dependency locations and ASAR
+unpack rules.
+
+The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
+and the profile-scoped Headless Host execute the packaged Caxri binary with
+`ELECTRON_RUN_AS_NODE=1`; the Host then supervises `out/main/runtime.js` as an advanced-serialization
+Node IPC child so it retains Electron ABI parity without launching Chromium. Packaging validation
+must keep proving that `host.js` and `runtime.js` load from `app.asar` while their native modules load
+from `app.asar.unpacked`. Disabling this fuse requires replacing both production launch paths first.
+
+The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Main while leaving the
+standalone workspace links out of the packaged application. This gives Main the authenticated Host
+client without making packaged startup depend on an npm workspace symlink.
+
+The CLI build also emits one self-contained CommonJS artifact that imports only Node built-ins. The
+standalone distribution and `Contents/Resources/cli/caxri.cjs` are copied from that same file, while
+`Contents/Resources/bin/caxri` resolves symlinks and launches it through the packaged Caxri binary
+with `ELECTRON_RUN_AS_NODE=1`. Packaging must preserve executable bits, explicitly keep the
+`RunAsNode` fuse enabled, and prove byte identity between the standalone and embedded bundle.
+
+The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 
 Electron Forge's official Vite plugin remains explicitly experimental and provides no API-stability guarantee. `electron-vite` documents Electron `utilityProcess`, externalizes production/native dependencies, and fits the required process model.
 

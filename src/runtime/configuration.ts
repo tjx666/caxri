@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
@@ -17,9 +17,15 @@ import {
     settingsFileSchema,
 } from '../shared/configuration';
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
+import {
+    inspectableSettingsSchema,
+    type SettingsPatchChange,
+    type SettingsPatchResult,
+} from '../shared/ipc/business-contract';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
+import { redactLogValue } from '../shared/node/redaction';
 import {
     DEFAULT_FILES_EXCLUDE,
     SETTINGS_BOUNDS,
@@ -496,6 +502,47 @@ export class ConfigurationService {
         return { value: this.settings, source: this.settingsSource };
     }
 
+    private settingsInspection(source: string, value: AppSettings) {
+        return {
+            value: inspectableSettingsSchema.parse(value),
+            revision: createHash('sha256').update(source).digest('hex'),
+            errors: this.getErrors().map((error) => redactLogValue(error)),
+        };
+    }
+
+    inspectSettings() {
+        return this.settingsInspection(this.settingsSource, this.settings);
+    }
+
+    /** Applies a field-bounded patch through the same schema and atomic update path as Desktop. */
+    patchSettings(
+        changes: readonly SettingsPatchChange[],
+        dryRun: boolean,
+    ): Promise<SettingsPatchResult> {
+        return this.mutateSettings(async () => {
+            const candidate = { ...this.settings } as Record<string, unknown>;
+            for (const change of changes) candidate[change.key] = change.value;
+            const value = settingsFileSchema.parse(candidate);
+            const changedKeys = [...new Set(changes.map(({ key }) => key))].filter(
+                (key) => JSON.stringify(this.settings[key]) !== JSON.stringify(value[key]),
+            );
+            let source = this.settingsSource;
+            for (const key of changedKeys)
+                source = applyEdits(
+                    source,
+                    modify(source, [key], value[key], {
+                        formattingOptions: JSONC_FORMATTING_OPTIONS,
+                    }),
+                );
+            this.prepare('settings', source);
+            if (!dryRun && changedKeys.length > 0) await this.update('settings', source);
+            const inspection = dryRun
+                ? this.settingsInspection(source, value)
+                : this.inspectSettings();
+            return { ...inspection, dryRun, changedKeys };
+        });
+    }
+
     subscribeSettings(listener: (settings: AppSettings) => void): () => void {
         this.settingsListeners.add(listener);
         return () => this.settingsListeners.delete(listener);
@@ -518,9 +565,12 @@ export class ConfigurationService {
     }
 
     /** Serializes read-modify-write Settings operations so concurrent trust prompts cannot lose rules. */
-    private mutateSettings(operation: () => Promise<void>): Promise<void> {
+    private mutateSettings<T>(operation: () => Promise<T>): Promise<T> {
         const result = this.settingsMutationTail.then(operation);
-        this.settingsMutationTail = result.catch(() => undefined);
+        this.settingsMutationTail = result.then(
+            () => undefined,
+            () => undefined,
+        );
         return result;
     }
 

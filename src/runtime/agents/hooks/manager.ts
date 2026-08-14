@@ -10,6 +10,7 @@ import {
     type AgentProvider,
     type AgentProviderSettings,
 } from '../../../shared/agents';
+import { mapWithConcurrency } from '../../../shared/node/concurrency';
 import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { errorMessage } from '../../../shared/ipc/errors';
 import type { StructuredLogger } from '../../../shared/node/logger';
@@ -31,8 +32,10 @@ const CONFIG_WATCH_SETTLE_MS = 100;
 const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
 const LOCK_RETRY_MS = 25;
 const LOCK_TIMEOUT_MS = 2_000;
+const MAX_CONCURRENT_PROFILE_STATS = 8;
 const STALE_LOCK_MS = 30_000;
 const PROFILE_INTENTS_VERSION = 2;
+const agentProviderIdSet = new Set<string>(agentProviderIds);
 
 interface TerminalHookLaunch {
     launchId: string;
@@ -132,8 +135,7 @@ function parseProfileIntents(source: string | undefined): ProfileHookIntentRegis
             !Array.isArray(providers) ||
             !providers.every(
                 (provider): provider is AgentProvider =>
-                    typeof provider === 'string' &&
-                    agentProviderIds.includes(provider as AgentProvider),
+                    typeof provider === 'string' && agentProviderIdSet.has(provider),
             )
         ) {
             throw new Error('Caxri hook profile intent contains an invalid path or provider');
@@ -296,12 +298,17 @@ export class AgentHookManager {
         try {
             await this.withInstallLock(async () => {
                 const globallyEnabled = await this.updateProfileIntent(settings);
-                for (const provider of agentProviderIds)
-                    await this.reconcileProvider(
-                        provider,
-                        globallyEnabled[provider],
-                        settings[provider].hooks.enabled,
-                    );
+                /** Provider adapters own disjoint config files; the shared profile registry is
+                 * already durable before these independent reconciliations begin. */
+                await Promise.all(
+                    agentProviderIds.map((provider) =>
+                        this.reconcileProvider(
+                            provider,
+                            globallyEnabled[provider],
+                            settings[provider].hooks.enabled,
+                        ),
+                    ),
+                );
             });
             await this.refreshConfigWatchers(settings);
         } catch (error) {
@@ -401,15 +408,20 @@ export class AgentHookManager {
             if (!isFileSystemError(error, 'ENOENT')) throw error;
         }
         const registry = parseProfileIntents(source);
-        for (const [profileId, intent] of Object.entries(registry.profiles)) {
-            try {
-                if (!(await lstat(intent.profilePath)).isDirectory())
-                    delete registry.profiles[profileId];
-            } catch (error) {
-                if (isFileSystemError(error, 'ENOENT')) delete registry.profiles[profileId];
-                else throw error;
-            }
-        }
+        const staleProfileIds = await mapWithConcurrency(
+            Object.entries(registry.profiles),
+            MAX_CONCURRENT_PROFILE_STATS,
+            async ([profileId, intent]) => {
+                try {
+                    return (await lstat(intent.profilePath)).isDirectory() ? undefined : profileId;
+                } catch (error) {
+                    if (isFileSystemError(error, 'ENOENT')) return profileId;
+                    throw error;
+                }
+            },
+        );
+        for (const profileId of staleProfileIds)
+            if (profileId !== undefined) delete registry.profiles[profileId];
         const providers = agentProviderIds.filter((provider) => settings[provider].hooks.enabled);
         if (providers.length > 0)
             registry.profiles[this.profileId] = {
@@ -433,12 +445,15 @@ export class AgentHookManager {
         edits: ReturnType<AgentHookAdapter['render']>,
         targetById: ReadonlyMap<string, AgentHookConfigTarget>,
     ): Promise<void> {
+        /** Adapter edits are an ordered transaction plan; parallel replacement could expose a
+         * mixed provider configuration or overwrite a later edit to the same target. */
         for (const edit of edits) {
             const target = targetById.get(edit.targetId);
             if (!target?.writable)
                 throw new Error(
                     `Hook adapter attempted to write read-only target ${edit.targetId}`,
                 );
+            // oxlint-disable-next-line react-doctor/async-await-in-loop
             await atomicWrite(target.path, edit.source);
         }
     }
@@ -488,6 +503,7 @@ export class AgentHookManager {
         settings: Record<AgentProvider, AgentProviderSettings>,
     ): Promise<void> {
         const desired = this.desiredWatchTargets(settings);
+        const obsoleteSubscriptions: HookConfigWatcher['subscription'][] = [];
         for (const [directory, watcher] of [...this.configWatchers]) {
             const nextTargets = desired.get(directory);
             if (
@@ -498,31 +514,48 @@ export class AgentHookManager {
                 continue;
             }
             this.configWatchers.delete(directory);
-            await watcher.subscription.unsubscribe();
+            obsoleteSubscriptions.push(watcher.subscription);
         }
-        let watcherFailed = false;
-        for (const [directory, targets] of desired) {
-            if (this.configWatchers.has(directory)) continue;
-            try {
+        await Promise.all(obsoleteSubscriptions.map((subscription) => subscription.unsubscribe()));
+        const pendingWatchers: Array<[string, Set<string>]> = [];
+        for (const [directory, targets] of desired)
+            if (!this.configWatchers.has(directory)) pendingWatchers.push([directory, targets]);
+        /** Native subscriptions for separate directories are independent; apply their results only
+         * after every attempt settles so shared fallback state remains ordered. */
+        const additions = await Promise.all(
+            pendingWatchers.map(async ([directory, targets]) => {
                 const targetNames = new Set([...targets].map((target) => basename(target)));
-                const subscription = await parcelWatcher.subscribe(
-                    directory,
-                    (error, events) => {
-                        if (this.closed) return;
-                        if (error) {
-                            this.startConfigFallback(error);
-                            return;
-                        }
-                        /** Native macOS paths may canonicalize `/var` to `/private/var`. */
-                        if (events.some((event) => targetNames.has(basename(event.path))))
-                            this.scheduleConfigReconcile();
-                    },
-                    { backend: NATIVE_WATCHER_BACKEND },
-                );
-                this.configWatchers.set(directory, { subscription, targets });
-            } catch (error) {
+                try {
+                    const subscription = await parcelWatcher.subscribe(
+                        directory,
+                        (error, events) => {
+                            if (this.closed) return;
+                            if (error) {
+                                this.startConfigFallback(error);
+                                return;
+                            }
+                            /** Native macOS paths may canonicalize `/var` to `/private/var`. */
+                            if (events.some((event) => targetNames.has(basename(event.path))))
+                                this.scheduleConfigReconcile();
+                        },
+                        { backend: NATIVE_WATCHER_BACKEND },
+                    );
+                    return { directory, subscription, targets };
+                } catch (error) {
+                    return { directory, error };
+                }
+            }),
+        );
+        let watcherFailed = false;
+        for (const addition of additions) {
+            if ('error' in addition) {
                 watcherFailed = true;
-                this.startConfigFallback(error);
+                this.startConfigFallback(addition.error);
+            } else {
+                this.configWatchers.set(addition.directory, {
+                    subscription: addition.subscription,
+                    targets: addition.targets,
+                });
             }
         }
         if (!watcherFailed && this.configWatchers.size === desired.size) this.stopConfigFallback();

@@ -16,6 +16,7 @@ export interface E2EPoolPlan {
  */
 export const parallelSafeSpecs = [
     'e2e/agent-icons.e2e.ts',
+    'e2e/agent-inbox.e2e.ts',
     'e2e/agent-login-path.e2e.ts',
     'e2e/agent-mode.e2e.ts',
     'e2e/chrome-tabs.e2e.ts',

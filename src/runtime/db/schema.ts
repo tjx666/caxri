@@ -102,3 +102,41 @@ export const appState = sqliteTable('app_state', {
     key: text('key').primaryKey(),
     valueJson: text('value_json').notNull(),
 });
+
+/**
+ * Durable Agent dispatch receipts fence request retries across Host/Runtime restarts. Project and
+ * Session IDs intentionally are not foreign keys: a receipt remains valid evidence after metadata
+ * deletion, while its bounded retention prevents unbounded history growth.
+ */
+export const agentDispatchReceipts = sqliteTable(
+    'agent_dispatch_receipts',
+    {
+        dispatchId: text('dispatch_id').primaryKey(),
+        requestFingerprint: text('request_fingerprint').notNull(),
+        operation: text('operation').notNull(),
+        status: text('status').notNull(),
+        projectId: text('project_id').notNull(),
+        sessionId: text('session_id').notNull(),
+        terminalId: text('terminal_id'),
+        provider: text('provider').notNull(),
+        requestedLaunchJson: text('requested_launch_json').notNull(),
+        effectiveLaunchJson: text('effective_launch_json').notNull(),
+        endpointJson: text('endpoint_json'),
+        failureJson: text('failure_json'),
+        revision: integer('revision').notNull(),
+        createdAt: integer('created_at').notNull(),
+        updatedAt: integer('updated_at').notNull(),
+    },
+    (table) => [
+        index('agent_dispatch_project_updated').on(
+            table.projectId,
+            table.updatedAt,
+            table.dispatchId,
+        ),
+        index('agent_dispatch_terminal_updated').on(
+            table.terminalId,
+            table.updatedAt,
+            table.dispatchId,
+        ),
+    ],
+);

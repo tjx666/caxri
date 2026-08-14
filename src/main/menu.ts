@@ -76,7 +76,7 @@ export function buildApplicationMenuTemplate({
                 { role: 'hideOthers' },
                 { role: 'unhide' },
                 { type: 'separator' },
-                { role: 'quit' },
+                { role: 'quit', label: 'Quit Caxri Desktop' },
             ],
         },
         { label: 'Project', submenu: commandItems('project') },

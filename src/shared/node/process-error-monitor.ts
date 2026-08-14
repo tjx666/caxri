@@ -15,7 +15,7 @@ export interface ProcessErrorTarget {
 
 interface ProcessErrorMonitorOptions {
     bootstrapWriter?: () => ProcessErrorWriter | undefined;
-    processName: 'main' | 'runtime';
+    processName: 'host' | 'main' | 'runtime';
     target?: ProcessErrorTarget;
 }
 

@@ -43,6 +43,7 @@ const agentProviderSettingsSchema = z
         z.object({
             hooks: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
             launch: agentLaunchSettingsSchema,
+            messaging: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
         }),
     )
     .default({})

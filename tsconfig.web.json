@@ -1,7 +1,17 @@
 {
     "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
-    "exclude": ["src/**/__tests__/**", "src/shared/node/**"],
-    "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "src/shared/**/*.ts"],
+    "exclude": [
+        "src/**/__tests__/**",
+        "src/shared/node/**",
+        "packages/**/__tests__/**",
+        "packages/**/*.test.ts"
+    ],
+    "include": [
+        "src/renderer/src/**/*.ts",
+        "src/renderer/src/**/*.tsx",
+        "src/shared/**/*.ts",
+        "packages/protocol/src/**/*.ts"
+    ],
     "compilerOptions": {
         "composite": true,
         "jsx": "react-jsx",
