@@ -21,9 +21,8 @@ export function agentSkillHealthReader(
             home: environment.homeDirectory,
         };
         const global = await inspectBundledSkillHealth(context, { scopes: ['global'] });
-        const sessionId = database.getAppState<string | null>('lastSelectedSessionId') ?? undefined;
-        const session = sessionId ? database.getSession(sessionId) : undefined;
-        const project = session ? database.getProject(session.projectId) : undefined;
+        const projectId = database.getAppState<string | null>('lastSelectedProjectId') ?? undefined;
+        const project = projectId ? database.getProject(projectId) : undefined;
         if (!project) return global;
         try {
             const local = await inspectBundledSkillHealth(
