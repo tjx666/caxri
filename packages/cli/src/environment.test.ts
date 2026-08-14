@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     resolveAgentEndpointCredential,
-    resolveCliHostLaunch,
     resolveCliProfile,
+    resolvePackagedHostLaunch,
 } from './environment';
 
 describe('CLI profile resolution', () => {
@@ -58,30 +58,34 @@ describe('CLI profile resolution', () => {
         ).toThrow('must be an absolute path');
     });
 
-    it('accepts only a complete app-managed Host launch pair and bounded environment', () => {
+    it('derives Host launch only from the executing packaged application layout', () => {
+        const resourcesPath = '/Applications/Caxri.app/Contents/Resources';
         expect(
-            resolveCliHostLaunch({
-                CAXRI_HOST_EXECUTABLE: '/Applications/Caxri.app/Contents/MacOS/Caxri',
-                CAXRI_HOST_ENTRY_PATH:
-                    '/Applications/Caxri.app/Contents/Resources/app.asar/out/main/host.js',
-                CAXRI_CLI_PATH: '/Applications/Caxri.app/Contents/Resources/cli/caxri.cjs',
-                SECRET_SENTINEL: 'must-not-propagate',
+            resolvePackagedHostLaunch({
+                executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
+                resourcesPath,
+                runAsNode: '1',
+                scriptPath: `${resourcesPath}/cli/caxri.cjs`,
             }),
         ).toEqual({
             executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
             entryPath: '/Applications/Caxri.app/Contents/Resources/app.asar/out/main/host.js',
-            environment: {
-                CAXRI_CLI_PATH: '/Applications/Caxri.app/Contents/Resources/cli/caxri.cjs',
-            },
         });
-        expect(() =>
-            resolveCliHostLaunch({ CAXRI_HOST_EXECUTABLE: '/Applications/Caxri' }),
-        ).toThrow('incomplete');
-        expect(() =>
-            resolveCliHostLaunch({
-                CAXRI_HOST_EXECUTABLE: 'relative/Caxri',
-                CAXRI_HOST_ENTRY_PATH: '/app/host.js',
+        expect(
+            resolvePackagedHostLaunch({
+                executable: '/bin/sh',
+                resourcesPath,
+                runAsNode: '1',
+                scriptPath: '/tmp/attacker.cjs',
             }),
-        ).toThrow('must be absolute');
+        ).toBeUndefined();
+        expect(
+            resolvePackagedHostLaunch({
+                executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
+                resourcesPath,
+                runAsNode: '1',
+                scriptPath: '/tmp/forged-cli.cjs',
+            }),
+        ).toBeUndefined();
     });
 });

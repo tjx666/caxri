@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { connectToHost } from '@caxri/cli';
+import { connectToHost, ensureHost } from '@caxri/cli';
 
 import { expect, test } from './fixtures.ts';
 import { createShellSession, launchCaxri } from './helpers.ts';
@@ -80,14 +80,14 @@ async function stopHost(userDataPath: string): Promise<void> {
         .toEqual({ manifestExists: false, processExists: false });
 }
 
-test('shares settings across a CLI-started headless Host and Desktop', async () => {
+test('shares settings across an app-managed headless Host and Desktop', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-host-platform-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const isolatedHome = join(testDirectory, 'home');
     const root = join(isolatedHome, 'project');
     const unscopedSecret = 'headless-secret-must-not-propagate';
     await Promise.all([mkdir(root, { recursive: true }), mkdir(isolatedHome, { recursive: true })]);
-    const environment: NodeJS.ProcessEnv = {
+    const hostEnvironment: NodeJS.ProcessEnv = {
         CAXRI_CLI_PATH: cliPath,
         CAXRI_DESKTOP_LAUNCH: JSON.stringify({
             executable: electronPath,
@@ -97,10 +97,7 @@ test('shares settings across a CLI-started headless Host and Desktop', async () 
         CAXRI_E2E: '1',
         CAXRI_E2E_AGENT_MODE: 'blocked',
         CAXRI_E2E_WINDOW_MODE: 'hidden',
-        CAXRI_HOST_ENTRY_PATH: hostEntryPath,
-        CAXRI_HOST_EXECUTABLE: electronPath,
         CAXRI_TEST_ROOT_PATH: root,
-        CAXRI_USER_DATA_DIR: userData,
         CLAUDE_CONFIG_DIR: join(isolatedHome, 'claude'),
         CODEX_HOME: join(isolatedHome, 'codex'),
         CODEX_SQLITE_HOME: join(isolatedHome, 'codex'),
@@ -108,13 +105,23 @@ test('shares settings across a CLI-started headless Host and Desktop', async () 
         XDG_CACHE_HOME: join(isolatedHome, 'cache'),
         XDG_CONFIG_HOME: join(isolatedHome, 'config'),
         XDG_DATA_HOME: join(isolatedHome, 'data'),
-        UNSCOPED_SECRET_SENTINEL: unscopedSecret,
         ...(process.env.CAXRI_E2E_WORKER_NAMESPACE
             ? { CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE }
             : {}),
     };
+    const environment = {
+        ...hostEnvironment,
+        CAXRI_USER_DATA_DIR: userData,
+        UNSCOPED_SECRET_SENTINEL: unscopedSecret,
+    };
     let running: Awaited<ReturnType<typeof launchCaxri>> | undefined;
     try {
+        const headless = await ensureHost(
+            userData,
+            { executable: electronPath, entryPath: hostEntryPath, environment: hostEnvironment },
+            15_000,
+        );
+        headless.close();
         const patched = await runCli(
             [
                 'settings',
