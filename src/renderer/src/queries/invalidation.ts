@@ -26,7 +26,6 @@ function invalidateFileDependentQueries(
     const sessionScoped = new Set<CaxriMethod>([
         'files.browse',
         'git.summary',
-        'git.diff',
         'git.diffDocument',
         'git.blame',
     ]);

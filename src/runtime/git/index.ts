@@ -321,6 +321,16 @@ export class GitService {
         return this.pullRequestService.diffDocument(params);
     }
 
+    /** Drops Pull Request file lists whose Session ownership was removed from persistence. */
+    evictPullRequestSessions(sessionIds: readonly string[]): void {
+        this.pullRequestService.evictSessions(sessionIds);
+    }
+
+    /** Releases retained Pull Request metadata at the Runtime lifecycle boundary. */
+    close(): void {
+        this.pullRequestService.clear();
+    }
+
     private async resolveHistoryPath(
         repository: GitRepositorySummary,
         input?: string,
@@ -454,17 +464,6 @@ export class GitService {
             if (code === 'ENOENT' || code === 'EISDIR') return undefined;
             throw error;
         }
-    }
-
-    async diff(sessionId: string, repositoryIdValue: string, path: string): Promise<string> {
-        const { file, relativePath, repository } = await this.resolveDiffTarget(
-            sessionId,
-            repositoryIdValue,
-            path,
-        );
-        if (file?.kind === 'untracked')
-            return 'Untracked file. Caxri does not include file contents in a synthetic diff.';
-        return this.loadPatch(repository.rootPath, file, relativePath);
     }
 
     private async loadPatch(

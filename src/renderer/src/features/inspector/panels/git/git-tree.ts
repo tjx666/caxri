@@ -23,7 +23,7 @@ function sortNodes(nodes: GitFileTreeNode[]): GitFileTreeNode[] {
     });
 }
 
-/** Builds directory nodes without changing the repository-relative path used by `git.diff`. */
+/** Builds directory nodes without changing the repository-relative path used by `git.diffDocument`. */
 export function buildGitFileTree(files: GitFileStatus[]): GitFileTreeNode[] {
     const root: GitFileTreeDirectory = { children: [], kind: 'directory', name: '', path: '' };
     for (const file of files) {
