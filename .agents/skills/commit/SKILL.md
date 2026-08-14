@@ -86,9 +86,10 @@ fully handling it, use `Refs #123` instead of a closing keyword.
 
 ## Validate and commit
 
-Run the smallest relevant validation required by `AGENTS.md` and the changed files. Re-inspect the
-staged diff, then commit it. Repeat the stage, validate, and commit sequence for every planned
-commit. Never amend or rewrite existing commits unless the user explicitly requests it.
+Run the smallest relevant validation selected by `quality-check` and the owning testing skill for
+the changed files. Re-inspect the staged diff, then commit it. Repeat the stage, validate, and commit
+sequence for every planned commit. Never amend or rewrite existing commits unless the user
+explicitly requests it.
 
 Afterward, verify:
 

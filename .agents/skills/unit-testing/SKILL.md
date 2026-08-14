@@ -1,9 +1,9 @@
 ---
-name: unit-test
+name: unit-testing
 description: Validate Caxri logic with focused Vitest unit and integration coverage. Use after changing pure logic, Runtime or shared services, persistence, security, configuration, or repository skill scripts; when reproducing a bug below the Electron desktop boundary; or when selecting the narrowest behavior-level regression before a changed-file check. Do not use for Playwright Electron workflows or full E2E delivery.
 ---
 
-# Unit Test
+# Unit Testing
 
 Validate the smallest observable behavior below the Electron desktop boundary.
 

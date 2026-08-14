@@ -4,7 +4,13 @@
 
 A `Project` is a user-authorized local folder and the durable owner of its `rootPath`, explicit Sidebar order, and path-security grant. A `Session` belongs permanently to one owning Project and owns permanent Terminal records, root-scoped Workbench state, layout, and optional Agent metadata. Its independently persisted `Workbench Root` selects the authorized Project used by Files, Editor, Search, and Git; it defaults and falls back to the owning Project, while Terminal cwd, Agent launches, Agent Endpoint ownership, Sidebar grouping, and Session identity never move. Workbench navigation and dirty document identity use the tuple `(sessionId, workbenchProjectId, path)`, so switching roots restores independent tabs, selection, Git mode, and dirty buffers without merging same-named paths. See [ADR 0001](../../../../docs/adr/0001-separate-session-owner-and-workbench-root.md).
 
+Session identity isolates Renderer editor, layout, inspector, and navigation state. Every new
+Session-scoped state surface must key or reset that state when the selected Session changes.
+
 Archiving a Session hides it from active navigation without stopping or deleting its Terminals, and restore only clears that metadata. The Sidebar keeps one global Archived Sessions entry even when its count is zero; a Renderer-only management dialog derives search, Project/Agent filters, Project grouping, and newest-first order from the existing bootstrap snapshot, then delegates restore and delete to the unchanged structured Session methods. Every new Session starts with the automatic title `Untitled`, while its initial Terminal keeps the provider-specific title. The first Agent Terminal becomes the source of later automatic title promotion from useful metadata; a user rename switches the title to manual ownership so later Agent metadata cannot replace it. Multiple Sessions can share one Project without duplicating its directory identity.
+
+Project and Session deletion removes Caxri metadata only. It never removes the authorized Project
+directory or user files.
 
 ## Process model
 
@@ -168,6 +174,9 @@ Interrupted-Terminal recovery is supervised by one Runtime-wide four-spawn budge
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
 
 ## Files and editor
+
+The editor remains intentionally narrow: open, edit, save, in-file search, and diff. Broader IDE
+surfaces require a separate product decision rather than growing incidentally from file operations.
 
 The Files inspector resolves a curated, deterministic subset of local LobeHub file icons by exact filename, well-known directory, test suffix, and extension before falling back to generic file and folder assets. Expanded directories use matching open variants. Vite emits only the explicitly imported SVG subset as separate assets, so icons remain offline-capable without embedding the full upstream catalog in the initial Renderer JavaScript bundle.
 

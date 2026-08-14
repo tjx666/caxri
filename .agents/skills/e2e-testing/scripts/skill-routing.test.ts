@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 const skillDirectory = join(dirname(fileURLToPath(import.meta.url)), '..');
 const skillsDirectory = join(skillDirectory, '..');
 const repositoryRoot = join(skillsDirectory, '..', '..');
-const unitSkill = readFileSync(join(skillsDirectory, 'unit-test', 'SKILL.md'), 'utf8');
+const unitSkill = readFileSync(join(skillsDirectory, 'unit-testing', 'SKILL.md'), 'utf8');
 const e2eSkill = readFileSync(join(skillDirectory, 'SKILL.md'), 'utf8');
 
 function contractFiles(directory: string): string[] {
@@ -28,7 +28,7 @@ function contractFiles(directory: string): string[] {
 
 describe('testing skill routing', () => {
     it('exposes separate and mutually exclusive unit and Electron workflows', () => {
-        expect(unitSkill).toContain('name: unit-test');
+        expect(unitSkill).toContain('name: unit-testing');
         expect(unitSkill).toContain('does not own Playwright');
         expect(e2eSkill).toContain('name: e2e-testing');
         expect(e2eSkill).toContain('Do not use as the default Vitest workflow');
@@ -43,11 +43,14 @@ describe('testing skill routing', () => {
 
     it('removes the legacy combined skill and routes repository contracts explicitly', () => {
         expect(existsSync(join(skillsDirectory, 'test'))).toBe(false);
+        expect(existsSync(join(skillsDirectory, 'unit-test'))).toBe(false);
         const legacyPath = ['.agents', 'skills', 'test', 'SKILL.md'].join('/');
         const legacyInvocation = ['$', 'test'].join('');
         for (const path of contractFiles(repositoryRoot)) {
             const source = readFileSync(path, 'utf8');
             expect(source, path).not.toContain(legacyPath);
+            expect(source, path).not.toContain('.agents/skills/unit-test/');
+            expect(source, path).not.toMatch(/\$unit-test(?!ing)/);
             expect(source, path).not.toContain('the `test` skill');
             expect(source, path).not.toContain(legacyInvocation);
         }

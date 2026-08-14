@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Pull Request'
+  short_description: 'Create, update, validate, and merge Caxri pull requests'
+  default_prompt: 'Use $pull-request to deliver the current branch through a Caxri pull request.'

@@ -12,10 +12,10 @@ export interface InspectorPanelDefinition<Mode extends InspectorMode> {
     commandId: InspectorCommandIdFor<Mode>;
     /**
      * When true, the panel is mounted with `key={sessionId}` so it fully remounts whenever the
-     * selected Session changes, per AGENTS.md's session-isolation rule ("Key or reset
-     * Session-scoped Renderer state when the selected Session changes"). Git and Status keep
-     * repository/diff selection and expansion state that must not leak across Sessions. Files and
-     * Info already scope their state to the selected Session internally, so they stay mounted.
+     * selected Session changes, per the project-architecture Session-isolation contract. Git and
+     * Status keep repository/diff selection and expansion state that must not leak across Sessions.
+     * Files and Info already scope their state to the selected Session internally, so they stay
+     * mounted.
      */
     resetOnSessionChange: boolean;
 }

@@ -42,7 +42,7 @@ This dimension is exempt from codebase calibration.
 
 ## Rule sources
 
-- `AGENTS.md` architecture boundaries
+- `AGENTS.md` architecture guardrails
 - `.agents/skills/project-architecture/references/architecture.md` security and diagnostics sections
 - `.agents/skills/debug/SKILL.md`
 

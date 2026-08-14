@@ -4,6 +4,15 @@ Use these phases as durable checkpoints. Before each transition, record or
 refresh the phase's cost checkpoint. The ledger adds an explicit `unavailable`
 checkpoint when the runtime cannot provide exact metrics.
 
+## Batch ownership
+
+- Freeze the live issue set and issue-level Acceptance matrix before editing. Separate
+  already-satisfied work, decision-only items, deferred work, and implementation work.
+- Group implementation and validation by owning layer or shared root cause while keeping every
+  issue's observable completion and Acceptance checks explicit.
+- Prefer cohesive commits with independently verifiable behavior. Honor an explicit request for one
+  commit, but never create a mixed commit merely because several issues entered one Goal.
+
 | Phase                | Entry condition                                  | Exit condition                                                                | Allowed return                     |
 | -------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------- |
 | `intake`             | `$go` explicitly invoked                         | Requirements classified                                                       | none                               |

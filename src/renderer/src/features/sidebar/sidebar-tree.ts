@@ -1,7 +1,7 @@
 /**
  * Pure row-order and arrow-key math for the Sidebar's ARIA tree. Kept separate from
  * `ProjectGroup`/`ProjectSidebar` so the navigation logic is covered by fast unit tests instead of
- * an Electron E2E workflow (see AGENTS.md: extract logic into a pure function and test that).
+ * an Electron E2E workflow (see the `unit-testing` skill).
  */
 
 export interface SidebarProjectNode {

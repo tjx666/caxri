@@ -116,5 +116,5 @@ unavailable, say so and offer light mode; never substitute a single-agent "deep"
 - [stack baseline](../project-architecture/references/stack-baseline.md) for dependency and
   primitive-layer choices when a change adds or swaps a library
 - `DESIGN.md` for frontend and interaction rules
-- The focused `build`, `debug`, `performance`, `quality-check`, `release`, `unit-test`, and
+- The focused `build`, `debug`, `performance`, `quality-check`, `release`, `unit-testing`, and
   `e2e-testing` skills when a changed surface routes to them

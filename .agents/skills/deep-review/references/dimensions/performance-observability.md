@@ -42,7 +42,6 @@ diagnosable without leaking user content.
 
 - `.agents/skills/performance/SKILL.md`
 - `.agents/skills/project-architecture/references/architecture.md` performance section
-- `AGENTS.md` performance and observability rules
 
 ## Not violations
 

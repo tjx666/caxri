@@ -21,8 +21,8 @@ function orderedWorkItems(): WorkItem[] {
 
 /**
  * Pure step function, exported separately so the wrap-around logic has focused unit coverage
- * without mocking the Renderer stores (AGENTS.md: extract logic into a pure function and test
- * that). When `active` is not present in `items` — nothing focused yet — forward stepping lands
+ * without mocking the Renderer stores (see the `unit-testing` skill). When `active` is not present
+ * in `items` — nothing focused yet — forward stepping lands
  * on the first tab and backward stepping lands on the last one, matching the usual "start of the
  * strip" expectation instead of an arbitrary offset.
  */

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Unit Testing Caxri'
+  short_description: 'Run focused Vitest unit and integration validation'
+  default_prompt: 'Use $unit-testing to validate the current Caxri logic changes.'

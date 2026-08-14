@@ -9,7 +9,7 @@ Use the smallest real Electron workflow that proves the changed boundary.
 
 ## Focused workflow
 
-1. Finish source edits and focused `unit-test` coverage first when both layers apply.
+1. Finish source edits and focused `unit-testing` coverage first when both layers apply.
 2. Run only the owning spec and test name through the compact checker; it rebuilds first so the
    Electron launch cannot exercise stale output:
 
@@ -26,6 +26,27 @@ Use the smallest real Electron workflow that proves the changed boundary.
    or the manual Codex-only real smoke; never inherit host Agent state by accident.
 6. A deliberate error must consume one exact `allowE2EErrors(...)` tuple. Wildcards, message
    matching, duplicate allowances, or unused allowances fail the spec.
+7. Make visual regressions observable rather than asserting only that an element exists. For
+   Terminal inset or background coverage, use contrasting application and Terminal theme colors so
+   uncovered pixels cannot pass unnoticed.
+
+## Scripted launch
+
+Use the launch helpers instead of the developer's real profile:
+
+- `CAXRI_E2E=1` enables unpackaged test-only boundaries.
+- `CAXRI_USER_DATA_DIR=<tmpdir>` isolates Electron user data.
+- `CAXRI_TEST_ROOT_PATH=<dir>` supplies one deterministic directory-picker root only when
+  `CAXRI_E2E=1` is active.
+- `CAXRI_TEST_ROOT_PATHS=<JSON array>` queues deterministic roots for multi-Project workflows.
+- Shared helpers default Agent discovery to `blocked` and isolate provider state beneath test user
+  data. Agent specs explicitly select shared `fake` mode or the single-provider `real` mode, except
+  negative tests that deliberately prove the `blocked` default; never inherit the developer's
+  `PATH`, `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` accidentally.
+
+The manual real-Agent smoke is Codex-only: `bun run test:e2e:real-agent`. It requires an
+authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary Project,
+disables screenshots and traces, and never falls back to another provider.
 
 ## Readiness and failure-isolation contracts
 
@@ -115,8 +136,14 @@ pushing, never as a reason to iterate through full runs.
 
 Never run `bun run test:e2e` locally during an ordinary run. When focused coverage is insufficient,
 use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
-on the repository self-hosted `m2-24` runner. Inspect failures, repair the same branch, and wait for
-replacement checks. Do not merge or close without delivery authorization.
+on the repository self-hosted `m2-24` runner. Platform checks and the final gate use `caxri-ci`, full
+Electron E2E uses `caxri-e2e`, and release packaging uses `caxri-release`; there is no GitHub-hosted
+fallback. Inspect failures, repair the same branch, and wait for replacement checks. Do not merge or
+close without delivery authorization.
+
+Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
+startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
+scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
 
 ## Guarded Go fallback
 
