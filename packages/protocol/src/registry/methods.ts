@@ -549,15 +549,6 @@ export const methods = {
         }),
         result: z.null(),
     },
-    'git.diff': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            path: pathSchema,
-        }),
-        result: z.string(),
-    },
     'git.diffDocument': {
         ...hostRead,
         params: z.object({

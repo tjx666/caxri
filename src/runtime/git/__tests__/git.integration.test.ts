@@ -103,9 +103,6 @@ describe('GitService', () => {
         );
         expect(statusRecords).toHaveLength(1);
         expect(statusRecords[0].durationMs).toBeTypeOf('number');
-        expect(
-            await git.diff(session.id, summary.repositories[0].id, join(directory, 'tracked.txt')),
-        ).toContain('-before');
         await expect(
             git.diffDocument(
                 session.id,
@@ -496,10 +493,12 @@ describe('GitService', () => {
                 }),
             ).resolves.toMatchObject({ commits: [expect.any(Object)] });
             await expect(
-                git.diff(session.id, repository.id, repository.files[0].path),
-            ).resolves.toContain('-before');
+                git.diffDocument(session.id, repository.id, repository.files[0].path),
+            ).resolves.toMatchObject({ path: repository.files[0].path });
         }
-        await expect(git.diff(session.id, primary.id, 'root.txt')).resolves.toContain('-before');
+        await expect(git.diffDocument(session.id, primary.id, 'root.txt')).resolves.toMatchObject({
+            path: 'root.txt',
+        });
         await expect(
             git.commits({
                 sessionId: session.id,

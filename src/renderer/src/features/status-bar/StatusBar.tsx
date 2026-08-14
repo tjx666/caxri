@@ -418,7 +418,6 @@ function useProjectOverview(sessionId: string | undefined) {
 const BRANCH_SWITCH_DEPENDENCIES = new Set<CaxriMethod>([
     'git.summary',
     'git.branches',
-    'git.diff',
     'git.diffDocument',
     'git.pullRequestChanges',
     'git.pullRequestDiffDocument',

@@ -15,9 +15,11 @@ import {
     isNonExpiringRuntimeMethod,
     methods,
     negotiateProtocolVersion,
+    parseRuntimeRequest,
     principalProjectionSchemas,
     projectObservableEventRecovery,
     protocolWelcomeSchema,
+    requestEnvelopeSchema,
     runtimeEventSchema,
     type CommandAdapter,
     type CommandExecutionContext,
@@ -220,6 +222,31 @@ describe('@caxri/protocol contract', () => {
         expect(welcome.commands).toContain('project.list');
         expect(welcome.commands).not.toContain('app.bootstrap');
         expect(welcome.commands).not.toContain('processExplorer.open');
+    });
+
+    it('does not negotiate or parse the retired raw git.diff command', () => {
+        const welcome = createProtocolWelcome(
+            { host: { invoke: () => null } },
+            { supportedVersions: [2] },
+            desktop,
+        );
+
+        expect(welcome.commands).not.toContain('git.diff');
+        expect(
+            requestEnvelopeSchema.safeParse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'git-diff-1',
+                method: 'git.diff',
+                params: { sessionId: 'session-1', repositoryId: 'repository-1', path: 'README.md' },
+            }).success,
+        ).toBe(false);
+        expect(() =>
+            parseRuntimeRequest('git.diff', {
+                sessionId: 'session-1',
+                repositoryId: 'repository-1',
+                path: 'README.md',
+            }),
+        ).toThrow('Unknown Runtime method: git.diff');
     });
 
     it('keeps Host discovery parseable across protocol versions without exposing credentials', () => {

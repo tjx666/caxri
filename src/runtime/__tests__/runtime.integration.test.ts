@@ -10,6 +10,7 @@ import { listLayoutTerminalIds } from '../../shared/terminal-layout';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
+import { GitService } from '../git';
 
 const temporaryDirectories: string[] = [];
 
@@ -388,6 +389,55 @@ describe('Runtime composition root', () => {
 
         expect(await runtime.handlers['runtime.shutdown']({})).toBeNull();
         await expect(runtime.close()).resolves.toBeUndefined();
+    });
+
+    it('evicts Pull Request caches when Sessions, Projects, or the Runtime are removed', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-git-cache-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const firstRoot = join(directory, 'first');
+        const secondRoot = join(directory, 'second');
+        await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+        const evict = vi.spyOn(GitService.prototype, 'evictPullRequestSessions');
+        const clear = vi.spyOn(GitService.prototype, 'close');
+        const runtime = await createRuntime({
+            userDataPath,
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => undefined,
+            terminal: { spawn: () => createFakePty() },
+        });
+
+        try {
+            const firstProject = await runtime.handlers['project.create']({ rootPath: firstRoot });
+            const secondProject = await runtime.handlers['project.create']({
+                rootPath: secondRoot,
+            });
+            const firstSession = await runtime.handlers['session.create']({
+                projectId: firstProject.id,
+                defaultAgent: 'shell',
+            });
+            const secondSession = await runtime.handlers['session.create']({
+                projectId: secondProject.id,
+                defaultAgent: 'shell',
+            });
+            const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+            direct.selectWorkbenchProject(secondSession.session.id, firstProject.id);
+            direct.close();
+
+            await runtime.handlers['project.delete']({ projectId: firstProject.id });
+            expect(evict).toHaveBeenCalledWith(
+                expect.arrayContaining([firstSession.session.id, secondSession.session.id]),
+            );
+
+            await runtime.handlers['session.delete']({ sessionId: secondSession.session.id });
+            expect(evict).toHaveBeenLastCalledWith([secondSession.session.id]);
+            await runtime.close();
+            expect(clear).toHaveBeenCalledOnce();
+        } finally {
+            await runtime.close();
+            evict.mockRestore();
+            clear.mockRestore();
+        }
     });
 });
 
