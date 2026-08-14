@@ -211,6 +211,7 @@ describe('direct import test selection', () => {
             'src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
             'src/runtime/files/__tests__/mutations.integration.test.ts',
             'src/runtime/files/__tests__/search.integration.test.ts',
+            'src/runtime/files/__tests__/workbench-mutations.integration.test.ts',
         ]);
         expect(selected).toEqual([
             'src/runtime/files/__tests__/files.integration.test.ts',
@@ -218,6 +219,7 @@ describe('direct import test selection', () => {
             'src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
             'src/runtime/files/__tests__/mutations.integration.test.ts',
             'src/runtime/files/__tests__/search.integration.test.ts',
+            'src/runtime/files/__tests__/workbench-mutations.integration.test.ts',
         ]);
         expect(selected).not.toContain('src/runtime/__tests__/runtime.integration.test.ts');
         expect(selected).not.toContain('src/runtime/__tests__/agent-hooks.integration.test.ts');
