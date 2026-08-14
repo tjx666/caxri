@@ -5,12 +5,20 @@ Caxri organizes local development work around Projects, Sessions, Terminals, and
 ## Language
 
 **Project**:
-A user-added local directory that owns Sessions.
+A user-authorized local directory. A Session's owning Project remains its durable identity and the
+root for its Terminals and Agent Endpoint.
 _Avoid_: Workspace, repository
 
 **Session**:
-A durable unit of work within one Project that owns Terminals, layout, navigation state, and attention state.
+A durable unit of work within one owning Project that owns Terminals, root-scoped Workbench state,
+layout, and attention state.
 _Avoid_: Conversation, tab
+
+**Workbench Root**:
+The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session
+operate on. It may temporarily differ from the Session's owning Project when an Agent creates or
+selects a linked Git worktree.
+_Avoid_: Session Project, Terminal root
 
 **Terminal**:
 One Shell or Agent CLI process surface inside a Session.
