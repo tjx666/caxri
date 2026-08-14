@@ -629,6 +629,14 @@ export function useTerminalPaneRuntime({
             isModalOpen: () => useDialogStore.getState().isModalOpen(),
             isRunning,
             requestFrame: (callback) => requestAnimationFrame(callback),
+            shouldPreserveFocus: () => {
+                const focused = document.activeElement;
+                return (
+                    focused instanceof HTMLElement &&
+                    focused.dataset.preserveTerminalFocus === 'true' &&
+                    focused.closest('.work-tab')?.getAttribute('data-terminal-id') === terminalId
+                );
+            },
         });
         if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
         /** The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.
