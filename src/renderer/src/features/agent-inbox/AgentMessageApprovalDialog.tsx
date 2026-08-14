@@ -11,7 +11,10 @@ import {
 } from '../../components/ui/dialog';
 import { caxri } from '../../lib/caxri';
 import { describeFailure, pushToast } from '../../stores/toasts';
-import { updateHeldMessagesAfterAction } from './agent-message-approval-state';
+import {
+    heldMessageActionResultForError,
+    updateHeldMessagesAfterAction,
+} from './agent-message-approval-state';
 
 function upsert(messages: AgentHeldMessage[], incoming: AgentHeldMessage): AgentHeldMessage[] {
     const next = messages.filter((message) => message.messageId !== incoming.messageId);
@@ -75,7 +78,11 @@ export function AgentMessageApprovalDialog() {
         } catch (error) {
             pushToast('error', describeFailure(error, `Unable to ${action} peer message`));
             setMessages((existing) =>
-                updateHeldMessagesAfterAction(existing, current.messageId, 'rejected'),
+                updateHeldMessagesAfterAction(
+                    existing,
+                    current.messageId,
+                    heldMessageActionResultForError(error),
+                ),
             );
         } finally {
             setPending(false);

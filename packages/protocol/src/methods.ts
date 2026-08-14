@@ -52,6 +52,11 @@ export type { CommandEffect, CommandIdempotency, CommandOwner, MethodSpec } from
 const hostRead = commandPolicy('host', 'read');
 const hostWrite = commandPolicy('host', 'write');
 const hostControl = commandPolicy('host', 'control');
+/**
+ * PTY traffic must enter adapters in transport submission order. Request fingerprints are
+ * asynchronous and can reorder overlapping input before either Main or Host reaches the adapter.
+ */
+const terminalStreamControl = { ...hostControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
@@ -330,12 +335,12 @@ export const methods = {
         result: terminalRecordSchema,
     },
     'terminal.input': {
-        ...hostControl,
+        ...terminalStreamControl,
         params: z.object({ terminalId: identifierSchema, data: z.string().max(65_536) }),
         result: z.null(),
     },
     'terminal.resize': {
-        ...hostControl,
+        ...terminalStreamControl,
         params: z.object({
             terminalId: identifierSchema,
             cols: z.number().int().min(2).max(1_000),

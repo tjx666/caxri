@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -246,6 +246,52 @@ describe('transport-neutral dispatcher', () => {
             return null;
         },
     };
+
+    it('preserves submission order for overlapping Terminal input', async () => {
+        const invoked: string[] = [];
+        const dispatch = createCommandDispatcher({
+            host: {
+                invoke: (command) => {
+                    if (command.method === 'terminal.input') invoked.push(command.params.data);
+                    return null;
+                },
+            },
+        });
+        let releaseFirstDigest = (): void => undefined;
+        let digestCalls = 0;
+        const digest = vi.spyOn(crypto.subtle, 'digest').mockImplementation(async () => {
+            digestCalls += 1;
+            if (digestCalls === 1)
+                await new Promise<void>((resolve) => {
+                    releaseFirstDigest = resolve;
+                });
+            return new Uint8Array(32).buffer;
+        });
+
+        try {
+            const first = dispatch(
+                request('input-1', 'terminal.input', {
+                    terminalId: 'terminal-1',
+                    data: 'first',
+                }),
+                desktop,
+            );
+            const second = dispatch(
+                request('input-2', 'terminal.input', {
+                    terminalId: 'terminal-1',
+                    data: 'second',
+                }),
+                desktop,
+            );
+            await second;
+            releaseFirstDigest();
+            await first;
+
+            expect(invoked).toEqual(['first', 'second']);
+        } finally {
+            digest.mockRestore();
+        }
+    });
 
     it('projects the same handler result for Desktop, human CLI, and scoped Agent principals', async () => {
         const dispatch = createCommandDispatcher({ host });
