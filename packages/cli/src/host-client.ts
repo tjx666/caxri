@@ -100,6 +100,26 @@ function profileIdFor(path: string): string {
     return createHash('sha256').update(path).digest('hex').slice(0, 24);
 }
 
+/** Host shutdown may unlink discovery data after `lstat`; keep that race classified as absence. */
+async function readDiscoveryJson(
+    path: string,
+    notFoundMessage: string,
+    malformedMessage: string,
+): Promise<unknown> {
+    let contents: string;
+    try {
+        contents = await readFile(path, 'utf8');
+    } catch (error) {
+        if (fileSystemCode(error) === 'ENOENT') throw new CaxriError('NOT_FOUND', notFoundMessage);
+        throw new CaxriError('VALIDATION', malformedMessage);
+    }
+    try {
+        return JSON.parse(contents) as unknown;
+    } catch {
+        throw new CaxriError('VALIDATION', malformedMessage);
+    }
+}
+
 /** Reads only the private discovery record; business state always goes through Host commands. */
 export async function discoverHostManifest(userDataPath: string): Promise<HostManifest> {
     let canonicalPath: string;
@@ -137,12 +157,11 @@ export async function discoverHostManifest(userDataPath: string): Promise<HostMa
         throw new CaxriError('PATH_DENIED', 'Caxri Host discovery metadata is not private');
     if (metadata.size > MAX_MANIFEST_BYTES)
         throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is oversized');
-    let source: unknown;
-    try {
-        source = JSON.parse(await readFile(path, 'utf8')) as unknown;
-    } catch {
-        throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is malformed');
-    }
+    const source = await readDiscoveryJson(
+        path,
+        'No Caxri Host is running for this profile',
+        'Caxri Host discovery metadata is malformed',
+    );
     const parsed = hostManifestSchema.safeParse(source);
     if (!parsed.success)
         throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is invalid');
@@ -176,12 +195,11 @@ export async function discoverDesktopCredential(
         metadata.size > MAX_MANIFEST_BYTES
     )
         throw new CaxriError('PATH_DENIED', 'Caxri Desktop credential is not private');
-    let source: unknown;
-    try {
-        source = JSON.parse(await readFile(path, 'utf8')) as unknown;
-    } catch {
-        throw new CaxriError('VALIDATION', 'Caxri Desktop credential is malformed');
-    }
+    const source = await readDiscoveryJson(
+        path,
+        'Caxri Desktop credential is unavailable',
+        'Caxri Desktop credential is malformed',
+    );
     const parsed = hostDesktopCredentialSchema.safeParse(source);
     if (!parsed.success) throw new CaxriError('VALIDATION', 'Caxri Desktop credential is invalid');
     if (
