@@ -3,6 +3,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 
 import { expect, type ElectronApplication, type Page } from '@playwright/test';
 import { _electron as electron } from 'playwright';
+import { connectToHost, discoverHostManifest } from '@caxri/cli';
 
 import {
     acquireDesktopLease,
@@ -33,6 +34,7 @@ const buildInputPaths = [
 ];
 const buildOutputPaths = [
     join(projectRoot, 'out', 'main', 'index.js'),
+    join(projectRoot, 'out', 'main', 'host.js'),
     join(projectRoot, 'out', 'main', 'runtime.js'),
     join(projectRoot, 'out', 'preload', 'index.cjs'),
     join(projectRoot, 'out', 'preload', 'process-explorer.cjs'),
@@ -92,6 +94,8 @@ export interface LaunchCaxriOptions {
     gpuMode?: 'disabled' | 'enabled';
     /** Blocks host Agents by default; fake and real modes require an explicit per-spec choice. */
     agentMode?: E2EAgentMode;
+    /** Restart workflows let the next launch inherit the same live Host; the final launch cleans it. */
+    preserveHostOnClose?: boolean;
 }
 
 type E2EAgentMode =
@@ -179,6 +183,35 @@ function shellQuote(value: string): string {
     return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
+function errorCode(error: unknown): string | undefined {
+    return typeof error === 'object' && error !== null && 'code' in error
+        ? String(Reflect.get(error, 'code'))
+        : undefined;
+}
+
+async function stopE2EHost(userDataDir: string): Promise<void> {
+    let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    try {
+        client = await connectToHost(userDataDir, 2_000);
+        await client.request('host.stop', { confirmLivePtys: true });
+    } catch (error) {
+        if (errorCode(error) !== 'NOT_FOUND' && errorCode(error) !== 'UNAVAILABLE') throw error;
+        return;
+    } finally {
+        client?.close();
+    }
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+        try {
+            await discoverHostManifest(userDataDir);
+        } catch (error) {
+            if (errorCode(error) === 'NOT_FOUND') return;
+            throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error('Timed out waiting for the E2E Host to stop');
+}
+
 /** Waits for the asynchronous New Terminal action to become observable through Runtime state. */
 export async function waitForNewTerminalId(
     page: Page,
@@ -218,6 +251,7 @@ export async function launchCaxriApp(
         gpuMode = 'disabled',
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
+        preserveHostOnClose = false,
     } = options;
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, env);
     const workerIsolation = resolveE2EWorkerIsolation(process.env);
@@ -268,7 +302,21 @@ export async function launchCaxriApp(
             cwd: projectRoot,
             env: launchEnvironment,
         });
-        registerE2ELaunch(app, userDataDir, releaseLease);
+        let cleanupPromise: Promise<void> | undefined;
+        const cleanup = (): Promise<void> =>
+            (cleanupPromise ??= (async () => {
+                if (!preserveHostOnClose) await stopE2EHost(userDataDir);
+                await releaseLease();
+            })());
+        const close = app.close.bind(app);
+        Object.defineProperty(app, 'close', {
+            configurable: true,
+            value: async () => {
+                await close();
+                await cleanup();
+            },
+        });
+        registerE2ELaunch(app, userDataDir, cleanup);
         const electronPid = app.process().pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
         lease = await transferDesktopLease(lease, electronPid);

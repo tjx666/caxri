@@ -23,9 +23,9 @@ const execFileAsync = promisify(execFile);
 test('complete local workbench workflow, recovery, privacy, and persistence', async () => {
     allowE2EErrors([
         {
-            source: 'main',
-            event: 'runtime.process_exit',
-            code: 'PROCESS_EXIT',
+            source: 'host',
+            event: 'host.runtime_exit',
+            code: 'RUNTIME_EXIT',
             count: 1,
         },
     ]);
@@ -135,11 +135,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
 
         await typeTerminal(running.page, "printf 'STALE_RENDERER_ONLY\\n'");
         await expect(running.page.locator('.xterm-rows')).toContainText('STALE_RENDERER_ONLY');
-        await running.app.evaluate(({ app }) => {
-            const runtime = app.getAppMetrics().find((metric) => metric.name === 'Caxri Runtime');
-            if (!runtime) throw new Error('Runtime utility process not found');
-            process.kill(runtime.pid, 'SIGKILL');
-        });
+        const hostStatus = await pageRequest<{ runtimePid?: number }>(running.page, 'host.status');
+        if (!hostStatus.runtimePid) throw new Error('Host-owned Runtime process not found');
+        process.kill(hostStatus.runtimePid, 'SIGKILL');
         await expect(runtimeStatus(running.page)).toHaveAttribute(
             'data-runtime-status',
             'restarting',

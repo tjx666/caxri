@@ -82,6 +82,8 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
         await expect(dialog.getByLabel('Claude Code lifecycle hooks')).not.toBeChecked();
         await expect(dialog.getByLabel('Codex lifecycle hooks')).not.toBeChecked();
+        await expect(dialog.getByLabel('Claude Code peer messaging')).toBeChecked();
+        await expect(dialog.getByLabel('Codex peer messaging')).toBeChecked();
         await expect(
             dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
         ).toHaveText('Disabled');
@@ -135,6 +137,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                     claude: {
                         hooks: { enabled: boolean };
                         launch: { executable: string };
+                        messaging: { enabled: boolean };
                     };
                 };
             };
@@ -142,6 +145,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         expect(providerSettings.value['agents.providers'].claude).toEqual({
             hooks: { enabled: true },
             launch: { executable: 'claude', args: [] },
+            messaging: { enabled: true },
         });
 
         const actions = dialog.locator('.dialog-actions');

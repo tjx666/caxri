@@ -1,40 +1,30 @@
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { dirname, join, resolve } from 'node:path';
 
 import {
     app,
     BrowserWindow,
     clipboard,
     dialog,
-    ipcMain,
     Menu,
     nativeImage,
     shell,
-    type IpcMainInvokeEvent,
     type WebContents,
 } from 'electron';
 
 import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError, errorMessage, toWireError } from '../shared/ipc/errors';
+import type { CommandAdapter } from '../shared/ipc/dispatcher';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { isMainRequest, type CaxriRequest, type MainRequest } from '../shared/ipc/methods';
-import {
-    parseCaxriResult,
-    parseCaxriRequest,
-    requestEnvelopeSchema,
-    type CaxriReply,
-} from '../shared/ipc/transport';
 import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
-import {
-    isRendererErrorKind,
-    RENDERER_ERROR_CHANNELS,
-    type RendererErrorKind,
-} from '../shared/renderer-error';
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
@@ -45,25 +35,28 @@ import {
     unsavedChangesPrompt,
 } from './confirmations';
 import { decideCrashRecovery } from './crash-policy';
+import { createDesktopOperationHandler } from './desktop-operations';
 import { openExternalUrl } from './external-links';
+import { createMainEventRelay } from './event-relay';
+import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import { ProjectRootGrants } from './root-grants';
-import { RuntimeSupervisor } from './supervisor';
+import { RendererReadiness } from './renderer-readiness';
 import { createTestRootPathResolver } from './test-root';
-import { UpdateService } from './updates';
+import { shouldStartAutomaticUpdateCheck, UpdateService } from './updates';
 import { resolveE2EWindowMode } from './window-mode';
 import { createWindowCloseHandler } from './window-close';
+import { installWorkbenchIpc } from './workbench-ipc';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 /**
- * Stamps these once at module load, before any logger or the Runtime supervisor is constructed, so
- * every log record and the forked Runtime's environment can be correlated to this build. See
- * src/main/global.d.ts and electron.vite.config.ts for where the constants come from.
+ * Stamps these before logging so Host and Desktop records correlate to this build; see
+ * `global.d.ts` and `electron.vite.config.ts` for the injected constants.
  */
 const caxriVersion = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
 process.env.CAXRI_APP_VERSION = caxriVersion;
@@ -78,7 +71,7 @@ if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev
 if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
 let mainWindow: BrowserWindow | undefined;
 let mainRenderer: WebContents | undefined;
-let supervisor: RuntimeSupervisor;
+let supervisor: DesktopHostConnection;
 let mainLogger: StructuredLogger | undefined;
 const processErrorMonitor = installProcessErrorMonitor({
     bootstrapWriter: () => (mainLogger ??= createMainLogger()),
@@ -90,12 +83,22 @@ let forceWindowClose = false;
 let quitStarted = false;
 let automaticUpdateCheckStarted = false;
 const grantedRoots = new ProjectRootGrants();
+const rendererReadiness = new RendererReadiness();
 const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
 const e2eWindowMode = resolveE2EWindowMode({
     isE2E: process.env.CAXRI_E2E === '1',
     requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
 });
 const e2eAgentPolicy = readE2EAgentPolicy();
+const eventRelay = createMainEventRelay({
+    deliver: (message) => {
+        if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send('caxri:event', message);
+    },
+    loadState: () => supervisor.request('app.bootstrap'),
+    logger: () => mainLogger,
+    onKeybindingsChanged: () => void installMenu(),
+});
 function createMainLogger(): StructuredLogger {
     return new StructuredLogger(
         resolveLogDirectory({
@@ -109,13 +112,7 @@ function createMainLogger(): StructuredLogger {
 }
 
 function sendEvent(event: RuntimeEvent): void {
-    if (event.event === 'runtime.status') {
-        mainLogger?.write(event.payload.status === 'failed' ? 'error' : 'info', 'runtime.status', {
-            fields: { status: event.payload.status, restartCount: event.payload.restartCount },
-        });
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('caxri:event', event);
-    if (event.event === 'keybindings.changed' && !event.payload.error) void installMenu();
+    eventRelay.send(event);
 }
 
 async function handleExternalUrl(
@@ -170,6 +167,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             sandbox: true,
         },
     });
+    rendererReadiness.track(window.webContents);
     let persistTimer: NodeJS.Timeout | undefined;
     let rendererCrashTimestampsMs: number[] = [];
     const persistWindowState = (): void => {
@@ -187,7 +185,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
     window.on('maximize', scheduleWindowState);
     window.on('unmaximize', scheduleWindowState);
     const sendFullScreenState = (): void => {
-        window.webContents.send('caxri:event', {
+        sendEvent({
             event: 'window.fullScreen',
             payload: { isFullScreen: window.isFullScreen() },
         });
@@ -218,7 +216,13 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
             durationMs: performance.now() - bootStartedAt,
         });
         if (e2eWindowMode === 'visible') window.show();
-        if (app.isPackaged && !automaticUpdateCheckStarted) {
+        if (
+            shouldStartAutomaticUpdateCheck({
+                alreadyStarted: automaticUpdateCheckStarted,
+                isE2E: process.env.CAXRI_E2E === '1',
+                isPackaged: app.isPackaged,
+            })
+        ) {
             automaticUpdateCheckStarted = true;
             /** Update discovery stays off the awaited startup path and never delays the first window. */
             void updateService.check();
@@ -305,7 +309,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
                 type: 'warning',
                 title: 'Terminals are still running',
                 message: `${count} Terminal${count === 1 ? ' is' : 's are'} still running.`,
-                detail: 'Keeping them running leaves Caxri active without a window. Explicit App Quit always terminates them.',
+                detail: 'Keeping them running leaves the Caxri Host active without a window. Quit Desktop disconnects the window but does not stop the Host.',
                 buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
                 defaultId: 2,
                 cancelId: 2,
@@ -368,10 +372,31 @@ async function openMainWindow(): Promise<void> {
     mainRenderer = mainWindow.webContents;
 }
 
-function assertSender(event: IpcMainInvokeEvent): void {
-    if (!mainRenderer || event.sender !== mainRenderer)
-        throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
+async function focusMainWindow(): Promise<BrowserWindow> {
+    await openMainWindow();
+    const window = mainWindow!;
+    await rendererReadiness.wait(window.webContents);
+    if (window.isMinimized()) window.restore();
+    window.show();
+    app.focus({ steal: true });
+    window.focus();
+    return window;
 }
+
+const handleHostDesktopOperation = createDesktopOperationHandler({
+    focus: async () => void (await focusMainWindow()),
+    open: (target) =>
+        sendEvent({
+            event: 'desktop.openRequested',
+            payload: {
+                sessionId: target.sessionId,
+                kind: target.kind,
+                ...(target.kind === 'file' ? { path: target.path } : {}),
+            },
+        }),
+    reveal: (path) => shell.showItemInFolder(path),
+    status: () => (mainWindow && !mainWindow.isDestroyed() ? 'window' : 'background'),
+});
 
 function assertNever(value: never): never {
     throw new CaxriError('INTERNAL', `Unhandled Main request: ${String(value)}`);
@@ -405,11 +430,6 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
         case 'project.cancelCreate':
             grantedRoots.revoke(request.params.rootPath);
             return null;
-        case 'files.reveal': {
-            const item = await supervisor.request('files.authorizeOpen', request.params);
-            shell.showItemInFolder(item.path);
-            return null;
-        }
         case 'files.trash': {
             const item = await supervisor.request('files.authorizeTrash', request.params);
             const result = await dialog.showMessageBox(
@@ -575,48 +595,36 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
     return assertNever(request);
 }
 
-async function handleCaxriRequest(request: CaxriRequest): Promise<unknown> {
-    /** Runtime results are validated by the supervisor; only Main-owned results need parsing here. */
-    if (isMainRequest(request))
-        return parseCaxriResult(request.method, await handleMainMethod(request));
-    return supervisor.forward(request.method, request.params);
-}
-
 function installIpc(): void {
-    ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
-        if (!mainRenderer || event.sender !== mainRenderer || !isRendererErrorKind(rawKind)) return;
-        const kind: RendererErrorKind = rawKind;
-        mainLogger?.write(
-            'error',
-            kind === 'page-exception' ? 'renderer.page_exception' : 'renderer.unhandled_rejection',
-            {
-                fields: {
-                    code: kind === 'page-exception' ? 'PAGE_EXCEPTION' : 'UNHANDLED_REJECTION',
-                },
-            },
-        );
+    const dispatchCommand = createElectronIpcCommandAdapter({
+        host: {
+            invoke: (request, _context, invocation) =>
+                request.method === 'events.recover'
+                    ? eventRelay.recover(request.params.afterCursor)
+                    : supervisor.forward(request.method, request.params, invocation.requestId),
+        },
+        desktop: {
+            isAvailable: () => Boolean(mainWindow && !mainWindow.isDestroyed()),
+            invoke: ((request: CaxriRequest) => {
+                if (!isMainRequest(request))
+                    throw new CaxriError('INTERNAL', 'Host command reached the Desktop adapter');
+                return handleMainMethod(request);
+            }) satisfies CommandAdapter['invoke'],
+        },
     });
-    ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
-        try {
-            assertSender(event);
-            /** Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown. */
-            if (quitStarted)
-                return {
-                    ok: false,
-                    error: toWireError(new CaxriError('UNAVAILABLE', 'Application is quitting')),
-                };
-            const envelope = requestEnvelopeSchema.parse(raw);
-            const request = parseCaxriRequest(envelope.method, envelope.params);
-            const result = await handleCaxriRequest(request);
-            return { ok: true, result };
-        } catch (error) {
-            /** Replying with a classified envelope keeps the error code intact across the preload. */
-            const wire = toWireError(error);
-            mainLogger?.write('error', 'ipc.request_failed', {
-                fields: { code: wire.code, error: wire.message },
-            });
-            return { ok: false, error: wire };
-        }
+    installWorkbenchIpc({
+        isQuitting: () => quitStarted,
+        logger: () => mainLogger,
+        onEventsReady: () => {
+            if (mainRenderer) rendererReadiness.ready(mainRenderer);
+            void supervisor.markDesktopReady().catch((error: unknown) =>
+                mainLogger?.write('error', 'host.desktop_ready_failed', {
+                    fields: { error: errorMessage(error, 'unknown') },
+                }),
+            );
+        },
+        renderer: () => mainRenderer,
+        transport: dispatchCommand,
     });
 }
 
@@ -686,17 +694,26 @@ void app.whenReady().then(async () => {
             sendEvent({ event: 'updates.state', payload: state });
         },
     });
-    supervisor = new RuntimeSupervisor(
+    supervisor = new DesktopHostConnection({
+        agentHooksPath:
+            process.env.CAXRI_E2E === '1'
+                ? undefined
+                : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
         currentDirectory,
-        userDataPath,
-        logDirectory,
-        mainLogger,
-        logLevel,
-        process.env.CAXRI_E2E === '1'
-            ? undefined
-            : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
+        cliPath: app.isPackaged
+            ? join(process.resourcesPath, 'cli', 'caxri.cjs')
+            : resolve(currentDirectory, '../../packages/cli/dist/caxri.cjs'),
+        desktopId: randomUUID(),
+        desktopLaunch: resolveDesktopLaunch({
+            currentDirectory,
+            executable: process.execPath,
+            isPackaged: app.isPackaged,
+        }),
         e2eAgentPolicy,
-    );
+        handleCommand: handleHostDesktopOperation,
+        logger: mainLogger,
+        userDataPath,
+    });
     processExplorer = new ProcessExplorerWindowController({
         currentDirectory,
         forceRenderError:
@@ -706,6 +723,7 @@ void app.whenReady().then(async () => {
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         sampler: new ProcessExplorerSampler({
             rootPid: process.pid,
+            hostPid: () => supervisor.hostProcessId(),
             runtimePid: () => supervisor.processId(),
             /**
              * Resolved lazily at sample time: the diagnostics window is created on demand, so its
@@ -740,12 +758,12 @@ void app.whenReady().then(async () => {
     await supervisor
         .start()
         .then(() =>
-            mainLogger?.write('info', 'runtime.attached', {
+            mainLogger?.write('info', 'host.attached', {
                 durationMs: performance.now() - runtimeStartedAt,
             }),
         )
         .catch((error: unknown) =>
-            mainLogger?.write('error', 'runtime.attach_failed', {
+            mainLogger?.write('error', 'host.attach_failed', {
                 durationMs: performance.now() - runtimeStartedAt,
                 fields: { error: errorMessage(error, 'unknown') },
             }),
@@ -755,13 +773,12 @@ void app.whenReady().then(async () => {
     await installMenu();
     await openMainWindow();
 });
-
 app.on('activate', () => {
     if (!mainWindow) void openMainWindow();
 });
 
 app.on('window-all-closed', () => {
-    // macOS keeps the application and Runtime alive so Keep Running has real semantics.
+    // macOS keeps the Desktop client alive; the Host-owned Runtime survives either way.
 });
 
 app.on('before-quit', (event) => {
@@ -775,6 +792,7 @@ app.on('before-quit', (event) => {
                 .request('app.windowState.update', readWindowState(mainWindow))
                 .catch(() => undefined);
         }
+        await supervisor.request('terminal.detachAll').catch(() => undefined);
         await supervisor.shutdown();
     })()
         .catch(() => undefined)

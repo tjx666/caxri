@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_CONFIGURATION_SOURCE_BYTES, MAX_KEYBINDINGS } from '../../configuration-contract';
 
 import {
+    CAXRI_PROTOCOL_VERSION,
     CaxriError,
     createCaxriClient,
     errorCodes,
@@ -28,7 +29,9 @@ describe('method table', () => {
 
     it('gives every method a validated owner, params schema, and result schema', () => {
         for (const [name, spec] of Object.entries(allMethods)) {
-            expect(['main', 'runtime'], name).toContain(spec.owner);
+            expect(['desktop', 'host'], name).toContain(spec.owner);
+            expect(['read', 'write', 'control'], name).toContain(spec.effect);
+            expect(spec.requiredCapabilities.length, name).toBeGreaterThan(0);
             expect(spec.params.safeParse(undefined), name).toHaveProperty('success');
             expect(spec.result.safeParse(undefined), name).toHaveProperty('success');
         }
@@ -38,7 +41,12 @@ describe('method table', () => {
     it('keeps every internal method out of the Renderer allowlist', () => {
         for (const name of Object.keys(internalMethods)) {
             expect(
-                requestEnvelopeSchema.safeParse({ id: 'r1', method: name, params: {} }).success,
+                requestEnvelopeSchema.safeParse({
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id: 'r1',
+                    method: name,
+                    params: {},
+                }).success,
             ).toBe(false);
         }
     });
@@ -107,7 +115,30 @@ describe('method table', () => {
 describe('requestEnvelopeSchema', () => {
     it.each(['constructor', 'toString', '__proto__'])('rejects inherited method %s', (method) => {
         expect(
-            requestEnvelopeSchema.safeParse({ id: 'request-1', method, params: {} }).success,
+            requestEnvelopeSchema.safeParse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'request-1',
+                method,
+                params: {},
+            }).success,
+        ).toBe(false);
+    });
+
+    it('requires the declared protocol version', () => {
+        expect(
+            requestEnvelopeSchema.safeParse({
+                id: 'request-1',
+                method: 'app.health',
+                params: {},
+            }).success,
+        ).toBe(false);
+        expect(
+            requestEnvelopeSchema.safeParse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION + 1,
+                id: 'request-1',
+                method: 'app.health',
+                params: {},
+            }).success,
         ).toBe(false);
     });
 });
@@ -130,6 +161,32 @@ describe('error taxonomy', () => {
         expect(fromWireError({ code: 'NOT_A_CODE', message: 'x' }).code).toBe('INTERNAL');
         expect(fromWireError(undefined).code).toBe('INTERNAL');
         expect(toWireError(new Error('boom'))).toEqual({ code: 'INTERNAL', message: 'boom' });
+    });
+
+    it('preserves a classified error created by another bundled protocol copy', () => {
+        class ForeignCaxriError extends Error {
+            override readonly name = 'CaxriError';
+
+            constructor(
+                readonly code: 'VALIDATION',
+                message: string,
+                readonly details?: Record<string, unknown>,
+            ) {
+                super(message);
+            }
+        }
+
+        expect(
+            toWireError(
+                new ForeignCaxriError('VALIDATION', 'foreign validation failed', {
+                    method: 'terminal.input',
+                }),
+            ),
+        ).toEqual({
+            code: 'VALIDATION',
+            message: 'foreign validation failed',
+            details: { method: 'terminal.input' },
+        });
     });
 
     it('reports rejected Runtime parameters as VALIDATION with a readable message', () => {
@@ -159,8 +216,18 @@ describe('Renderer client', () => {
             request: (method: CaxriMethod) =>
                 Promise.resolve(
                     method === 'terminal.runningCount'
-                        ? { ok: true, result: 2 }
-                        : { ok: false, error: { code: 'PATH_DENIED', message: 'outside root' } },
+                        ? {
+                              protocolVersion: CAXRI_PROTOCOL_VERSION,
+                              id: 'request-1',
+                              ok: true,
+                              result: 2,
+                          }
+                        : {
+                              protocolVersion: CAXRI_PROTOCOL_VERSION,
+                              id: 'request-2',
+                              ok: false,
+                              error: { code: 'PATH_DENIED', message: 'outside root' },
+                          },
                 ),
             onEvent: () => () => undefined,
         } as unknown as CaxriBridge);
@@ -309,14 +376,14 @@ describe('file mutation contracts', () => {
     };
 
     it('keeps filesystem mutations narrow and gives Trash to Main only', () => {
-        expect(methods['files.create'].owner).toBe('runtime');
-        expect(methods['files.copy'].owner).toBe('runtime');
-        expect(methods['files.rename'].owner).toBe('runtime');
-        expect(methods['files.move'].owner).toBe('runtime');
-        expect(methods['files.reveal'].owner).toBe('main');
-        expect(methods['files.trash'].owner).toBe('main');
-        expect(internalMethods['files.authorizeOpen'].owner).toBe('runtime');
-        expect(internalMethods['files.authorizeTrash'].owner).toBe('runtime');
+        expect(methods['files.create'].owner).toBe('host');
+        expect(methods['files.copy'].owner).toBe('host');
+        expect(methods['files.rename'].owner).toBe('host');
+        expect(methods['files.move'].owner).toBe('host');
+        expect(methods['files.reveal'].owner).toBe('host');
+        expect(methods['files.trash'].owner).toBe('desktop');
+        expect(internalMethods['files.authorizeOpen'].owner).toBe('host');
+        expect(internalMethods['files.authorizeTrash'].owner).toBe('host');
     });
 
     it('defaults creation to a file and drag movement to conflict rejection', () => {
@@ -362,6 +429,7 @@ describe('file mutation contracts', () => {
         );
         expect(
             requestEnvelopeSchema.safeParse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
                 id: 'r1',
                 method: 'files.authorizeTrash',
                 params: base,
@@ -369,6 +437,7 @@ describe('file mutation contracts', () => {
         ).toBe(false);
         expect(
             requestEnvelopeSchema.safeParse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
                 id: 'r2',
                 method: 'files.authorizeOpen',
                 params: base,

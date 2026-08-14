@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { compareStableVersions, UpdateService } from '../updates';
+import { compareStableVersions, shouldStartAutomaticUpdateCheck, UpdateService } from '../updates';
 
 const temporaryDirectories: string[] = [];
 
@@ -75,6 +75,25 @@ describe('stable version comparison', () => {
         expect(compareStableVersions('1.2.0', '1.1.9')).toBe(1);
         expect(compareStableVersions('v2.0.0', '2.0.0')).toBe(0);
         expect(() => compareStableVersions('2.0.0-beta.1', '2.0.0')).toThrow('unsupported version');
+    });
+});
+
+describe('automatic update policy', () => {
+    it('does not make external requests from a packaged E2E profile', () => {
+        expect(
+            shouldStartAutomaticUpdateCheck({
+                alreadyStarted: false,
+                isE2E: true,
+                isPackaged: true,
+            }),
+        ).toBe(false);
+        expect(
+            shouldStartAutomaticUpdateCheck({
+                alreadyStarted: false,
+                isE2E: false,
+                isPackaged: true,
+            }),
+        ).toBe(true);
     });
 });
 

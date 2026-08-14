@@ -4,10 +4,8 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeMethod } from '../shared/ipc/methods';
-import type { StructuredLogger } from '../shared/node/logger';
 import { resolveActiveWork } from '../shared/work-item';
 import type {
     AgentProvider,
@@ -22,20 +20,21 @@ import {
     AgentService,
     createLocalAgentAdapters,
     defaultAgentEnvironment,
-    type AgentAdapter,
-    type AgentEnvironment,
 } from './agents';
+import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
+import { agentSkillHealthReader } from './agent-skills';
+import type { Runtime, RuntimeDeps } from './bootstrap-types';
 import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './db';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import { FileService } from './files';
 import { GitService } from './git';
+import { createIntrospectionServices } from './introspection';
 import { ProjectStatusService } from './project-status';
 import {
     ShellIntegrationService,
     TerminalManager,
-    type TerminalManagerOptions,
     TerminalRestoreSupervisor,
     type TerminalWorkingDirectoryIdentity,
 } from './terminal';
@@ -43,44 +42,7 @@ import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
-
-/**
- * Everything the Runtime cannot discover for itself. The entry point supplies the real Electron
- * utility-process values; an in-process test supplies temporary directories and a fake event sink,
- * which is what makes the handler table testable without launching Electron.
- */
-export interface RuntimeDeps {
-    /** Directory that owns `caxri.db` and the `config/` tree. */
-    userDataPath: string;
-    logger: StructuredLogger;
-    /** Receives every Runtime event; the entry point forwards these to the Electron parent port. */
-    send: (event: RuntimeEvent) => void;
-    /** Wall-clock Runtime start reported by `app.health` and diagnostics. Defaults to now. */
-    startedAt?: number;
-    /** Process identity reported by `app.health`. Defaults to this process. */
-    pid?: number;
-    /** Trailing Agent metadata refresh delay after Agent Terminal output. */
-    agentRefreshDelayMs?: number;
-    /** PTY launch seam so an in-process test never spawns a real shell. */
-    terminal?: TerminalManagerOptions;
-    /** Visible Terminal restore grid grace period. Tests may set zero when no Renderer will attach. */
-    terminalRestoreGridWaitMs?: number;
-    /** Agent adapter seam so an in-process test never executes an Agent CLI. */
-    agentAdapters?: Record<AgentProvider, AgentAdapter>;
-    /** Shared provider-home seam for metadata and hook-config tests. */
-    agentEnvironment?: AgentEnvironment;
-    /** Main-approved shared install root. Omitted in tests/E2E to prevent global CLI mutation. */
-    agentHooksPath?: string;
-    /** Executable the staged bridge uses in Node mode. Defaults to the current Electron binary. */
-    runtimeExecutable?: string;
-}
-
-export interface Runtime {
-    handlers: RuntimeHandlers;
-    /** Releases every owned resource: schedulers, PTYs, watchers, and the database. */
-    close(): Promise<void>;
-}
-
+export type { Runtime, RuntimeDeps } from './bootstrap-types';
 /** Methods the Renderer may call but that only Electron Main can satisfy. */
 function mainOwned(method: RuntimeMethod): never {
     throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
@@ -144,9 +106,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         userDataPath,
     });
     await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
-    let hookSettingsReconcile = Promise.resolve();
+    let agentSettingsReconcile = Promise.resolve();
     const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
-        hookSettingsReconcile = agentHooks.reconcile(settings['agents.providers']);
+        /** Preserve setting-update order so a slow probe cannot restore authority after disable. */
+        agentSettingsReconcile = agentSettingsReconcile
+            .catch((error: unknown) =>
+                logger.write('warn', 'agent.integration_reconcile_failed', {
+                    fields: { error: errorMessage(error, 'unknown') },
+                }),
+            )
+            .then(() =>
+                Promise.all([
+                    agentHooks.reconcile(settings['agents.providers']),
+                    deps.agentEndpoints?.reconcile(settings['agents.providers']),
+                ]).then(() => undefined),
+            );
     });
     const shellIntegration = await ShellIntegrationService.create(userDataPath).catch(
         (error: unknown) => {
@@ -156,18 +130,44 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return undefined;
         },
     );
-    /**
-     * Explicit Terminal-to-Agent wiring. Agent probes react to Terminal output here, in the
-     * composition root, instead of hiding a provider check inside a shared event sink.
-     */
+    /** Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a
+     * shared event sink. */
+    const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
         ...deps.terminal,
         agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
-        lifecycleEnvironment: (terminal) =>
-            agentHooks.terminalEnvironment(terminal.id, terminal.provider),
-        onLifecycleRetired: (terminalId) => agentHooks.endTerminalLaunch(terminalId),
+        lifecycleEnvironment: async (terminal, launch) => {
+            const hookEnvironment = agentHooks.terminalEnvironment(terminal.id, terminal.provider);
+            if (terminal.kind === 'shell' || !launch || !deps.agentEndpoints)
+                return hookEnvironment;
+            const session = database.getSession(terminal.sessionId);
+            if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
+            return {
+                ...hookEnvironment,
+                ...(await deps.agentEndpoints.environment(
+                    terminal,
+                    session.projectId,
+                    configuration.getSettings().value['agents.providers'][terminal.kind],
+                )),
+            };
+        },
+        onLifecycleStarted: (terminal) =>
+            terminal.kind === 'shell' ? undefined : deps.agentEndpoints?.activate(terminal.id),
+        onLifecycleRetired: async (terminalId) => {
+            agentHooks.endTerminalLaunch(terminalId);
+            await deps.agentEndpoints?.retire(terminalId).catch((error: unknown) =>
+                logger.write('warn', 'agent_endpoint.retire_failed', {
+                    fields: {
+                        terminalId,
+                        error: error instanceof Error ? error.message : String(error),
+                    },
+                }),
+            );
+        },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
+        onStateChanged: (terminalId, state) =>
+            agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
     });
@@ -180,6 +180,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         () => terminals.runningCount(),
         startedAt,
     );
+    const introspection = createIntrospectionServices(database, logger);
 
     function bootstrapState(): BootstrapState {
         const settings = configuration.getSettings();
@@ -395,6 +396,19 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             });
     }
 
+    const dispatchService = new AgentDispatchService({
+        database,
+        coordinator,
+        emit: send,
+        endpoints: deps.agentEndpoints,
+        launchSettings: agentLaunchSettings,
+        terminalDirectoryIdentity,
+        terminalWorkingDirectory,
+        terminals,
+    });
+    agentDispatchState.service = dispatchService;
+    dispatchService.initialize();
+
     let closed = false;
     async function close(): Promise<void> {
         if (closed) return;
@@ -402,16 +416,41 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         terminalRestores.close();
         coordinator.close();
         terminals.shutdown('orderly');
+        dispatchService.close();
         unsubscribeHookSettings();
-        await hookSettingsReconcile;
+        await agentSettingsReconcile;
         await agentHooks.close();
+        await deps.agentEndpoints?.close();
         await files.close();
         await configuration.close();
         database.close();
     }
-
     const handlers: RuntimeHandlers = {
+        'agent.context': () => mainOwned('agent.context'),
+        'agent.list': () => mainOwned('agent.list'),
+        'agent.grants': () => mainOwned('agent.grants'),
+        'agent.grant': () => mainOwned('agent.grant'),
+        'agent.revoke': () => mainOwned('agent.revoke'),
+        ...createAgentCommandHandlers({
+            coordinator,
+            dispatch: dispatchService,
+            endpoints: deps.agentEndpoints,
+            mainOwned,
+            terminals,
+        }),
+        'agent.message.send': () => mainOwned('agent.message.send'),
+        'agent.message.reply': () => mainOwned('agent.message.reply'),
+        'agent.message.wait': () => mainOwned('agent.message.wait'),
+        'agent.message.check': () => mainOwned('agent.message.check'),
+        'agent.message.receipt': () => mainOwned('agent.message.receipt'),
+        'agent.message.policy.get': () => mainOwned('agent.message.policy.get'),
+        'agent.message.policy.set': () => mainOwned('agent.message.policy.set'),
+        'agent.message.held': () => mainOwned('agent.message.held'),
+        'agent.message.approve': () => mainOwned('agent.message.approve'),
+        'agent.message.deny': () => mainOwned('agent.message.deny'),
         'app.bootstrap': () => bootstrapState(),
+        'events.recover': () => mainOwned('events.recover'),
+        'events.query': () => mainOwned('events.query'),
         'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
@@ -419,6 +458,13 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             startedAt,
             activePtyCount: terminals.runningCount(),
         }),
+        'host.status': () => mainOwned('host.status'),
+        'host.stop': () => mainOwned('host.stop'),
+        'desktop.status': () => mainOwned('desktop.status'),
+        'desktop.focus': () => mainOwned('desktop.focus'),
+        'desktop.openPath': () => mainOwned('desktop.openPath'),
+        'desktop.openProject': () => mainOwned('desktop.openProject'),
+        'desktop.openFile': () => mainOwned('desktop.openFile'),
         'app.windowState.get': () => ({
             bounds:
                 database.getAppState<PersistedWindowState['bounds']>('windowBounds') ??
@@ -508,6 +554,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
+        'project.list': () => ({ view: 'desktop', projects: database.listProjects() }),
+        'project.query': () => mainOwned('project.query'),
+        'project.queryForPrincipal': ({ principal, query }) =>
+            introspection.records.project(query, principal),
         'project.reorder': ({ projectId, targetIndex }) => {
             const reordered = database.reorderProject(projectId, targetIndex);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
@@ -589,6 +639,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             database.updateSessionState(state);
             return database.getSessionState(state.sessionId);
         },
+        'session.query': () => mainOwned('session.query'),
+        'session.queryForPrincipal': ({ principal, query }) =>
+            introspection.records.session(query, principal),
         'terminal.create': async ({ sessionId, kind, cwd }) => {
             const terminal = await createAndStartTerminal(sessionId, kind, cwd);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
@@ -649,6 +702,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'terminal.snapshot': ({ terminalId }) => database.getSnapshot(terminalId) ?? null,
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
+        'terminal.query': () => mainOwned('terminal.query'),
+        'terminal.queryForPrincipal': ({ principal, query }) =>
+            introspection.records.terminal(query, principal),
         'terminal.terminateAll': () => {
             terminalRestores.close();
             coordinator.close();
@@ -688,10 +744,13 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),
+        'settings.inspect': () => configuration.inspectSettings(),
+        'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
         'agentHooks.get': () => agentHooks.getHealth(),
+        'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
-            await hookSettingsReconcile;
+            await agentSettingsReconcile;
             return configuration.getSettings();
         },
         'settings.trustDomain': async ({ domain }) => {
@@ -720,12 +779,13 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             theme: configuration.themePath,
         }),
         'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
+        'diagnostics.snapshot': () => diagnostics.snapshot(),
+        'logs.query': (params) => introspection.logs.query(params),
         'runtime.shutdown': async () => {
             await close();
             return null;
         },
     };
-
     /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
     void files.watchSession(selectedSessionId());
     /** Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected

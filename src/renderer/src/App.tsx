@@ -3,7 +3,9 @@ import { useEffect } from 'react';
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/useCommandShortcuts';
 import { BugReportDialog } from './features/bug-report/BugReportDialog';
+import { AgentMessageApprovalDialog } from './features/agent-inbox/AgentMessageApprovalDialog';
 import { useExternalDocumentSync } from './features/editor/external-sync';
+import { openFileForSession } from './features/editor/document-actions';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
 import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
@@ -13,6 +15,8 @@ import { ScreencastOverlay } from './features/screencast/ScreencastOverlay';
 import { CreateSessionDialog } from './features/session/CreateSessionDialog';
 import { ArchivedSessionsDialog } from './features/session/ArchivedSessionsDialog';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
+import { selectSession } from './features/session/session-actions';
+import { createDesktopOpenQueue } from './features/session/desktop-open';
 import { SettingsDialog } from './features/settings/SettingsDialog';
 import { ProjectSidebar } from './features/sidebar/ProjectSidebar';
 import { StatusBar } from './features/status-bar/StatusBar';
@@ -48,10 +52,17 @@ import {
  */
 function useRuntimeAttachment(): void {
     useEffect(() => {
+        const desktopOpenQueue = createDesktopOpenQueue({
+            openFile: openFileForSession,
+            selectSession,
+        });
         void initializeWorkbench();
         return subscribeWorkbenchEvents({
             onCommand: (command, viaAccelerator) =>
                 runCommand(command, undefined, { viaAccelerator }),
+            onDesktopOpen: (sessionId, path) => {
+                void desktopOpenQueue.enqueue({ sessionId, ...(path ? { path } : {}) });
+            },
         });
     }, []);
 }
@@ -154,6 +165,7 @@ export function App() {
                 <CommandPalette />
                 <PathBrowserDialog />
                 <BugReportDialog />
+                <AgentMessageApprovalDialog />
                 <ToastOutlet />
                 <ScreencastOverlay />
             </main>

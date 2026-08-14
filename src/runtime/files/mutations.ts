@@ -381,7 +381,7 @@ export class FileMutationService {
         params: RuntimeMethodParams<'files.authorizeOpen'>,
     ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
         const entry = await this.resolveExisting(params.sessionId, params.path, true);
-        return { kind: entry.kind, name: entry.name, path: entry.path };
+        return entry;
     }
 
     async authorizeTrash(

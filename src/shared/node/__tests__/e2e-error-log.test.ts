@@ -8,7 +8,7 @@ import { parseE2ELogErrors, readE2ELogSnapshots } from '../e2e-error-log';
 import { assertE2EErrorPolicy } from '../e2e-error-policy';
 
 const record = (
-    process: 'main' | 'runtime',
+    process: 'host' | 'main' | 'runtime',
     level: 'error' | 'info',
     event: string,
     code?: string,
@@ -25,6 +25,7 @@ describe('E2E structured log collection', () => {
                 record('main', 'error', 'main.early_failure', 'MAIN_EARLY_FAILURE'),
             ),
             writeFile(join(logDirectory, 'main.jsonl'), record('main', 'info', 'main.ready')),
+            writeFile(join(logDirectory, 'host.jsonl'), record('host', 'info', 'host.ready')),
             writeFile(
                 join(logDirectory, 'runtime.jsonl'),
                 record('runtime', 'error', 'runtime.late_failure', 'RUNTIME_LATE_FAILURE'),
@@ -35,6 +36,7 @@ describe('E2E structured log collection', () => {
             const snapshots = readE2ELogSnapshots(userDataDir);
 
             expect(snapshots.map(({ path }) => path.slice(logDirectory.length + 1))).toEqual([
+                'host.jsonl',
                 'main.jsonl.1',
                 'main.jsonl',
                 'runtime.jsonl',

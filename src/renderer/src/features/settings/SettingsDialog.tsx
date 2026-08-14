@@ -1,7 +1,7 @@
 import { Braces, FileJson, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import type { AgentHookHealthMap, AppSettings, Keybinding } from '@shared/types';
+import type { AgentHookHealthMap, AgentSkillHealth, AppSettings, Keybinding } from '@shared/types';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/ChromeTabs';
 import { Button } from '../../components/ui/button';
@@ -48,6 +48,7 @@ function useSettingsDialogController() {
     const [sourceErrors, setSourceErrors] = useState<Partial<Record<ConfigKind, string>>>({});
     const [loaded, setLoaded] = useState(false);
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
+    const [agentSkillHealth, setAgentSkillHealth] = useState<AgentSkillHealth>();
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
@@ -141,6 +142,13 @@ function useSettingsDialogController() {
                 setLoaded(true);
             })
             .catch((error: unknown) => onError(error, 'Unable to load configuration'));
+    }, []);
+
+    const loadAgentSkillHealth = useCallback((): void => {
+        void caxri
+            .request('agentSkills.get')
+            .then(setAgentSkillHealth)
+            .catch((error: unknown) => onError(error, 'Unable to inspect Caxri CLI skills'));
     }, []);
 
     const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
@@ -279,6 +287,12 @@ function useSettingsDialogController() {
     useEffect(() => {
         if (open && !loaded) load();
     }, [load, open, loaded]);
+
+    // Provider skill files can change through the offline CLI while the app is running. Refresh on
+    // every open instead of persisting derived filesystem health or showing the first read forever.
+    useEffect(() => {
+        if (open) loadAgentSkillHealth();
+    }, [loadAgentSkillHealth, open]);
 
     useEffect(() => {
         if (!loaded || handledRequestId.current === request.id) return;
@@ -431,6 +445,7 @@ function useSettingsDialogController() {
     return {
         addBinding,
         agentHookHealth,
+        agentSkillHealth,
         changeTab,
         commitSource,
         importTheme,
@@ -455,6 +470,7 @@ function useSettingsDialogController() {
 function SettingsDialogView({
     addBinding,
     agentHookHealth,
+    agentSkillHealth,
     changeTab,
     commitSource,
     importTheme,
@@ -546,6 +562,7 @@ function SettingsDialogView({
                         ) : (
                             <SettingsForm
                                 agentHookHealth={agentHookHealth}
+                                agentSkillHealth={agentSkillHealth}
                                 settings={state.settings.value}
                                 trustedDomainsFocusRequestId={trustedDomainsFocusRequestId}
                                 onFieldChange={updateSettingsField}

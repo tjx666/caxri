@@ -6,11 +6,13 @@
         "vitest.config.*",
         "playwright.config.*",
         "eslint.config.*",
+        "src/host/**/*.ts",
         "src/main/**/*.ts",
         "src/preload/**/*.ts",
         "src/renderer/__tests__/**/*.ts",
         "src/runtime/**/*.ts",
         "src/shared/**/*.ts",
+        "packages/**/*.ts",
         ".agents/skills/**/scripts/**/*.ts",
         "scripts/**/*.ts",
         "e2e/**/*.ts"

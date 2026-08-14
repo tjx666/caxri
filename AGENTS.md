@@ -14,6 +14,9 @@
 - Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions except for the guarded Go fallback defined below.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
 - `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
+- Build or validate the browser-safe protocol and Node-only CLI workspaces with
+  `bun run build:workspaces`, `bun run typecheck:workspaces`, and `bun run test:workspaces`;
+  root `build`, `typecheck`, and `test` retain those checks.
 - Cheap post-change smoke gate (~30s Electron launch): `bun run --silent test:smoke`
 - Self-hosted CI and Release runner operation and recovery: `docs/self-hosted-runner.md`; every
   GitHub Actions job uses `m2-24`, and there is no GitHub-hosted fallback.
@@ -37,6 +40,8 @@
 - Never import Node.js, Electron, or native APIs in Renderer code (see Architecture boundaries below).
 - Never bypass the structured IPC request contract with arbitrary shell commands (see Architecture boundaries below).
 - Do not edit `package-lock.json` or the `packageManager` field by hand.
+- Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
+  native dependencies out of `packages/cli`'s production dependency graph.
 
 ## Skills
 
@@ -86,10 +91,14 @@ step-by-step workflows beyond this summary.
 ## Architecture boundaries
 
 - Renderer code never imports Node.js, Electron, PTY, Git, or filesystem APIs.
-- The preload exposes only the typed `window.caxri` allowlist from `src/shared/ipc`, whose method table, domain schemas, event union, and error taxonomy are the single source of truth for both processes.
+- The preload exposes only the typed `window.caxri` allowlist backed by `packages/protocol`, whose
+  method table, domain schemas, principal projections, event union, and error taxonomy are the
+  transport-neutral single source of truth. `src/shared/ipc` contains compatibility re-exports and
+  Electron adapters only; do not add a second contract there.
 - Sanctioned exception: the Process Explorer diagnostic window uses its own dedicated preload bridge and IPC channels (`src/shared/process-explorer-channels.ts`); it is read-only diagnostics and must not grow project/session/file operations — those belong to the structured `window.caxri` contract.
-- Main owns windows, native dialogs, application lifecycle, and Runtime supervision.
-- The utility-process Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.
+- Main owns windows, native dialogs, Desktop lifecycle, and its authenticated Host lease.
+- Headless Host owns the profile lock, command/event transport, and exactly one Runtime child.
+- Runtime owns SQLite, PTYs, Git, files/watchers, settings, themes, adapters, and diagnostics.
 - Add operations to the structured request contract. Never accept an arbitrary shell command from the Renderer.
 - Validate filesystem paths against the selected Session's Project root. Git may access another linked repository only when its root is already covered by an explicitly added Project.
 - Directory-picker authorization is a short-lived, single-use Main-process grant and must be revoked when Project creation is canceled.
@@ -146,7 +155,7 @@ step-by-step workflows beyond this summary.
   The checker builds first and collapses successful build and Playwright output into one summary.
 - Every Electron spec imports `test` and `expect` from `e2e/fixtures.ts`, never directly from
   `@playwright/test`. The automatic fixture treats Renderer exceptions/console errors and
-  structured Main/Runtime error events as failures and attaches both JSONL logs before a temporary
+  structured Host/Main/Runtime error events as failures and attaches all JSONL logs before a temporary
   user-data directory can be removed.
 - A scenario that deliberately produces an error must call `allowE2EErrors(...)` with an exact
   `source`/`event`/`code`/`count` tuple. Wildcards, message matching, duplicate allowances, and
@@ -199,7 +208,7 @@ Launch Caxri headlessly, without the interactive directory picker, using environ
   authenticated Codex CLI, sends one bounded natural-language read-only prompt in a temporary
   Project, disables screenshots/traces, and never falls back to another provider.
 
-Structured logs land in `logs/main.jsonl` and `logs/runtime.jsonl` in development; packaged/test launches write under the active Electron user-data directory instead.
+Structured logs land in `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl` in development; packaged/test launches write under the active Electron user-data directory instead.
 
 ## Performance and observability
 
@@ -208,4 +217,4 @@ Structured logs land in `logs/main.jsonl` and `logs/runtime.jsonl` in developmen
 - Send live PTY output only to attached Renderer views, and restore snapshots before replaying output buffered during attachment.
 - Log timings at operation boundaries. Aggregate high-frequency PTY metrics instead of writing one log record per input, resize, or output event.
 - Performance changes must include a focused regression test or a benchmark assertion.
-- Development logs are written to `logs/main.jsonl` and `logs/runtime.jsonl`; packaged builds use the Electron user-data directory.
+- Development logs are written to `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl`; packaged builds use the Electron user-data directory.

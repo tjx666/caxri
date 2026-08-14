@@ -57,6 +57,13 @@
             "when": 1786462503065,
             "tag": "0007_editor_remap_operation",
             "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "6",
+            "when": 1786661938381,
+            "tag": "0008_loud_magus",
+            "breakpoints": true
         }
     ]
 }

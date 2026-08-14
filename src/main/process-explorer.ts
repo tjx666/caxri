@@ -40,6 +40,7 @@ interface ProcessExplorerSamplerOptions {
      */
     rendererRoles?: () => ReadonlyMap<number, string>;
     rootPid: number;
+    hostPid?: () => number | undefined;
     runtimePid: () => number | undefined;
 }
 
@@ -144,7 +145,15 @@ export class ProcessExplorerSampler {
         const raw = parseProcessList(await (this.options.processList ?? runProcessList)()).filter(
             (process) => !process.name.includes('/bin/ps -axo'),
         );
-        const selected = selectProcessTree(raw, this.options.rootPid);
+        const hostPid = this.options.hostPid?.();
+        const selected = [
+            ...new Map(
+                [
+                    ...selectProcessTree(raw, this.options.rootPid),
+                    ...(hostPid ? selectProcessTree(raw, hostPid) : []),
+                ].map((process) => [process.pid, process]),
+            ).values(),
+        ].sort((left, right) => left.pid - right.pid);
         const electron = new Map(
             this.options.electronProcesses().map((sample) => [sample.pid, sample] as const),
         );
@@ -153,6 +162,7 @@ export class ProcessExplorerSampler {
         return {
             processes: selected.map((process) => {
                 const sample = electron.get(process.pid);
+                if (process.pid === hostPid) return { ...process, name: 'host' };
                 if (process.pid === runtimePid) return { ...process, name: 'runtime' };
                 if (!sample) return process;
                 return {

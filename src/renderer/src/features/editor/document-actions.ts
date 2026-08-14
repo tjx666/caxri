@@ -13,6 +13,7 @@ import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/wor
 import { caxri } from '../../lib/caxri';
 import { pathIsAtOrBelow, remapPath } from '../../lib/file-path';
 import {
+    getBootstrap,
     getProjectSessionIds,
     getSelectedSession,
     getSessionState,
@@ -74,9 +75,14 @@ function updateOpenTab(sessionId: string, path: string, dirty: boolean): void {
 }
 
 /** Opens a Renderer-owned editor surface whose content has already been loaded or is virtual. */
-export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
-    const session = getSelectedSession();
-    const current = getSessionState();
+function openEditorTabForSession(
+    sessionId: string,
+    path: string,
+    options: { preview?: boolean } = {},
+): void {
+    const bootstrap = getBootstrap();
+    const session = bootstrap?.sessions.find((candidate) => candidate.id === sessionId);
+    const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!session || !current) return;
     const view = useSessionViewStore.getState();
     const previousActiveWork = view.activeWork[session.id];
@@ -98,6 +104,13 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
             if (replacedDocument) currentView.cacheDocument(session.id, replacedDocument);
             currentView.setActiveWork(session.id, previousActiveWork);
         });
+}
+
+/** Opens an editor tab in the currently selected Session. */
+export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
+    const session = getSelectedSession();
+    if (!session) return;
+    openEditorTabForSession(session.id, path, options);
 }
 
 /** Reads a file into the Session document cache without changing the focused WorkItem. */
@@ -124,6 +137,17 @@ export async function openFile(
 ): Promise<string | false> {
     const session = getSelectedSession();
     if (!session) return false;
+    return openFileForSession(session.id, path, options);
+}
+
+/** Opens a Host-routed target against its exact Session rather than the transient selected Session. */
+export async function openFileForSession(
+    sessionId: string,
+    path: string,
+    options: { preview?: boolean } = {},
+): Promise<string | false> {
+    const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
+    if (!session) return false;
     const intent = ++fileOpenIntent;
     const operation = trackDocumentOperation(session.id, path);
     markEditorOpenStarted();
@@ -133,7 +157,7 @@ export async function openFile(
             if (
                 operation.discarded ||
                 intent !== fileOpenIntent ||
-                getSelectedSession()?.id !== session.id
+                !getBootstrap()?.sessions.some((candidate) => candidate.id === session.id)
             )
                 return false;
             markEditorDocumentReady();
@@ -143,7 +167,7 @@ export async function openFile(
                 path: currentPath,
                 dirty: false,
             });
-            openEditorTab(currentPath, options);
+            openEditorTabForSession(session.id, currentPath, options);
             return currentPath;
         });
         return opened ?? false;
