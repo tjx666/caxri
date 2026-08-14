@@ -103,7 +103,7 @@ export async function installWorktreeDependencies(
     path: string,
     stdoutToStderr = false,
 ): Promise<void> {
-    const manifestNames = ['package.json', 'package-lock.json'] as const;
+    const manifestNames = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'] as const;
     const manifests = new Map<string, Buffer | undefined>();
     for (const name of manifestNames) {
         const manifestPath = join(path, name);
@@ -131,8 +131,8 @@ export async function installWorktreeDependencies(
             stdoutToStderr,
         });
     } finally {
-        /** npm versions can rewrite lockfile metadata during a no-change install. A managed
-         * worktree must preserve the caller's exact manifests, including pre-existing edits. */
+        /** Dependency installs may rewrite lockfile metadata during a no-change install. A
+         * managed worktree must preserve the caller's exact manifests, including existing edits. */
         for (const [name, source] of manifests) {
             const manifestPath = join(path, name);
             await restoreManifest(manifestPath, source);

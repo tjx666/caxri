@@ -116,7 +116,7 @@ describe('Go local CI fallback', () => {
             .flatMap((step) => (step.uses ? [step.uses] : []))
             .filter(
                 (action) =>
-                    !/^(?:actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun)@/.test(
+                    !/^(?:actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun|pnpm\/setup)@/.test(
                         action,
                     ) && action !== './.github/actions/setup-caxri-job',
             );

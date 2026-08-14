@@ -50,7 +50,10 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Focused changed-file validation: `bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep '<pattern>'] [--staged]`
 - Validate locally: `bun run lint`, `bun run typecheck`, `bun run test`; run the full `bun run test:e2e` suite only in GitHub Actions except for the guarded Go fallback defined below.
 - CI-blocking gates with no local wrapper elsewhere: `bun run knip` (dead code/exports) and `bun run doctor` (React health). Run `knip` (or `check --knip`) before pushing renderer or shared-contract changes; `doctor` is slower and usually left to CI.
-- `package.json` pins `packageManager` to npm for electron-builder's `install-app-deps` native rebuilds; day-to-day commands still use `ni` and `bun run`.
+- `mise.toml` pins pnpm 12 and Node 24 LTS for local development; `pnpm-lock.yaml` lets `ni`
+  select pnpm without a `packageManager` field. pnpm owns monorepo dependency management: workspace
+  resolution, the lockfile, installs, and links. Bun is the fast script and CLI runner for
+  `bun run`, TypeScript tooling, and repository commands; it does not own the dependency graph.
 - Build or validate the browser-safe protocol and Node-only CLI workspaces with
   `bun run build:workspaces`, `bun run typecheck:workspaces`, and `bun run test:workspaces`;
   root `build`, `typecheck`, and `test` retain those checks.
@@ -67,16 +70,21 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   `release: v<package-version>` enters release CI, and the macOS release workflow runs only after
   that commit's CI checks and full E2E suite succeed.
 - Native probes: `bun run spike:native`, `bun run spike:pty`, `bun run spike:agents`
+- Build and install the standalone CLI globally: `bun run link:cli`; remove it with
+  `bun run unlink:cli`.
 - Issue tracking lives in GitHub issues (`gh issue`); titles, bodies, and comments use Simplified Chinese, while technical identifiers remain English. This project does not use Linear.
 
 ## Forbidden
 
-- Install dependencies only with `ni`; `package-lock.json` is the only lockfile, so never run `bun install`, `pnpm install`, or `yarn`, and never commit a second lockfile.
+- Install or update local dependencies only with `ni`; `pnpm-lock.yaml` is the only lockfile. Never
+  run `bun install`, `npm install`, or `yarn`, and never commit a second lockfile. Direct
+  `pnpm install --frozen-lockfile` is reserved for the documented CI/frozen-install verification.
 - Never change the `typescript` / `@typescript/native` dependency aliases or run `npm i typescript@latest` — the repo intentionally pins TS6 for typescript-eslint while compiling with TS7.
 - The `@shared` / `@` path aliases exist only in the Renderer TypeScript project (`tsconfig.web.json`) and Vitest; Main, Preload, and Runtime code must use relative imports.
 - Never import Node.js, Electron, or native APIs in Renderer code (see Architecture boundaries below).
 - Never bypass the structured IPC request contract with arbitrary shell commands (see Architecture boundaries below).
-- Do not edit `package-lock.json` or the `packageManager` field by hand.
+- Do not edit `pnpm-lock.yaml` by hand. Do not add `packageManager` or
+  `devEngines.packageManager`; `mise.toml` and the explicit GitHub Actions setup own tool versions.
 - Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
   native dependencies out of `packages/cli`'s production dependency graph.
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,

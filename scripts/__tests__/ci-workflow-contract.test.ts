@@ -44,7 +44,20 @@ describe('CI workflow contract', () => {
         expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(3);
         expect(workflow).not.toContain('actions/cache@');
         expect(setupAction).toContain('uses: actions/setup-node@v7');
+        expect(setupAction).toContain('node-version: 24.19.0');
         expect(setupAction).toContain('package-manager-cache: false');
+        expect(setupAction).toContain('uses: pnpm/setup@v2');
+        expect(setupAction).toContain('version: 12.0.0-rc.5');
+        expect(setupAction).not.toContain('runtime: node@24.19.0');
+        expect(setupAction).toContain("steps.pnpm_toolchain.outputs.cached != 'true'");
+        expect(setupAction).toContain(
+            'dest: ${{ runner.tool_cache }}/caxri/pnpm/12.0.0-rc.5-node-24.19.0',
+        );
+        expect(setupAction).toContain('test "$(node --version)" = "v24.19.0"');
+        expect(setupAction).toContain('test "$(pnpm --version)" = "12.0.0-rc.5"');
+        expect(setupAction).not.toContain('github.run_id');
+        expect(setupAction).toContain('install: false');
+        expect(setupAction).toContain('cache: false');
         expect(setupAction).toContain(
             'bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"',
         );
@@ -52,9 +65,9 @@ describe('CI workflow contract', () => {
         expect(setupAction).toContain('cache_root="$RUNNER_TOOL_CACHE/caxri"');
         expect(setupAction).toContain('CAXRI_CACHE_STATE');
         expect(setupAction).toContain(
-            'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund',
+            'pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --no-runtime',
         );
-        expect(setupAction).toContain('npm rebuild electron');
+        expect(setupAction).toContain('pnpm rebuild electron');
         expect(setupAction).toContain('bun run rebuild');
         expect(bunVersion).toBe('1.3.14');
         expect(workflow).toContain('Electron native compatibility');
@@ -69,6 +82,8 @@ describe('CI workflow contract', () => {
             'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
         );
         expect(workflow).toContain('CAXRI_VALIDATION_ENV');
+        expect(workflow).toContain('NODE_VERSION="$(node --version)"');
+        expect(workflow).toContain('node: process.env.NODE_VERSION');
         expect(workflow).toContain('lockfileSha256: process.env.LOCKFILE_SHA256');
         expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(2);
         expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
@@ -92,7 +107,7 @@ describe('CI workflow contract', () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-prettier-cache-'));
         const workspace = join(root, 'workspace');
         const toolCache = join(root, 'tool-cache');
-        const npmCache = join(root, 'npm-cache');
+        const pnpmStore = join(toolCache, 'caxri', 'pnpm-store');
         const persistentCache = join(toolCache, 'caxri', 'prettier');
         const githubEnv = join(root, 'github-env');
         const githubSummary = join(root, 'github-summary');
@@ -101,8 +116,8 @@ describe('CI workflow contract', () => {
             expect(cacheStep?.run).toBeTruthy();
             await mkdir(workspace, { recursive: true });
             await mkdir(join(toolCache, 'caxri'), { recursive: true });
-            await mkdir(npmCache, { recursive: true });
-            await writeFile(join(npmCache, 'cache-entry'), 'warm');
+            await mkdir(pnpmStore, { recursive: true });
+            await writeFile(join(pnpmStore, 'cache-entry'), 'warm');
             await writeFile(persistentCache, '');
             await writeFile(githubEnv, '');
             await writeFile(githubSummary, '');
@@ -117,7 +132,6 @@ describe('CI workflow contract', () => {
                         GITHUB_ENV: githubEnv,
                         GITHUB_STEP_SUMMARY: githubSummary,
                         RUNNER_TOOL_CACHE: toolCache,
-                        npm_config_cache: npmCache,
                     },
                 },
             );
@@ -128,9 +142,12 @@ describe('CI workflow contract', () => {
                 .find((line) => line.startsWith('CAXRI_CACHE_STATE '));
             expect(JSON.parse(cacheMetric?.replace('CAXRI_CACHE_STATE ', '') ?? '')).toEqual({
                 electron: 'cold',
-                npm: 'warm',
+                pnpm: 'warm',
                 quality: 'warm',
             });
+            expect(await readFile(githubEnv, 'utf8')).toContain(
+                `PNPM_CONFIG_STORE_DIR=${pnpmStore}`,
+            );
             await writeFile(join(workspace, 'fixture.js'), 'const value = 1;\n');
             await execFile(
                 fileURLToPath(new URL('../../node_modules/.bin/prettier', import.meta.url)),

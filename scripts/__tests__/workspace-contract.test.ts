@@ -3,6 +3,7 @@ import { basename, join, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const root = resolve(import.meta.dirname, '../..');
 const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electron', 'node-pty'];
@@ -14,7 +15,15 @@ interface PackageManifest {
     packageManager?: string;
     private?: boolean;
     scripts?: Record<string, string>;
-    workspaces?: string[];
+    devEngines?: { packageManager?: unknown };
+    workspaces?: unknown;
+}
+
+interface PnpmWorkspace {
+    allowBuilds?: Record<string, boolean>;
+    catalog?: Record<string, string>;
+    overrides?: Record<string, string>;
+    packages?: string[];
 }
 
 function manifest(path: string): PackageManifest {
@@ -50,40 +59,44 @@ function productionTypeScriptFiles(directory: string): string[] {
     return found;
 }
 
-function discoversAllProtocolTests(script: string): boolean {
-    const protocolSourceRoot = 'packages/protocol/src';
-    const targets = script
-        .split(/\s+/u)
-        .map((token) => token.replace(/^["']|["']$/gu, ''))
-        .filter((token) => token.startsWith(protocolSourceRoot));
-
-    if (targets.some((target) => /\/[^*\s]+\.test\.ts$/u.test(target))) return false;
-
-    return targets.some(
-        (target) =>
-            target === protocolSourceRoot ||
-            (target.startsWith(`${protocolSourceRoot}/`) &&
-                target.includes('**') &&
-                target.endsWith('.test.ts')),
-    );
-}
-
 function isProtocolCompatibilityReExport(source: string): boolean {
     return /^export \* from ['"]\.\.\/\.\.\/\.\.\/packages\/protocol\/src\/(?:index|(?:agent|configuration|desktop|domain|registry|transport)\/[a-z0-9-]+)(?:\.js)?['"];\n?$/u.test(
         source,
     );
 }
 
-describe('npm workspace contract', () => {
+describe('pnpm workspace contract', () => {
     const rootManifest = manifest(join(root, 'package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
     const cliManifest = manifest(join(root, 'packages/cli/package.json'));
+    const workspace = parse(
+        readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
+    ) as PnpmWorkspace;
+    const mise = readFileSync(join(root, 'mise.toml'), 'utf8');
 
-    it('keeps one private npm workspace root and one lockfile', () => {
+    it('keeps one private pnpm workspace root and one lockfile without manifest pinning', () => {
         expect(rootManifest.private).toBe(true);
-        expect(rootManifest.packageManager).toBe('npm@12.0.2');
-        expect(rootManifest.workspaces).toEqual(['packages/*']);
-        expect(lockfiles(root).map((path) => basename(path))).toEqual(['package-lock.json']);
+        expect(rootManifest.packageManager).toBeUndefined();
+        expect(rootManifest.devEngines?.packageManager).toBeUndefined();
+        expect(rootManifest.workspaces).toBeUndefined();
+        expect(workspace.packages).toEqual(['packages/*']);
+        expect(workspace.catalog).toEqual({ zod: '4.4.3' });
+        expect(workspace.allowBuilds).toEqual({
+            '@parcel/watcher': false,
+            'better-sqlite3': true,
+            'electron': true,
+            'electron-winstaller': false,
+            'esbuild': true,
+            'node-pty': true,
+        });
+        expect(workspace.overrides).toEqual({ dompurify: '3.4.13' });
+        expect(
+            lockfiles(root)
+                .map((path) => basename(path))
+                .sort(),
+        ).toEqual(['pnpm-lock.yaml']);
+        expect(mise).toContain('node = "24.19.0"');
+        expect(mise).toContain('pnpm = "12.0.0-rc.5"');
     });
 
     it('keeps tests, Electron support, and protocol domains in predictable directories', () => {
@@ -123,24 +136,24 @@ describe('npm workspace contract', () => {
         }
     });
 
-    it('discovers every protocol test without a concrete test-file allowlist', () => {
-        const testScript = protocolManifest.scripts?.test ?? '';
-
-        expect(
-            discoversAllProtocolTests(testScript),
-            `protocol test script must discover ${'packages/protocol/src'} recursively: ${testScript}`,
-        ).toBe(true);
-        expect(
-            discoversAllProtocolTests(
-                'vitest run --root ../.. packages/protocol/src/__tests__/index.test.ts',
-            ),
-        ).toBe(false);
+    it('routes workspace tests through named Vitest projects', () => {
+        expect(protocolManifest.scripts?.test).toContain('--project protocol');
+        expect(cliManifest.scripts?.test).toContain('--project cli');
+        expect(rootManifest.scripts?.['link:cli']).toBe(
+            'bun run build:cli && bun run packages/cli/scripts/link-global.ts',
+        );
+        expect(rootManifest.scripts?.['unlink:cli']).toBe('pnpm remove --global @caxri/cli');
     });
 
     it('keeps the CLI production graph free of Desktop native modules', () => {
         expect(protocolManifest.name).toBe('@caxri/protocol');
         expect(cliManifest.name).toBe('@caxri/cli');
-        expect(cliManifest.dependencies).toEqual({ '@caxri/protocol': '0.0.6' });
+        expect(protocolManifest.dependencies).toEqual({ zod: 'catalog:' });
+        expect(rootManifest.dependencies?.['@caxri/cli']).toBe('workspace:*');
+        expect(cliManifest.dependencies).toEqual({
+            '@caxri/protocol': 'workspace:*',
+            'zod': 'catalog:',
+        });
         for (const dependency of nativeDesktopDependencies) {
             expect(cliManifest.dependencies).not.toHaveProperty(dependency);
             expect(protocolManifest.dependencies ?? {}).not.toHaveProperty(dependency);

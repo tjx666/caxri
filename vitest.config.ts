@@ -2,13 +2,15 @@ import { resolve } from 'node:path';
 
 import { defineConfig } from 'vitest/config';
 
-export const testFiles = [
+export const desktopTestFiles = [
     'src/**/*.test.ts',
-    'packages/**/*.test.ts',
     '.agents/skills/**/scripts/*.test.ts',
     '.agents/skills/**/scripts/__tests__/*.test.ts',
     'scripts/__tests__/*.test.ts',
 ];
+export const protocolTestFiles = ['packages/protocol/src/**/*.test.ts'];
+export const cliTestFiles = ['packages/cli/{scripts,src}/**/*.test.ts'];
+export const testProjectNames = ['desktop-parallel', 'desktop-serial-native', 'protocol', 'cli'];
 const serialNativeTestPrefix = [
     'src/runtime/__tests__/agent-hooks.integration.test.ts',
     'src/runtime/__tests__/configuration.test.ts',
@@ -72,8 +74,8 @@ export default defineConfig({
             {
                 extends: true,
                 test: {
-                    name: 'parallel',
-                    include: testFiles,
+                    name: 'desktop-parallel',
+                    include: desktopTestFiles,
                     exclude: serialNativeTests,
                     maxWorkers: parallelMaxWorkers,
                 },
@@ -81,10 +83,26 @@ export default defineConfig({
             {
                 extends: true,
                 test: {
-                    name: 'serial-native',
+                    name: 'desktop-serial-native',
                     /** Native watchers and process-global environment fixtures cannot overlap. */
                     fileParallelism: false,
                     include: serialNativeTests,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'protocol',
+                    include: protocolTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'cli',
+                    include: cliTestFiles,
+                    maxWorkers: parallelMaxWorkers,
                 },
             },
         ],

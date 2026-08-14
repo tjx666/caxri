@@ -80,7 +80,7 @@ Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an
 - Both profiles install and build once. The optimized job attempts both logical pools after a pool
   failure, publishes an actual-execution receipt and per-pool artifacts, and workflow dispatches
   run the deterministic CI-parity cases through `scripts/run-ci-parity.ts`.
-- Run each profile until it has three consecutive green samples on the same Node/npm/lockfile,
+- Run each profile until it has three consecutive green samples on the same Node/pnpm/lockfile,
   runner label, test manifest, and workflow parameters. Record every non-green attempt.
 - Adopt optimized only when it preserves isolation and test counts and improves median feedback.
   Otherwise restore one worker and publish the reject decision.

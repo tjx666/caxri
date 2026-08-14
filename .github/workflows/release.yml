@@ -51,11 +51,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
-      - id: setup
-        uses: ./.github/actions/setup-caxri-job
-        with:
-          setup-node: 'true'
-
       - name: Validate release commit
         id: release
         env:
@@ -63,7 +58,8 @@ jobs:
           RELEASE_COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           subject="$(git show -s --format=%s "$RELEASE_COMMIT_SHA")"
-          version="$(node -p "require('./package.json').version")"
+          version="$(sed -nE 's/^[[:space:]]*"version":[[:space:]]*"([^"]+)".*/\1/p' package.json | head -1)"
+          test -n "$version"
           tag="v${version}"
           expected="release: ${tag}"
 
@@ -81,7 +77,13 @@ jobs:
 
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
-      - run: npm ci
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          rebuild-native: 'true'
 
       - name: Package unsigned Apple Silicon DMG
         env:
