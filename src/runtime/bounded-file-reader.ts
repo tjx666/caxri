@@ -3,7 +3,7 @@ import { open, type FileHandle } from 'node:fs/promises';
 
 import { CaxriError } from '../shared/ipc/errors';
 
-export type OpenRegularFile = (path: string, flags: number) => Promise<FileHandle>;
+type OpenRegularFile = (path: string, flags: number) => Promise<FileHandle>;
 
 export interface BoundedRegularFileReadOptions {
     /** Test seam for mutating the opened file before the bounded read begins. */
