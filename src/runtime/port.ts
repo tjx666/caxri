@@ -40,8 +40,11 @@ export function createRuntimeParentPort(source: RuntimeProcessLike): RuntimePare
                 (source as RuntimeProcessLike & RuntimeDisconnectSource).on('disconnect', listener),
             onMessage: (listener) => source.on('message', listener),
             send: (message) => {
-                if (source.send!(message) === false)
+                if (source.connected === false)
                     throw new Error('Runtime parent IPC channel is unavailable');
+                /** Node returns `false` for a connected channel when its IPC backlog crosses the
+                 *  backpressure threshold; the message is still queued and must not crash Runtime. */
+                source.send!(message);
             },
         };
     }

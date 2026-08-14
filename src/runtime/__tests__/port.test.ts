@@ -40,6 +40,30 @@ describe('Runtime supervisor port', () => {
         expect(send).toHaveBeenCalledWith({ ok: true });
     });
 
+    it('treats a connected Host IPC backpressure signal as an accepted send', () => {
+        const send = vi.fn(() => false);
+        const port = createRuntimeParentPort({
+            connected: true,
+            on: vi.fn(),
+            send,
+        });
+
+        expect(() => port.send({ ok: true })).not.toThrow();
+        expect(send).toHaveBeenCalledWith({ ok: true });
+    });
+
+    it('fails before sending when the Host IPC channel is disconnected', () => {
+        const send = vi.fn(() => false);
+        const port = createRuntimeParentPort({
+            connected: false,
+            on: vi.fn(),
+            send,
+        });
+
+        expect(() => port.send({ ok: true })).toThrow('Runtime parent IPC channel is unavailable');
+        expect(send).not.toHaveBeenCalled();
+    });
+
     it('fails closed without either supervised channel', () => {
         expect(() => createRuntimeParentPort({ on: vi.fn() })).toThrow(
             'authenticated supervisor IPC channel',
