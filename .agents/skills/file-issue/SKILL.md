@@ -29,7 +29,9 @@ change, state that explicitly instead of inventing a visual claim.
 - **方案 / 修复方案** — the approach, numbered when there are ordered steps. Mention schema migrations, IPC contract changes, or startup-gate impact explicitly since they cross process boundaries.
 - **参考实现** — how competitors solve this, when relevant; consult the `competitors` skill rather than guessing.
 - **范围 / 非目标** — what is explicitly out, especially the tempting adjacent work.
-- **验收标准** — checkable statements of done; cover the core path plus the edge cases that motivated the issue. Include the regression-test expectation (behavior-level, per the testing workflow in AGENTS.md).
+- **验收标准** — checkable statements of done; cover the core path plus the edge cases that motivated
+  the issue. Include the behavior-level regression expectation from the `unit-testing` or
+  `e2e-testing` skill.
 - **Acceptance 方案** — keep this separate from the definition of done. Describe the isolated
   macOS Electron path, fixture or failure injection, expected observable result, and evidence needed
   for human review. Prefer screenshots for settled UI and GIF/video for behavior over time. Use DOM,
