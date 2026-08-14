@@ -76,8 +76,12 @@ export class DesktopHostConnection extends EventEmitter {
     }
 
     start(): Promise<void> {
-        this.starting ??= this.connect();
-        return this.starting;
+        const starting = this.starting ?? this.connect();
+        this.starting = starting;
+        void starting.catch(() => {
+            if (this.starting === starting) this.starting = undefined;
+        });
+        return starting;
     }
 
     private async connect(): Promise<void> {

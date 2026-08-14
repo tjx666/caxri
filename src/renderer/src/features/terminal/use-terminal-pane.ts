@@ -38,7 +38,7 @@ import {
 import { registerTerminalLinks } from './terminal-links';
 import { ControlledOsc52Clipboard, type Osc52BlockReason } from './terminal-osc52-clipboard';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
-import { reconcileTerminalProcessFocus } from './terminal-process-focus';
+import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from './terminal-process-focus';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import {
@@ -206,6 +206,7 @@ export function useTerminalPaneRuntime({
     useEffect(() => {
         const container = containerRef.current;
         if (!fontsReady || !container) return;
+        delete container.dataset.terminalAttached;
         const latest = latestRef.current;
         const xterm = new Terminal({
             allowProposedApi: true,
@@ -525,6 +526,7 @@ export function useTerminalPaneRuntime({
             /** Resize only after xterm has parsed the snapshot and every output event buffered behind it. */
             fitAndResize();
             observer.observe(container);
+            container.dataset.terminalAttached = 'true';
             requestAnimationFrame(() => {
                 document.removeEventListener('focusin', trackNewerFocus);
                 document.removeEventListener('keydown', trackExplicitInteraction, true);
@@ -536,10 +538,14 @@ export function useTerminalPaneRuntime({
                  *  A modal can also open before xterm ever receives focus, so its registry is the
                  *  authoritative keyboard owner even when no prior Terminal focus was observed. */
                 if (
-                    latestRef.current.active &&
-                    latestRef.current.processState === 'running' &&
                     !attachFocusSuperseded &&
-                    !useDialogStore.getState().isModalOpen()
+                    shouldAutoFocusTerminal({
+                        active: latestRef.current.active,
+                        focusedElement: document.activeElement as HTMLElement | null,
+                        isModalOpen: useDialogStore.getState().isModalOpen(),
+                        isRunning: latestRef.current.processState === 'running',
+                        terminalId,
+                    })
                 )
                     xterm.focus();
             });
@@ -548,6 +554,7 @@ export function useTerminalPaneRuntime({
 
         return () => {
             disposed = true;
+            delete container.dataset.terminalAttached;
             observer.disconnect();
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
@@ -626,17 +633,11 @@ export function useTerminalPaneRuntime({
             active,
             blur: () => xterm.blur(),
             focus: () => xterm.focus(),
+            getFocusedElement: () => document.activeElement as HTMLElement | null,
             isModalOpen: () => useDialogStore.getState().isModalOpen(),
             isRunning,
             requestFrame: (callback) => requestAnimationFrame(callback),
-            shouldPreserveFocus: () => {
-                const focused = document.activeElement;
-                return (
-                    focused instanceof HTMLElement &&
-                    focused.dataset.preserveTerminalFocus === 'true' &&
-                    focused.closest('.work-tab')?.getAttribute('data-terminal-id') === terminalId
-                );
-            },
+            terminalId,
         });
         if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
         /** The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.

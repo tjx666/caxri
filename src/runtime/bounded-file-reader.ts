@@ -15,7 +15,11 @@ export interface BoundedRegularFileReadOptions {
 /**
  * Reads text from one opened regular-file handle without trusting a pathname's pre-read metadata.
  *
- * The extra byte detects a file that grows after it is opened while keeping parser input bounded.
+ * Final symlinks are intentionally followed because user-selected themes and provider-owned
+ * configuration commonly point at dotfile-managed regular files. The opened handle is still
+ * `fstat`-validated as a regular file, read with `O_NONBLOCK`, and capped before parser input is
+ * exposed. The extra byte detects a file that grows after it is opened while keeping parser input
+ * bounded.
  */
 export async function readBoundedRegularFileText(
     path: string,
@@ -23,10 +27,7 @@ export async function readBoundedRegularFileText(
     options: BoundedRegularFileReadOptions = {},
 ): Promise<string> {
     const openFile = options.openFile ?? open;
-    const file = await openFile(
-        path,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const file = await openFile(path, constants.O_RDONLY | constants.O_NONBLOCK);
     try {
         if (!(await file.stat()).isFile()) throw new CaxriError('IO', 'Path is not a regular file');
         await options.beforeRead?.();
