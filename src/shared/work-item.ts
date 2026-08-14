@@ -42,8 +42,9 @@ function workItemExists(
  * The only place fallback logic for the active work item lives. Preference order: (1) the locally
  * tracked `activeWork` if its target still exists in this Session, (2) the persisted
  * `sessionState.activeTab` if its target still exists (it can go stale when its Terminal is closed or
- * removed without an explicit `activateWork` call), (3) the first Terminal in the layout, or the first
- * Session Terminal if the layout has none.
+ * removed without an explicit `activateWork` call), (3) the first still-present Terminal in the
+ * layout, (4) the first Session Terminal if the layout has none, or (5) the first open editor. The
+ * final editor fallback keeps exactly one Work tab active/focusable after every Terminal is removed.
  */
 export function resolveActiveWork(params: {
     activeWork?: WorkItem;
@@ -55,9 +56,13 @@ export function resolveActiveWork(params: {
     if (workItemExists(activeWork, sessionTerminals, openTabs)) return activeWork;
     if (workItemExists(sessionState?.activeTab, sessionTerminals, openTabs))
         return sessionState?.activeTab;
-    const fallbackTerminalId =
-        (sessionState && firstLayoutTerminalId(sessionState.layout)) ?? sessionTerminals[0]?.id;
-    return fallbackTerminalId ? { kind: 'terminal', terminalId: fallbackTerminalId } : undefined;
+    const layoutTerminalId = sessionState && firstLayoutTerminalId(sessionState.layout);
+    const fallbackTerminalId = sessionTerminals.some((terminal) => terminal.id === layoutTerminalId)
+        ? layoutTerminalId
+        : sessionTerminals[0]?.id;
+    if (fallbackTerminalId) return { kind: 'terminal', terminalId: fallbackTerminalId };
+    const fallbackEditor = openTabs[0];
+    return fallbackEditor ? { kind: 'editor', path: fallbackEditor.path } : undefined;
 }
 
 /**

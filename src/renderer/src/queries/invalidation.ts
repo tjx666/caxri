@@ -12,9 +12,9 @@ const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 
 /**
  * Invalidates the Session-scoped read queries that a `files.changed` event cheaply reflects: Git
- * status, diffs, and current-line blame. `files.list` is deliberately excluded —
- * {@link FileTreePanel} tracks which directories a change actually touched and invalidates only
- * those, which this session-wide pass would otherwise blur. `projectStatus.summary` and
+ * status, diffs, and current-line blame. `files.list` is deliberately excluded — the separate
+ * Project-scoped file-tree subscription tracks which directories a change actually touched and
+ * invalidates only those, which this broad query pass would otherwise blur. `projectStatus.summary` and
  * `projectStatus.overview` are excluded too: unlike `git.summary`, a Project Status read may shell
  * out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running
  * on every file write.

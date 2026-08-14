@@ -97,6 +97,22 @@ describe('resolveActiveWork', () => {
         expect(resolved).toEqual({ kind: 'terminal', terminalId: 'terminal-9' });
     });
 
+    it('falls back to the first open editor after every Terminal is removed', () => {
+        const resolved = resolveActiveWork({
+            activeWork: { kind: 'terminal', terminalId: 'removed-terminal' },
+            sessionTerminals: [],
+            sessionState: baseState({
+                activeTab: { kind: 'terminal', terminalId: 'removed-terminal' },
+                openTabs: [
+                    { path: '/first.ts', dirty: false },
+                    { path: '/second.ts', dirty: false },
+                ],
+            }),
+        });
+
+        expect(resolved).toEqual({ kind: 'editor', path: '/first.ts' });
+    });
+
     it('returns undefined when there is nothing to focus', () => {
         expect(
             resolveActiveWork({ sessionTerminals: [], sessionState: undefined }),

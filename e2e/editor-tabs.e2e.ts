@@ -312,9 +312,25 @@ test('Open Work tabs provide roving keyboard navigation and accessible state', a
         await expectTabControlsWorkSurface(running.page, editor);
 
         await editor.focus();
-        await editor.press('ArrowLeft');
+        await running.page.keyboard.press('ArrowLeft');
         await expect(secondTerminal).toBeFocused();
         await expect(secondTerminal).toHaveAttribute('aria-selected', 'true');
+        const secondTerminalId = await secondTerminal
+            .locator('xpath=..')
+            .getAttribute('data-terminal-id');
+        expect(secondTerminalId).toBeTruthy();
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+        await running.page.evaluate(
+            () =>
+                new Promise<void>((resolve) =>
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+                ),
+        );
+        await expect(secondTerminal).toBeFocused();
         await expectTabControlsWorkSurface(running.page, secondTerminal);
 
         await secondTerminal.press('Home');

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
-import { appendFile, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -92,16 +92,36 @@ describe('theme import mapping', () => {
         expect(theme.editor).toEqual(draculaTheme.editor);
     });
 
-    it('rejects a theme file larger than the import size limit', async () => {
+    it('rejects an oversized theme file through a symlink before parsing', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-oversized-'));
         temporaryDirectories.push(directory);
-        const path = join(directory, 'huge.json');
+        const target = join(directory, 'huge.json');
+        const path = join(directory, 'linked-huge.json');
         const oversizedPayload = `{"padding":"${'a'.repeat(MAX_THEME_IMPORT_FILE_BYTES)}"}`;
-        await writeFile(path, oversizedPayload, 'utf8');
+        await writeFile(target, oversizedPayload, 'utf8');
+        await symlink(target, path);
 
         await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
             code: 'CAPACITY',
         } satisfies Partial<CaxriError>);
+    });
+
+    it('imports a normal theme file through a symlink', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-symlink-'));
+        temporaryDirectories.push(directory);
+        const target = join(directory, 'managed-theme.json');
+        const path = join(directory, 'theme.json');
+        await writeFile(
+            target,
+            JSON.stringify({ name: 'Linked Theme', colors: { 'editor.background': '#234567' } }),
+            'utf8',
+        );
+        await symlink(target, path);
+
+        await expect(importTheme(path, draculaTheme)).resolves.toMatchObject({
+            editor: { background: '#234567' },
+            source: 'vscode',
+        });
     });
 
     it('accepts a theme file exactly at the import size limit', async () => {

@@ -5,6 +5,7 @@ import {
     deleteSessionPrompt,
     externalLinkChoice,
     externalLinkPrompt,
+    legacyHostUpgradePrompt,
     trashPrompt,
     unsavedChangesChoice,
     unsavedChangesPrompt,
@@ -94,6 +95,25 @@ describe('delete prompts', () => {
     ])('warns about %i running Terminals with matching plural', (count, message) => {
         expect(deleteProjectPrompt('caxri', count).message).toBe(message);
         expect(deleteSessionPrompt('caxri', count).message).toBe(message);
+    });
+});
+
+describe('legacy Host upgrade prompt', () => {
+    it('keeps the non-destructive choice behind Enter and Escape', () => {
+        const options = legacyHostUpgradePrompt(2);
+        expect(options.buttons![options.defaultId!]).toBe('Quit');
+        expect(options.buttons![options.cancelId!]).toBe('Quit');
+    });
+
+    it('states the current live count, stop boundary, and file safety', () => {
+        const active = legacyHostUpgradePrompt(2).detail!;
+        expect(active).toContain('currently owns 2 live Terminal processes');
+        expect(active).toContain('every Terminal still running at that moment');
+        expect(active).toContain('Projects and user files are never deleted');
+
+        const idle = legacyHostUpgradePrompt(0).detail!;
+        expect(idle).toContain('currently reports no live Terminal processes');
+        expect(idle).toContain('cancels the upgrade');
     });
 });
 

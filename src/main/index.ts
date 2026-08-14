@@ -39,6 +39,7 @@ import { createDesktopOperationHandler } from './desktop-operations';
 import { openExternalUrl } from './external-links';
 import { createMainEventRelay } from './event-relay';
 import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
+import { startHostWithNativeLegacyV1Recovery } from './host-upgrade-startup';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
@@ -111,6 +112,7 @@ function createMainLogger(): StructuredLogger {
     return new StructuredLogger(
         resolveLogDirectory({
             currentDirectory,
+            isPackaged: app.isPackaged,
             rendererUrl: process.env.ELECTRON_RENDERER_URL,
             userDataPath: app.getPath('userData'),
         }),
@@ -647,6 +649,7 @@ void app.whenReady().then(async () => {
     const userDataPath = app.getPath('userData');
     const logDirectory = resolveLogDirectory({
         currentDirectory,
+        isPackaged: app.isPackaged,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         userDataPath,
     });
@@ -747,20 +750,16 @@ void app.whenReady().then(async () => {
         windowMode: e2eWindowMode,
     });
     supervisor.on('event', sendEvent);
-    const runtimeStartedAt = performance.now();
-    await supervisor
-        .start()
-        .then(() =>
-            mainLogger?.write('info', 'host.attached', {
-                durationMs: performance.now() - runtimeStartedAt,
-            }),
-        )
-        .catch((error: unknown) =>
-            mainLogger?.write('error', 'host.attach_failed', {
-                durationMs: performance.now() - runtimeStartedAt,
-                fields: { error: errorMessage(error, 'unknown') },
-            }),
-        );
+    if (
+        !(await startHostWithNativeLegacyV1Recovery({
+            dialog,
+            logger: mainLogger,
+            quit: () => app.quit(),
+            supervisor,
+            userDataPath,
+        }))
+    )
+        return;
     installIpc();
     processExplorer.installIpc();
     await installMenu();
