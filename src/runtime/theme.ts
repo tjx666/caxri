@@ -1,4 +1,3 @@
-import { stat, readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 import { parse as parsePlist } from 'plist';
@@ -6,10 +5,13 @@ import YAML from 'yaml';
 
 /** The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it. */
 import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
-import { CaxriError } from '../shared/ipc/errors';
 import { parseJsonc } from '../shared/node/jsonc';
 import { themeImportFormats } from '../shared/theme-import';
 import type { ThemeTokens } from '../shared/types';
+import {
+    readBoundedRegularFileText,
+    type BoundedRegularFileReadOptions,
+} from './bounded-file-reader';
 
 type ThemeImportFormat = (typeof themeImportFormats)[number];
 
@@ -302,14 +304,20 @@ function resolveThemeImportFormat(extension: string, source: string): ThemeImpor
     return findFormatByExtension(extension) ?? findFormatById('vscode');
 }
 
-export async function importTheme(path: string, current: ThemeTokens): Promise<ThemeTokens> {
-    const { size } = await stat(path);
-    if (size > MAX_THEME_IMPORT_FILE_BYTES)
-        throw new CaxriError(
-            'CAPACITY',
-            `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
-        );
-    const source = await readFile(path, 'utf8');
+/** Test-only seam that makes an opened-file mutation deterministic without widening parser APIs. */
+interface ThemeImportTestSeam {
+    beforeRead?: BoundedRegularFileReadOptions['beforeRead'];
+}
+
+export async function importTheme(
+    path: string,
+    current: ThemeTokens,
+    testSeam?: ThemeImportTestSeam,
+): Promise<ThemeTokens> {
+    const source = await readBoundedRegularFileText(path, MAX_THEME_IMPORT_FILE_BYTES, {
+        beforeRead: testSeam?.beforeRead,
+        capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
+    });
     const name =
         path
             .split('/')

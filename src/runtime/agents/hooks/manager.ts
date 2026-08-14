@@ -17,6 +17,7 @@ import type { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentHookHealth, AgentHookHealthMap } from '../../../shared/types';
 import type { AgentEnvironment } from '../contract';
 import { agentProviders } from '../providers';
+import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import { NATIVE_WATCHER_BACKEND } from '../../native-watcher';
 import { stageAgentHookBridge } from './bridge';
 import type {
@@ -33,6 +34,9 @@ const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
 const LOCK_RETRY_MS = 25;
 const LOCK_TIMEOUT_MS = 2_000;
 const MAX_CONCURRENT_PROFILE_STATS = 8;
+/** Provider-owned hook configs are small user-authored documents; never hand unbounded input to
+ * their syntax adapters or let reconciliation rewrite a file it could not safely inspect. */
+export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
 const STALE_LOCK_MS = 30_000;
 const PROFILE_INTENTS_VERSION = 2;
 const agentProviderIdSet = new Set<string>(agentProviderIds);
@@ -172,7 +176,12 @@ async function readTargets(targets: readonly AgentHookConfigTarget[]): Promise<A
     const entries = await Promise.all(
         targets.map(async (target) => {
             try {
-                return [target.id, await readFile(target.path, 'utf8')] as const;
+                return [
+                    target.id,
+                    await readBoundedRegularFileText(target.path, MAX_AGENT_HOOK_CONFIG_BYTES, {
+                        capacityMessage: `Agent hook configuration exceeds the ${MAX_AGENT_HOOK_CONFIG_BYTES} byte safety limit`,
+                    }),
+                ] as const;
             } catch (error) {
                 if (isFileSystemError(error, 'ENOENT')) return [target.id, undefined] as const;
                 throw error;
