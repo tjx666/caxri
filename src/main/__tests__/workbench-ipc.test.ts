@@ -24,10 +24,10 @@ import { installWorkbenchIpc } from '../workbench-ipc';
 describe('workbench IPC sender boundary', () => {
     const renderer = {};
     const dispatch = vi.fn(() =>
-        Promise.resolve({ protocolVersion: 1, id: 'r1', ok: true, result: null } as const),
+        Promise.resolve({ protocolVersion: 2, id: 'r1', ok: true, result: null } as const),
     );
     const negotiate = vi.fn(() => ({
-        protocolVersion: 1 as const,
+        protocolVersion: 2 as const,
         principal: { kind: 'desktop' as const, id: 'desktop-1', generation: 1 },
         capabilities: ['desktop' as const],
         commands: ['app.health'],
@@ -52,19 +52,19 @@ describe('workbench IPC sender boundary', () => {
     it('retains sender validation for commands and negotiation', async () => {
         const request = electronMock.handles.get('caxri:request')!;
         const hello = electronMock.handles.get('caxri:negotiate')!;
-        const envelope = { protocolVersion: 1, id: 'r1', method: 'app.health', params: {} };
+        const envelope = { protocolVersion: 2, id: 'r1', method: 'app.health', params: {} };
 
         await expect(request({ sender: {} }, envelope)).resolves.toMatchObject({
             id: 'r1',
             ok: false,
             error: { code: 'PATH_DENIED' },
         });
-        expect(() => hello({ sender: {} }, { supportedVersions: [1] })).toThrow(
+        expect(() => hello({ sender: {} }, { supportedVersions: [2] })).toThrow(
             'Untrusted IPC sender',
         );
         await expect(request({ sender: renderer }, envelope)).resolves.toMatchObject({ ok: true });
-        expect(hello({ sender: renderer }, { supportedVersions: [1] })).toMatchObject({
-            protocolVersion: 1,
+        expect(hello({ sender: renderer }, { supportedVersions: [2] })).toMatchObject({
+            protocolVersion: 2,
         });
     });
 

@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import type { CaxriMethod } from '@shared/ipc';
 
 import { caxri } from '../lib/caxri';
+import { getWorkbenchProjectSessionIds } from '../stores/selectors';
 
 /** Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass. */
 const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
@@ -19,8 +20,8 @@ const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
  * on every file write.
  */
 function invalidateFileDependentQueries(
-    queryClient: ReturnType<typeof useQueryClient>,
-    sessionId: string,
+    queryClient: QueryClient,
+    sessionIds: readonly string[],
 ): void {
     const sessionScoped = new Set<CaxriMethod>([
         'files.browse',
@@ -35,7 +36,11 @@ function invalidateFileDependentQueries(
                 CaxriMethod,
                 { sessionId?: string } | undefined,
             ];
-            return sessionScoped.has(method) && params?.sessionId === sessionId;
+            return (
+                sessionScoped.has(method) &&
+                params?.sessionId !== undefined &&
+                sessionIds.includes(params.sessionId)
+            );
         },
     });
 }
@@ -78,32 +83,41 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
  */
 export function useRuntimeQueryInvalidation(): void {
     const queryClient = useQueryClient();
-    useEffect(() => {
-        const pendingTimers = new Map<string, number>();
-        const unsubscribe = caxri.onEvent((event) => {
-            if (event.event === 'workbench.changed') {
-                removeSessionQueries(queryClient, [event.payload.sessionId]);
-                return;
-            }
-            if (event.event === 'settings.changed') {
-                if (!event.payload.error) invalidateFileTreeQueries(queryClient);
-                return;
-            }
-            if (event.event !== 'files.changed') return;
-            const { sessionId } = event.payload;
-            const existing = pendingTimers.get(sessionId);
-            if (existing !== undefined) window.clearTimeout(existing);
-            pendingTimers.set(
-                sessionId,
-                window.setTimeout(() => {
-                    pendingTimers.delete(sessionId);
-                    invalidateFileDependentQueries(queryClient, sessionId);
-                }, FILE_CHANGE_INVALIDATION_DEBOUNCE_MS),
-            );
-        });
-        return () => {
-            unsubscribe();
-            for (const timer of pendingTimers.values()) window.clearTimeout(timer);
-        };
-    }, [queryClient]);
+    useEffect(() => subscribeRuntimeQueryInvalidation(queryClient), [queryClient]);
+}
+
+/**
+ * Subscribes the query cache to Runtime events. The debounce is keyed by Workbench Project rather
+ * than source Session because every Session currently routed to that root observes the same disk.
+ */
+export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {
+    const pendingTimers = new Map<string, number>();
+    const unsubscribe = caxri.onEvent((event) => {
+        if (event.event === 'workbench.changed') {
+            removeSessionQueries(queryClient, [event.payload.sessionId]);
+            return;
+        }
+        if (event.event === 'settings.changed') {
+            if (!event.payload.error) invalidateFileTreeQueries(queryClient);
+            return;
+        }
+        if (event.event !== 'files.changed') return;
+        const { sessionId, workbenchProjectId } = event.payload;
+        const existing = pendingTimers.get(workbenchProjectId);
+        if (existing !== undefined) globalThis.clearTimeout(existing);
+        pendingTimers.set(
+            workbenchProjectId,
+            globalThis.setTimeout(() => {
+                pendingTimers.delete(workbenchProjectId);
+                invalidateFileDependentQueries(
+                    queryClient,
+                    getWorkbenchProjectSessionIds(workbenchProjectId, sessionId),
+                );
+            }, FILE_CHANGE_INVALIDATION_DEBOUNCE_MS),
+        );
+    });
+    return () => {
+        unsubscribe();
+        for (const timer of pendingTimers.values()) globalThis.clearTimeout(timer);
+    };
 }

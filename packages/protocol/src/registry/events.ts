@@ -80,6 +80,8 @@ export const runtimeEventPayloads = {
     }),
     'files.changed': z.object({
         sessionId: z.string(),
+        /** Stable Project scope lets inactive Sessions sharing this root converge their caches. */
+        workbenchProjectId: identifierSchema,
         changes: z.array(fileChangeSchema),
         overflow: z.boolean(),
         gitIgnoreRulesChanged: z.literal(true).optional(),

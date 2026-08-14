@@ -190,6 +190,7 @@ describe('subscribeExternalDocumentSync', () => {
             event: 'files.changed',
             payload: {
                 sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
                 overflow: false,
                 changes: [{ kind: 'update', path: '/project/first.ts' }],
             },
@@ -200,6 +201,40 @@ describe('subscribeExternalDocumentSync', () => {
                 expect.objectContaining({ kind: 'info', persist: true }),
             );
         });
+        unsubscribe();
+    });
+
+    it('reconciles the selected sibling Session when its Workbench Project changes on disk', async () => {
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: { ...state.bootstrap!, selectedSessionId: 'session-2' },
+        }));
+        mocks.request.mockImplementationOnce((_method, params) =>
+            Promise.resolve({
+                path: (params as { path: string }).path,
+                content: 'disk content',
+                dirty: false,
+                mtimeMs: 2,
+                size: 12,
+            }),
+        );
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                overflow: false,
+                changes: [{ kind: 'update', path: oldPath }],
+            },
+        });
+
+        await vi.waitFor(() =>
+            expect(mocks.request).toHaveBeenCalledWith('files.read', {
+                sessionId: 'session-2',
+                path: oldPath,
+            }),
+        );
         unsubscribe();
     });
 });

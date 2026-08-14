@@ -30,7 +30,7 @@ describe('Main event relay', () => {
             payload: { command: 'session.delete', viaAccelerator: true },
         });
 
-        expect(delivered[0]).toMatchObject({ protocolVersion: 1, cursor: 1 });
+        expect(delivered[0]).toMatchObject({ protocolVersion: 2, cursor: 1 });
         expect(delivered[1]).toEqual({
             event: 'terminal.output',
             payload: { terminalId: 'terminal-1', data: 'private output' },
