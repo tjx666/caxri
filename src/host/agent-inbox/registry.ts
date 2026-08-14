@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
     AgentHeldMessage,
+    AgentHeldMessageDetail,
     AgentHeldRetention,
     AgentInboundMessage,
     AgentInboundPolicy,
@@ -18,10 +19,11 @@ import type { CommandExecutionContext } from '../../shared/ipc/principal';
 import type { AgentEndpointRegistry } from '../agent-endpoints';
 import {
     agentMessageDigest,
-    boundedPreview,
     decideInboundStatus,
     DUPLICATE_WINDOW_MS,
     endpointKey,
+    heldMessageDetail,
+    heldMessageProjection,
     LOOP_WINDOW_MS,
     MAX_HELD_PER_ENDPOINT,
     MAX_PAIR_MESSAGES_PER_WINDOW,
@@ -31,6 +33,8 @@ import {
     MAX_REPLY_DEPTH,
     MAX_WAITING_PER_ENDPOINT,
     refsEqual,
+    resolvePullReceiver,
+    resolveSender,
 } from './rules';
 import type {
     AgentInboxRegistryOptions,
@@ -100,7 +104,7 @@ export class AgentInboxRegistry {
 
     receipt(context: CommandExecutionContext, messageId: string): AgentMessageReceipt {
         this.sweep();
-        const sender = this.sender(context);
+        const sender = resolveSender(this.endpoints, context);
         const message = this.messages.get(messageId);
         if (!message || !refsEqual(message.from.ref, sender.ref))
             throw new CaxriError('NOT_FOUND', 'Agent message receipt was not found');
@@ -111,7 +115,7 @@ export class AgentInboxRegistry {
         policy: AgentInboundPolicy;
         heldRetention: AgentHeldRetention;
     } {
-        const endpoint = this.sender(context);
+        const endpoint = resolveSender(this.endpoints, context);
         return (
             this.policies.get(endpointKey(endpoint.ref)) ?? {
                 policy: 'auto',
@@ -124,7 +128,7 @@ export class AgentInboxRegistry {
         context: CommandExecutionContext,
         value: { policy: AgentInboundPolicy; heldRetention: AgentHeldRetention },
     ): { policy: AgentInboundPolicy; heldRetention: AgentHeldRetention } {
-        const endpoint = this.sender(context);
+        const endpoint = resolveSender(this.endpoints, context);
         const normalized =
             value.policy === 'hold'
                 ? value
@@ -138,7 +142,15 @@ export class AgentInboxRegistry {
         return [...this.messages.values()]
             .filter((message) => message.state === 'held' && message.body && message.to)
             .sort((left, right) => left.receipt.createdAt - right.receipt.createdAt)
-            .map((message) => this.heldProjection(message));
+            .map(heldMessageProjection);
+    }
+
+    heldDetail(messageId: string): AgentHeldMessageDetail {
+        this.sweep();
+        const message = this.messages.get(messageId);
+        if (!message || message.state !== 'held')
+            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        return heldMessageDetail(message);
     }
 
     approve(messageId: string): AgentMessageReceipt {
@@ -180,7 +192,7 @@ export class AgentInboxRegistry {
         requestId: string,
     ): Promise<AgentMessagePullResult> {
         this.sweep();
-        const receiver = this.pullReceiver(context);
+        const receiver = resolvePullReceiver(this.endpoints, context);
         const key = endpointKey(receiver.ref);
         if (
             this.waiters.has(key) ||
@@ -210,7 +222,7 @@ export class AgentInboxRegistry {
 
     check(context: CommandExecutionContext, requestId: string): AgentMessagePullResult {
         this.sweep();
-        const receiver = this.pullReceiver(context);
+        const receiver = resolvePullReceiver(this.endpoints, context);
         const key = endpointKey(receiver.ref);
         if (
             this.waiters.has(key) ||
@@ -229,7 +241,7 @@ export class AgentInboxRegistry {
         if (!reservation) return;
         let receiver: AgentEndpointSummary;
         try {
-            receiver = this.sender(context);
+            receiver = resolveSender(this.endpoints, context);
         } catch {
             this.cancelWait(requestId);
             return;
@@ -347,7 +359,7 @@ export class AgentInboxRegistry {
         idempotencyKey: string,
     ): AgentMessageReceipt {
         this.sweep();
-        const from = this.sender(context);
+        const from = resolveSender(this.endpoints, context);
         if (from.messaging.deliveryMode === 'unavailable')
             throw new CaxriError('UNAVAILABLE', 'Agent Endpoint messaging is unavailable', {
                 reason: from.messaging.reason,
@@ -539,7 +551,7 @@ export class AgentInboxRegistry {
         this.pushQueued(queue, receiverKey, messageId);
         this.scheduleExpiry(message);
         this.emitReceipt(message);
-        if (status === 'held') this.options.emitHeld?.(this.heldProjection(message));
+        if (status === 'held') this.options.emitHeld?.(heldMessageProjection(message));
         else this.satisfyWaiter(receiverKey);
         return receipt;
     }
@@ -624,40 +636,6 @@ export class AgentInboxRegistry {
     private releaseIdempotency({ idempotencyMapKey, receipt }: StoredMessage): void {
         const entry = this.idempotency.get(idempotencyMapKey);
         if (entry?.messageId === receipt.messageId) this.idempotency.delete(idempotencyMapKey);
-    }
-
-    private sender(context: CommandExecutionContext): AgentEndpointSummary {
-        return this.endpoints.context(context).endpoint;
-    }
-
-    private pullReceiver(context: CommandExecutionContext): AgentEndpointSummary {
-        const receiver = this.sender(context);
-        if (receiver.messaging.deliveryMode === 'unavailable')
-            throw new CaxriError('UNAVAILABLE', 'Agent Endpoint has no message adapter', {
-                reason: receiver.messaging.reason,
-                nextAction: receiver.messaging.nextAction,
-            });
-        if (receiver.messaging.deliveryMode !== 'pull')
-            throw new CaxriError('CONFLICT', 'Agent Endpoint uses Provider push messaging', {
-                reason: 'delivery_mode_push',
-                nextAction: 'none',
-            });
-        return receiver;
-    }
-
-    private heldProjection(message: StoredMessage): AgentHeldMessage {
-        if (!message.body || !message.to)
-            throw new CaxriError('INTERNAL', 'Held Agent message lost its in-memory body');
-        return {
-            messageId: message.receipt.messageId,
-            from: message.from,
-            to: message.to.ref,
-            preview: boundedPreview(message.body),
-            byteLength: message.byteLength,
-            createdAt: message.receipt.createdAt,
-            expiresAt: message.receipt.expiresAt,
-            ...(message.receipt.replyTo ? { replyTo: message.receipt.replyTo } : {}),
-        };
     }
 
     private reserve(

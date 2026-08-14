@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { chmod, lstat } from 'node:fs/promises';
 import { createServer, type Server, type Socket } from 'node:net';
 
@@ -6,7 +6,6 @@ import {
     createCommandDispatcher,
     createProtocolWelcome,
     type CommandDispatcher,
-    type CommandDispatcherOptions,
 } from '../shared/ipc/dispatcher';
 import { CaxriError, fromWireError, toWireError } from '../shared/ipc/errors';
 import type { ProtocolEventEnvelope, TransientRuntimeEvent } from '../shared/ipc/event-journal';
@@ -25,133 +24,33 @@ import {
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
+    LOCAL_TRANSPORT_MAX_FRAME_BYTES,
+    LocalJsonLineDecoder,
     type DesktopLease,
     type DesktopOperation,
-    type DesktopTargetPayload,
-    type HostDesktopCredential,
     type LocalClientCommand,
-    type LocalServerReply,
-    type HostManifest,
 } from '../shared/ipc/local-transport';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import type { AgentEndpointRef } from '../shared/ipc/agent-endpoint-contract';
 import { parseRuntimeRequest, type CommandReplyEnvelope } from '../shared/ipc/transport';
-import type { RuntimeRequest } from '../shared/ipc/methods';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import {
+    DESKTOP_COMMAND_TIMEOUT_MS,
+    DESKTOP_LEASE_MS,
+    executeReply,
+    fileSystemCode,
+    HANDSHAKE_TIMEOUT_MS,
+    MAX_IN_FLIGHT_REQUESTS,
+    MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS,
+    operatorContext,
+    tokenMatches,
+    type ClientState,
+    type DesktopLeaseWaiter,
+    type LocalHostServerOptions,
+    type PendingDesktopCommand,
+} from './local-server-support';
 
-const MAX_MESSAGE_BYTES = 1024 * 1024;
-const MAX_SOCKET_BUFFER_BYTES = 2 * MAX_MESSAGE_BYTES;
-const MAX_IN_FLIGHT_REQUESTS = 64;
-/** Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic. */
-const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
-const HANDSHAKE_TIMEOUT_MS = 2_000;
-const DESKTOP_LEASE_MS = 60_000;
-const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
-
-function fileSystemCode(error: unknown): string | undefined {
-    return typeof error === 'object' && error !== null && 'code' in error
-        ? String(Reflect.get(error, 'code'))
-        : undefined;
-}
-
-function tokenMatches(candidate: string, expected: string): boolean {
-    const candidateDigest = createHash('sha256').update(candidate).digest();
-    const expectedDigest = createHash('sha256').update(expected).digest();
-    return timingSafeEqual(candidateDigest, expectedDigest);
-}
-
-function operatorContext(profileId: string): CommandExecutionContext {
-    return {
-        capabilities: [
-            'desktop.window',
-            'diagnostics.read',
-            'agents.read',
-            'agents.control',
-            'agents.dispatch',
-            'agents.grant',
-            'events.read',
-            'host.read',
-            'host.stop',
-            'projects.read',
-            'sessions.read',
-            'settings.read',
-            'settings.write',
-            'terminals.read',
-            'terminals.steer',
-        ],
-        /** The authenticated profile is the retry identity across short-lived CLI connections. */
-        principal: { kind: 'human-cli', id: `human-cli:${profileId}` },
-    };
-}
-
-async function executeReply(
-    id: string,
-    action: () => Promise<unknown>,
-): Promise<CommandReplyEnvelope> {
-    try {
-        return {
-            protocolVersion: CAXRI_PROTOCOL_VERSION,
-            id,
-            ok: true,
-            result: await action(),
-        };
-    } catch (error) {
-        return {
-            protocolVersion: CAXRI_PROTOCOL_VERSION,
-            id,
-            ok: false,
-            error: toWireError(error),
-        };
-    }
-}
-
-interface ClientState {
-    closed: boolean;
-    context: CommandExecutionContext;
-    desktopLease?: DesktopLease;
-    desktopReady: boolean;
-    inFlightRequestIds: Map<string, number>;
-    inFlightRequests: number;
-    inFlightTerminalRequests: number;
-    leaseTimer?: NodeJS.Timeout;
-    socket: Socket;
-}
-
-interface PendingDesktopCommand {
-    reject(error: CaxriError): void;
-    resolve(value: unknown): void;
-    state: ClientState;
-    timer: NodeJS.Timeout;
-}
-
-interface DesktopLeaseWaiter {
-    reject(error: CaxriError): void;
-    resolve(lease: DesktopLease): void;
-    timer: NodeJS.Timeout;
-}
-
-export interface LocalHostServerOptions {
-    adapters: CommandDispatcherOptions;
-    authenticateAgent?(credential: {
-        hostId: string;
-        endpointId: string;
-        generation: number;
-        token: string;
-    }): CommandExecutionContext;
-    consumeDesktopTarget?(targetId: string, generation: number): Promise<DesktopTargetPayload>;
-    desktopCredential: HostDesktopCredential;
-    invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
-    manifest: HostManifest;
-    onClientCountChanged?(count: number): void;
-    onDesktopUnavailable?(): void;
-    onReplyFlushed?(
-        request: LocalClientCommand['request'],
-        reply: LocalServerReply['reply'],
-        context: CommandExecutionContext,
-    ): void;
-    onRequestDisconnected?(requestId: string, context: CommandExecutionContext): void;
-    refreshContext?(context: CommandExecutionContext): CommandExecutionContext;
-}
+export type { LocalHostServerOptions } from './local-server-support';
 
 /** Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients. */
 export class LocalHostServer {
@@ -339,9 +238,10 @@ export class LocalHostServer {
         if (!lease || this.currentDesktop !== state)
             throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
         if (state.leaseTimer) clearTimeout(state.leaseTimer);
-        const renewed = { ...lease, expiresAt: Date.now() + DESKTOP_LEASE_MS };
+        const durationMs = this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS;
+        const renewed = { ...lease, expiresAt: Date.now() + durationMs };
         state.desktopLease = renewed;
-        state.leaseTimer = setTimeout(() => this.revokeDesktop(state), DESKTOP_LEASE_MS);
+        state.leaseTimer = setTimeout(() => this.revokeDesktop(state), durationMs);
         state.leaseTimer.unref();
         return renewed;
     }
@@ -521,7 +421,7 @@ export class LocalHostServer {
         socket.setNoDelay(true);
         const handshakeTimer = setTimeout(() => socket.destroy(), HANDSHAKE_TIMEOUT_MS);
         let state: ClientState | undefined;
-        let source = '';
+        const decoder = new LocalJsonLineDecoder();
         let queue = Promise.resolve();
 
         const remove = (): void => {
@@ -544,19 +444,14 @@ export class LocalHostServer {
         socket.on('close', remove);
         socket.on('error', () => undefined);
         socket.on('data', (chunk: string) => {
-            source += chunk;
-            if (Buffer.byteLength(source, 'utf8') > MAX_SOCKET_BUFFER_BYTES) {
+            let lines: string[];
+            try {
+                lines = decoder.push(chunk);
+            } catch {
                 socket.destroy();
                 return;
             }
-            let newline = source.indexOf('\n');
-            while (newline !== -1) {
-                const line = source.slice(0, newline);
-                source = source.slice(newline + 1);
-                if (Buffer.byteLength(line, 'utf8') > MAX_MESSAGE_BYTES) {
-                    socket.destroy();
-                    return;
-                }
+            for (const line of lines) {
                 let raw: unknown;
                 try {
                     raw = JSON.parse(line) as unknown;
@@ -566,10 +461,7 @@ export class LocalHostServer {
                 }
                 /** Reverse replies must settle outside the ordered protocol-control queue to avoid a
                  * Desktop request deadlocking while Host routes a nested window operation back. */
-                if (state && this.settleDesktopReply(state, raw)) {
-                    newline = source.indexOf('\n');
-                    continue;
-                }
+                if (state && this.settleDesktopReply(state, raw)) continue;
                 const nestedTarget = state
                     ? localClientDesktopTargetConsumeSchema.safeParse(raw)
                     : undefined;
@@ -580,13 +472,33 @@ export class LocalHostServer {
                     void this.dispatchDesktopTargetConsume(socket, state, nestedTarget.data).catch(
                         () => socket.destroy(),
                     );
-                    newline = source.indexOf('\n');
+                    continue;
+                }
+                const renew = state ? localClientLeaseRenewSchema.safeParse(raw) : undefined;
+                /**
+                 * Lease renewal is authenticated control traffic, so it must not wait behind a
+                 * long ordered file operation and accidentally revoke the active Desktop.
+                 */
+                if (state?.context.principal.kind === 'desktop' && renew?.success) {
+                    try {
+                        if (state.desktopLease?.generation !== renew.data.generation)
+                            throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
+                        this.write(
+                            socket,
+                            localServerLeaseRenewedSchema.parse({
+                                type: 'desktop-lease.renewed',
+                                lease: this.renewDesktop(state),
+                            }),
+                        );
+                    } catch {
+                        socket.destroy();
+                    }
                     continue;
                 }
                 /**
                  * Only authenticated Desktop PTY input can bypass a slow ordinary command. The
-                 * handshake and all lease-control messages remain on `queue`, and this path keeps
-                 * its own bounded reservation in `dispatchCommand`.
+                 * handshake remains on `queue`, and this path keeps its own bounded reservation in
+                 * `dispatchCommand`.
                  */
                 const hotCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
                 if (
@@ -598,7 +510,6 @@ export class LocalHostServer {
                     void this.dispatchCommand(socket, state, hotCommand.data.request).catch(() =>
                         socket.destroy(),
                     );
-                    newline = source.indexOf('\n');
                     continue;
                 }
                 queue = queue
@@ -643,7 +554,9 @@ export class LocalHostServer {
                                 desktopLease = {
                                     desktopId: hello.credential.desktopId,
                                     generation,
-                                    expiresAt: Date.now() + DESKTOP_LEASE_MS,
+                                    expiresAt:
+                                        Date.now() +
+                                        (this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS),
                                 };
                                 context = {
                                     capabilities: ['desktop'],
@@ -712,27 +625,6 @@ export class LocalHostServer {
                             this.desktopLeaseWaiters.clear();
                             return;
                         }
-                        const renew = localClientLeaseRenewSchema.safeParse(raw);
-                        if (renew.success) {
-                            const principal = clientState.context.principal;
-                            const leaseGeneration = clientState.desktopLease?.generation;
-                            if (
-                                principal.kind !== 'desktop' ||
-                                leaseGeneration !== renew.data.generation
-                            )
-                                throw new CaxriError(
-                                    'CONFLICT',
-                                    'Desktop capability lease is stale',
-                                );
-                            this.write(
-                                socket,
-                                localServerLeaseRenewedSchema.parse({
-                                    type: 'desktop-lease.renewed',
-                                    lease: this.renewDesktop(clientState),
-                                }),
-                            );
-                            return;
-                        }
                         const runtimeCommand =
                             localClientDesktopRuntimeCommandSchema.safeParse(raw);
                         if (runtimeCommand.success) {
@@ -758,13 +650,12 @@ export class LocalHostServer {
                     .catch(() => {
                         socket.destroy();
                     });
-                newline = source.indexOf('\n');
             }
         });
     }
 
     private write(socket: Socket, message: unknown, flushed?: () => void): void {
-        if (socket.destroyed || socket.writableLength > MAX_SOCKET_BUFFER_BYTES) {
+        if (socket.destroyed || socket.writableLength > LOCAL_TRANSPORT_MAX_FRAME_BYTES) {
             socket.destroy();
             return;
         }

@@ -446,6 +446,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'agent.message.policy.get': () => mainOwned('agent.message.policy.get'),
         'agent.message.policy.set': () => mainOwned('agent.message.policy.set'),
         'agent.message.held': () => mainOwned('agent.message.held'),
+        'agent.message.held.get': () => mainOwned('agent.message.held.get'),
         'agent.message.approve': () => mainOwned('agent.message.approve'),
         'agent.message.deny': () => mainOwned('agent.message.deny'),
         'app.bootstrap': () => bootstrapState(),
@@ -795,6 +796,5 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         void restoreInterruptedTerminals(initialSessionId);
         coordinator.probeSessionPrimaryAgent(initialSessionId);
     }
-
     return { handlers, close };
 }

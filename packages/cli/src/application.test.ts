@@ -686,10 +686,13 @@ describe('CLI application', () => {
         });
     });
 
-    it('follows bounded log pages until Ctrl+C without exposing log fields', async () => {
+    it('backs off idle log polling and resets after output without exposing log fields', async () => {
         const output = io({ stdinIsTTY: false, stdoutIsTTY: false });
         const controller = new AbortController();
-        const client = host(
+        const client = host({}, ['logs.query']);
+        const pages = [
+            { records: [], nextCursor: 'cursor-1', gap: false, truncated: false },
+            { records: [], nextCursor: 'cursor-2', gap: false, truncated: false },
             {
                 records: [
                     {
@@ -700,20 +703,31 @@ describe('CLI application', () => {
                         event: 'runtime.ready',
                     },
                 ],
-                nextCursor: 'cursor-1',
+                nextCursor: 'cursor-3',
                 gap: false,
                 truncated: false,
             },
-            ['logs.query'],
+        ];
+        client.request = vi.fn(() =>
+            Promise.resolve(
+                pages.shift() ?? {
+                    records: [],
+                    nextCursor: 'cursor-4',
+                    gap: false,
+                    truncated: false,
+                },
+            ),
         );
+        const waits: number[] = [];
 
         await expect(
             runCli(['logs', 'follow', '--json'], {
                 connect: () => Promise.resolve(client),
                 io: output.io,
                 signal: controller.signal,
-                wait: () => {
-                    controller.abort();
+                wait: (milliseconds) => {
+                    waits.push(milliseconds);
+                    if (waits.length === 4) controller.abort();
                     return Promise.resolve();
                 },
             }),
@@ -722,6 +736,7 @@ describe('CLI application', () => {
         expect(output.stdout()).toBe(
             '{"event":"runtime.ready","id":"record-1","level":"info","process":"runtime","timestamp":"2026-08-14T00:00:00.000Z"}\n',
         );
+        expect(waits).toEqual([250, 500, 250, 250]);
         expect(output.stdout()).not.toContain('fields');
     });
 

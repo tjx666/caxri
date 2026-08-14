@@ -1,4 +1,4 @@
-import type { AgentHeldMessage } from '@shared/ipc';
+import type { AgentHeldMessage, AgentHeldMessageDetail } from '@shared/ipc';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '../../components/ui/button';
@@ -28,8 +28,11 @@ function upsert(messages: AgentHeldMessage[], incoming: AgentHeldMessage): Agent
  */
 export function AgentMessageApprovalDialog() {
     const [messages, setMessages] = useState<AgentHeldMessage[]>([]);
+    const [detail, setDetail] = useState<AgentHeldMessageDetail>();
+    const [detailFailed, setDetailFailed] = useState(false);
     const [pending, setPending] = useState(false);
     const current = messages[0];
+    const currentMessageId = current?.messageId;
 
     useEffect(() => {
         let active = true;
@@ -61,6 +64,27 @@ export function AgentMessageApprovalDialog() {
         };
     }, []);
 
+    useEffect(() => {
+        let active = true;
+        setDetail(undefined);
+        setDetailFailed(false);
+        if (!currentMessageId) return () => undefined;
+        void caxri
+            .request('agent.message.held.get', { messageId: currentMessageId })
+            .then((value) => active && setDetail(value))
+            .catch((error: unknown) => {
+                if (!active) return;
+                setDetailFailed(true);
+                pushToast(
+                    'error',
+                    describeFailure(error, 'Unable to load the complete peer message'),
+                );
+            });
+        return () => {
+            active = false;
+        };
+    }, [currentMessageId]);
+
     const endpointRef = useMemo(() => {
         if (!current) return '';
         const { hostId, endpointId, generation } = current.from.ref;
@@ -69,6 +93,7 @@ export function AgentMessageApprovalDialog() {
 
     async function settle(action: 'approve' | 'deny'): Promise<void> {
         if (!current || pending) return;
+        if (action === 'approve' && detail?.messageId !== current.messageId) return;
         setPending(true);
         try {
             await caxri.request(`agent.message.${action}`, { messageId: current.messageId });
@@ -116,10 +141,13 @@ export function AgentMessageApprovalDialog() {
                             </dd>
                         </dl>
                         <pre
-                            data-testid="agent-message-preview"
+                            data-testid="agent-message-body"
                             className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-background p-3 font-mono text-[11px] leading-5 text-foreground"
                         >
-                            {current.preview}
+                            {detail?.body ??
+                                (detailFailed
+                                    ? 'Unable to load the complete message.'
+                                    : 'Loading complete message…')}
                         </pre>
                         <div className="flex justify-end gap-2">
                             <Button
@@ -129,7 +157,10 @@ export function AgentMessageApprovalDialog() {
                             >
                                 Deny
                             </Button>
-                            <Button disabled={pending} onClick={() => void settle('approve')}>
+                            <Button
+                                disabled={pending || detail?.messageId !== current.messageId}
+                                onClick={() => void settle('approve')}
+                            >
                                 Approve message
                             </Button>
                         </div>

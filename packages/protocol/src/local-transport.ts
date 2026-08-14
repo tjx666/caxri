@@ -8,6 +8,11 @@ import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } fro
 
 export const HOST_MANIFEST_VERSION = 1 as const;
 export const HOST_DESKTOP_CREDENTIAL_VERSION = 1 as const;
+/**
+ * One authenticated JSON-line frame can contain two 16 MiB editor buffers. The extra headroom
+ * covers worst-case JSON escaping while keeping a malformed local peer under a fixed memory cap.
+ */
+export const LOCAL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
 export const hostCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
 export const hostProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 
@@ -53,6 +58,39 @@ export const desktopLeaseSchema = z.object({
 });
 
 export type DesktopLease = z.infer<typeof desktopLeaseSchema>;
+
+/** Incrementally decodes bounded JSON lines without repeatedly copying an incomplete frame. */
+export class LocalJsonLineDecoder {
+    private readonly encoder = new TextEncoder();
+    private readonly parts: string[] = [];
+    private pendingBytes = 0;
+
+    constructor(private readonly maximumFrameBytes = LOCAL_TRANSPORT_MAX_FRAME_BYTES) {}
+
+    push(chunk: string): string[] {
+        const lines: string[] = [];
+        let offset = 0;
+        let newline = chunk.indexOf('\n', offset);
+        while (newline !== -1) {
+            const part = chunk.slice(offset, newline);
+            this.append(part);
+            lines.push(this.parts.join(''));
+            this.parts.length = 0;
+            this.pendingBytes = 0;
+            offset = newline + 1;
+            newline = chunk.indexOf('\n', offset);
+        }
+        if (offset < chunk.length) this.append(chunk.slice(offset));
+        return lines;
+    }
+
+    private append(part: string): void {
+        this.pendingBytes += this.encoder.encode(part).byteLength;
+        if (this.pendingBytes > this.maximumFrameBytes)
+            throw new RangeError(`Local transport frame exceeds ${this.maximumFrameBytes} bytes`);
+        if (part.length > 0) this.parts.push(part);
+    }
+}
 
 export const localClientHelloSchema = protocolHelloSchema.extend({
     type: z.literal('hello'),

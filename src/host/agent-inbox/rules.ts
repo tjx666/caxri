@@ -1,10 +1,19 @@
 import { createHash } from 'node:crypto';
 
-import type { AgentInboundPolicy } from '../../shared/ipc/agent-inbox-contract';
+import type {
+    AgentHeldMessage,
+    AgentHeldMessageDetail,
+    AgentInboundPolicy,
+} from '../../shared/ipc/agent-inbox-contract';
 import type {
     AgentEndpointRef,
+    AgentEndpointSummary,
     AgentPermissionClass,
 } from '../../shared/ipc/agent-endpoint-contract';
+import { CaxriError } from '../../shared/ipc/errors';
+import type { CommandExecutionContext } from '../../shared/ipc/principal';
+import type { AgentEndpointRegistry } from '../agent-endpoints';
+import type { StoredMessage } from './types';
 
 export const MAX_WAITING_PER_ENDPOINT = 50;
 export const MAX_HELD_PER_ENDPOINT = 100;
@@ -28,8 +37,54 @@ export function agentMessageDigest(value: unknown): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-export function boundedPreview(body: string): string {
+function boundedPreview(body: string): string {
     return [...body].slice(0, 240).join('');
+}
+
+export function heldMessageProjection(message: StoredMessage): AgentHeldMessage {
+    if (!message.body || !message.to)
+        throw new CaxriError('INTERNAL', 'Held Agent message lost its in-memory body');
+    return {
+        messageId: message.receipt.messageId,
+        from: message.from,
+        to: message.to.ref,
+        preview: boundedPreview(message.body),
+        byteLength: message.byteLength,
+        createdAt: message.receipt.createdAt,
+        expiresAt: message.receipt.expiresAt,
+        ...(message.receipt.replyTo ? { replyTo: message.receipt.replyTo } : {}),
+    };
+}
+
+export function heldMessageDetail(message: StoredMessage): AgentHeldMessageDetail {
+    if (!message.body)
+        throw new CaxriError('INTERNAL', 'Held Agent message lost its in-memory body');
+    return { ...heldMessageProjection(message), body: message.body };
+}
+
+export function resolveSender(
+    endpoints: AgentEndpointRegistry,
+    context: CommandExecutionContext,
+): AgentEndpointSummary {
+    return endpoints.context(context).endpoint;
+}
+
+export function resolvePullReceiver(
+    endpoints: AgentEndpointRegistry,
+    context: CommandExecutionContext,
+): AgentEndpointSummary {
+    const receiver = resolveSender(endpoints, context);
+    if (receiver.messaging.deliveryMode === 'unavailable')
+        throw new CaxriError('UNAVAILABLE', 'Agent Endpoint has no message adapter', {
+            reason: receiver.messaging.reason,
+            nextAction: receiver.messaging.nextAction,
+        });
+    if (receiver.messaging.deliveryMode !== 'pull')
+        throw new CaxriError('CONFLICT', 'Agent Endpoint uses Provider push messaging', {
+            reason: 'delivery_mode_push',
+            nextAction: 'none',
+        });
+    return receiver;
 }
 
 /** The complete auto-policy matrix is intentionally small enough to exhaustively regression test. */

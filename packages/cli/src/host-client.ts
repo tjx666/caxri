@@ -20,6 +20,7 @@ import {
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
+    LocalJsonLineDecoder,
     parseCaxriRequest,
     parseCaxriResult,
     parseRuntimeRequest,
@@ -43,7 +44,6 @@ import {
 } from '@caxri/protocol';
 
 const MAX_MANIFEST_BYTES = 16 * 1024;
-const MAX_MESSAGE_BYTES = 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
 const LAUNCH_ENVIRONMENT_KEYS = [
     'HOME',
@@ -212,9 +212,9 @@ export async function discoverDesktopCredential(
 
 /** Authenticated local client shared by the CLI command surface and its future Agent adapter. */
 export class HostClient {
+    private readonly decoder = new LocalJsonLineDecoder();
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
     private readonly pending = new Map<string, PendingRequest>();
-    private source = '';
     private closed = false;
     private leaseRenewalTimer?: NodeJS.Timeout;
     desktopLease?: DesktopLease;
@@ -270,6 +270,7 @@ export class HostClient {
             throw error;
         }
         const socket = createConnection(manifest.endpoint);
+        socket.setEncoding('utf8');
         socket.setNoDelay(true);
         const handshake = await new Promise<{
             desktopLease?: DesktopLease;
@@ -289,7 +290,7 @@ export class HostClient {
             socket.once('close', fail);
             socket.on('data', (chunk: Buffer | string) => {
                 source += chunk.toString();
-                if (Buffer.byteLength(source, 'utf8') > MAX_MESSAGE_BYTES) {
+                if (Buffer.byteLength(source, 'utf8') > MAX_MANIFEST_BYTES) {
                     socket.destroy();
                     return;
                 }
@@ -353,22 +354,20 @@ export class HostClient {
                 ? (operation, consumeTarget) => credential.handleCommand(operation, consumeTarget)
                 : undefined,
         );
-        client.source = handshake.remainder;
-        client.receive('');
+        client.receive(handshake.remainder);
         socket.resume();
         return client;
     }
 
     private receive(chunk: string): void {
-        this.source += chunk;
-        if (Buffer.byteLength(this.source, 'utf8') > 2 * MAX_MESSAGE_BYTES) {
+        let lines: string[];
+        try {
+            lines = this.decoder.push(chunk);
+        } catch {
             this.close();
             return;
         }
-        let newline = this.source.indexOf('\n');
-        while (newline !== -1) {
-            const line = this.source.slice(0, newline);
-            this.source = this.source.slice(newline + 1);
+        for (const line of lines) {
             try {
                 const raw = JSON.parse(line) as unknown;
                 const renewed = localServerLeaseRenewedSchema.safeParse(raw);
@@ -387,7 +386,6 @@ export class HostClient {
                     const desktopCommand = localServerDesktopCommandSchema.safeParse(raw);
                     if (desktopCommand.success) {
                         void this.handleDesktopCommand(desktopCommand.data);
-                        newline = this.source.indexOf('\n');
                         continue;
                     }
                     const runtimeReply = localServerDesktopRuntimeReplySchema.safeParse(raw);
@@ -410,7 +408,6 @@ export class HostClient {
                 this.close();
                 return;
             }
-            newline = this.source.indexOf('\n');
         }
     }
 

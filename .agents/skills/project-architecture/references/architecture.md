@@ -70,7 +70,10 @@ The CLI derives its executable and Host entry only when the current RunAsNode pr
 directory, and script path match the immutable packaged application layout; no environment variable
 can nominate a process to spawn. Human commands may adopt or start one detached Host, while Agent and
 CI commands only connect to an already-running Host and Agent Endpoint credentials remain bound to
-their generation.
+their generation. The local JSON-line decoder is shared by Host and CLI, incrementally bounds frames
+large enough for configured editor and diff payloads, and never repeatedly copies an incomplete
+frame. Authenticated Desktop lease renewals bypass the ordered business-command queue so a bounded
+long-running file operation cannot expire the active Desktop generation.
 Top-level `open|reveal` submit only one bounded path and optional Session ID to the Host; Runtime
 revalidates Project containment and Host replaces that path with a one-use, generation-bound opaque
 target before Desktop Main can open or reveal it. CLI retries use the shared request-ID idempotency
@@ -217,8 +220,10 @@ snapshots, or PTY input. `auto` accepts only same-Project peers whose known perm
 otherwise the receiver's `accept`, `hold`, or `refuse` policy decides. Waiting and held queues are
 bounded independently, and expiration or either Endpoint generation ending destroys every undelivered
 body. A pull stays reserved until the authenticated local socket flushes its response; disconnecting
-before that boundary requeues the message at the FIFO front. Desktop approval moves only one held
-message into the receiver Inbox. Peer text carries `origin: peer` and can never grant a permission,
+before that boundary requeues the message at the FIFO front. The held-message list and event contain
+only a bounded preview; Desktop fetches the selected full in-memory body on demand and cannot approve
+until that fetch succeeds. Approval moves only one held message into the receiver Inbox. Peer text
+carries `origin: peer` and can never grant a permission,
 change settings, invoke a slash command, wake an Agent, or write a user prompt.
 
 Agent dispatch/control and human Terminal steer are separate command domains rather than Peer Inbox
@@ -286,6 +291,9 @@ Structured logs carry timestamp, process, level, event, correlation ID, duration
 The application version and short commit hash are injected at build time and read once by Main, which stamps its own logs and forwards them to the Runtime's environment so both processes' logs and the diagnostics export can be correlated to the exact build.
 
 Development launches write Host, Main, and Runtime JSONL files to the repository `logs/` directory for direct inspection. Packaged and test launches keep logs beneath the active Electron user-data directory so application data remains self-contained.
+
+CLI `logs follow` resets to a 250 ms poll after output and exponentially backs off idle polling to a
+two-second ceiling, avoiding repeated suffix reads and parsing when no new records exist.
 
 ## Recovery limits
 

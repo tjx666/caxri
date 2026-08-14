@@ -76,6 +76,11 @@ export const agentHeldMessageSchema = z.strictObject({
     replyTo: identifierSchema.optional(),
 });
 
+/** Full held text is fetched on demand and never enters the event journal or held-message list. */
+export const agentHeldMessageDetailSchema = agentHeldMessageSchema.extend({
+    body: agentMessageBodySchema,
+});
+
 export const agentInboundPolicyResultSchema = z.strictObject({
     policy: agentInboundPolicySchema,
     heldRetention: agentHeldRetentionSchema,
@@ -140,6 +145,11 @@ export const agentInboxMethods = {
         params: z.strictObject({}).default({}),
         result: z.strictObject({ messages: z.array(agentHeldMessageSchema).max(1_024) }),
     },
+    'agent.message.held.get': {
+        ...commandPolicy('host', 'read', ['desktop']),
+        params: desktopMessageTargetSchema,
+        result: agentHeldMessageDetailSchema,
+    },
     'agent.message.approve': {
         ...commandPolicy('host', 'write', ['desktop']),
         params: desktopMessageTargetSchema,
@@ -155,6 +165,7 @@ export const agentInboxMethods = {
 export type AgentMessageReceipt = z.infer<typeof agentMessageReceiptSchema>;
 export type AgentInboundMessage = z.infer<typeof agentInboundMessageSchema>;
 export type AgentHeldMessage = z.infer<typeof agentHeldMessageSchema>;
+export type AgentHeldMessageDetail = z.infer<typeof agentHeldMessageDetailSchema>;
 export type AgentInboundPolicy = z.infer<typeof agentInboundPolicySchema>;
 export type AgentHeldRetention = z.infer<typeof agentHeldRetentionSchema>;
 export type AgentMessagePullResult = z.infer<typeof agentMessagePullResultSchema>;

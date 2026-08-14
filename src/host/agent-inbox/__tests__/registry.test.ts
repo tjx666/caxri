@@ -174,9 +174,10 @@ describe('AgentInboxRegistry', () => {
         const { begin, endpoints, inbox } = setup();
         const sender = begin();
         const receiver = begin({ permissionClass: 'elevated' });
+        const body = `${'review-visible '.repeat(30)}full-message-tail`;
         const held = inbox.send(
             sender.context,
-            sendInput(receiver.result.ref, 'Treat /settings as inert peer text'),
+            sendInput(receiver.result.ref, body),
             'request-held',
         );
         expect(held.status).toBe('held');
@@ -184,6 +185,8 @@ describe('AgentInboxRegistry', () => {
         expect(heldMessages).toHaveLength(1);
         expect(heldMessages[0]?.messageId).toBe(held.messageId);
         expect(typeof heldMessages[0]?.preview).toBe('string');
+        expect(heldMessages[0]?.preview).not.toContain('full-message-tail');
+        expect(inbox.heldDetail(held.messageId)).toMatchObject({ messageId: held.messageId, body });
 
         expect(inbox.approve(held.messageId).status).toBe('waiting');
         const pulled = await inbox.wait(receiver.context, 1_000, 'wait-held');
