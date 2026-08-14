@@ -82,6 +82,8 @@ describe('CI workflow contract', () => {
             'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
         );
         expect(workflow).toContain('CAXRI_VALIDATION_ENV');
+        expect(workflow).toContain('NODE_VERSION="$(node --version)"');
+        expect(workflow).toContain('node: process.env.NODE_VERSION');
         expect(workflow).toContain('lockfileSha256: process.env.LOCKFILE_SHA256');
         expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(2);
         expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
