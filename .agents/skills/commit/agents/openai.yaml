@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Commit'
+  short_description: 'Create focused semantic commits and push active PR branches'
+  default_prompt: 'Use $commit to inspect my changes, create focused semantic commits, and push when the branch already has an open PR.'
