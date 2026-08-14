@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,6 +16,33 @@ afterEach(async () => {
 });
 
 describe('ProjectRootResolver', () => {
+    it('rejects an alternate Workbench Root replaced after its inode was authorized', async () => {
+        const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-root-replaced-'));
+        temporaryDirectories.push(createdDirectory);
+        const directory = await realpath(createdDirectory);
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const session = database.createSession(owner.id, 'shell').session;
+        const identity = await lstat(worktreeRoot, { bigint: true });
+        database.selectWorkbenchProject(session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        await rename(worktreeRoot, `${worktreeRoot}-original`);
+        await mkdir(worktreeRoot);
+
+        await expect(
+            new ProjectRootResolver(database).resolveSessionPath(session.id),
+        ).rejects.toMatchObject({
+            code: 'PATH_DENIED',
+        });
+        database.close();
+    });
+
     it('rejects a Project root replaced between metadata validation and realpath', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-project-root-race-'));
         temporaryDirectories.push(directory);

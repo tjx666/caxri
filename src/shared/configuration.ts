@@ -88,6 +88,9 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
         .enum([...agentProviderIds, 'shell'])
         .nullable()
         .default(null),
+    'workbench.newWorktreeBehavior': z
+        .enum(['ask', 'continueWhenAuthorized', 'ignore'])
+        .default('ask'),
     'agents.providers': agentProviderSettingsSchema,
     'security.trustedDomains': trustedDomainsSchema,
     'terminal.defaultWorkingDirectory': z

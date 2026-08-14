@@ -140,6 +140,7 @@ function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[
 
 const defaultSettings: AppSettings = {
     'session.defaultAgent': null,
+    'workbench.newWorktreeBehavior': 'ask',
     'agents.providers': structuredClone(defaultAgentProviderSettings),
     'security.trustedDomains': [],
     'terminal.defaultWorkingDirectory': null,

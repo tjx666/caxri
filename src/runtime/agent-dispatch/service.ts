@@ -242,9 +242,11 @@ export class AgentDispatchService {
         const existing = this.existing(dispatchId, fingerprint);
         if (existing) return existing;
         const session = this.targetSession(input.projectId, input.sessionId);
+        const ownerProject = this.options.database.getProject(session.projectId);
+        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
         const launch = this.options.launchSettings(input.provider);
         const projected = launchProjection(input.provider, launch, 'fresh');
-        const cwd = await this.options.terminalWorkingDirectory(session.rootPath);
+        const cwd = await this.options.terminalWorkingDirectory(ownerProject.rootPath);
         const identity = await this.options.terminalDirectoryIdentity(cwd);
         const { stored, terminal } = this.options.database.createAgentDispatchWithTerminal(
             {

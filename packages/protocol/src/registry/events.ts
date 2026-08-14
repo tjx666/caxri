@@ -32,6 +32,7 @@ const fullStateChangeReasonSchema = z.enum([
     'session.archive',
     'session.unarchive',
     'session.delete',
+    'session.workbenchRoot',
     'terminal.create',
     'terminal.close',
     'unknown',
@@ -84,6 +85,18 @@ export const runtimeEventPayloads = {
         gitIgnoreRulesChanged: z.literal(true).optional(),
     }),
     'files.operationChanged': fileMutationOperationSchema,
+    /** One-shot, content-free prompt trigger; Git topology remains Runtime-owned. */
+    'workbench.candidate': z.object({
+        candidateId: identifierSchema,
+        sessionId: identifierSchema,
+    }),
+    /** One-shot UI coordination layered over the durable `state.changed` convergence event. */
+    'workbench.changed': z.object({
+        sessionId: identifierSchema,
+        workbenchProjectId: identifierSchema,
+        reason: z.enum(['selected', 'authorized', 'fallback']),
+        returnedProjectTitle: z.string().min(1).max(1_024).optional(),
+    }),
     'settings.changed': configurationChangedSchema,
     'agentHooks.changed': agentHookHealthMapSchema,
     /** Sender-only status metadata. The message body is deliberately not representable here. */

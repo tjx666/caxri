@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { EditorDocument } from '@shared/editor-state';
+import type { BootstrapState } from '@shared/types';
 
 import {
+    getSessionDocuments,
     MAX_CACHED_DOCUMENT_BYTES_GLOBAL,
     MAX_CACHED_DOCUMENTS_PER_SESSION,
+    sessionViewScope,
     useSessionViewStore,
 } from './session-view';
+import { useWorkbenchStore } from './workbench';
 
 const document = (path: string, dirty = false): EditorDocument => ({
     path,
@@ -22,6 +26,7 @@ const cachedPaths = (sessionId: string): string[] =>
 describe('Session document cache', () => {
     beforeEach(() => {
         useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+        useWorkbenchStore.setState({ bootstrap: undefined });
     });
 
     it('releases a document when its tab is closed', () => {
@@ -92,6 +97,48 @@ describe('Session document cache', () => {
 
         expect(useSessionViewStore.getState().documents['session-1']).toBeUndefined();
         expect(cachedPaths('session-2')).toEqual(['/shared.ts']);
+    });
+
+    it('isolates same-path dirty buffers by Session and Workbench Project', () => {
+        const selectRoot = (workbenchProjectId: string): void =>
+            useWorkbenchStore.setState({
+                bootstrap: {
+                    sessions: [
+                        {
+                            id: 'session-1',
+                            projectId: 'project-owner',
+                            workbenchProjectId,
+                        },
+                    ],
+                } as unknown as BootstrapState,
+            });
+        selectRoot('project-owner');
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            ...document('/shared/file.ts', true),
+            content: 'owner draft',
+        });
+
+        selectRoot('project-worktree');
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            ...document('/shared/file.ts', true),
+            content: 'worktree draft',
+        });
+
+        expect(getSessionDocuments('session-1')?.['/shared/file.ts'].content).toBe(
+            'worktree draft',
+        );
+        expect(getSessionDocuments('session-1', 'project-owner')?.['/shared/file.ts'].content).toBe(
+            'owner draft',
+        );
+        expect(sessionViewScope('session-1', 'project-worktree')).toBe(
+            'session-1\0project-worktree',
+        );
+
+        selectRoot('project-owner');
+        expect(getSessionDocuments('session-1')?.['/shared/file.ts']).toMatchObject({
+            content: 'owner draft',
+            dirty: true,
+        });
     });
 
     it('remaps descendant documents without losing dirty buffers', () => {

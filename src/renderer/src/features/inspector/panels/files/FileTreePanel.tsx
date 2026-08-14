@@ -12,7 +12,7 @@ import {
 import { CommandTooltip, Tooltip } from '../../../../components/ui/tooltip';
 import { executeCommand } from '../../../../commands/execute';
 import { cn } from '../../../../lib/utils';
-import { useSelectedProject, useSelectedSession } from '../../../../stores/selectors';
+import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
 import { FileConflictDialog } from './FileConflictDialog';
@@ -62,10 +62,11 @@ function useCancelRevealed(operation: PendingFileOperation | undefined): boolean
 
 export function FileTreePanel() {
     const session = useSelectedSession();
-    const project = useSelectedProject();
+    const project = useSelectedWorkbenchProject();
     const sessionId = session?.id;
+    const scopeId = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const clipboard = useFileClipboardStore((state) => state.entry);
-    const selectedProjectId = project?.id ?? session?.projectId;
+    const selectedProjectId = project?.id ?? session?.workbenchProjectId;
     const operations = useFileOperationStore((state) => state.operations);
     const projectOperations = operations.filter(
         (operation) => operation.projectId === selectedProjectId,
@@ -74,32 +75,33 @@ export function FileTreePanel() {
     const cancelRevealed = useCancelRevealed(pendingOperation);
     const fileCaptionRef = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
+    const [expandedByScope, setExpandedByScope] = useState<Record<string, string[]>>({});
     const [editingState, setEditingState] = useState<{
         request: EditRequest;
-        sessionId: string;
+        scopeId: string;
     }>();
-    const [focusState, setFocusState] = useState<{ path: string; sessionId: string }>();
-    const [selectionState, setSelectionState] = useState<{
-        path: string;
-        sessionId: string;
-    }>();
+    const [focusByScope, setFocusByScope] = useState<Record<string, string | undefined>>({});
+    const [selectionByScope, setSelectionByScope] = useState<Record<string, string | undefined>>(
+        {},
+    );
     const editing =
-        editingState && editingState.sessionId === sessionId ? editingState.request : undefined;
-    const focusPath =
-        focusState && focusState.sessionId === sessionId ? focusState.path : undefined;
-    const selectedPath =
-        selectionState && selectionState.sessionId === sessionId ? selectionState.path : undefined;
+        editingState && editingState.scopeId === scopeId ? editingState.request : undefined;
+    const focusPath = scopeId ? focusByScope[scopeId] : undefined;
+    const selectedPath = scopeId ? selectionByScope[scopeId] : undefined;
     const setEditing = (request?: EditRequest): void =>
-        setEditingState(request && sessionId ? { request, sessionId } : undefined);
-    const setSelectedPath = (path?: string): void =>
-        setSelectionState(path && sessionId ? { path, sessionId } : undefined);
-    const clearFocusPath = (): void => setFocusState(undefined);
+        setEditingState(request && scopeId ? { request, scopeId } : undefined);
+    const setSelectedPath = (path?: string): void => {
+        if (scopeId) setSelectionByScope((current) => ({ ...current, [scopeId]: path }));
+    };
+    const clearFocusPath = (): void => {
+        if (scopeId) setFocusByScope((current) => ({ ...current, [scopeId]: undefined }));
+    };
     const requestFocus = (target: FocusTarget): void => {
         if (target.kind === 'path') {
-            setFocusState(sessionId ? { path: target.path, sessionId } : undefined);
+            if (scopeId) setFocusByScope((current) => ({ ...current, [scopeId]: target.path }));
             return;
         }
-        setFocusState(undefined);
+        clearFocusPath();
         const label = target.itemKind === 'file' ? 'New File' : 'New Folder';
         fileCaptionRef.current
             ?.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
@@ -116,7 +118,21 @@ export function FileTreePanel() {
                 Create a Session to browse files.
             </div>
         );
-    const projectId = selectedProjectId ?? session.projectId;
+    const projectId = selectedProjectId ?? session.workbenchProjectId;
+    const expandedPaths = new Set(scopeId ? (expandedByScope[scopeId] ?? []) : []);
+    const setPathExpanded = (
+        path: string,
+        next: boolean | ((current: boolean) => boolean),
+    ): void => {
+        if (!scopeId) return;
+        setExpandedByScope((current) => {
+            const paths = new Set(current[scopeId] ?? []);
+            const expanded = typeof next === 'function' ? next(paths.has(path)) : next;
+            if (expanded) paths.add(path);
+            else paths.delete(path);
+            return { ...current, [scopeId]: [...paths] };
+        });
+    };
     const rootClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
     const rootPasteBlocked = isPathBlockedByFileOperations(
         projectOperations,
@@ -151,9 +167,10 @@ export function FileTreePanel() {
         >
             <DirectoryEntries
                 clearFocusPath={clearFocusPath}
-                key={`${session.id}:${collapseRevision}`}
+                key={`${scopeId}:${collapseRevision}`}
                 directory={session.rootPath}
                 editing={editing}
+                expandedPaths={expandedPaths}
                 operations={projectOperations}
                 focusPath={focusPath}
                 projectId={projectId}
@@ -162,6 +179,7 @@ export function FileTreePanel() {
                 sessionId={session.id}
                 requestFocus={requestFocus}
                 setEditing={setEditing}
+                setPathExpanded={setPathExpanded}
                 setSelectedPath={setSelectedPath}
             />
         </div>
@@ -169,7 +187,7 @@ export function FileTreePanel() {
 
     return (
         <div
-            key={session.id}
+            key={scopeId}
             aria-busy={Boolean(pendingOperation)}
             className="inspector-content flex min-h-0 flex-1 flex-col overflow-hidden"
         >
@@ -244,7 +262,14 @@ export function FileTreePanel() {
                             size="icon"
                             variant="ghost"
                             aria-label="Collapse Folders"
-                            onClick={() => setCollapseRevision((value) => value + 1)}
+                            onClick={() => {
+                                if (scopeId)
+                                    setExpandedByScope((current) => ({
+                                        ...current,
+                                        [scopeId]: [],
+                                    }));
+                                setCollapseRevision((value) => value + 1);
+                            }}
                         >
                             <SquareMinus size={13} />
                         </Button>
@@ -270,7 +295,11 @@ export function FileTreePanel() {
                 </div>
             )}
             {searchVisible ? (
-                <ProjectSearch focusRevision={searchFocusRevision} sessionId={session.id} />
+                <ProjectSearch
+                    key={scopeId}
+                    focusRevision={searchFocusRevision}
+                    sessionId={session.id}
+                />
             ) : (
                 <ContextMenu>
                     <ContextMenuTrigger render={tree} />

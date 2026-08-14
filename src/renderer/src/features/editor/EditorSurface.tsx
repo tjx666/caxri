@@ -4,7 +4,7 @@ import { editorModelPath } from '@shared/editor-state';
 import { parseGitDiffTab } from '@shared/git-diff';
 
 import { useSelectedSession, useTheme } from '../../stores/selectors';
-import { useDocument } from '../../stores/session-view';
+import { sessionViewScope, useDocument } from '../../stores/session-view';
 import { cacheDocument, changeDocument } from './document-actions';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import type { CodeEditorProps } from './CodeEditor';
@@ -39,21 +39,23 @@ function LoadedCodeEditor(props: CodeEditorProps) {
  * or evicted by the document cache cap — reads it on demand instead of being closed.
  */
 function FileEditorSurface({ path }: { path: string }) {
-    const sessionId = useSelectedSession()?.id;
+    const session = useSelectedSession();
+    const sessionId = session?.id;
+    const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
     const theme = useTheme();
-    const document = useDocument(sessionId, path);
+    const document = useDocument(sessionId, path, session?.workbenchProjectId);
 
     useEffect(() => {
         if (!sessionId || document) return;
         void cacheDocument(sessionId, path);
     }, [document, path, sessionId]);
 
-    if (!sessionId || !theme) return null;
+    if (!sessionId || !scope || !theme) return null;
     if (!document) return <div className={emptyWorkClassName}>Loading file…</div>;
     return (
         <LoadedCodeEditor
-            path={editorModelPath(sessionId, path)}
-            statusKey={editorStatusKey(sessionId, path)}
+            path={editorModelPath(scope, path)}
+            statusKey={editorStatusKey(scope, path)}
             value={document.content}
             theme={theme}
             onChange={(content) => changeDocument(path, content ?? '')}

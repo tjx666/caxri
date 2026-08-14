@@ -18,7 +18,8 @@ export interface ProjectRootResolverOptions {
 }
 
 /**
- * Resolves a Session to its owning Project root and validates Session-relative paths against it.
+ * Resolves a Session to its active Workbench Project root and validates Session-relative paths
+ * against it. Terminal and Agent launch code deliberately resolves the owning Project separately.
  *
  * This is the single place that turns a Session ID plus an optional relative or absolute path into
  * a filesystem location, so `FileService` and `GitService` share one TOCTOU-safe resolution instead
@@ -30,12 +31,29 @@ export class ProjectRootResolver {
         private readonly options: ProjectRootResolverOptions = {},
     ) {}
 
+    /** Captures the authorized root before a durable operation crosses an asynchronous boundary. */
+    getSessionWorkbenchProjectId(sessionId: string): string {
+        const binding = this.database.getSessionWorkbenchBinding(sessionId);
+        if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
+        return binding.workbenchProjectId;
+    }
+
     async resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
         const session = this.database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const binding = this.database.getSessionWorkbenchBinding(sessionId);
+        if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
         const rootStats = await lstat(session.rootPath, { bigint: true });
         if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
             throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
+        if (
+            binding.workbenchProjectId !== binding.projectId &&
+            (binding.rootDevice === undefined ||
+                binding.rootInode === undefined ||
+                rootStats.dev.toString() !== binding.rootDevice ||
+                rootStats.ino.toString() !== binding.rootInode)
+        )
+            throw new CaxriError('PATH_DENIED', 'Workbench root changed after authorization');
         await this.options.beforeRootRealpath?.();
         const root = await realpath(session.rootPath);
         await this.options.afterRootRealpath?.();

@@ -15,6 +15,7 @@ import { errorMessage } from '@shared/ipc';
 import type { ProcessState, ThemeTokens } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
+import { sessionViewScope } from '../../stores/session-view';
 import { useDialogStore } from '../../stores/dialogs';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
@@ -315,7 +316,10 @@ export function useTerminalPaneRuntime({
                 void openFile(path).then((resolvedPath) => {
                     if (!resolvedPath || !location) return;
                     revealEditorLocation(
-                        editorModelPath(latestRef.current.terminalSessionId, resolvedPath),
+                        editorModelPath(
+                            sessionViewScope(latestRef.current.terminalSessionId),
+                            resolvedPath,
+                        ),
                         location,
                     );
                 });

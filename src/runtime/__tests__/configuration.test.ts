@@ -44,6 +44,7 @@ describe('ConfigurationService', () => {
                 },
             },
             'security.trustedDomains': [],
+            'workbench.newWorktreeBehavior': 'ask',
             'terminal.defaultWorkingDirectory': null,
             'terminal.fontSize': 15,
             'terminal.gpuAcceleration': 'off',

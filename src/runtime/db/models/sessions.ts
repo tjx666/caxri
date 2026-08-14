@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
+import { z } from 'zod';
 
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
+import { isGitDiffTabPath } from '../../../shared/git-diff';
+import { CaxriError } from '../../../shared/ipc/errors';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
 import type {
     AgentActivityState,
@@ -21,10 +26,14 @@ import {
 } from '../schema';
 import { DEFAULT_LAYOUT_VERSION, type CaxriDrizzleDatabase } from '../connection';
 
+const workbenchProjects = alias(projects, 'workbench_projects');
+const effectiveWorkbenchProjectId = sql<string>`COALESCE(${sessions.workbenchProjectId}, ${sessions.projectId})`;
+
 const sessionSelection = {
     id: sessions.id,
     projectId: sessions.projectId,
-    rootPath: projects.rootPath,
+    workbenchProjectId: effectiveWorkbenchProjectId,
+    rootPath: workbenchProjects.rootPath,
     createdAt: sessions.createdAt,
     lastOpenedAt: sessions.lastOpenedAt,
     archivedAt: sessions.archivedAt,
@@ -41,6 +50,7 @@ const sessionSelection = {
 interface SessionJoinRow {
     id: string;
     projectId: string;
+    workbenchProjectId: string;
     rootPath: string;
     createdAt: number;
     lastOpenedAt: number;
@@ -59,6 +69,7 @@ function mapSession(row: SessionJoinRow): SessionRecord {
     return {
         id: row.id,
         projectId: row.projectId,
+        workbenchProjectId: row.workbenchProjectId,
         rootPath: row.rootPath,
         createdAt: row.createdAt,
         lastOpenedAt: row.lastOpenedAt,
@@ -80,14 +91,51 @@ export interface NewSessionInput {
     displayTitle: string;
 }
 
+export interface SessionWorkbenchBinding {
+    projectId: string;
+    workbenchProjectId: string;
+    rootDevice?: string;
+    rootInode?: string;
+}
+
 interface SessionStateRow {
     sessionId: string;
+    projectId: string;
+    workbenchProjectId: string | null;
     stateVersion: number;
     openTabsJson: string;
     activeTabJson: string | null;
     editorRemapOperationId: string | null;
+    workbenchStateJson: string;
     inspectorMode: string;
     layoutJson: string;
+}
+
+const workbenchEditorStateSchema = z.object({
+    openTabs: sessionStateSchema.shape.openTabs,
+    activeTab: sessionStateSchema.shape.activeTab,
+    editorRemapOperationId: sessionStateSchema.shape.editorRemapOperationId,
+});
+const workbenchEditorStatesSchema = z
+    .record(z.string().min(1).max(200), workbenchEditorStateSchema)
+    .refine((states) => Object.keys(states).length <= 1_024, 'Too many Workbench Root states');
+type WorkbenchEditorStates = z.infer<typeof workbenchEditorStatesSchema>;
+
+function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | undefined {
+    try {
+        const parsed = workbenchEditorStatesSchema.safeParse(JSON.parse(source) as unknown);
+        return parsed.success ? parsed.data : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function remapStoredEditorPath(path: string, previousPath: string, nextPath: string): string {
+    if (isGitDiffTabPath(path)) return path;
+    const nested = relative(previousPath, path);
+    if (nested === '') return nextPath;
+    if (nested === '..' || nested.startsWith(`..${sep}`) || isAbsolute(nested)) return path;
+    return resolve(nextPath, nested);
 }
 
 export interface SessionStateRepair {
@@ -101,19 +149,45 @@ function parseSessionState(
 ): { state: SessionState } | { reason: SessionStateRepair['reason'] } {
     if (row.stateVersion !== CURRENT_SESSION_STATE_VERSION)
         return { reason: 'unsupported_version' };
-    let candidate: unknown;
+    let layout: unknown;
+    let legacyOpenTabs: unknown;
+    let legacyActiveTab: unknown;
+    let workbenchStatesSource: unknown;
     try {
-        candidate = {
-            sessionId: row.sessionId,
-            openTabs: JSON.parse(row.openTabsJson) as unknown,
-            activeTab: row.activeTabJson ? (JSON.parse(row.activeTabJson) as unknown) : undefined,
-            editorRemapOperationId: row.editorRemapOperationId ?? undefined,
-            inspectorMode: row.inspectorMode,
-            layout: JSON.parse(row.layoutJson) as unknown,
-        };
+        layout = JSON.parse(row.layoutJson) as unknown;
+        legacyOpenTabs = JSON.parse(row.openTabsJson) as unknown;
+        legacyActiveTab = row.activeTabJson
+            ? (JSON.parse(row.activeTabJson) as unknown)
+            : undefined;
+        workbenchStatesSource = JSON.parse(row.workbenchStateJson) as unknown;
     } catch {
         return { reason: 'invalid_json' };
     }
+    const workbenchStatesResult = workbenchEditorStatesSchema.safeParse(workbenchStatesSource);
+    const activeTabResult = sessionStateSchema.shape.activeTab.safeParse(legacyActiveTab);
+    if (!workbenchStatesResult.success || !activeTabResult.success)
+        return { reason: 'invalid_shape' };
+    const workbenchProjectId = row.workbenchProjectId ?? row.projectId;
+    const rootState = workbenchStatesResult.data[workbenchProjectId];
+    const legacyOwnerState = workbenchProjectId === row.projectId && !rootState;
+    const activeTab = activeTabResult.data;
+    const candidate: unknown = {
+        sessionId: row.sessionId,
+        workbenchProjectId,
+        openTabs: rootState?.openTabs ?? (legacyOwnerState ? legacyOpenTabs : []),
+        activeTab:
+            rootState?.activeTab ??
+            (legacyOwnerState && activeTab?.kind === 'editor'
+                ? activeTab
+                : activeTab?.kind === 'terminal'
+                  ? activeTab
+                  : undefined),
+        editorRemapOperationId:
+            rootState?.editorRemapOperationId ??
+            (legacyOwnerState ? (row.editorRemapOperationId ?? undefined) : undefined),
+        inspectorMode: row.inspectorMode,
+        layout,
+    };
     const parsed = sessionStateSchema.safeParse(candidate);
     return parsed.success ? { state: parsed.data } : { reason: 'invalid_shape' };
 }
@@ -131,6 +205,14 @@ export class SessionsModel {
     ) {}
 
     private defaultState(sessionId: string): SessionState {
+        const session = this.db
+            .select({
+                projectId: sessions.projectId,
+                workbenchProjectId: sessions.workbenchProjectId,
+            })
+            .from(sessions)
+            .where(eq(sessions.id, sessionId))
+            .get();
         const firstTerminal = this.db
             .select({ id: terminals.id })
             .from(terminals)
@@ -139,6 +221,7 @@ export class SessionsModel {
             .get();
         return {
             sessionId,
+            workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
             openTabs: [],
             inspectorMode: 'files',
             layout: firstTerminal ? createTerminalLayout(firstTerminal.id) : {},
@@ -167,14 +250,20 @@ export class SessionsModel {
             ? this.db
                   .select(sessionSelection)
                   .from(sessions)
-                  .innerJoin(projects, eq(projects.id, sessions.projectId))
+                  .innerJoin(
+                      workbenchProjects,
+                      eq(workbenchProjects.id, effectiveWorkbenchProjectId),
+                  )
                   .where(eq(sessions.projectId, projectId))
                   .orderBy(asc(sessions.createdAt), asc(sessions.id))
                   .all()
             : this.db
                   .select(sessionSelection)
                   .from(sessions)
-                  .innerJoin(projects, eq(projects.id, sessions.projectId))
+                  .innerJoin(
+                      workbenchProjects,
+                      eq(workbenchProjects.id, effectiveWorkbenchProjectId),
+                  )
                   .orderBy(asc(sessions.createdAt), asc(sessions.id))
                   .all();
         return rows.map(mapSession);
@@ -184,10 +273,89 @@ export class SessionsModel {
         const row = this.db
             .select(sessionSelection)
             .from(sessions)
-            .innerJoin(projects, eq(projects.id, sessions.projectId))
+            .innerJoin(workbenchProjects, eq(workbenchProjects.id, effectiveWorkbenchProjectId))
             .where(eq(sessions.id, id))
             .get();
         return row ? mapSession(row) : undefined;
+    }
+
+    getWorkbenchBinding(id: string): SessionWorkbenchBinding | undefined {
+        const row = this.db
+            .select({
+                projectId: sessions.projectId,
+                workbenchProjectId: sessions.workbenchProjectId,
+                rootDevice: sessions.workbenchRootDevice,
+                rootInode: sessions.workbenchRootInode,
+            })
+            .from(sessions)
+            .where(eq(sessions.id, id))
+            .get();
+        if (!row) return undefined;
+        return {
+            projectId: row.projectId,
+            workbenchProjectId: row.workbenchProjectId ?? row.projectId,
+            rootDevice: row.rootDevice ?? undefined,
+            rootInode: row.rootInode ?? undefined,
+        };
+    }
+
+    /** Persists an alternate authorized Project, or null-normalizes the owning Project. */
+    setWorkbenchProject(
+        sessionId: string,
+        projectId: string,
+        identity?: { device: string; inode: string },
+    ): boolean {
+        const owner = this.db
+            .select({ projectId: sessions.projectId })
+            .from(sessions)
+            .where(eq(sessions.id, sessionId))
+            .get();
+        if (!owner) return false;
+        const alternate = projectId !== owner.projectId;
+        return (
+            this.db
+                .update(sessions)
+                .set({
+                    workbenchProjectId: alternate ? projectId : null,
+                    workbenchRootDevice: alternate ? (identity?.device ?? null) : null,
+                    workbenchRootInode: alternate ? (identity?.inode ?? null) : null,
+                })
+                .where(eq(sessions.id, sessionId))
+                .run().changes === 1
+        );
+    }
+
+    listUsingWorkbenchProject(projectId: string): SessionRecord[] {
+        const ids = this.db
+            .select({ id: sessions.id })
+            .from(sessions)
+            .where(eq(sessions.workbenchProjectId, projectId))
+            .all();
+        return ids.flatMap(({ id }) => {
+            const session = this.get(id);
+            return session ? [session] : [];
+        });
+    }
+
+    /** Clears explicit bindings before an authorized Project row can be deleted. */
+    resetWorkbenchProject(projectId: string): string[] {
+        const sessionIds = this.db
+            .select({ id: sessions.id })
+            .from(sessions)
+            .where(eq(sessions.workbenchProjectId, projectId))
+            .all()
+            .map(({ id }) => id);
+        if (sessionIds.length > 0)
+            this.db
+                .update(sessions)
+                .set({
+                    workbenchProjectId: null,
+                    workbenchRootDevice: null,
+                    workbenchRootInode: null,
+                })
+                .where(eq(sessions.workbenchProjectId, projectId))
+                .run();
+        return sessionIds;
     }
 
     /** A new Session never starts with a primary Agent Terminal; the caller assigns one afterward. */
@@ -315,8 +483,20 @@ export class SessionsModel {
 
     getState(sessionId: string): SessionState {
         const row = this.db
-            .select()
+            .select({
+                sessionId: sessionStateTable.sessionId,
+                projectId: sessions.projectId,
+                workbenchProjectId: sessions.workbenchProjectId,
+                stateVersion: sessionStateTable.stateVersion,
+                openTabsJson: sessionStateTable.openTabsJson,
+                activeTabJson: sessionStateTable.activeTabJson,
+                editorRemapOperationId: sessionStateTable.editorRemapOperationId,
+                workbenchStateJson: sessionStateTable.workbenchStateJson,
+                inspectorMode: sessionStateTable.inspectorMode,
+                layoutJson: sessionStateTable.layoutJson,
+            })
             .from(sessionStateTable)
+            .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
             .where(eq(sessionStateTable.sessionId, sessionId))
             .get();
         if (!row) return this.defaultState(sessionId);
@@ -328,10 +508,13 @@ export class SessionsModel {
         const rows = this.db
             .select({
                 sessionId: sessionStateTable.sessionId,
+                projectId: sessions.projectId,
+                workbenchProjectId: sessions.workbenchProjectId,
                 stateVersion: sessionStateTable.stateVersion,
                 openTabsJson: sessionStateTable.openTabsJson,
                 activeTabJson: sessionStateTable.activeTabJson,
                 editorRemapOperationId: sessionStateTable.editorRemapOperationId,
+                workbenchStateJson: sessionStateTable.workbenchStateJson,
                 inspectorMode: sessionStateTable.inspectorMode,
                 layoutJson: sessionStateTable.layoutJson,
             })
@@ -358,15 +541,59 @@ export class SessionsModel {
 
     updateState(state: SessionState): void {
         const durableState = withoutEditorTabDirtiness(state);
+        const binding = this.getWorkbenchBinding(state.sessionId);
+        if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
+        if (binding.workbenchProjectId !== state.workbenchProjectId)
+            throw new CaxriError('CONFLICT', 'Session state belongs to a stale Workbench Root');
+        const existing = this.db
+            .select()
+            .from(sessionStateTable)
+            .where(eq(sessionStateTable.sessionId, state.sessionId))
+            .get();
+        let workbenchStates: WorkbenchEditorStates = {};
+        if (existing) {
+            workbenchStates = parseWorkbenchEditorStates(existing.workbenchStateJson) ?? {};
+        }
+        const previousRootState = workbenchStates[state.workbenchProjectId];
+        const rootActiveTab = durableState.activeTab ?? previousRootState?.activeTab;
+        workbenchStates = {
+            ...workbenchStates,
+            [state.workbenchProjectId]: {
+                openTabs: durableState.openTabs,
+                ...(rootActiveTab ? { activeTab: rootActiveTab } : {}),
+                ...(durableState.editorRemapOperationId
+                    ? { editorRemapOperationId: durableState.editorRemapOperationId }
+                    : {}),
+            },
+        };
+        let existingTerminalActiveTab: SessionState['activeTab'];
+        if (existing?.activeTabJson) {
+            try {
+                const parsed = sessionStateSchema.shape.activeTab.safeParse(
+                    JSON.parse(existing.activeTabJson) as unknown,
+                );
+                if (parsed.success && parsed.data?.kind === 'terminal')
+                    existingTerminalActiveTab = parsed.data;
+            } catch {
+                // The next Terminal activation replaces this legacy/global fallback.
+            }
+        }
+        const terminalActiveTab =
+            durableState.activeTab?.kind === 'terminal'
+                ? durableState.activeTab
+                : existingTerminalActiveTab;
+        const isOwnerRoot = state.workbenchProjectId === binding.projectId;
         const values = {
             sessionId: durableState.sessionId,
             stateVersion: CURRENT_SESSION_STATE_VERSION,
-            openTabsJson: JSON.stringify(durableState.openTabs),
-            activeTabJson:
-                durableState.activeTab === undefined
-                    ? null
-                    : JSON.stringify(durableState.activeTab),
-            editorRemapOperationId: durableState.editorRemapOperationId ?? null,
+            openTabsJson: isOwnerRoot
+                ? JSON.stringify(durableState.openTabs)
+                : (existing?.openTabsJson ?? '[]'),
+            activeTabJson: terminalActiveTab ? JSON.stringify(terminalActiveTab) : null,
+            editorRemapOperationId: isOwnerRoot
+                ? (durableState.editorRemapOperationId ?? null)
+                : (existing?.editorRemapOperationId ?? null),
+            workbenchStateJson: JSON.stringify(workbenchStates),
             inspectorMode: durableState.inspectorMode,
             layoutJson: JSON.stringify(durableState.layout),
         };
@@ -380,10 +607,105 @@ export class SessionsModel {
                     stateVersion: values.stateVersion,
                     activeTabJson: values.activeTabJson,
                     editorRemapOperationId: values.editorRemapOperationId,
+                    workbenchStateJson: values.workbenchStateJson,
                     inspectorMode: values.inspectorMode,
                     layoutJson: values.layoutJson,
                 },
             })
             .run();
+    }
+
+    /** Remaps one durable root snapshot even when its Session has since selected another root. */
+    remapWorkbenchEditorState(
+        workbenchProjectId: string,
+        operationId: string,
+        previousPath: string,
+        nextPath: string,
+    ): number {
+        const rows = this.db
+            .select({
+                sessionId: sessionStateTable.sessionId,
+                projectId: sessions.projectId,
+                workbenchProjectId: sessions.workbenchProjectId,
+                openTabsJson: sessionStateTable.openTabsJson,
+                activeTabJson: sessionStateTable.activeTabJson,
+                editorRemapOperationId: sessionStateTable.editorRemapOperationId,
+                workbenchStateJson: sessionStateTable.workbenchStateJson,
+            })
+            .from(sessionStateTable)
+            .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
+            .all();
+        let remappedCount = 0;
+        for (const row of rows) {
+            const workbenchStates = parseWorkbenchEditorStates(row.workbenchStateJson);
+            if (!workbenchStates) continue;
+            const isOwnerRoot = row.projectId === workbenchProjectId;
+            const isActiveRoot = (row.workbenchProjectId ?? row.projectId) === workbenchProjectId;
+            let rootState = workbenchStates[workbenchProjectId];
+            let legacyActiveTab: SessionState['activeTab'];
+            const usingLegacyOwnerState = isOwnerRoot && !rootState;
+            if (usingLegacyOwnerState) {
+                let legacyOpenTabs: unknown;
+                let legacyActiveWork: unknown;
+                try {
+                    legacyOpenTabs = JSON.parse(row.openTabsJson) as unknown;
+                    legacyActiveWork = row.activeTabJson
+                        ? (JSON.parse(row.activeTabJson) as unknown)
+                        : undefined;
+                } catch {
+                    continue;
+                }
+                const openTabs = sessionStateSchema.shape.openTabs.safeParse(legacyOpenTabs);
+                const activeTab = sessionStateSchema.shape.activeTab.safeParse(legacyActiveWork);
+                if (!openTabs.success || !activeTab.success) continue;
+                legacyActiveTab = activeTab.data;
+                rootState = {
+                    openTabs: openTabs.data,
+                    ...(activeTab.data ? { activeTab: activeTab.data } : {}),
+                    ...(row.editorRemapOperationId
+                        ? { editorRemapOperationId: row.editorRemapOperationId }
+                        : {}),
+                };
+            }
+            if (!rootState && isActiveRoot) rootState = { openTabs: [] };
+            if (!rootState || rootState.editorRemapOperationId === operationId) continue;
+            const remapPath = (path: string) => remapStoredEditorPath(path, previousPath, nextPath);
+            const remappedState = {
+                ...rootState,
+                openTabs: rootState.openTabs.map((tab) => ({
+                    ...tab,
+                    path: remapPath(tab.path),
+                })),
+                activeTab:
+                    rootState.activeTab?.kind === 'editor'
+                        ? { kind: 'editor' as const, path: remapPath(rootState.activeTab.path) }
+                        : rootState.activeTab,
+                editorRemapOperationId: operationId,
+            };
+            const values: {
+                activeTabJson?: string;
+                editorRemapOperationId?: string;
+                openTabsJson?: string;
+                workbenchStateJson: string;
+            } = {
+                workbenchStateJson: JSON.stringify({
+                    ...workbenchStates,
+                    [workbenchProjectId]: remappedState,
+                }),
+            };
+            if (isOwnerRoot) {
+                values.openTabsJson = JSON.stringify(remappedState.openTabs);
+                values.editorRemapOperationId = operationId;
+                if (usingLegacyOwnerState && legacyActiveTab?.kind === 'editor')
+                    values.activeTabJson = JSON.stringify(remappedState.activeTab);
+            }
+            this.db
+                .update(sessionStateTable)
+                .set(values)
+                .where(eq(sessionStateTable.sessionId, row.sessionId))
+                .run();
+            remappedCount += 1;
+        }
+        return remappedCount;
     }
 }

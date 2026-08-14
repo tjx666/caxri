@@ -1,7 +1,12 @@
 import type { AgentProvider } from '../../../shared/agents';
 import type { AgentEnvironment } from '../contract';
 
-export const agentLifecyclePhases = ['turnStarted', 'attentionRequested', 'turnFinished'] as const;
+export const agentLifecyclePhases = [
+    'turnStarted',
+    'attentionRequested',
+    'turnFinished',
+    'shellToolFinished',
+] as const;
 
 export type AgentLifecyclePhase = (typeof agentLifecyclePhases)[number];
 
@@ -14,6 +19,7 @@ export interface AgentLifecycleSignal {
 
 export interface AgentHookBinding {
     event: string;
+    matcher?: string;
     phase: AgentLifecyclePhase;
     reply?: 'emptyJson';
 }

@@ -27,6 +27,13 @@ export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord
     );
 }
 
+/** Files, Editor, and Git follow this Project; Sidebar ownership still uses `selectSelectedProject`. */
+function selectSelectedWorkbenchProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
+    if (!bootstrap) return undefined;
+    const workbenchProjectId = selectSelectedSession(bootstrap)?.workbenchProjectId;
+    return bootstrap.projects.find((project) => project.id === workbenchProjectId);
+}
+
 function selectSessionState(bootstrap?: BootstrapState): SessionState | undefined {
     const sessionId = selectSelectedSession(bootstrap)?.id;
     return bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
@@ -49,19 +56,36 @@ export function getSelectedSession(): SessionRecord | undefined {
     return selectSelectedSession(getBootstrap());
 }
 
-/** File paths belong to a Project, so mutations must reconcile every Session sharing it. */
+/** File paths belong to a Workbench Project, so mutations reconcile Sessions currently sharing it. */
 export function getProjectSessionIds(originSessionId: string): string[] {
     const sessions = getBootstrap()?.sessions ?? [];
-    const projectId = sessions.find((session) => session.id === originSessionId)?.projectId;
+    const projectId = sessions.find(
+        (session) => session.id === originSessionId,
+    )?.workbenchProjectId;
     if (!projectId) return [originSessionId];
     const sessionIds: string[] = [];
     for (const session of sessions) {
-        if (session.projectId === projectId) sessionIds.push(session.id);
+        if (session.workbenchProjectId === projectId) sessionIds.push(session.id);
     }
     return sessionIds;
 }
 
+/** Returns Sessions whose current structured requests still resolve against this Workbench Root. */
+export function getWorkbenchProjectSessionIds(
+    workbenchProjectId: string,
+    fallbackSessionId?: string,
+): string[] {
+    const sessionIds = (getBootstrap()?.sessions ?? [])
+        .filter((session) => session.workbenchProjectId === workbenchProjectId)
+        .map((session) => session.id);
+    return sessionIds.length > 0 ? sessionIds : fallbackSessionId ? [fallbackSessionId] : [];
+}
+
 export function getSessionProjectId(sessionId: string): string | undefined {
+    return getBootstrap()?.sessions.find((session) => session.id === sessionId)?.workbenchProjectId;
+}
+
+export function getSessionOwnerProjectId(sessionId: string): string | undefined {
     return getBootstrap()?.sessions.find((session) => session.id === sessionId)?.projectId;
 }
 
@@ -79,6 +103,10 @@ export function useSelectedSession(): SessionRecord | undefined {
 
 export function useSelectedProject(): ProjectRecord | undefined {
     return useWorkbenchStore((state) => selectSelectedProject(state.bootstrap));
+}
+
+export function useSelectedWorkbenchProject(): ProjectRecord | undefined {
+    return useWorkbenchStore((state) => selectSelectedWorkbenchProject(state.bootstrap));
 }
 
 export function useSessionState(): SessionState | undefined {

@@ -72,6 +72,7 @@ export function rememberChangeFingerprint(
 
 export interface WatcherServiceOptions {
     maxPolledDirectories?: number;
+    onRootUnavailable?: (sessionId: string) => void;
     pollIntervalMs?: number;
     subscribe?: typeof parcelWatcher.subscribe;
 }
@@ -102,6 +103,7 @@ export class WatcherService {
     private readonly maxPolledDirectories: number;
     private readonly pollIntervalMs: number;
     private readonly subscribe: typeof parcelWatcher.subscribe;
+    private readonly onRootUnavailable?: (sessionId: string) => void;
     private watchedRoot?: string;
 
     constructor(
@@ -113,6 +115,7 @@ export class WatcherService {
         this.maxPolledDirectories = options.maxPolledDirectories ?? MAX_POLLED_DIRECTORIES;
         this.pollIntervalMs = options.pollIntervalMs ?? WATCH_POLL_INTERVAL_MS;
         this.subscribe = options.subscribe ?? parcelWatcher.subscribe;
+        this.onRootUnavailable = options.onRootUnavailable;
     }
 
     /** Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick. */
@@ -164,8 +167,9 @@ export class WatcherService {
         this.gitIgnoreRulePollTimer.unref();
     }
 
-    watchSession(sessionId?: string): Promise<void> {
-        if (sessionId === this.watchedSessionId) return this.watchSetup ?? Promise.resolve();
+    watchSession(sessionId?: string, force = false): Promise<void> {
+        if (!force && sessionId === this.watchedSessionId)
+            return this.watchSetup ?? Promise.resolve();
         const generation = ++this.watchGeneration;
         this.watchedSessionId = sessionId;
         if (this.eventTimer) clearTimeout(this.eventTimer);
@@ -191,6 +195,7 @@ export class WatcherService {
     private installWatcher(sessionId: string | undefined, generation: number): Promise<void> {
         const setup = this.replaceWatcher(sessionId, generation)
             .catch((error: unknown) => {
+                if (sessionId) this.onRootUnavailable?.(sessionId);
                 this.logger.write('warn', 'watcher.setup_failed', {
                     fields: {
                         sessionId: sessionId ?? 'none',
@@ -229,6 +234,7 @@ export class WatcherService {
                 (error, events) => {
                     if (generation !== this.watchGeneration) return;
                     if (error) {
+                        this.onRootUnavailable?.(sessionId);
                         void this.activatePollingFallback(sessionId, generation, error);
                         return;
                     }
@@ -462,6 +468,7 @@ export class WatcherService {
                     try {
                         current = await this.readDirectorySignatures(directory);
                     } catch {
+                        if (directory === this.watchedRoot) this.onRootUnavailable?.(sessionId);
                         return;
                     }
                     if (generation !== this.watchGeneration) return;

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -459,6 +459,14 @@ describe('GitService', () => {
         const logger = new StructuredLogger(join(directory, 'logs'));
         const paths = new ProjectRootResolver(database);
         const git = new GitService(paths, logger);
+        const topology = await git.worktreeTopology(root);
+        expect(topology.repositoryKey).toBe(await realpath(join(root, '.git')));
+        expect(topology.worktrees).toEqual(
+            expect.arrayContaining([
+                { branch: 'main', rootPath: await realpath(root) },
+                { branch: 'feature', rootPath: await realpath(linked) },
+            ]),
+        );
         const startedAt = performance.now();
         const summary = await git.summary(session.id);
         const repositories = summary.repositories;

@@ -687,16 +687,16 @@ describe('FileService', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         let lstatCount = 0;
-        setLstatOverride(() => {
-            lstatCount += 1;
-            return undefined;
-        });
+        setLstatOverride(() => void (lstatCount += 1));
         const service = new FileService(
             database,
             () => undefined,
             new StructuredLogger(join(directory, 'logs')),
             () => 1024,
-            { pollIntervalMs: 20 },
+            {
+                pollIntervalMs: 20,
+                subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
+            },
         );
 
         try {

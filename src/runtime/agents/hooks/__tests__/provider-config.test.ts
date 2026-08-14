@@ -4,7 +4,7 @@ import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentHookAdapter, DesiredHookInstall } from '../contract';
 
-function desired(provider: 'claude' | 'codex', schemaVersion = 1): DesiredHookInstall {
+function desired(provider: 'claude' | 'codex', schemaVersion = 2): DesiredHookInstall {
     return {
         bridgePath: '/Library/Application Support/Caxri/hooks/caxri-agent-hook-bridge',
         provider,
@@ -64,7 +64,7 @@ describe('Agent provider hook configuration adapters', () => {
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 1', '--schema 0');
+        const stale = current.replaceAll('--schema 2', '--schema 1');
         expect(
             codexHookAdapter.inspect(
                 new Map([
@@ -73,7 +73,7 @@ describe('Agent provider hook configuration adapters', () => {
                 ]),
                 desired('codex'),
             ).status,
-        ).toEqual({ kind: 'stale', installedSchema: 0 });
+        ).toEqual({ kind: 'stale', installedSchema: 1 });
 
         const updated = codexHookAdapter.render(
             new Map([
@@ -82,9 +82,9 @@ describe('Agent provider hook configuration adapters', () => {
             ]),
             desired('codex'),
         )[0].source;
-        expect(updated).not.toContain('--schema 0');
+        expect(updated).not.toContain('--schema 1');
 
-        const newer = updated.replaceAll('--schema 1', '--schema 2');
+        const newer = updated.replaceAll('--schema 2', '--schema 3');
         expect(
             codexHookAdapter.inspect(
                 new Map([
@@ -93,7 +93,7 @@ describe('Agent provider hook configuration adapters', () => {
                 ]),
                 desired('codex'),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 2 });
+        ).toEqual({ kind: 'newer', installedSchema: 3 });
         expect(
             codexHookAdapter.remove(
                 new Map([

@@ -86,6 +86,7 @@ function buildBridgeCommand(
 
 function expectedGroup(desired: DesiredHookInstall, binding: AgentHookBinding): JsonHookGroup {
     return {
+        ...(binding.matcher ? { matcher: binding.matcher } : {}),
         hooks: [
             {
                 type: 'command',

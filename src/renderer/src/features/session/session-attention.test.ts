@@ -7,6 +7,7 @@ import { shouldAcknowledgeSessionAttention } from './session-attention';
 const session: SessionRecord = {
     id: 'session-1',
     projectId: 'project-1',
+    workbenchProjectId: 'project-1',
     rootPath: '/project',
     createdAt: 0,
     lastOpenedAt: 0,

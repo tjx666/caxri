@@ -117,11 +117,13 @@ export class FileService {
         },
     ): Promise<RuntimeMethodResult<'files.create'>> {
         const now = Date.now();
+        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(params.sessionId);
         return this.mutationJournal.run(
             {
                 id: params.operationId ?? randomUUID(),
                 kind: 'create',
                 sessionId: params.sessionId,
+                workbenchProjectId,
                 phase: 'pre_stage',
                 input: { directory: params.directory, kind: params.kind, name: params.name },
                 startedAt: now,
@@ -158,11 +160,13 @@ export class FileService {
         },
     ): Promise<RuntimeMethodResult<'files.rename'>> {
         const now = Date.now();
+        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(params.sessionId);
         return this.mutationJournal.run(
             {
                 id: params.operationId ?? randomUUID(),
                 kind: 'rename',
                 sessionId: params.sessionId,
+                workbenchProjectId,
                 phase: 'pre_stage',
                 input: { name: params.name, path: params.path },
                 startedAt: now,
@@ -186,11 +190,13 @@ export class FileService {
         },
     ): Promise<RuntimeMethodResult<'files.move'>> {
         const now = Date.now();
+        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(params.sessionId);
         return this.mutationJournal.run(
             {
                 id: params.operationId ?? randomUUID(),
                 kind: 'move',
                 sessionId: params.sessionId,
+                workbenchProjectId,
                 phase: 'pre_stage',
                 input: {
                     conflict: params.conflict,
@@ -266,6 +272,11 @@ export class FileService {
 
     watchSession(sessionId?: string): Promise<void> {
         return this.watcher.watchSession(sessionId);
+    }
+
+    /** Reinstalls the selected watcher after its Session atomically changes Workbench Root. */
+    refreshWatchSession(sessionId: string): Promise<void> {
+        return this.watcher.watchSession(sessionId, true);
     }
 
     async close(): Promise<void> {

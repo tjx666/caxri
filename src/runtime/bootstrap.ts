@@ -24,21 +24,18 @@ import {
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import { agentSkillHealthReader } from './agent-skills';
 import type { Runtime, RuntimeDeps } from './bootstrap-types';
-import { ConfigurationService } from './configuration';
-import { CaxriDatabase } from './db';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
-import { FileService } from './files';
-import { GitService } from './git';
 import { createIntrospectionServices } from './introspection';
 import { ProjectStatusService } from './project-status';
+import { createRootServices } from './root-services';
 import {
     ShellIntegrationService,
     TerminalManager,
     TerminalRestoreSupervisor,
     type TerminalWorkingDirectoryIdentity,
 } from './terminal';
-import { ProjectRootResolver } from './project-roots';
+import { createWorkbenchRootHandlers } from './workbench-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
@@ -58,30 +55,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     const startedAt = deps.startedAt ?? Date.now();
     const pid = deps.pid ?? process.pid;
 
-    const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {
-        onSessionStateRepair: ({ reason, sessionId, stateVersion }) =>
-            logger.write('warn', 'db.session_state_repaired', {
-                fields: { reason, sessionId, stateVersion },
-            }),
+    const { acknowledgeFileMutation, configuration, database, files, git, workbenchRoots } =
+        await createRootServices(deps);
+    workbenchRoots.setRootChangedHandler((sessionId) => {
+        if (selectedSessionId() === sessionId) void files.refreshWatchSession(sessionId);
     });
-    const configuration = new ConfigurationService(userDataPath, send, logger);
-    await configuration.initialize();
-    database.setAppState('activeThemeId', configuration.getTheme().value.id);
-
-    const git = new GitService(new ProjectRootResolver(database), logger);
-    const files = new FileService(
-        database,
-        send,
-        logger,
-        () => configuration.getSettings().value['files.maxFileBytes'],
-        {
-            decorateGitIgnored: (sessionId, directory, names) =>
-                git.ignoredEntries(sessionId, directory, names),
-            fileTreeExcludes: () => configuration.getSettings().value['files.exclude'],
-            mutationJournalPath: join(userDataPath, 'file-operations.json'),
-        },
-    );
-    await files.initialize();
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
     const agentEnvironment = deps.agentEnvironment ?? defaultAgentEnvironment();
@@ -97,9 +75,14 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         logger,
         onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
         onLaunchEnded: (terminalId) => coordinator.endTerminalLaunch(terminalId),
-        onLaunchStarted: (terminalId, launchId) =>
-            coordinator.beginTerminalLaunch(terminalId, launchId),
-        onSignal: (signal) => coordinator.observeLifecycleSignal(signal),
+        onLaunchStarted: (terminalId, launchId) => {
+            coordinator.beginTerminalLaunch(terminalId, launchId);
+            workbenchRoots.primeTerminal(terminalId);
+        },
+        onSignal: (signal) =>
+            signal.phase === 'shellToolFinished'
+                ? workbenchRoots.observeShellToolFinished(signal)
+                : coordinator.observeLifecycleSignal(signal),
         runtimeExecutable: deps.runtimeExecutable ?? process.execPath,
         send,
         sharedPath: deps.agentHooksPath,
@@ -291,7 +274,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     ): Promise<TerminalRecord> {
         const session = database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const cwd = await terminalWorkingDirectory(session.rootPath, requestedCwd);
+        const ownerProject = database.getProject(session.projectId);
+        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
+        const cwd = await terminalWorkingDirectory(ownerProject.rootPath, requestedCwd);
         const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
         const terminal = database.createTerminal(sessionId, kind, cwd);
         coordinator.prepareTerminalStart(terminal.id);
@@ -417,6 +402,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         coordinator.close();
         terminals.shutdown('orderly');
         dispatchService.close();
+        await workbenchRoots.close();
         unsubscribeHookSettings();
         await agentSettingsReconcile;
         await agentHooks.close();
@@ -486,6 +472,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'external.open': () => mainOwned('external.open'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
+        ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
@@ -545,12 +532,16 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             );
         },
         'project.delete': ({ projectId }) => {
+            const affectedWorkbenchSessions = database
+                .listSessionsUsingWorkbenchProject(projectId)
+                .map((session) => session.id);
             for (const session of database.listSessions(projectId)) {
                 terminalRestores.cancel(session.id);
                 coordinator.forgetSession(session.id);
                 terminals.terminateSession(session.id);
             }
             database.deleteProject(projectId);
+            workbenchRoots.projectDeleted(affectedWorkbenchSessions);
             void files.watchSession(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
@@ -585,7 +576,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 terminal: database.getTerminal(created.terminal.id)!,
             };
         },
-        'session.select': ({ sessionId }) => {
+        'session.select': async ({ sessionId }) => {
+            await workbenchRoots.validateSession(sessionId);
             database.selectSession(sessionId);
             void files.watchSession(sessionId);
             /** Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay
@@ -723,7 +715,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'files.operation.list': () => files.listMutationOperations(),
         'files.operation.cancel': ({ operationId }) => files.cancelMutationOperation(operationId),
         'files.operation.acknowledge': async ({ operationId }) => {
-            await files.acknowledgeMutationOperation(operationId);
+            await acknowledgeFileMutation(operationId);
             return null;
         },
         'files.authorizeTrash': (params) => files.authorizeTrash(params),
@@ -789,6 +781,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     };
     /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
     void files.watchSession(selectedSessionId());
+    workbenchRoots.primeAll();
     /** Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected
         Session's interrupted Terminals must never delay Runtime startup past the 3s large-Project gate. */
     const initialSessionId = selectedSessionId();

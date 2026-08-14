@@ -20,6 +20,12 @@ export const desktopRuntimeMethodIds = [
     'project.create',
     'project.delete',
     'session.delete',
+    'session.selectWorkbenchRoot',
+    'session.workbenchCandidate.claim',
+    'session.workbenchCandidate.authorize',
+    'session.workbenchCandidate.cancel',
+    'session.workbenchRoot.authorizeSelection',
+    'session.validateWorkbenchRoots',
 ] as const satisfies readonly RuntimeMethod[];
 
 export type DesktopRuntimeMethod = (typeof desktopRuntimeMethodIds)[number];

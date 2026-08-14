@@ -38,6 +38,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
         id: 'session-1',
         projectId: 'project-1',
+        workbenchProjectId: 'project-1',
         rootPath: '/repo',
         createdAt: 0,
         lastOpenedAt: 0,
@@ -440,6 +441,7 @@ describe('withTerminalRemovedFromLayout', () => {
         const split = splitTerminal(layout, 'terminal-2', layout.activeGroupId!, 'vertical');
         const state: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [],
             inspectorMode: 'files',
             layout: split,

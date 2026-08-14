@@ -36,14 +36,20 @@ type GitPanelMode = 'pull-request' | 'working';
 
 function GitTreeItems({
     depth = 0,
+    expandedDirectories,
     nodes,
     onSelect,
+    repositoryKey,
     selected,
+    setDirectoryExpanded,
 }: {
     depth?: number;
+    expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     nodes: GitFileTreeNode[];
     onSelect: (path: string) => void;
+    repositoryKey: string;
     selected?: string;
+    setDirectoryExpanded: (key: string, expanded: boolean) => void;
 }) {
     return nodes.map((node) => {
         if (node.kind === 'directory') {
@@ -51,9 +57,12 @@ function GitTreeItems({
                 <GitTreeDirectory
                     key={node.path}
                     depth={depth}
+                    expandedDirectories={expandedDirectories}
                     node={node}
                     onSelect={onSelect}
+                    repositoryKey={repositoryKey}
                     selected={selected}
+                    setDirectoryExpanded={setDirectoryExpanded}
                 />
             );
         }
@@ -88,16 +97,23 @@ function GitTreeItems({
 
 function GitTreeDirectory({
     depth,
+    expandedDirectories,
     node,
     onSelect,
+    repositoryKey,
     selected,
+    setDirectoryExpanded,
 }: {
     depth: number;
+    expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     node: Extract<GitFileTreeNode, { kind: 'directory' }>;
     onSelect: (path: string) => void;
+    repositoryKey: string;
     selected?: string;
+    setDirectoryExpanded: (key: string, expanded: boolean) => void;
 }) {
-    const [expanded, setExpanded] = useState(true);
+    const expansionKey = `${repositoryKey}:${node.path}`;
+    const expanded = expandedDirectories[expansionKey] ?? true;
     return (
         <div>
             <button
@@ -105,7 +121,7 @@ function GitTreeDirectory({
                 style={{ paddingLeft: 8 + depth * 14 }}
                 aria-expanded={expanded}
                 title={node.path}
-                onClick={() => setExpanded((value) => !value)}
+                onClick={() => setDirectoryExpanded(expansionKey, !expanded)}
             >
                 {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 {expanded ? <FolderOpen size={14} /> : <Folder size={14} />}
@@ -115,9 +131,12 @@ function GitTreeDirectory({
                 {() => (
                     <GitTreeItems
                         depth={depth + 1}
+                        expandedDirectories={expandedDirectories}
                         nodes={node.children}
                         onSelect={onSelect}
+                        repositoryKey={repositoryKey}
                         selected={selected}
+                        setDirectoryExpanded={setDirectoryExpanded}
                     />
                 )}
             </DisclosureMotion>
@@ -127,18 +146,25 @@ function GitTreeDirectory({
 
 function GitRepositorySection({
     activeDiff,
+    expanded,
+    expandedDirectories,
     mode,
+    onExpandedChange,
     pullRequestRefresh,
     repository,
     sessionId,
+    setDirectoryExpanded,
 }: {
     activeDiff?: GitDiffTab;
+    expanded: boolean;
+    expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     mode: GitPanelMode;
+    onExpandedChange: (expanded: boolean) => void;
     pullRequestRefresh: number;
     repository: GitRepositorySummary;
     sessionId: string;
+    setDirectoryExpanded: (key: string, expanded: boolean) => void;
 }) {
-    const [expanded, setExpanded] = useState(true);
     const pullRequestQuery = useCaxriQuery(
         'git.pullRequestChanges',
         {
@@ -179,7 +205,7 @@ function GitRepositorySection({
                 className="git-repository-row flex w-full min-w-0 items-center gap-2 overflow-hidden p-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
                 aria-expanded={expanded}
                 title={repository.rootPath}
-                onClick={() => setExpanded((value) => !value)}
+                onClick={() => onExpandedChange(!expanded)}
             >
                 <span className="git-repository-identity flex shrink-0 items-center gap-1">
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -257,8 +283,11 @@ function GitRepositorySection({
                         )}
                         {files.length > 0 && (
                             <GitTreeItems
+                                expandedDirectories={expandedDirectories}
                                 nodes={buildGitFileTree(files)}
+                                repositoryKey={`${mode}:${repository.id}`}
                                 selected={selectedPath}
+                                setDirectoryExpanded={setDirectoryExpanded}
                                 onSelect={(path) => openFile(repository.id, path)}
                             />
                         )}
@@ -273,14 +302,44 @@ function GitRepositorySection({
 }
 
 /**
- * Mounted with `key={session.id}` by the Inspector shell, so repository and diff selection reset
- * whenever the selected Session changes instead of leaking across Project roots.
+ * Mounted with `key={session.id}` by the Inspector shell. Workbench-root navigation is retained in
+ * this component so switching roots clears stale selection while a later return restores it.
  */
 export function GitPanel() {
     const session = useSelectedSession();
     const activeWork = useActiveWork();
-    const [mode, setMode] = useState<GitPanelMode>('working');
+    const scope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+    const [navigationByScope, setNavigationByScope] = useState<
+        Record<
+            string,
+            {
+                expandedDirectories: Record<string, boolean | undefined>;
+                expandedRepositories: Record<string, boolean | undefined>;
+                mode: GitPanelMode;
+            }
+        >
+    >({});
     const [pullRequestRefresh, setPullRequestRefresh] = useState(0);
+    const navigation = scope
+        ? (navigationByScope[scope] ?? {
+              expandedDirectories: {},
+              expandedRepositories: {},
+              mode: 'working' as const,
+          })
+        : { expandedDirectories: {}, expandedRepositories: {}, mode: 'working' as const };
+    const mode = navigation.mode;
+    const updateNavigation = (patch: Partial<(typeof navigationByScope)[string]>): void => {
+        if (!scope) return;
+        setNavigationByScope((current) => ({
+            ...current,
+            [scope]: { ...navigation, ...patch },
+        }));
+    };
+    const setMode = (nextMode: GitPanelMode): void => updateNavigation({ mode: nextMode });
+    const setDirectoryExpanded = (key: string, expanded: boolean): void =>
+        updateNavigation({
+            expandedDirectories: { ...navigation.expandedDirectories, [key]: expanded },
+        });
     const sessionId = session?.id;
     const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
     /**
@@ -381,9 +440,20 @@ export function GitPanel() {
                         key={repository.id}
                         repository={repository}
                         activeDiff={activeDiff}
+                        expanded={navigation.expandedRepositories[repository.id] ?? true}
+                        expandedDirectories={navigation.expandedDirectories}
                         mode={mode}
+                        onExpandedChange={(expanded) =>
+                            updateNavigation({
+                                expandedRepositories: {
+                                    ...navigation.expandedRepositories,
+                                    [repository.id]: expanded,
+                                },
+                            })
+                        }
                         pullRequestRefresh={pullRequestRefresh}
                         sessionId={session.id}
+                        setDirectoryExpanded={setDirectoryExpanded}
                     />
                 ))}
             </div>

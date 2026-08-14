@@ -25,7 +25,7 @@ import type { ProjectRootResolver } from '../project-roots';
 import { GitBlameService } from './blame';
 import { toGitError } from './errors';
 import { GitPullRequestService } from './pull-request';
-import { GitRepositoryService } from './repository';
+import { GitRepositoryService, parseWorktreeEntries } from './repository';
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -44,6 +44,11 @@ interface DiffTarget {
     file: GitFileStatus;
     relativePath: string;
     repository: GitRepositorySummary;
+}
+
+export interface GitWorktreeTopology {
+    repositoryKey: string;
+    worktrees: Array<{ branch: string; rootPath: string }>;
 }
 export { describeGitFailure } from './errors';
 
@@ -222,6 +227,35 @@ export class GitService {
 
     summary(sessionId: string): Promise<GitSummary> {
         return this.repositoryService.summary(sessionId);
+    }
+
+    /**
+     * Returns the canonical linked-worktree topology for one known Project repository. This is an
+     * internal Runtime boundary: discovery does not imply authorization and never reaches Renderer.
+     */
+    async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
+        const root = await realpath(projectRoot);
+        const [commonDirectoryOutput, worktreeOutput] = await Promise.all([
+            this.git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
+            this.git(root, ['worktree', 'list', '--porcelain', '-z']),
+        ]);
+        const repositoryKey = await realpath(commonDirectoryOutput.trim());
+        const worktrees = (
+            await Promise.all(
+                parseWorktreeEntries(worktreeOutput).map(async (entry) => {
+                    try {
+                        const rootPath = await realpath(entry.rootPath);
+                        const stats = await lstat(rootPath);
+                        return stats.isDirectory() && !stats.isSymbolicLink()
+                            ? [{ ...entry, rootPath }]
+                            : [];
+                    } catch {
+                        return [];
+                    }
+                }),
+            )
+        ).flat();
+        return { repositoryKey, worktrees };
     }
 
     /** Returns ignored direct children using one NUL-delimited Git batch for the listed directory. */

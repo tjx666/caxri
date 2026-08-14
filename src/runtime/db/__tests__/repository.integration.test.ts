@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -100,6 +100,145 @@ describe('CaxriDatabase', () => {
             ]),
         );
         expect(database.listSessions()).toHaveLength(2);
+        database.close();
+    });
+
+    it('keeps owner identity and Terminal cwd global while restoring editor state per Workbench Root', async () => {
+        const directory = await tempDir('caxri-db-workbench-root-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const ownerState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...ownerState,
+            openTabs: [{ path: join(ownerRoot, 'owner.ts'), dirty: false }],
+            activeTab: { kind: 'editor', path: join(ownerRoot, 'owner.ts') },
+        });
+        const identity = await lstat(worktreeRoot, { bigint: true });
+
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            projectId: owner.id,
+            workbenchProjectId: worktree.id,
+            rootPath: worktreeRoot,
+        });
+        expect(database.getSessionState(created.session.id)).toMatchObject({
+            workbenchProjectId: worktree.id,
+            openTabs: [],
+        });
+        const worktreeState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...worktreeState,
+            openTabs: [{ path: join(worktreeRoot, 'worktree.ts'), dirty: true }],
+            activeTab: { kind: 'editor', path: join(worktreeRoot, 'worktree.ts') },
+        });
+        const laterTerminal = database.createTerminal(created.session.id, 'shell');
+        expect(laterTerminal.cwd).toBe(ownerRoot);
+
+        database.selectWorkbenchProject(created.session.id, owner.id);
+        expect(database.getSessionState(created.session.id)).toMatchObject({
+            workbenchProjectId: owner.id,
+            openTabs: [{ path: join(ownerRoot, 'owner.ts'), dirty: false }],
+            activeTab: { kind: 'editor', path: join(ownerRoot, 'owner.ts') },
+        });
+        expect(() => database.updateSessionState(worktreeState)).toThrow(/stale Workbench Root/);
+
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        expect(database.getSessionState(created.session.id)).toMatchObject({
+            workbenchProjectId: worktree.id,
+            openTabs: [{ path: join(worktreeRoot, 'worktree.ts'), dirty: false }],
+            activeTab: { kind: 'editor', path: join(worktreeRoot, 'worktree.ts') },
+        });
+
+        database.deleteProject(worktree.id);
+        expect(database.getSession(created.session.id)).toMatchObject({
+            projectId: owner.id,
+            workbenchProjectId: owner.id,
+            rootPath: ownerRoot,
+        });
+        expect(database.getTerminal(created.terminal.id)).toMatchObject({
+            cwd: ownerRoot,
+            id: created.terminal.id,
+        });
+        database.close();
+    });
+
+    it('remaps durable editor state for an inactive Workbench Root idempotently', async () => {
+        const directory = await tempDir('caxri-db-inactive-root-remap-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const identity = await lstat(worktreeRoot, { bigint: true });
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const previousDirectory = join(worktreeRoot, 'source');
+        const nextDirectory = join(worktreeRoot, 'destination');
+        const previousPath = join(previousDirectory, 'document.ts');
+        const nextPath = join(nextDirectory, 'document.ts');
+        const gitDiffPath = 'caxri-git-diff://file/repository/source%2Fdocument.ts';
+        database.updateSessionState({
+            ...database.getSessionState(created.session.id),
+            openTabs: [
+                { path: previousPath, dirty: false },
+                { path: gitDiffPath, dirty: false },
+            ],
+            activeTab: { kind: 'editor', path: previousPath },
+        });
+        database.selectWorkbenchProject(created.session.id, owner.id);
+
+        expect(
+            database.remapWorkbenchEditorState(
+                worktree.id,
+                'operation-1',
+                previousDirectory,
+                nextDirectory,
+            ),
+        ).toBe(1);
+        expect(database.getSessionState(created.session.id)).toMatchObject({
+            workbenchProjectId: owner.id,
+            openTabs: [],
+        });
+
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const remapped = database.getSessionState(created.session.id);
+        expect(remapped).toMatchObject({
+            workbenchProjectId: worktree.id,
+            openTabs: [
+                { path: nextPath, dirty: false },
+                { path: gitDiffPath, dirty: false },
+            ],
+            activeTab: { kind: 'editor', path: nextPath },
+            editorRemapOperationId: 'operation-1',
+        });
+        expect(
+            database.remapWorkbenchEditorState(
+                worktree.id,
+                'operation-1',
+                previousDirectory,
+                nextDirectory,
+            ),
+        ).toBe(0);
+        expect(database.getSessionState(created.session.id)).toEqual(remapped);
         database.close();
     });
 

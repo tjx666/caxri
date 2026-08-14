@@ -10,6 +10,7 @@ const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
+    { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
 ] as const;
 
 function claudeHome(homeDirectory: string, configured: string | undefined): string {
@@ -39,7 +40,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 1,
+    schemaVersion: 2,
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,

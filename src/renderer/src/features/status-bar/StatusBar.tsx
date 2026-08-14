@@ -3,6 +3,7 @@ import {
     Cast,
     CircleAlert,
     FileDiff,
+    FolderGit2,
     Gauge,
     GitBranch,
     GitCommitHorizontal,
@@ -35,8 +36,8 @@ import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
-import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
-import { useActiveWork } from '../../stores/session-view';
+import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import { sessionViewScope, useActiveWork } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { tryCommand } from '../../stores/toasts';
 import {
@@ -53,6 +54,7 @@ import {
 
 /** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
+const AUTHORIZE_WORKBENCH_ROOT_VALUE = '__authorize_workbench_root__';
 
 type RuntimeStatus = BootstrapState['runtime']['status'];
 
@@ -119,8 +121,16 @@ function StatusInfo({
     );
 }
 
-function ActiveFileStatus({ sessionId, path }: { sessionId: string; path: string }) {
-    const key = editorStatusKey(sessionId, path);
+function ActiveFileStatus({
+    sessionId,
+    path,
+    workbenchProjectId,
+}: {
+    sessionId: string;
+    path: string;
+    workbenchProjectId: string;
+}) {
+    const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
     const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
     const blame = useCaxriQuery(
@@ -502,14 +512,101 @@ function BranchPicker({
     );
 }
 
+function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId: string }) {
+    const session = useSelectedSession();
+    const workbenchProject = useSelectedWorkbenchProject();
+    const [open, setOpen] = useState(false);
+    const [switching, setSwitching] = useState(false);
+    const rootsQuery = useCaxriQuery(
+        'session.workbenchRoots',
+        { sessionId },
+        { enabled: open, staleTime: 0 },
+    );
+    useToastOnQueryError(rootsQuery.isError, rootsQuery.error, 'Unable to list Workbench Roots');
+    if (!session || !workbenchProject) return null;
+    const roots = rootsQuery.data ?? [
+        {
+            projectId: workbenchProject.id,
+            displayTitle: workbenchProject.displayTitle,
+            branch: branch ?? 'No branch',
+            owner: workbenchProject.id === session.projectId,
+        },
+    ];
+    const current = roots.find((root) => root.projectId === session.workbenchProjectId) ?? roots[0];
+    const switchRoot = async (projectId: string | null): Promise<void> => {
+        if (!projectId || switching) return;
+        setSwitching(true);
+        try {
+            if (projectId === AUTHORIZE_WORKBENCH_ROOT_VALUE) {
+                const selected = await tryCommand('Unable to authorize Workbench Root', () =>
+                    caxri.request('session.authorizeWorkbenchRoot', { sessionId }),
+                );
+                if (selected && !('canceled' in selected))
+                    await useWorkbenchStore.getState().refresh();
+                return;
+            }
+            if (projectId === session.workbenchProjectId) return;
+            const selected = await tryCommand('Unable to switch Workbench Root', () =>
+                caxri.request('session.selectWorkbenchRoot', { sessionId, projectId }),
+            );
+            if (selected) await useWorkbenchStore.getState().refresh();
+        } finally {
+            setSwitching(false);
+        }
+    };
+    return (
+        <Select
+            value={session.workbenchProjectId}
+            open={open}
+            disabled={switching}
+            onOpenChange={setOpen}
+            onValueChange={(value) => void switchRoot(value)}
+        >
+            <SelectTrigger
+                showIcon={false}
+                aria-label={`Switch Workbench Root from ${current.displayTitle}, branch ${current.branch}`}
+                title={workbenchProject.rootPath}
+                className={cn(
+                    statusItemClassName,
+                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+                )}
+            >
+                <FolderGit2 size={13} />
+                <SelectValue>
+                    {current.displayTitle} · {current.branch}
+                </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="min-w-56 max-w-96">
+                {roots.map((root) => (
+                    <SelectItem key={root.projectId} value={root.projectId} className="max-w-96">
+                        {root.displayTitle} · {root.branch}
+                    </SelectItem>
+                ))}
+                <SelectItem
+                    value={AUTHORIZE_WORKBENCH_ROOT_VALUE}
+                    className="max-w-96 border-t border-border"
+                >
+                    Authorize another worktree…
+                </SelectItem>
+                {rootsQuery.isLoading && (
+                    <div className="px-2 py-1.5 text-[12px] text-muted">
+                        Loading Workbench Roots…
+                    </div>
+                )}
+            </SelectContent>
+        </Select>
+    );
+}
+
 function showInspector(command: InspectorCommandId): void {
     usePanelLayoutStore.getState().setInspectorVisible(true);
     executeCommand(command);
 }
 
 export function StatusBar() {
-    const project = useSelectedProject();
-    const sessionId = useSelectedSession()?.id;
+    const session = useSelectedSession();
+    const workbenchProject = useSelectedWorkbenchProject();
+    const sessionId = session?.id;
     const overview = useProjectOverview(sessionId);
     const repository = overview?.repository;
     const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
@@ -525,19 +622,22 @@ export function StatusBar() {
             data-runtime-status={runtimeStatus ?? 'starting'}
         >
             <div className="statusbar-context min-w-0 flex-1 flex items-center gap-0.5 overflow-hidden">
-                {project ? (
+                {workbenchProject ? (
                     <StatusItem
                         icon={Monitor}
-                        ariaLabel={`Open project files: ${project.displayTitle}`}
-                        title={project.rootPath}
+                        ariaLabel={`Open project files: ${workbenchProject.displayTitle}`}
+                        title={workbenchProject.rootPath}
                         onClick={() => showInspector('inspector.showFiles')}
                     >
-                        {project.displayTitle}
+                        {workbenchProject.displayTitle}
                     </StatusItem>
                 ) : (
                     <span className="statusbar-empty overflow-hidden text-ellipsis whitespace-nowrap">
                         No Project selected
                     </span>
+                )}
+                {sessionId && (
+                    <WorkbenchRootPicker branch={repository?.branch} sessionId={sessionId} />
                 )}
                 {repository && sessionId && (
                     <BranchPicker
@@ -587,7 +687,11 @@ export function StatusBar() {
                 {sessionId &&
                     activeWork?.kind === 'editor' &&
                     !parseGitDiffTab(activeWork.path) && (
-                        <ActiveFileStatus sessionId={sessionId} path={activeWork.path} />
+                        <ActiveFileStatus
+                            sessionId={sessionId}
+                            path={activeWork.path}
+                            workbenchProjectId={session.workbenchProjectId}
+                        />
                     )}
                 {activeWork?.kind === 'terminal' && (
                     <ActiveTerminalStatus terminalId={activeWork.terminalId} />

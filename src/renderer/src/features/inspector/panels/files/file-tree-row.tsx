@@ -23,6 +23,7 @@ export interface TreeProps {
     depth?: number;
     directory: string;
     editing?: EditRequest;
+    expandedPaths: ReadonlySet<string>;
     focusPath?: string;
     /** Only the operations for the current Project; each row scopes blocking to its own subtree. */
     operations: readonly PendingFileOperation[];
@@ -32,6 +33,7 @@ export interface TreeProps {
     sessionId: string;
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
+    setPathExpanded: (path: string, next: boolean | ((current: boolean) => boolean)) => void;
     setSelectedPath: (path?: string) => void;
 }
 
@@ -114,6 +116,7 @@ export function DirectoryEntries({
     directory,
     depth = 0,
     editing,
+    expandedPaths,
     operations,
     focusPath,
     projectId,
@@ -122,6 +125,7 @@ export function DirectoryEntries({
     clearFocusPath,
     requestFocus,
     setEditing,
+    setPathExpanded,
     setSelectedPath,
 }: TreeProps) {
     const {
@@ -171,6 +175,7 @@ export function DirectoryEntries({
                     key={entry.path}
                     depth={depth}
                     editing={editing}
+                    expandedPaths={expandedPaths}
                     entry={entry}
                     index={index}
                     operations={operations}
@@ -182,6 +187,7 @@ export function DirectoryEntries({
                     clearFocusPath={clearFocusPath}
                     requestFocus={requestFocus}
                     setEditing={setEditing}
+                    setPathExpanded={setPathExpanded}
                     setSelectedPath={setSelectedPath}
                 />
             ))}
@@ -203,6 +209,7 @@ function FileTreeItem({
     sessionId,
     depth = 0,
     editing,
+    expandedPaths,
     operations,
     focusPath,
     projectId,
@@ -211,6 +218,7 @@ function FileTreeItem({
     clearFocusPath,
     requestFocus,
     setEditing,
+    setPathExpanded,
     setSelectedPath,
 }: Omit<TreeProps, 'directory'> & { entry: FileEntry; index: number }) {
     const {
@@ -243,12 +251,14 @@ function FileTreeItem({
         depth,
         editing,
         entry,
+        expanded: expandedPaths.has(entry.path),
         focusPath,
         index,
         operations,
         projectId,
         selectedPath,
         sessionId,
+        setExpanded: (next) => setPathExpanded(entry.path, next),
         setEditing,
         setSelectedPath,
     });
@@ -390,6 +400,7 @@ function FileTreeItem({
                     depth={depth + 1}
                     directory={entry.path}
                     editing={editing}
+                    expandedPaths={expandedPaths}
                     operations={operations}
                     focusPath={focusPath}
                     projectId={projectId}
@@ -399,6 +410,7 @@ function FileTreeItem({
                     clearFocusPath={clearFocusPath}
                     requestFocus={requestFocus}
                     setEditing={setEditing}
+                    setPathExpanded={setPathExpanded}
                     setSelectedPath={setSelectedPath}
                 />
             )}

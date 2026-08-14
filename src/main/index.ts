@@ -50,6 +50,7 @@ import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService } from './updates';
 import { resolveE2EWindowMode } from './window-mode';
 import { createWindowCloseHandler } from './window-close';
+import { createWorkbenchRootAuthority } from './workbench-root-authority';
 import { installWorkbenchIpc } from './workbench-ipc';
 
 const bootStartedAt = performance.now();
@@ -85,6 +86,12 @@ let automaticUpdateCheckStarted = false;
 const grantedRoots = new ProjectRootGrants();
 const rendererReadiness = new RendererReadiness();
 const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
+const workbenchRootAuthority = createWorkbenchRootAuthority({
+    getHost: () => supervisor,
+    getWindow: () => mainWindow,
+    grants: grantedRoots,
+    nextTestRoot: resolveNextTestRootPath,
+});
 const e2eWindowMode = resolveE2EWindowMode({
     isE2E: process.env.CAXRI_E2E === '1',
     requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
@@ -406,30 +413,16 @@ async function handleMainMethod(request: MainRequest): Promise<unknown> {
     switch (request.method) {
         case 'external.open':
             return handleExternalUrl(request.params.url, { allowTrust: true, window: mainWindow });
-        case 'dialog.selectDirectory': {
-            const testRoot = resolveNextTestRootPath();
-            if (testRoot) {
-                grantedRoots.grant(testRoot);
-                return testRoot;
-            }
-            const result = await dialog.showOpenDialog(mainWindow!, {
-                title: 'Choose a Project directory',
-                properties: ['openDirectory', 'createDirectory'],
-            });
-            const path = result.filePaths[0];
-            if (!result.canceled && path) grantedRoots.grant(path);
-            /** A dismissed or empty selection must resolve to null, never to an absent value. */
-            return result.canceled ? null : (path ?? null);
-        }
-        case 'project.create': {
-            const { rootPath } = request.params;
-            return grantedRoots.use(rootPath, () =>
-                supervisor.request('project.create', { rootPath }),
-            );
-        }
+        case 'dialog.selectDirectory':
+            return workbenchRootAuthority.selectProjectDirectory();
+        case 'session.continueInWorktree':
+            return workbenchRootAuthority.continueInWorktree(request.params);
+        case 'session.authorizeWorkbenchRoot':
+            return workbenchRootAuthority.authorizeSelection(request.params);
+        case 'project.create':
+            return workbenchRootAuthority.createProject(request.params);
         case 'project.cancelCreate':
-            grantedRoots.revoke(request.params.rootPath);
-            return null;
+            return workbenchRootAuthority.cancelProjectCreate(request.params);
         case 'files.trash': {
             const item = await supervisor.request('files.authorizeTrash', request.params);
             const result = await dialog.showMessageBox(
@@ -697,7 +690,9 @@ void app.whenReady().then(async () => {
     supervisor = new DesktopHostConnection({
         agentHooksPath:
             process.env.CAXRI_E2E === '1'
-                ? undefined
+                ? process.env.CAXRI_E2E_AGENT_HOOKS === '1'
+                    ? join(userDataPath, 'agent-hooks')
+                    : undefined
                 : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
         currentDirectory,
         cliPath: app.isPackaged
@@ -775,6 +770,11 @@ void app.whenReady().then(async () => {
 });
 app.on('activate', () => {
     if (!mainWindow) void openMainWindow();
+    void supervisor.request('session.validateWorkbenchRoots').catch(() => undefined);
+});
+
+app.on('browser-window-focus', () => {
+    void supervisor.request('session.validateWorkbenchRoots').catch(() => undefined);
 });
 
 app.on('window-all-closed', () => {

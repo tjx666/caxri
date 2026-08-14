@@ -31,12 +31,14 @@ export interface UseFileTreeItemInteractionsOptions {
     depth: number;
     editing?: EditRequest;
     entry: FileEntry;
+    expanded: boolean;
     focusPath?: string;
     index: number;
     operations: readonly PendingFileOperation[];
     projectId: string;
     selectedPath?: string;
     sessionId: string;
+    setExpanded: (next: boolean | ((current: boolean) => boolean)) => void;
     setEditing: (editing?: EditRequest) => void;
     setSelectedPath: (path?: string) => void;
 }
@@ -61,7 +63,7 @@ export interface UseFileTreeItemInteractionsResult {
     pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
     rowRef: RefObject<HTMLButtonElement | null>;
-    setExpanded: Dispatch<SetStateAction<boolean>>;
+    setExpanded: (next: boolean | ((current: boolean) => boolean)) => void;
     setIsDropTarget: Dispatch<SetStateAction<boolean>>;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
@@ -80,16 +82,17 @@ export function useFileTreeItemInteractions({
     depth,
     editing,
     entry,
+    expanded,
     focusPath,
     index,
     operations,
     projectId,
     selectedPath,
     sessionId,
+    setExpanded,
     setEditing,
     setSelectedPath,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
-    const [expanded, setExpanded] = useState(false);
     const [isDropTarget, setIsDropTarget] = useState(false);
     const rowRef = useRef<HTMLButtonElement>(null);
     const symlinkReasonId = useId();

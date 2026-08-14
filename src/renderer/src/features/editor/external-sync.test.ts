@@ -33,9 +33,14 @@ import { subscribeExternalDocumentSync } from './external-sync';
 const oldPath = '/project/old.ts';
 const nextPath = '/project/new.ts';
 
-function sessionState(sessionId: string, path: string): SessionState {
+function sessionState(
+    sessionId: string,
+    path: string,
+    workbenchProjectId = 'project-1',
+): SessionState {
     return {
         sessionId,
+        workbenchProjectId,
         openTabs: [{ path, dirty: false }],
         activeTab: { kind: 'editor', path },
         inspectorMode: 'files',
@@ -52,8 +57,16 @@ beforeEach(() => {
         bootstrap: {
             selectedSessionId: 'session-1',
             sessions: [
-                { id: 'session-1', projectId: 'project-1' },
-                { id: 'session-2', projectId: 'project-1' },
+                {
+                    id: 'session-1',
+                    projectId: 'project-1',
+                    workbenchProjectId: 'project-1',
+                },
+                {
+                    id: 'session-2',
+                    projectId: 'project-1',
+                    workbenchProjectId: 'project-1',
+                },
             ],
             sessionStates: [
                 sessionState('session-1', '/project/first.ts'),
@@ -78,6 +91,47 @@ afterEach(() => {
 });
 
 describe('subscribeExternalDocumentSync', () => {
+    it('preserves a dirty buffer when the same Session returns to its Workbench Root', () => {
+        const worktreeProjectId = 'project-worktree';
+        const worktreePath = '/worktree/draft.ts';
+        useSessionViewStore.getState().cacheDocument(
+            'session-1',
+            {
+                path: worktreePath,
+                content: 'retained draft',
+                dirty: true,
+                mtimeMs: 1,
+                size: 14,
+            },
+            worktreeProjectId,
+        );
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: {
+                ...state.bootstrap!,
+                sessions: state.bootstrap!.sessions.map((session) =>
+                    session.id === 'session-1'
+                        ? { ...session, workbenchProjectId: worktreeProjectId }
+                        : session,
+                ),
+                sessionStates: state.bootstrap!.sessionStates.map((current) =>
+                    current.sessionId === 'session-1'
+                        ? sessionState('session-1', worktreePath, worktreeProjectId)
+                        : current,
+                ),
+            },
+        }));
+
+        expect(mocks.request).not.toHaveBeenCalled();
+        expect(
+            useSessionViewStore.getState().documents[`session-1\0${worktreeProjectId}`]?.[
+                worktreePath
+            ],
+        ).toMatchObject({ content: 'retained draft', dirty: true });
+        unsubscribe();
+    });
+
     it('defers a same-Project Session switch until the managed move remaps editor paths', () => {
         const unsubscribe = subscribeExternalDocumentSync();
         useFileOperationStore.getState().begin({

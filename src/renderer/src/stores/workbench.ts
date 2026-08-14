@@ -7,6 +7,10 @@ import type { BootstrapState, SessionRecord, SessionState, TerminalRecord } from
 import { caxri } from '../lib/caxri';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, pushToast } from './toasts';
+import {
+    dismissWorkbenchRootCandidate,
+    showWorkbenchRootCandidate,
+} from '../features/workbench/workbench-root-prompt';
 
 interface WorkbenchState {
     /** The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves. */
@@ -44,6 +48,10 @@ let configurationErrorsReported = false;
 let nextSessionPatchRevision = 0;
 const pendingSessionPatches = new Map<string, { revision: number; state: SessionState }>();
 
+function sessionPatchKey(state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>): string {
+    return `${state.sessionId}\0${state.workbenchProjectId}`;
+}
+
 /**
  * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer
  * write. Preserve the latest unacknowledged Session state so that stale Runtime snapshots cannot
@@ -52,20 +60,26 @@ const pendingSessionPatches = new Map<string, { revision: number; state: Session
 function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
     if (pendingSessionPatches.size === 0) return state;
     const sessionStates = state.sessionStates.map(
-        (sessionState) => pendingSessionPatches.get(sessionState.sessionId)?.state ?? sessionState,
+        (sessionState) =>
+            pendingSessionPatches.get(sessionPatchKey(sessionState))?.state ?? sessionState,
     );
     return { ...state, sessionStates };
 }
 
 async function applySnapshot(state: BootstrapState): Promise<void> {
     /** Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state. */
-    const { useSessionViewStore } = await import('./session-view');
+    const { sessionViewScope, useSessionViewStore } = await import('./session-view');
     const documents = useSessionViewStore.getState().documents;
     const pending = applyPendingSessionPatches(state);
     const current = {
         ...pending,
         sessionStates: pending.sessionStates.map((sessionState) =>
-            reconcileEditorTabDirtiness(sessionState, documents[sessionState.sessionId]),
+            reconcileEditorTabDirtiness(
+                sessionState,
+                documents[
+                    sessionViewScope(sessionState.sessionId, sessionState.workbenchProjectId)
+                ],
+            ),
         ),
     };
     useWorkbenchStore.setState((previous) => ({
@@ -196,21 +210,30 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         const bootstrap = get().bootstrap;
         if (!bootstrap) return Promise.resolve(false);
         const previous = bootstrap.sessionStates.find(
-            (state) => state.sessionId === next.sessionId,
+            (state) =>
+                state.sessionId === next.sessionId &&
+                state.workbenchProjectId === next.workbenchProjectId,
         );
+        /** Async UI work may finish after a root switch. Never make that stale root visible or
+         *  submit a write Runtime must reject. */
+        if (!previous) return Promise.resolve(false);
         const revision = ++nextSessionPatchRevision;
-        pendingSessionPatches.set(next.sessionId, { revision, state: next });
+        const patchKey = sessionPatchKey(next);
+        pendingSessionPatches.set(patchKey, { revision, state: next });
         set({
             bootstrap: {
                 ...bootstrap,
                 sessionStates: bootstrap.sessionStates.map((state) =>
-                    state.sessionId === next.sessionId ? next : state,
+                    state.sessionId === next.sessionId &&
+                    state.workbenchProjectId === next.workbenchProjectId
+                        ? next
+                        : state,
                 ),
             },
         });
         const finish = (): void => {
-            if (pendingSessionPatches.get(next.sessionId)?.revision === revision)
-                pendingSessionPatches.delete(next.sessionId);
+            if (pendingSessionPatches.get(patchKey)?.revision === revision)
+                pendingSessionPatches.delete(patchKey);
         };
         return caxri
             .request('session.updateState', withoutEditorTabDirtiness(next))
@@ -222,27 +245,34 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 // Only the latest pending revision for this Session may roll back: an older
                 // request's failure must not clobber a newer optimistic write (or the newer
                 // write's own later success/failure) that has since superseded it.
-                const isLatestRevision =
-                    pendingSessionPatches.get(next.sessionId)?.revision === revision;
+                const isLatestRevision = pendingSessionPatches.get(patchKey)?.revision === revision;
                 /** A durable file move cannot safely restore its old path. Retaining the latest
                  * optimistic patch also shields it from stale bootstrap reads until retry replaces
                  * this revision and eventually persists it. */
                 const retainLatest = isLatestRevision && failureMode === 'retain';
                 if (!retainLatest) finish();
-                if (!retainLatest && isLatestRevision && previous) {
+                const visibleState = get().bootstrap?.sessionStates.find(
+                    (state) => state.sessionId === next.sessionId,
+                );
+                const rootIsStillVisible =
+                    visibleState?.workbenchProjectId === next.workbenchProjectId;
+                if (!retainLatest && isLatestRevision && rootIsStillVisible) {
                     set((current) => {
                         if (!current.bootstrap) return current;
                         return {
                             bootstrap: {
                                 ...current.bootstrap,
                                 sessionStates: current.bootstrap.sessionStates.map((state) =>
-                                    state.sessionId === next.sessionId ? previous : state,
+                                    state.sessionId === next.sessionId &&
+                                    state.workbenchProjectId === next.workbenchProjectId
+                                        ? previous
+                                        : state,
                                 ),
                             },
                         };
                     });
                 }
-                if (isLatestRevision) onLatestFailure?.();
+                if (isLatestRevision && rootIsStillVisible) onLatestFailure?.();
                 if (reportFailure) pushToast('error', describeFailure(error, failureLabel));
                 return false;
             });
@@ -322,6 +352,16 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
         if (event.event === 'desktop.openRequested')
             handlers.onDesktopOpen(event.payload.sessionId, event.payload.path);
+        if (event.event === 'workbench.candidate') showWorkbenchRootCandidate(event.payload);
+        if (event.event === 'workbench.changed') {
+            dismissWorkbenchRootCandidate(event.payload.sessionId);
+            if (event.payload.reason === 'fallback' && event.payload.returnedProjectTitle)
+                pushToast(
+                    'info',
+                    `The active worktree is no longer available. Returned to ${event.payload.returnedProjectTitle}.`,
+                    { persist: true },
+                );
+        }
         if (event.event === 'window.fullScreen')
             useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
     });
