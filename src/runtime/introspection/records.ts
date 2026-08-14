@@ -155,12 +155,9 @@ export class RecordQueryService {
 
     terminal(query: TerminalQuery, principal: Principal): TerminalQueryResult {
         const scope = scopeFor(principal);
-        const visibleSessionIds = new Set(
-            this.source
-                .sessions()
-                .filter(({ projectId }) => !scope || scope.has(projectId))
-                .map(({ id }) => id),
-        );
+        const visibleSessionIds = new Set<string>();
+        for (const { id, projectId } of this.source.sessions())
+            if (!scope || scope.has(projectId)) visibleSessionIds.add(id);
         const visible = this.source
             .terminals()
             .filter(

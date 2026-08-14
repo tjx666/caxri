@@ -41,72 +41,60 @@ export const agentMessageStatusSchema = z.enum([
 export const agentInboundPolicySchema = z.enum(['auto', 'accept', 'hold', 'refuse']);
 export const agentHeldRetentionSchema = z.enum(['approval-window', 'endpoint']);
 
-export const agentMessageReceiptSchema = z
-    .object({
-        messageId: identifierSchema,
-        from: agentEndpointRefSchema,
-        to: agentEndpointRefSchema,
-        status: agentMessageStatusSchema,
-        createdAt: z.number().int().positive(),
-        updatedAt: z.number().int().positive(),
-        expiresAt: z.number().int().positive(),
-        replyTo: identifierSchema.optional(),
-        /** Present only when an explicit wake dispatch created the receiving generation. */
-        dispatchId: identifierSchema.optional(),
-    })
-    .strict();
+export const agentMessageReceiptSchema = z.strictObject({
+    messageId: identifierSchema,
+    from: agentEndpointRefSchema,
+    to: agentEndpointRefSchema,
+    status: agentMessageStatusSchema,
+    createdAt: z.number().int().positive(),
+    updatedAt: z.number().int().positive(),
+    expiresAt: z.number().int().positive(),
+    replyTo: identifierSchema.optional(),
+    /** Present only when an explicit wake dispatch created the receiving generation. */
+    dispatchId: identifierSchema.optional(),
+});
 
-export const agentInboundMessageSchema = z
-    .object({
-        id: identifierSchema,
-        origin: z.literal('peer'),
-        from: agentEndpointSummarySchema,
-        to: agentEndpointRefSchema,
-        body: agentMessageBodySchema,
-        createdAt: z.number().int().positive(),
-        expiresAt: z.number().int().positive(),
-        replyTo: identifierSchema.optional(),
-    })
-    .strict();
+export const agentInboundMessageSchema = z.strictObject({
+    id: identifierSchema,
+    origin: z.literal('peer'),
+    from: agentEndpointSummarySchema,
+    to: agentEndpointRefSchema,
+    body: agentMessageBodySchema,
+    createdAt: z.number().int().positive(),
+    expiresAt: z.number().int().positive(),
+    replyTo: identifierSchema.optional(),
+});
 
-export const agentHeldMessageSchema = z
-    .object({
-        messageId: identifierSchema,
-        from: agentEndpointSummarySchema,
-        to: agentEndpointRefSchema,
-        preview: z.string().max(240),
-        byteLength: z.number().int().positive().max(MAX_AGENT_MESSAGE_BYTES),
-        createdAt: z.number().int().positive(),
-        expiresAt: z.number().int().positive(),
-        replyTo: identifierSchema.optional(),
-    })
-    .strict();
+export const agentHeldMessageSchema = z.strictObject({
+    messageId: identifierSchema,
+    from: agentEndpointSummarySchema,
+    to: agentEndpointRefSchema,
+    preview: z.string().max(240),
+    byteLength: z.number().int().positive().max(MAX_AGENT_MESSAGE_BYTES),
+    createdAt: z.number().int().positive(),
+    expiresAt: z.number().int().positive(),
+    replyTo: identifierSchema.optional(),
+});
 
-export const agentInboundPolicyResultSchema = z
-    .object({
-        policy: agentInboundPolicySchema,
-        heldRetention: agentHeldRetentionSchema,
-    })
-    .strict();
+export const agentInboundPolicyResultSchema = z.strictObject({
+    policy: agentInboundPolicySchema,
+    heldRetention: agentHeldRetentionSchema,
+});
 
-export const agentMessagePullResultSchema = z
-    .object({
-        message: agentInboundMessageSchema.nullable(),
-        outcome: z.enum(['message', 'empty', 'timed_out']),
-    })
-    .strict();
+export const agentMessagePullResultSchema = z.strictObject({
+    message: agentInboundMessageSchema.nullable(),
+    outcome: z.enum(['message', 'empty', 'timed_out']),
+});
 
-const sendParamsSchema = z
-    .object({
-        to: agentEndpointRefSchema,
-        body: agentMessageBodySchema,
-        idempotencyKey: identifierSchema.optional(),
-        ttlMs: z.number().int().min(1_000).max(3_600_000).default(AGENT_MESSAGE_APPROVAL_TTL_MS),
-        wake: z.boolean().default(false),
-    })
-    .strict();
+const sendParamsSchema = z.strictObject({
+    to: agentEndpointRefSchema,
+    body: agentMessageBodySchema,
+    idempotencyKey: identifierSchema.optional(),
+    ttlMs: z.number().int().min(1_000).max(3_600_000).default(AGENT_MESSAGE_APPROVAL_TTL_MS),
+    wake: z.boolean().default(false),
+});
 
-const desktopMessageTargetSchema = z.object({ messageId: identifierSchema }).strict();
+const desktopMessageTargetSchema = z.strictObject({ messageId: identifierSchema });
 
 export const agentInboxMethods = {
     'agent.message.send': {
@@ -122,24 +110,24 @@ export const agentInboxMethods = {
     /** A pull consumes only after the Host confirms that its UDS reply was flushed. */
     'agent.message.wait': {
         ...commandPolicy('host', 'read', ['agents.message']),
-        params: z
-            .object({ timeoutMs: z.number().int().min(100).max(120_000).default(15_000) })
-            .strict(),
+        params: z.strictObject({
+            timeoutMs: z.number().int().min(100).max(120_000).default(15_000),
+        }),
         result: agentMessagePullResultSchema,
     },
     'agent.message.check': {
         ...commandPolicy('host', 'read', ['agents.message']),
-        params: z.object({}).strict().default({}),
+        params: z.strictObject({}).default({}),
         result: agentMessagePullResultSchema,
     },
     'agent.message.receipt': {
         ...commandPolicy('host', 'read', ['agents.message']),
-        params: z.object({ messageId: identifierSchema }).strict(),
+        params: z.strictObject({ messageId: identifierSchema }),
         result: agentMessageReceiptSchema,
     },
     'agent.message.policy.get': {
         ...commandPolicy('host', 'read', ['agents.message']),
-        params: z.object({}).strict().default({}),
+        params: z.strictObject({}).default({}),
         result: agentInboundPolicyResultSchema,
     },
     'agent.message.policy.set': {
@@ -149,8 +137,8 @@ export const agentInboxMethods = {
     },
     'agent.message.held': {
         ...commandPolicy('host', 'read', ['desktop']),
-        params: z.object({}).strict().default({}),
-        result: z.object({ messages: z.array(agentHeldMessageSchema).max(1_024) }).strict(),
+        params: z.strictObject({}).default({}),
+        result: z.strictObject({ messages: z.array(agentHeldMessageSchema).max(1_024) }),
     },
     'agent.message.approve': {
         ...commandPolicy('host', 'write', ['desktop']),

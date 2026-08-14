@@ -8,7 +8,7 @@ import {
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import { e2eAgentPolicyEnvironment, readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
-import { startHostApplication } from './index';
+import { startHostApplication } from './application';
 import { createDesktopLauncher } from './desktop-launcher';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;

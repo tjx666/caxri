@@ -26,9 +26,10 @@ export type ProtocolWelcome = z.infer<typeof protocolWelcomeSchema>;
 
 /** Chooses the newest common version without binding negotiation to a concrete transport. */
 export function negotiateProtocolVersion(clientVersions: readonly number[]): CaxriProtocolVersion {
+    const clientVersionSet = new Set(clientVersions);
     const version = [...supportedProtocolVersions]
         .reverse()
-        .find((candidate) => clientVersions.includes(candidate));
+        .find((candidate) => clientVersionSet.has(candidate));
     if (!version) throw new CaxriError('CONFLICT', 'No compatible Caxri protocol version');
     return version;
 }

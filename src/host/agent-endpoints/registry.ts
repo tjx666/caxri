@@ -211,10 +211,14 @@ export class AgentEndpointRegistry {
         this.sweep();
         const projectIds =
             context.principal.kind === 'agent' ? new Set(context.principal.projectIds) : undefined;
-        return [...this.byEndpoint.values()]
-            .filter((record) => !projectIds || projectIds.has(record.summary.projectId))
-            .map((record) => record.summary)
-            .sort((left, right) => left.ref.endpointId.localeCompare(right.ref.endpointId));
+        const endpoints: AgentEndpointSummary[] = [];
+        for (const record of this.byEndpoint.values()) {
+            if (!projectIds || projectIds.has(record.summary.projectId))
+                endpoints.push(record.summary);
+        }
+        return endpoints.sort((left, right) =>
+            left.ref.endpointId.localeCompare(right.ref.endpointId),
+        );
     }
 
     grants(ref: AgentEndpointRef): AgentEndpointGrant[] {

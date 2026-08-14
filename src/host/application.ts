@@ -17,9 +17,9 @@ import { LocalHostServer } from './local-server';
 import { HostDesktopRouter } from './desktop-router';
 import { acquireHostProfile, type HostProfileLease } from './profile';
 import { HostRuntimeSupervisor } from './runtime-supervisor';
-import { AgentEndpointRegistry } from './agent-endpoints';
-import { AgentInboxRegistry } from './agent-inbox';
-import { ProviderMessagingAdapterRegistry } from './provider-messaging';
+import { AgentEndpointRegistry } from './agent-endpoints/registry';
+import { AgentInboxRegistry } from './agent-inbox/registry';
+import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 
 export interface HostApplicationOptions {
     agentHooksPath?: string;
@@ -254,8 +254,10 @@ export async function startHostApplication(
                 dispatchWaitIds.set(key, waitIds);
                 try {
                     return await supervisor.request('agent.dispatch.waitInternal', {
-                        ...request.params,
+                        afterRevision: request.params.afterRevision,
+                        dispatchId: request.params.dispatchId,
                         projectScope: projectScope(context),
+                        timeoutMs: request.params.timeoutMs,
                         waitId,
                     });
                 } finally {

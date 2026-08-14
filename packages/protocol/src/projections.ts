@@ -96,8 +96,9 @@ export function projectListForPrincipal(value: unknown, principal: Principal): P
         };
     }
     const scope = projectScope(principal)!;
-    const projects = records
-        .filter(({ id }) => scope.has(id))
-        .map(({ id, displayTitle }) => ({ id, displayTitle }));
+    const projects = [] as Array<{ id: string; displayTitle: string }>;
+    for (const { id, displayTitle } of records) {
+        if (scope.has(id)) projects.push({ id, displayTitle });
+    }
     return { view: principal.kind, projects };
 }

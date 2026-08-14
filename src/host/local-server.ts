@@ -396,23 +396,19 @@ export class LocalHostServer {
                     .then(async () => {
                         if (!state) {
                             const hello = localClientHelloSchema.parse(raw);
-                            if (hello.profileId !== this.options.manifest.profileId) {
+                            const manifest = this.options.manifest;
+                            if (hello.profileId !== manifest.profileId) {
                                 socket.destroy();
                                 return;
                             }
                             let context: CommandExecutionContext;
                             let desktopLease: DesktopLease | undefined;
                             if (hello.credential.kind === 'operator') {
-                                if (
-                                    !tokenMatches(
-                                        hello.credential.token,
-                                        this.options.manifest.operatorToken,
-                                    )
-                                ) {
+                                if (!tokenMatches(hello.credential.token, manifest.operatorToken)) {
                                     socket.destroy();
                                     return;
                                 }
-                                context = operatorContext(this.options.manifest.profileId);
+                                context = operatorContext(manifest.profileId);
                             } else if (hello.credential.kind === 'agent') {
                                 if (!this.options.authenticateAgent) {
                                     socket.destroy();
@@ -427,9 +423,8 @@ export class LocalHostServer {
                             } else {
                                 const credential = this.options.desktopCredential;
                                 if (
-                                    credential.profileId !== this.options.manifest.profileId ||
-                                    credential.processIdentity !==
-                                        this.options.manifest.processIdentity ||
+                                    credential.profileId !== manifest.profileId ||
+                                    credential.processIdentity !== manifest.processIdentity ||
                                     !tokenMatches(hello.credential.token, credential.desktopToken)
                                 ) {
                                     socket.destroy();
@@ -470,8 +465,8 @@ export class LocalHostServer {
                                 socket,
                                 localServerWelcomeSchema.parse({
                                     type: 'welcome',
-                                    profileId: this.options.manifest.profileId,
-                                    processIdentity: this.options.manifest.processIdentity,
+                                    profileId: manifest.profileId,
+                                    processIdentity: manifest.processIdentity,
                                     ...(desktopLease ? { desktopLease: state.desktopLease } : {}),
                                     ...createProtocolWelcome(
                                         this.options.adapters,
@@ -485,10 +480,13 @@ export class LocalHostServer {
                         const clientState = state;
                         const ready = localClientDesktopReadySchema.safeParse(raw);
                         if (ready.success) {
+                            const principal = clientState.context.principal;
+                            const desktopLease = clientState.desktopLease;
                             if (
-                                clientState.context.principal.kind !== 'desktop' ||
+                                principal.kind !== 'desktop' ||
                                 this.currentDesktop !== clientState ||
-                                clientState.desktopLease?.generation !== ready.data.generation
+                                !desktopLease ||
+                                desktopLease.generation !== ready.data.generation
                             )
                                 throw new CaxriError(
                                     'CONFLICT',
@@ -497,16 +495,18 @@ export class LocalHostServer {
                             clientState.desktopReady = true;
                             for (const waiter of this.desktopLeaseWaiters) {
                                 clearTimeout(waiter.timer);
-                                waiter.resolve(clientState.desktopLease);
+                                waiter.resolve(desktopLease);
                             }
                             this.desktopLeaseWaiters.clear();
                             return;
                         }
                         const renew = localClientLeaseRenewSchema.safeParse(raw);
                         if (renew.success) {
+                            const principal = clientState.context.principal;
+                            const leaseGeneration = clientState.desktopLease?.generation;
                             if (
-                                clientState.context.principal.kind !== 'desktop' ||
-                                clientState.desktopLease?.generation !== renew.data.generation
+                                principal.kind !== 'desktop' ||
+                                leaseGeneration !== renew.data.generation
                             )
                                 throw new CaxriError(
                                     'CONFLICT',
@@ -588,7 +588,8 @@ export class LocalHostServer {
                             return;
                         }
                         const command = localClientCommandSchema.parse(raw);
-                        clientState.inFlightRequestIds.add(command.request.id);
+                        const commandRequest = command.request;
+                        clientState.inFlightRequestIds.add(commandRequest.id);
                         let currentContext: CommandExecutionContext;
                         try {
                             currentContext =
@@ -597,7 +598,7 @@ export class LocalHostServer {
                         } catch (error) {
                             const reply = {
                                 protocolVersion: CAXRI_PROTOCOL_VERSION,
-                                id: command.request.id,
+                                id: commandRequest.id,
                                 ok: false as const,
                                 error: toWireError(error),
                             };
@@ -605,9 +606,9 @@ export class LocalHostServer {
                                 socket,
                                 localServerReplySchema.parse({ type: 'reply', reply }),
                                 () => {
-                                    clientState.inFlightRequestIds.delete(command.request.id);
+                                    clientState.inFlightRequestIds.delete(commandRequest.id);
                                     this.options.onReplyFlushed?.(
-                                        command.request,
+                                        commandRequest,
                                         reply,
                                         clientState.context,
                                     );
@@ -620,7 +621,7 @@ export class LocalHostServer {
                             this.currentDesktop !== clientState
                                 ? {
                                       protocolVersion: CAXRI_PROTOCOL_VERSION,
-                                      id: command.request.id,
+                                      id: commandRequest.id,
                                       ok: false as const,
                                       error: toWireError(
                                           new CaxriError(
@@ -629,14 +630,14 @@ export class LocalHostServer {
                                           ),
                                       ),
                                   }
-                                : await this.dispatch(command.request, currentContext);
+                                : await this.dispatch(commandRequest, currentContext);
                         this.write(
                             socket,
                             localServerReplySchema.parse({ type: 'reply', reply }),
                             () => {
-                                clientState.inFlightRequestIds.delete(command.request.id);
+                                clientState.inFlightRequestIds.delete(commandRequest.id);
                                 this.options.onReplyFlushed?.(
-                                    command.request,
+                                    commandRequest,
                                     reply,
                                     currentContext,
                                 );

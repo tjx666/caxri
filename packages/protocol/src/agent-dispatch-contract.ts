@@ -16,66 +16,58 @@ export const agentDispatchStatusSchema = z.enum([
 ]);
 
 /** Auditable launch evidence without exposing provider arguments that may contain local secrets. */
-export const agentDispatchLaunchSchema = z
-    .object({
-        provider: agentProviderSchema,
-        mode: z.enum(['fresh', 'resume']),
-        executable: z.string().trim().min(1).max(16_384),
-        argumentCount: z.number().int().nonnegative().max(256),
-        fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
-    })
-    .strict();
+export const agentDispatchLaunchSchema = z.strictObject({
+    provider: agentProviderSchema,
+    mode: z.enum(['fresh', 'resume']),
+    executable: z.string().trim().min(1).max(16_384),
+    argumentCount: z.number().int().nonnegative().max(256),
+    fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
+});
 
-export const agentDispatchFailureSchema = z
-    .object({
-        code: z.enum([
-            'VALIDATION',
-            'NOT_FOUND',
-            'PATH_DENIED',
-            'CAPACITY',
-            'UNAVAILABLE',
-            'TIMEOUT',
-            'CONFLICT',
-            'FORBIDDEN',
-            'IO',
-            'GIT',
-            'INTERNAL',
-        ]),
-        reason: z.enum([
-            'host_reset',
-            'target_changed',
-            'provider_session_changed',
-            'launch_failed',
-            'process_failed',
-        ]),
-    })
-    .strict();
+export const agentDispatchFailureSchema = z.strictObject({
+    code: z.enum([
+        'VALIDATION',
+        'NOT_FOUND',
+        'PATH_DENIED',
+        'CAPACITY',
+        'UNAVAILABLE',
+        'TIMEOUT',
+        'CONFLICT',
+        'FORBIDDEN',
+        'IO',
+        'GIT',
+        'INTERNAL',
+    ]),
+    reason: z.enum([
+        'host_reset',
+        'target_changed',
+        'provider_session_changed',
+        'launch_failed',
+        'process_failed',
+    ]),
+});
 
-export const agentDispatchReceiptSchema = z
-    .object({
-        dispatchId: identifierSchema,
-        operation: agentDispatchOperationSchema,
-        status: agentDispatchStatusSchema,
-        projectId: identifierSchema,
-        sessionId: identifierSchema,
-        terminalId: identifierSchema.optional(),
-        provider: agentProviderSchema,
-        requestedLaunch: agentDispatchLaunchSchema,
-        effectiveLaunch: agentDispatchLaunchSchema,
-        endpoint: agentEndpointRefSchema.optional(),
-        failure: agentDispatchFailureSchema.optional(),
-        revision: z.number().int().positive(),
-        createdAt: z.number().int().positive(),
-        updatedAt: z.number().int().positive(),
-    })
-    .strict();
+export const agentDispatchReceiptSchema = z.strictObject({
+    dispatchId: identifierSchema,
+    operation: agentDispatchOperationSchema,
+    status: agentDispatchStatusSchema,
+    projectId: identifierSchema,
+    sessionId: identifierSchema,
+    terminalId: identifierSchema.optional(),
+    provider: agentProviderSchema,
+    requestedLaunch: agentDispatchLaunchSchema,
+    effectiveLaunch: agentDispatchLaunchSchema,
+    endpoint: agentEndpointRefSchema.optional(),
+    failure: agentDispatchFailureSchema.optional(),
+    revision: z.number().int().positive(),
+    createdAt: z.number().int().positive(),
+    updatedAt: z.number().int().positive(),
+});
 
-const dispatchTargetSchema = z
-    .object({
-        projectId: identifierSchema,
-        sessionId: identifierSchema,
-    })
-    .strict();
+const dispatchTargetSchema = z.strictObject({
+    projectId: identifierSchema,
+    sessionId: identifierSchema,
+});
 
 export const agentDispatchStartParamsSchema = dispatchTargetSchema.extend({
     provider: agentProviderSchema,
@@ -86,27 +78,23 @@ export const agentDispatchResumeParamsSchema = dispatchTargetSchema.extend({
     providerSessionId: z.string().trim().min(1).max(1_024),
 });
 
-export const agentDispatchStatusParamsSchema = z.object({ dispatchId: identifierSchema }).strict();
+export const agentDispatchStatusParamsSchema = z.strictObject({ dispatchId: identifierSchema });
 export const agentDispatchWaitParamsSchema = agentDispatchStatusParamsSchema.extend({
     afterRevision: z.number().int().nonnegative().default(0),
     timeoutMs: z.number().int().min(100).max(120_000).default(15_000),
 });
 
-export const agentDispatchWaitResultSchema = z
-    .object({
-        receipt: agentDispatchReceiptSchema,
-        outcome: z.enum(['changed', 'timed_out', 'canceled']),
-    })
-    .strict();
+export const agentDispatchWaitResultSchema = z.strictObject({
+    receipt: agentDispatchReceiptSchema,
+    outcome: z.enum(['changed', 'timed_out', 'canceled']),
+});
 
-const agentControlParamsSchema = z.object({ endpoint: agentEndpointRefSchema }).strict();
-export const agentControlResultSchema = z
-    .object({
-        endpoint: agentEndpointRefSchema,
-        terminalId: identifierSchema,
-        outcome: z.literal('signaled'),
-    })
-    .strict();
+const agentControlParamsSchema = z.strictObject({ endpoint: agentEndpointRefSchema });
+export const agentControlResultSchema = z.strictObject({
+    endpoint: agentEndpointRefSchema,
+    terminalId: identifierSchema,
+    outcome: z.literal('signaled'),
+});
 
 export const MAX_TERMINAL_STEER_BYTES = 8 * 1_024;
 
@@ -119,32 +107,28 @@ function containsUnsafeTerminalControl(value: string): boolean {
     return false;
 }
 
-export const terminalSendParamsSchema = z
-    .object({
-        terminalId: identifierSchema,
-        text: z
-            .string()
-            .min(1)
-            .refine(
-                (value) => new TextEncoder().encode(value).byteLength <= MAX_TERMINAL_STEER_BYTES,
-                `Terminal text exceeds ${MAX_TERMINAL_STEER_BYTES} UTF-8 bytes`,
-            )
-            .refine(
-                (value) => !containsUnsafeTerminalControl(value),
-                'Terminal text contains control characters; use --enter for Enter',
-            ),
-        enter: z.boolean().default(false),
-    })
-    .strict();
+export const terminalSendParamsSchema = z.strictObject({
+    terminalId: identifierSchema,
+    text: z
+        .string()
+        .min(1)
+        .refine(
+            (value) => new TextEncoder().encode(value).byteLength <= MAX_TERMINAL_STEER_BYTES,
+            `Terminal text exceeds ${MAX_TERMINAL_STEER_BYTES} UTF-8 bytes`,
+        )
+        .refine(
+            (value) => !containsUnsafeTerminalControl(value),
+            'Terminal text contains control characters; use --enter for Enter',
+        ),
+    enter: z.boolean().default(false),
+});
 
-export const terminalSendResultSchema = z
-    .object({
-        terminalId: identifierSchema,
-        accepted: z.literal(true),
-        byteLength: z.number().int().positive().max(MAX_TERMINAL_STEER_BYTES),
-        enter: z.boolean(),
-    })
-    .strict();
+export const terminalSendResultSchema = z.strictObject({
+    terminalId: identifierSchema,
+    accepted: z.literal(true),
+    byteLength: z.number().int().positive().max(MAX_TERMINAL_STEER_BYTES),
+    enter: z.boolean(),
+});
 
 export const agentDispatchMethods = {
     'agent.dispatch.start': {
@@ -184,12 +168,10 @@ export const agentDispatchMethods = {
     },
 } as const satisfies Record<string, MethodSpec>;
 
-const internalIdentitySchema = z
-    .object({
-        dispatchId: identifierSchema,
-        principal: principalSchema,
-    })
-    .strict();
+const internalIdentitySchema = z.strictObject({
+    dispatchId: identifierSchema,
+    principal: principalSchema,
+});
 
 const projectScopeSchema = z.array(identifierSchema).max(128).nullable();
 
@@ -226,8 +208,8 @@ export const agentDispatchInternalMethods = {
     },
     'agent.dispatch.cancelWaitInternal': {
         ...commandPolicy('host', 'control'),
-        params: z.object({ waitId: identifierSchema }).strict(),
-        result: z.object({ canceled: z.boolean() }).strict(),
+        params: z.strictObject({ waitId: identifierSchema }),
+        result: z.strictObject({ canceled: z.boolean() }),
     },
     'agent.control.interruptInternal': {
         ...commandPolicy('host', 'control'),
