@@ -80,7 +80,7 @@ export const commandDefinitions: CommandDefinition[] = [
     }),
     fromCatalog('editor.save', (ctx) => ctx.editor.saveActive(), { allowInEditable: true }),
     ...inspectorModeRegistrations.map(({ commandId, mode }) =>
-        fromCatalog(commandId, (ctx) => ctx.inspector.setMode(mode)),
+        fromCatalog(commandId, (ctx) => ctx.inspector.activateMode(mode)),
     ),
     fromCatalog('inspector.searchFiles', (ctx) => ctx.inspector.searchFiles(), {
         allowInEditable: true,

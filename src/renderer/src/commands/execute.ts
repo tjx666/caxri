@@ -42,6 +42,22 @@ function activeTerminalId(): string | undefined {
 }
 
 /**
+ * Makes an Inspector mode reachable before persisting it into the selected Session. Callers such
+ * as the Status Bar and Command Palette must share this boundary so selecting a mode cannot leave
+ * the Inspector collapsed.
+ */
+function activateInspectorMode(
+    mode: Parameters<CommandContext['inspector']['activateMode']>[0],
+): void {
+    const session = getSelectedSession();
+    if (!session) return;
+    if (!usePanelLayoutStore.getState().inspectorVisible)
+        usePanelLayoutStore.getState().setInspectorVisible(true);
+    if (mode !== 'files') closeFileSearch(session.id);
+    useSessionViewStore.getState().setInspectorMode(mode);
+}
+
+/**
  * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is
  * `allowInEditable` so it can reach through the xterm surface. Availability therefore cannot rest on
  * "the active tab is a terminal with a selection" alone: a sidebar rename field or the path browser
@@ -119,15 +135,10 @@ const commandContext: CommandContext = {
         searchFiles: () => {
             const session = getSelectedSession();
             if (!session) return;
-            usePanelLayoutStore.getState().setInspectorVisible(true);
-            useSessionViewStore.getState().setInspectorMode('files');
+            activateInspectorMode('files');
             requestFileSearchFocus(session.id);
         },
-        setMode: (mode) => {
-            const session = getSelectedSession();
-            if (session && mode !== 'files') closeFileSearch(session.id);
-            useSessionViewStore.getState().setInspectorMode(mode);
-        },
+        activateMode: activateInspectorMode,
         toggle: () => usePanelLayoutStore.getState().toggleInspector(),
     },
     sidebar: { toggle: () => usePanelLayoutStore.getState().toggleSidebar() },

@@ -34,7 +34,6 @@ import {
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
-import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { sessionViewScope, useActiveWork } from '../../stores/session-view';
@@ -599,7 +598,6 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
 }
 
 function showInspector(command: InspectorCommandId): void {
-    usePanelLayoutStore.getState().setInspectorVisible(true);
     executeCommand(command);
 }
 
