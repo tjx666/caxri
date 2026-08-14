@@ -21,11 +21,17 @@ process.env.CAXRI_GIT_COMMIT = commit;
 const logger = new StructuredLogger(join(userDataPath, 'logs'), 'host', 'info');
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'host' });
 processErrorMonitor.attach(logger);
+const hostOutputDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopLaunchSource = process.env[HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? hostDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
-    : undefined;
-const hostOutputDirectory = dirname(fileURLToPath(import.meta.url));
+    : hostOutputDirectory.includes('.asar') && process.resourcesPath
+      ? {
+            executable: process.execPath,
+            args: [],
+            cwd: dirname(process.execPath),
+        }
+      : undefined;
 const cliPath =
     process.env.CAXRI_CLI_PATH ??
     (process.resourcesPath

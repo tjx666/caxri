@@ -46,6 +46,11 @@ export const desktopHostMethods = {
         }),
         result: z.object({ state: z.literal('focused'), generation: z.number().int().positive() }),
     },
+    'desktop.openPath': {
+        ...hostDesktopControl,
+        params: desktopOpenParamsSchema,
+        result: desktopTargetResultSchema.extend({ state: z.literal('opened') }),
+    },
     'desktop.openProject': {
         ...hostDesktopControl,
         params: desktopOpenParamsSchema,

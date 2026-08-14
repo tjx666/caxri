@@ -66,6 +66,13 @@ share closed error codes; Agent and CI contexts default to JSON and never prompt
 an explicit profile plus any command-specific Project, Session, or Terminal selector and cannot
 infer a target from uniqueness. The CLI may discover the private Host manifest and connect through
 its local socket, but it cannot read Runtime persistence, logs, configuration files, or Desktop IPC.
+The packaged shim supplies an absolute executable/Host-entry pair; human commands may use that pair
+to adopt or start one detached Host, while Agent Endpoint credentials can only reconnect to their
+already-running generation. Only a closed environment allowlist crosses the CLI-to-Host launch.
+Top-level `open|reveal` submit only one bounded path and optional Session ID to the Host; Runtime
+revalidates Project containment and Host replaces that path with a one-use, generation-bound opaque
+target before Desktop Main can open or reveal it. CLI retries use the shared request-ID idempotency
+contract and never call Electron, Finder, or a shell directly.
 For a directly managed Agent PTY, Runtime requests a separate Endpoint credential over correlated
 private child IPC immediately before spawn. Host stores only its digest and fences every command by
 Host, Endpoint, generation, and launch identity; restart, exit, close, deletion, Runtime crash, and

@@ -462,6 +462,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'host.stop': () => mainOwned('host.stop'),
         'desktop.status': () => mainOwned('desktop.status'),
         'desktop.focus': () => mainOwned('desktop.focus'),
+        'desktop.openPath': () => mainOwned('desktop.openPath'),
         'desktop.openProject': () => mainOwned('desktop.openProject'),
         'desktop.openFile': () => mainOwned('desktop.openFile'),
         'app.windowState.get': () => ({
@@ -785,7 +786,6 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             return null;
         },
     };
-
     /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
     void files.watchSession(selectedSessionId());
     /** Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected

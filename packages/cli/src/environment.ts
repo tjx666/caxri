@@ -42,6 +42,48 @@ export interface AgentEndpointCredential {
     token: string;
 }
 
+export interface CliHostLaunch {
+    entryPath: string;
+    environment?: NodeJS.ProcessEnv;
+    executable: string;
+}
+
+const hostLaunchEnvironmentKeys = [
+    'CAXRI_AGENT_HOOKS_PATH',
+    'CAXRI_CLI_PATH',
+    'CAXRI_DESKTOP_LAUNCH',
+    'CAXRI_E2E',
+    'CAXRI_E2E_AGENT_MODE',
+    'CAXRI_E2E_AGENT_PROVIDER',
+    'CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE',
+    'CAXRI_E2E_FAKE_CODEX_EXECUTABLE',
+    'CAXRI_E2E_WINDOW_MODE',
+    'CAXRI_E2E_WORKER_NAMESPACE',
+    'CAXRI_TEST_ROOT_PATH',
+    'CAXRI_TEST_ROOT_PATHS',
+] as const;
+
+/** Accepts only the app-managed Host entry pair and a bounded launch-environment allowlist. */
+export function resolveCliHostLaunch(environment: NodeJS.ProcessEnv): CliHostLaunch | undefined {
+    const executable = environment.CAXRI_HOST_EXECUTABLE;
+    const entryPath = environment.CAXRI_HOST_ENTRY_PATH;
+    if (executable === undefined && entryPath === undefined) return undefined;
+    if (!executable || !entryPath)
+        throw new CaxriError('VALIDATION', 'Caxri Host launch environment is incomplete');
+    if (!isAbsolute(executable) || !isAbsolute(entryPath))
+        throw new CaxriError('VALIDATION', 'Caxri Host launch paths must be absolute');
+    const launchEnvironment: NodeJS.ProcessEnv = {};
+    for (const key of hostLaunchEnvironmentKeys) {
+        const value = environment[key];
+        if (value !== undefined) launchEnvironment[key] = value;
+    }
+    return {
+        executable,
+        entryPath,
+        ...(Object.keys(launchEnvironment).length > 0 ? { environment: launchEnvironment } : {}),
+    };
+}
+
 /** Requires the complete generation credential; partial inherited state is never authoritative. */
 export function resolveAgentEndpointCredential(
     environment: NodeJS.ProcessEnv,
