@@ -33,6 +33,8 @@ describe('CLI delivery artifact', () => {
 
         expect(cliPackage.bin).toEqual({ caxri: './dist/caxri.cjs' });
         expect(cliPackage.scripts?.build).toContain('--outfile dist/caxri.cjs');
+        expect(cliPackage.scripts?.build).toContain('scripts/generate-skill-bundle.ts');
+        expect(cliPackage.scripts?.build).toContain('scripts/validate-skill.ts');
         expect(cliPackage.scripts?.build).toContain('scripts/verify-bundle.ts');
         expect(rootPackage.build?.extraResources).toContainEqual({
             from: 'packages/cli/dist/caxri.cjs',

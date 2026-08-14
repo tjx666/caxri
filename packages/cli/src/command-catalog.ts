@@ -7,6 +7,8 @@ import {
     type CaxriMethodDescription,
 } from '@caxri/protocol';
 
+import { SKILL_COMMANDS } from './skill-commands';
+
 export const CLI_GROUPS = [
     { name: 'host', summary: 'Inspect and control the profile Host.' },
     { name: 'desktop', summary: 'Inspect and focus the Desktop client.' },
@@ -23,10 +25,14 @@ export const CLI_GROUPS = [
 
 export type CliGroupName = (typeof CLI_GROUPS)[number]['name'];
 
-interface LocalCommandDefinition {
+export interface LocalCommandDefinition {
+    confirmation?: string;
     kind: 'local';
-    path: readonly [string];
+    mutates?: boolean;
+    parseParams(tokens: readonly string[]): unknown;
+    path: readonly [string, ...string[]];
     summary: string;
+    usage?: string;
 }
 
 export interface RemoteCommandDefinition {
@@ -320,12 +326,21 @@ export const CLI_COMMANDS = [
         kind: 'local',
         path: ['capabilities'],
         summary: 'Print local command and schema introspection without requiring a Host.',
+        parseParams: rejectOptions,
     },
     {
         kind: 'local',
         path: ['agent-context'],
         summary: 'Print local automation and protocol context without requiring a Host.',
+        parseParams: rejectOptions,
     },
+    {
+        kind: 'local',
+        path: ['status'],
+        summary: 'Negotiate with the selected Host and print principal-safe status.',
+        parseParams: rejectOptions,
+    },
+    ...SKILL_COMMANDS,
     {
         kind: 'remote',
         path: ['agent', 'list'],
@@ -714,10 +729,17 @@ export interface CliCommandDescription {
     path: readonly string[];
     resultSchema?: Record<string, unknown>;
     summary: string;
+    usage?: string;
 }
 
 export function describeCliCommand(command: CliCommandDefinition): CliCommandDescription {
-    if (command.kind === 'local') return { ...command };
+    if (command.kind === 'local')
+        return {
+            kind: command.kind,
+            path: command.path,
+            summary: command.summary,
+            ...(command.usage ? { usage: command.usage } : {}),
+        };
     const method: CaxriMethodDescription = describeCaxriMethod(command.method);
     return {
         ...method,
@@ -725,5 +747,6 @@ export function describeCliCommand(command: CliCommandDefinition): CliCommandDes
         kind: 'remote',
         path: command.path,
         summary: command.summary,
+        ...(command.usage ? { usage: command.usage } : {}),
     };
 }

@@ -8,6 +8,7 @@ describe('CLI business command catalog', () => {
 
         expect(paths).toEqual(
             expect.arrayContaining([
+                'status',
                 'project list',
                 'project show',
                 'project current',
@@ -41,6 +42,12 @@ describe('CLI business command catalog', () => {
                 'agent message policy',
                 'agent message policy-set',
                 'terminal send',
+                'skills list',
+                'skills get',
+                'skills status',
+                'skills install',
+                'skills update',
+                'skills uninstall',
             ]),
         );
     });

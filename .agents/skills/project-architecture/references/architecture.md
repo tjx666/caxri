@@ -74,6 +74,20 @@ while bounded generation grants add debug, business-write, or Agent-control capa
 promotion never receives an Endpoint. These bearer capabilities are a product authorization boundary,
 not a sandbox from same-user code that can independently read the private owner manifest.
 
+The canonical provider-neutral Agent guide lives at `skills/caxri-cli/SKILL.md`. The CLI build
+validates its executable examples and capability marker against the same command registry, then
+embeds the exact skill files in the standalone artifact with CLI/protocol compatibility metadata and
+a content hash. Offline `skills list|get|status` never opens the Host transport or emits local paths.
+Explicit install/update operations target only the documented Project-local or user-global skill
+directory for the selected Codex or Claude provider. A complete immutable release is written beside
+the Provider-visible entry before one relative directory symlink publishes it; update atomically
+switches that symlink, so a loader sees either complete version. Mutations anchor themselves to the
+verified parent inode, mark and bound the managed release tree, preserve sibling and unmarked
+entries, and fail closed for modified, unknown-schema, or newer installations; removal applies only
+to intact current or older marked entries. Neither provider exposes a stable, documented per-Session
+skill injection boundary in the controlled version matrix, so Caxri reports local installation
+instead of altering Provider launch flags or private state.
+
 Runtime output events are batched and bounded before crossing process boundaries. Host owns the durable
 structural events use a monotonic, bounded cursor journal: a reconnect receives an intact suffix or
 a bounded ID/revision snapshot when its cursor has fallen behind. Terminal output never enters that
