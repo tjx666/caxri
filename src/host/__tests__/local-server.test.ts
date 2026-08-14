@@ -105,7 +105,7 @@ describe('local Host transport', () => {
         const operatorEvents = vi.fn();
         second.onEvent(operatorEvents);
         server.broadcast({
-            protocolVersion: 1,
+            protocolVersion: 2,
             cursor: 1,
             event: {
                 event: 'settings.changed',
@@ -145,7 +145,7 @@ describe('local Host transport', () => {
         socket.write(
             `${JSON.stringify({
                 type: 'hello',
-                supportedVersions: [1],
+                supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: {
                     kind: 'operator',
@@ -220,7 +220,7 @@ describe('local Host transport', () => {
         socket.write(
             `${JSON.stringify({
                 type: 'hello',
-                supportedVersions: [1],
+                supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: { kind: 'operator', token: '0'.repeat(64) },
             })}\n`,
@@ -260,7 +260,7 @@ describe('local Host transport', () => {
                         if (request.method === 'diagnostics.snapshot')
                             return {
                                 appVersion: '1.0.0',
-                                protocolVersion: 1,
+                                protocolVersion: 2,
                                 runtimeStatus: 'ready',
                                 startedAt: 1,
                                 activePtyCount: 0,
@@ -442,7 +442,7 @@ describe('local Host transport', () => {
         socket.write(
             `${JSON.stringify({
                 type: 'hello',
-                supportedVersions: [1],
+                supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: {
                     kind: 'desktop',
@@ -468,7 +468,7 @@ describe('local Host transport', () => {
         socket.write(
             `${JSON.stringify({
                 type: 'hello',
-                supportedVersions: [2],
+                supportedVersions: [1],
                 profileId: lease.manifest.profileId,
                 credential: {
                     kind: 'operator',

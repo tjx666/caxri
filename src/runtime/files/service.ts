@@ -271,12 +271,25 @@ export class FileService {
     }
 
     watchSession(sessionId?: string): Promise<void> {
-        return this.watcher.watchSession(sessionId);
+        return this.watcher.watchSession(
+            sessionId
+                ? {
+                      sessionId,
+                      workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
+                  }
+                : undefined,
+        );
     }
 
     /** Reinstalls the selected watcher after its Session atomically changes Workbench Root. */
     refreshWatchSession(sessionId: string): Promise<void> {
-        return this.watcher.watchSession(sessionId, true);
+        return this.watcher.watchSession(
+            {
+                sessionId,
+                workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
+            },
+            true,
+        );
     }
 
     async close(): Promise<void> {

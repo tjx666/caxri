@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { CaxriError } from './errors.js';
 import { capabilitySchema, principalSchema } from './principal.js';
 
-/** First transport-neutral Caxri protocol generation. */
-export const CAXRI_PROTOCOL_VERSION = 1 as const;
+/** Version 2 makes every `files.changed` event carry its immutable Workbench Project scope. */
+export const CAXRI_PROTOCOL_VERSION = 2 as const;
 export const supportedProtocolVersions = [CAXRI_PROTOCOL_VERSION] as const;
 export const protocolVersionSchema = z.literal(CAXRI_PROTOCOL_VERSION);
 
