@@ -66,9 +66,11 @@ share closed error codes; Agent and CI contexts default to JSON and never prompt
 an explicit profile plus any command-specific Project, Session, or Terminal selector and cannot
 infer a target from uniqueness. The CLI may discover the private Host manifest and connect through
 its local socket, but it cannot read Runtime persistence, logs, configuration files, or Desktop IPC.
-The packaged shim supplies an absolute executable/Host-entry pair; human commands may use that pair
-to adopt or start one detached Host, while Agent Endpoint credentials can only reconnect to their
-already-running generation. Only a closed environment allowlist crosses the CLI-to-Host launch.
+The CLI derives its executable and Host entry only when the current RunAsNode process, resources
+directory, and script path match the immutable packaged application layout; no environment variable
+can nominate a process to spawn. Human commands may adopt or start one detached Host, while Agent and
+CI commands only connect to an already-running Host and Agent Endpoint credentials remain bound to
+their generation.
 Top-level `open|reveal` submit only one bounded path and optional Session ID to the Host; Runtime
 revalidates Project containment and Host replaces that path with a one-use, generation-bound opaque
 target before Desktop Main can open or reveal it. CLI retries use the shared request-ID idempotency

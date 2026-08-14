@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
 import { hostCredentialTokenSchema, hostProcessIdentitySchema } from '@caxri/protocol';
@@ -42,45 +42,27 @@ export interface AgentEndpointCredential {
     token: string;
 }
 
-export interface CliHostLaunch {
+export interface PackagedHostLaunch {
     entryPath: string;
-    environment?: NodeJS.ProcessEnv;
     executable: string;
 }
 
-const hostLaunchEnvironmentKeys = [
-    'CAXRI_AGENT_HOOKS_PATH',
-    'CAXRI_CLI_PATH',
-    'CAXRI_DESKTOP_LAUNCH',
-    'CAXRI_E2E',
-    'CAXRI_E2E_AGENT_MODE',
-    'CAXRI_E2E_AGENT_PROVIDER',
-    'CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE',
-    'CAXRI_E2E_FAKE_CODEX_EXECUTABLE',
-    'CAXRI_E2E_WINDOW_MODE',
-    'CAXRI_E2E_WORKER_NAMESPACE',
-    'CAXRI_TEST_ROOT_PATH',
-    'CAXRI_TEST_ROOT_PATHS',
-] as const;
-
-/** Accepts only the app-managed Host entry pair and a bounded launch-environment allowlist. */
-export function resolveCliHostLaunch(environment: NodeJS.ProcessEnv): CliHostLaunch | undefined {
-    const executable = environment.CAXRI_HOST_EXECUTABLE;
-    const entryPath = environment.CAXRI_HOST_ENTRY_PATH;
-    if (executable === undefined && entryPath === undefined) return undefined;
-    if (!executable || !entryPath)
-        throw new CaxriError('VALIDATION', 'Caxri Host launch environment is incomplete');
-    if (!isAbsolute(executable) || !isAbsolute(entryPath))
-        throw new CaxriError('VALIDATION', 'Caxri Host launch paths must be absolute');
-    const launchEnvironment: NodeJS.ProcessEnv = {};
-    for (const key of hostLaunchEnvironmentKeys) {
-        const value = environment[key];
-        if (value !== undefined) launchEnvironment[key] = value;
-    }
+/** Derives launch authority only from the currently executing packaged Caxri application layout. */
+export function resolvePackagedHostLaunch(input: {
+    executable: string;
+    resourcesPath?: string;
+    runAsNode?: string;
+    scriptPath?: string;
+}): PackagedHostLaunch | undefined {
+    if (input.runAsNode !== '1' || !input.resourcesPath || !input.scriptPath) return undefined;
+    const resourcesPath = resolve(input.resourcesPath);
+    const executable = resolve(resourcesPath, '..', 'MacOS', 'Caxri');
+    const cliBundle = resolve(resourcesPath, 'cli', 'caxri.cjs');
+    if (resolve(input.executable) !== executable || resolve(input.scriptPath) !== cliBundle)
+        return undefined;
     return {
         executable,
-        entryPath,
-        ...(Object.keys(launchEnvironment).length > 0 ? { environment: launchEnvironment } : {}),
+        entryPath: resolve(resourcesPath, 'app.asar', 'out', 'main', 'host.js'),
     };
 }
 

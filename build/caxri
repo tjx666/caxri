@@ -14,14 +14,9 @@ done
 launcher_dir=$(CDPATH= cd -P -- "$(dirname -- "$launcher_path")" && pwd)
 app_executable=$launcher_dir/../../MacOS/Caxri
 cli_bundle=$launcher_dir/../cli/caxri.cjs
-host_entry=$launcher_dir/../app.asar/out/main/host.js
-
 if [ ! -x "$app_executable" ] || [ ! -r "$cli_bundle" ]; then
     echo "Caxri CLI could not locate its packaged runtime." >&2
     exit 126
 fi
 
-CAXRI_CLI_PATH=$cli_bundle \
-CAXRI_HOST_ENTRY_PATH=$host_entry \
-CAXRI_HOST_EXECUTABLE=$app_executable \
 ELECTRON_RUN_AS_NODE=1 exec "$app_executable" "$cli_bundle" "$@"

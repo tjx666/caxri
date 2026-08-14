@@ -51,8 +51,7 @@ describe('CLI delivery artifact', () => {
         expect(shim).toContain('ELECTRON_RUN_AS_NODE=1');
         expect(shim).toContain('../../MacOS/Caxri');
         expect(shim).toContain('../cli/caxri.cjs');
-        expect(shim).toContain('../app.asar/out/main/host.js');
-        expect(shim).toContain('CAXRI_HOST_EXECUTABLE=');
-        expect(shim).toContain('CAXRI_HOST_ENTRY_PATH=');
+        expect(shim).not.toContain('CAXRI_HOST_EXECUTABLE');
+        expect(shim).not.toContain('CAXRI_HOST_ENTRY_PATH');
     });
 });

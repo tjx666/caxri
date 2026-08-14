@@ -12,7 +12,7 @@ import {
     type ProtocolWelcome,
 } from '@caxri/protocol';
 
-import { connectToHost, ensureHost } from './host-client';
+import { connectToHost, ensureHost, type HostLaunchOptions } from './host-client';
 import { parseCliArguments, type ParsedCliArguments } from './arguments';
 import {
     CLI_COMMANDS,
@@ -26,7 +26,7 @@ import {
     detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
-    resolveCliHostLaunch,
+    resolvePackagedHostLaunch,
     type AgentEndpointCredential,
     type CliAutomation,
 } from './environment';
@@ -73,6 +73,53 @@ export interface RunCliOptions {
     platform?: NodeJS.Platform;
     signal?: AbortSignal;
     wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
+}
+
+export interface CliHostConnectorOptions {
+    automation: CliAutomation;
+    connectExisting?: (options: CliConnectOptions) => Promise<CliHostClient>;
+    hostLaunch?: HostLaunchOptions;
+    startHost?: (options: CliConnectOptions, launch: HostLaunchOptions) => Promise<CliHostClient>;
+}
+
+/** Keeps packaged Host startup exclusive to an interactive human/operator invocation. */
+export function createCliHostConnector(options: CliHostConnectorOptions) {
+    const connectExisting =
+        options.connectExisting ??
+        ((connection: CliConnectOptions) =>
+            connectToHost(
+                connection.profilePath,
+                connection.timeoutMs,
+                connection.credential ?? { kind: 'operator' },
+            ));
+    const startHost =
+        options.startHost ??
+        ((connection: CliConnectOptions, launch: HostLaunchOptions) =>
+            ensureHost(connection.profilePath, launch, connection.timeoutMs));
+    return async (connection: CliConnectOptions): Promise<CliHostClient> => {
+        if (
+            options.automation === 'human' &&
+            options.hostLaunch &&
+            connection.credential === undefined
+        ) {
+            return startHost(connection, options.hostLaunch);
+        }
+        try {
+            return await connectExisting(connection);
+        } catch (error) {
+            if (
+                options.automation !== 'human' &&
+                error instanceof CaxriError &&
+                error.code === 'NOT_FOUND'
+            ) {
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'No Caxri Host is running; Agent and CI invocations cannot start one implicitly',
+                );
+            }
+            throw error;
+        }
+    };
 }
 
 const defaultIo: CliIo = {
@@ -433,17 +480,18 @@ export async function runCli(
             platform: options.platform,
         });
         const endpointCredential = resolveAgentEndpointCredential(environment);
-        const hostLaunch = endpointCredential ? undefined : resolveCliHostLaunch(environment);
+        const resourcesPath = (process as unknown as { resourcesPath?: unknown }).resourcesPath;
+        const hostLaunch = resolvePackagedHostLaunch({
+            executable: process.execPath,
+            resourcesPath: typeof resourcesPath === 'string' ? resourcesPath : undefined,
+            runAsNode: environment.ELECTRON_RUN_AS_NODE,
+            scriptPath: process.argv[1],
+        });
         const connect =
             options.connect ??
-            ((connection: CliConnectOptions) => {
-                if (!hostLaunch || connection.credential)
-                    return connectToHost(
-                        connection.profilePath,
-                        connection.timeoutMs,
-                        connection.credential ?? { kind: 'operator' },
-                    );
-                return ensureHost(connection.profilePath, hostLaunch, connection.timeoutMs);
+            createCliHostConnector({
+                automation,
+                ...(hostLaunch ? { hostLaunch } : {}),
             });
         if (selected.kind === 'local') {
             const params = selected.parseParams(parsed.tokens.slice(selected.path.length));
