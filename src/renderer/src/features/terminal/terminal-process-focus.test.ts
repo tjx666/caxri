@@ -18,6 +18,7 @@ describe('reconcileTerminalProcessFocus', () => {
                 scheduled = callback;
                 return 1;
             },
+            shouldPreserveFocus: () => false,
         });
 
         modalOpen = true;
@@ -39,6 +40,7 @@ describe('reconcileTerminalProcessFocus', () => {
                 callback(0);
                 return 1;
             },
+            shouldPreserveFocus: () => false,
         });
 
         expect(focus).toHaveBeenCalledOnce();
@@ -55,9 +57,29 @@ describe('reconcileTerminalProcessFocus', () => {
             isModalOpen: () => false,
             isRunning: true,
             requestFrame,
+            shouldPreserveFocus: () => false,
         });
 
         expect(blur).toHaveBeenCalledOnce();
         expect(requestFrame).not.toHaveBeenCalled();
+    });
+
+    it('preserves an explicitly keyboard-focused work tab during automatic activation', () => {
+        const focus = vi.fn();
+
+        reconcileTerminalProcessFocus({
+            active: true,
+            blur: vi.fn(),
+            focus,
+            isModalOpen: () => false,
+            isRunning: true,
+            requestFrame: (callback) => {
+                callback(0);
+                return 1;
+            },
+            shouldPreserveFocus: () => true,
+        });
+
+        expect(focus).not.toHaveBeenCalled();
     });
 });
