@@ -13,6 +13,7 @@ interface PackageManifest {
     name?: string;
     packageManager?: string;
     private?: boolean;
+    scripts?: Record<string, string>;
     workspaces?: string[];
 }
 
@@ -47,6 +48,24 @@ function productionTypeScriptFiles(directory: string): string[] {
             found.push(path);
     }
     return found;
+}
+
+function discoversAllProtocolTests(script: string): boolean {
+    const protocolSourceRoot = 'packages/protocol/src';
+    const targets = script
+        .split(/\s+/u)
+        .map((token) => token.replace(/^["']|["']$/gu, ''))
+        .filter((token) => token.startsWith(protocolSourceRoot));
+
+    if (targets.some((target) => /\/[^*\s]+\.test\.ts$/u.test(target))) return false;
+
+    return targets.some(
+        (target) =>
+            target === protocolSourceRoot ||
+            (target.startsWith(`${protocolSourceRoot}/`) &&
+                target.includes('**') &&
+                target.endsWith('.test.ts')),
+    );
 }
 
 describe('npm workspace contract', () => {
@@ -96,6 +115,20 @@ describe('npm workspace contract', () => {
                 'index.ts',
             );
         }
+    });
+
+    it('discovers every protocol test without a concrete test-file allowlist', () => {
+        const testScript = protocolManifest.scripts?.test ?? '';
+
+        expect(
+            discoversAllProtocolTests(testScript),
+            `protocol test script must discover ${'packages/protocol/src'} recursively: ${testScript}`,
+        ).toBe(true);
+        expect(
+            discoversAllProtocolTests(
+                'vitest run --root ../.. packages/protocol/src/__tests__/index.test.ts',
+            ),
+        ).toBe(false);
     });
 
     it('keeps the CLI production graph free of Desktop native modules', () => {
