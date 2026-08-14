@@ -1,0 +1,259 @@
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import type { AppSettings, BootstrapState, GitSummary } from '../src/shared/types.ts';
+import { expect, test, type Page } from './support/fixtures.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+
+const execFileAsync = promisify(execFile);
+
+async function initializeRepository(root: string): Promise<void> {
+    await mkdir(root, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    await writeFile(join(root, 'owner.ts'), 'export const owner = true;\n', 'utf8');
+    await execFileAsync('git', ['add', 'owner.ts'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+}
+
+async function expectWorkbenchRoot(
+    page: Page,
+    sessionId: string,
+    rootPath: string,
+    branch: string,
+): Promise<void> {
+    await expect
+        .poll(async () => {
+            const bootstrap = await pageRequest<BootstrapState>(page, 'app.bootstrap');
+            return bootstrap.sessions.find((session) => session.id === sessionId)?.rootPath;
+        })
+        .toBe(rootPath);
+    const summary = await pageRequest<GitSummary>(page, 'git.summary', { sessionId });
+    expect(summary.isRepository).toBe(true);
+    expect(summary.repositories.find((repository) => repository.kind === 'primary')).toMatchObject({
+        branch,
+        rootPath,
+    });
+}
+
+test('Agent worktree hook prompts, authorizes, and switches one Session atomically', async () => {
+    const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-hook-e2e-'));
+    const testDirectory = await realpath(createdDirectory);
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'owner');
+    const worktree = join(testDirectory, 'worktree');
+    await initializeRepository(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                executableSource: `#!${process.execPath}
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv.includes('--version')) {
+  process.stdout.write('codex 0.147.0\\n');
+  process.exit(0);
+}
+let step = 0;
+process.stdin.setRawMode?.(true);
+process.stdin.on('data', () => {
+  step += 1;
+  if (step === 1) {
+    childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/workbench', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
+    fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\\n');
+  } else if (step === 2) {
+    childProcess.execFileSync('git', ['worktree', 'remove', '--force', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
+  } else if (step === 3) {
+    childProcess.execFileSync('git', ['worktree', 'add', ${JSON.stringify(worktree)}, 'feature/workbench'], { cwd: ${JSON.stringify(root)} });
+    fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context restored\\n');
+  } else {
+    return;
+  }
+  const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
+  const group = hooks.hooks.PostToolUse.find((candidate) => candidate.matcher === '^Bash$');
+  childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
+    env: process.env,
+    input: JSON.stringify({ tool_input: { command: 'content must not cross the bridge' } }),
+  });
+  process.stdout.write('Worktree hook sent ' + step + '\\r\\n');
+});
+process.stdin.resume();
+process.stdout.write('Workbench Agent ready\\r\\n');
+`,
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        env: {
+            CAXRI_E2E_AGENT_HOOKS: '1',
+            CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, worktree]),
+        },
+    });
+    try {
+        const currentSettings = await pageRequest<{ value: AppSettings }>(
+            running.page,
+            'settings.get',
+        );
+        const settings = structuredClone(currentSettings.value);
+        settings['agents.providers'].codex.hooks.enabled = true;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(settings, null, 2),
+        });
+        const sessionId = await createProjectSession(running.page, 'codex');
+        await expect(running.page.locator('.xterm-rows')).toContainText('Workbench Agent ready');
+        await running.page.getByRole('treeitem', { name: 'owner.ts', exact: true }).click();
+        await expect(
+            running.page.getByRole('tab', { name: 'owner.ts', exact: true }),
+        ).toHaveAttribute('aria-selected', 'true');
+        const editor = running.page.locator('.monaco-editor').first();
+        await editor.click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+A');
+        await running.page.keyboard.insertText('owner dirty buffer');
+        await expect(
+            running.page.locator('.work-tab:not([inert])', { hasText: 'owner.ts' }),
+        ).toContainText('●');
+        await running.page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await pageRequest(running.page, 'session.workbenchRoots', { sessionId });
+        const before = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const terminalBefore = before.terminals.find(
+            (terminal) => terminal.sessionId === sessionId,
+        );
+        expect(terminalBefore).toBeTruthy();
+
+        await running.page.locator('.xterm-helper-textarea').press('g');
+        const prompt = running.page.getByRole('status', { name: 'New Git worktree' });
+        await expect(prompt).toContainText('A new Git worktree was created for this Session.');
+        await prompt.getByRole('button', { name: 'Continue Session in Worktree' }).click();
+
+        await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');
+        await expect(
+            running.page.getByRole('treeitem', { name: 'worktree-only.txt' }),
+        ).toBeVisible();
+        await running.page
+            .getByRole('treeitem', { name: 'worktree-only.txt', exact: true })
+            .click();
+        const worktreeFileTab = running.page.getByRole('tab', {
+            name: 'worktree-only.txt',
+            exact: true,
+        });
+        await expect(worktreeFileTab).toHaveAttribute('aria-selected', 'true');
+        await editor.click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+A');
+        await running.page.keyboard.insertText('worktree dirty buffer');
+        await expect(
+            running.page.getByRole('combobox', {
+                name: 'Switch Workbench Root from worktree, branch feature/workbench',
+            }),
+        ).toBeVisible();
+        const after = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(
+            after.terminals.find((terminal) => terminal.id === terminalBefore?.id),
+        ).toMatchObject({
+            id: terminalBefore?.id,
+            cwd: terminalBefore?.cwd,
+            createdAt: terminalBefore?.createdAt,
+            lastProcessState: terminalBefore?.lastProcessState,
+        });
+
+        const selector = running.page.getByRole('combobox', {
+            name: 'Switch Workbench Root from worktree, branch feature/workbench',
+        });
+        await selector.click();
+        await running.page.getByRole('option', { name: 'owner · main', exact: true }).click();
+        await expectWorkbenchRoot(running.page, sessionId, root, 'main');
+        await running.page.getByRole('tab', { name: 'owner.ts', exact: true }).click();
+        await expect(running.page.locator('.view-lines')).toContainText('owner dirty buffer');
+        await expect(
+            running.page.getByRole('combobox', {
+                name: 'Switch Workbench Root from owner, branch main',
+            }),
+        ).toBeVisible();
+
+        const ownerSelector = running.page.getByRole('combobox', {
+            name: 'Switch Workbench Root from owner, branch main',
+        });
+        await ownerSelector.click();
+        await running.page
+            .getByRole('option', { name: 'worktree · feature/workbench', exact: true })
+            .click();
+        await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');
+        await running.page.getByRole('tab', { name: 'worktree-only.txt', exact: true }).click();
+        await expect(running.page.locator('.view-lines')).toContainText('worktree dirty buffer');
+
+        await running.page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await running.page.locator('.xterm-helper-textarea').press('r');
+        await expectWorkbenchRoot(running.page, sessionId, root, 'main');
+        await expect(
+            running.page.getByText(
+                'The active worktree is no longer available. Returned to owner.',
+                { exact: true },
+            ),
+        ).toBeVisible();
+
+        await running.page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await running.page.locator('.xterm-helper-textarea').press('a');
+        await expect(prompt).toBeVisible();
+        await prompt.getByRole('button', { name: 'Continue Session in Worktree' }).click();
+        await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');
+        await running.page.getByRole('tab', { name: 'worktree-only.txt', exact: true }).click();
+        await expect(running.page.locator('.view-lines')).toContainText('worktree dirty buffer');
+
+        const final = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const terminalAfter = final.terminals.find(
+            (terminal) => terminal.id === terminalBefore?.id,
+        );
+        expect(terminalAfter?.processId).toBe(terminalBefore?.processId);
+        expect(terminalAfter?.cwd).toBe(terminalBefore?.cwd);
+        expect(terminalAfter?.agentSessionId).toBe(terminalBefore?.agentSessionId);
+        expect(terminalAfter?.lastProcessState).toBe(terminalBefore?.lastProcessState);
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(createdDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Workbench Root selector authorizes a linked worktree when hooks are disabled', async () => {
+    const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-manual-e2e-'));
+    const testDirectory = await realpath(createdDirectory);
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'owner');
+    const worktree = join(testDirectory, 'manual-worktree');
+    await initializeRepository(root);
+    await execFileAsync('git', ['worktree', 'add', '-b', 'feature/manual', worktree], {
+        cwd: root,
+    });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, worktree]) },
+    });
+    try {
+        const sessionId = await createProjectSession(running.page, 'shell');
+        const selector = running.page.getByRole('combobox', {
+            name: 'Switch Workbench Root from owner, branch main',
+        });
+        await selector.click();
+        await running.page
+            .getByRole('option', { name: 'Authorize another worktree…', exact: true })
+            .click();
+
+        await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/manual');
+        await expect(
+            running.page.getByRole('combobox', {
+                name: 'Switch Workbench Root from manual-worktree, branch feature/manual',
+            }),
+        ).toBeVisible();
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(createdDirectory, { recursive: true, force: true });
+    }
+});
