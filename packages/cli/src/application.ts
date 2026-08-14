@@ -272,13 +272,19 @@ async function streamRemote(
     const wait = options.wait ?? defaultWait;
     let params = initialParams as Record<string, unknown>;
     let lastOutputAt = Date.now();
+    let logPollDelayMs = 250;
     while (!options.signal?.aborted) {
         const result = await client.request(command.method, params);
+        let logPageWasEmpty = false;
         if (command.stream === 'logs') {
             const page = result as LogQueryResult;
             for (const record of page.records) writeStreamValue(io, mode, record);
             if (page.gap) io.writeStderr('Warning: log cursor gap detected.\n');
-            if (page.records.length > 0) lastOutputAt = Date.now();
+            logPageWasEmpty = page.records.length === 0;
+            if (!logPageWasEmpty) {
+                lastOutputAt = Date.now();
+                logPollDelayMs = 250;
+            }
             if (page.nextCursor) params = { ...params, afterCursor: page.nextCursor };
         } else {
             const recovery = result as ObservableEventRecovery;
@@ -295,7 +301,9 @@ async function streamRemote(
             io.writeStderr('keepalive\n');
             lastOutputAt = Date.now();
         }
-        await wait(250, options.signal);
+        await wait(command.stream === 'logs' ? logPollDelayMs : 250, options.signal);
+        if (command.stream === 'logs' && logPageWasEmpty)
+            logPollDelayMs = Math.min(logPollDelayMs * 2, 2_000);
     }
     return 130;
 }

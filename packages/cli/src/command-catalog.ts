@@ -1,54 +1,16 @@
-import {
-    CaxriError,
-    describeCaxriMethod,
-    logQueryParamsSchema,
-    settingsPatchChangeSchema,
-    type CaxriMethod,
-    type CaxriMethodDescription,
-} from '@caxri/protocol';
+import { CaxriError, logQueryParamsSchema, settingsPatchChangeSchema } from '@caxri/protocol';
 
 import { SKILL_COMMANDS } from './skill-commands';
+import type { CliCommandDefinition } from './command-types';
 
-export const CLI_GROUPS = [
-    { name: 'host', summary: 'Inspect and control the profile Host.' },
-    { name: 'desktop', summary: 'Inspect and focus the Desktop client.' },
-    { name: 'project', summary: 'Manage added Projects.' },
-    { name: 'session', summary: 'Manage Project Sessions.' },
-    { name: 'terminal', summary: 'Inspect and control Terminals.' },
-    { name: 'settings', summary: 'Read and update shared settings.' },
-    { name: 'logs', summary: 'Follow structured Host logs.' },
-    { name: 'events', summary: 'Watch recoverable typed Host events.' },
-    { name: 'diagnostics', summary: 'Inspect redacted diagnostics.' },
-    { name: 'agent', summary: 'Use generation-scoped Agent endpoints.' },
-    { name: 'skills', summary: 'Inspect and install Caxri Agent skills.' },
-] as const;
-
-export interface LocalCommandDefinition {
-    confirmation?: string;
-    kind: 'local';
-    mutates?: boolean;
-    parseParams(tokens: readonly string[]): unknown;
-    path: readonly [string, ...string[]];
-    summary: string;
-    usage?: string;
-}
-
-export interface RemoteCommandDefinition {
-    confirmation?: string;
-    kind: 'remote';
-    method: CaxriMethod;
-    mutates?(params: unknown): boolean;
-    parseParams(tokens: readonly string[]): unknown;
-    path: readonly [string, ...string[]];
-    requiresAgentEndpoint?: boolean;
-    requiresHumanOwner?: boolean;
-    summary: string;
-    quietKey?: string;
-    stream?: 'events' | 'logs';
-    usage?: string;
-}
-
-export type CliCommandDefinition = LocalCommandDefinition | RemoteCommandDefinition;
+export {
+    CLI_GROUPS,
+    describeCliCommand,
+    type CliCommandDefinition,
+    type CliCommandDescription,
+    type LocalCommandDefinition,
+    type RemoteCommandDefinition,
+} from './command-types';
 
 function rejectOptions(tokens: readonly string[]): Record<string, never> {
     if (tokens.length > 0)
@@ -764,37 +726,4 @@ export function findCliCommand(tokens: readonly string[]): CliCommandDefinition 
             command.path.length <= tokens.length &&
             command.path.every((part, index) => tokens[index] === part),
     );
-}
-
-export interface CliCommandDescription {
-    capabilities?: readonly string[];
-    effect?: string;
-    idempotency?: string;
-    kind: 'local' | 'remote';
-    method?: string;
-    owner?: string;
-    paramsSchema?: Record<string, unknown>;
-    path: readonly string[];
-    resultSchema?: Record<string, unknown>;
-    summary: string;
-    usage?: string;
-}
-
-export function describeCliCommand(command: CliCommandDefinition): CliCommandDescription {
-    if (command.kind === 'local')
-        return {
-            kind: command.kind,
-            path: command.path,
-            summary: command.summary,
-            ...(command.usage ? { usage: command.usage } : {}),
-        };
-    const method: CaxriMethodDescription = describeCaxriMethod(command.method);
-    return {
-        ...method,
-        capabilities: method.capabilities,
-        kind: 'remote',
-        path: command.path,
-        summary: command.summary,
-        ...(command.usage ? { usage: command.usage } : {}),
-    };
 }

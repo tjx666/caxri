@@ -382,6 +382,8 @@ export async function startHostApplication(
             if (request.method === 'agent.message.policy.set')
                 return agentInbox.setPolicy(context, request.params);
             if (request.method === 'agent.message.held') return { messages: agentInbox.listHeld() };
+            if (request.method === 'agent.message.held.get')
+                return agentInbox.heldDetail(request.params.messageId);
             if (request.method === 'agent.message.approve')
                 return agentInbox.approve(request.params.messageId);
             if (request.method === 'agent.message.deny')
