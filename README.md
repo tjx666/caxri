@@ -34,7 +34,10 @@ node packages/cli/dist/caxri.cjs capabilities --json
 `packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 22.12 or newer. The
 macOS app contains the exact same bundle at `Caxri.app/Contents/Resources/cli/caxri.cjs` plus an
 app-managed launcher at `Caxri.app/Contents/Resources/bin/caxri`; that launcher uses the packaged
-Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode.
+Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode. It also supplies the immutable packaged
+Host entry, so a headless-capable command automatically starts the profile Host when none exists.
+The standalone bundle keeps offline introspection available and connects to an existing Host without
+acquiring Electron or native-module dependencies of its own.
 
 Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while
 `--quiet` emits one opaque ID per line. Supported Agent and CI environments default to JSON and do
@@ -47,6 +50,13 @@ The shared business surface includes `project list|show|current`, `session list|
 arguments; `settings validate` and `settings patch --dry-run` use the real Runtime schema without
 writing. Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
 Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
+
+Desktop window commands stay behind the authenticated Host and Project-root authorization:
+`desktop focus`, `open <path>`, and `reveal <path>`. Path commands accept an optional exact
+`--session <id>`; `open` supports files and directories and launches Desktop by default, while
+`--no-launch` returns `UNAVAILABLE` when no Desktop lease exists. As with every human mutation,
+non-interactive calls require `--profile`, `--yes`, and should use a stable `--request-id` when
+retried.
 
 Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
 operations (`agent dispatch` and `agent control`), and owner-only simulated input (`terminal send`).

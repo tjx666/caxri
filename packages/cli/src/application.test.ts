@@ -47,6 +47,8 @@ describe('CLI application', () => {
         await expect(runCli(['--help'], { connect, io: output.io })).resolves.toBe(0);
         expect(output.stdout()).toContain('Usage: caxri <command> [options]');
         expect(output.stdout()).toContain('host');
+        expect(output.stdout()).toContain('open');
+        expect(output.stdout()).toContain('reveal');
         expect(output.stdout()).toContain('skills');
         expect(connect).not.toHaveBeenCalled();
 
@@ -639,6 +641,49 @@ describe('CLI application', () => {
             dryRun: false,
         });
         expect(client.request).not.toHaveBeenCalled();
+    });
+
+    it('routes an explicit Desktop file open through the shared Host command', async () => {
+        const output = io({ stdinIsTTY: false });
+        const client = host(
+            {
+                state: 'opened',
+                generation: 3,
+                projectId: 'project-1',
+                sessionId: 'session-1',
+            },
+            ['desktop.openPath'],
+        );
+
+        await expect(
+            runCli(
+                [
+                    'open',
+                    '/project/file.ts',
+                    '--session',
+                    'session-1',
+                    '--no-launch',
+                    '--profile',
+                    '/profiles/selected',
+                    '--request-id',
+                    'open-file-1',
+                    '--yes',
+                    '--json',
+                ],
+                { connect: () => Promise.resolve(client), io: output.io },
+            ),
+        ).resolves.toBe(0);
+
+        expect(client.requestWithId).toHaveBeenCalledWith('open-file-1', 'desktop.openPath', {
+            launchIfNeeded: false,
+            path: '/project/file.ts',
+            sessionId: 'session-1',
+        });
+        expect(JSON.parse(output.stdout())).toMatchObject({
+            state: 'opened',
+            projectId: 'project-1',
+            sessionId: 'session-1',
+        });
     });
 
     it('follows bounded log pages until Ctrl+C without exposing log fields', async () => {

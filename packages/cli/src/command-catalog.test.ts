@@ -9,6 +9,8 @@ describe('CLI business command catalog', () => {
         expect(paths).toEqual(
             expect.arrayContaining([
                 'status',
+                'open',
+                'reveal',
                 'project list',
                 'project show',
                 'project current',
@@ -110,6 +112,23 @@ describe('CLI business command catalog', () => {
             to: { hostId: 'a'.repeat(32), endpointId: 'endpoint-2', generation: 3 },
             replyTo: 'message-1',
             body: 'plain peer text',
+        });
+
+        const open = findCliCommand([
+            'open',
+            'src/main/index.ts',
+            '--session',
+            'session-1',
+            '--no-launch',
+        ]);
+        expect(
+            open?.kind === 'remote'
+                ? open.parseParams(['src/main/index.ts', '--session', 'session-1', '--no-launch'])
+                : null,
+        ).toEqual({
+            path: 'src/main/index.ts',
+            sessionId: 'session-1',
+            launchIfNeeded: false,
         });
 
         const wake = findCliCommand(['agent', 'message', 'send']);

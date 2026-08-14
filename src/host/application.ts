@@ -404,6 +404,11 @@ export async function startHostApplication(
                     throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                 return desktopRouter.focus(request.params.launchIfNeeded);
             }
+            if (request.method === 'desktop.openPath') {
+                if (!desktopRouter)
+                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                return desktopRouter.open('open', undefined, request.params);
+            }
             if (request.method === 'desktop.openProject') {
                 if (!desktopRouter)
                     throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');

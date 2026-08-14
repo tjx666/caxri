@@ -1,6 +1,7 @@
+import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { connectToHost } from '@caxri/cli';
 
@@ -12,6 +13,28 @@ import {
     typeTerminal,
     waitForRuntimeReady,
 } from './helpers.ts';
+
+const projectRoot = resolve(import.meta.dirname, '..');
+const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+
+function runCli(
+    args: readonly string[],
+): Promise<{ code: number; stderr: string; stdout: string }> {
+    return new Promise((resolveRun) => {
+        execFile(
+            process.execPath,
+            [cliPath, ...args],
+            { env: process.env, maxBuffer: 1024 * 1024, timeout: 10_000 },
+            (error, stdout, stderr) => {
+                resolveRun({
+                    code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
+                    stderr,
+                    stdout,
+                });
+            },
+        );
+    });
+}
 
 test('routes bounded Desktop open, focus, and reveal operations through the existing Host', async () => {
     allowE2EErrors([
@@ -52,12 +75,39 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
             runtimePid: expect.any(Number),
         });
 
-        await expect(
-            client.request('desktop.openFile', { path: file, launchIfNeeded: false }),
-        ).resolves.toMatchObject({ state: 'opened', sessionId });
+        const openFile = await runCli([
+            'open',
+            file,
+            '--session',
+            sessionId,
+            '--no-launch',
+            '--profile',
+            userData,
+            '--request-id',
+            'desktop-open-file-e2e',
+            '--yes',
+            '--json',
+        ]);
+        expect(openFile).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(openFile.stdout)).toMatchObject({ state: 'opened', sessionId });
         await expect(
             running.page.locator('.work-tab', { hasText: 'desktop-open.ts' }),
         ).toBeVisible();
+        const openProject = await runCli([
+            'open',
+            root,
+            '--session',
+            sessionId,
+            '--no-launch',
+            '--profile',
+            userData,
+            '--request-id',
+            'desktop-open-project-e2e',
+            '--yes',
+            '--json',
+        ]);
+        expect(openProject).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(openProject.stdout)).toMatchObject({ state: 'opened', sessionId });
         await expect(
             client.request('desktop.openFile', {
                 path: join(testDirectory, 'outside', 'secret.ts'),
@@ -76,9 +126,20 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
                 Reflect.set(globalThis, '__caxriRevealedPath', path);
             };
         });
-        await expect(
-            client.request('files.reveal', { path: file, sessionId, launchIfNeeded: false }),
-        ).resolves.toMatchObject({ state: 'revealed', sessionId });
+        const reveal = await runCli([
+            'reveal',
+            file,
+            '--session',
+            sessionId,
+            '--profile',
+            userData,
+            '--request-id',
+            'desktop-reveal-e2e',
+            '--yes',
+            '--json',
+        ]);
+        expect(reveal).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(reveal.stdout)).toMatchObject({ state: 'revealed', sessionId });
         await expect
             .poll(() =>
                 running.app.evaluate(() => {

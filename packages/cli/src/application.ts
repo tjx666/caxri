@@ -12,7 +12,7 @@ import {
     type ProtocolWelcome,
 } from '@caxri/protocol';
 
-import { connectToHost } from './host-client';
+import { connectToHost, ensureHost } from './host-client';
 import { parseCliArguments, type ParsedCliArguments } from './arguments';
 import {
     CLI_COMMANDS,
@@ -26,6 +26,7 @@ import {
     detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
+    resolveCliHostLaunch,
     type AgentEndpointCredential,
     type CliAutomation,
 } from './environment';
@@ -97,9 +98,10 @@ function fallbackOutputMode(argv: readonly string[], automation: CliAutomation):
 function topLevelHelp() {
     return {
         usage: 'caxri <command> [options]',
-        commands: CLI_COMMANDS.filter(
-            (command) => command.kind === 'local' && command.path.length === 1,
-        ).map((command) => ({ name: command.path.join(' '), summary: command.summary })),
+        commands: CLI_COMMANDS.filter((command) => command.path.length === 1).map((command) => ({
+            name: command.path.join(' '),
+            summary: command.summary,
+        })),
         groups: CLI_GROUPS,
         options: [
             '--json',
@@ -431,14 +433,18 @@ export async function runCli(
             platform: options.platform,
         });
         const endpointCredential = resolveAgentEndpointCredential(environment);
+        const hostLaunch = endpointCredential ? undefined : resolveCliHostLaunch(environment);
         const connect =
             options.connect ??
-            ((connection: CliConnectOptions) =>
-                connectToHost(
-                    connection.profilePath,
-                    connection.timeoutMs,
-                    connection.credential ?? { kind: 'operator' },
-                ));
+            ((connection: CliConnectOptions) => {
+                if (!hostLaunch || connection.credential)
+                    return connectToHost(
+                        connection.profilePath,
+                        connection.timeoutMs,
+                        connection.credential ?? { kind: 'operator' },
+                    );
+                return ensureHost(connection.profilePath, hostLaunch, connection.timeoutMs);
+            });
         if (selected.kind === 'local') {
             const params = selected.parseParams(parsed.tokens.slice(selected.path.length));
             if (selected.mutates) await confirmMutation(selected, parsed, automation, options, io);

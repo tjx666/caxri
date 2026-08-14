@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveAgentEndpointCredential, resolveCliProfile } from './environment';
+import {
+    resolveAgentEndpointCredential,
+    resolveCliHostLaunch,
+    resolveCliProfile,
+} from './environment';
 
 describe('CLI profile resolution', () => {
     it('requires one complete Agent Endpoint generation credential', () => {
@@ -52,5 +56,32 @@ describe('CLI profile resolution', () => {
                 platform: 'darwin',
             }),
         ).toThrow('must be an absolute path');
+    });
+
+    it('accepts only a complete app-managed Host launch pair and bounded environment', () => {
+        expect(
+            resolveCliHostLaunch({
+                CAXRI_HOST_EXECUTABLE: '/Applications/Caxri.app/Contents/MacOS/Caxri',
+                CAXRI_HOST_ENTRY_PATH:
+                    '/Applications/Caxri.app/Contents/Resources/app.asar/out/main/host.js',
+                CAXRI_CLI_PATH: '/Applications/Caxri.app/Contents/Resources/cli/caxri.cjs',
+                SECRET_SENTINEL: 'must-not-propagate',
+            }),
+        ).toEqual({
+            executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
+            entryPath: '/Applications/Caxri.app/Contents/Resources/app.asar/out/main/host.js',
+            environment: {
+                CAXRI_CLI_PATH: '/Applications/Caxri.app/Contents/Resources/cli/caxri.cjs',
+            },
+        });
+        expect(() =>
+            resolveCliHostLaunch({ CAXRI_HOST_EXECUTABLE: '/Applications/Caxri' }),
+        ).toThrow('incomplete');
+        expect(() =>
+            resolveCliHostLaunch({
+                CAXRI_HOST_EXECUTABLE: 'relative/Caxri',
+                CAXRI_HOST_ENTRY_PATH: '/app/host.js',
+            }),
+        ).toThrow('must be absolute');
     });
 });

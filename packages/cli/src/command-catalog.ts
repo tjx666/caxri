@@ -23,8 +23,6 @@ export const CLI_GROUPS = [
     { name: 'skills', summary: 'Inspect and install Caxri Agent skills.' },
 ] as const;
 
-export type CliGroupName = (typeof CLI_GROUPS)[number]['name'];
-
 export interface LocalCommandDefinition {
     confirmation?: string;
     kind: 'local';
@@ -41,7 +39,7 @@ export interface RemoteCommandDefinition {
     method: CaxriMethod;
     mutates?(params: unknown): boolean;
     parseParams(tokens: readonly string[]): unknown;
-    path: readonly [CliGroupName, string, ...string[]];
+    path: readonly [string, ...string[]];
     requiresAgentEndpoint?: boolean;
     requiresHumanOwner?: boolean;
     summary: string;
@@ -66,6 +64,38 @@ function booleanFlag(
     if (tokens.length === 0) return { [key]: false };
     if (tokens.length === 1 && tokens[0] === flag) return { [key]: true };
     throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=')[0]}`);
+}
+
+function desktopTarget(
+    tokens: readonly string[],
+    options: { launchByDefault: boolean },
+): Record<string, unknown> {
+    const positional: string[] = [];
+    let launchIfNeeded = options.launchByDefault;
+    let sessionId: string | undefined;
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index];
+        if (token === '--launch' || token === '--no-launch') {
+            launchIfNeeded = token === '--launch';
+            continue;
+        }
+        if (token === '--session') {
+            const value = tokens[index + 1];
+            if (!value || value.startsWith('--'))
+                throw new CaxriError('VALIDATION', '--session requires a value');
+            if (sessionId)
+                throw new CaxriError('VALIDATION', '--session may be provided only once');
+            sessionId = value;
+            index += 1;
+            continue;
+        }
+        if (token.startsWith('--'))
+            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+        positional.push(token);
+    }
+    if (positional.length !== 1)
+        throw new CaxriError('VALIDATION', 'Desktop commands require exactly one path');
+    return { path: positional[0], launchIfNeeded, ...(sessionId ? { sessionId } : {}) };
 }
 
 function selectorQuery(
@@ -339,6 +369,24 @@ export const CLI_COMMANDS = [
         path: ['status'],
         summary: 'Negotiate with the selected Host and print principal-safe status.',
         parseParams: rejectOptions,
+    },
+    {
+        kind: 'remote',
+        path: ['open'],
+        method: 'desktop.openPath',
+        summary: 'Open one added Project file or directory in Caxri Desktop.',
+        usage: '<path> [--session <session-id>] [--no-launch]',
+        confirmation: 'Open this Project path in Caxri Desktop?',
+        parseParams: (tokens) => desktopTarget(tokens, { launchByDefault: true }),
+    },
+    {
+        kind: 'remote',
+        path: ['reveal'],
+        method: 'files.reveal',
+        summary: 'Reveal one added Project path through the authenticated Desktop.',
+        usage: '<path> [--session <session-id>] [--launch]',
+        confirmation: 'Reveal this Project path in Finder?',
+        parseParams: (tokens) => desktopTarget(tokens, { launchByDefault: false }),
     },
     ...SKILL_COMMANDS,
     {
