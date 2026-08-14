@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication, type Page } from './fixtures.ts';
+import { expect, test, type ElectronApplication, type Page } from './support/fixtures.ts';
 
 import type { ThemeTokens } from '../src/shared/types.ts';
 
@@ -14,7 +14,7 @@ import {
     pageRequest,
     splitTerminalToRight,
     waitForNewTerminalId,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 

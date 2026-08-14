@@ -11,9 +11,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test, type Locator, type Page } from './fixtures.ts';
+import { allowE2EErrors, expect, test, type Locator, type Page } from './support/fixtures.ts';
 
-import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 /**
  * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see

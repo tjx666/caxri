@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 
 import { connectToHost } from '@caxri/cli';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -13,7 +13,7 @@ import {
     selectedSessionId,
     typeTerminal,
     waitForRuntimeReady,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');

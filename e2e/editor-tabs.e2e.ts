@@ -6,9 +6,9 @@ import { promisify } from 'node:util';
 
 import type { Page } from '@playwright/test';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { createProjectSession, launchCaxri } from './helpers.ts';
+import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 

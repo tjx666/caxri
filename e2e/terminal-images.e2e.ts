@@ -2,7 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type ElectronApplication, type Locator, type Page } from './fixtures.ts';
+import {
+    expect,
+    test,
+    type ElectronApplication,
+    type Locator,
+    type Page,
+} from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -14,7 +20,7 @@ import {
     splitTerminalToRight,
     typeTerminal,
     waitForNewTerminalId,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 const RECOVERY_PLACEHOLDER = 'Caxri inline image unavailable after restore';
 

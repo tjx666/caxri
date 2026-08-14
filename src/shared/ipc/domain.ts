@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/domain';
+export * from '../../../packages/protocol/src/domain/domain';

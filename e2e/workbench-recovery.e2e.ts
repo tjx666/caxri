@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -16,7 +16,7 @@ import {
     sessionCard,
     typeTerminal,
     waitForRuntimeReady,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 

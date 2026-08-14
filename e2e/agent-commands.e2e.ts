@@ -7,9 +7,9 @@ import { HostClient, discoverHostManifest } from '@caxri/cli';
 
 import { agentMessageReceiptSchema } from '../src/shared/ipc/agent-inbox-contract';
 
-import { createFakeAgentMode } from './agent-fixture.ts';
-import { expect, test } from './fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');

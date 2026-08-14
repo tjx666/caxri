@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator, type Page } from './fixtures.ts';
+import { expect, test, type Locator, type Page } from './support/fixtures.ts';
 
-import { createFakeAgentMode } from './agent-fixture.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -14,7 +14,7 @@ import {
     splitTerminalToRight,
     typeTerminal,
     waitForNewTerminalId,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 function terminalSurface(page: Page, terminalId: string): Locator {
     return page.locator(`.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`);

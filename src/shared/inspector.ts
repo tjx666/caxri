@@ -1,1 +1,1 @@
-export * from '../../packages/protocol/src/inspector';
+export * from '../../packages/protocol/src/domain/inspector';

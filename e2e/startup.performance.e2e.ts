@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication } from './fixtures.ts';
+import { expect, test, type ElectronApplication } from './support/fixtures.ts';
 import { connectToHost } from '@caxri/cli';
 
-import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './helpers.ts';
+import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;

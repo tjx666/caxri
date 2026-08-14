@@ -42,6 +42,9 @@
 - Do not edit `package-lock.json` or the `packageManager` field by hand.
 - Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
   native dependencies out of `packages/cli`'s production dependency graph.
+- Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
+  `registry`, and `transport` boundaries. External consumers use the package root; compatibility
+  re-exports under `src/shared` may target the owning domain module directly.
 
 ## Skills
 
@@ -153,7 +156,7 @@ step-by-step workflows beyond this summary.
 - Run focused local Electron coverage only when the change requires it, using
   `bun run --silent check <e2e-file> --e2e`; add `--e2e-grep '<test name>'` when only one workflow changed.
   The checker builds first and collapses successful build and Playwright output into one summary.
-- Every Electron spec imports `test` and `expect` from `e2e/fixtures.ts`, never directly from
+- Every Electron spec imports `test` and `expect` from `e2e/support/fixtures.ts`, never directly from
   `@playwright/test`. The automatic fixture treats Renderer exceptions/console errors and
   structured Host/Main/Runtime error events as failures and attaches all JSONL logs before a temporary
   user-data directory can be removed.

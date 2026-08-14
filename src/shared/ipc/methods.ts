@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/methods';
+export * from '../../../packages/protocol/src/registry/methods';

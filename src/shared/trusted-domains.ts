@@ -1,1 +1,1 @@
-export * from '../../packages/protocol/src/trusted-domains';
+export * from '../../packages/protocol/src/configuration/trusted-domains';

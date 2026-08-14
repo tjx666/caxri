@@ -1,1 +1,1 @@
-export * from '../../packages/protocol/src/agents';
+export * from '../../packages/protocol/src/agent/agents';

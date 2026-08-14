@@ -84,7 +84,7 @@ const protectedPathPatterns = [
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
     /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|self-hosted-runner)\.ts$/,
     /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
-    /^e2e\/(?:failure-isolation\.e2e|pools|worker-isolation)\.ts$/,
+    /^e2e\/(?:failure-isolation\.e2e|support\/(?:pools|worker-isolation))\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
     /^\.agents\/skills\/(?:build|release)\//,

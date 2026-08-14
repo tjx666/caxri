@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -12,7 +12,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 function osc52(payload: string, selection = 'c'): string {
     return `printf '\\033]52;${selection};${payload}\\007'`;

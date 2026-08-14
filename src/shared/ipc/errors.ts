@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/errors';
+export * from '../../../packages/protocol/src/transport/errors';

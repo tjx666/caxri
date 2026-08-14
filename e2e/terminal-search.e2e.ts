@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -11,7 +11,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 test('Terminal search highlights and navigates matches without intercepting Editor Find', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-search-e2e-'));

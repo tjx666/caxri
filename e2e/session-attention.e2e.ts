@@ -2,16 +2,16 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { createFakeAgentMode } from './agent-fixture.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
 import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
     pageRequest,
     waitForRuntimeReady,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 interface SessionSummary {
     attentionEpoch: number;

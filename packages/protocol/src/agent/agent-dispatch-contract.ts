@@ -1,0 +1,238 @@
+import { z } from 'zod';
+
+import { agentEndpointRefSchema } from './agent-endpoint-contract.js';
+import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
+import { commandPolicy, type MethodSpec } from '../transport/method-spec.js';
+import { principalSchema } from '../transport/principal.js';
+
+export const agentDispatchOperationSchema = z.enum(['start', 'resume', 'wake']);
+export const agentDispatchStatusSchema = z.enum([
+    'requested',
+    'starting',
+    'running',
+    'stopped',
+    'interrupted',
+    'failed',
+]);
+
+/** Auditable launch evidence without exposing provider arguments that may contain local secrets. */
+export const agentDispatchLaunchSchema = z.strictObject({
+    provider: agentProviderSchema,
+    mode: z.enum(['fresh', 'resume']),
+    executable: z.string().trim().min(1).max(16_384),
+    argumentCount: z.number().int().nonnegative().max(256),
+    fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
+});
+
+export const agentDispatchFailureSchema = z.strictObject({
+    code: z.enum([
+        'VALIDATION',
+        'NOT_FOUND',
+        'PATH_DENIED',
+        'CAPACITY',
+        'UNAVAILABLE',
+        'TIMEOUT',
+        'CONFLICT',
+        'FORBIDDEN',
+        'IO',
+        'GIT',
+        'INTERNAL',
+    ]),
+    reason: z.enum([
+        'host_reset',
+        'target_changed',
+        'provider_session_changed',
+        'launch_failed',
+        'process_failed',
+    ]),
+});
+
+export const agentDispatchReceiptSchema = z.strictObject({
+    dispatchId: identifierSchema,
+    operation: agentDispatchOperationSchema,
+    status: agentDispatchStatusSchema,
+    projectId: identifierSchema,
+    sessionId: identifierSchema,
+    terminalId: identifierSchema.optional(),
+    provider: agentProviderSchema,
+    requestedLaunch: agentDispatchLaunchSchema,
+    effectiveLaunch: agentDispatchLaunchSchema,
+    endpoint: agentEndpointRefSchema.optional(),
+    failure: agentDispatchFailureSchema.optional(),
+    revision: z.number().int().positive(),
+    createdAt: z.number().int().positive(),
+    updatedAt: z.number().int().positive(),
+});
+
+const dispatchTargetSchema = z.strictObject({
+    projectId: identifierSchema,
+    sessionId: identifierSchema,
+});
+
+export const agentDispatchStartParamsSchema = dispatchTargetSchema.extend({
+    provider: agentProviderSchema,
+});
+
+export const agentDispatchResumeParamsSchema = dispatchTargetSchema.extend({
+    terminalId: identifierSchema,
+    providerSessionId: z.string().trim().min(1).max(1_024),
+});
+
+export const agentDispatchStatusParamsSchema = z.strictObject({ dispatchId: identifierSchema });
+export const agentDispatchWaitParamsSchema = agentDispatchStatusParamsSchema.extend({
+    afterRevision: z.number().int().nonnegative().default(0),
+    timeoutMs: z.number().int().min(100).max(120_000).default(15_000),
+});
+
+export const agentDispatchWaitResultSchema = z.strictObject({
+    receipt: agentDispatchReceiptSchema,
+    outcome: z.enum(['changed', 'timed_out', 'canceled']),
+});
+
+const agentControlParamsSchema = z.strictObject({ endpoint: agentEndpointRefSchema });
+export const agentControlResultSchema = z.strictObject({
+    endpoint: agentEndpointRefSchema,
+    terminalId: identifierSchema,
+    outcome: z.literal('signaled'),
+});
+
+export const MAX_TERMINAL_STEER_BYTES = 8 * 1_024;
+
+function containsUnsafeTerminalControl(value: string): boolean {
+    for (const character of value) {
+        const code = character.codePointAt(0)!;
+        if (code === 9) continue;
+        if (code < 32 || (code >= 127 && code <= 159)) return true;
+    }
+    return false;
+}
+
+export const terminalSendParamsSchema = z.strictObject({
+    terminalId: identifierSchema,
+    text: z
+        .string()
+        .min(1)
+        .refine(
+            (value) => new TextEncoder().encode(value).byteLength <= MAX_TERMINAL_STEER_BYTES,
+            `Terminal text exceeds ${MAX_TERMINAL_STEER_BYTES} UTF-8 bytes`,
+        )
+        .refine(
+            (value) => !containsUnsafeTerminalControl(value),
+            'Terminal text contains control characters; use --enter for Enter',
+        ),
+    enter: z.boolean().default(false),
+});
+
+export const terminalSendResultSchema = z.strictObject({
+    terminalId: identifierSchema,
+    accepted: z.literal(true),
+    byteLength: z.number().int().positive().max(MAX_TERMINAL_STEER_BYTES),
+    enter: z.boolean(),
+});
+
+export const agentDispatchMethods = {
+    'agent.dispatch.start': {
+        ...commandPolicy('host', 'control', ['agents.dispatch']),
+        params: agentDispatchStartParamsSchema,
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.resume': {
+        ...commandPolicy('host', 'control', ['agents.dispatch']),
+        params: agentDispatchResumeParamsSchema,
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.status': {
+        ...commandPolicy('host', 'read', ['agents.read']),
+        params: agentDispatchStatusParamsSchema,
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.wait': {
+        ...commandPolicy('host', 'read', ['agents.read']),
+        params: agentDispatchWaitParamsSchema,
+        result: agentDispatchWaitResultSchema,
+    },
+    'agent.control.interrupt': {
+        ...commandPolicy('host', 'control', ['agents.control']),
+        params: agentControlParamsSchema,
+        result: agentControlResultSchema,
+    },
+    'agent.control.stop': {
+        ...commandPolicy('host', 'control', ['agents.control']),
+        params: agentControlParamsSchema,
+        result: agentControlResultSchema,
+    },
+    'terminal.send': {
+        ...commandPolicy('host', 'control', ['terminals.steer']),
+        params: terminalSendParamsSchema,
+        result: terminalSendResultSchema,
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+const internalIdentitySchema = z.strictObject({
+    dispatchId: identifierSchema,
+    principal: principalSchema,
+});
+
+const projectScopeSchema = z.array(identifierSchema).max(128).nullable();
+
+export const agentDispatchInternalMethods = {
+    'agent.dispatch.startInternal': {
+        ...commandPolicy('host', 'control'),
+        params: internalIdentitySchema.extend({ input: agentDispatchStartParamsSchema }),
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.resumeInternal': {
+        ...commandPolicy('host', 'control'),
+        params: internalIdentitySchema.extend({ input: agentDispatchResumeParamsSchema }),
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.wakeInternal': {
+        ...commandPolicy('host', 'control'),
+        params: internalIdentitySchema.extend({
+            target: dispatchTargetSchema.extend({ terminalId: identifierSchema }),
+        }),
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.statusInternal': {
+        ...commandPolicy('host', 'read'),
+        params: agentDispatchStatusParamsSchema.extend({ projectScope: projectScopeSchema }),
+        result: agentDispatchReceiptSchema,
+    },
+    'agent.dispatch.waitInternal': {
+        ...commandPolicy('host', 'read'),
+        params: agentDispatchWaitParamsSchema.extend({
+            projectScope: projectScopeSchema,
+            waitId: identifierSchema,
+        }),
+        result: agentDispatchWaitResultSchema,
+    },
+    'agent.dispatch.cancelWaitInternal': {
+        ...commandPolicy('host', 'control'),
+        params: z.strictObject({ waitId: identifierSchema }),
+        result: z.strictObject({ canceled: z.boolean() }),
+    },
+    'agent.control.interruptInternal': {
+        ...commandPolicy('host', 'control'),
+        params: agentControlParamsSchema,
+        result: agentControlResultSchema,
+    },
+    'agent.control.stopInternal': {
+        ...commandPolicy('host', 'control'),
+        params: agentControlParamsSchema,
+        result: agentControlResultSchema,
+    },
+    'terminal.sendInternal': {
+        ...commandPolicy('host', 'control'),
+        params: terminalSendParamsSchema,
+        result: terminalSendResultSchema,
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+export type AgentDispatchOperation = z.infer<typeof agentDispatchOperationSchema>;
+export type AgentDispatchStatus = z.infer<typeof agentDispatchStatusSchema>;
+export type AgentDispatchLaunch = z.infer<typeof agentDispatchLaunchSchema>;
+export type AgentDispatchFailure = z.infer<typeof agentDispatchFailureSchema>;
+export type AgentDispatchReceipt = z.infer<typeof agentDispatchReceiptSchema>;
+export type AgentDispatchStartParams = z.infer<typeof agentDispatchStartParamsSchema>;
+export type AgentDispatchResumeParams = z.infer<typeof agentDispatchResumeParamsSchema>;
+export type AgentDispatchWaitResult = z.infer<typeof agentDispatchWaitResultSchema>;

@@ -2,16 +2,16 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 
-import { realCodexSmokeArgs } from './agent-fixture.ts';
+import { realCodexSmokeArgs } from './support/agent-fixture.ts';
 import {
     createProjectSession,
     createShellSession,
     launchCaxri,
     pageRequest,
     typeTerminal,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 test('the default E2E launch cannot resolve a host Agent executable', async () => {
     allowE2EErrors([

@@ -50,7 +50,9 @@ idempotency policy, Zod parameter/result schemas, and an optional principal proj
 negotiation welcome identifies the authenticated principal and enumerates granted capabilities and
 supported commands, so callers can query support without inferring it from errors. Desktop bridge
 imports continue through `src/shared/ipc` compatibility re-exports, but that directory must not
-define a second method or schema table.
+define a second method or schema table. Protocol source is grouped behind six domain barrels:
+`agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport`; the package root is the
+only public package entrypoint.
 
 The shared dispatcher validates protocol version, command, parameters, principal, capabilities,
 owner availability, and results before it returns `{ protocolVersion, ok, result | error }`. Read
@@ -127,7 +129,7 @@ and use a bounded early-startup buffer plus a synchronous bootstrap logger. Host
 with an allowlisted environment containing only process-launch context, tool state locations, and
 Caxri-owned paths; ambient credential variables are not copied into either child process.
 
-Every Electron Playwright spec uses `e2e/fixtures.ts`. `launchCaxriApp` registers each application
+Every Electron Playwright spec uses `e2e/support/fixtures.ts`. `launchCaxriApp` registers each application
 with that automatic fixture, which observes all Renderer pages, captures Host, Main, and Runtime
 logs before profile cleanup, stops the isolated Host on the final launch, and fails on any
 undeclared error/fatal event. Intentional faults use exact

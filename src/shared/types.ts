@@ -63,7 +63,7 @@ export type {
     AgentSkillHealth,
     AgentSkillInstallationHealth,
     AgentSkillScope,
-} from '../../packages/protocol/src/agent-skill-contract';
+} from '../../packages/protocol/src/agent/agent-skill-contract';
 
 export type {
     TerminalGroupNode,

@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/agent-inbox-contract.js';
+export * from '../../../packages/protocol/src/agent/agent-inbox-contract.js';

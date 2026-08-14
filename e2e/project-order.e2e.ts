@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import Database from 'better-sqlite3';
 
-import { launchCaxri, waitForRuntimeReady } from './helpers';
+import { launchCaxri, waitForRuntimeReady } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const migrationNames = [

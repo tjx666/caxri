@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator } from './fixtures.ts';
+import { expect, test, type Locator } from './support/fixtures.ts';
 
-import { createProjectSession, launchCaxri } from './helpers.ts';
+import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 async function expectSyntaxColors(editor: Locator): Promise<void> {
     await expect

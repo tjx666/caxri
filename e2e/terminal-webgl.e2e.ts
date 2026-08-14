@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from './fixtures.ts';
+import { expect, test, type Page } from './support/fixtures.ts';
 
-import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './support/helpers.ts';
 
 type GpuPreference = 'Auto' | 'On' | 'Off';
 

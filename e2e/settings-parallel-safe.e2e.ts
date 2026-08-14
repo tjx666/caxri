@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { createShellSession, launchCaxri, pageRequest } from './helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 test('Settings shortcut opens while Terminal input has focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-shortcut-e2e-'));

@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator, type Page } from './fixtures.ts';
+import { expect, test, type Locator, type Page } from './support/fixtures.ts';
 
-import { launchCaxri, pageRequest } from './helpers.ts';
+import { launchCaxri, pageRequest } from './support/helpers.ts';
 
 /**
  * The Monaco container for a config kind, located by `data-config-source` rather than by accessible

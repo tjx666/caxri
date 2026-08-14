@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from './fixtures.ts';
+import { expect, test, type Page } from './support/fixtures.ts';
 
 import {
     createShellSession,
@@ -10,7 +10,7 @@ import {
     pageRequest,
     splitTerminalToRight,
     waitForNewTerminalId,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 interface CharacterBounds {
     height: number;

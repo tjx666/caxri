@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/provider-messaging-contract';
+export * from '../../../packages/protocol/src/agent/provider-messaging-contract';
