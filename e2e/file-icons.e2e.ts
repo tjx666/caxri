@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { launchCaxri, openAddProjectDialog } from './helpers.ts';
+import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 

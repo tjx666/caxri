@@ -4,10 +4,13 @@ import {
     agentEndpointRefSchema,
     agentMessagingCapabilitySchema,
     agentPermissionClassSchema,
-} from '../../../packages/protocol/src/agent-endpoint-contract';
-import { agentProviderSchema, identifierSchema } from '../../../packages/protocol/src/domain';
-import { wireErrorSchema } from '../../../packages/protocol/src/transport';
-import { hostCredentialTokenSchema } from '../../../packages/protocol/src/local-transport';
+} from '../../../packages/protocol/src/agent/agent-endpoint-contract';
+import {
+    agentProviderSchema,
+    identifierSchema,
+} from '../../../packages/protocol/src/domain/domain';
+import { wireErrorSchema } from '../../../packages/protocol/src/transport/transport';
+import { hostCredentialTokenSchema } from '../../../packages/protocol/src/transport/local-transport';
 
 export const agentEndpointBeginParamsSchema = z.object({
     terminalId: identifierSchema,

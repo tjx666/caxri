@@ -62,7 +62,7 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 ### AD-ext-e2e-provider-shims — [OPEN · Architecture debt · S]
 
 - **Summary:** A new managed Agent provider is exhaustive in production catalogs but not on the Caxri-owned E2E isolation boundary, so fake executables and blocked Shell shims stay hard-coded to claude and codex.
-- **Evidence:** `src/shared/node/e2e-agent-policy.ts:145-169` and `src/main/index.ts:93` encode/decode only the two env keys. `e2e/helpers.ts:143-154` writes shims named `claude` and `codex` only. Production `agentProviders` and icon assets remain `Record<AgentProvider, …>`.
+- **Evidence:** `src/shared/node/e2e-agent-policy.ts:145-169` and `src/main/index.ts:93` encode/decode only the two env keys. `e2e/support/helpers.ts:143-154` writes shims named `claude` and `codex` only. Production `agentProviders` and icon assets remain `Record<AgentProvider, …>`.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
 - **Remediation target / Acceptance:** Derive `CAXRI_E2E_FAKE_<PROVIDER>_EXECUTABLE` and isolated Shell shims from `agentProviderIds`. Acceptance: adding a third `AgentProvider` id without updating those files fails a focused unit test; with the helper, a fake executable and blocked shim exist for the new id.
 

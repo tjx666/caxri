@@ -2,14 +2,14 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator, type Page } from './fixtures.ts';
+import { expect, test, type Locator, type Page } from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
     pageRequest,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 async function expectIndicatorAligned(tablist: Locator, tab: Locator): Promise<void> {
     await expect

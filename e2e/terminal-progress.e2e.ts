@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -13,7 +13,7 @@ import {
     sessionCard,
     typeTerminal,
     waitForNewTerminalId,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 function oscProgress(state: number, value?: number | string): string {
     return `printf '\\033]9;4;${state};${value ?? ''}\\007'`;

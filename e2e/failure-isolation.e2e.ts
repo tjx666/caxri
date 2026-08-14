@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { launchCaxri } from './helpers.ts';
+import { launchCaxri } from './support/helpers.ts';
 
 const enabled = process.env.CAXRI_E2E_FAILURE_ISOLATION === '1';
 

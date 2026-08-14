@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from './fixtures.ts';
+import { expect, test, type Page } from './support/fixtures.ts';
 
-import { launchCaxri, waitForRuntimeReady } from './helpers.ts';
+import { launchCaxri, waitForRuntimeReady } from './support/helpers.ts';
 
 async function toggleScreencastFromPalette(page: Page): Promise<void> {
     await page.keyboard.press('Meta+Shift+P');

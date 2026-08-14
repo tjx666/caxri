@@ -1,1 +1,1 @@
-export * from '../../packages/protocol/src/renderer-error';
+export * from '../../packages/protocol/src/transport/renderer-error';

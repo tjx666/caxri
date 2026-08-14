@@ -16,7 +16,7 @@
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
-        "test": "vitest run --root ../.. packages/protocol/src/index.test.ts",
+        "test": "vitest run --root ../.. packages/protocol/src/__tests__/index.test.ts packages/protocol/src/transport/__tests__/local-transport.test.ts",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
     "dependencies": {

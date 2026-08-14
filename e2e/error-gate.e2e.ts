@@ -4,10 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { allowE2EErrors, errorGateSelfTest, expect, test, type TestInfo } from './fixtures.ts';
+import {
+    allowE2EErrors,
+    errorGateSelfTest,
+    expect,
+    test,
+    type TestInfo,
+} from './support/fixtures.ts';
 
-import { launchCaxri, pageReply } from './helpers.ts';
-import { runWithE2EErrorGate } from './error-gate.ts';
+import { launchCaxri, pageReply } from './support/helpers.ts';
+import { runWithE2EErrorGate } from './support/error-gate.ts';
 
 const execFileAsync = promisify(execFile);
 

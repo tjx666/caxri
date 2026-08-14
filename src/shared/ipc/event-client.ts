@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/event-client';
+export * from '../../../packages/protocol/src/transport/event-client';

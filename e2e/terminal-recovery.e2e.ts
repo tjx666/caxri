@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test, type Page } from './fixtures.ts';
+import { allowE2EErrors, expect, test, type Page } from './support/fixtures.ts';
 
-import { createFakeAgentMode } from './agent-fixture.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
     const input = page.locator('.xterm-helper-textarea').last();

@@ -5,8 +5,8 @@ import { join, resolve } from 'node:path';
 
 import { connectToHost, ensureHost } from '@caxri/cli';
 
-import { expect, test } from './fixtures.ts';
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { expect, test } from './support/fixtures.ts';
+import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');

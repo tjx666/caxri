@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from './fixtures.ts';
+import { expect, test, type Page } from './support/fixtures.ts';
 import type { MessageBoxOptions } from 'electron';
 
-import { clickTerminalLink, launchCaxri, pageRequest, typeTerminal } from './helpers.ts';
+import { clickTerminalLink, launchCaxri, pageRequest, typeTerminal } from './support/helpers.ts';
 
 async function createFocusedShell(page: Page): Promise<void> {
     const rootPath = await pageRequest<string | null>(page, 'dialog.selectDirectory');

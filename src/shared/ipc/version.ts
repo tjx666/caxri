@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/version';
+export * from '../../../packages/protocol/src/transport/version';

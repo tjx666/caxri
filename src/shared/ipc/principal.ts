@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/principal';
+export * from '../../../packages/protocol/src/transport/principal';

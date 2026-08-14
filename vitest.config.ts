@@ -6,7 +6,7 @@ const testFiles = [
     'src/**/*.test.ts',
     'packages/**/*.test.ts',
     '.agents/skills/**/scripts/*.test.ts',
-    'scripts/*.test.ts',
+    'scripts/__tests__/*.test.ts',
 ];
 const serialNativeTestPrefix = [
     'src/runtime/__tests__/agent-hooks.integration.test.ts',

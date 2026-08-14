@@ -1,4 +1,4 @@
-import type { WorkItem } from '../../packages/protocol/src/work-item';
+import type { WorkItem } from '../../packages/protocol/src/domain/work-item';
 import { activeLayoutTerminalId, firstLayoutTerminalId, selectTerminal } from './terminal-layout';
 import type { SessionState } from './types';
 
@@ -7,7 +7,7 @@ import type { SessionState } from './types';
  * editor tab (by file path). Replaces the historical `terminal:<id>` / `editor:<path>` string-prefix
  * encoding that was parsed with `startsWith`/`slice` across the Renderer.
  */
-export type { WorkItem } from '../../packages/protocol/src/work-item';
+export type { WorkItem } from '../../packages/protocol/src/domain/work-item';
 
 /**
  * Stable string key for React list/map identity. It is not a persistence format; the canonical

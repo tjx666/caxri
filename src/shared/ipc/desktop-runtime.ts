@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/desktop-runtime';
+export * from '../../../packages/protocol/src/desktop/desktop-runtime';

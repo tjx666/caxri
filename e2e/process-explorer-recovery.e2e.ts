@@ -4,9 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { allowE2EErrors, expect, test, type ElectronApplication, type Page } from './fixtures.ts';
+import {
+    allowE2EErrors,
+    expect,
+    test,
+    type ElectronApplication,
+    type Page,
+} from './support/fixtures.ts';
 
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 

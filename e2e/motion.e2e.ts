@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type Locator, type Page } from './fixtures.ts';
+import { expect, test, type Locator, type Page } from './support/fixtures.ts';
 
 import {
     createAdditionalShellSession,
@@ -12,7 +12,7 @@ import {
     launchCaxri,
     selectedSessionId,
     sessionCard,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 

@@ -17,11 +17,11 @@ Use the smallest real Electron workflow that proves the changed boundary.
    bun run --silent check <e2e-file> --e2e --e2e-grep '<test name>'
    ```
 
-3. Every spec imports `test` and `expect` from `e2e/fixtures.ts`. The automatic error gate observes
+3. Every spec imports `test` and `expect` from `e2e/support/fixtures.ts`. The automatic error gate observes
    current and future Renderer pages, structured Main/Runtime errors, and attaches content-free logs
    before temporary profiles disappear.
 4. Focused launches use hidden windows. Use `windowMode: 'visible'` only for native focus or pointer
-   behavior. Every launch acquires the repository-wide desktop lease through `e2e/helpers.ts`.
+   behavior. Every launch acquires the repository-wide desktop lease through `e2e/support/helpers.ts`.
 5. Ordinary launches use blocked Agent discovery. Agent specs explicitly choose a shared fake mode
    or the manual Codex-only real smoke; never inherit host Agent state by accident.
 6. A deliberate error must consume one exact `allowE2EErrors(...)` tuple. Wildcards, message

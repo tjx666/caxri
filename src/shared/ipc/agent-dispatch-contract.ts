@@ -1,1 +1,1 @@
-export * from '../../../packages/protocol/src/agent-dispatch-contract';
+export * from '../../../packages/protocol/src/agent/agent-dispatch-contract';

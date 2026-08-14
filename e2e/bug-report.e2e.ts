@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { createFakeAgentMode } from './agent-fixture.ts';
-import { createProjectSession, launchCaxri } from './helpers.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 /**
  * The opt-in checkbox and the preview's `alt` text both have to say that a screenshot, unlike the

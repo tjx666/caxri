@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 async function loggedWindowMode(userDataDirectory: string): Promise<string | undefined> {
     const records = (await readFile(join(userDataDirectory, 'logs', 'main.jsonl'), 'utf8'))

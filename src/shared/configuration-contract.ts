@@ -1,1 +1,1 @@
-export * from '../../packages/protocol/src/configuration-contract';
+export * from '../../packages/protocol/src/configuration/configuration-contract';

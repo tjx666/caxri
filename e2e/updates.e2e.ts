@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { launchCaxri } from './helpers.ts';
+import { launchCaxri } from './support/helpers.ts';
 
 test('Check for Updates opens the packaged-only update workflow', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-updates-e2e-'));

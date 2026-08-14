@@ -2,10 +2,10 @@ import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { realCodexSmokeArgs } from './agent-fixture.ts';
-import { launchCaxri, openAddProjectDialog, pageRequest } from './helpers.ts';
+import { realCodexSmokeArgs } from './support/agent-fixture.ts';
+import { launchCaxri, openAddProjectDialog, pageRequest } from './support/helpers.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 

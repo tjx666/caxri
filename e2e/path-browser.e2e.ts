@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 import type { Page } from '@playwright/test';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { createShellSession, launchCaxri } from './helpers.ts';
+import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 /**
  * Simulates the literal keystroke macOS delivers for Option+P: the OS composes Option+<letter>

@@ -9,7 +9,7 @@ import {
     inspectDesktopLease,
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
-import { createE2EPoolPlan, type E2EPoolInvocation } from '../e2e/pools';
+import { createE2EPoolPlan, type E2EPoolInvocation } from '../e2e/support/pools';
 import {
     assertE2EPoolReceipt,
     summarizeE2ETests,

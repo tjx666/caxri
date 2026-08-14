@@ -2,14 +2,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
-import { expect, test, type Page } from './fixtures.ts';
+import { expect, test, type Page } from './support/fixtures.ts';
 
 import {
     createProjectSession,
     launchCaxri,
     launchCaxriApp,
     waitForRuntimeReady,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 const preloadThresholdMs = 3_000;
 const highlightThresholdMs = 250;

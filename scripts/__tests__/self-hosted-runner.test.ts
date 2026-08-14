@@ -1,0 +1,293 @@
+import { execFile as execFileCallback } from 'node:child_process';
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import { describe, expect, it } from 'vitest';
+
+import {
+    cleanup,
+    ownedProcessIds,
+    parseProcessTable,
+    protectedProcessIds,
+    removeCreatedRunRoot,
+    shortTemporaryLinkPath,
+    validateRunnerOwner,
+} from '../self-hosted-runner';
+
+const execFile = promisify(execFileCallback);
+
+/** Overrides every runner path that the real setup action exports into hosted test processes. */
+function cleanupFixtureEnvironment(input: {
+    githubSummary: string;
+    owner: string;
+    runnerTemp: string;
+    runRoot: string;
+    workspace: string;
+}): NodeJS.ProcessEnv {
+    return {
+        ...process.env,
+        CAXRI_RUNNER_OWNER: input.owner,
+        CAXRI_RUNNER_ROOT: input.runRoot,
+        GITHUB_STEP_SUMMARY: input.githubSummary,
+        GITHUB_WORKSPACE: input.workspace,
+        RUNNER_TEMP: input.runnerTemp,
+    };
+}
+
+describe('self-hosted E2E runner ownership', () => {
+    const processes = parseProcessTable(`
+  1   0 launchd
+100   1 runner
+110 100 bash CAXRI_RUNNER_OWNER=caxri-42-1-control
+120 110 bun CAXRI_RUNNER_OWNER=caxri-42-1-control
+130 100 Electron CAXRI_RUNNER_OWNER=caxri-41-1-control
+140 100 Electron CAXRI_RUNNER_OWNER=caxri-42-1-control-extra
+`);
+
+    it('protects the cleanup process ancestry and selects only the exact run owner', () => {
+        expect([...protectedProcessIds(processes, 120)]).toEqual([120, 110, 100, 1]);
+        expect(
+            ownedProcessIds(processes, 'caxri-42-1-control', protectedProcessIds(processes, 120)),
+        ).toEqual([]);
+        expect(ownedProcessIds(processes, 'caxri-42-1-control', new Set([110]))).toEqual([120]);
+    });
+
+    it('accepts only bounded portable run owners', () => {
+        expect(validateRunnerOwner('caxri-123-2-parallel-safe')).toBe('caxri-123-2-parallel-safe');
+        expect(() => validateRunnerOwner('caxri-123-2-../../home')).toThrow(
+            'Invalid CAXRI_RUNNER_OWNER',
+        );
+    });
+
+    it('keeps the short TMPDIR link inside the macOS Unix socket path budget', () => {
+        expect(shortTemporaryLinkPath('caxri-31688024802-1-parallel-safe')).toBe(
+            '/private/tmp/caxri-31688024802-1-parallel-safe',
+        );
+        expect(() => shortTemporaryLinkPath(`caxri-1-1-${'x'.repeat(60)}`)).toThrow(
+            'Short temporary link path exceeds the Unix socket budget',
+        );
+    });
+
+    it('rolls back only its run root when preflight fails after creating it', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-runner-prepare-'));
+        const workspace = join(root, 'workspace');
+        const runnerTemp = join(root, 'runner-temp');
+        const owner = `caxri-${Date.now()}-${process.pid}-prepare-rollback`;
+        const temporaryLink = shortTemporaryLinkPath(owner);
+        const runRoot = join(runnerTemp, owner);
+        const githubEnvironment = join(root, 'github-env');
+        const githubSummary = join(root, 'github-summary');
+
+        try {
+            await mkdir(workspace, { recursive: true });
+            await mkdir(runnerTemp, { recursive: true });
+            await writeFile(githubEnvironment, '');
+            await writeFile(githubSummary, '');
+            await execFile('git', ['init', '--quiet'], { cwd: workspace });
+            await execFile('git', ['config', 'user.email', 'test@example.com'], { cwd: workspace });
+            await execFile('git', ['config', 'user.name', 'Test'], { cwd: workspace });
+            await writeFile(join(workspace, 'fixture.txt'), 'fixture\n');
+            await execFile('git', ['add', 'fixture.txt'], { cwd: workspace });
+            await execFile('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
+            const { stdout: head } = await execFile('git', ['rev-parse', 'HEAD'], {
+                cwd: workspace,
+            });
+            /** A non-link collision proves rollback cannot remove a path it did not create. */
+            await mkdir(temporaryLink, { recursive: false });
+
+            await expect(
+                execFile(
+                    'bun',
+                    [
+                        'run',
+                        new URL('../self-hosted-runner.ts', import.meta.url).pathname,
+                        'prepare',
+                    ],
+                    {
+                        cwd: workspace,
+                        env: {
+                            ...process.env,
+                            CAXRI_DESKTOP_LEASE_OWNER: owner,
+                            CAXRI_EXPECTED_HEAD: head.trim(),
+                            CAXRI_RUNNER_AGENT_DISCOVERY: 'blocked',
+                            CAXRI_RUNNER_OWNER: owner,
+                            GITHUB_ENV: githubEnvironment,
+                            GITHUB_STEP_SUMMARY: githubSummary,
+                            GITHUB_WORKSPACE: workspace,
+                            RUNNER_ARCH: 'ARM64',
+                            RUNNER_ENVIRONMENT: 'self-hosted',
+                            RUNNER_NAME: 'test-runner',
+                            RUNNER_OS: 'macOS',
+                            RUNNER_TEMP: runnerTemp,
+                        },
+                    },
+                ),
+            ).rejects.toThrow('EEXIST');
+
+            await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(access(temporaryLink)).resolves.toBeUndefined();
+        } finally {
+            await rm(temporaryLink, { recursive: true, force: true });
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it('preserves a replaced run root whose marker no longer belongs to the current owner', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-runner-rollback-marker-'));
+        const runnerTemp = join(root, 'runner-temp');
+        const owner = `caxri-${Date.now()}-${process.pid}-rollback-marker`;
+        const runRoot = join(runnerTemp, owner);
+
+        try {
+            await mkdir(runRoot, { recursive: true });
+            await writeFile(
+                join(runRoot, 'owner.json'),
+                `${JSON.stringify({ owner: 'caxri-1-1-other' })}\n`,
+            );
+
+            await expect(removeCreatedRunRoot(runnerTemp, runRoot, owner)).rejects.toThrow(
+                'Created runner job root marker does not match',
+            );
+            await expect(access(runRoot)).resolves.toBeUndefined();
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it('finishes owned link and run-root cleanup after an earlier teardown failure', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-runner-cleanup-'));
+        const workspace = join(root, 'workspace');
+        const runnerTemp = join(root, 'runner-temp');
+        const owner = `caxri-${Date.now()}-${process.pid}-cleanup-continuation`;
+        const runRoot = join(runnerTemp, owner);
+        const temporaryLink = shortTemporaryLinkPath(owner);
+        const githubSummary = join(root, 'github-summary');
+
+        try {
+            await mkdir(workspace, { recursive: true });
+            await mkdir(join(runRoot, 'tmp'), { recursive: true });
+            await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
+            await execFile('git', ['init', '--quiet'], { cwd: workspace });
+            await execFile('git', ['config', 'user.email', 'test@example.com'], { cwd: workspace });
+            await execFile('git', ['config', 'user.name', 'Test'], { cwd: workspace });
+            await writeFile(join(workspace, 'tracked.txt'), 'tracked\n');
+            await execFile('git', ['add', 'tracked.txt'], { cwd: workspace });
+            await execFile('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
+            await writeFile(githubSummary, '');
+            await symlink(join(runRoot, 'tmp'), temporaryLink);
+
+            await expect(
+                cleanup(
+                    cleanupFixtureEnvironment({
+                        githubSummary,
+                        owner,
+                        runnerTemp,
+                        runRoot,
+                        workspace,
+                    }),
+                    {
+                        terminateOwnedProcesses: () =>
+                            Promise.reject(new Error('injected earlier teardown failure')),
+                    },
+                ),
+            ).rejects.toThrow('injected earlier teardown failure');
+
+            await expect(access(temporaryLink)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+            expect(await readFile(githubSummary, 'utf8')).toContain(
+                '| Cleanup stage failures | `1` |',
+            );
+            expect(await readFile(githubSummary, 'utf8')).toContain(
+                '| Failed stages | `processes` |',
+            );
+        } finally {
+            await rm(temporaryLink, { recursive: true, force: true });
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it('preserves a foreign short TMPDIR link and fails closed', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-runner-foreign-link-'));
+        const workspace = join(root, 'workspace');
+        const runnerTemp = join(root, 'runner-temp');
+        const owner = `caxri-${Date.now()}-${process.pid}-foreign-link`;
+        const runRoot = join(runnerTemp, owner);
+        const foreignTarget = join(root, 'foreign-tmp');
+        const temporaryLink = shortTemporaryLinkPath(owner);
+        const githubSummary = join(root, 'github-summary');
+
+        try {
+            await mkdir(workspace, { recursive: true });
+            await mkdir(join(runRoot, 'tmp'), { recursive: true });
+            await mkdir(foreignTarget, { recursive: true });
+            await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
+            await execFile('git', ['init', '--quiet'], { cwd: workspace });
+            await writeFile(githubSummary, '');
+            await symlink(foreignTarget, temporaryLink);
+
+            await expect(
+                cleanup(
+                    cleanupFixtureEnvironment({
+                        githubSummary,
+                        owner,
+                        runnerTemp,
+                        runRoot,
+                        workspace,
+                    }),
+                    { terminateOwnedProcesses: () => Promise.resolve(0) },
+                ),
+            ).rejects.toThrow(
+                'Owned short temporary path must target the current runner job temporary directory',
+            );
+
+            await expect(access(temporaryLink)).resolves.toBeUndefined();
+            await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+            await rm(temporaryLink, { recursive: true, force: true });
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it('preserves the first cleanup failure when writing the teardown summary also fails', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-runner-summary-failure-'));
+        const workspace = join(root, 'workspace');
+        const runnerTemp = join(root, 'runner-temp');
+        const owner = `caxri-${Date.now()}-${process.pid}-summary-failure`;
+        const runRoot = join(runnerTemp, owner);
+        const temporaryLink = shortTemporaryLinkPath(owner);
+        const summaryDirectory = join(root, 'summary-directory');
+
+        try {
+            await mkdir(workspace, { recursive: true });
+            await mkdir(join(runRoot, 'tmp'), { recursive: true });
+            await mkdir(summaryDirectory, { recursive: true });
+            await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
+            await execFile('git', ['init', '--quiet'], { cwd: workspace });
+            await symlink(join(runRoot, 'tmp'), temporaryLink);
+
+            await expect(
+                cleanup(
+                    cleanupFixtureEnvironment({
+                        githubSummary: summaryDirectory,
+                        owner,
+                        runnerTemp,
+                        runRoot,
+                        workspace,
+                    }),
+                    {
+                        terminateOwnedProcesses: () =>
+                            Promise.reject(new Error('first cleanup failure')),
+                    },
+                ),
+            ).rejects.toThrow('first cleanup failure');
+
+            await expect(access(temporaryLink)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+            await rm(temporaryLink, { recursive: true, force: true });
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+});

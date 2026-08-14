@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
 import { resolveRuntimeExecutable } from '../src/runtime/executables.ts';
-import { realCodexSmokeArgs } from './agent-fixture.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
+import { realCodexSmokeArgs } from './support/agent-fixture.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const realAgentEnabled = process.env.CAXRI_REAL_AGENT_E2E === '1';

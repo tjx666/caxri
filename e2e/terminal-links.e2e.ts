@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import type { MessageBoxOptions } from 'electron';
 
 import {
@@ -11,7 +11,7 @@ import {
     launchCaxri,
     pageRequest,
     typeTerminal,
-} from './helpers.ts';
+} from './support/helpers.ts';
 
 test('Terminal links open Project files and confirm URLs through Main', async () => {
     allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 }]);

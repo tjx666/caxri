@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from './fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 
-import { launchCaxri, openAddProjectDialog } from './helpers.ts';
+import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
