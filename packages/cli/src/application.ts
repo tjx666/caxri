@@ -143,12 +143,14 @@ function fallbackOutputMode(argv: readonly string[], automation: CliAutomation):
 }
 
 function topLevelHelp() {
+    const commands: Array<{ name: string; summary: string }> = [];
+    for (const command of CLI_COMMANDS) {
+        if (command.path.length !== 1) continue;
+        commands.push({ name: command.path.join(' '), summary: command.summary });
+    }
     return {
         usage: 'caxri <command> [options]',
-        commands: CLI_COMMANDS.filter((command) => command.path.length === 1).map((command) => ({
-            name: command.path.join(' '),
-            summary: command.summary,
-        })),
+        commands,
         groups: CLI_GROUPS,
         options: [
             '--json',
@@ -167,16 +169,19 @@ function topLevelHelp() {
 function groupHelp(group: string) {
     const definition = CLI_GROUPS.find((candidate) => candidate.name === group);
     if (!definition) throw new CaxriError('VALIDATION', `Unknown command group: ${group}`);
-    return {
-        usage: `caxri ${group} <command>`,
-        summary: definition.summary,
-        commands: CLI_COMMANDS.filter(
-            (command) => command.path.length >= 2 && command.path[0] === group,
-        ).map((command) => ({
+    const commands: Array<{ name: string; summary: string; usage?: string }> = [];
+    for (const command of CLI_COMMANDS) {
+        if (command.path.length < 2 || command.path[0] !== group) continue;
+        commands.push({
             name: command.path.slice(1).join(' '),
             summary: command.summary,
             ...('usage' in command && command.usage ? { usage: command.usage } : {}),
-        })),
+        });
+    }
+    return {
+        usage: `caxri ${group} <command>`,
+        summary: definition.summary,
+        commands,
     };
 }
 

@@ -31,6 +31,12 @@
                 "rules": ["socket/low-supply-chain-score"],
             },
             {
+                // React Doctor does not scan repository skill scripts. string-width is used by
+                // Acceptance's terminal grid preflight and is also enforced by knip.
+                "files": ["package.json"],
+                "rules": ["deslop/unused-dev-dependency"],
+            },
+            {
                 // False positive: the lstat -> readdir -> lstat/realpath sequence in
                 // ListingService.loadList is a deliberate TOCTOU revalidation (see the inline
                 // JSDoc); the awaits are ordered on purpose and must not be parallelized.

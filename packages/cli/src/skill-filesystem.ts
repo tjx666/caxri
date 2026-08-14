@@ -238,20 +238,27 @@ async function validateRelease(
     const releaseFiles = [...files, MARKER_FILE, RELEASE_OWNER_FILE].sort();
     if ((await boundedEntries(path)).join('\0') !== expectedChildren(releaseFiles).join('\0'))
         throw new Error('Managed skill release contains foreign entries');
-    for (const directory of directoriesFor(releaseFiles)) {
-        const directoryPath = join(path, ...directory.split('/'));
-        await assertDirectory(directoryPath);
-        if (
-            (await boundedEntries(directoryPath)).join('\0') !==
-            expectedChildren(releaseFiles, directory).join('\0')
-        )
-            throw new Error('Managed skill release contains foreign entries');
-    }
+    await Promise.all(
+        directoriesFor(releaseFiles).map(async (directory) => {
+            const directoryPath = join(path, ...directory.split('/'));
+            await assertDirectory(directoryPath);
+            if (
+                (await boundedEntries(directoryPath)).join('\0') !==
+                expectedChildren(releaseFiles, directory).join('\0')
+            )
+                throw new Error('Managed skill release contains foreign entries');
+        }),
+    );
     if (!parseOwnedRecord(await boundedRegularFile(join(path, RELEASE_OWNER_FILE)), skillName))
         throw new Error('Managed skill release ownership is invalid');
-    const contents: Record<string, string> = {};
-    for (const file of files)
-        contents[file] = await boundedRegularFile(join(path, ...file.split('/')));
+    const contents = Object.fromEntries(
+        await Promise.all(
+            files.map(async (file) => [
+                file,
+                await boundedRegularFile(join(path, ...file.split('/'))),
+            ]),
+        ),
+    ) as Record<string, string>;
     return { files: contents, identity, markerSource, path, relativePath };
 }
 
@@ -270,18 +277,20 @@ async function validateStore(
     const releasesPath = join(path, RELEASES_DIRECTORY);
     await assertDirectory(releasesPath);
     const releases = new Map<string, ManagedRelease>();
-    for (const name of await boundedEntries(releasesPath)) {
-        if (/^\.stage-[0-9A-Za-z-]+$/u.test(name)) {
-            await assertDirectory(join(releasesPath, name));
-            continue;
-        }
-        if (!/^release-[0-9a-f-]{36}$/u.test(name))
-            throw new Error('Managed skill store contains an unknown release entry');
-        const relativePath = `${storeName(skillName)}/${RELEASES_DIRECTORY}/${name}`;
-        releases.set(
-            relativePath,
-            await validateRelease(join(releasesPath, name), relativePath, skillName),
-        );
+    const releaseEntries = await Promise.all(
+        (await boundedEntries(releasesPath)).map(async (name) => {
+            if (/^\.stage-[0-9A-Za-z-]+$/u.test(name)) {
+                await assertDirectory(join(releasesPath, name));
+                return undefined;
+            }
+            if (!/^release-[0-9a-f-]{36}$/u.test(name))
+                throw new Error('Managed skill store contains an unknown release entry');
+            const relativePath = `${storeName(skillName)}/${RELEASES_DIRECTORY}/${name}`;
+            return await validateRelease(join(releasesPath, name), relativePath, skillName);
+        }),
+    );
+    for (const release of releaseEntries) {
+        if (release) releases.set(release.relativePath, release);
     }
     return { identity, releases };
 }

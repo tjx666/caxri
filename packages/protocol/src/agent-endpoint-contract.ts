@@ -37,16 +37,14 @@ export const agentMessagingNextActionSchema = z.enum([
     'restart_terminal',
     'none',
 ]);
-export const agentMessagingCapabilitySchema = z
-    .object({
-        deliveryMode: agentDeliveryModeSchema,
-        health: agentMessagingHealthSchema,
-        reason: agentMessagingReasonSchema,
-        checkedAt: z.number().int().positive(),
-        nextAction: agentMessagingNextActionSchema,
-        providerVersion: z.string().trim().min(1).max(200).optional(),
-    })
-    .strict();
+export const agentMessagingCapabilitySchema = z.strictObject({
+    deliveryMode: agentDeliveryModeSchema,
+    health: agentMessagingHealthSchema,
+    reason: agentMessagingReasonSchema,
+    checkedAt: z.number().int().positive(),
+    nextAction: agentMessagingNextActionSchema,
+    providerVersion: z.string().trim().min(1).max(200).optional(),
+});
 export const agentGrantPolicySchema = z.enum(['debug:read', 'business:write', 'agent:control']);
 
 export const agentEndpointSummarySchema = z.object({

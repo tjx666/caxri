@@ -4,27 +4,21 @@ import { agentEndpointSummarySchema } from './agent-endpoint-contract.js';
 import { agentInboundMessageSchema } from './agent-inbox-contract.js';
 import { identifierSchema } from './domain.js';
 
-export const providerMessagingRegistrationSchema = z
-    .object({
-        endpoint: agentEndpointSummarySchema,
-        adapterId: identifierSchema,
-        adapterVersion: z.string().trim().min(1).max(200),
-    })
-    .strict();
+export const providerMessagingRegistrationSchema = z.strictObject({
+    endpoint: agentEndpointSummarySchema,
+    adapterId: identifierSchema,
+    adapterVersion: z.string().trim().min(1).max(200),
+});
 
-export const providerMessageDeliverySchema = z
-    .object({
-        deliveryId: identifierSchema,
-        message: agentInboundMessageSchema,
-    })
-    .strict();
+export const providerMessageDeliverySchema = z.strictObject({
+    deliveryId: identifierSchema,
+    message: agentInboundMessageSchema,
+});
 
-export const providerMessageAckSchema = z
-    .object({
-        deliveryId: identifierSchema,
-        outcome: z.enum(['accepted', 'retry', 'unavailable']),
-    })
-    .strict();
+export const providerMessageAckSchema = z.strictObject({
+    deliveryId: identifierSchema,
+    outcome: z.enum(['accepted', 'retry', 'unavailable']),
+});
 
 export type ProviderMessagingRegistration = z.infer<typeof providerMessagingRegistrationSchema>;
 export type ProviderMessageDelivery = z.infer<typeof providerMessageDeliverySchema>;

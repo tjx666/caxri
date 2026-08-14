@@ -160,12 +160,12 @@ export const logQueryParamsSchema = z
         level: logLevelSchema.optional(),
         limit: z.number().int().min(1).max(100).default(50),
         process: logProcessSchema.optional(),
-        since: z.string().datetime().optional(),
+        since: z.iso.datetime().optional(),
     })
     .default({ limit: 50 });
 export const logQueryRecordSchema = z.object({
     id: identifierSchema,
-    timestamp: z.string().datetime(),
+    timestamp: z.iso.datetime(),
     process: logProcessSchema,
     level: logLevelSchema,
     event: z.string().min(1).max(200),

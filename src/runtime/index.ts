@@ -5,6 +5,9 @@ import type { RuntimeEvent } from '../shared/ipc/events';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import { createRuntime } from './bootstrap';
+/** Runtime domains expose public root barrels by architecture contract; deep imports are rejected
+ * by `src/runtime/__tests__/structure.test.ts`. */
+// oxlint-disable-next-line react-doctor/no-barrel-import
 import {
     RuntimeAgentEndpointControlClient,
     RuntimeAgentEndpointLifecycle,

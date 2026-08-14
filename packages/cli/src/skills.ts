@@ -351,7 +351,7 @@ async function inspectSkill(
     }
 
     const actualFiles = Object.keys(layout.files).sort();
-    const expectedFiles = [...marker.files].sort();
+    const expectedFiles = marker.files.toSorted();
     if (
         actualFiles.join('\0') !== expectedFiles.join('\0') ||
         hashFiles(layout.files) !== marker.contentHash
@@ -545,14 +545,15 @@ export async function inspectBundledSkillHealth(
 ): Promise<AgentSkillHealth> {
     const providers = selection.providers ?? ['codex', 'claude'];
     const scopes = selection.scopes ?? ['local', 'global'];
-    const installations: InstalledSkillStatus[] = [];
-    for (const provider of providers) {
-        for (const scope of scopes) {
-            installations.push(
-                (await inspectSkill({ name: SKILL_NAME, provider, scope }, context)).value,
-            );
-        }
-    }
+    const installations = await Promise.all(
+        providers.flatMap((provider) =>
+            scopes.map((scope) =>
+                inspectSkill({ name: SKILL_NAME, provider, scope }, context).then(
+                    (inspection) => inspection.value,
+                ),
+            ),
+        ),
+    );
     return {
         bundled: {
             ...bundledMetadata,

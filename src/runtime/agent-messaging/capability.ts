@@ -3,7 +3,10 @@ import { access, constants } from 'node:fs/promises';
 import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
 import type { AgentMessagingCapability } from '../../shared/ipc/agent-endpoint-contract';
 import { readE2EAgentPolicy } from '../../shared/node/e2e-agent-policy';
-import { discoverExecutable, readVersion } from '../agents/discovery';
+/** Runtime domains expose public root barrels by architecture contract; deep imports are rejected
+ * by `src/runtime/__tests__/structure.test.ts`. */
+// oxlint-disable-next-line react-doctor/no-barrel-import
+import { discoverExecutable, readVersion } from '../agents';
 
 const PROBE_TIMEOUT_MS = 5_000;
 const CACHE_TTL_MS = 60_000;
