@@ -66,7 +66,7 @@ describe('Runtime Agent skill health', () => {
             expect(withoutProject.installations.some(({ scope }) => scope === 'local')).toBe(false);
 
             const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
-            await runtime.handlers['session.create']({
+            const session = await runtime.handlers['session.create']({
                 defaultAgent: 'shell',
                 projectId: project.id,
             });
@@ -75,6 +75,7 @@ describe('Runtime Agent skill health', () => {
                 { name: 'caxri-cli', provider: 'codex', scope: 'local' },
                 { cwd: projectRoot, environment, home },
             );
+            await runtime.handlers['session.archive']({ sessionId: session.session.id });
 
             const health = await runtime.handlers['agentSkills.get']({});
             expect(agentSkillHealthSchema.parse(health)).toEqual(health);
