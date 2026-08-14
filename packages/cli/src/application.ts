@@ -108,13 +108,13 @@ export function createCliHostConnector(options: CliHostConnectorOptions) {
             return await connectExisting(connection);
         } catch (error) {
             if (
-                options.automation !== 'human' &&
+                (options.automation !== 'human' || connection.credential !== undefined) &&
                 error instanceof CaxriError &&
                 error.code === 'NOT_FOUND'
             ) {
                 throw new CaxriError(
                     'UNAVAILABLE',
-                    'No Caxri Host is running; Agent and CI invocations cannot start one implicitly',
+                    'No Caxri Host is running; automated and Endpoint invocations cannot start one implicitly',
                 );
             }
             throw error;
