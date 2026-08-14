@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
     appSettingsSchema,
     identifierSchema,
+    newWorktreeBehaviorSchema,
     projectRecordSchema,
     sessionRecordSchema,
     SETTINGS_BOUNDS,
@@ -86,6 +87,7 @@ export const terminalQueryResultSchema = z.object({
 
 export const inspectableSettingsSchema = appSettingsSchema.pick({
     'session.defaultAgent': true,
+    'workbench.newWorktreeBehavior': true,
     'terminal.fontSize': true,
     'terminal.scrollback': true,
     'terminal.copyOnSelect': true,
@@ -95,6 +97,7 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
 });
 export const settingsPatchKeySchema = z.enum([
     'session.defaultAgent',
+    'workbench.newWorktreeBehavior',
     'terminal.fontSize',
     'terminal.scrollback',
     'terminal.copyOnSelect',
@@ -104,6 +107,10 @@ export const settingsPatchKeySchema = z.enum([
 ]);
 export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
     z.object({ key: z.literal('session.defaultAgent'), value: terminalKindSchema.nullable() }),
+    z.object({
+        key: z.literal('workbench.newWorktreeBehavior'),
+        value: newWorktreeBehaviorSchema,
+    }),
     z.object({
         key: z.literal('terminal.fontSize'),
         value: z

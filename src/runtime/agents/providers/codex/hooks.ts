@@ -9,6 +9,7 @@ const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
+    { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
 ] as const;
 
 function codexHome(homeDirectory: string, configured: string | undefined): string {
@@ -43,7 +44,7 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 1,
+    schemaVersion: 2,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);
         return [

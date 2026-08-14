@@ -12,6 +12,7 @@ import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/wor
 import { pathIsAtOrBelow, remapPath } from '../lib/file-path';
 
 import {
+    getBootstrap,
     getSelectedSession,
     getSessionState,
     getSessionTerminals,
@@ -37,15 +38,53 @@ interface SessionViewState {
     /** Least-recently-used order per Session, most recent last. Drives {@link evictExcess}. */
     recentDocuments: Record<string, string[]>;
     activateWork(item: WorkItem): void;
-    setActiveWork(sessionId: string, item?: WorkItem): void;
-    cacheDocument(sessionId: string, document: EditorDocument): void;
-    cacheDocuments(sessionId: string, documents: readonly EditorDocument[]): void;
+    setActiveWork(sessionId: string, item?: WorkItem, workbenchProjectId?: string): void;
+    cacheDocument(sessionId: string, document: EditorDocument, workbenchProjectId?: string): void;
+    cacheDocuments(
+        sessionId: string,
+        documents: readonly EditorDocument[],
+        workbenchProjectId?: string,
+    ): void;
     updateDocumentContent(sessionId: string, path: string, content: string): void;
-    evictDocument(sessionId: string, path: string): void;
+    evictDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
     evictDocumentsUnderPath(sessionId: string, path: string): void;
-    remapDocuments(sessionId: string, previousPath: string, nextPath: string): void;
+    remapDocuments(
+        sessionId: string,
+        previousPath: string,
+        nextPath: string,
+        workbenchProjectId?: string,
+    ): void;
     dropSessions(sessionIds: readonly string[]): void;
     setInspectorMode(mode: InspectorMode): void;
+}
+
+/**
+ * Owner-root state keeps its historical Session key; alternate roots add the independently
+ * authorized Project ID so dirty buffers with the same path can never collide.
+ */
+export function sessionViewScope(sessionId: string, workbenchProjectId?: string): string {
+    const session = getBootstrap()?.sessions?.find((candidate) => candidate.id === sessionId);
+    const rootProjectId = workbenchProjectId ?? session?.workbenchProjectId;
+    if (!rootProjectId || !session || rootProjectId === session.projectId) return sessionId;
+    return `${sessionId}\0${rootProjectId}`;
+}
+
+export function getSessionDocuments(
+    sessionId: string,
+    workbenchProjectId?: string,
+): Record<string, EditorDocument> | undefined {
+    return useSessionViewStore.getState().documents[
+        sessionViewScope(sessionId, workbenchProjectId)
+    ];
+}
+
+export function getSessionActiveWork(
+    sessionId: string,
+    workbenchProjectId?: string,
+): WorkItem | undefined {
+    return useSessionViewStore.getState().activeWork[
+        sessionViewScope(sessionId, workbenchProjectId)
+    ];
 }
 
 function touch(recent: readonly string[] | undefined, path: string): string[] {
@@ -160,81 +199,84 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         if (next !== current) patchSessionState(next);
     },
 
-    setActiveWork(sessionId, item) {
-        set((state) => ({ activeWork: { ...state.activeWork, [sessionId]: item } }));
+    setActiveWork(sessionId, item, workbenchProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchProjectId);
+        set((state) => ({ activeWork: { ...state.activeWork, [scope]: item } }));
         if (item?.kind !== 'editor') return;
         set((state) => ({
             recentDocuments: {
                 ...state.recentDocuments,
-                [sessionId]: touch(state.recentDocuments[sessionId], item.path),
+                [scope]: touch(state.recentDocuments[scope], item.path),
             },
         }));
     },
 
-    cacheDocument(sessionId, document) {
+    cacheDocument(sessionId, document, workbenchProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) =>
             withDocuments(
                 state,
-                sessionId,
-                setSessionDocument(state.documents, sessionId, document)[sessionId],
-                touch(state.recentDocuments[sessionId], document.path),
+                scope,
+                setSessionDocument(state.documents, scope, document)[scope],
+                touch(state.recentDocuments[scope], document.path),
             ),
         );
     },
 
-    cacheDocuments(sessionId, documents) {
+    cacheDocuments(sessionId, documents, workbenchProjectId) {
         if (documents.length === 0) return;
+        const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
             const merged = documents.reduce(
-                (current, document) => setSessionDocument(current, sessionId, document),
+                (current, document) => setSessionDocument(current, scope, document),
                 state.documents,
             );
             const recent = documents.reduce<string[]>(
                 (current, document) => touch(current, document.path),
-                state.recentDocuments[sessionId] ?? [],
+                state.recentDocuments[scope] ?? [],
             );
-            return withDocuments(state, sessionId, merged[sessionId], recent);
+            return withDocuments(state, scope, merged[scope], recent);
         });
     },
 
     updateDocumentContent(sessionId, path, content) {
-        const existing = get().documents[sessionId]?.[path];
+        const existing = getSessionDocuments(sessionId)?.[path];
         if (!existing) return;
         get().cacheDocument(sessionId, { ...existing, content, dirty: true });
     },
 
     /** Closing a tab releases its content; the tab itself is owned by the persisted Session state. */
-    evictDocument(sessionId, path) {
+    evictDocument(sessionId, path, workbenchProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
-            const cached = state.documents[sessionId];
+            const cached = state.documents[scope];
             if (!cached?.[path]) return state;
             const remaining = { ...cached };
             delete remaining[path];
             return {
-                documents: { ...state.documents, [sessionId]: remaining },
+                documents: { ...state.documents, [scope]: remaining },
                 recentDocuments: {
                     ...state.recentDocuments,
-                    [sessionId]: (state.recentDocuments[sessionId] ?? []).filter(
-                        (value) => value !== path,
-                    ),
+                    [scope]: (state.recentDocuments[scope] ?? []).filter((value) => value !== path),
                 },
             };
         });
     },
 
     evictDocumentsUnderPath(sessionId, path) {
+        const scope = sessionViewScope(sessionId);
         set((state) => {
-            const cached = state.documents[sessionId];
+            const cached = state.documents[scope];
             if (!cached || !Object.keys(cached).some((value) => pathIsAtOrBelow(value, path)))
                 return state;
             const remaining = Object.fromEntries(
                 Object.entries(cached).filter(([value]) => !pathIsAtOrBelow(value, path)),
             );
             return {
-                documents: { ...state.documents, [sessionId]: remaining },
+                documents: { ...state.documents, [scope]: remaining },
                 recentDocuments: {
                     ...state.recentDocuments,
-                    [sessionId]: (state.recentDocuments[sessionId] ?? []).filter(
+                    [scope]: (state.recentDocuments[scope] ?? []).filter(
                         (value) => !pathIsAtOrBelow(value, path),
                     ),
                 },
@@ -242,9 +284,10 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         });
     },
 
-    remapDocuments(sessionId, previousPath, nextPath) {
+    remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
-            const cached = state.documents[sessionId];
+            const cached = state.documents[scope];
             if (!cached || !Object.keys(cached).some((path) => pathIsAtOrBelow(path, previousPath)))
                 return state;
             const remapped = Object.fromEntries(
@@ -254,10 +297,10 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
                 }),
             );
             return {
-                documents: { ...state.documents, [sessionId]: remapped },
+                documents: { ...state.documents, [scope]: remapped },
                 recentDocuments: {
                     ...state.recentDocuments,
-                    [sessionId]: (state.recentDocuments[sessionId] ?? []).map((path) =>
+                    [scope]: (state.recentDocuments[scope] ?? []).map((path) =>
                         remapPath(path, previousPath, nextPath),
                     ),
                 },
@@ -269,7 +312,14 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         const removed = new Set(sessionIds);
         if (removed.size === 0) return;
         const without = <T>(record: Record<string, T>): Record<string, T> =>
-            Object.fromEntries(Object.entries(record).filter(([key]) => !removed.has(key)));
+            Object.fromEntries(
+                Object.entries(record).filter(
+                    ([key]) =>
+                        ![...removed].some(
+                            (sessionId) => key === sessionId || key.startsWith(`${sessionId}\0`),
+                        ),
+                ),
+            );
         set((state) => ({
             activeWork: without(state.activeWork),
             documents: without(state.documents),
@@ -288,7 +338,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
 export function getResolvedActiveWork(): WorkItem | undefined {
     const sessionId = getSelectedSession()?.id;
     return resolveActiveWork({
-        activeWork: sessionId ? useSessionViewStore.getState().activeWork[sessionId] : undefined,
+        activeWork: sessionId ? getSessionActiveWork(sessionId) : undefined,
         sessionTerminals: getSessionTerminals(),
         sessionState: getSessionState(),
     });
@@ -296,11 +346,14 @@ export function getResolvedActiveWork(): WorkItem | undefined {
 
 /** Reads the focused WorkItem through the single `resolveActiveWork` fallback ladder. */
 export function useActiveWork(): WorkItem | undefined {
-    const sessionId = useSelectedSession()?.id;
+    const session = useSelectedSession();
     const sessionTerminals = useSessionTerminals();
     const sessionState = useSessionState();
+    /** Keep the Workbench Project in the reactive input set. React Compiler cannot observe the
+     * store read hidden inside `sessionViewScope(sessionId)` when the Session ID itself is stable. */
+    const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
     const activeWork = useSessionViewStore((state) =>
-        sessionId ? state.activeWork[sessionId] : undefined,
+        scope ? state.activeWork[scope] : undefined,
     );
     return useMemo(
         () => resolveActiveWork({ activeWork, sessionTerminals, sessionState }),
@@ -311,8 +364,11 @@ export function useActiveWork(): WorkItem | undefined {
 export function useDocument(
     sessionId: string | undefined,
     path: string | undefined,
+    workbenchProjectId?: string,
 ): EditorDocument | undefined {
     return useSessionViewStore((state) =>
-        sessionId && path ? state.documents[sessionId]?.[path] : undefined,
+        sessionId && path
+            ? state.documents[sessionViewScope(sessionId, workbenchProjectId)]?.[path]
+            : undefined,
     );
 }

@@ -25,6 +25,7 @@ import { UpdateDialog } from './features/updates/UpdateDialog';
 import { LoadingScreen } from './features/workbench/LoadingScreen';
 import { PanelDivider } from './features/workbench/PanelDivider';
 import { Workbench } from './features/workbench/Workbench';
+import { WorkbenchRootPrompt } from './features/workbench/WorkbenchRootPrompt';
 import { TooltipProvider } from './components/ui/tooltip';
 import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utils';
@@ -166,6 +167,7 @@ export function App() {
                 <PathBrowserDialog />
                 <BugReportDialog />
                 <AgentMessageApprovalDialog />
+                <WorkbenchRootPrompt />
                 <ToastOutlet />
                 <ScreencastOverlay />
             </main>

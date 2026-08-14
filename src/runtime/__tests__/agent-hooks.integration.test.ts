@@ -105,7 +105,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '1',
+                    '2',
                     '--reply',
                     'empty-json',
                 ],

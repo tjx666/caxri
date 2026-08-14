@@ -64,6 +64,13 @@
             "when": 1786661938381,
             "tag": "0008_loud_magus",
             "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1786701042868,
+            "tag": "0009_mature_agent_zero",
+            "breakpoints": true
         }
     ]
 }

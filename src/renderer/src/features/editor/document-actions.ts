@@ -16,10 +16,16 @@ import {
     getBootstrap,
     getProjectSessionIds,
     getSelectedSession,
+    getSessionProjectId,
     getSessionState,
     getSessionTerminals,
 } from '../../stores/selectors';
-import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session-view';
+import {
+    getResolvedActiveWork,
+    getSessionActiveWork,
+    getSessionDocuments,
+    useSessionViewStore,
+} from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
@@ -32,6 +38,7 @@ interface PendingDocumentOperation {
     discarded: boolean;
     path: string;
     sessionId: string;
+    workbenchProjectId?: string;
 }
 
 /**
@@ -41,18 +48,26 @@ interface PendingDocumentOperation {
 const pendingDocumentOperations = new Set<PendingDocumentOperation>();
 
 function trackDocumentOperation(sessionId: string, path: string): PendingDocumentOperation {
-    const operation = { discarded: false, path, sessionId };
+    const workbenchProjectId = getBootstrap()?.sessions.find(
+        (session) => session.id === sessionId,
+    )?.workbenchProjectId;
+    const operation = { discarded: false, path, sessionId, workbenchProjectId };
     pendingDocumentOperations.add(operation);
     return operation;
 }
 
 function remapPendingDocumentOperations(
     sessionId: string,
+    workbenchProjectId: string,
     previousPath: string,
     nextPath: string,
 ): void {
     for (const operation of pendingDocumentOperations) {
-        if (operation.sessionId === sessionId && pathIsAtOrBelow(operation.path, previousPath))
+        if (
+            operation.sessionId === sessionId &&
+            operation.workbenchProjectId === workbenchProjectId &&
+            pathIsAtOrBelow(operation.path, previousPath)
+        )
             operation.path = remapPath(operation.path, previousPath, nextPath);
     }
 }
@@ -65,10 +80,19 @@ function discardPendingDocumentOperations(sessionId: string, path: string): void
 }
 
 /** Updates dirtiness and pins a preview as soon as it contains an edit. */
-function updateOpenTab(sessionId: string, path: string, dirty: boolean): void {
+function updateOpenTab(
+    sessionId: string,
+    path: string,
+    dirty: boolean,
+    workbenchProjectId?: string,
+): void {
     const current = useWorkbenchStore
         .getState()
-        .bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+        .bootstrap?.sessionStates.find(
+            (state) =>
+                state.sessionId === sessionId &&
+                (!workbenchProjectId || state.workbenchProjectId === workbenchProjectId),
+        );
     if (!current) return;
     const next = updateEditorTabState(current, path, dirty);
     if (next !== current) patchSessionState(next);
@@ -84,25 +108,31 @@ function openEditorTabForSession(
     const session = bootstrap?.sessions.find((candidate) => candidate.id === sessionId);
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!session || !current) return;
+    const workbenchProjectId = current.workbenchProjectId;
     const view = useSessionViewStore.getState();
-    const previousActiveWork = view.activeWork[session.id];
+    const previousActiveWork = getSessionActiveWork(session.id, workbenchProjectId);
     const pathWasOpen = current.openTabs.some((tab) => tab.path === path);
-    const reconciled = reconcileEditorTabDirtiness(current, view.documents[session.id]);
+    const reconciled = reconcileEditorTabDirtiness(
+        current,
+        getSessionDocuments(session.id, workbenchProjectId),
+    );
     const opened = openEditorTabState(reconciled, path, options.preview === true);
     const replacedDocument = opened.replacedPath
-        ? view.documents[session.id]?.[opened.replacedPath]
+        ? getSessionDocuments(session.id, workbenchProjectId)?.[opened.replacedPath]
         : undefined;
-    if (opened.replacedPath) view.evictDocument(session.id, opened.replacedPath);
+    if (opened.replacedPath)
+        view.evictDocument(session.id, opened.replacedPath, workbenchProjectId);
     const item: WorkItem = { kind: 'editor', path };
-    view.setActiveWork(session.id, item);
+    view.setActiveWork(session.id, item, workbenchProjectId);
     const next = activateWorkState(opened.state, item);
     /** Session persistence rollback must also undo the Renderer-owned half of preview replacement. */
     if (next !== current)
         patchSessionState(next, undefined, () => {
             const currentView = useSessionViewStore.getState();
-            if (!pathWasOpen) currentView.evictDocument(session.id, path);
-            if (replacedDocument) currentView.cacheDocument(session.id, replacedDocument);
-            currentView.setActiveWork(session.id, previousActiveWork);
+            if (!pathWasOpen) currentView.evictDocument(session.id, path, workbenchProjectId);
+            if (replacedDocument)
+                currentView.cacheDocument(session.id, replacedDocument, workbenchProjectId);
+            currentView.setActiveWork(session.id, previousActiveWork, workbenchProjectId);
         });
 }
 
@@ -120,11 +150,15 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
         await tryCommand('Unable to restore file', async () => {
             const document = await caxri.request('files.read', { sessionId, path });
             if (!operation.discarded)
-                useSessionViewStore.getState().cacheDocument(sessionId, {
-                    ...document,
-                    path: operation.path,
-                    dirty: false,
-                });
+                useSessionViewStore.getState().cacheDocument(
+                    sessionId,
+                    {
+                        ...document,
+                        path: operation.path,
+                        dirty: false,
+                    },
+                    operation.workbenchProjectId,
+                );
         });
     } finally {
         pendingDocumentOperations.delete(operation);
@@ -157,16 +191,22 @@ export async function openFileForSession(
             if (
                 operation.discarded ||
                 intent !== fileOpenIntent ||
-                !getBootstrap()?.sessions.some((candidate) => candidate.id === session.id)
+                !getBootstrap()?.sessions.some((candidate) => candidate.id === session.id) ||
+                getBootstrap()?.sessions.find((candidate) => candidate.id === session.id)
+                    ?.workbenchProjectId !== operation.workbenchProjectId
             )
                 return false;
             markEditorDocumentReady();
             const currentPath = operation.path;
-            useSessionViewStore.getState().cacheDocument(session.id, {
-                ...document,
-                path: currentPath,
-                dirty: false,
-            });
+            useSessionViewStore.getState().cacheDocument(
+                session.id,
+                {
+                    ...document,
+                    path: currentPath,
+                    dirty: false,
+                },
+                operation.workbenchProjectId,
+            );
             openEditorTabForSession(session.id, currentPath, options);
             return currentPath;
         });
@@ -180,7 +220,7 @@ export async function openFileForSession(
 export function selectEditorTab(path: string): void {
     const session = getSelectedSession();
     if (!session) return;
-    if (isGitDiffTabPath(path) || useSessionViewStore.getState().documents[session.id]?.[path])
+    if (isGitDiffTabPath(path) || getSessionDocuments(session.id)?.[path])
         useSessionViewStore.getState().activateWork({ kind: 'editor', path });
     else void openFile(path);
 }
@@ -189,7 +229,7 @@ export function changeDocument(path: string, content: string): void {
     const session = getSelectedSession();
     if (!session) return;
     useSessionViewStore.getState().updateDocumentContent(session.id, path, content);
-    updateOpenTab(session.id, path, true);
+    updateOpenTab(session.id, path, true, session.workbenchProjectId);
 }
 
 export function pinEditorTab(path: string): void {
@@ -201,7 +241,7 @@ export function pinEditorTab(path: string): void {
 
 /** Writes one document's current content to disk; returns false only when the write itself failed. */
 async function saveDocumentAt(sessionId: string, path: string): Promise<boolean> {
-    const document = useSessionViewStore.getState().documents[sessionId]?.[path];
+    const document = getSessionDocuments(sessionId)?.[path];
     if (!document) return true;
     const operation = trackDocumentOperation(sessionId, path);
     let saved = false;
@@ -213,17 +253,27 @@ async function saveDocumentAt(sessionId: string, path: string): Promise<boolean>
                 content: document.content,
             });
             if (!operation.discarded) {
-                const current =
-                    useSessionViewStore.getState().documents[sessionId]?.[operation.path];
+                const current = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
+                    operation.path
+                ];
                 if (current) {
                     const changedDuringSave = current.content !== document.content;
-                    useSessionViewStore.getState().cacheDocument(sessionId, {
-                        ...result,
-                        path: operation.path,
-                        content: changedDuringSave ? current.content : result.content,
-                        dirty: changedDuringSave,
-                    });
-                    updateOpenTab(sessionId, operation.path, changedDuringSave);
+                    useSessionViewStore.getState().cacheDocument(
+                        sessionId,
+                        {
+                            ...result,
+                            path: operation.path,
+                            content: changedDuringSave ? current.content : result.content,
+                            dirty: changedDuringSave,
+                        },
+                        operation.workbenchProjectId,
+                    );
+                    updateOpenTab(
+                        sessionId,
+                        operation.path,
+                        changedDuringSave,
+                        operation.workbenchProjectId,
+                    );
                 }
             }
             saved = true;
@@ -338,6 +388,7 @@ export function closeAllEditors(path: string): Promise<void> {
 
 function remapOpenEditorsInSession(
     sessionId: string,
+    workbenchProjectId: string,
     previousPath: string,
     nextPath: string,
     durable = false,
@@ -345,16 +396,30 @@ function remapOpenEditorsInSession(
 ): Promise<boolean> | undefined {
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
-    if (durable && operationId && current?.editorRemapOperationId === operationId)
+    const rootIsCurrent = current?.workbenchProjectId === workbenchProjectId;
+    if (durable && operationId && rootIsCurrent && current.editorRemapOperationId === operationId)
         return persistSessionState(current, {
             failureLabel: 'Moved editor state could not be saved',
             reportFailure: false,
             retainOnFailure: true,
         });
-    remapPendingDocumentOperations(sessionId, previousPath, nextPath);
-    if (!current || previousPath === nextPath) return durable ? Promise.resolve(true) : undefined;
+    remapPendingDocumentOperations(sessionId, workbenchProjectId, previousPath, nextPath);
+    if (previousPath === nextPath) return durable ? Promise.resolve(true) : undefined;
     const remapEditorPath = (path: string): string =>
         isGitDiffTabPath(path) ? path : remapPath(path, previousPath, nextPath);
+    const activeWork = getSessionActiveWork(sessionId, workbenchProjectId);
+    useSessionViewStore
+        .getState()
+        .remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId);
+    if (activeWork?.kind === 'editor')
+        useSessionViewStore
+            .getState()
+            .setActiveWork(
+                sessionId,
+                { kind: 'editor', path: remapEditorPath(activeWork.path) },
+                workbenchProjectId,
+            );
+    if (!current || !rootIsCurrent) return durable ? Promise.resolve(true) : undefined;
     const openTabs = current.openTabs.map((tab) => ({
         ...tab,
         path: remapEditorPath(tab.path),
@@ -363,13 +428,6 @@ function remapOpenEditorsInSession(
         current.activeTab?.kind === 'editor'
             ? { kind: 'editor' as const, path: remapEditorPath(current.activeTab.path) }
             : current.activeTab;
-    const activeWork = useSessionViewStore.getState().activeWork[sessionId];
-    useSessionViewStore.getState().remapDocuments(sessionId, previousPath, nextPath);
-    if (activeWork?.kind === 'editor')
-        useSessionViewStore.getState().setActiveWork(sessionId, {
-            kind: 'editor',
-            path: remapEditorPath(activeWork.path),
-        });
     const nextState = {
         ...current,
         openTabs,
@@ -389,22 +447,31 @@ function remapOpenEditorsInSession(
 
 /** Keeps every same-Project Session's normal tabs and dirty buffers attached after a move. */
 export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
+    const workbenchProjectId = getSessionProjectId(sessionId);
+    if (!workbenchProjectId) return;
     for (const projectSessionId of getProjectSessionIds(sessionId))
-        void remapOpenEditorsInSession(projectSessionId, previousPath, nextPath);
+        void remapOpenEditorsInSession(
+            projectSessionId,
+            workbenchProjectId,
+            previousPath,
+            nextPath,
+        );
 }
 
-/** Persists every same-Project editor remap before a durable file operation is acknowledged. */
+/** Remaps transient state for the originating root; Runtime acknowledgement owns inactive storage. */
 export async function remapOpenEditorsDurably(
     sessionId: string,
+    workbenchProjectId: string,
     operationId: string,
     previousPath: string,
     nextPath: string,
 ): Promise<void> {
     const saved = await Promise.all(
-        getProjectSessionIds(sessionId).map(
+        (getBootstrap()?.sessions.map((session) => session.id) ?? [sessionId]).map(
             (projectSessionId) =>
                 remapOpenEditorsInSession(
                     projectSessionId,
+                    workbenchProjectId,
                     previousPath,
                     nextPath,
                     true,
@@ -430,7 +497,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
     const sessionTerminals =
         bootstrap?.terminals.filter((terminal) => terminal.sessionId === sessionId) ?? [];
     const resolvedActive = resolveActiveWork({
-        activeWork: useSessionViewStore.getState().activeWork[sessionId],
+        activeWork: getSessionActiveWork(sessionId),
         sessionState: current,
         sessionTerminals,
     });

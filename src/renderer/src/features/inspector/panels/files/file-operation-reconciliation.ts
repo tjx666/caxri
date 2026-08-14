@@ -4,7 +4,10 @@ import type { FileMutationOperation } from '@shared/types';
 
 import { caxri } from '../../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
-import { getProjectSessionIds, getSessionProjectId } from '../../../../stores/selectors';
+import {
+    getSessionOwnerProjectId,
+    getWorkbenchProjectSessionIds,
+} from '../../../../stores/selectors';
 import { pushToast } from '../../../../stores/toasts';
 import { remapOpenEditorsDurably } from '../../../editor/document-actions';
 import { useFileOperationStore } from './file-operation-state';
@@ -110,9 +113,21 @@ function operationAffectedPaths(operation: FileMutationOperation): string[] {
     ];
 }
 
-async function invalidateDirectory(sessionId: string, directory: string): Promise<void> {
+function operationProjectId(operation: FileMutationOperation): string {
+    return (
+        operation.workbenchProjectId ??
+        getSessionOwnerProjectId(operation.sessionId) ??
+        `session:${operation.sessionId}`
+    );
+}
+
+async function invalidateDirectory(
+    sessionId: string,
+    workbenchProjectId: string,
+    directory: string,
+): Promise<void> {
     await Promise.all(
-        getProjectSessionIds(sessionId).map((projectSessionId) =>
+        getWorkbenchProjectSessionIds(workbenchProjectId, sessionId).map((projectSessionId) =>
             queryClient.invalidateQueries({
                 queryKey: caxriQueryKey('files.list', {
                     sessionId: projectSessionId,
@@ -125,12 +140,18 @@ async function invalidateDirectory(sessionId: string, directory: string): Promis
 
 async function applyCompletedOperation(operation: FileMutationOperation): Promise<void> {
     if (!operation.result) throw new Error('Completed file operation has no result');
+    const workbenchProjectId = operationProjectId(operation);
     if (operation.kind === 'create') {
-        await invalidateDirectory(operation.sessionId, operation.input.directory);
+        await invalidateDirectory(
+            operation.sessionId,
+            workbenchProjectId,
+            operation.input.directory,
+        );
         return;
     }
     await remapOpenEditorsDurably(
         operation.sessionId,
+        workbenchProjectId,
         operation.id,
         operation.result.previousPath,
         operation.result.path,
@@ -139,14 +160,19 @@ async function applyCompletedOperation(operation: FileMutationOperation): Promis
     if (operation.kind === 'move') directories.push(operation.input.directory);
     await Promise.all(
         [...new Set(directories)].map((directory) =>
-            invalidateDirectory(operation.sessionId, directory),
+            invalidateDirectory(operation.sessionId, workbenchProjectId, directory),
         ),
     );
 }
 
 async function invalidateAffectedDirectories(operation: FileMutationOperation): Promise<void> {
+    const workbenchProjectId = operationProjectId(operation);
     if (operation.kind === 'create') {
-        await invalidateDirectory(operation.sessionId, operation.input.directory);
+        await invalidateDirectory(
+            operation.sessionId,
+            workbenchProjectId,
+            operation.input.directory,
+        );
         return;
     }
     const directories = new Set([parentDirectoryPath(operation.input.path)]);
@@ -154,7 +180,9 @@ async function invalidateAffectedDirectories(operation: FileMutationOperation): 
     if (operation.expectedResult)
         directories.add(parentDirectoryPath(operation.expectedResult.path));
     await Promise.all(
-        [...directories].map((directory) => invalidateDirectory(operation.sessionId, directory)),
+        [...directories].map((directory) =>
+            invalidateDirectory(operation.sessionId, workbenchProjectId, directory),
+        ),
     );
 }
 
@@ -163,7 +191,7 @@ export function reconcileFileMutation(operation: FileMutationOperation): Promise
     if (reconciled.has(operation.id)) return Promise.resolve();
     const existing = reconciling.get(operation.id);
     if (existing) return existing;
-    const projectId = getSessionProjectId(operation.sessionId) ?? `session:${operation.sessionId}`;
+    const projectId = operationProjectId(operation);
     const store = useFileOperationStore.getState();
     store.begin({
         id: operation.id,

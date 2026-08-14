@@ -24,6 +24,7 @@ function session(
     return {
         id,
         projectId,
+        workbenchProjectId: projectId,
         rootPath: `/projects/${projectId}`,
         createdAt: 1,
         lastOpenedAt: 1,

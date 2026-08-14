@@ -12,7 +12,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
-import { getResolvedActiveWork, useSessionViewStore } from '../../stores/session-view';
+import {
+    getResolvedActiveWork,
+    getSessionActiveWork,
+    useSessionViewStore,
+} from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     changeDocument,
@@ -28,6 +32,7 @@ import {
 
 const sessionState = (sessionId: string, path: string): SessionState => ({
     sessionId,
+    workbenchProjectId: 'project-1',
     openTabs: [{ path, dirty: true }],
     activeTab: { kind: 'editor', path },
     inspectorMode: 'files',
@@ -43,8 +48,16 @@ function installSessions(
         bootstrap: {
             selectedSessionId,
             sessions: [
-                { id: 'session-1', projectId: 'project-1' },
-                { id: 'session-2', projectId: 'project-1' },
+                {
+                    id: 'session-1',
+                    projectId: 'project-1',
+                    workbenchProjectId: 'project-1',
+                },
+                {
+                    id: 'session-2',
+                    projectId: 'project-1',
+                    workbenchProjectId: 'project-1',
+                },
             ],
             sessionStates: [
                 sessionState('session-1', originPath),
@@ -75,10 +88,17 @@ function installEmptySession(): void {
     useWorkbenchStore.setState({
         bootstrap: {
             selectedSessionId: 'session-1',
-            sessions: [{ id: 'session-1' }],
+            sessions: [
+                {
+                    id: 'session-1',
+                    projectId: 'project-1',
+                    workbenchProjectId: 'project-1',
+                },
+            ],
             sessionStates: [
                 {
                     sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
                     openTabs: [],
                     inspectorMode: 'files',
                     layout: {},
@@ -197,6 +217,51 @@ describe('session-scoped file mutation completion', () => {
         const documents = useSessionViewStore.getState().documents['session-1'];
         expect(Object.keys(documents)).toEqual(['/project/first.ts']);
         expect(documents['/project/first.ts']).toMatchObject({ content: 'first body' });
+    });
+
+    it('does not roll preview state into a newly selected Workbench Root', async () => {
+        installEmptySession();
+        useSessionViewStore.getState().setActiveWork('session-1', {
+            kind: 'editor',
+            path: '/owner/first.ts',
+        });
+        const updateRequest = Promise.withResolvers<unknown>();
+        mocks.request.mockReturnValueOnce(updateRequest.promise);
+
+        openEditorTab('/owner/second.ts', { preview: true });
+        const worktreeState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-2',
+            openTabs: [{ path: '/worktree/keep.ts', dirty: false }],
+            activeTab: { kind: 'editor', path: '/worktree/keep.ts' },
+            inspectorMode: 'files',
+            layout: {},
+        };
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessions: state.bootstrap.sessions.map((session) => ({
+                          ...session,
+                          workbenchProjectId: 'project-2',
+                      })),
+                      sessionStates: [worktreeState],
+                  }
+                : undefined,
+        }));
+        useSessionViewStore
+            .getState()
+            .setActiveWork('session-1', { kind: 'editor', path: '/worktree/keep.ts' }, 'project-2');
+
+        updateRequest.reject(new Error('stale Workbench Root'));
+        await updateRequest.promise.catch(() => undefined);
+        await Promise.resolve();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([worktreeState]);
+        expect(getSessionActiveWork('session-1', 'project-2')).toEqual({
+            kind: 'editor',
+            path: '/worktree/keep.ts',
+        });
     });
 
     it('remaps the origin Session after the user selected another Session', () => {
@@ -352,6 +417,39 @@ describe('session-scoped file mutation completion', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
             { path: '/project/renamed.ts', dirty: true },
         ]);
+    });
+
+    it('does not update worktree tabs when an owner-root save completes late', async () => {
+        installSessions('/owner/source.ts', 'session-1');
+        const write = deferred<{ content: string; mtimeMs: number; path: string; size: number }>();
+        mocks.request.mockReturnValueOnce(write.promise);
+
+        const saving = saveActiveEditor();
+        const worktreeState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-2',
+            openTabs: [{ path: '/worktree/keep.ts', dirty: true }],
+            activeTab: { kind: 'editor', path: '/worktree/keep.ts' },
+            inspectorMode: 'files',
+            layout: {},
+        };
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessions: state.bootstrap.sessions.map((session) => ({
+                          ...session,
+                          workbenchProjectId: 'project-2',
+                      })),
+                      sessionStates: [worktreeState],
+                  }
+                : undefined,
+        }));
+        write.resolve({ content: 'unsaved', mtimeMs: 2, path: '/owner/source.ts', size: 7 });
+
+        await saving;
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([worktreeState]);
     });
 });
 

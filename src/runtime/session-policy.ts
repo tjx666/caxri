@@ -173,6 +173,7 @@ export function decideAgentLifecycleUpdate(
     provider: TerminalRecord['provider'],
     phase: AgentLifecyclePhase,
 ): AgentLifecycleDecision | undefined {
+    if (phase === 'shellToolFinished') return undefined;
     if (
         !provider ||
         terminal.provider !== provider ||

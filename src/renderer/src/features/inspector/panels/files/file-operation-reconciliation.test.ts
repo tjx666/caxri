@@ -12,11 +12,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
-import { useSessionViewStore } from '../../../../stores/session-view';
+import { getSessionDocuments, useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { reconcileFileMutation } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
+
+function session(id: string, workbenchProjectId = 'project-1', projectId = 'project-1') {
+    return { id, projectId, workbenchProjectId };
+}
 
 beforeEach(() => vi.stubGlobal('window', globalThis));
 
@@ -32,6 +36,96 @@ afterEach(() => {
 });
 
 describe('file mutation reconciliation', () => {
+    it('reconciles a completed move against its originating Workbench Root', async () => {
+        const ownerProjectId = 'project-owner';
+        const operationProjectId = 'project-a';
+        const currentProjectId = 'project-b';
+        const previousPath = '/project-a/source.txt';
+        const nextPath = '/project-a/destination/source.txt';
+        const currentPath = '/project-b/source.txt';
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [session('session-a', currentProjectId, ownerProjectId)],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        workbenchProjectId: currentProjectId,
+                        openTabs: [{ path: currentPath, dirty: true }],
+                        activeTab: { kind: 'editor' as const, path: currentPath },
+                        inspectorMode: 'files' as const,
+                        layout: {},
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        useSessionViewStore.getState().cacheDocument(
+            'session-a',
+            {
+                path: previousPath,
+                content: 'root A draft',
+                dirty: true,
+                mtimeMs: 1,
+                size: 12,
+            },
+            operationProjectId,
+        );
+        useSessionViewStore.getState().cacheDocument(
+            'session-a',
+            {
+                path: currentPath,
+                content: 'root B draft',
+                dirty: true,
+                mtimeMs: 1,
+                size: 12,
+            },
+            currentProjectId,
+        );
+        const operation = {
+            id: 'operation-root-a-move',
+            kind: 'move',
+            sessionId: 'session-a',
+            workbenchProjectId: operationProjectId,
+            phase: 'completed',
+            input: {
+                path: previousPath,
+                directory: '/project-a/destination',
+                conflict: 'reject',
+            },
+            result: {
+                kind: 'file',
+                name: 'source.txt',
+                path: nextPath,
+                previousPath,
+            },
+            startedAt: 1,
+            updatedAt: 2,
+        } as FileMutationOperation & { workbenchProjectId: string };
+
+        await reconcileFileMutation(operation);
+
+        expect(getSessionDocuments('session-a', operationProjectId)?.[nextPath]).toMatchObject({
+            content: 'root A draft',
+            dirty: true,
+        });
+        expect(
+            getSessionDocuments('session-a', operationProjectId)?.[previousPath],
+        ).toBeUndefined();
+        expect(getSessionDocuments('session-a', currentProjectId)?.[currentPath]).toMatchObject({
+            content: 'root B draft',
+            dirty: true,
+        });
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]).toMatchObject({
+            workbenchProjectId: currentProjectId,
+            openTabs: [{ path: currentPath, dirty: true }],
+            activeTab: { kind: 'editor', path: currentPath },
+        });
+        expect(mocks.request).not.toHaveBeenCalledWith('session.updateState', expect.anything());
+        expect(mocks.request).toHaveBeenCalledWith('files.operation.acknowledge', {
+            operationId: operation.id,
+        });
+    });
+
     it('applies a late move before acknowledging it and leaves no stale editor path', async () => {
         const sessionStateSaved = Promise.withResolvers<unknown>();
         mocks.request.mockImplementation((method) =>
@@ -41,12 +135,10 @@ describe('file mutation reconciliation', () => {
         const nextPath = '/project/destination/source.txt';
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [
-                    { id: 'session-a', projectId: 'project-1' },
-                    { id: 'session-b', projectId: 'project-1' },
-                ],
+                sessions: [session('session-a'), session('session-b')],
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
+                    workbenchProjectId: 'project-1',
                     openTabs: [{ path: previousPath, dirty: true }],
                     activeTab: { kind: 'editor' as const, path: previousPath },
                     inspectorMode: 'files' as const,
@@ -159,12 +251,10 @@ describe('file mutation reconciliation', () => {
         const nextPath = '/project/destination/source.txt';
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [
-                    { id: 'session-a', projectId: 'project-1' },
-                    { id: 'session-b', projectId: 'project-1' },
-                ],
+                sessions: [session('session-a'), session('session-b')],
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
+                    workbenchProjectId: 'project-1',
                     openTabs: [{ path: previousPath, dirty: true }],
                     activeTab: { kind: 'editor' as const, path: previousPath },
                     inspectorMode: 'files' as const,
@@ -303,10 +393,11 @@ describe('file mutation reconciliation', () => {
         const nextPath = '/project/destination/source.txt';
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a')],
                 sessionStates: [
                     {
                         sessionId: 'session-a',
+                        workbenchProjectId: 'project-1',
                         openTabs: [
                             { path: nextPath, dirty: false },
                             { path: previousPath, dirty: false },
@@ -423,10 +514,11 @@ describe('file mutation reconciliation', () => {
         };
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a')],
                 sessionStates: [
                     {
                         sessionId: 'session-a',
+                        workbenchProjectId: 'project-1',
                         openTabs: [],
                         inspectorMode: 'files',
                         layout: {},

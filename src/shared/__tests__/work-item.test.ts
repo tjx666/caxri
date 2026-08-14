@@ -12,6 +12,7 @@ const ids = (() => {
 function baseState(overrides: Partial<SessionState> = {}): SessionState {
     return {
         sessionId: 'session-1',
+        workbenchProjectId: 'project-1',
         openTabs: [],
         inspectorMode: 'files',
         layout: createTerminalLayout('terminal-1', ids),

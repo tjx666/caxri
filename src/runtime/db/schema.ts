@@ -28,6 +28,13 @@ export const sessions = sqliteTable(
         projectId: text('project_id')
             .notNull()
             .references(() => projects.id, { onDelete: 'cascade' }),
+        /** Null is the migration-safe representation of "use the owning Project". */
+        workbenchProjectId: text('workbench_project_id').references(() => projects.id, {
+            onDelete: 'set null',
+        }),
+        /** Captured only for an alternate root so replacement of its pathname fails closed. */
+        workbenchRootDevice: text('workbench_root_device'),
+        workbenchRootInode: text('workbench_root_inode'),
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),
         archivedAt: integer('archived_at'),
@@ -42,6 +49,7 @@ export const sessions = sqliteTable(
     },
     (table) => [
         index('sessions_project_activity').on(table.projectId, sql`${table.lastOpenedAt} DESC`),
+        index('sessions_workbench_project').on(table.workbenchProjectId),
     ],
 );
 
@@ -94,6 +102,8 @@ export const sessionState = sqliteTable('session_state', {
     openTabsJson: text('open_tabs_json').notNull(),
     activeTabJson: text('active_tab_json'),
     editorRemapOperationId: text('editor_remap_operation_id'),
+    /** Root-local Editor snapshots keyed by authorized Project ID; Terminal layout stays global. */
+    workbenchStateJson: text('workbench_state_json').notNull().default('{}'),
     inspectorMode: text('inspector_mode').notNull(),
     layoutJson: text('layout_json').notNull(),
 });

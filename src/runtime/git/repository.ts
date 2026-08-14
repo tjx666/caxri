@@ -123,12 +123,29 @@ function parseLineStats(output: string): Pick<RepositoryStatus, 'additions' | 'd
     return { additions, deletions };
 }
 
+export interface GitWorktreeEntry {
+    branch: string;
+    rootPath: string;
+}
+
+/** Shared parser for both Git Inspector discovery and Session Workbench Root attribution. */
+export function parseWorktreeEntries(output: string): GitWorktreeEntry[] {
+    return output.split('\0\0').flatMap((block) => {
+        const fields = block.split('\0').filter(Boolean);
+        const rootPath = fields
+            .find((field) => field.startsWith('worktree '))
+            ?.slice('worktree '.length);
+        if (!rootPath) return [];
+        const branchField = fields.find((field) => field.startsWith('branch '));
+        const branch = branchField
+            ? branchField.slice('branch '.length).replace(/^refs\/heads\//, '')
+            : 'detached';
+        return [{ branch, rootPath }];
+    });
+}
+
 function parseWorktreeRoots(output: string): string[] {
-    return output
-        .split('\0\0')
-        .flatMap((block) => block.split('\0'))
-        .filter((field) => field.startsWith('worktree '))
-        .map((field) => field.slice('worktree '.length));
+    return parseWorktreeEntries(output).map((entry) => entry.rootPath);
 }
 
 function parseGitLinkPaths(output: string): string[] {

@@ -17,7 +17,9 @@ export type TransientRuntimeEvent = Extract<
             | 'agent.messaging.changed'
             | 'command.execute'
             | 'desktop.openRequested'
-            | 'terminal.output';
+            | 'terminal.output'
+            | 'workbench.candidate'
+            | 'workbench.changed';
     }
 >;
 export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
@@ -29,7 +31,9 @@ export function isTransientRuntimeEvent(event: RuntimeEvent): event is Transient
         event.event === 'agent.message.held' ||
         event.event === 'agent.message.receipt' ||
         event.event === 'command.execute' ||
-        event.event === 'desktop.openRequested'
+        event.event === 'desktop.openRequested' ||
+        event.event === 'workbench.candidate' ||
+        event.event === 'workbench.changed'
     );
 }
 

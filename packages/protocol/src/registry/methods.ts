@@ -8,6 +8,7 @@ import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
+import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import {
     configurationSourceSchema,
     MAX_KEYBINDINGS,
@@ -150,6 +151,7 @@ export const methods = {
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
+    ...workbenchMethods,
     'app.bootstrap': { ...hostRead, params: noParams, result: bootstrapStateSchema },
     'app.records': {
         ...hostRead,
@@ -650,6 +652,7 @@ export const methods = {
 export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...businessInternalMethods,
+    ...workbenchInternalMethods,
     'app.windowState.get': {
         ...hostRead,
         params: noParams,

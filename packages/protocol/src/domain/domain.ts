@@ -32,6 +32,7 @@ const agentActivityStateSchema = z.enum([
 ]);
 const sessionAttentionKindSchema = z.enum(['waiting', 'completed', 'failed']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
+export const newWorktreeBehaviorSchema = z.enum(['ask', 'continueWhenAuthorized', 'ignore']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
     'starting',
@@ -72,8 +73,11 @@ export const projectRecordSchema = z.object({
 
 export const sessionRecordSchema = z.object({
     id: z.string(),
+    /** Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization. */
     projectId: z.string(),
-    /** Project-owned root projected onto the Session read model for path-scoped services. */
+    /** Independently authorized Project currently used by Files, Editor, and Git. */
+    workbenchProjectId: z.string(),
+    /** Workbench Project root projected onto the Session read model for path-scoped services. */
     rootPath: z.string(),
     createdAt: z.number(),
     lastOpenedAt: z.number(),
@@ -133,6 +137,8 @@ const editorTabStateSchema = z.object({
 
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
+    /** Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root. */
+    workbenchProjectId: identifierSchema,
     openTabs: z.array(editorTabStateSchema).max(100),
     /** The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`. */
     activeTab: workItemSchema.optional(),
@@ -207,6 +213,7 @@ export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookH
 
 export const appSettingsSchema = z.object({
     'session.defaultAgent': terminalKindSchema.nullable(),
+    'workbench.newWorktreeBehavior': newWorktreeBehaviorSchema,
     'agents.providers': agentProviderSettingsSchema,
     'security.trustedDomains': z
         .array(z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH))
@@ -220,6 +227,14 @@ export const appSettingsSchema = z.object({
     'terminal.osc52ClipboardWrite': z.boolean(),
     'files.exclude': z.record(z.string(), z.boolean()),
     'files.maxFileBytes': z.number(),
+});
+
+/** One authorized Project that belongs to the owning repository's linked-worktree topology. */
+export const workbenchRootOptionSchema = z.object({
+    projectId: identifierSchema,
+    displayTitle: z.string().min(1).max(1_024),
+    branch: z.string().min(1).max(1_024),
+    owner: z.boolean(),
 });
 
 export const persistedWindowStateSchema = z.object({
@@ -328,6 +343,8 @@ const fileMutationPhaseSchema = z.enum(['pre_stage', 'staged', 'completed', 'fai
 const fileMutationOperationBase = {
     id: identifierSchema,
     sessionId: identifierSchema,
+    /** Optional only so journals written before Workbench Roots remain recoverable. */
+    workbenchProjectId: identifierSchema.optional(),
     phase: fileMutationPhaseSchema,
     startedAt: z.number(),
     updatedAt: z.number(),
@@ -671,6 +688,8 @@ export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type AppSettings = z.infer<typeof appSettingsSchema>;
+export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;
+export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;
 export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;
 export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;

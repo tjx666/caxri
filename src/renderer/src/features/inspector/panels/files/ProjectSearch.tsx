@@ -10,6 +10,7 @@ import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery } from '../../../../queries/client';
+import { sessionViewScope } from '../../../../stores/session-view';
 import { openFile } from '../../../editor/document-actions';
 import { revealEditorMatch } from '../../../editor/editor-reveal';
 
@@ -96,7 +97,7 @@ async function openSearchMatch(
 ): Promise<void> {
     const opened = await openFile(match.path, { preview });
     if (!opened || match.line === undefined || match.column === undefined) return;
-    revealEditorMatch(editorModelPath(sessionId, match.path), {
+    revealEditorMatch(editorModelPath(sessionViewScope(sessionId), match.path), {
         line: match.line,
         column: match.column,
         matchLength: match.matchLength ?? 0,

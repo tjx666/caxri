@@ -20,6 +20,7 @@ export {
     type FileMutationOperation,
     type MutableFileEntry,
     type MovedFileEntry,
+    type NewWorktreeBehavior,
     type FileSearchMatch,
     type FileSearchMode,
     type GitDiffDocument,
@@ -57,6 +58,7 @@ export {
     type TerminalSnapshot,
     type ThemeTokens,
     type UpdateState,
+    type WorkbenchRootOption,
 } from './ipc/domain';
 
 export type {

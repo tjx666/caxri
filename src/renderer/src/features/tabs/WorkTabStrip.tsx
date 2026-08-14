@@ -20,7 +20,7 @@ import {
     useSessionTerminals,
 } from '../../stores/selectors';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
-import { useActiveWork, useSessionViewStore } from '../../stores/session-view';
+import { sessionViewScope, useActiveWork, useSessionViewStore } from '../../stores/session-view';
 import { cn } from '../../lib/utils';
 import {
     closeAllEditors,
@@ -125,10 +125,15 @@ function EditorWorkTab({
     path: string;
     preview?: true;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const session = useSelectedSession();
     const gitDiffTab = parseGitDiffTab(path);
     const dirty = useSessionViewStore((state) =>
-        sessionId ? Boolean(state.documents[sessionId]?.[path]?.dirty) : false,
+        session
+            ? Boolean(
+                  state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
+                      ?.dirty,
+              )
+            : false,
     );
     const openTabs = useSessionState()?.openTabs ?? [];
     const index = openTabs.findIndex((tab) => tab.path === path);

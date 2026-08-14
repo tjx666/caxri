@@ -33,6 +33,7 @@ describe('external editor changes', () => {
     it('clears reloaded tab dirtiness without reverting newer Session UI state', () => {
         const state: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [
                 { path: '/project/reloaded.ts', dirty: true },
                 { path: '/project/other.ts', dirty: true },
@@ -56,6 +57,7 @@ describe('Session editor state', () => {
     it('replaces only the current clean preview and preserves pinned tabs', () => {
         const state: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [
                 { path: '/project/pinned.ts', dirty: false },
                 { path: '/project/preview.ts', dirty: false, preview: true },
@@ -81,6 +83,7 @@ describe('Session editor state', () => {
     it('pins previews explicitly and as soon as they become dirty', () => {
         const state: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [{ path: '/project/file.ts', dirty: false, preview: true }],
             activeTab: { kind: 'editor', path: '/project/file.ts' },
             inspectorMode: 'files',
@@ -110,6 +113,7 @@ describe('Session editor state', () => {
     it('returns the same Session state when tab dirtiness is unchanged', () => {
         const state: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [{ path: '/project/file.ts', dirty: true }],
             activeTab: { kind: 'editor', path: '/project/file.ts' },
             inspectorMode: 'files',

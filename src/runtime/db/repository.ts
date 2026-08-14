@@ -13,6 +13,7 @@ import type {
     TerminalRecord,
     TerminalSnapshot,
 } from '../../shared/types';
+import type { SessionWorkbenchBinding } from './models/sessions';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
@@ -64,6 +65,10 @@ export class CaxriDatabase {
         return this.db.projects.get(id);
     }
 
+    findProjectByRootPath(rootPath: string): ProjectRecord | undefined {
+        return this.db.projects.findByRootPath(rootPath);
+    }
+
     createProject(rootPath: string): ProjectRecord {
         return this.db.projects.create(rootPath);
     }
@@ -92,6 +97,9 @@ export class CaxriDatabase {
 
     deleteProject(projectId: string): void {
         this.db.transaction(() => {
+            /** The generated SQLite ALTER migration cannot attach ON DELETE SET NULL, so explicit
+             *  fallback is part of the same transaction that removes the authorized Project. */
+            this.db.sessions.resetWorkbenchProject(projectId);
             if (!this.db.projects.remove(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
             if (this.db.appState.get<string>('lastSelectedProjectId') !== projectId) return;
@@ -116,6 +124,28 @@ export class CaxriDatabase {
 
     getSession(id: string): SessionRecord | undefined {
         return this.db.sessions.get(id);
+    }
+
+    getSessionWorkbenchBinding(id: string): SessionWorkbenchBinding | undefined {
+        return this.db.sessions.getWorkbenchBinding(id);
+    }
+
+    listSessionsUsingWorkbenchProject(projectId: string): SessionRecord[] {
+        return this.db.sessions.listUsingWorkbenchProject(projectId);
+    }
+
+    selectWorkbenchProject(
+        sessionId: string,
+        projectId: string,
+        identity?: { device: string; inode: string },
+    ): SessionRecord {
+        return this.db.transaction(() => {
+            if (!this.db.projects.get(projectId))
+                throw new CaxriError('NOT_FOUND', 'Workbench Project not found');
+            if (!this.db.sessions.setWorkbenchProject(sessionId, projectId, identity))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            return this.db.sessions.get(sessionId)!;
+        });
     }
 
     renameSession(sessionId: string, displayTitle: string): SessionRecord {
@@ -468,11 +498,13 @@ export class CaxriDatabase {
     private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
         const session = this.db.sessions.get(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const ownerProject = this.db.projects.get(session.projectId);
+        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
         this.assertTerminalCapacity(sessionId);
         const terminal = this.db.terminals.insert({
             sessionId,
             kind,
-            cwd: cwd ?? session.rootPath,
+            cwd: cwd ?? ownerProject.rootPath,
             title: defaultTerminalTitle(kind),
         });
         const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
@@ -528,6 +560,22 @@ export class CaxriDatabase {
 
     updateSessionState(state: SessionState): void {
         this.db.sessions.updateState(state);
+    }
+
+    remapWorkbenchEditorState(
+        workbenchProjectId: string,
+        operationId: string,
+        previousPath: string,
+        nextPath: string,
+    ): number {
+        return this.db.transaction(() =>
+            this.db.sessions.remapWorkbenchEditorState(
+                workbenchProjectId,
+                operationId,
+                previousPath,
+                nextPath,
+            ),
+        );
     }
 
     getAppState<T>(key: string): T | undefined {

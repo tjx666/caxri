@@ -6,7 +6,7 @@ import type { FileDocument } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession, getSessionState, selectSelectedSession } from '../../stores/selectors';
-import { useSessionViewStore } from '../../stores/session-view';
+import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../inspector/panels/files/file-operation-state';
@@ -30,11 +30,21 @@ function readDocuments(sessionId: string, paths: readonly string[]): Promise<Fil
  * Caxri's explicit product policy: a newer disk state replaces the open buffer without prompting,
  * even when that buffer is dirty. The reload is announced instead of negotiated.
  */
-function applyExternalDocuments(sessionId: string, reloaded: readonly FileDocument[]): void {
-    if (reloaded.length === 0 || getSelectedSession()?.id !== sessionId) return;
+function applyExternalDocuments(
+    sessionId: string,
+    workbenchProjectId: string,
+    reloaded: readonly FileDocument[],
+): void {
+    const selected = getSelectedSession();
+    if (
+        reloaded.length === 0 ||
+        selected?.id !== sessionId ||
+        selected.workbenchProjectId !== workbenchProjectId
+    )
+        return;
     useSessionViewStore
         .getState()
-        .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument));
+        .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
     const latestState = getSessionState();
     if (latestState?.sessionId === sessionId) {
         patchSessionState(
@@ -60,12 +70,15 @@ function applyExternalDocuments(sessionId: string, reloaded: readonly FileDocume
 }
 
 function onFilesChanged(sessionId: string, changedPaths: readonly string[]): void {
+    const workbenchProjectId = getSelectedSession()?.workbenchProjectId;
+    if (!workbenchProjectId) return;
     const uniquePaths = [...new Set(changedPaths)];
     if (uniquePaths.length === 0) return;
     void readDocuments(sessionId, uniquePaths).then((documents) => {
-        const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
+        const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
         applyExternalDocuments(
             sessionId,
+            workbenchProjectId,
             documents.filter((document) => {
                 const previous = cached[document.path];
                 return previous && changedOnDisk(previous, document);
@@ -78,16 +91,24 @@ function onFilesChanged(sessionId: string, changedPaths: readonly string[]): voi
  * Re-reads the cached buffers of a Session that just became selected. Its watcher events were
  * ignored while another Session held the center pane, so the buffers can be arbitrarily stale.
  */
-function reconcileSelectedSession(sessionId: string): void {
-    if (getSelectedSession()?.id !== sessionId) return;
-    const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
+function reconcileSelectedSession(sessionId: string, preserveDirty = false): void {
+    const selected = getSelectedSession();
+    if (selected?.id !== sessionId) return;
+    const workbenchProjectId = selected.workbenchProjectId;
+    const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
     const paths: string[] = [];
     for (const tab of getSessionState()?.openTabs ?? [])
-        if (!isGitDiffTabPath(tab.path) && cached[tab.path]) paths.push(tab.path);
+        if (
+            !isGitDiffTabPath(tab.path) &&
+            cached[tab.path] &&
+            (!preserveDirty || !cached[tab.path].dirty)
+        )
+            paths.push(tab.path);
     if (paths.length === 0) return;
     void readDocuments(sessionId, paths).then((documents) =>
         applyExternalDocuments(
             sessionId,
+            workbenchProjectId,
             documents.filter((document) => {
                 const previous = cached[document.path];
                 return previous && changedOnDisk(previous, document);
@@ -115,7 +136,7 @@ export function subscribeExternalDocumentSync(): () => void {
         const session = getSelectedSession();
         if (!session || event.payload.sessionId !== session.id) return;
         const sessionId = session.id;
-        const cached = useSessionViewStore.getState().documents[sessionId] ?? {};
+        const cached = getSessionDocuments(sessionId, session.workbenchProjectId) ?? {};
         const changedPaths: string[] = [];
         if (event.payload.overflow) {
             for (const tab of getSessionState()?.openTabs ?? [])
@@ -127,21 +148,33 @@ export function subscribeExternalDocumentSync(): () => void {
         /** A managed rename or move can emit a watcher batch before editor paths are remapped.
          * Reconcile the current paths after the operation settles instead of reading a path
          * that stopped existing midway through the mutation. */
-        if (deferProject(session.projectId)) return;
+        if (deferProject(session.workbenchProjectId)) return;
         onFilesChanged(sessionId, changedPaths);
     });
     const unsubscribeOperations = useFileOperationStore.subscribe((state) => {
         for (const projectId of deferral.flushReady(state.operations)) {
             const selected = getSelectedSession();
-            if (selected?.projectId === projectId) reconcileSelectedSession(selected.id);
+            if (selected?.workbenchProjectId === projectId) reconcileSelectedSession(selected.id);
         }
     });
     const unsubscribeSelection = useWorkbenchStore.subscribe((state, previous) => {
         const session = selectSelectedSession(state.bootstrap);
         const previousSession = selectSelectedSession(previous.bootstrap);
-        if (!session || !previousSession || session.id === previousSession.id) return;
-        if (deferProject(session.projectId)) return;
-        reconcileSelectedSession(session.id);
+        if (
+            !session ||
+            !previousSession ||
+            (session.id === previousSession.id &&
+                session.workbenchProjectId === previousSession.workbenchProjectId)
+        )
+            return;
+        if (deferProject(session.workbenchProjectId)) return;
+        /** Switching roots must reveal that root's retained dirty buffers verbatim. Ordinary
+         * Session selection still applies the global external-change-wins policy. */
+        reconcileSelectedSession(
+            session.id,
+            session.id === previousSession.id &&
+                session.workbenchProjectId !== previousSession.workbenchProjectId,
+        );
     });
     return () => {
         unsubscribeEvents();

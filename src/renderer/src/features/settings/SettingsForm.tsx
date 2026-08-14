@@ -29,6 +29,12 @@ function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
     return 'Ask each time';
 }
 
+const NEW_WORKTREE_BEHAVIOR_LABELS: Record<AppSettings['workbench.newWorktreeBehavior'], string> = {
+    ask: 'Ask',
+    continueWhenAuthorized: 'Continue when authorized',
+    ignore: 'Ignore',
+};
+
 /** Full-width structured editor for `settings.jsonc`. */
 export function SettingsForm({
     agentHookHealth,
@@ -89,6 +95,44 @@ export function SettingsForm({
                                     <AgentIdentityIcon identity="shell" size={14} /> Shell
                                 </span>
                             </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <label htmlFor="new-worktree-behavior">
+                        New worktree behavior
+                        <span className="block text-[11px] text-muted">
+                            First access to a worktree always requires directory authorization
+                        </span>
+                    </label>
+                    <Select
+                        value={settings['workbench.newWorktreeBehavior']}
+                        onValueChange={(value) =>
+                            onFieldChange(
+                                'workbench.newWorktreeBehavior',
+                                value as AppSettings['workbench.newWorktreeBehavior'],
+                            )
+                        }
+                    >
+                        <SelectTrigger
+                            id="new-worktree-behavior"
+                            aria-label="New worktree behavior"
+                            className="w-52 flex-none bg-background"
+                        >
+                            <SelectValue>
+                                {
+                                    NEW_WORKTREE_BEHAVIOR_LABELS[
+                                        settings['workbench.newWorktreeBehavior']
+                                    ]
+                                }
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ask">Ask</SelectItem>
+                            <SelectItem value="continueWhenAuthorized">
+                                Continue when authorized
+                            </SelectItem>
+                            <SelectItem value="ignore">Ignore</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>

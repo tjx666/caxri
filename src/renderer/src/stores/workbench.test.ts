@@ -163,6 +163,7 @@ describe('workbench Session state', () => {
     it('rehydrates dirty tabs from live document bodies after a Runtime snapshot refresh', async () => {
         const cleanState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [{ path: '/project/unsaved.ts', dirty: false }],
             inspectorMode: 'files',
             layout: {},
@@ -190,6 +191,7 @@ describe('workbench Session state', () => {
     it('clears snapshot dirtiness when no recoverable document body survives', async () => {
         const staleState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [{ path: '/project/lost.ts', dirty: true }],
             inspectorMode: 'files',
             layout: {},
@@ -209,6 +211,7 @@ describe('workbench Session state', () => {
     it('keeps transient dirtiness optimistic while persisting only clean tab metadata', async () => {
         const cleanState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [{ path: '/project/file.ts', dirty: false, preview: true }],
             inspectorMode: 'files',
             layout: {},
@@ -237,6 +240,7 @@ describe('workbench Session state', () => {
     it('keeps an optimistic change when an older bootstrap request resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [],
             inspectorMode: 'files',
             layout: {},
@@ -267,6 +271,7 @@ describe('workbench Session state', () => {
     it('keeps the optimistic state when session.updateState resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [],
             inspectorMode: 'files',
             layout: {},
@@ -296,6 +301,7 @@ describe('workbench Session state', () => {
     it('restores the previous confirmed state when session.updateState fails', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [],
             inspectorMode: 'files',
             layout: {},
@@ -322,9 +328,50 @@ describe('workbench Session state', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
     });
 
+    it('does not roll a failed owner-root patch over a newer Workbench Root', async () => {
+        const ownerState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-owner',
+            openTabs: [{ path: '/owner/first.ts', dirty: false }],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessionStates: [ownerState],
+            } as unknown as BootstrapState,
+        });
+        const updateRequest = Promise.withResolvers<SessionState>();
+        mocks.request.mockReturnValueOnce(updateRequest.promise);
+        const rollback = vi.fn();
+        const pending = useWorkbenchStore
+            .getState()
+            .patchSessionState({ ...ownerState, inspectorMode: 'status' }, undefined, rollback);
+        const worktreeState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-worktree',
+            openTabs: [{ path: '/worktree/second.ts', dirty: false }],
+            inspectorMode: 'git',
+            layout: {},
+        };
+        useWorkbenchStore.setState((current) => ({
+            bootstrap: current.bootstrap
+                ? { ...current.bootstrap, sessionStates: [worktreeState] }
+                : undefined,
+        }));
+
+        updateRequest.reject(new Error('stale Workbench Root'));
+
+        await expect(pending).resolves.toBe(false);
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([worktreeState]);
+        expect(rollback).not.toHaveBeenCalled();
+    });
+
     it('pins a retained optimistic state across a failed write and stale bootstrap refresh', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [{ path: '/project/source.ts', dirty: true }],
             activeTab: { kind: 'editor', path: '/project/source.ts' },
             inspectorMode: 'files',
@@ -373,6 +420,7 @@ describe('workbench Session state', () => {
     it('does not let a stale, failed patch clobber a newer confirmed patch', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
             openTabs: [],
             inspectorMode: 'files',
             layout: {},

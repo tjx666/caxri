@@ -81,6 +81,10 @@ export function useRuntimeQueryInvalidation(): void {
     useEffect(() => {
         const pendingTimers = new Map<string, number>();
         const unsubscribe = caxri.onEvent((event) => {
+            if (event.event === 'workbench.changed') {
+                removeSessionQueries(queryClient, [event.payload.sessionId]);
+                return;
+            }
             if (event.event === 'settings.changed') {
                 if (!event.payload.error) invalidateFileTreeQueries(queryClient);
                 return;

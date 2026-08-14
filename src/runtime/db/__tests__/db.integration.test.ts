@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import Database from 'better-sqlite3';
 
+import { createTerminalLayout } from '../../../shared/terminal-layout';
 import { CaxriDb } from '../index';
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { migrationManifest, PRESERVED_SCHEMA_VERSION } from '../migrations/manifest';
@@ -252,28 +253,58 @@ describe('CaxriDb', () => {
     it('migrates the previous preserved schema without losing metadata or snapshots', async () => {
         const directory = await tempDir('caxri-db-preserved-upgrade-');
         const databasePath = join(directory, 'state.db');
-        const previous = new CaxriDb(databasePath);
-        const project = previous.projects.create(directory);
-        const oldestProject = previous.projects.create(join(directory, 'oldest'));
-        const middleProject = previous.projects.create(join(directory, 'middle'));
-        const session = previous.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = previous.terminals.insert({
-            sessionId: session.id,
-            kind: 'shell',
-            cwd: directory,
-            title: 'Shell',
-        });
-        previous.sessions.insertInitialState(session.id, terminal.id);
-        previous.snapshots.save({
-            terminalId: terminal.id,
-            encodingVersion: 1,
-            lineCount: 1,
-            byteCount: 8,
-            payload: 'restored',
-            updatedAt: 123,
-        });
-        previous.database.exec('DROP TABLE agent_dispatch_receipts');
-        previous.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        const previous = new Database(databasePath);
+        previous.pragma('foreign_keys = ON');
+        for (const migration of migrationManifest.slice(0, -1))
+            previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
+        const project = { id: 'project-current', rootPath: directory };
+        const oldestProject = { id: 'project-oldest', rootPath: join(directory, 'oldest') };
+        const middleProject = { id: 'project-middle', rootPath: join(directory, 'middle') };
+        const insertProject = previous.prepare(
+            `INSERT INTO projects
+             (id, root_path, display_title, order_index, created_at, last_opened_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+        );
+        insertProject.run(project.id, project.rootPath, 'Current', 0, 1, 1);
+        insertProject.run(oldestProject.id, oldestProject.rootPath, 'Oldest', 1, 2, 2);
+        insertProject.run(middleProject.id, middleProject.rootPath, 'Middle', 2, 3, 3);
+        previous
+            .prepare(
+                `INSERT INTO sessions
+                 (id, project_id, created_at, last_opened_at, primary_agent_terminal_id,
+                  last_activity_state, layout_version, display_title, archived_at, title_mode,
+                  attention_epoch, read_attention_epoch, last_attention_kind)
+                 VALUES ('session-preserved', ?, 1, 1, NULL, 'idle', 2, 'Shell', NULL,
+                         'automatic', 0, 0, NULL)`,
+            )
+            .run(project.id);
+        previous
+            .prepare(
+                `INSERT INTO terminals
+                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
+                  agent_session_id, last_process_state, failure_reason, created_at, updated_at)
+                 VALUES ('terminal-preserved', 'session-preserved', 'shell', NULL, ?, 'Shell',
+                         'shell', 0, 'node-preserved', NULL, 'stopped', NULL, 1, 1)`,
+            )
+            .run(directory);
+        previous
+            .prepare(
+                `INSERT INTO session_state
+                 (session_id, open_tabs_json, active_tab_json, inspector_mode, layout_json,
+                  state_version, editor_remap_operation_id)
+                 VALUES ('session-preserved', '[]', NULL, 'files', ?, 1, NULL)`,
+            )
+            .run(
+                JSON.stringify(createTerminalLayout('terminal-preserved', () => 'group-preserved')),
+            );
+        previous
+            .prepare(
+                `INSERT INTO terminal_snapshots
+                 (terminal_id, encoding_version, line_count, byte_count, payload, updated_at)
+                 VALUES ('terminal-preserved', 1, 1, 8, 'restored', 123)`,
+            )
+            .run();
+        previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
         const upgraded = new CaxriDb(databasePath);
@@ -283,28 +314,43 @@ describe('CaxriDb', () => {
         );
         expect(upgraded.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         expect(upgraded.database.pragma('table_info(agent_dispatch_receipts)')).not.toHaveLength(0);
+        expect(
+            (upgraded.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                ({ name }) => name,
+            ),
+        ).toEqual(
+            expect.arrayContaining([
+                'workbench_project_id',
+                'workbench_root_device',
+                'workbench_root_inode',
+            ]),
+        );
         expect(upgraded.projects.list()).toEqual([
             expect.objectContaining({ id: project.id, orderIndex: 0 }),
             expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),
             expect.objectContaining({ id: middleProject.id, orderIndex: 2 }),
         ]);
-        expect(upgraded.sessions.get(session.id)).toMatchObject({
+        expect(upgraded.sessions.get('session-preserved')).toMatchObject({
             attentionEpoch: 0,
-            id: session.id,
+            id: 'session-preserved',
+            projectId: project.id,
+            workbenchProjectId: project.id,
             displayTitle: 'Shell',
             hasUnread: false,
             readAttentionEpoch: 0,
             titleMode: 'automatic',
         });
-        expect(upgraded.terminals.get(terminal.id)).toMatchObject({
-            id: terminal.id,
+        expect(upgraded.terminals.get('terminal-preserved')).toMatchObject({
+            id: 'terminal-preserved',
             failureReason: undefined,
         });
-        expect(upgraded.snapshots.get(terminal.id)).toMatchObject({
-            terminalId: terminal.id,
+        expect(upgraded.snapshots.get('terminal-preserved')).toMatchObject({
+            terminalId: 'terminal-preserved',
             payload: 'restored',
         });
-        expect(upgraded.sessions.getState(session.id).layout).not.toEqual({});
+        const restoredState = upgraded.sessions.getState('session-preserved');
+        expect(restoredState.workbenchProjectId).toBe(project.id);
+        expect(restoredState.layout).not.toEqual({});
         upgraded.close();
     });
 
@@ -445,7 +491,9 @@ describe('CaxriDb', () => {
         ).toEqual([{ path: '/project/unsaved.ts', dirty: false }]);
 
         db.database
-            .prepare('UPDATE session_state SET open_tabs_json = ? WHERE session_id = ?')
+            .prepare(
+                "UPDATE session_state SET open_tabs_json = ?, workbench_state_json = '{}' WHERE session_id = ?",
+            )
             .run(JSON.stringify([{ path: '/project/legacy.ts', dirty: true }]), session.id);
         expect(db.sessions.getState(session.id).openTabs).toEqual([
             { path: '/project/legacy.ts', dirty: false },

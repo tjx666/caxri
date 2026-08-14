@@ -28,6 +28,7 @@ const source: RecordQuerySource = {
         {
             id: 'session-1',
             projectId: 'project-1',
+            workbenchProjectId: 'project-1',
             rootPath: '/Users/test/one',
             displayTitle: 'First',
             createdAt: 1,
@@ -42,6 +43,7 @@ const source: RecordQuerySource = {
         {
             id: 'session-2',
             projectId: 'project-2',
+            workbenchProjectId: 'project-2',
             rootPath: '/Users/test/two',
             displayTitle: 'Second',
             createdAt: 2,

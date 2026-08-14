@@ -32,6 +32,10 @@ function fileEntryListing(name: string): unknown[] {
     return [{ name, path: `/anywhere/${name}`, kind: 'file' }];
 }
 
+function session(id: string, projectId: string) {
+    return { id, projectId, workbenchProjectId: projectId };
+}
+
 beforeEach(() => vi.stubGlobal('window', globalThis));
 
 afterEach(() => {
@@ -50,9 +54,9 @@ describe('file action lifecycle', () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 sessions: [
-                    { id: 'session-a', projectId: 'project-1' },
-                    { id: 'session-b', projectId: 'project-1' },
-                    { id: 'session-c', projectId: 'project-2' },
+                    session('session-a', 'project-1'),
+                    session('session-b', 'project-1'),
+                    session('session-c', 'project-2'),
                 ],
             } as unknown as BootstrapState,
         });
@@ -105,7 +109,7 @@ describe('file action lifecycle', () => {
         vi.stubGlobal('crypto', { randomUUID: () => 'operation-timeout' });
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -173,7 +177,7 @@ describe('file action lifecycle', () => {
         vi.stubGlobal('crypto', { randomUUID: () => 'operation-final-retry' });
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -216,7 +220,7 @@ describe('file action lifecycle', () => {
     it('confirms a successful trash with a toast naming the item', async () => {
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -245,10 +249,11 @@ describe('file action lifecycle', () => {
     it('tells Main about unsaved changes and keeps a persistent notice that they were discarded', async () => {
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [
                     {
                         sessionId: 'session-a',
+                        workbenchProjectId: 'project-1',
                         openTabs: [{ path: '/project/source.txt', dirty: true }],
                         inspectorMode: 'files',
                         layout: {},
@@ -283,10 +288,11 @@ describe('file action lifecycle', () => {
     it('reports no unsaved changes for a clean file', async () => {
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [
                     {
                         sessionId: 'session-a',
+                        workbenchProjectId: 'project-1',
                         openTabs: [{ path: '/project/source.txt', dirty: false }],
                         inspectorMode: 'files',
                         layout: {},
@@ -339,7 +345,7 @@ describe('moveFile conflict prompt', () => {
         stubSequentialOperationIds('conflict-replace');
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -406,7 +412,7 @@ describe('moveFile conflict prompt', () => {
         stubSequentialOperationIds('conflict-keep-both');
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -465,7 +471,7 @@ describe('moveFile conflict prompt', () => {
         stubSequentialOperationIds('conflict-cancel');
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -519,7 +525,7 @@ describe('moveFile conflict prompt', () => {
         stubSequentialOperationIds('generic-failure');
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
@@ -556,7 +562,7 @@ describe('moveFile conflict prompt', () => {
         stubSequentialOperationIds('no-leak');
         useWorkbenchStore.setState({
             bootstrap: {
-                sessions: [{ id: 'session-a', projectId: 'project-1' }],
+                sessions: [session('session-a', 'project-1')],
                 sessionStates: [],
                 terminals: [],
             } as unknown as BootstrapState,
