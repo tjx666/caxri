@@ -41,8 +41,21 @@ export class CaxriError extends Error {
     }
 }
 
+/**
+ * Accepts equivalent instances emitted by another bundled copy of `@caxri/protocol`. Main embeds
+ * the source protocol while the workspace CLI can load its built package, so `instanceof` alone
+ * would erase a Host reply code when those copies meet at the Desktop adapter boundary.
+ */
 export function isCaxriError(value: unknown): value is CaxriError {
-    return value instanceof CaxriError;
+    if (value instanceof CaxriError) return true;
+    if (!(value instanceof Error) || value.name !== 'CaxriError') return false;
+    const candidate = value as Error & { code?: unknown; details?: unknown };
+    const { code, details } = candidate;
+    return (
+        errorCodes.includes(code as CaxriErrorCode) &&
+        (details === undefined ||
+            (typeof details === 'object' && details !== null && !Array.isArray(details)))
+    );
 }
 
 /**
