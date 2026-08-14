@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { agentDispatchInternalMethods, agentDispatchMethods } from './agent-dispatch-contract.js';
 import { agentEndpointMethods } from './agent-endpoint-contract.js';
 import { agentInboxMethods } from './agent-inbox-contract.js';
+import { agentSkillHealthSchema } from './agent-skill-contract.js';
 import { businessInternalMethods, businessMethods } from './business-contract.js';
 import { configurationSourceSchema, MAX_KEYBINDINGS } from './configuration-contract.js';
 import { desktopHostMethods, desktopStatusResultSchema } from './desktop-contract.js';
@@ -608,6 +609,7 @@ export const methods = {
     },
     'settings.get': { ...hostRead, params: noParams, result: settingsResult },
     'agentHooks.get': { ...hostRead, params: noParams, result: agentHookHealthMapSchema },
+    'agentSkills.get': { ...hostRead, params: noParams, result: agentSkillHealthSchema },
     'settings.update': {
         ...hostWrite,
         params: z.object({ source: configurationSourceSchema }),

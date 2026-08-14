@@ -193,6 +193,23 @@ process.stdin.resume();
 
         running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
         const sessionId = await createProjectSession(running.page, 'codex');
+        await running.page.keyboard.press('Meta+,');
+        const settingsDialog = running.page.getByRole('dialog');
+        const codexSkill = settingsDialog.locator('[data-agent-skill-health="codex"]');
+        await expect(codexSkill).toContainText(`Bundled v${bundled.bundledVersion}`);
+        await expect(codexSkill.locator('[data-agent-skill-scope="local"]')).toContainText(
+            'Project local · Conflict · installed v99.0.0',
+        );
+        await expect(codexSkill.locator('[data-agent-skill-scope="local"]')).toContainText(
+            'Use a Caxri CLI that supports installed marker schema 99',
+        );
+        const globalSkill = codexSkill.locator('[data-agent-skill-scope="global"]');
+        await expect(globalSkill).toContainText('Global · Missing · not installed');
+        await expect(globalSkill.locator('code')).toHaveText(
+            'caxri skills install caxri-cli --provider codex --global --yes',
+        );
+        await running.page.keyboard.press('Escape');
+        await expect(settingsDialog).not.toBeVisible();
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
         await expect(running.page.locator('.xterm-rows')).toContainText('Skill Agent ready');

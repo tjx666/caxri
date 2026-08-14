@@ -62,9 +62,22 @@ export interface ManagedSkillLayout {
     target: string;
 }
 
+type ManagedSkillInspectionReason =
+    'foreign-entry' | 'modified-or-foreign-files' | 'unreadable-installation';
+
 export type ManagedSkillInspection =
-    | { identity?: FileIdentity; kind: 'foreign'; reason: string; target: string }
-    | { identity: FileIdentity; kind: 'invalid'; reason: string; target: string }
+    | {
+          identity?: FileIdentity;
+          kind: 'foreign';
+          reason: ManagedSkillInspectionReason;
+          target: string;
+      }
+    | {
+          identity: FileIdentity;
+          kind: 'invalid';
+          reason: ManagedSkillInspectionReason;
+          target: string;
+      }
     | { kind: 'managed'; layout: ManagedSkillLayout; target: string }
     | { kind: 'missing'; target: string };
 

@@ -2,6 +2,7 @@ export * from './agents.js';
 export * from './agent-dispatch-contract.js';
 export * from './agent-endpoint-contract.js';
 export * from './agent-inbox-contract.js';
+export * from './agent-skill-contract.js';
 export * from './business-contract.js';
 export * from './configuration-contract.js';
 export * from './dispatcher.js';

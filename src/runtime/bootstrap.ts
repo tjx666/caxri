@@ -22,6 +22,7 @@ import {
     defaultAgentEnvironment,
 } from './agents';
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
+import { agentSkillHealthReader } from './agent-skills';
 import type { Runtime, RuntimeDeps } from './bootstrap-types';
 import { ConfigurationService } from './configuration';
 import { CaxriDatabase } from './db';
@@ -41,9 +42,7 @@ import { ProjectRootResolver } from './project-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
-
 export type { Runtime, RuntimeDeps } from './bootstrap-types';
-
 /** Methods the Renderer may call but that only Electron Main can satisfy. */
 function mainOwned(method: RuntimeMethod): never {
     throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
@@ -747,6 +746,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'settings.inspect': () => configuration.inspectSettings(),
         'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
         'agentHooks.get': () => agentHooks.getHealth(),
+        'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
             await agentSettingsReconcile;
