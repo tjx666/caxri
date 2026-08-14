@@ -7,6 +7,10 @@
 
 Use `electron-vite` for separate Main, Headless Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
+`ELECTRON_RENDERER_URL` is an unpackaged electron-vite development input only. Packaged Workbench
+and Process Explorer windows always resolve their renderer entry files from the application bundle,
+so an inherited development URL cannot redirect either privileged window.
+
 The root remains the private pnpm workspace owner and the only lockfile owner. `packages/protocol`
 owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
 may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop

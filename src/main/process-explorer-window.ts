@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 
@@ -18,6 +17,7 @@ import {
 import type { ThemeTokens } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
+import { resolveRendererEntryUrl } from './renderer-entry';
 import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
@@ -25,6 +25,7 @@ interface ProcessExplorerWindowOptions {
     /** E2E-only render-exception seam; Main never enables it in normal launches. */
     forceRenderError?: boolean;
     logger: StructuredLogger;
+    isPackaged: boolean;
     rendererUrl?: string;
     sampler: ProcessExplorerSampler;
     theme: () => Promise<ThemeTokens>;
@@ -179,17 +180,14 @@ export class ProcessExplorerWindowController {
     }
 
     private resolveRendererUrl(): string {
-        let rendererUrl: URL;
-        if (this.options.rendererUrl) {
-            const base = this.options.rendererUrl.endsWith('/')
-                ? this.options.rendererUrl
-                : `${this.options.rendererUrl}/`;
-            rendererUrl = new URL('process-explorer.html', base);
-        } else {
-            rendererUrl = pathToFileURL(
-                join(this.options.currentDirectory, '../renderer/process-explorer.html'),
-            );
-        }
+        const rendererUrl = new URL(
+            resolveRendererEntryUrl({
+                currentDirectory: this.options.currentDirectory,
+                isPackaged: this.options.isPackaged,
+                page: 'process-explorer.html',
+                rendererUrl: this.options.rendererUrl,
+            }),
+        );
         if (this.options.forceRenderError)
             rendererUrl.searchParams.set('caxri-test-render-error', '1');
         return rendererUrl.toString();

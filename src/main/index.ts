@@ -44,6 +44,7 @@ import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
+import { loadRendererEntry } from './renderer-entry';
 import { ProjectRootGrants } from './root-grants';
 import { RendererReadiness } from './renderer-readiness';
 import { createTestRootPathResolver } from './test-root';
@@ -117,11 +118,9 @@ function createMainLogger(): StructuredLogger {
         resolveLogLevel({ isPackaged: app.isPackaged }),
     );
 }
-
 function sendEvent(event: RuntimeEvent): void {
     eventRelay.send(event);
 }
-
 async function handleExternalUrl(
     url: string,
     options: { allowTrust: boolean; window?: BrowserWindow },
@@ -146,7 +145,6 @@ async function handleExternalUrl(
         { allowTrust: options.allowTrust },
     );
 }
-
 function createWindow(initialState: PersistedWindowState): BrowserWindow {
     const window = new BrowserWindow({
         ...initialState.bounds,
@@ -215,9 +213,7 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
      */
     if (initialState.isFullScreen) window.setFullScreen(true);
     mainLogger?.write('info', 'window.created');
-
     window.webContents.on('did-finish-load', sendFullScreenState);
-
     window.once('ready-to-show', () => {
         mainLogger?.write('info', 'window.ready_to_show', {
             durationMs: performance.now() - bootStartedAt,
@@ -352,12 +348,14 @@ function createWindow(initialState: PersistedWindowState): BrowserWindow {
         }
         mainLogger?.write('info', 'window.closed');
     });
-
-    if (process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL);
-    else void window.loadFile(join(currentDirectory, '../renderer/index.html'));
+    loadRendererEntry(window, {
+        currentDirectory,
+        isPackaged: app.isPackaged,
+        page: 'index.html',
+        rendererUrl: process.env.ELECTRON_RENDERER_URL,
+    });
     return window;
 }
-
 function readWindowState(window: BrowserWindow): PersistedWindowState {
     return {
         bounds: window.getNormalBounds(),
@@ -365,7 +363,6 @@ function readWindowState(window: BrowserWindow): PersistedWindowState {
         isFullScreen: window.isFullScreen(),
     };
 }
-
 async function openMainWindow(): Promise<void> {
     if (mainWindow) return;
     const initialState = await supervisor
@@ -715,6 +712,7 @@ void app.whenReady().then(async () => {
             process.env.CAXRI_E2E === '1' &&
             process.env.CAXRI_TEST_PROCESS_EXPLORER_RENDER_ERROR === '1',
         logger: mainLogger,
+        isPackaged: app.isPackaged,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         sampler: new ProcessExplorerSampler({
             rootPid: process.pid,
