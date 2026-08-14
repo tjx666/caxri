@@ -120,21 +120,6 @@ function packageVersion(source: string, label: string): string {
     return version;
 }
 
-function lockRootVersion(source: string): string {
-    const parsed = JSON.parse(source) as {
-        packages?: Record<string, { version?: unknown }>;
-        version?: unknown;
-    };
-    const rootVersion = parsed.packages?.['']?.version;
-    if (typeof parsed.version !== 'string' || typeof rootVersion !== 'string') {
-        throw new Error('package-lock.json is missing root version metadata');
-    }
-    if (parsed.version !== rootVersion) {
-        throw new Error('package-lock.json root versions do not match');
-    }
-    return rootVersion;
-}
-
 async function sha256(path: string): Promise<string> {
     return createHash('sha256').update(await readFile(path)).digest('hex');
 }
@@ -154,30 +139,27 @@ function signingField(source: string, name: string): string | null {
     return match?.[1]?.trim() ?? null;
 }
 
-/** Temporarily updates npm-owned version metadata and restores the exact original bytes. */
+/** Temporarily updates pnpm-owned version metadata and restores the exact original bytes. */
 async function buildVersionedDmg(
     options: LocalDmgOptions,
     executor: CommandExecutor,
 ): Promise<{ buildStartedAt: number; originalVersion: string }> {
     const cwd = resolve(options.cwd);
     const packagePath = join(cwd, 'package.json');
-    const lockPath = join(cwd, 'package-lock.json');
+    const lockPath = join(cwd, 'pnpm-lock.yaml');
     const [packageSource, lockSource] = await Promise.all([
         readFile(packagePath, 'utf8'),
         readFile(lockPath, 'utf8'),
     ]);
     const originalVersion = packageVersion(packageSource, 'package.json');
-    if (lockRootVersion(lockSource) !== originalVersion) {
-        throw new Error('package.json and package-lock.json versions do not match');
-    }
     const manifestStatus = await runRequired(
         executor,
         'git',
-        ['status', '--short', '--', 'package.json', 'package-lock.json'],
+        ['status', '--short', '--', 'package.json', 'pnpm-lock.yaml'],
         cwd,
     );
     if (manifestStatus.stdout.trim()) {
-        throw new Error('Refusing to package with modified package.json or package-lock.json');
+        throw new Error('Refusing to package with modified package.json or pnpm-lock.yaml');
     }
     const worktreeStatus = await runRequired(
         executor,
@@ -208,25 +190,18 @@ async function buildVersionedDmg(
             versionChanged = true;
             await runRequired(
                 executor,
-                'npm',
+                'pnpm',
                 [
                     'version',
                     options.version,
                     '--no-git-tag-version',
-                    '--ignore-scripts',
-                    '--force',
+                    '--no-git-checks',
                 ],
                 cwd,
             );
-            const [versionedPackage, versionedLock] = await Promise.all([
-                readFile(packagePath, 'utf8'),
-                readFile(lockPath, 'utf8'),
-            ]);
-            if (
-                packageVersion(versionedPackage, 'package.json') !== options.version ||
-                lockRootVersion(versionedLock) !== options.version
-            ) {
-                throw new Error('npm did not apply the requested package version consistently');
+            const versionedPackage = await readFile(packagePath, 'utf8');
+            if (packageVersion(versionedPackage, 'package.json') !== options.version) {
+                throw new Error('pnpm did not apply the requested package version');
             }
         }
         buildStartedAt = Date.now();
@@ -357,7 +332,7 @@ Options:
   --allow-dirty      Package the current dirty source tree explicitly
   --help             Show this help
 
-The script restores package.json and package-lock.json after success or failure.
+The script restores package.json and pnpm-lock.yaml after success or failure.
 It never creates a commit, tag, GitHub Release, or upload.`;
 }
 

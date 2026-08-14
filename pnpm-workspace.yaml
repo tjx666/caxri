@@ -1,0 +1,16 @@
+packages:
+  - 'packages/*'
+
+allowBuilds:
+  '@parcel/watcher': false
+  better-sqlite3: true
+  electron: true
+  electron-winstaller: false
+  esbuild: true
+  node-pty: true
+
+catalog:
+  zod: 4.4.3
+
+overrides:
+  dompurify: 3.4.13

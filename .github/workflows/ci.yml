@@ -125,7 +125,7 @@ jobs:
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
-          setup-node: 'true'
+          setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
           rebuild-native: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
@@ -248,7 +248,7 @@ jobs:
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
-          setup-node: 'true'
+          setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: 'true'
           rebuild-native: 'true'
@@ -269,9 +269,9 @@ jobs:
           VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
         run: |
-          NPM_VERSION="$(npm --version)" \
-            LOCKFILE_SHA256="$(shasum -a 256 package-lock.json | awk '{print $1}')" \
-            bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.version, npm: process.env.NPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
+          PNPM_VERSION="$(pnpm --version)" \
+            LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
+            bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.version, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
       - name: Verify Electron native modules
         run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
       - name: Build Electron bundles

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveVitestPartition, testFiles } from '../../vitest.config';
+import {
+    cliTestFiles,
+    desktopTestFiles,
+    protocolTestFiles,
+    resolveVitestPartition,
+    testProjectNames,
+} from '../../vitest.config';
 
 const SAFE_FILE_TESTS = [
     'src/runtime/files/__tests__/file-tree-excludes.test.ts',
@@ -15,7 +21,18 @@ const SAFE_FILE_TESTS = [
 
 describe('Vitest project partition', () => {
     it('discovers skill tests colocated under scripts/__tests__', () => {
-        expect(testFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
+        expect(desktopTestFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
+    });
+
+    it('owns Desktop and workspace tests in four named projects', () => {
+        expect(testProjectNames).toEqual([
+            'desktop-parallel',
+            'desktop-serial-native',
+            'protocol',
+            'cli',
+        ]);
+        expect(protocolTestFiles).toEqual(['packages/protocol/src/**/*.test.ts']);
+        expect(cliTestFiles).toEqual(['packages/cli/{scripts,src}/**/*.test.ts']);
     });
 
     it('keeps native file watchers serial while allowing isolated file tests to use both workers', () => {

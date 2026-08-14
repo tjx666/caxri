@@ -72,7 +72,7 @@ describe('CI retry policy', () => {
                 ...eligible,
                 baseRun: { ...eligible.baseRun!, checksConclusion: 'failure' },
             },
-            { ...eligible, changedFiles: ['package-lock.json'] },
+            { ...eligible, changedFiles: ['pnpm-lock.yaml'] },
             { ...eligible, baseRunChangedFiles: ['.github/workflows/ci.yml'] },
         ]) {
             expect(evaluateRetryPolicy(input).mode).toBe('full');
@@ -222,8 +222,10 @@ describe('CI retry policy', () => {
             '.github/workflows/ci.yml',
             '.github/actions/setup-caxri-job/action.yml',
             '.bun-version',
+            'mise.toml',
             'package.json',
-            'package-lock.json',
+            'pnpm-lock.yaml',
+            'pnpm-workspace.yaml',
             'vitest.config.ts',
             'playwright.config.ts',
             'electron.vite.config.ts',
