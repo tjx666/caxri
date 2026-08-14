@@ -291,15 +291,17 @@ describe('switch-worktree creation and diagnostics', () => {
         const niPath = join(binaryDirectory, 'ni');
         await writeFile(
             niPath,
-            '#!/bin/sh\nrm package-lock.json\nln -s "$CAXRI_TEST_EXTERNAL_TARGET" package-lock.json\nmkdir node_modules\n',
+            '#!/bin/sh\nrm pnpm-lock.yaml\nln -s "$CAXRI_TEST_EXTERNAL_TARGET" pnpm-lock.yaml\nprintf "packages: []\\n" > pnpm-workspace.yaml\nmkdir node_modules\n',
             'utf8',
         );
         await chmod(niPath, 0o755);
         const packageSource = '{"name":"fixture"}\n';
-        const lockSource = '{"lockfileVersion":3}\n';
+        const lockSource = "lockfileVersion: '9.0'\n";
+        const workspaceSource = "packages:\n    - 'packages/*'\n";
         const externalTarget = join(temporary, 'external-target.txt');
         await writeFile(join(temporary, 'package.json'), packageSource, 'utf8');
-        await writeFile(join(temporary, 'package-lock.json'), lockSource, 'utf8');
+        await writeFile(join(temporary, 'pnpm-lock.yaml'), lockSource, 'utf8');
+        await writeFile(join(temporary, 'pnpm-workspace.yaml'), workspaceSource, 'utf8');
         await writeFile(externalTarget, 'preserve external target\n', 'utf8');
         const previousPath = process.env.PATH;
         const previousExternalTarget = process.env.CAXRI_TEST_EXTERNAL_TARGET;
@@ -314,8 +316,11 @@ describe('switch-worktree creation and diagnostics', () => {
         }
 
         expect(await readFile(join(temporary, 'package.json'), 'utf8')).toBe(packageSource);
-        expect(await readFile(join(temporary, 'package-lock.json'), 'utf8')).toBe(lockSource);
-        expect((await lstat(join(temporary, 'package-lock.json'))).isSymbolicLink()).toBe(false);
+        expect(await readFile(join(temporary, 'pnpm-lock.yaml'), 'utf8')).toBe(lockSource);
+        expect(await readFile(join(temporary, 'pnpm-workspace.yaml'), 'utf8')).toBe(
+            workspaceSource,
+        );
+        expect((await lstat(join(temporary, 'pnpm-lock.yaml'))).isSymbolicLink()).toBe(false);
         expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
         expect(await pathExists(join(temporary, 'node_modules'))).toBe(true);
     });
@@ -332,7 +337,7 @@ describe('switch-worktree creation and diagnostics', () => {
         const externalTarget = join(temporary, 'external-target.txt');
         await writeFile(join(temporary, 'package.json'), '{"name":"fixture"}\n', 'utf8');
         await writeFile(externalTarget, 'preserve external target\n', 'utf8');
-        await symlink(externalTarget, join(temporary, 'package-lock.json'));
+        await symlink(externalTarget, join(temporary, 'pnpm-lock.yaml'));
         const previousPath = process.env.PATH;
         const previousNiMarker = process.env.CAXRI_TEST_NI_MARKER;
         try {
@@ -345,7 +350,7 @@ describe('switch-worktree creation and diagnostics', () => {
             else process.env.CAXRI_TEST_NI_MARKER = previousNiMarker;
         }
 
-        expect((await lstat(join(temporary, 'package-lock.json'))).isSymbolicLink()).toBe(true);
+        expect((await lstat(join(temporary, 'pnpm-lock.yaml'))).isSymbolicLink()).toBe(true);
         expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
         expect(await pathExists(niMarker)).toBe(false);
     });

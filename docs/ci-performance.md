@@ -23,6 +23,10 @@ The two green E2E jobs vary by almost two minutes on the same head, so one hoste
 trend. Attempts 3–5 also show that a nominal rerun is not evidence when the same deterministic race
 remains red.
 
+This table is a historical npm baseline. The pnpm 12 and Node 24 migration changes toolchain setup,
+install, and cache semantics, so it must not be used as a same-environment comparison for current
+CI; record a new exact-head self-hosted baseline before making further install-time claims.
+
 ## Adopted optimization evidence
 
 The historical optimized workflow rebuilt only `better-sqlite3` and `node-pty`;
@@ -94,7 +98,7 @@ Vite's `.vite` directory is not a reusable production-output cache.
 
 ## Comparison contract
 
-Freeze exact head, manifest, Node/npm versions, lockfile hash, runner label, workflow inputs, cache
+Freeze exact head, manifest, Node/pnpm versions, lockfile hash, runner label, workflow inputs, cache
 state, and counts before comparing profiles. Report median end-to-end wall time, dominant steps,
 peak process-tree RSS, cache state, and every non-green attempt. Adopt a parallelism or concurrency
 change only when correctness and isolation stay green and self-hosted medians improve; otherwise

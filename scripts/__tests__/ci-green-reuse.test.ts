@@ -60,7 +60,7 @@ describe('CI ancestor green reuse', () => {
             'src/runtime/index.ts',
             'e2e/support/helpers.ts',
             '.github/workflows/ci.yml',
-            'package-lock.json',
+            'pnpm-lock.yaml',
             '.agents/skills/e2e-testing/SKILL.md',
             '.agents/skills/switch-worktree/scripts/desktop-lease.ts',
         ]) {

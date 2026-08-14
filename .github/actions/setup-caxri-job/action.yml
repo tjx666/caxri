@@ -2,8 +2,8 @@ name: Setup Caxri job
 description: Prepare the trusted self-hosted runner and install the requested Caxri toolchain.
 
 inputs:
-  setup-node:
-    description: Add the repository Node.js version to PATH.
+  setup-toolchain:
+    description: Install the repository pnpm and Node.js versions.
     required: false
     default: 'false'
   install-dependencies:
@@ -27,12 +27,15 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node.js
-      if: inputs.setup-node == 'true'
-      uses: actions/setup-node@v7
+    - name: Setup pnpm and Node.js
+      if: inputs.setup-toolchain == 'true'
+      uses: pnpm/setup@v2
       with:
-        node-version: 22
-        package-manager-cache: false
+        version: 12.0.0-rc.5
+        runtime: node@24.19.0
+        dest: ${{ runner.tool_cache }}/caxri/pnpm/12.0.0-rc.5-node-24.19.0
+        install: false
+        cache: false
 
     - name: Use runner-pinned Bun
       shell: bash
@@ -52,18 +55,18 @@ runs:
         echo "prepared=true" >> "$GITHUB_OUTPUT"
 
     - name: Configure runner-local caches
-      if: inputs.setup-node == 'true'
+      if: inputs.setup-toolchain == 'true'
       shell: bash
       run: |
         cache_root="$RUNNER_TOOL_CACHE/caxri"
         electron_cache="$cache_root/electron"
-        npm_cache="$(npm config get cache)"
+        pnpm_store="$cache_root/pnpm-store"
 
-        npm_state=cold
+        pnpm_state=cold
         electron_state=cold
         quality_state=cold
-        if [[ -d "$npm_cache" ]] && find "$npm_cache" -mindepth 1 -print -quit | grep -q .; then
-          npm_state=warm
+        if [[ -d "$pnpm_store" ]] && find "$pnpm_store" -mindepth 1 -print -quit | grep -q .; then
+          pnpm_state=warm
         fi
         if [[ -d "$electron_cache" ]] && find "$electron_cache" -mindepth 1 -print -quit | grep -q .; then
           electron_state=warm
@@ -72,52 +75,44 @@ runs:
           quality_state=warm
         fi
 
-        CAXRI_NPM_CACHE_STATE="$npm_state" \
+        CAXRI_PNPM_CACHE_STATE="$pnpm_state" \
           CAXRI_ELECTRON_CACHE_STATE="$electron_state" \
           CAXRI_QUALITY_CACHE_STATE="$quality_state" \
-          node -e 'console.log(`CAXRI_CACHE_STATE ${JSON.stringify({ electron: process.env.CAXRI_ELECTRON_CACHE_STATE, npm: process.env.CAXRI_NPM_CACHE_STATE, quality: process.env.CAXRI_QUALITY_CACHE_STATE })}`)'
+          node -e 'console.log(`CAXRI_CACHE_STATE ${JSON.stringify({ electron: process.env.CAXRI_ELECTRON_CACHE_STATE, pnpm: process.env.CAXRI_PNPM_CACHE_STATE, quality: process.env.CAXRI_QUALITY_CACHE_STATE })}`)'
 
         test ! -e .cache
-        mkdir -p "$electron_cache" "$cache_root/eslint" .cache
+        mkdir -p "$electron_cache" "$pnpm_store" "$cache_root/eslint" .cache
         if [[ ! -s "$cache_root/prettier" ]]; then
           rm -f "$cache_root/prettier"
         fi
         ln -s "$cache_root/eslint" .cache/eslint
         ln -s "$cache_root/prettier" .cache/prettier
         echo "ELECTRON_CACHE=$electron_cache" >> "$GITHUB_ENV"
+        echo "PNPM_CONFIG_STORE_DIR=$pnpm_store" >> "$GITHUB_ENV"
 
         {
           echo "## Runner-local cache state"
           echo
           echo "| Cache | State |"
           echo "| --- | --- |"
-          echo "| npm | $npm_state |"
+          echo "| pnpm store | $pnpm_state |"
           echo "| Electron | $electron_state |"
           echo "| ESLint / Prettier | $quality_state |"
           echo
           echo "## Command metrics"
         } >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Use repository-pinned npm
-      if: inputs.setup-node == 'true'
-      shell: bash
-      run: |
-        npm_version="$(node -p "require('./package.json').packageManager.replace(/^npm@/, '')")"
-        [[ "$npm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-        if [[ "$(npm --version)" != "$npm_version" ]]; then
-          bun run scripts/ci-metrics.ts --label "Install pinned npm" -- npm install --global "npm@$npm_version"
-        fi
-        test "$(npm --version)" = "$npm_version"
-
     - name: Install dependency tree without lifecycle scripts
       if: inputs.install-dependencies == 'true'
       shell: bash
-      run: bun run scripts/ci-metrics.ts --label "npm registry, unpack, and link" -- npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+      run: >-
+        bun run scripts/ci-metrics.ts --label "pnpm registry, unpack, and link" --
+        pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --no-runtime
 
     - name: Install Electron binary
       if: inputs.install-electron == 'true'
       shell: bash
-      run: bun run scripts/ci-metrics.ts --label "Electron download" -- npm rebuild electron
+      run: bun run scripts/ci-metrics.ts --label "Electron download" -- pnpm rebuild electron
 
     - name: Rebuild Electron native modules
       if: inputs.rebuild-native == 'true'

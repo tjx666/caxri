@@ -200,20 +200,21 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 Recorded so repeat audits do not reclassify them as findings.
 
-| ID                                   | Tradeoff                                                                                                        | Evidence                                                         |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| IT-disk-wins-dirty-buffer            | External disk changes replace dirty editor buffers without a conflict dialog                                    | architecture / `external-sync`                                   |
-| IT-unsaved-buffers-not-durable       | Document bodies stay Renderer-local; SQLite holds tab metadata only                                             | `session_state` / session-view                                   |
-| IT-dual-terminal-snapshot-pipelines  | Live PTY keeps raw durable snapshot (encoding 1) and headless screen for reattach (encoding 2); bounded         | `src/runtime/terminal/screen.ts`, TerminalManager attach/persist |
-| IT-copy-not-journaled                | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled  | `supervisor.ts`, `mutation-journal`, partial-copy tests          |
-| IT-project-status-fixed-allowlist    | Project Status CLIs fixed to gh / linear / vc; not a plugin adapter surface                                     | architecture, `project-status.ts`                                |
-| IT-pe-flag-redaction-only            | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText` | `process-explorer.ts` `redactProcessName`                        |
-| IT-npm-packageManager-bun-day-to-day | packageManager npm for electron-builder native rebuilds; day-to-day `ni` + `bun run`                            | `package.json`, AGENTS.md                                        |
-| IT-typescript-6-eslint-plus-7-tsc    | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                | electron-toolchain / stack-baseline                              |
-| IT-electron-vite-beta                | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                       | package.json, electron-toolchain.md                              |
-| IT-runtime-integration-not-inferred  | `check` does not map every `src/runtime/*.ts` edit onto `runtime.integration.test.ts`                           | `check.ts`, `check.test.ts`                                      |
-| IT-window-level-error-boundary       | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries           | `ErrorBoundary.tsx`, both Renderer entries                       |
-| IT-eslint-renderer-import-gate       | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk          | `eslint.config.ts`, `BrowserWindow` webPreferences               |
+| ID                                  | Tradeoff                                                                                                        | Evidence                                                         |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                    | architecture / `external-sync`                                   |
+| IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                             | `session_state` / session-view                                   |
+| IT-dual-terminal-snapshot-pipelines | Live PTY keeps raw durable snapshot (encoding 1) and headless screen for reattach (encoding 2); bounded         | `src/runtime/terminal/screen.ts`, TerminalManager attach/persist |
+| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled  | `supervisor.ts`, `mutation-journal`, partial-copy tests          |
+| IT-project-status-fixed-allowlist   | Project Status CLIs fixed to gh / linear / vc; not a plugin adapter surface                                     | architecture, `project-status.ts`                                |
+| IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText` | `process-explorer.ts` `redactProcessName`                        |
+| IT-pnpm-12-release-candidate        | Local and CI toolchains pin pnpm 12 RC5 until the stable Rust release supersedes the tested migration baseline  | `mise.toml`, `setup-caxri-job`                                   |
+| IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle                    | `packages/cli/scripts/link-global.ts`                            |
+| IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                | electron-toolchain / stack-baseline                              |
+| IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                       | package.json, electron-toolchain.md                              |
+| IT-runtime-integration-not-inferred | `check` does not map every `src/runtime/*.ts` edit onto `runtime.integration.test.ts`                           | `check.ts`, `check.test.ts`                                      |
+| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries           | `ErrorBoundary.tsx`, both Renderer entries                       |
+| IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk          | `eslint.config.ts`, `BrowserWindow` webPreferences               |
 
 ---
 
