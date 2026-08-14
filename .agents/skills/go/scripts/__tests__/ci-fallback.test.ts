@@ -9,13 +9,13 @@ import {
     admitCiFallback,
     PLATFORM_NEUTRAL_CI_COMMANDS,
     recordCiFallbackResult,
-} from './ci-fallback';
-import { createResumeCheckpoint } from './resume';
-import { recordReviewDecision } from './review-gate';
-import { createInitialState, recordPullRequest, transitionState, validateState } from './state';
+} from '../ci-fallback';
+import { createResumeCheckpoint } from '../resume';
+import { recordReviewDecision } from '../review-gate';
+import { createInitialState, recordPullRequest, transitionState, validateState } from '../state';
 
 const headSha = 'abc123';
-const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const fullChecksCondition = "needs.retry-policy.outputs.checks_scope == 'full'";
 
 interface ActionsWorkflow {
@@ -34,6 +34,24 @@ function blockedDelivery() {
     transitionState(state, 'planning');
     transitionState(state, 'issue_execution');
     transitionState(state, 'deep_review');
+    for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
+        state.validations.push({
+            attempt: 1,
+            command,
+            completedAt: '2026-08-10T00:00:00.000Z',
+            exitCode: 0,
+            headSha,
+            id: `gate-${index}`,
+            integrityError: null,
+            kind: 'gates',
+            lineageId: `gate-${index}`,
+            logPath: `validation/gate-${index}.log`,
+            result: 'passed',
+            sessionId: `gate-${index}`,
+            sourceFingerprint: 'fixture-fingerprint',
+            startedAt: '2026-08-10T00:00:00.000Z',
+        });
+    }
     recordReviewDecision(state, {
         freeze: true,
         headSha,

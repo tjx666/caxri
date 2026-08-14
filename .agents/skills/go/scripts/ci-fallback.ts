@@ -1,18 +1,12 @@
 import { z } from 'zod';
 
 import { assertReviewHeadFrozen, type ReviewGate, type ReviewPolicy } from './review-gate';
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from './platform-neutral-gates';
+
+export { PLATFORM_NEUTRAL_CI_COMMANDS } from './platform-neutral-gates';
 
 export const ciFailureKindSchema = z.enum(['billing', 'infrastructure']);
 export const ciFallbackResultSchema = z.enum(['passed', 'failed']);
-export const PLATFORM_NEUTRAL_CI_COMMANDS = [
-    'bun run lint',
-    'bun run knip',
-    'bun run doctor:changed',
-    'bun run typecheck',
-    'bun run format:check',
-    'bun run scripts/ci-metrics.ts --label "Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}" -- bun run test',
-    'bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build',
-] as const;
 const FULL_ELECTRON_E2E_COMMAND = 'bun run test:e2e';
 
 const authorizationSchema = z.object({ at: z.string(), detail: z.string().min(1) });

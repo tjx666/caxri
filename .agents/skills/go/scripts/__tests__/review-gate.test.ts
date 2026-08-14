@@ -1,17 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../platform-neutral-gates';
 import {
     createEmptyReviewGate,
     createReviewPolicy,
     overrideReviewPolicy,
     recordReviewDecision,
-} from './review-gate';
+} from '../review-gate';
 
 function reviewing(policy: 'full-once' | 'quick' | 'light' = 'full-once') {
     return {
         phase: 'deep_review',
         reviewGate: createEmptyReviewGate(),
         reviewPolicy: createReviewPolicy(policy, 'test policy', '2026-08-12T00:00:00.000Z'),
+        validations: PLATFORM_NEUTRAL_CI_COMMANDS.map((command) => ({
+            command,
+            headSha: 'baseline-head',
+            kind: 'gates',
+            result: 'passed',
+        })),
     };
 }
 
@@ -51,6 +58,12 @@ describe('Go review gate', () => {
             }),
         ).toThrow('exactly one full deep review baseline');
         expect(state.reviewGate.rounds.filter(({ mode }) => mode === 'full')).toHaveLength(1);
+    });
+
+    it('rejects full review before the exact-head canonical gate is complete', () => {
+        const state = reviewing();
+        state.validations.pop();
+        expect(() => fullBaseline(state)).toThrow('canonical platform-neutral gate receipts');
     });
 
     it('requires exact baseline, parent, and range for every light delta', () => {

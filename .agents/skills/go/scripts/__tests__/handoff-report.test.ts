@@ -7,22 +7,41 @@ import {
     generateFinalization,
     recordFinalizationDelivery,
     verifyFinalizationArtifact,
-} from './finalization';
+} from '../finalization';
 import {
     generateHandoffReport,
     recordHandoffDelivery,
     verifyHandoffReportArtifact,
-} from './handoff-report';
-import { assessExpectationDrift } from './issue-drift';
-import { recordReviewDecision } from './review-gate';
-import { recordCostCheckpoint } from './run-budget';
-import { createInitialState, upsertIssue } from './state';
+} from '../handoff-report';
+import { assessExpectationDrift } from '../issue-drift';
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../platform-neutral-gates';
+import { recordReviewDecision } from '../review-gate';
+import { recordCostCheckpoint } from '../run-budget';
+import { createInitialState, upsertIssue } from '../state';
 
 function reportState(runId: string) {
     const state = createInitialState({ objective: 'Persist report', runId });
     completeIssue(state, 113, 'Track issue drift');
     state.phase = 'deep_review';
     state.status = 'active';
+    for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
+        state.validations.push({
+            attempt: 1,
+            command,
+            completedAt: state.createdAt,
+            exitCode: 0,
+            headSha: 'head-1',
+            id: `gate-${index}`,
+            integrityError: null,
+            kind: 'gates',
+            lineageId: `gate-${index}`,
+            logPath: `validation/gate-${index}.log`,
+            result: 'passed',
+            sessionId: `gate-${index}`,
+            sourceFingerprint: 'fixture-fingerprint',
+            startedAt: state.createdAt,
+        });
+    }
     recordReviewDecision(state, {
         freeze: true,
         headSha: 'head-1',
@@ -35,7 +54,6 @@ function reportState(runId: string) {
     state.phase = 'acceptance_handoff';
     recordCostCheckpoint(state, {
         commitCount: 2,
-        elapsedSeconds: 120,
         fileCount: 8,
         tokens: 'unavailable',
     });
@@ -89,6 +107,8 @@ describe('Go persisted handoff artifacts', () => {
         expect(markdown).toContain('<!-- section:delivery -->');
         expect(markdown).toContain('<!-- section:boundaries -->');
         expect(markdown).toContain('commits=2, files=8, fullReviews=1');
+        expect(markdown).toContain('tokens=unavailable (degraded)');
+        expect(markdown).toContain('Containment: inactive');
         expect(markdown).toContain('Actions: remote=ready; localFallback=not_requested');
         expect(markdown).toContain('baseline=review-001; lineageComplete=true');
         expect(receipt).toMatchObject({ deliveredAt: null, headSha: 'head-1' });

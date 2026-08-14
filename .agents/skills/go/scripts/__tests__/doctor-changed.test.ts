@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createDoctorCommand } from '../../../../scripts/doctor-changed';
+import { createDoctorCommand } from '../../../../../scripts/doctor-changed';
 
 describe('changed-scope React Doctor command', () => {
     it('uses the immutable event base for pull requests and main pushes', () => {

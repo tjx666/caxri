@@ -8,9 +8,9 @@ import {
     isMaterialExpectationDrift,
     publishExpectationDriftComment,
     publishExpectationDriftViaGh,
-} from './issue-drift';
-import { createResumeCheckpoint } from './resume';
-import { createInitialState, recordPullRequest, upsertIssue } from './state';
+} from '../issue-drift';
+import { createResumeCheckpoint } from '../resume';
+import { createInitialState, recordPullRequest, upsertIssue } from '../state';
 
 function driftState() {
     const state = createInitialState({ objective: 'Track issue drift', runId: 'drift-test' });

@@ -224,6 +224,74 @@ function migrateV8(state: Record<string, unknown>): Record<string, unknown> {
     };
 }
 
+function migrateV9(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyBudget = isRecord(state.runBudget) ? state.runBudget : {};
+    const currentBudget = createRunBudget();
+    const createdAt = typeof state.createdAt === 'string' ? Date.parse(state.createdAt) : 0;
+    const validationAttemptCount = Array.isArray(state.validations) ? state.validations.length : 0;
+    const checkpoints: Record<string, unknown>[] = (
+        Array.isArray(legacyBudget.checkpoints) ? legacyBudget.checkpoints.filter(isRecord) : []
+    ).map((checkpoint) => {
+        const recordedAt =
+            typeof checkpoint.recordedAt === 'string' ? checkpoint.recordedAt : 'legacy';
+        const computedElapsed = Date.parse(recordedAt) - createdAt;
+        const tokens = typeof checkpoint.tokens === 'number' ? checkpoint.tokens : 'unavailable';
+        return {
+            ...checkpoint,
+            boundary: 'phase',
+            elapsedSeconds:
+                typeof checkpoint.elapsedSeconds === 'number'
+                    ? checkpoint.elapsedSeconds
+                    : Number.isFinite(computedElapsed) && computedElapsed >= 0
+                      ? Math.floor(computedElapsed / 1_000)
+                      : 0,
+            headSha: null,
+            issueNumber: null,
+            reviewFindingCount: 0,
+            tokenTelemetry: tokens === 'unavailable' ? 'degraded' : 'available',
+            tokens,
+            validationAttemptCount,
+        };
+    });
+    const policy = isRecord(legacyBudget.policy) ? legacyBudget.policy : currentBudget.policy;
+    const routedWork = Array.isArray(legacyBudget.routedWork) ? legacyBudget.routedWork : [];
+    const threshold = checkpoints.find((checkpoint) => checkpoint.hardThresholdReached === true);
+    const pendingValidation = (Array.isArray(state.validations) ? state.validations : [])
+        .filter(isRecord)
+        .find((validation) => validation.result === 'pending');
+    return {
+        ...state,
+        mutationLease:
+            pendingValidation && typeof pendingValidation.id === 'string'
+                ? {
+                      acquiredAt:
+                          typeof pendingValidation.startedAt === 'string'
+                              ? pendingValidation.startedAt
+                              : 'legacy',
+                      holderId: pendingValidation.id,
+                      kind: 'validation',
+                  }
+                : null,
+        runBudget: {
+            checkpoints,
+            containment: threshold
+                ? {
+                      activatedAt: threshold.recordedAt,
+                      active: true,
+                      droppedWork: ['optional_proof', 'p2_p3_expansion', 'discretionary_probes'],
+                      reason: 'Imported hard budget threshold containment',
+                      revisedEta: 'Re-estimate at the next safe issue boundary',
+                  }
+                : null,
+            policy,
+            policyFrozenAt: state.phase === 'intake' ? null : state.createdAt,
+            repairStops: [],
+            routedWork,
+        },
+        schemaVersion: 10,
+    };
+}
+
 export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (!isRecord(state)) return state;
     let migrated = state;
@@ -275,5 +343,6 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (migrated.schemaVersion === 6 && schemaVersion >= 7) migrated = migrateV6(migrated);
     if (migrated.schemaVersion === 7 && schemaVersion >= 8) migrated = migrateV7(migrated);
     if (migrated.schemaVersion === 8 && schemaVersion >= 9) migrated = migrateV8(migrated);
+    if (migrated.schemaVersion === 9 && schemaVersion >= 10) migrated = migrateV9(migrated);
     return migrated;
 }

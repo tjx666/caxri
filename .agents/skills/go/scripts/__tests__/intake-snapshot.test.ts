@@ -4,7 +4,7 @@ import {
     createIntakeSnapshot,
     parseIntakeSnapshotArguments,
     type CommandRunner,
-} from './intake-snapshot';
+} from '../intake-snapshot';
 
 type FixtureResponse = string | Error;
 

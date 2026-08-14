@@ -100,6 +100,13 @@ For each queued issue in dependency order:
    before fixing it. Finish source edits before updating tests when project
    instructions require that order.
 4. Implement the smallest cohesive solution and run only affected validation.
+   Acquire a durable `repair` mutation lease before changing the recorded worktree and release it
+   only after the cohesive source/test batch is complete. Formal validation acquires its own
+   mutually exclusive lease automatically; review and discovery remain read-only.
+   At each owning-layer batch boundary, run the applicable changed-file check plus
+   `doctor:changed` for Renderer work and `knip` for Renderer or shared-contract work. Reuse a
+   matching trusted `origin/main` baseline receipt; when none exists, establish that baseline once
+   rather than rediscovering the same pre-existing failure after every issue.
 5. Compare the implementation, validation, and repair evidence with the issue's
    recorded diagnosis, solution, and Acceptance contract. Record an explicit
    expectation-drift assessment for the current issue head. Material drift
@@ -138,6 +145,9 @@ After all issue commits:
    changed-file checks, `knip`, `doctor`, builds, and focused Electron E2E. Then
    invoke the repository's `deep-review` skill in full deep mode over the whole
    Goal range.
+   Record every canonical platform-neutral command through `validation-start` /
+   `validation-complete` first; the ledger rejects a full aggregate review when any exact-head
+   receipt is missing or stale. Reuse an already passed exact-head command instead of rerunning it.
    Before the first ready PR push, run the exact platform-neutral command list
    exported by `scripts/ci-fallback.ts`; its contract test keeps that list in
    lockstep with every executable `checks` step in `.github/workflows/ci.yml`.
@@ -175,6 +185,9 @@ After all issue commits:
    the frozen run count, the minimum wall time implied by recent runs, why each
    sample is required, and the stop condition. Record run ids as they are
    dispatched instead of reconstructing an A/B table from the transcript.
+   A failing E2E pool retains the fast `maxFailures` stop, then census-runs each suppressed test in
+   isolation. Do not start a repair or push a new head until both logical pool receipts classify
+   every planned spec and the combined failure groups are available.
 9. Route code failures through repair, focused validation, one light delta
    review, commit, and push. A zero-step self-hosted Actions infrastructure
    failure remains external and blocked. Exact-head local substitution always

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveVitestPartition } from '../../vitest.config';
+import { resolveVitestPartition, testFiles } from '../../vitest.config';
 
 const SAFE_FILE_TESTS = [
     'src/runtime/files/__tests__/file-tree-excludes.test.ts',
@@ -14,6 +14,10 @@ const SAFE_FILE_TESTS = [
 ];
 
 describe('Vitest project partition', () => {
+    it('discovers skill tests colocated under scripts/__tests__', () => {
+        expect(testFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
+    });
+
     it('keeps native file watchers serial while allowing isolated file tests to use both workers', () => {
         const partition = resolveVitestPartition({});
 

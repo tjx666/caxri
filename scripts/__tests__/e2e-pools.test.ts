@@ -3,7 +3,12 @@ import { readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import { createE2EPoolPlan, parallelSafeSpecs } from '../../e2e/support/pools';
-import { combinePoolReceipts, parseE2EPool } from '../run-e2e-pools';
+import { combinePoolReceipts, mergeCensusReceipts, parseE2EPool } from '../run-e2e-pools';
+import {
+    createE2EPoolReceipt,
+    stableErrorIdentity,
+    type E2ETestReceipt,
+} from '../reporters/e2e-receipt-reporter';
 
 const allSpecs = [
     'e2e/editor-dotfiles.e2e.ts',
@@ -12,10 +17,35 @@ const allSpecs = [
     'e2e/screencast.e2e.ts',
 ];
 
+function testReceipt(
+    id: string,
+    verdict: E2ETestReceipt['verdict'] = 'pass',
+    errorIdentity: string | null = null,
+): E2ETestReceipt {
+    return {
+        artifacts: verdict === 'fail' ? [`test-results/${id}/trace.zip`] : [],
+        errorIdentity,
+        id,
+        location: `e2e/${id}.e2e.ts:1:1`,
+        title: id,
+        verdict,
+    };
+}
+
+function receipt(pool: 'control' | 'desktop-exclusive' | 'parallel-safe', tests: E2ETestReceipt[]) {
+    return createE2EPoolReceipt({
+        finishedAt: '2026-01-01T00:00:01.000Z',
+        pool,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        tests,
+    });
+}
+
 describe('E2E pools', () => {
     it('requires one explicit logical pool per single-machine job step', () => {
         expect(parseE2EPool(['--pool', 'parallel-safe'])).toBe('parallel-safe');
         expect(parseE2EPool(['--pool', 'desktop-exclusive'])).toBe('desktop-exclusive');
+        expect(parseE2EPool(['--pool', 'control'])).toBe('control');
         expect(() => parseE2EPool([])).toThrow('Usage: run-e2e-pools.ts');
         expect(() => parseE2EPool(['--pool', 'unknown'])).toThrow('Usage: run-e2e-pools.ts');
     });
@@ -83,40 +113,12 @@ describe('E2E pools', () => {
     });
 
     it('combines receipt invocations without accepting duplicate tests', () => {
-        const receipt = combinePoolReceipts('parallel-safe', [
-            {
-                failed: 0,
-                finished: 1,
-                finishedAt: '2026-01-01T00:00:01.000Z',
-                hash: 'first',
-                passed: 1,
-                planned: 1,
-                pool: 'parallel-safe',
-                skipped: 0,
-                started: 1,
-                startedAt: '2026-01-01T00:00:00.000Z',
-                status: 'passed',
-                tests: [{ id: 'safe', location: 'e2e/safe.e2e.ts:1:1', title: 'safe' }],
-            },
-            {
-                failed: 0,
-                finished: 1,
-                finishedAt: '2026-01-01T00:00:02.000Z',
-                hash: 'second',
-                passed: 1,
-                planned: 1,
-                pool: 'parallel-safe',
-                skipped: 0,
-                started: 1,
-                startedAt: '2026-01-01T00:00:01.000Z',
-                status: 'passed',
-                tests: [
-                    { id: 'settings-safe', location: 'e2e/settings.e2e.ts:1:1', title: 'safe' },
-                ],
-            },
+        const combinedReceipt = combinePoolReceipts('parallel-safe', [
+            receipt('parallel-safe', [testReceipt('safe')]),
+            receipt('parallel-safe', [testReceipt('settings-safe')]),
         ]);
 
-        expect(receipt).toMatchObject({
+        expect(combinedReceipt).toMatchObject({
             failed: 0,
             finished: 2,
             passed: 2,
@@ -127,16 +129,37 @@ describe('E2E pools', () => {
         });
         expect(() =>
             combinePoolReceipts('parallel-safe', [
-                receipt,
-                {
-                    ...receipt,
-                    finished: 1,
-                    passed: 1,
-                    planned: 1,
-                    started: 1,
-                    tests: [receipt.tests[0]],
-                },
+                combinedReceipt,
+                createE2EPoolReceipt({
+                    finishedAt: combinedReceipt.finishedAt,
+                    pool: 'parallel-safe',
+                    startedAt: combinedReceipt.startedAt,
+                    tests: [combinedReceipt.tests[0]],
+                }),
             ]),
         ).toThrow('overlap');
+    });
+
+    it('fills suppressed verdicts and groups the same failure identity without losing artifacts', () => {
+        const identity = stableErrorIdentity('Expected ready state at /private/tmp/run-a:42:7');
+        expect(identity).toBe(
+            stableErrorIdentity('Expected ready state at /private/tmp/run-b:99:3'),
+        );
+        const initial = receipt('parallel-safe', [
+            testReceipt('first', 'fail', identity),
+            testReceipt('second', 'unknown'),
+            testReceipt('third', 'unknown'),
+        ]);
+        const combined = mergeCensusReceipts(initial, [
+            receipt('parallel-safe', [testReceipt('second', 'fail', identity)]),
+            receipt('parallel-safe', [testReceipt('third', 'timeout', identity)]),
+        ]);
+
+        expect(combined).toMatchObject({
+            failureGroups: [{ count: 3, identity }],
+            unknown: 0,
+        });
+        expect(combined.specs.every(({ verdict }) => verdict !== 'unknown')).toBe(true);
+        expect(combined.tests[1].artifacts).toEqual(['test-results/second/trace.zip']);
     });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { captureCommand } from './command-runner';
+import { captureCommand } from '../command-runner';
 
 describe('bounded Go command runner', () => {
     it('terminates commands that exceed their deadline', async () => {

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { acquireMutationLease, type MutationLease, releaseMutationLease } from './mutation-lease';
+
 const validationLogPathSchema = z
     .string()
     .min(1)
@@ -22,11 +24,13 @@ const validationRecordSchema = z.object({
     exitCode: z.number().int().nullable(),
     headSha: z.string().min(1),
     id: z.string().min(1),
+    integrityError: z.string().min(1).nullable().default(null),
     kind: validationKindSchema,
     lineageId: z.string().min(1),
     logPath: validationLogPathSchema,
     result: validationResultSchema,
     sessionId: z.string().min(1),
+    sourceFingerprint: z.string().min(1).default('legacy-unavailable'),
     startedAt: z.string(),
 });
 
@@ -34,7 +38,11 @@ export const validationsSchema = z.array(validationRecordSchema);
 export type ValidationRecord = z.infer<typeof validationRecordSchema>;
 
 interface ValidationContext {
-    runBudget: { policy: { validationRepairLimit: number } };
+    mutationLease: MutationLease;
+    runBudget: {
+        policy: { validationRepairLimit: number };
+        repairStops: Array<{ at: string; lineageId: string; reason: string }>;
+    };
     validations: ValidationRecord[];
 }
 
@@ -45,6 +53,7 @@ interface StartValidationInput {
     lineageId: string;
     logPath: string;
     sessionId: string;
+    sourceFingerprint: string;
 }
 
 export function startValidation(
@@ -71,29 +80,64 @@ export function startValidation(
     if (attempt > state.runBudget.policy.validationRepairLimit) {
         throw new Error('Validation repair budget exhausted for this failure lineage');
     }
+    const id = `validation-${String(state.validations.length + 1).padStart(3, '0')}`;
     const record = validationRecordSchema.parse({
         ...input,
         attempt,
         completedAt: null,
         exitCode: null,
-        id: `validation-${String(state.validations.length + 1).padStart(3, '0')}`,
+        id,
+        integrityError: null,
         result: 'pending',
         startedAt,
     });
+    acquireMutationLease(state, { holderId: id, kind: 'validation' }, startedAt);
     state.validations.push(record);
     return record;
 }
 
 export function completeValidation(
     state: ValidationContext,
-    input: { exitCode: number; id: string },
+    input: {
+        clean: boolean;
+        exitCode: number;
+        headSha: string;
+        id: string;
+        sourceFingerprint: string;
+    },
     completedAt = new Date().toISOString(),
 ): ValidationRecord {
     const record = state.validations.find(({ id }) => id === input.id);
     if (!record) throw new Error(`Unknown validation: ${input.id}`);
     if (record.result !== 'pending') throw new Error(`Validation ${input.id} is already complete`);
+    if (
+        !state.mutationLease ||
+        state.mutationLease.kind !== 'validation' ||
+        state.mutationLease.holderId !== record.id
+    ) {
+        throw new Error(`Validation ${input.id} does not own the worktree mutation lease`);
+    }
+    const integrityError =
+        input.headSha !== record.headSha
+            ? `Validation HEAD changed from ${record.headSha} to ${input.headSha}`
+            : !input.clean || input.sourceFingerprint !== record.sourceFingerprint
+              ? 'Validation source fingerprint changed while the command was running'
+              : null;
     record.completedAt = completedAt;
     record.exitCode = input.exitCode;
-    record.result = input.exitCode === 0 ? 'passed' : 'failed';
+    record.integrityError = integrityError;
+    record.result = input.exitCode === 0 && !integrityError ? 'passed' : 'failed';
+    if (
+        record.result === 'failed' &&
+        record.attempt >= state.runBudget.policy.validationRepairLimit &&
+        !state.runBudget.repairStops.some(({ lineageId }) => lineageId === record.lineageId)
+    ) {
+        state.runBudget.repairStops.push({
+            at: completedAt,
+            lineageId: record.lineageId,
+            reason: 'Validation repair budget exhausted without a passing exact-head receipt',
+        });
+    }
+    releaseMutationLease(state, { holderId: record.id, kind: 'validation' });
     return record;
 }

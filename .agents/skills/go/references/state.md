@@ -86,16 +86,40 @@ bun run .agents/skills/go/scripts/state.ts validation-complete \
   --state "$STATE" --id validation-001 --exit-code 0
 ```
 
+`validation-start` resolves `HEAD` and a clean source fingerprint from the ledger's recorded
+worktree. `--head-sha` is an optional expected-head assertion, never the source of truth. Completion
+rechecks HEAD and the fingerprint; ignored artifacts do not invalidate the receipt, but commits,
+tracked edits, and non-ignored untracked files produce a failed receipt.
+
+Wrap every repair mutation batch in the durable single-writer lease:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts mutation-acquire \
+  --state "$STATE" --kind repair --holder-id issue-42-repair
+
+bun run .agents/skills/go/scripts/state.ts mutation-release \
+  --state "$STATE" --kind repair --holder-id issue-42-repair
+```
+
+Formal validation owns the same lease automatically, so a repair writer and validation can never
+overlap in one run worktree.
+
 Record phase costs and route workflow-only work before absorbing it:
 
 ```bash
 bun run .agents/skills/go/scripts/state.ts checkpoint \
-  --state "$STATE" --tokens unavailable --elapsed-seconds 1200 \
-  --commit-count 4 --file-count 18
+  --state "$STATE" --boundary batch --tokens unavailable \
+  --commit-count 4 --file-count 18 --revised-eta "One required gate remains"
 
 bun run .agents/skills/go/scripts/state.ts scope-admit \
   --state "$STATE" --title "General CI cleanup"
 ```
+
+Elapsed time is always derived from the ledger timestamps. Missing harness token usage is recorded
+as degraded telemetry. Issue completion appends an issue checkpoint with the committed Git/file
+delta; checkpoints never replace earlier records from the same phase. Once a hard threshold is
+reached, optional proof, P2/P3 expansion, and discretionary probes are contained while the
+authorized terminal outcome remains active.
 
 ## Handoff and finalization
 

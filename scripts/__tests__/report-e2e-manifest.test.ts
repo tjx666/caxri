@@ -1,23 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatE2EManifestMetric, summarizeE2EReceipts } from '../report-e2e-manifest';
-import type { E2EPoolReceipt } from '../reporters/e2e-receipt-reporter';
+import { createE2EPoolReceipt, type E2EPoolReceipt } from '../reporters/e2e-receipt-reporter';
 
 function receipt(pool: string, id: string, status: 'failed' | 'passed' = 'passed'): E2EPoolReceipt {
-    return {
-        failed: status === 'failed' ? 1 : 0,
-        finished: 1,
+    return createE2EPoolReceipt({
         finishedAt: '2026-01-01T00:00:01.000Z',
-        hash: 'unused',
-        passed: status === 'passed' ? 1 : 0,
-        planned: 1,
         pool,
-        skipped: 0,
-        started: 1,
         startedAt: '2026-01-01T00:00:00.000Z',
-        status,
-        tests: [{ id, location: `e2e/${id}.e2e.ts:1:1`, title: id }],
-    };
+        tests: [
+            {
+                artifacts: [],
+                errorIdentity: status === 'failed' ? `failure-${id}` : null,
+                id,
+                location: `e2e/${id}.e2e.ts:1:1`,
+                title: id,
+                verdict: status === 'failed' ? 'fail' : 'pass',
+            },
+        ],
+    });
 }
 
 describe('E2E execution receipt summary', () => {
@@ -29,6 +30,7 @@ describe('E2E execution receipt summary', () => {
 
         expect(first).toMatchObject({
             failed: 0,
+            failureGroups: [],
             finished: 2,
             passed: 2,
             planned: 2,
@@ -36,6 +38,8 @@ describe('E2E execution receipt summary', () => {
             skipped: 0,
             started: 2,
             status: 'passed',
+            timedOut: 0,
+            unknown: 0,
         });
         expect(first.hash).toMatch(/^[0-9a-f]{64}$/u);
         expect(

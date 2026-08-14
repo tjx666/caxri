@@ -43,6 +43,9 @@ Use the smallest real Electron workflow that proves the changed boundary.
   launch finalization and lease cleanup so one worker failure cannot poison later specs.
 - Preserve the first causal failure and its artifacts. Do not use retries to turn an original red
   result green or allow a lock/lease cascade to hide it.
+- CI keeps `maxFailures` for fast containment, then reruns only suppressed tests one at a time. The
+  final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
+  per-test artifacts, and group repeated failures by stable error identity before repair begins.
 
 ## CI-only parity
 

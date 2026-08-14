@@ -14,10 +14,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { createResumeCheckpoint } from './resume';
-import { recordPublishedAcceptance } from './acceptance-publication';
-import { assessExpectationDrift } from './issue-drift';
-import { recordReviewDecision } from './review-gate';
+import { createResumeCheckpoint } from '../resume';
+import { recordPublishedAcceptance } from '../acceptance-publication';
+import { assessExpectationDrift } from '../issue-drift';
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../platform-neutral-gates';
+import { recordReviewDecision } from '../review-gate';
 import {
     addEvent,
     createInitialState,
@@ -28,7 +29,7 @@ import {
     transitionState,
     upsertIssue,
     validateState,
-} from './state';
+} from '../state';
 import {
     prepareRunDirectory,
     readState,
@@ -37,7 +38,7 @@ import {
     writeInitialState,
     writeState,
     withStateLock,
-} from './state-storage';
+} from '../state-storage';
 
 const REQUIRED_SECTIONS = [
     'delivery',
@@ -50,6 +51,24 @@ const REQUIRED_SECTIONS = [
 ] as const;
 
 function freezeReview(state: ReturnType<typeof createInitialState>, headSha: string) {
+    for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
+        state.validations.push({
+            attempt: 1,
+            command,
+            completedAt: '2026-08-12T00:00:00.000Z',
+            exitCode: 0,
+            headSha,
+            id: `gate-${index}`,
+            integrityError: null,
+            kind: 'gates',
+            lineageId: `gate-${index}`,
+            logPath: `validation/gate-${index}.log`,
+            result: 'passed',
+            sessionId: `gate-${index}`,
+            sourceFingerprint: 'fixture-fingerprint',
+            startedAt: '2026-08-12T00:00:00.000Z',
+        });
+    }
     recordReviewDecision(state, {
         freeze: true,
         headSha,
@@ -257,10 +276,8 @@ describe('Go state ledger', () => {
             'intake',
             'planning',
         ]);
-        expect(state.runBudget.checkpoints[0]).toMatchObject({
-            elapsedSeconds: 'unavailable',
-            tokens: 'unavailable',
-        });
+        expect(typeof state.runBudget.checkpoints[0].elapsedSeconds).toBe('number');
+        expect(state.runBudget.checkpoints[0].tokens).toBe('unavailable');
     });
 
     it('requires a review-clean head and completed issues before delivery', () => {
@@ -488,7 +505,7 @@ describe('Go state ledger', () => {
             },
             handoffReport: null,
             phase: 'acceptance_handoff',
-            schemaVersion: 9,
+            schemaVersion: 10,
         });
         expect(
             migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
@@ -582,7 +599,7 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 9,
+            schemaVersion: 10,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });

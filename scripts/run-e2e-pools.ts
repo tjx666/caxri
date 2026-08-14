@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 
 import {
@@ -12,23 +12,24 @@ import {
 import { createE2EPoolPlan, type E2EPoolInvocation } from '../e2e/support/pools';
 import {
     assertE2EPoolReceipt,
-    summarizeE2ETests,
+    assertE2EPoolCensusComplete,
+    createE2EPoolReceipt,
     type E2EPoolReceipt,
 } from './reporters/e2e-receipt-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const parallelWorkers = 2;
-export type E2EPool = 'desktop-exclusive' | 'parallel-safe';
+export type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
 
 export function parseE2EPool(args: readonly string[]): E2EPool {
     if (
         args.length !== 2 ||
         args[0] !== '--pool' ||
-        (args[1] !== 'desktop-exclusive' && args[1] !== 'parallel-safe')
+        !['control', 'desktop-exclusive', 'parallel-safe'].includes(args[1])
     ) {
-        throw new Error('Usage: run-e2e-pools.ts --pool <parallel-safe|desktop-exclusive>');
+        throw new Error('Usage: run-e2e-pools.ts --pool <control|parallel-safe|desktop-exclusive>');
     }
-    return args[1];
+    return args[1] as E2EPool;
 }
 
 async function discoverE2ESpecs(): Promise<string[]> {
@@ -44,6 +45,8 @@ async function runInvocation(
     workers: number,
     receiptPath: string,
     coordinatorToken?: string,
+    census = false,
+    outputSuffix?: string,
 ): Promise<number> {
     const child = spawn(
         'bunx',
@@ -52,13 +55,14 @@ async function runInvocation(
             'test',
             ...invocation.specs,
             `--workers=${workers}`,
+            ...(census ? ['--max-failures=1'] : []),
             '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
         ],
         {
             cwd: projectRoot,
             env: {
                 ...process.env,
-                CAXRI_E2E_OUTPUT_DIR: `test-results/${pool}`,
+                CAXRI_E2E_OUTPUT_DIR: `test-results/${pool}${outputSuffix ? `/${outputSuffix}` : ''}`,
                 CAXRI_E2E_POOL: pool,
                 CAXRI_E2E_RECEIPT_PATH: receiptPath,
                 ...(coordinatorToken ? { CAXRI_E2E_COORDINATOR_TOKEN: coordinatorToken } : {}),
@@ -84,26 +88,54 @@ export function combinePoolReceipts(
     if (new Set(tests.map((test) => test.id)).size !== tests.length) {
         throw new Error(`E2E ${pool} receipt invocations overlap in tests`);
     }
-    const combined: E2EPoolReceipt = {
-        failed: receipts.reduce((total, receipt) => total + receipt.failed, 0),
-        finished: receipts.reduce((total, receipt) => total + receipt.finished, 0),
+    const combined = createE2EPoolReceipt({
         finishedAt:
             receipts
                 .map((receipt) => receipt.finishedAt)
                 .sort()
                 .at(-1) ?? '',
-        hash: summarizeE2ETests(tests),
-        passed: receipts.reduce((total, receipt) => total + receipt.passed, 0),
-        planned: receipts.reduce((total, receipt) => total + receipt.planned, 0),
         pool,
-        skipped: receipts.reduce((total, receipt) => total + receipt.skipped, 0),
-        started: receipts.reduce((total, receipt) => total + receipt.started, 0),
         startedAt: receipts.map((receipt) => receipt.startedAt).sort()[0] ?? '',
-        status: receipts.every((receipt) => receipt.status === 'passed') ? 'passed' : 'failed',
         tests,
-    };
-    assertE2EPoolReceipt(combined);
+    });
     return combined;
+}
+
+export function mergeCensusReceipts(
+    initial: E2EPoolReceipt,
+    census: readonly E2EPoolReceipt[],
+): E2EPoolReceipt {
+    assertE2EPoolReceipt(initial);
+    const tests = new Map(initial.tests.map((test) => [test.id, test]));
+    const unknown = new Set(
+        initial.tests.filter(({ verdict }) => verdict === 'unknown').map(({ id }) => id),
+    );
+    for (const receipt of census) {
+        assertE2EPoolReceipt(receipt);
+        if (receipt.pool !== initial.pool) throw new Error('E2E census pool does not match');
+        for (const test of receipt.tests) {
+            if (!unknown.has(test.id)) {
+                throw new Error(`E2E census returned an unexpected test: ${test.id}`);
+            }
+            if (test.verdict === 'unknown') {
+                throw new Error(`E2E census did not produce a verdict for ${test.id}`);
+            }
+            tests.set(test.id, test);
+            unknown.delete(test.id);
+        }
+    }
+    const merged = createE2EPoolReceipt({
+        finishedAt:
+            [initial, ...census]
+                .map(({ finishedAt }) => finishedAt)
+                .sort()
+                .at(-1) ?? initial.finishedAt,
+        pool: initial.pool,
+        startedAt: initial.startedAt,
+        tests: [...tests.values()],
+    });
+    assertE2EPoolCensusComplete(merged);
+    return merged;
 }
 
 async function writeReceipt(path: string, receipt: E2EPoolReceipt): Promise<void> {
@@ -139,8 +171,28 @@ async function runPool(
         ),
     );
     const receipt = combinePoolReceipts(pool, receipts);
-    await writeReceipt(`test-results/receipts/${pool}.json`, receipt);
-    return { receipt, result };
+    const censusReceipts: E2EPoolReceipt[] = [];
+    for (const [index, test] of receipt.tests
+        .filter(({ verdict }) => verdict === 'unknown')
+        .entries()) {
+        const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
+        const file = test.location.replace(/:\d+:\d+$/u, '');
+        const location = isAbsolute(file) ? relative(projectRoot, file) : file;
+        const line = /:(\d+):\d+$/u.exec(test.location)?.[1];
+        await runInvocation(
+            { specs: [`${location}:${line ?? '1'}`] },
+            pool,
+            1,
+            censusPath,
+            coordinatorToken,
+            true,
+            `census-${index}`,
+        );
+        censusReceipts.push(JSON.parse(await readFile(censusPath, 'utf8')) as E2EPoolReceipt);
+    }
+    const finalReceipt = mergeCensusReceipts(receipt, censusReceipts);
+    await writeReceipt(`test-results/receipts/${pool}.json`, finalReceipt);
+    return { receipt: finalReceipt, result: finalReceipt.status === 'passed' ? 0 : result || 1 };
 }
 
 async function assertParallelLeasesReleased(): Promise<void> {
@@ -164,7 +216,11 @@ async function appendSummary(
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (!summary) return;
     const invocations =
-        pool === 'parallel-safe' ? plan.parallelSafeInvocations : plan.desktopExclusiveInvocations;
+        pool === 'control'
+            ? [{ specs: [...plan.parallelSafe, ...plan.desktopExclusive].sort() }]
+            : pool === 'parallel-safe'
+              ? plan.parallelSafeInvocations
+              : plan.desktopExclusiveInvocations;
     const specs = new Set(invocations.flatMap((invocation) => invocation.specs)).size;
     const workers = pool === 'parallel-safe' ? parallelWorkers : 1;
     await appendFile(
@@ -172,9 +228,9 @@ async function appendSummary(
         [
             '## E2E pool execution',
             '',
-            '| Pool | Specs | Planned | Started | Finished | Passed | Skipped | Failed | Workers | Result |',
-            '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
-            `| \`${pool}\` | ${specs} | ${receipt.planned} | ${receipt.started} | ${receipt.finished} | ${receipt.passed} | ${receipt.skipped} | ${receipt.failed} | ${workers} | ${result === 0 ? 'passed' : 'failed'} |`,
+            '| Pool | Specs | Planned | Started | Finished | Passed | Skipped | Failed | Timeout | Unknown | Workers | Result |',
+            '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+            `| \`${pool}\` | ${specs} | ${receipt.planned} | ${receipt.started} | ${receipt.finished} | ${receipt.passed} | ${receipt.skipped} | ${receipt.failed} | ${receipt.timedOut} | ${receipt.unknown} | ${workers} | ${result === 0 ? 'passed' : 'failed'} |`,
             '',
         ].join('\n'),
     );
@@ -184,7 +240,11 @@ async function main(): Promise<void> {
     const pool = parseE2EPool(process.argv.slice(2));
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
     const invocations =
-        pool === 'parallel-safe' ? plan.parallelSafeInvocations : plan.desktopExclusiveInvocations;
+        pool === 'control'
+            ? [{ specs: [...plan.parallelSafe, ...plan.desktopExclusive].sort() }]
+            : pool === 'parallel-safe'
+              ? plan.parallelSafeInvocations
+              : plan.desktopExclusiveInvocations;
     let execution: { receipt: E2EPoolReceipt; result: number };
     if (pool === 'parallel-safe') {
         const coordinator = await acquireDesktopLease(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFinalResponseSummary, formatFinalizationSummary } from './finalization';
+import { createFinalResponseSummary, formatFinalizationSummary } from '../finalization';
 
 describe('Go finalization response', () => {
     it('carries Workflow improvements and automation candidates into the final receipt', () => {
