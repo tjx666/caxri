@@ -528,11 +528,14 @@ export function useTerminalPaneRuntime({
                 if (disposed) return;
                 /** Dialog teardown may restore focus before xterm ever receives it, which is not a
                  *  newer user choice. After Terminal focus or an explicit pointer/key action,
-                 *  asynchronous attach completion must not reclaim focus from another control. */
+                 *  asynchronous attach completion must not reclaim focus from another control.
+                 *  A modal can also open before xterm ever receives focus, so its registry is the
+                 *  authoritative keyboard owner even when no prior Terminal focus was observed. */
                 if (
                     latestRef.current.active &&
                     latestRef.current.processState === 'running' &&
-                    !attachFocusSuperseded
+                    !attachFocusSuperseded &&
+                    !useDialogStore.getState().isModalOpen()
                 )
                     xterm.focus();
             });
