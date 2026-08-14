@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { assertCanonicalPlatformNeutralGate } from './platform-neutral-gates';
+
 export const reviewPolicyModeSchema = z.enum(['full-once', 'quick', 'light']);
 export const reviewModeSchema = z.enum(['full', 'quick', 'light']);
 const reviewPhaseSchema = z.enum(['deep_review', 'delivery', 'unknown']);
@@ -40,6 +42,11 @@ interface ReviewContext {
     phase: string;
     reviewGate: ReviewGate;
     reviewPolicy: ReviewPolicy;
+    validations: Array<{ command: string; headSha: string; kind: string; result: string }>;
+}
+
+interface ReviewHeadContext {
+    reviewGate: ReviewGate;
 }
 
 interface ReviewDecisionInput {
@@ -118,6 +125,7 @@ export function recordReviewDecision(
         if (input.baselineHeadSha || input.baselineReviewId || input.parentReviewId) {
             throw new Error('The aggregate review baseline cannot declare parent lineage');
         }
+        if (input.mode === 'full') assertCanonicalPlatformNeutralGate(state, input.headSha);
     } else {
         if (!parent) throw new Error('Review lineage is missing its parent decision');
         if (input.mode === 'full') {
@@ -160,7 +168,7 @@ export function recordReviewDecision(
     return state.reviewGate;
 }
 
-export function assertReviewHeadFrozen(state: ReviewContext, headSha?: string): void {
+export function assertReviewHeadFrozen(state: ReviewHeadContext, headSha?: string): void {
     if (!state.reviewGate.frozenHeadSha) {
         throw new Error('Delivery requires an explicitly frozen review-clean head');
     }

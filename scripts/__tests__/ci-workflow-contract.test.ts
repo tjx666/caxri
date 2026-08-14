@@ -166,16 +166,19 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('- name: Run ESLint');
         expect(workflow).toContain("needs.retry-policy.outputs.run_e2e == 'true'");
         const interruptionIndex = workflow.indexOf('Desktop worker interruption recovery');
+        const censusIndex = workflow.indexOf('Prove bounded E2E failure census');
         const optimizedPoolIndex = workflow.indexOf('--pool parallel-safe');
 
         expect(interruptionIndex).toBeGreaterThan(0);
-        expect(optimizedPoolIndex).toBeGreaterThan(interruptionIndex);
+        expect(censusIndex).toBeGreaterThan(interruptionIndex);
+        expect(optimizedPoolIndex).toBeGreaterThan(censusIndex);
         expect(workflow).toContain('bun run scripts/run-e2e-failure-isolation.ts');
+        expect(workflow).toContain('bun run scripts/run-e2e-census-fixture.ts');
         expect(workflow).toContain('name: e2e');
         expect(workflow).not.toContain('matrix.pool');
         expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool parallel-safe');
         expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool desktop-exclusive');
-        expect(workflow).toContain('bunx playwright test --workers=1');
+        expect(workflow).toContain('bun run scripts/run-e2e-pools.ts --pool control');
         expect(workflow).toContain(
             "if: always() && steps.e2e-build.outcome == 'success' && github.event_name == 'workflow_dispatch'",
         );
@@ -185,6 +188,7 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain("if: always() && steps.parallel-safe.outcome == 'failure'");
         expect(workflow).toContain("if: always() && steps.desktop-exclusive.outcome == 'failure'");
         expect(workflow).toContain("steps.failure-isolation.outcome == 'failure'");
+        expect(workflow).toContain("steps.failure-census.outcome == 'failure'");
         expect(workflow).toContain("steps.execution-receipt.outcome == 'failure'");
         expect(workflow).toContain('bun run scripts/report-e2e-manifest.ts');
     });
@@ -192,7 +196,7 @@ describe('CI workflow contract', () => {
     it('runs focused repair specs before the complete E2E suite and exposes one stable gate', () => {
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
         const focusedIndex = workflow.indexOf('run: bun run scripts/run-e2e-repair.ts');
-        const fullIndex = workflow.indexOf('bunx playwright test --workers=1');
+        const fullIndex = workflow.indexOf('bun run scripts/run-e2e-pools.ts --pool control');
 
         expect(focusedIndex).toBeGreaterThan(0);
         expect(fullIndex).toBeGreaterThan(focusedIndex);

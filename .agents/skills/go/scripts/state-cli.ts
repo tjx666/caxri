@@ -21,12 +21,22 @@ import {
 } from './issue-drift';
 import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
 import {
+    acquireMutationLease,
+    mutationLeaseKindSchema,
+    releaseMutationLease,
+} from './mutation-lease';
+import {
     overrideReviewPolicy,
     recordReviewDecision,
     reviewModeSchema,
     reviewPolicyModeSchema,
 } from './review-gate';
-import { recordCostCheckpoint, routeWorkflowWork } from './run-budget';
+import {
+    checkpointBoundarySchema,
+    enrichIssueCheckpoint,
+    recordCostCheckpoint,
+    routeWorkflowWork,
+} from './run-budget';
 import {
     acceptanceStatusSchema,
     addEvent,
@@ -54,6 +64,11 @@ import {
     withStateLock,
 } from './state-storage';
 import { completeValidation, startValidation, validationKindSchema } from './validation-gate';
+import {
+    assertCleanValidationStart,
+    inspectWorktreeDelta,
+    inspectWorktreeIntegrity,
+} from './worktree-integrity';
 
 type OptionScalar = string | true;
 type OptionValue = OptionScalar | OptionScalar[];
@@ -135,7 +150,7 @@ const COMMAND_USAGE: Record<string, string> = {
         'acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]',
     'acceptance-publish': 'acceptance-publish --state PATH --report-dir DIR --head-sha SHA',
     'checkpoint':
-        'checkpoint --state PATH [--tokens N|unavailable] [--elapsed-seconds N|unavailable] [--commit-count N|unavailable] [--file-count N|unavailable]',
+        'checkpoint --state PATH [--boundary manual|issue|batch|phase] [--issue-number N] [--tokens N|unavailable] [--commit-count N|unavailable] [--file-count N|unavailable] [--revised-eta TEXT]',
     'ci-fallback-admit':
         'ci-fallback-admit --state PATH --failure-kind KIND --failure-detail TEXT --failure-job NAME --failure-url URL --head-sha SHA [--verified-zero-steps] [--authorization TEXT]',
     'ci-fallback-result':
@@ -149,6 +164,8 @@ const COMMAND_USAGE: Record<string, string> = {
     'init': 'init --objective TEXT [--run-id ID] [--branch NAME] [--worktree-path PATH --main-checkout-path PATH --base-sha SHA]',
     'issue':
         'issue --state PATH --number N [--title TEXT] [--status STATUS] [--check ID] [--commit SHA] [--dependency N] [--priority TEXT] [--validation ID]',
+    'mutation-acquire': 'mutation-acquire --state PATH --kind repair --holder-id ID',
+    'mutation-release': 'mutation-release --state PATH --kind repair --holder-id ID',
     'note': 'note --state PATH --kind KIND --text TEXT',
     'notes': 'notes --state PATH [--json]',
     'phase': 'phase --state PATH --phase NAME [--reason TEXT]',
@@ -164,7 +181,7 @@ const COMMAND_USAGE: Record<string, string> = {
     'validate': 'validate --state PATH',
     'validation-complete': 'validation-complete --state PATH --id ID --exit-code N',
     'validation-start':
-        'validation-start --state PATH --kind KIND --lineage-id ID --head-sha SHA --command COMMAND --session-id ID --log-path PATH',
+        'validation-start --state PATH --kind KIND --lineage-id ID [--head-sha EXPECTED_SHA] --command COMMAND --session-id ID --log-path PATH',
     'worktree':
         'worktree --state PATH --worktree-path PATH --main-checkout-path PATH --base-sha SHA [--branch NAME]',
 };
@@ -176,6 +193,8 @@ const COMMAND_VALUES: Partial<Record<string, string[]>> = {
         `kind: ${[...materialDriftKindSchema.options, ...nonMaterialDriftKindSchema.options].join('|')}`,
     ],
     'issue': [`status: ${issueStatusSchema.options.join('|')}`],
+    'mutation-acquire': [`kind: ${mutationLeaseKindSchema.options.join('|')}`],
+    'mutation-release': [`kind: ${mutationLeaseKindSchema.options.join('|')}`],
     'note': [`kind: ${noteKindSchema.options.join('|')}`],
     'phase': [`phase: ${phaseSchema.options.join('|')}`],
     'pr': [`status: ${pullRequestStatusSchema.options.join('|')}`],
@@ -310,16 +329,31 @@ export async function runStateCli(argv: string[]): Promise<void> {
             );
         } else if (command === 'issue') {
             const status = one(options, 'status');
+            const issueNumber = integer(options, 'number', true)!;
+            const issueWasComplete = state.issues.some(
+                (issue) => issue.number === issueNumber && issue.status === 'complete',
+            );
+            const previousIssueHead = state.runBudget.checkpoints.findLast(
+                ({ boundary, headSha }) => boundary === 'issue' && headSha,
+            )?.headSha;
+            const delta =
+                status === 'complete' && !issueWasComplete && state.worktree
+                    ? await inspectWorktreeDelta(
+                          state.worktree.path,
+                          previousIssueHead ?? state.worktree.baseSha,
+                      )
+                    : undefined;
             upsertIssue(state, {
                 checks: many(options, 'check'),
                 commits: many(options, 'commit'),
                 dependencies: many(options, 'dependency').map(Number),
-                number: integer(options, 'number', true)!,
+                number: issueNumber,
                 priority: one(options, 'priority'),
                 status: status ? issueStatusSchema.parse(status) : undefined,
                 title: one(options, 'title'),
                 validations: many(options, 'validation'),
             });
+            if (delta) enrichIssueCheckpoint(state, { ...delta, issueNumber });
         } else if (command === 'drift-assess') {
             const kind = driftKindSchema.parse(one(options, 'kind', true));
             const assessment = assessExpectationDrift(state, {
@@ -389,26 +423,55 @@ export async function runStateCli(argv: string[]): Promise<void> {
             const review = state.reviewGate.rounds.at(-1)!;
             addEvent(state, 'review', `${review.id} ${review.mode} ${review.reviewedRange}`);
         } else if (command === 'validation-start') {
+            if (!state.worktree) throw new Error('Validation requires a recorded Go worktree');
+            const integrity = await inspectWorktreeIntegrity(state.worktree.path);
+            assertCleanValidationStart(integrity, one(options, 'head-sha'));
             const validation = startValidation(state, {
                 command: one(options, 'command', true)!,
-                headSha: one(options, 'head-sha', true)!,
+                headSha: integrity.headSha,
                 kind: validationKindSchema.parse(one(options, 'kind', true)),
                 lineageId: one(options, 'lineage-id', true)!,
                 logPath: one(options, 'log-path', true)!,
                 sessionId: one(options, 'session-id', true)!,
+                sourceFingerprint: integrity.sourceFingerprint,
             });
             addEvent(state, 'validation', `${validation.id} -> pending`);
         } else if (command === 'validation-complete') {
+            if (!state.worktree) throw new Error('Validation requires a recorded Go worktree');
+            const integrity = await inspectWorktreeIntegrity(state.worktree.path);
             const validation = completeValidation(state, {
+                clean: integrity.clean,
                 exitCode: integer(options, 'exit-code', true)!,
+                headSha: integrity.headSha,
                 id: one(options, 'id', true)!,
+                sourceFingerprint: integrity.sourceFingerprint,
             });
             addEvent(state, 'validation', `${validation.id} -> ${validation.result}`);
+        } else if (command === 'mutation-acquire') {
+            const kind = mutationLeaseKindSchema.parse(one(options, 'kind', true));
+            if (kind !== 'repair') {
+                throw new Error('Validation leases are acquired only by validation-start');
+            }
+            const lease = acquireMutationLease(state, {
+                holderId: one(options, 'holder-id', true)!,
+                kind,
+            });
+            addEvent(state, 'mutation_lease', `${lease.kind}:${lease.holderId} -> acquired`);
+        } else if (command === 'mutation-release') {
+            const kind = mutationLeaseKindSchema.parse(one(options, 'kind', true));
+            if (kind !== 'repair') {
+                throw new Error('Validation leases are released only by validation-complete');
+            }
+            const holderId = one(options, 'holder-id', true)!;
+            releaseMutationLease(state, { holderId, kind });
+            addEvent(state, 'mutation_lease', `${kind}:${holderId} -> released`);
         } else if (command === 'checkpoint') {
             recordCostCheckpoint(state, {
+                boundary: checkpointBoundarySchema.parse(one(options, 'boundary') ?? 'manual'),
                 commitCount: measured(options, 'commit-count'),
-                elapsedSeconds: measured(options, 'elapsed-seconds'),
                 fileCount: measured(options, 'file-count'),
+                issueNumber: integer(options, 'issue-number'),
+                revisedEta: one(options, 'revised-eta'),
                 tokens: measured(options, 'tokens'),
             });
         } else if (command === 'scope-admit') {

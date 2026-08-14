@@ -105,6 +105,9 @@ export function createResumeCheckpoint(state: GoState) {
         ...(state.validations.some(({ result }) => result === 'pending')
             ? ['A validation command has no final exit code']
             : []),
+        ...(state.mutationLease?.kind === 'repair'
+            ? [`Repair mutation lease is active: ${state.mutationLease.holderId}`]
+            : []),
         ...state.issues.flatMap(({ expectationDrift, number }) =>
             expectationDrift.status === 'detected'
                 ? [`Issue #${number} has unpublished material expectation drift`]
@@ -156,6 +159,7 @@ export function createResumeCheckpoint(state: GoState) {
         retention: state.retention,
         finalization: state.finalization,
         handoffReport: state.handoffReport,
+        mutationLease: state.mutationLease,
         reviewGate: state.reviewGate,
         reviewPolicy: state.reviewPolicy,
         runBudget: state.runBudget,
@@ -205,6 +209,11 @@ export function formatResumeCheckpoint(
     }
     if (checkpoint.reviewGate.frozenHeadSha) {
         lines.push(`review-frozen-head: ${checkpoint.reviewGate.frozenHeadSha}`);
+    }
+    if (checkpoint.mutationLease) {
+        lines.push(
+            `mutation-lease: ${checkpoint.mutationLease.kind}:${checkpoint.mutationLease.holderId}`,
+        );
     }
     lines.push(`review-policy: ${checkpoint.reviewPolicy.mode}`);
     if (checkpoint.handoffReport) {

@@ -100,14 +100,24 @@ interface ReportContext {
     };
     runBudget: {
         checkpoints: Array<{
+            boundary: 'batch' | 'issue' | 'manual' | 'phase';
             commitCount: number | 'unavailable';
-            elapsedSeconds: number | 'unavailable';
+            elapsedSeconds: number;
             fileCount: number | 'unavailable';
             fullReviewCount: number;
+            issueNumber: number | null;
             phase: string;
+            reviewFindingCount: number;
+            tokenTelemetry: 'available' | 'degraded';
             tokens: number | 'unavailable';
+            validationAttemptCount: number;
             validationRepairCount: number;
         }>;
+        containment: {
+            droppedWork: string[];
+            reason: string;
+            revisedEta: string;
+        } | null;
         routedWork: Array<{ title: string }>;
     };
     validations: Array<{ id: string; kind: string; result: string }>;
@@ -191,15 +201,20 @@ function buildHandoffReport(state: ReportContext, headSha: string): string {
     );
     const costLines = state.runBudget.checkpoints.map(
         ({
+            boundary,
             commitCount,
             elapsedSeconds,
             fileCount,
             fullReviewCount,
+            issueNumber,
             phase,
+            reviewFindingCount,
+            tokenTelemetry,
             tokens,
+            validationAttemptCount,
             validationRepairCount,
         }) =>
-            `${phase}: tokens=${String(tokens)}, elapsedSeconds=${String(elapsedSeconds)}, commits=${String(commitCount)}, files=${String(fileCount)}, fullReviews=${fullReviewCount}, validationRepairs=${validationRepairCount}`,
+            `${phase}/${boundary}${issueNumber ? `/#${issueNumber}` : ''}: tokens=${String(tokens)} (${tokenTelemetry}), elapsedSeconds=${String(elapsedSeconds)}, commits=${String(commitCount)}, files=${String(fileCount)}, fullReviews=${fullReviewCount}, reviewFindings=${reviewFindingCount}, validationAttempts=${validationAttemptCount}, validationRepairs=${validationRepairCount}`,
     );
     const automation = [
         ...state.notes.token_waste.map(({ text }) => text),
@@ -239,6 +254,8 @@ ${bullets(
 ## Token 与 Actions 成本 <!-- section:cost -->
 
 ${bullets(costLines, '运行环境没有提供成本数据。')}
+
+Containment: ${state.runBudget.containment ? `${state.runBudget.containment.reason}; dropped=${state.runBudget.containment.droppedWork.join(',')}; revisedEta=${state.runBudget.containment.revisedEta}` : 'inactive'}
 
 Actions: ${evidence.actionsUse}
 

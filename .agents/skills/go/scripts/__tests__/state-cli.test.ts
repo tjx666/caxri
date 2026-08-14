@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { stateCliHelp } from './state-cli';
+import { stateCliHelp } from '../state-cli';
 
 describe('Go state CLI help', () => {
     it('shows command-level parameters and accepted typed values', () => {

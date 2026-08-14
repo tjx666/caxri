@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const scriptsDirectory = dirname(fileURLToPath(import.meta.url));
-const goDirectory = join(scriptsDirectory, '..');
+const goDirectory = join(scriptsDirectory, '..', '..');
 const fileIssueSkill = readFileSync(join(goDirectory, '..', 'file-issue', 'SKILL.md'), 'utf8');
 const goSkill = readFileSync(join(goDirectory, 'SKILL.md'), 'utf8');
 const intakeReference = readFileSync(join(goDirectory, 'references', 'intake.md'), 'utf8');

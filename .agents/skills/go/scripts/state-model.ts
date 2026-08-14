@@ -28,13 +28,20 @@ import {
     reviewGateSchema,
     reviewPolicySchema,
 } from './review-gate';
-import { createRunBudget, ensurePhaseCheckpoint, runBudgetSchema } from './run-budget';
+import {
+    createRunBudget,
+    ensurePhaseCheckpoint,
+    freezeRunBudgetPolicy,
+    recordCostCheckpoint,
+    runBudgetSchema,
+} from './run-budget';
 import { migrateState } from './state-migration';
 import { validationsSchema } from './validation-gate';
 import { createEmptyLedgerRetention, ledgerRetentionSchema } from './ledger-retention';
+import { mutationLeaseSchema } from './mutation-lease';
 import { MAX_NOTE_TEXT_CHARACTERS, sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 const PHASES = [
     'intake',
@@ -139,6 +146,7 @@ const goStateSchema = z.object({
     finalization: finalizationSchema.nullable(),
     handoffReport: handoffReportSchema.nullable(),
     issues: z.array(issueSchema),
+    mutationLease: mutationLeaseSchema,
     notes: z.object({
         technical_debt: z.array(noteSchema),
         token_waste: z.array(noteSchema),
@@ -272,6 +280,7 @@ export function createInitialState({
         finalization: null,
         handoffReport: null,
         issues: [],
+        mutationLease: null,
         notes: { technical_debt: [], token_waste: [], workflow: [] },
         objective,
         phase: 'intake',
@@ -307,6 +316,10 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
     if (!allowed.has(phase))
         throw new Error(`Invalid phase transition: ${state.phase} -> ${phase}`);
     ensurePhaseCheckpoint(state);
+    if (state.phase === 'intake' && phase === 'planning') freezeRunBudgetPolicy(state);
+    if (state.phase === 'issue_execution' && phase === 'deep_review') {
+        recordCostCheckpoint(state, { boundary: 'batch' });
+    }
     if (state.phase === 'deep_review' && phase === 'delivery') assertReviewHeadFrozen(state);
     if (state.phase === 'delivery' && ['acceptance', 'acceptance_handoff'].includes(phase)) {
         const headSha = state.pullRequest.headSha;
@@ -367,6 +380,7 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
         throw new Error('Issue dependencies must be positive integers');
     }
     let issue = state.issues.find((item) => item.number === input.number);
+    const wasComplete = issue?.status === 'complete';
     if (!issue) {
         if (!input.title) throw new Error('A new issue requires --title');
         issue = {
@@ -396,6 +410,9 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
     uniqueAppend(issue.acceptanceCheckIds, input.checks ?? []);
     uniqueAppend(issue.validations, input.validations ?? []);
     if (input.status) issue.status = input.status;
+    if (input.status === 'complete' && !wasComplete) {
+        recordCostCheckpoint(state, { boundary: 'issue', issueNumber: issue.number });
+    }
     addEvent(state, 'issue', `#${issue.number} -> ${issue.status}`);
     return state;
 }
@@ -516,10 +533,24 @@ export function validateState(state: unknown): GoState {
     if (parsed.status !== statusForPhase(parsed.phase)) {
         throw new Error('Invalid Go state: status does not match phase');
     }
+    if (parsed.phase !== 'intake' && !parsed.runBudget.policyFrozenAt) {
+        throw new Error('Invalid Go state: budget policy must be frozen after intake');
+    }
     if (parsed.worktree) {
         if (!isAbsolute(parsed.worktree.path) || !isAbsolute(parsed.worktree.mainCheckoutPath)) {
             throw new Error('Invalid Go state: worktree paths must be absolute');
         }
+    }
+    const pendingValidations = parsed.validations.filter(({ result }) => result === 'pending');
+    if (pendingValidations.length > 1) {
+        throw new Error('Invalid Go state: only one validation may be pending');
+    }
+    if (parsed.mutationLease?.kind === 'validation') {
+        if (!pendingValidations.some(({ id }) => id === parsed.mutationLease?.holderId)) {
+            throw new Error('Invalid Go state: validation lease has no matching pending receipt');
+        }
+    } else if (pendingValidations.length > 0) {
+        throw new Error('Invalid Go state: pending validation has no durable mutation lease');
     }
     if (new Set(parsed.issues.map(({ number }) => number)).size !== parsed.issues.length) {
         throw new Error('Invalid Go state: duplicate issue number');

@@ -7,11 +7,11 @@ import {
     commandCapture,
     publishAcceptanceRound,
     recordOrphanedAcceptance,
-} from './acceptance-publication';
-import { createResumeCheckpoint } from './resume';
-import { createInitialState } from './state';
+} from '../acceptance-publication';
+import { createResumeCheckpoint } from '../resume';
+import { createInitialState } from '../state';
 
-const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const TEST_ROOT = join(
     PROJECT_ROOT,
     '.records',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { startGoRun } from './start';
+import { startGoRun } from '../start';
 
 describe('Go isolated startup', () => {
     it('pins origin/main and preserves the main checkout while initializing the new worktree', async () => {

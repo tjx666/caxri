@@ -287,19 +287,19 @@ jobs:
       - name: Run one-worker control suite
         id: control
         if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'control'
-        env:
-          CAXRI_E2E_OUTPUT_DIR: test-results/control
-          CAXRI_E2E_POOL: control
-          CAXRI_E2E_RECEIPT_PATH: test-results/receipts/control.json
         run: >-
           bun run scripts/ci-metrics.ts --label "Playwright control workers=1" --
-          bunx playwright test --workers=1 --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
+          bun run scripts/run-e2e-pools.ts --pool control
       - name: Prove desktop worker interruption recovery
         id: failure-isolation
         if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: >-
           bun run scripts/ci-metrics.ts --label "Desktop worker interruption recovery" --
           bun run scripts/run-e2e-failure-isolation.ts
+      - name: Prove bounded E2E failure census
+        id: failure-census
+        if: always() && steps.e2e-build.outcome == 'success'
+        run: bun run scripts/run-e2e-census-fixture.ts
       - name: Run parallel-safe pool
         id: parallel-safe
         if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'
@@ -360,6 +360,7 @@ jobs:
           always() && (
             steps.focused-repair.outcome == 'failure' ||
             steps.failure-isolation.outcome == 'failure' ||
+            steps.failure-census.outcome == 'failure' ||
             steps.ci-parity.outcome == 'failure' ||
             steps.execution-receipt.outcome == 'failure'
           )

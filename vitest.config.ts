@@ -2,10 +2,11 @@ import { resolve } from 'node:path';
 
 import { defineConfig } from 'vitest/config';
 
-const testFiles = [
+export const testFiles = [
     'src/**/*.test.ts',
     'packages/**/*.test.ts',
     '.agents/skills/**/scripts/*.test.ts',
+    '.agents/skills/**/scripts/__tests__/*.test.ts',
     'scripts/__tests__/*.test.ts',
 ];
 const serialNativeTestPrefix = [

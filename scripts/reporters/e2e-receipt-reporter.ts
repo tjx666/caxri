@@ -2,23 +2,34 @@ import { createHash } from 'node:crypto';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-import type {
-    FullConfig,
-    FullResult,
-    Reporter,
-    Suite,
-    TestCase,
-    TestResult,
-} from '@playwright/test/reporter';
+import type { FullConfig, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
+
+export type E2ETestVerdict = 'fail' | 'pass' | 'skipped' | 'timeout' | 'unknown';
 
 export interface E2ETestReceipt {
+    artifacts: string[];
+    errorIdentity: string | null;
     id: string;
     location: string;
     title: string;
+    verdict: E2ETestVerdict;
+}
+
+export interface E2ESpecReceipt {
+    path: string;
+    testIds: string[];
+    verdict: 'fail' | 'pass' | 'timeout' | 'unknown';
+}
+
+export interface E2EFailureGroup {
+    count: number;
+    identity: string;
+    testIds: string[];
 }
 
 export interface E2EPoolReceipt {
     failed: number;
+    failureGroups: E2EFailureGroup[];
     finished: number;
     finishedAt: string;
     hash: string;
@@ -26,16 +37,114 @@ export interface E2EPoolReceipt {
     planned: number;
     pool: string;
     skipped: number;
+    specs: E2ESpecReceipt[];
     started: number;
     startedAt: string;
     status: 'failed' | 'passed';
     tests: E2ETestReceipt[];
+    timedOut: number;
+    unknown: number;
+}
+
+function specPath(location: string): string {
+    return location.replace(/:\d+:\d+$/u, '');
+}
+
+function normalizeError(error: string): string {
+    return error
+        .replaceAll(String.fromCharCode(27), '')
+        .replace(/\[[0-9;]*m/gu, '')
+        .replace(/\/var\/folders\/[^\s)]+/gu, '<tmp>')
+        .replace(/\/private\/tmp\/[^\s)]+/gu, '<tmp>')
+        .replace(/:\d+:\d+/gu, ':<line>:<column>')
+        .trim();
+}
+
+export function stableErrorIdentity(error: string): string {
+    return createHash('sha256').update(normalizeError(error)).digest('hex');
 }
 
 export function summarizeE2ETests(tests: readonly E2ETestReceipt[]): string {
     return createHash('sha256')
-        .update(JSON.stringify([...tests].sort((left, right) => left.id.localeCompare(right.id))))
+        .update(
+            JSON.stringify(
+                [...tests]
+                    .sort((left, right) => left.id.localeCompare(right.id))
+                    .map(({ id, location, title }) => ({ id, location, title })),
+            ),
+        )
         .digest('hex');
+}
+
+function summarizeSpecs(tests: readonly E2ETestReceipt[]): E2ESpecReceipt[] {
+    const grouped = new Map<string, E2ETestReceipt[]>();
+    for (const test of tests) {
+        const path = specPath(test.location);
+        grouped.set(path, [...(grouped.get(path) ?? []), test]);
+    }
+    return [...grouped.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([path, specTests]) => ({
+            path,
+            testIds: specTests.map(({ id }) => id).sort(),
+            verdict: specTests.some(({ verdict }) => verdict === 'unknown')
+                ? 'unknown'
+                : specTests.some(({ verdict }) => verdict === 'timeout')
+                  ? 'timeout'
+                  : specTests.some(({ verdict }) => verdict === 'fail')
+                    ? 'fail'
+                    : 'pass',
+        }));
+}
+
+function summarizeFailureGroups(tests: readonly E2ETestReceipt[]): E2EFailureGroup[] {
+    const grouped = new Map<string, string[]>();
+    for (const test of tests) {
+        if (!test.errorIdentity) continue;
+        grouped.set(test.errorIdentity, [...(grouped.get(test.errorIdentity) ?? []), test.id]);
+    }
+    return [...grouped.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([identity, testIds]) => ({
+            count: testIds.length,
+            identity,
+            testIds: testIds.sort(),
+        }));
+}
+
+export function createE2EPoolReceipt(input: {
+    finishedAt: string;
+    pool: string;
+    startedAt: string;
+    tests: E2ETestReceipt[];
+}): E2EPoolReceipt {
+    const passed = input.tests.filter(({ verdict }) => verdict === 'pass').length;
+    const skipped = input.tests.filter(({ verdict }) => verdict === 'skipped').length;
+    const timedOut = input.tests.filter(({ verdict }) => verdict === 'timeout').length;
+    const failed = input.tests.filter(({ verdict }) => verdict === 'fail').length;
+    const unknown = input.tests.filter(({ verdict }) => verdict === 'unknown').length;
+    const finished = passed + skipped + timedOut + failed;
+    const receipt: E2EPoolReceipt = {
+        failed,
+        failureGroups: summarizeFailureGroups(input.tests),
+        finished,
+        finishedAt: input.finishedAt,
+        hash: summarizeE2ETests(input.tests),
+        passed,
+        planned: input.tests.length,
+        pool: input.pool,
+        skipped,
+        specs: summarizeSpecs(input.tests),
+        started: input.tests.filter(({ verdict }) => !['skipped', 'unknown'].includes(verdict))
+            .length,
+        startedAt: input.startedAt,
+        status: failed + timedOut + unknown === 0 ? 'passed' : 'failed',
+        tests: input.tests,
+        timedOut,
+        unknown,
+    };
+    assertE2EPoolReceipt(receipt);
+    return receipt;
 }
 
 /** Rejects truncated or internally inconsistent receipts before they can satisfy CI evidence. */
@@ -47,6 +156,8 @@ export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
         receipt.planned,
         receipt.skipped,
         receipt.started,
+        receipt.timedOut,
+        receipt.unknown,
     ];
     if (counts.some((count) => !Number.isSafeInteger(count) || count < 0)) {
         throw new Error(`E2E ${receipt.pool} receipt counts must be non-negative integers`);
@@ -54,52 +165,76 @@ export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
     if (receipt.tests.length !== receipt.planned) {
         throw new Error(`E2E ${receipt.pool} receipt test list does not match its planned count`);
     }
-    if (receipt.passed + receipt.skipped + receipt.failed !== receipt.finished) {
+    if (receipt.passed + receipt.skipped + receipt.failed + receipt.timedOut !== receipt.finished) {
         throw new Error(`E2E ${receipt.pool} receipt outcomes do not match its finished count`);
+    }
+    if (receipt.finished + receipt.unknown !== receipt.planned) {
+        throw new Error(`E2E ${receipt.pool} receipt does not classify every planned test`);
     }
     if (receipt.started > receipt.planned || receipt.finished > receipt.planned) {
         throw new Error(`E2E ${receipt.pool} receipt execution exceeds its planned count`);
     }
+    if (receipt.specs.some(({ verdict }) => verdict === 'unknown') !== receipt.unknown > 0) {
+        throw new Error(`E2E ${receipt.pool} spec census disagrees with its test verdicts`);
+    }
     if (
         receipt.status === 'passed' &&
-        (receipt.finished !== receipt.planned || receipt.failed !== 0)
+        (receipt.unknown !== 0 || receipt.failed !== 0 || receipt.timedOut !== 0)
     ) {
         throw new Error(`E2E ${receipt.pool} passing receipt is incomplete`);
     }
 }
 
+export function assertE2EPoolCensusComplete(receipt: E2EPoolReceipt): void {
+    assertE2EPoolReceipt(receipt);
+    if (receipt.unknown > 0 || receipt.specs.some(({ verdict }) => verdict === 'unknown')) {
+        throw new Error(`E2E ${receipt.pool} failure census left suppressed or unknown tests`);
+    }
+}
+
 /** Records one logical pool from the same invocation that executes its tests. */
 class E2EReceiptReporter implements Reporter {
-    private failed = 0;
-    private finished = 0;
-    private passed = 0;
-    private planned: E2ETestReceipt[] = [];
-    private skipped = 0;
-    private started = 0;
+    private planned = new Map<string, E2ETestReceipt>();
     private startedAt = '';
 
     onBegin(_config: FullConfig, suite: Suite): void {
         this.startedAt = new Date().toISOString();
-        this.planned = suite.allTests().map((test) => ({
-            id: test.id,
-            location: `${test.location.file}:${test.location.line}:${test.location.column}`,
-            title: test.titlePath().slice(1).join(' › '),
-        }));
-    }
-
-    onTestBegin(): void {
-        this.started += 1;
+        this.planned = new Map(
+            suite.allTests().map((test) => [
+                test.id,
+                {
+                    artifacts: [],
+                    errorIdentity: null,
+                    id: test.id,
+                    location: `${test.location.file}:${test.location.line}:${test.location.column}`,
+                    title: test.titlePath().slice(1).join(' › '),
+                    verdict: test.expectedStatus === 'skipped' ? 'skipped' : 'unknown',
+                },
+            ]),
+        );
     }
 
     onTestEnd(test: TestCase, result: TestResult): void {
-        void test;
-        this.finished += 1;
-        if (result.status === 'passed') this.passed += 1;
-        else if (result.status === 'skipped') this.skipped += 1;
-        else this.failed += 1;
+        const planned = this.planned.get(test.id);
+        if (!planned) return;
+        const error = result.error?.message ?? result.errors[0]?.message;
+        planned.artifacts = result.attachments
+            .map(({ path }) => path)
+            .filter((path): path is string => Boolean(path));
+        planned.errorIdentity = error ? stableErrorIdentity(error) : null;
+        planned.verdict =
+            result.status === 'passed'
+                ? 'pass'
+                : result.status === 'timedOut'
+                  ? 'timeout'
+                  : result.status === 'skipped'
+                    ? test.expectedStatus === 'skipped'
+                        ? 'skipped'
+                        : 'unknown'
+                    : 'fail';
     }
 
-    async onEnd(result: FullResult): Promise<void> {
+    async onEnd(): Promise<void> {
         const pool = process.env.CAXRI_E2E_POOL;
         const destination = process.env.CAXRI_E2E_RECEIPT_PATH;
         if (!pool || !destination) {
@@ -107,21 +242,12 @@ class E2EReceiptReporter implements Reporter {
                 'CAXRI_E2E_POOL and CAXRI_E2E_RECEIPT_PATH are required for E2E receipts',
             );
         }
-        const receipt: E2EPoolReceipt = {
-            failed: this.failed,
-            finished: this.finished,
+        const receipt = createE2EPoolReceipt({
             finishedAt: new Date().toISOString(),
-            hash: summarizeE2ETests(this.planned),
-            passed: this.passed,
-            planned: this.planned.length,
             pool,
-            skipped: this.skipped,
-            started: this.started,
             startedAt: this.startedAt,
-            status: result.status === 'passed' ? 'passed' : 'failed',
-            tests: this.planned,
-        };
-        assertE2EPoolReceipt(receipt);
+            tests: [...this.planned.values()],
+        });
         const output = resolve(destination);
         await mkdir(dirname(output), { recursive: true });
         const temporary = `${output}.${process.pid}.tmp`;
