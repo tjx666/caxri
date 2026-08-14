@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
+import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '..');
@@ -88,5 +89,16 @@ describe('npm workspace contract', () => {
     it('excludes workspace links from implicit Desktop packaging', () => {
         expect(rootManifest.build?.files).toContain('!node_modules/@caxri/cli{,/**}');
         expect(rootManifest.build?.files).toContain('!node_modules/@caxri/protocol{,/**}');
+    });
+
+    it('keeps generated workspace distributions outside source linting', async () => {
+        const eslint = new ESLint({ cwd: root });
+
+        await expect(
+            eslint.isPathIgnored(join(root, 'packages/protocol/dist/index.js')),
+        ).resolves.toBe(true);
+        await expect(eslint.isPathIgnored(join(root, 'packages/cli/dist/caxri.cjs'))).resolves.toBe(
+            true,
+        );
     });
 });
