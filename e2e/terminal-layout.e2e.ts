@@ -337,14 +337,11 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, terminalIds);
         await splitTerminalToRight(running.page, secondTerminalId);
-        await expect(running.page.locator('.terminal-pane')).toHaveCount(2);
+        const terminalPanes = running.page.locator('.terminal-pane');
+        await expect(terminalPanes).toHaveCount(2);
 
-        for (const width of [1_160, 1_300]) {
-            await running.page.setViewportSize({ width, height: 800 });
-            await running.page.evaluate(
-                () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-            );
-            const geometry = await running.page.locator('.terminal-pane').evaluateAll((panes) => {
+        const readGeometry = () =>
+            terminalPanes.evaluateAll((panes) => {
                 return panes.map((pane) => {
                     const paneBounds = pane.getBoundingClientRect();
                     const screen = pane.querySelector('.xterm-screen')?.getBoundingClientRect();
@@ -360,6 +357,19 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     };
                 });
             });
+
+        for (const width of [1_160, 1_300]) {
+            await running.page.setViewportSize({ width, height: 800 });
+            /** xterm fits asynchronously after the viewport resize; measure only after both panes converge. */
+            await expect
+                .poll(async () => {
+                    const geometry = await readGeometry();
+                    return geometry.every(
+                        ({ edgeGap, textGutter }) => Math.abs(edgeGap) <= 1 && textGutter >= 4,
+                    );
+                })
+                .toBe(true);
+            const geometry = await readGeometry();
 
             for (const [index, pane] of geometry.entries()) {
                 expect(
