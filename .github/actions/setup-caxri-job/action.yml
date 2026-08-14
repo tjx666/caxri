@@ -27,15 +27,42 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Setup pnpm and Node.js
+    - name: Setup exact Node.js
       if: inputs.setup-toolchain == 'true'
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24.19.0
+        package-manager-cache: false
+
+    - id: pnpm_toolchain
+      name: Reuse runner-cached pnpm
+      if: inputs.setup-toolchain == 'true'
+      shell: bash
+      run: |
+        pnpm_directory="$RUNNER_TOOL_CACHE/caxri/pnpm/12.0.0-rc.5-node-24.19.0"
+        if [[ -x "$pnpm_directory/pnpm" ]] && [[ "$("$pnpm_directory/pnpm" --version)" == "12.0.0-rc.5" ]]; then
+          echo "cached=true" >> "$GITHUB_OUTPUT"
+          echo "PNPM_HOME=$pnpm_directory" >> "$GITHUB_ENV"
+          echo "$pnpm_directory" >> "$GITHUB_PATH"
+        else
+          echo "cached=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install pnpm on cache miss
+      if: inputs.setup-toolchain == 'true' && steps.pnpm_toolchain.outputs.cached != 'true'
       uses: pnpm/setup@v2
       with:
         version: 12.0.0-rc.5
-        runtime: node@24.19.0
         dest: ${{ runner.tool_cache }}/caxri/pnpm/12.0.0-rc.5-node-24.19.0
         install: false
         cache: false
+
+    - name: Verify exact Node.js and pnpm
+      if: inputs.setup-toolchain == 'true'
+      shell: bash
+      run: |
+        test "$(node --version)" = "v24.19.0"
+        test "$(pnpm --version)" = "12.0.0-rc.5"
 
     - name: Use runner-pinned Bun
       shell: bash

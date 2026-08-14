@@ -77,8 +77,10 @@ isolation from malicious workflow code; see `docs/self-hosted-runner.md` for ope
 recovery.
 
 The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI provisions
-pnpm 12 and Node 24 through `pnpm/setup`, and pins Bun through `.bun-version`, without changing the
-user's interactive installations. Node, pnpm, and the separately provisioned Bun executable use
-versioned runner-owned tool locations; the pnpm store, Electron, ESLint, and Prettier reuse
-runner-local caches without `actions/cache`. Dependency trees remain job-local and are rebuilt from
-`pnpm-lock.yaml` for every source job.
+exact Node 24 through `actions/setup-node`, installs pnpm 12 through `pnpm/setup` only on a runner
+tool-cache miss, and pins Bun through `.bun-version`, without changing the user's interactive
+installations. pnpm owns workspace dependency resolution, installation, linking, and the lockfile;
+Bun is the fast script, TypeScript, and repository CLI runner. Node, pnpm, and Bun use versioned
+runner-owned tool locations; the pnpm store, Electron, ESLint, and Prettier reuse runner-local caches
+without `actions/cache`. Dependency trees remain job-local and are rebuilt from `pnpm-lock.yaml` for
+every source job.
