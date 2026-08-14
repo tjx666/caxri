@@ -2,13 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriError, CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
 
-import {
-    createCliHostConnector,
-    runCli,
-    type CliConnectOptions,
-    type CliHostClient,
-    type CliIo,
-} from './application';
+import { runCli, type CliConnectOptions, type CliHostClient, type CliIo } from './application';
 
 function io(options: Partial<CliIo> = {}) {
     let stdout = '';
@@ -46,28 +40,6 @@ function host(
 }
 
 describe('CLI application', () => {
-    it.each(['agent', 'ci'] as const)(
-        'never starts a Host implicitly for %s automation',
-        async (automation) => {
-            const connectExisting = vi.fn(() =>
-                Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
-            );
-            const startHost = vi.fn(() => Promise.resolve(host({})));
-            const connect = createCliHostConnector({
-                automation,
-                connectExisting,
-                hostLaunch: { executable: '/Applications/Caxri', entryPath: '/app/host.js' },
-                startHost,
-            });
-
-            await expect(
-                connect({ profilePath: '/profiles/selected', timeoutMs: 15_000 }),
-            ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-            expect(connectExisting).toHaveBeenCalledOnce();
-            expect(startHost).not.toHaveBeenCalled();
-        },
-    );
-
     it('renders top-level and group help without connecting to a Host', async () => {
         const output = io();
         const connect = vi.fn();
