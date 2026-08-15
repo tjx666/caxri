@@ -11,11 +11,14 @@ import { SingleFlight } from '../single-flight';
 
 const PULL_REQUEST_CACHE_MS = 30_000;
 const MAX_PULL_REQUEST_FILES = 2_000;
+const MAX_PULL_REQUEST_CACHE_ENTRIES = 128;
 
 interface PullRequestCacheEntry {
     branch: string;
     expiresAt: number;
     head?: string;
+    repositoryId: string;
+    sessionId: string;
     value: GitPullRequestChanges | null;
 }
 
@@ -37,6 +40,11 @@ interface GitPullRequestServiceDeps {
     ): Promise<string>;
     ghPullRequestView(cwd: string): Promise<string>;
     resolveRepository(sessionId: string, repositoryId: string): Promise<GitRepositorySummary>;
+}
+
+interface GitPullRequestServiceOptions {
+    maximumCacheEntries?: number;
+    now?: () => number;
 }
 
 interface NameStatusFile {
@@ -137,33 +145,91 @@ function parsePullRequestView(output: string): GitHubPullRequestView {
 export class GitPullRequestService {
     private readonly cache = new Map<string, PullRequestCacheEntry>();
     private readonly requests = new SingleFlight<string, GitPullRequestChanges | null>();
+    private readonly maximumCacheEntries: number;
+    private readonly now: () => number;
+    /** Invalidates cache writes that began before a Session deletion or Runtime shutdown. */
+    private cacheGeneration = 0;
 
-    constructor(private readonly deps: GitPullRequestServiceDeps) {}
+    constructor(
+        private readonly deps: GitPullRequestServiceDeps,
+        options: GitPullRequestServiceOptions = {},
+    ) {
+        this.maximumCacheEntries = options.maximumCacheEntries ?? MAX_PULL_REQUEST_CACHE_ENTRIES;
+        this.now = options.now ?? Date.now;
+    }
+
+    /** Removes file-list cache entries for Sessions whose backing records were deleted. */
+    evictSessions(sessionIds: readonly string[]): void {
+        if (sessionIds.length === 0) return;
+        const removed = new Set(sessionIds);
+        for (const [cacheKey, entry] of this.cache) {
+            if (removed.has(entry.sessionId)) this.cache.delete(cacheKey);
+        }
+        this.cacheGeneration += 1;
+    }
+
+    /** Releases every retained Pull Request file list when the Runtime shuts down. */
+    clear(): void {
+        this.cache.clear();
+        this.cacheGeneration += 1;
+    }
+
+    private pruneCache(now: number): void {
+        for (const [cacheKey, entry] of this.cache) {
+            if (entry.expiresAt <= now) this.cache.delete(cacheKey);
+        }
+    }
+
+    private storeCache(cacheKey: string, entry: PullRequestCacheEntry): void {
+        this.pruneCache(this.now());
+        this.cache.delete(cacheKey);
+        this.cache.set(cacheKey, entry);
+        while (this.cache.size > this.maximumCacheEntries) {
+            const oldestKey = this.cache.keys().next().value;
+            if (oldestKey === undefined) return;
+            this.cache.delete(oldestKey);
+        }
+    }
 
     async changes(
         params: RuntimeMethodParams<'git.pullRequestChanges'>,
     ): Promise<GitPullRequestChanges | null> {
-        const cacheKey = `${params.sessionId}:${params.repositoryId}`;
+        const cacheGeneration = this.cacheGeneration;
+        const cacheKey = JSON.stringify([params.sessionId, params.repositoryId]);
         const repository = await this.deps.resolveRepository(params.sessionId, params.repositoryId);
+        const now = this.now();
+        this.pruneCache(now);
         const cached = this.cache.get(cacheKey);
         if (
             params.refresh === 0 &&
             cached &&
             cached.branch === repository.branch &&
             cached.head === repository.head &&
-            cached.expiresAt > Date.now()
-        )
+            cached.expiresAt > now
+        ) {
+            this.cache.delete(cacheKey);
+            this.cache.set(cacheKey, cached);
             return cached.value;
-        const requestKey = `${cacheKey}:${repository.branch}:${repository.head ?? ''}:${params.refresh}`;
+        }
+        const requestKey = JSON.stringify([
+            params.sessionId,
+            params.repositoryId,
+            repository.branch,
+            repository.head ?? null,
+            params.refresh,
+        ]);
         return this.requests.run(requestKey, async () => {
             const output = await this.deps.ghPullRequestView(repository.rootPath);
             if (!output) {
-                this.cache.set(cacheKey, {
-                    branch: repository.branch,
-                    expiresAt: Date.now() + PULL_REQUEST_CACHE_MS,
-                    head: repository.head,
-                    value: null,
-                });
+                if (cacheGeneration === this.cacheGeneration)
+                    this.storeCache(cacheKey, {
+                        branch: repository.branch,
+                        expiresAt: this.now() + PULL_REQUEST_CACHE_MS,
+                        head: repository.head,
+                        repositoryId: params.repositoryId,
+                        sessionId: params.sessionId,
+                        value: null,
+                    });
                 return null;
             }
             const view = parsePullRequestView(output);
@@ -199,12 +265,15 @@ export class GitPullRequestService {
                     .slice(0, MAX_PULL_REQUEST_FILES)
                     .map(pullRequestFileStatus),
             };
-            this.cache.set(cacheKey, {
-                branch: repository.branch,
-                expiresAt: Date.now() + PULL_REQUEST_CACHE_MS,
-                head: repository.head,
-                value: result,
-            });
+            if (cacheGeneration === this.cacheGeneration)
+                this.storeCache(cacheKey, {
+                    branch: repository.branch,
+                    expiresAt: this.now() + PULL_REQUEST_CACHE_MS,
+                    head: repository.head,
+                    repositoryId: params.repositoryId,
+                    sessionId: params.sessionId,
+                    value: result,
+                });
             return result;
         });
     }

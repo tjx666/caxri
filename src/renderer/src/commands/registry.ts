@@ -24,7 +24,7 @@ export interface CommandContext {
     };
     workbench: { closeActiveTab(): void; cycleTab(delta: 1 | -1): void };
     editor: { saveActive(): void };
-    inspector: { searchFiles(): void; setMode(mode: InspectorMode): void; toggle(): void };
+    inspector: { searchFiles(): void; activateMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };
     dialogs: {
         openSettings(view?: SettingsView): void;

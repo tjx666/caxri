@@ -9,6 +9,7 @@ import { openFileForSession } from './features/editor/document-actions';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { Inspector } from './features/inspector/Inspector';
 import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
+import { useFileTreeQueryInvalidation } from './features/inspector/panels/files/file-tree-refresh';
 import { CommandPalette } from './features/palette/CommandPalette';
 import { PathBrowserDialog } from './features/path-browser/PathBrowserDialog';
 import { ScreencastOverlay } from './features/screencast/ScreencastOverlay';
@@ -79,6 +80,7 @@ export function App() {
     useRuntimeAttachment();
     useFileMutationReconciliation(attached);
     useRuntimeQueryInvalidation();
+    useFileTreeQueryInvalidation();
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
     useExternalDocumentSync();

@@ -15,9 +15,12 @@ import {
     isNonExpiringRuntimeMethod,
     methods,
     negotiateProtocolVersion,
+    parseRuntimeRequest,
     principalProjectionSchemas,
     projectObservableEventRecovery,
     protocolWelcomeSchema,
+    requestEnvelopeSchema,
+    runtimeEventSchema,
     type CommandAdapter,
     type CommandExecutionContext,
     type RuntimeEvent,
@@ -71,14 +74,14 @@ function request(id: string, method: keyof typeof methods, params: unknown = {})
 
 describe('@caxri/protocol contract', () => {
     it('publishes one stable version, closed errors, principals, and browser-safe capabilities', () => {
-        expect(CAXRI_PROTOCOL_VERSION).toBe(1);
-        expect(negotiateProtocolVersion([0, 1])).toBe(1);
-        expect(() => negotiateProtocolVersion([2])).toThrow();
+        expect(CAXRI_PROTOCOL_VERSION).toBe(2);
+        expect(negotiateProtocolVersion([0, 2])).toBe(2);
+        expect(() => negotiateProtocolVersion([1])).toThrow();
         expect(errorCodes).toContain('FORBIDDEN');
         expect(capabilityIds).toContain('desktop.window');
         expect(capabilityIds).toContain('terminals.steer');
         const welcome = protocolWelcomeSchema.parse({
-            protocolVersion: 1,
+            protocolVersion: 2,
             principal: desktop.principal,
             capabilities: desktop.capabilities,
             commands: Object.keys(methods),
@@ -87,6 +90,23 @@ describe('@caxri/protocol contract', () => {
         expect(welcome.commands).toContain('project.list');
         expect(
             principalProjectionSchemas.project.safeParse({ id: 'p1', displayTitle: 'P' }).success,
+        ).toBe(true);
+        expect(
+            runtimeEventSchema.safeParse({
+                event: 'files.changed',
+                payload: { changes: [], overflow: false, sessionId: 'session-1' },
+            }).success,
+        ).toBe(false);
+        expect(
+            runtimeEventSchema.safeParse({
+                event: 'files.changed',
+                payload: {
+                    changes: [],
+                    overflow: false,
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            }).success,
         ).toBe(true);
     });
 
@@ -115,7 +135,7 @@ describe('@caxri/protocol contract', () => {
         const health = agentSkillHealthSchema.parse({
             bundled: {
                 bundledVersion: '0.0.6',
-                compatibility: { cliVersion: '0.0.6', protocolVersion: 1 },
+                compatibility: { cliVersion: '0.0.6', protocolVersion: 2 },
                 contentHash: `sha256:${'a'.repeat(64)}`,
                 files: ['SKILL.md', 'agents/openai.yaml'],
                 name: 'caxri-cli',
@@ -130,7 +150,7 @@ describe('@caxri/protocol contract', () => {
                     installedSchemaVersion: 1,
                     installedVersion: '0.0.6',
                     name: 'caxri-cli',
-                    protocolVersion: 1,
+                    protocolVersion: 2,
                     provider: 'codex',
                     reason: 'matches-bundle',
                     scope: 'local',
@@ -191,17 +211,42 @@ describe('@caxri/protocol contract', () => {
     it('negotiates only commands reachable by the authenticated principal', () => {
         const welcome = createProtocolWelcome(
             { host: { invoke: () => null } },
-            { supportedVersions: [1] },
+            { supportedVersions: [2] },
             human,
         );
         expect(welcome).toMatchObject({
-            protocolVersion: 1,
+            protocolVersion: 2,
             principal: human.principal,
             capabilities: ['projects.read'],
         });
         expect(welcome.commands).toContain('project.list');
         expect(welcome.commands).not.toContain('app.bootstrap');
         expect(welcome.commands).not.toContain('processExplorer.open');
+    });
+
+    it('does not negotiate or parse the retired raw git.diff command', () => {
+        const welcome = createProtocolWelcome(
+            { host: { invoke: () => null } },
+            { supportedVersions: [2] },
+            desktop,
+        );
+
+        expect(welcome.commands).not.toContain('git.diff');
+        expect(
+            requestEnvelopeSchema.safeParse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'git-diff-1',
+                method: 'git.diff',
+                params: { sessionId: 'session-1', repositoryId: 'repository-1', path: 'README.md' },
+            }).success,
+        ).toBe(false);
+        expect(() =>
+            parseRuntimeRequest('git.diff', {
+                sessionId: 'session-1',
+                repositoryId: 'repository-1',
+                path: 'README.md',
+            }),
+        ).toThrow('Unknown Runtime method: git.diff');
     });
 
     it('keeps Host discovery parseable across protocol versions without exposing credentials', () => {
@@ -223,7 +268,7 @@ describe('@caxri/protocol contract', () => {
     it('negotiates the bounded Host control surface for an authenticated operator', () => {
         const welcome = createProtocolWelcome(
             { host: { invoke: () => null } },
-            { supportedVersions: [1] },
+            { supportedVersions: [2] },
             hostOperator,
         );
         expect(welcome.commands).toContain('app.health');
@@ -322,7 +367,7 @@ describe('transport-neutral dispatcher', () => {
             },
         });
         expect(agentReply).toEqual({
-            protocolVersion: 1,
+            protocolVersion: 2,
             id: 'r3',
             ok: true,
             result: {
@@ -366,7 +411,7 @@ describe('transport-neutral dispatcher', () => {
             }),
             principalProjectionSchemas.diagnostics.parse({
                 appVersion: '1.0.0',
-                protocolVersion: 1,
+                protocolVersion: 2,
                 runtimeStatus: 'ready',
                 projectCount: 1,
                 sessionCount: 1,
@@ -393,14 +438,14 @@ describe('transport-neutral dispatcher', () => {
             error: { code: 'FORBIDDEN' },
         });
         await expect(dispatch(request('r2', 'processExplorer.open'), desktop)).resolves.toEqual({
-            protocolVersion: 1,
+            protocolVersion: 2,
             id: 'r2',
             ok: false,
             error: { code: 'UNAVAILABLE', message: 'Desktop is unavailable' },
         });
         await expect(
             dispatch(
-                { protocolVersion: 1, id: 'invalid-method', method: 'shell.exec', params: {} },
+                { protocolVersion: 2, id: 'invalid-method', method: 'shell.exec', params: {} },
                 desktop,
             ),
         ).resolves.toMatchObject({
@@ -534,7 +579,7 @@ describe('recoverable event cursor', () => {
                 cursor: 1,
                 events: [
                     {
-                        protocolVersion: 1,
+                        protocolVersion: 2,
                         cursor: 1,
                         event: {
                             event: 'settings.changed',

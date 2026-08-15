@@ -1,6 +1,14 @@
 import { CircleAlert, LoaderCircle, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react';
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+    Fragment,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 
 import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
@@ -44,6 +52,11 @@ import {
 } from '../terminal/terminal-progress';
 import { WorkTab } from './WorkTab';
 import {
+    type WorkTabNavigationKey,
+    workTabId,
+    workTabNavigationTarget,
+} from './work-tab-accessibility';
+import {
     pruneEditorTabMotionStates,
     reconcileEditorTabMotion,
     type EditorTabMotionState,
@@ -51,7 +64,19 @@ import {
 
 const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
 
-function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: TerminalRecord }) {
+function TerminalWorkTab({
+    active,
+    onNavigate,
+    onSelect,
+    tabId,
+    terminal,
+}: {
+    active: boolean;
+    onNavigate: (key: WorkTabNavigationKey) => void;
+    onSelect: () => void;
+    tabId: string;
+    terminal: TerminalRecord;
+}) {
     const progress = useTerminalProgress(terminal.id);
     const ProgressIcon =
         progress?.kind === 'error'
@@ -101,6 +126,7 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
             icon={terminal.kind}
             label={terminal.title}
             status={terminal.lastProcessState}
+            tabId={tabId}
             terminalId={terminal.id}
             onClose={() => closeTerminal(terminal.id)}
             onDragStart={(event) => {
@@ -108,7 +134,12 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
                 event.dataTransfer.setData(TERMINAL_DRAG_TYPE, terminal.id);
                 event.dataTransfer.setData('text/plain', terminal.id);
             }}
-            onSelect={() => activateTerminal(terminal.id)}
+            onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                onNavigate(event.key as WorkTabNavigationKey);
+            }}
+            onSelect={onSelect}
         />
     );
 }
@@ -117,13 +148,19 @@ function TerminalWorkTab({ active, terminal }: { active: boolean; terminal: Term
 function EditorWorkTab({
     active,
     motionIdentity,
+    onNavigate,
+    onSelect,
     path,
     preview,
+    tabId,
 }: {
     active: boolean;
     motionIdentity: string;
+    onNavigate: (key: WorkTabNavigationKey) => void;
+    onSelect: () => void;
     path: string;
     preview?: true;
+    tabId: string;
 }) {
     const session = useSelectedSession();
     const gitDiffTab = parseGitDiffTab(path);
@@ -152,9 +189,15 @@ function EditorWorkTab({
             icon="file"
             label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
             motionIdentity={motionIdentity}
+            tabId={tabId}
             onDoubleClick={() => pinEditorTab(path)}
             onClose={() => void closeEditor(path)}
-            onSelect={() => selectEditorTab(path)}
+            onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                onNavigate(event.key as WorkTabNavigationKey);
+            }}
+            onSelect={onSelect}
             contextMenu={
                 <ContextMenuContent>
                     <ContextMenuItem onClick={() => void closeEditor(path)}>Close</ContextMenuItem>
@@ -186,8 +229,8 @@ function isActive(activeWork: WorkItem | undefined, item: WorkItem): boolean {
 }
 
 type WorkTabItem =
-    | { kind: 'editor'; motionKey: string; path: string; preview?: true }
-    | { kind: 'terminal'; motionKey: string; terminal: TerminalRecord };
+    | { item: WorkItem; kind: 'editor'; motionKey: string; path: string; preview?: true }
+    | { item: WorkItem; kind: 'terminal'; motionKey: string; terminal: TerminalRecord };
 
 export function WorkTabStrip() {
     const sessionTerminals = useSessionTerminals();
@@ -234,11 +277,13 @@ export function WorkTabStrip() {
         () => [
             ...sessionTerminals.map((terminal) => ({
                 kind: 'terminal' as const,
+                item: { kind: 'terminal' as const, terminalId: terminal.id },
                 motionKey: `terminal:${terminal.id}`,
                 terminal,
             })),
             ...editorMotionState.tabs.map((tab) => ({
                 kind: 'editor' as const,
+                item: { kind: 'editor' as const, path: tab.path },
                 motionKey: `editor:${selectedSessionId}:${tab.motionId}`,
                 path: tab.path,
                 preview: tab.preview,
@@ -246,50 +291,88 @@ export function WorkTabStrip() {
         ],
         [editorMotionState.tabs, selectedSessionId, sessionTerminals],
     );
+    const selectWorkItem = useCallback((item: WorkItem) => {
+        if (item.kind === 'terminal') activateTerminal(item.terminalId);
+        else selectEditorTab(item.path);
+    }, []);
+    const navigateWorkTabs = useCallback(
+        (current: WorkItem, key: WorkTabNavigationKey) => {
+            const target = workTabNavigationTarget(
+                items.map((item) => item.item),
+                current,
+                key,
+            );
+            if (!target || !selectedSessionId) return;
+            const targetId = workTabId(selectedSessionId, target);
+            const targetTab = document.getElementById(targetId);
+            if (targetTab && stripRef.current?.contains(targetTab)) {
+                /** Terminal activation normally moves focus into xterm. This marker exists only
+                 * for keyboard navigation and is removed on blur, so the Terminal process effect
+                 * can preserve the WAI-ARIA tab focus without changing mouse selection behavior. */
+                if (target.kind === 'terminal') targetTab.dataset.preserveTerminalFocus = 'true';
+                targetTab.focus();
+            }
+            selectWorkItem(target);
+        },
+        [items, selectedSessionId, selectWorkItem],
+    );
     return (
         <div
             ref={stripRef}
             className={cn(
-                'work-tabs flex h-11 items-end overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag] [&>.work-tab]:h-9',
+                'work-tabs flex h-11 items-end overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag]',
                 !sidebarVisible && 'pl-[78px]',
             )}
-            role="tablist"
-            aria-label="Open work"
         >
-            <LazyMotion strict features={domAnimation}>
-                {/* Keying this Fragment by Session remounts the whole subtree on Session switch:
-                    the fresh mount renders without enter keyframes (AnimatePresence's
-                    `initial={false}` only suppresses animation on first render of a subtree), and
-                    the previous subtree unmounts without exit keyframes. This replaces the old
-                    sessionIdRef-based "skip animation once" logic. */}
-                <Fragment key={selectedSessionId}>
-                    <AnimatePresence initial={false}>
-                        {items.map((item) =>
-                            item.kind === 'terminal' ? (
-                                <TerminalWorkTab
-                                    key={item.motionKey}
-                                    active={isActive(activeWork, {
-                                        kind: 'terminal',
-                                        terminalId: item.terminal.id,
-                                    })}
-                                    terminal={item.terminal}
-                                />
-                            ) : (
-                                <EditorWorkTab
-                                    key={item.motionKey}
-                                    active={isActive(activeWork, {
-                                        kind: 'editor',
-                                        path: item.path,
-                                    })}
-                                    motionIdentity={item.motionKey}
-                                    path={item.path}
-                                    preview={item.preview}
-                                />
-                            ),
-                        )}
-                    </AnimatePresence>
-                </Fragment>
-            </LazyMotion>
+            <div
+                className="work-tab-list flex h-9 flex-none items-stretch"
+                role="tablist"
+                aria-label="Open work"
+                aria-orientation="horizontal"
+            >
+                <LazyMotion strict features={domAnimation}>
+                    {/* Keying this Fragment by Session remounts the whole subtree on Session switch:
+                        the fresh mount renders without enter keyframes (AnimatePresence's
+                        `initial={false}` only suppresses animation on first render of a subtree), and
+                        the previous subtree unmounts without exit keyframes. This replaces the old
+                        sessionIdRef-based "skip animation once" logic. */}
+                    <Fragment key={selectedSessionId}>
+                        <AnimatePresence initial={false}>
+                            {items.map((item) =>
+                                item.kind === 'terminal' ? (
+                                    <TerminalWorkTab
+                                        key={item.motionKey}
+                                        active={isActive(activeWork, item.item)}
+                                        onNavigate={(key) => navigateWorkTabs(item.item, key)}
+                                        onSelect={() => selectWorkItem(item.item)}
+                                        tabId={
+                                            selectedSessionId
+                                                ? workTabId(selectedSessionId, item.item)
+                                                : ''
+                                        }
+                                        terminal={item.terminal}
+                                    />
+                                ) : (
+                                    <EditorWorkTab
+                                        key={item.motionKey}
+                                        active={isActive(activeWork, item.item)}
+                                        motionIdentity={item.motionKey}
+                                        onNavigate={(key) => navigateWorkTabs(item.item, key)}
+                                        onSelect={() => selectWorkItem(item.item)}
+                                        path={item.path}
+                                        preview={item.preview}
+                                        tabId={
+                                            selectedSessionId
+                                                ? workTabId(selectedSessionId, item.item)
+                                                : ''
+                                        }
+                                    />
+                                ),
+                            )}
+                        </AnimatePresence>
+                    </Fragment>
+                </LazyMotion>
+            </div>
             <div className="tab-actions flex h-9 flex-none items-center px-1 bg-surface [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
                     <Button

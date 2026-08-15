@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +13,7 @@ import { defaultAgentProviderSettings } from '../../../../shared/agents';
 import type { RuntimeEvent } from '../../../../shared/ipc';
 import { StructuredLogger } from '../../../../shared/node/logger';
 import type { AgentLifecycleSignal } from '../contract';
-import { AgentHookManager } from '../manager';
+import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 
 const execFileAsync = promisify(execFile);
@@ -432,6 +432,90 @@ describe('AgentHookManager', () => {
 
             expect(manager.getHealth().codex.kind).toBe('error');
             expect(await readFile(hooksPath, 'utf8')).toBe(malformed);
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('inspects and reconciles a symlinked foreign Codex hook policy without rewriting it', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-symlink-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const managedConfig = join(directory, 'dotfiles', 'config.toml');
+        const configPath = join(codexHome, 'config.toml');
+        const hooksPath = join(codexHome, 'hooks.json');
+        const foreignConfig = '[[hooks.Stop]]\ncommand = "foreign"\n';
+        await mkdir(codexHome, { recursive: true });
+        await mkdir(join(directory, 'dotfiles'), { recursive: true });
+        await writeFile(managedConfig, foreignConfig, 'utf8');
+        await symlink(managedConfig, configPath);
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger: new StructuredLogger(join(directory, 'logs')),
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => true),
+            runtimeExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+            await manager.reconcile(settings);
+
+            expect(manager.getHealth().codex).toEqual({
+                kind: 'conflict',
+                message: 'Codex already defines inline hooks in config.toml',
+            });
+            expect(await readFile(managedConfig, 'utf8')).toBe(foreignConfig);
+            expect((await lstat(configPath)).isSymbolicLink()).toBe(true);
+            await expect(lstat(hooksPath)).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('rejects an oversized Codex hook config before any adapter can inspect or rewrite it', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-oversized-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        await mkdir(codexHome, { recursive: true });
+        const hooksPath = join(codexHome, 'hooks.json');
+        const oversized = `{"hooks":{},"padding":"${'x'.repeat(MAX_AGENT_HOOK_CONFIG_BYTES)}"}\n`;
+        await writeFile(hooksPath, oversized, 'utf8');
+        const inspect = vi.spyOn(codexHookAdapter, 'inspect');
+        const render = vi.spyOn(codexHookAdapter, 'render');
+        const remove = vi.spyOn(codexHookAdapter, 'remove');
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger: new StructuredLogger(join(directory, 'logs')),
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => true),
+            runtimeExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+
+            expect(inspect).not.toHaveBeenCalled();
+            expect(render).not.toHaveBeenCalled();
+            expect(remove).not.toHaveBeenCalled();
+            expect(await readFile(hooksPath, 'utf8')).toBe(oversized);
+            const health = manager.getHealth().codex;
+            expect(health.kind).toBe('error');
+            if (health.kind === 'error') expect(health.message).toContain('exceeds');
         } finally {
             await manager.close();
         }

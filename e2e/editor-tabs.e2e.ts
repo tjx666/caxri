@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from './support/fixtures.ts';
 
@@ -101,6 +101,16 @@ async function tabMotionSettleMs(page: Page): Promise<number> {
         };
         return Math.max(durationMs('--motion-tab-enter'), durationMs('--motion-tab-exit'));
     });
+}
+
+async function expectTabControlsWorkSurface(page: Page, tab: Locator): Promise<void> {
+    const tabId = await tab.getAttribute('id');
+    const panelId = await tab.getAttribute('aria-controls');
+    expect(tabId).toBeTruthy();
+    expect(panelId).toBeTruthy();
+    const panel = page.locator(`[id="${panelId}"]`);
+    await expect(panel).toHaveAttribute('role', 'tabpanel');
+    await expect(panel).toHaveAttribute('aria-labelledby', tabId!);
 }
 
 test('editor previews pin and expose the standard close actions', async () => {
@@ -256,6 +266,88 @@ test('editor previews pin and expose the standard close actions', async () => {
         const closeEvents = await stopEditorPresenceProbe(running.page);
         expect(closeEvents.map((event) => event.kind)).toEqual(['exiting', 'removed']);
         expect(closeEvents[0]).toMatchObject({ ariaHidden: 'true', kind: 'exiting' });
+    } finally {
+        await running.app.close().catch(() => undefined);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Open Work tabs provide roving keyboard navigation and accessible state', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-a11y-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await writeFile(join(root, 'accessible.ts'), 'export const accessible = true;\n', 'utf8');
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const strip = running.page.getByRole('tablist', { name: 'Open work' });
+        const tabs = strip.getByRole('tab');
+        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await expect(tabs).toHaveCount(2);
+        await expect(strip.locator('.process-running')).toHaveCount(2);
+        await running.page.getByRole('treeitem', { name: 'accessible.ts', exact: true }).click();
+        await expect(tabs).toHaveCount(3);
+
+        const firstTerminal = tabs.nth(0);
+        const secondTerminal = tabs.nth(1);
+        const editor = tabs.nth(2);
+        await running.page.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.insertText(' ');
+
+        await expect
+            .poll(() => tabs.evaluateAll((elements) => elements.map((tab) => tab.tabIndex)))
+            .toEqual([-1, -1, 0]);
+        const editorDescriptionId = await editor.getAttribute('aria-describedby');
+        expect(editorDescriptionId).toBeTruthy();
+        await expect(running.page.locator(`[id="${editorDescriptionId}"]`)).toHaveText(
+            'Unsaved changes.',
+        );
+        const terminalDescriptionId = await firstTerminal.getAttribute('aria-describedby');
+        expect(terminalDescriptionId).toBeTruthy();
+        await expect(running.page.locator(`[id="${terminalDescriptionId}"]`)).toHaveText(
+            'Terminal is running',
+        );
+        await expectTabControlsWorkSurface(running.page, editor);
+
+        await editor.focus();
+        await running.page.keyboard.press('ArrowLeft');
+        await expect(secondTerminal).toBeFocused();
+        await expect(secondTerminal).toHaveAttribute('aria-selected', 'true');
+        const secondTerminalId = await secondTerminal
+            .locator('xpath=..')
+            .getAttribute('data-terminal-id');
+        expect(secondTerminalId).toBeTruthy();
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+        await running.page.evaluate(
+            () =>
+                new Promise<void>((resolve) =>
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+                ),
+        );
+        await expect(secondTerminal).toBeFocused();
+        await expectTabControlsWorkSurface(running.page, secondTerminal);
+
+        await secondTerminal.press('Home');
+        await expect(firstTerminal).toBeFocused();
+        await expect(firstTerminal).toHaveAttribute('aria-selected', 'true');
+        await firstTerminal.press('End');
+        await expect(editor).toBeFocused();
+        await expect(editor).toHaveAttribute('aria-selected', 'true');
+        await editor.press('ArrowRight');
+        await expect(firstTerminal).toBeFocused();
+        await expect(firstTerminal).toHaveAttribute('aria-selected', 'true');
+        await expectTabControlsWorkSurface(running.page, firstTerminal);
+
+        await firstTerminal.press('Tab');
+        await expect(
+            running.page.getByRole('button', { name: 'New Terminal', exact: true }),
+        ).toBeFocused();
     } finally {
         await running.app.close().catch(() => undefined);
         await rm(testDirectory, { recursive: true, force: true });

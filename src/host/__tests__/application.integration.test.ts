@@ -551,7 +551,7 @@ describe('Headless Host application', () => {
         applications.push(application);
 
         await expect(
-            HostClient.connect({ ...application.lease.manifest, protocolVersion: 2 }),
+            HostClient.connect({ ...application.lease.manifest, protocolVersion: 1 }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
 
         const first = await connectToHost(userDataPath, 2_000);

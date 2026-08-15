@@ -88,7 +88,7 @@ describe('Runtime business introspection', () => {
             const dispatch = createCommandDispatcher({ host: adapter });
             const context = { principal, capabilities: ['settings.write'] as const };
             const request = {
-                protocolVersion: 1,
+                protocolVersion: 2,
                 id: 'settings-once',
                 method: 'settings.patch',
                 params: {

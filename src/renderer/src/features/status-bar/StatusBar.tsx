@@ -34,7 +34,6 @@ import {
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utils';
-import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { sessionViewScope, useActiveWork } from '../../stores/session-view';
@@ -419,7 +418,6 @@ function useProjectOverview(sessionId: string | undefined) {
 const BRANCH_SWITCH_DEPENDENCIES = new Set<CaxriMethod>([
     'git.summary',
     'git.branches',
-    'git.diff',
     'git.diffDocument',
     'git.pullRequestChanges',
     'git.pullRequestDiffDocument',
@@ -599,7 +597,6 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
 }
 
 function showInspector(command: InspectorCommandId): void {
-    usePanelLayoutStore.getState().setInspectorVisible(true);
     executeCommand(command);
 }
 
