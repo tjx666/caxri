@@ -22,11 +22,7 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { setArchivedSessionsOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { deleteSession, unarchiveSession } from './session-actions';
-import {
-    consumeRequestedArchivedProjectId,
-    deriveArchivedSessionView,
-    type ArchivedSessionFilters,
-} from './archived-sessions';
+import { deriveArchivedSessionView, type ArchivedSessionFilters } from './archived-sessions';
 
 const NO_RECORDS: never[] = [];
 const archivedTimestampFormatter = new Intl.DateTimeFormat(undefined, {
@@ -50,21 +46,6 @@ export function ArchivedSessionsDialog() {
         () => deriveArchivedSessionView(projects, sessions, terminals, { agent, projectId, query }),
         [agent, projectId, projects, query, sessions, terminals],
     );
-    /**
-     * Consumes a per-Project badge's deep-link exactly once, on the open transition. Adjusted
-     * during render rather than in an Effect, per React's "storing information from previous
-     * renders" pattern — an Effect body calling setState synchronously is a cascading-render
-     * anti-pattern the lint config blocks.
-     */
-    const [wasOpen, setWasOpen] = useState(open);
-    if (open !== wasOpen) {
-        setWasOpen(open);
-        if (open) {
-            const requestedProjectId = consumeRequestedArchivedProjectId();
-            if (requestedProjectId) setProjectId(requestedProjectId);
-        }
-    }
-
     const selectedProject = view.projectOptions.find((project) => project.id === view.projectId);
     const agentLabel = agent === 'all' ? 'All Agents' : resolveAgentIcon(agent).label;
     const clearFilters = (): void => {

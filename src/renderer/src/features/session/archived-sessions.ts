@@ -31,24 +31,6 @@ interface ArchivedSessionView {
 /** Stable display order for Agent filter options; only kinds actually present in the archive show. */
 const AGENT_ORDER: TerminalKind[] = ['shell', 'claude', 'codex'];
 
-let requestedProjectId: string | undefined;
-
-/**
- * Lets a per-Project archived-count affix (`ProjectGroup`) deep-link into the centralized Archived
- * Sessions dialog pre-filtered to that Project, without adding a field to the shared dialog store
- * (`stores/dialogs.ts` is out of this work package's file set). The dialog consumes this exactly
- * once, on its next open.
- */
-export function requestArchivedSessionsForProject(projectId: string): void {
-    requestedProjectId = projectId;
-}
-
-export function consumeRequestedArchivedProjectId(): string | undefined {
-    const projectId = requestedProjectId;
-    requestedProjectId = undefined;
-    return projectId;
-}
-
 /** Builds the archived management read model from the existing bootstrap snapshot. */
 export function deriveArchivedSessionView(
     projects: readonly ProjectRecord[],
