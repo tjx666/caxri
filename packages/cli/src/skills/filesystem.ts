@@ -28,6 +28,7 @@ import {
     isSameIdentity,
     LAYOUT_FILE,
     MARKER_FILE,
+    MAX_TREE_DEPTH,
     ownedRecord,
     RELEASE_OWNER_FILE,
     RELEASES_DIRECTORY,
@@ -40,7 +41,6 @@ import {
 
 const LOCK_FILE = '.caxri-cli.lock';
 const MAX_REMOVAL_ENTRIES = 1_024;
-const MAX_TREE_DEPTH = 8;
 
 export interface ManagedSkillBundle {
     files: Readonly<Record<string, string>>;

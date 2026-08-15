@@ -3,11 +3,11 @@ import { lstat, open, opendir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 export const LAYOUT_FILE = '.caxri-layout.json';
-export const LAYOUT_SCHEMA = 1;
+const LAYOUT_SCHEMA = 1;
 export const MARKER_FILE = '.caxri-skill.json';
-export const MAX_DIRECTORY_ENTRIES = 32;
-export const MAX_FILE_BYTES = 256 * 1024;
-export const MAX_MANAGED_FILES = 16;
+const MAX_DIRECTORY_ENTRIES = 32;
+const MAX_FILE_BYTES = 256 * 1024;
+const MAX_MANAGED_FILES = 16;
 export const MAX_TREE_DEPTH = 8;
 export const RELEASE_OWNER_FILE = '.caxri-release.json';
 export const RELEASES_DIRECTORY = 'releases';

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 export const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
-export const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
+const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 
 export function errorCode(error: unknown): string | undefined {
     if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
@@ -42,7 +42,7 @@ async function ensureDirectDirectory(path: string): Promise<void> {
     }
 }
 
-export async function validateRecordsRoot(): Promise<string> {
+async function validateRecordsRoot(): Promise<string> {
     const metadata = await lstat(RECORDS_ROOT);
     if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
         throw new Error('Acceptance report path must not contain symbolic links: .records');
