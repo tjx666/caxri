@@ -94,6 +94,23 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   only public package entrypoint. Domain barrels stay thin; tests live in domain-local `__tests__/`
   directories.
 
+## Compatibility policy
+
+- Until Caxri has a public release, optimize for the current architecture instead of preserving
+  compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
+  dual-read/write paths, or migration UI only to keep an unpublished build running; fail clearly
+  and direct the operator to a documented reset or reinstall workflow.
+- Database schema migrations remain allowed during active development so the current working data
+  can evolve safely and upgrade behavior stays exercised. Do not treat schema migrations as a
+  reason to preserve unrelated runtime, Host protocol, CLI, or UI compatibility layers.
+- Before the public compatibility commitment, the owner may declare an explicit clean-install
+  cutoff: squash or remove pre-release schema migrations and legacy compatibility code, verify the
+  destructive reset/uninstall tooling, and require a reinstall. Never infer this cutoff or delete
+  local data without explicit user authorization.
+- After a public release, backward compatibility becomes a product contract. Removing migrations
+  or compatibility paths then requires an explicit release policy, a supported upgrade path, and
+  validation against already released versions.
+
 ## Architecture guardrails
 
 - Validate filesystem paths against the selected Session's authorized Project root. Git may access

@@ -48,16 +48,12 @@ standalone distribution and `Contents/Resources/cli/caxri.cjs` are copied from t
 with `ELECTRON_RUN_AS_NODE=1`. Packaging must preserve executable bits, explicitly keep the
 `RunAsNode` fuse enabled, and prove byte identity between the standalone and embedded bundle.
 
-Protocol v2 retains one migration-only CLI control for an already-running v1 Host. Main may use
-that fixed v1 operator handshake only to read `host.status`, request `host.stop` after explicit user
-confirmation, and verify that the same Host identity released the profile before retrying v2. It is
-not protocol negotiation or a general v1 compatibility mode: Desktop, Runtime, event, and Project
-commands remain v2-only.
-
-If that legacy identity disappears before or during confirmation, Main returns to ordinary Host
-detection instead of treating absence as an unsafe upgrade. An incompatible discovery manifest is
-replaceable only when its recorded process is confirmed dead; the new Host's profile lock performs
-the stale takeover. Neither the CLI nor Main kills a PID or unlinks discovery data directly.
+Before a public release, an incompatible live Host fails startup instead of entering a protocol
+migration flow. Main shows the repository-owned uninstall/reset command and quits; that explicit,
+dry-run-first tool owns graceful Host termination and recoverable local-state removal. A dead Host's
+stale discovery record remains replaceable through the profile lock. Database schema migrations are
+independent and continue to preserve the active development database until an explicit clean-install
+cutoff.
 
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 

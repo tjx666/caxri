@@ -95,26 +95,6 @@ export function deleteSessionPrompt(title: string, runningTerminals: number): Me
     return deletePrompt('Session', title, runningTerminals, 'The selected directory');
 }
 
-/**
- * A v1 Host can keep running after its Desktop exits. Replacing it is destructive only to its live
- * Terminal processes, so Quit owns both Enter and Escape and the copy distinguishes the observed
- * count from the later stop boundary.
- */
-export function legacyHostUpgradePrompt(activePtyCount: number): MessageBoxOptions {
-    const detail =
-        activePtyCount > 0
-            ? `The older Host currently owns ${activePtyCount} live Terminal process${activePtyCount === 1 ? '' : 'es'}. Continuing stops it and terminates every Terminal still running at that moment. Projects and user files are never deleted.`
-            : 'The older Host currently reports no live Terminal processes. Continuing stops it; if a Terminal starts first, Caxri cancels the upgrade instead of terminating it without confirmation. Projects and user files are never deleted.';
-    return {
-        buttons: ['Quit', 'Continue'],
-        cancelId: 0,
-        defaultId: 0,
-        detail,
-        message: 'An older Caxri Host is still running',
-        type: 'warning',
-    };
-}
-
 export type DiscardChoice = 'save' | 'discard' | 'cancel';
 
 export function unsavedChangesPrompt(name: string): MessageBoxOptions {
