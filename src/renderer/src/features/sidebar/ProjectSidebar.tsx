@@ -1,4 +1,4 @@
-import { Archive, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -15,7 +15,6 @@ import {
     useTerminals,
 } from '../../stores/selectors';
 import { archiveSession, beginSessionCreation, selectProject } from '../session/session-actions';
-import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { hasProjectDragType } from './project-order';
 import { ProjectGroup } from './ProjectGroup';
 import {
@@ -41,7 +40,6 @@ export function ProjectSidebar() {
     const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
     const projectOrder = useProjectOrder(projects);
-    const archivedCount = sessions.filter((session) => session.archivedAt !== undefined).length;
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
     /** The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution. */
@@ -279,23 +277,6 @@ export function ProjectSidebar() {
                 <div className="project-order-announcement sr-only" aria-live="polite">
                     {projectOrder.projectOrderAnnouncement}
                 </div>
-            </div>
-            <div className="border-t border-border p-2">
-                <Button
-                    className="archived-sessions-entry w-full justify-start text-muted hover:text-foreground"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setArchivedSessionsOpen(true)}
-                >
-                    <Archive aria-hidden="true" size={14} />
-                    <span className="min-w-0 flex-1 truncate text-left">Archived Sessions</span>
-                    <span
-                        className="min-w-5 rounded-full bg-elevated px-1.5 text-center text-[10px] tabular-nums text-foreground"
-                        data-archived-count={archivedCount}
-                    >
-                        {archivedCount}
-                    </span>
-                </Button>
             </div>
         </aside>
     );

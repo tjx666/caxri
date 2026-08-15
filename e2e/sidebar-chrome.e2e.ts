@@ -281,14 +281,9 @@ test('Session rows support keyboard selection independently from rename', async 
             'none',
         );
 
-        // A single Tab from the roving row leaves the tree entirely and lands on the "Archived
-        // Sessions" footer button — the tree's only other reachable Tab stop. Asserted before the
-        // Space selection below: selecting a Session deliberately hands focus to its Terminal
-        // (`use-terminal-pane.ts` focuses the newly active pane), so Tab must start from a row
-        // that was focused without changing the selection.
-        const archivedEntry = running.page.locator('.archived-sessions-entry');
-        await running.page.keyboard.press('Tab');
-        await expect(archivedEntry).toBeFocused();
+        // The sidebar no longer hosts an "Archived Sessions" footer entry (the manager moved to
+        // Settings), so the roving row is the tree's only Tab stop.
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveCount(0);
 
         await firstCard.focus();
         await firstCard.press('Space');
@@ -584,10 +579,8 @@ test('Session archive hides active navigation without stopping Terminals and can
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeArchive);
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
-        const archived = running.page.getByRole('button', { name: /Archived Sessions/ });
-        await expect(archived).toContainText('1');
-        // The per-Project heading also grows an archived-count affix (`ProjectGroup.tsx`); assert
-        // it alongside the footer's global count so a regression in either surface is caught.
+        // The sidebar footer entry is gone (the manager lives in Settings now); the per-Project
+        // heading affix (`ProjectGroup.tsx`) is the sidebar's only archived-count surface.
         const projectArchivedBadge = running.page.locator('.project-archived-count');
         await expect(projectArchivedBadge).toHaveText('1');
         // Derived from `root` rather than hardcoded: the badge scopes its accessible name with the
@@ -595,7 +588,7 @@ test('Session archive hides active navigation without stopping Terminals and can
         await expect(projectArchivedBadge).toHaveAccessibleName(
             `1 archived Session in ${basename(root)}`,
         );
-        await archived.click();
+        await projectArchivedBadge.click();
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
         await dialog.getByLabel('Search').fill('investigation');
@@ -613,7 +606,6 @@ test('Session archive hides active navigation without stopping Terminals and can
             .toBe(runningBeforeArchive);
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
-        await expect(archived).toContainText('0');
         // Restoring the last archived Session in the Project drops the affix entirely (it only
         // renders while `archivedCount > 0`).
         await expect(projectArchivedBadge).toHaveCount(0);
@@ -646,9 +638,14 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await archivedSourceRow.getByRole('button', { name: /^Archive / }).click();
         await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
 
-        const archivedEntry = running.page.getByRole('button', { name: /Archived Sessions/ });
-        await expect(archivedEntry).toContainText('1');
-        await archivedEntry.click();
+        // The manager's global entry point lives in Settings now, not in the sidebar.
+        await running.page.keyboard.press('Meta+,');
+        const settingsDialog = running.page
+            .getByRole('dialog')
+            .filter({ has: running.page.getByRole('heading', { name: 'Settings' }) });
+        await settingsDialog.locator('.archived-sessions-entry').click();
+        // Opening the manager closes Settings first, so only one dialog remains.
+        await expect(settingsDialog).toHaveCount(0);
         const dialog = running.page.getByRole('dialog');
         const archivedRow = dialog.locator('.archived-manager-row');
         await expect(archivedRow).toHaveCount(1);
@@ -669,7 +666,8 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await expect(dialog.getByText('No archived Sessions yet')).toBeVisible();
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
-        await expect(archivedEntry).toContainText('0');
+        // Deleting the last archived Session clears the sidebar's per-Project archived badge.
+        await expect(running.page.locator('.project-archived-count')).toHaveCount(0);
         const snapshot = await pageRequest<{ sessions: Array<{ id: string }> }>(
             running.page,
             'app.bootstrap',
