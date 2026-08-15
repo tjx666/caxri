@@ -71,7 +71,7 @@ describe('Runtime bug report delivery', () => {
                     pasteImage: false,
                     report,
                     sessionId: claude.session.id,
-                    terminalId: claude.terminal.id,
+                    terminalId: claude.terminal!.id,
                 }),
             ).toBeNull();
             expect(write).toHaveBeenCalledWith(`\u001B[200~${report}\u001B[201~\r`);
@@ -80,7 +80,7 @@ describe('Runtime bug report delivery', () => {
                     pasteImage: false,
                     report,
                     sessionId: shell.session.id,
-                    terminalId: claude.terminal.id,
+                    terminalId: claude.terminal!.id,
                 }),
             ).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
             expect(() =>
@@ -88,7 +88,7 @@ describe('Runtime bug report delivery', () => {
                     pasteImage: true,
                     report,
                     sessionId: claude.session.id,
-                    terminalId: claude.terminal.id,
+                    terminalId: claude.terminal!.id,
                 }),
             ).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
 
@@ -102,17 +102,17 @@ describe('Runtime bug report delivery', () => {
                     pasteImage: true,
                     report,
                     sessionId: codex.session.id,
-                    terminalId: codex.terminal.id,
+                    terminalId: codex.terminal!.id,
                 }),
             ).toBeNull();
             expect(write.mock.calls).toEqual([['\x16'], [`\u001B[200~${report}\u001B[201~\r`]]);
-            await runtime.handlers['terminal.close']({ terminalId: claude.terminal.id });
+            await runtime.handlers['terminal.close']({ terminalId: claude.terminal!.id });
             expect(() =>
                 runtime.handlers['bugReport.deliver']({
                     pasteImage: false,
                     report,
                     sessionId: claude.session.id,
-                    terminalId: claude.terminal.id,
+                    terminalId: claude.terminal!.id,
                 }),
             ).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }));
         } finally {

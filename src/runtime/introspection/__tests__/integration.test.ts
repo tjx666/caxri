@@ -75,7 +75,7 @@ describe('Runtime business introspection', () => {
                     principal,
                     query: { mode: 'list', sessionId: created.session.id },
                 }),
-            ).toMatchObject({ terminals: [{ id: created.terminal.id }] });
+            ).toMatchObject({ terminals: [{ id: created.terminal!.id }] });
 
             const adapter: CommandAdapter = {
                 invoke: (request) => {

@@ -64,8 +64,8 @@ describe('TerminalManager color-query replies', () => {
         );
 
         try {
-            await manager.start(created.terminal);
-            await manager.attach(created.terminal.id);
+            await manager.start(created.terminal!);
+            await manager.attach(created.terminal!.id);
             /** The exact probe Codex sends at TUI startup (see codex-rs `terminal_probe.rs`). */
             fake.emitData('boot\x1b]10;?\x1b\\\x1b]11;?\x1b\\ready');
             await vi.advanceTimersByTimeAsync(50);
@@ -73,9 +73,9 @@ describe('TerminalManager color-query replies', () => {
             expect(fake.write).toHaveBeenCalledWith('\x1b]10;rgb:f8f8/f8f8/f2f2\x1b\\');
             expect(fake.write).toHaveBeenCalledWith('\x1b]11;rgb:2828/2a2a/3636\x1b\\');
             expect(output).toBe('bootready');
-            expect(database.getSnapshot(created.terminal.id)?.payload).toBe('bootready');
+            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe('bootready');
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
             vi.useRealTimers();
         }
@@ -91,7 +91,7 @@ describe('TerminalManager color-query replies', () => {
             encodingVersion: 1,
             lineCount: 1,
             payload: 'before\x1b]11;?\x1b\\after',
-            terminalId: created.terminal.id,
+            terminalId: created.terminal!.id,
             updatedAt: Date.now(),
         });
         const fake = createFakePty();
@@ -103,10 +103,10 @@ describe('TerminalManager color-query replies', () => {
         );
 
         try {
-            await manager.start(created.terminal);
-            expect(database.getSnapshot(created.terminal.id)?.payload).toBe('beforeafter');
+            await manager.start(created.terminal!);
+            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe('beforeafter');
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });

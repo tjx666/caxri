@@ -89,20 +89,20 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
+            await manager.start(created.terminal!);
             expect(spawn.mock.calls[0]?.[2].env).toMatchObject({
                 CAXRI_HOOK_LAUNCH_ID: 'launch-1',
                 CAXRI_HOOK_TOKEN: 'token-1',
             });
 
-            await manager.restart(created.terminal.id);
-            expect(retired).toHaveBeenCalledWith(created.terminal.id);
+            await manager.restart(created.terminal!.id);
+            expect(retired).toHaveBeenCalledWith(created.terminal!.id);
             expect(spawn.mock.calls[1]?.[2].env).toMatchObject({
                 CAXRI_HOOK_LAUNCH_ID: 'launch-2',
                 CAXRI_HOOK_TOKEN: 'token-2',
             });
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -134,7 +134,7 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
+            await manager.start(created.terminal!);
             expect(spawn.mock.calls[0]?.[0]).toBe('/bin/echo');
             expect(spawn.mock.calls[0]?.[1]).toEqual(['--profile', 'focused']);
             expect(spawn.mock.calls[0]?.[2]).toMatchObject({
@@ -147,7 +147,7 @@ describe('TerminalManager', () => {
                 },
             });
 
-            await manager.restart(created.terminal.id, {
+            await manager.restart(created.terminal!.id, {
                 resumeAgentSessionId: 'conversation-1',
             });
             expect(spawn).toHaveBeenNthCalledWith(
@@ -158,7 +158,7 @@ describe('TerminalManager', () => {
             );
         } finally {
             for (const fake of spawned) fake.kill();
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -199,11 +199,11 @@ describe('TerminalManager', () => {
 
         try {
             await expect(
-                manager.start(created.terminal, { resumeAgentSessionId: 'persisted-session' }),
+                manager.start(created.terminal!, { resumeAgentSessionId: 'persisted-session' }),
             ).rejects.toThrow('does not resume persisted Agent sessions');
             expect(spawn).not.toHaveBeenCalled();
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -240,7 +240,7 @@ describe('TerminalManager', () => {
         );
 
         try {
-            const starting = manager.start(created.terminal);
+            const starting = manager.start(created.terminal!);
             await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledOnce());
             launch = { executable: '/new/codex', args: ['--new-profile'] };
             finishResolution!();
@@ -253,7 +253,7 @@ describe('TerminalManager', () => {
             expect(spawn).toHaveBeenCalledWith('/old/codex', ['--old-profile'], expect.any(Object));
         } finally {
             fake.kill();
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -274,10 +274,10 @@ describe('TerminalManager', () => {
             },
         );
 
-        await manager.start(created.terminal);
+        await manager.start(created.terminal!);
         failed.emitExit({ exitCode: 127 });
 
-        expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('dead');
+        expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead');
         expect(manager.runningCount()).toBe(0);
         expect(database.listProjects()).toHaveLength(1);
         database.close();
@@ -303,14 +303,14 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
+            await manager.start(created.terminal!);
             for (let index = 0; index < 100; index += 1) fake.emitData(`line-${index}\n`);
             await vi.advanceTimersByTimeAsync(4_999);
             expect(saveSnapshot).not.toHaveBeenCalled();
             await vi.advanceTimersByTimeAsync(1);
             expect(saveSnapshot).toHaveBeenCalledOnce();
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
             vi.useRealTimers();
         }
@@ -338,19 +338,19 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
-            await manager.attach(created.terminal.id);
+            await manager.start(created.terminal!);
+            await manager.attach(created.terminal!.id);
             const image = '\x1b]1337;File=inline=1:PNG_SECRET\x07';
             fake.emitData(`before${image}after`);
             await vi.advanceTimersByTimeAsync(50);
 
             expect(output).toContain(image);
-            expect(database.getSnapshot(created.terminal.id)?.payload).toBe(
+            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe(
                 `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
             );
-            expect(database.getSnapshot(created.terminal.id)?.payload).not.toContain('PNG_SECRET');
+            expect(database.getSnapshot(created.terminal!.id)?.payload).not.toContain('PNG_SECRET');
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
             vi.useRealTimers();
         }
@@ -366,7 +366,7 @@ describe('TerminalManager', () => {
             encodingVersion: 1,
             lineCount: 1,
             payload: 'before\x1b]1337;File=inline=1:OLD_SECRET\x07after',
-            terminalId: created.terminal.id,
+            terminalId: created.terminal!.id,
             updatedAt: Date.now(),
         });
         const fake = createFakePty();
@@ -378,13 +378,13 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
+            await manager.start(created.terminal!);
 
-            expect(database.getSnapshot(created.terminal.id)?.payload).toBe(
+            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe(
                 `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
             );
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -406,8 +406,8 @@ describe('TerminalManager', () => {
             },
         );
 
-        const starting = manager.start(created.terminal);
-        manager.close(created.terminal.id);
+        const starting = manager.start(created.terminal!);
+        manager.close(created.terminal!.id);
         executable.resolve('/bin/zsh');
         const result = await starting.catch((error: unknown) => error);
 
@@ -416,7 +416,7 @@ describe('TerminalManager', () => {
             expect(manager.runningCount()).toBe(0);
             expect(fake.kill).toHaveBeenCalledOnce();
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -436,7 +436,7 @@ describe('TerminalManager', () => {
         );
         let isCurrent = true;
 
-        const starting = manager.start(created.terminal, { shouldStart: () => isCurrent });
+        const starting = manager.start(created.terminal!, { shouldStart: () => isCurrent });
         isCurrent = false;
         executable.resolve('/bin/zsh');
 
@@ -445,7 +445,7 @@ describe('TerminalManager', () => {
             expect(spawn).not.toHaveBeenCalled();
             expect(manager.runningCount()).toBe(0);
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -466,10 +466,10 @@ describe('TerminalManager', () => {
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
-        await manager.start(created.terminal);
-        await manager.attach(created.terminal.id);
+        await manager.start(created.terminal!);
+        await manager.attach(created.terminal!.id);
         fake.emitData('queued exactly once');
-        expect((await manager.attach(created.terminal.id))?.payload).toContain(
+        expect((await manager.attach(created.terminal!.id))?.payload).toContain(
             'queued exactly once',
         );
         await new Promise((resolve) => setTimeout(resolve, 30));
@@ -477,7 +477,7 @@ describe('TerminalManager', () => {
         try {
             expect(output).toBe('');
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -496,16 +496,16 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
-            expect(manager.resize(created.terminal.id, 100, 30)).toBe(true);
+            await manager.start(created.terminal!);
+            expect(manager.resize(created.terminal!.id, 100, 30)).toBe(true);
             expect(fake.resize).not.toHaveBeenCalled();
 
-            expect(manager.resize(created.terminal.id, 120, 40)).toBe(true);
-            expect(manager.resize(created.terminal.id, 120, 40)).toBe(true);
+            expect(manager.resize(created.terminal!.id, 120, 40)).toBe(true);
+            expect(manager.resize(created.terminal!.id, 120, 40)).toBe(true);
             expect(fake.resize).toHaveBeenCalledOnce();
             expect(fake.resize).toHaveBeenCalledWith(120, 40);
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -524,13 +524,13 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.start(created.terminal);
-            await manager.attach(created.terminal.id, { cols: 80, rows: 24 });
+            await manager.start(created.terminal!);
+            await manager.attach(created.terminal!.id, { cols: 80, rows: 24 });
 
             expect(fake.resize).toHaveBeenCalledOnce();
             expect(fake.resize).toHaveBeenCalledWith(80, 24);
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -550,12 +550,12 @@ describe('TerminalManager', () => {
         );
 
         try {
-            await manager.attach(created.terminal.id, { cols: 132, rows: 41 });
-            await manager.start(created.terminal);
+            await manager.attach(created.terminal!.id, { cols: 132, rows: 41 });
+            await manager.start(created.terminal!);
 
             expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cols: 132, rows: 41 });
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -575,16 +575,16 @@ describe('TerminalManager', () => {
         );
 
         try {
-            const starting = manager.start(created.terminal, { waitForAttachedSizeMs: 1_000 });
+            const starting = manager.start(created.terminal!, { waitForAttachedSizeMs: 1_000 });
             await new Promise((resolve) => setTimeout(resolve, 0));
             expect(spawn).not.toHaveBeenCalled();
 
-            await manager.attach(created.terminal.id, { cols: 132, rows: 41 });
+            await manager.attach(created.terminal!.id, { cols: 132, rows: 41 });
             await starting;
 
             expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cols: 132, rows: 41 });
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -602,7 +602,7 @@ describe('TerminalManager', () => {
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
         let shouldStart = true;
-        const starting = manager.start(created.terminal, {
+        const starting = manager.start(created.terminal!, {
             shouldStart: () => shouldStart,
             waitForAttachedSizeMs: 100,
         });
@@ -638,7 +638,7 @@ describe('TerminalManager', () => {
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
         const cancellation = new AbortController();
-        const starting = manager.start(created.terminal, {
+        const starting = manager.start(created.terminal!, {
             abortSignal: cancellation.signal,
             shouldStart: () => !cancellation.signal.aborted,
             waitForAttachedSizeMs: 100,
@@ -677,15 +677,15 @@ describe('TerminalManager', () => {
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
-        await manager.start(created.terminal);
-        await manager.attach(created.terminal.id);
+        await manager.start(created.terminal!);
+        await manager.attach(created.terminal!.id);
         fake.emitData('discard with closing view');
         manager.detachAllViews();
         await new Promise((resolve) => setTimeout(resolve, 30));
 
         expect(output).toBe('');
         expect(manager.runningCount()).toBe(1);
-        manager.close(created.terminal.id);
+        manager.close(created.terminal!.id);
         database.close();
     });
 
@@ -702,10 +702,10 @@ describe('TerminalManager', () => {
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
-        await manager.start(created.terminal);
+        await manager.start(created.terminal!);
         fake.emitExit({ exitCode: 0, signal: 9 });
 
-        expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('dead');
+        expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead');
         database.close();
     });
 
@@ -725,21 +725,21 @@ describe('TerminalManager', () => {
             { onOutputActivity, snapshotIntervalMs: 50 },
         );
 
-        await manager.start(created.terminal);
-        manager.write(created.terminal.id, "printf 'DETACHED_ONLY\\n'\r");
+        await manager.start(created.terminal!);
+        manager.write(created.terminal!.id, "printf 'DETACHED_ONLY\\n'\r");
         await expect
-            .poll(() => database.getSnapshot(created.terminal.id)?.payload)
+            .poll(() => database.getSnapshot(created.terminal!.id)?.payload)
             .toContain('DETACHED_ONLY');
-        expect(onOutputActivity).toHaveBeenCalledWith(created.terminal.id, expect.any(Number));
+        expect(onOutputActivity).toHaveBeenCalledWith(created.terminal!.id, expect.any(Number));
         expect(output).not.toContain('DETACHED_ONLY');
-        expect((await manager.attach(created.terminal.id))?.payload).toContain('DETACHED_ONLY');
+        expect((await manager.attach(created.terminal!.id))?.payload).toContain('DETACHED_ONLY');
 
-        manager.write(created.terminal.id, "printf 'ATTACHED_OUTPUT\\n'\r");
+        manager.write(created.terminal!.id, "printf 'ATTACHED_OUTPUT\\n'\r");
         await expect.poll(() => output).toContain('ATTACHED_OUTPUT');
-        manager.detachView(created.terminal.id);
-        manager.write(created.terminal.id, "printf 'DETACHED_AGAIN\\n'\r");
+        manager.detachView(created.terminal!.id);
+        manager.write(created.terminal!.id, "printf 'DETACHED_AGAIN\\n'\r");
         await expect
-            .poll(() => database.getSnapshot(created.terminal.id)?.payload)
+            .poll(() => database.getSnapshot(created.terminal!.id)?.payload)
             .toContain('DETACHED_AGAIN');
         expect(output).not.toContain('DETACHED_AGAIN');
 
@@ -765,19 +765,19 @@ describe('TerminalManager', () => {
             },
         );
 
-        await manager.start(created.terminal);
-        await manager.attach(created.terminal.id);
-        manager.detachView(created.terminal.id);
+        await manager.start(created.terminal!);
+        await manager.attach(created.terminal!.id);
+        manager.detachView(created.terminal!.id);
         fake.emitData('\u001B[2J\u001B[HRETAINED_HEADER');
         const cursorUpdate = '\u001B[2;1Hprogress';
         fake.emitData(
             cursorUpdate.repeat(Math.ceil((maximumSnapshotBytes + 65_536) / cursorUpdate.length)),
         );
 
-        const snapshot = await manager.attach(created.terminal.id);
+        const snapshot = await manager.attach(created.terminal!.id);
         expect(snapshot?.payload.includes('RETAINED_HEADER')).toBe(true);
 
-        manager.close(created.terminal.id);
+        manager.close(created.terminal!.id);
         database.close();
     });
 });

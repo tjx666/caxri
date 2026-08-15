@@ -123,7 +123,7 @@ describe('Runtime composition root', () => {
                 projectId: project.id,
                 defaultAgent: 'shell',
             });
-            expect(original.terminal.cwd).toBe(project.rootPath);
+            expect(original.terminal!.cwd).toBe(project.rootPath);
 
             const currentSettings = await runtime.handlers['settings.get']({});
             await runtime.handlers['settings.update']({
@@ -141,7 +141,7 @@ describe('Runtime composition root', () => {
                 kind: 'shell',
             });
             const canonicalCustomRoot = await realpath(customRoot);
-            expect(customized.terminal.cwd).toBe(canonicalCustomRoot);
+            expect(customized.terminal!.cwd).toBe(canonicalCustomRoot);
             expect(additional.cwd).toBe(canonicalCustomRoot);
 
             const projectLocal = await runtime.handlers['terminal.create']({
@@ -299,7 +299,7 @@ describe('Runtime composition root', () => {
                 defaultAgent: 'shell',
             });
             expect(created.session.projectId).toBe(project.id);
-            expect(created.terminal.lastProcessState).toBe('running');
+            expect(created.terminal!.lastProcessState).toBe('running');
 
             const entries = await handlers['files.list']({ sessionId: created.session.id });
             expect(entries.map((entry) => entry.name)).toContain('README.md');
@@ -315,18 +315,18 @@ describe('Runtime composition root', () => {
             expect(populated.selectedSessionId).toBe(created.session.id);
             /** Live PTY identity is Runtime state, not durable metadata, so it must come from the manager. */
             expect(populated.terminals[0]).toMatchObject({
-                id: created.terminal.id,
+                id: created.terminal!.id,
                 processId: 4242,
             });
             expect(await handlers['terminal.runningCount']({})).toBe(1);
             expect(
                 await handlers['app.records']({
                     sessionIds: [created.session.id],
-                    terminalIds: [created.terminal.id],
+                    terminalIds: [created.terminal!.id],
                 }),
             ).toMatchObject({
                 sessions: [{ id: created.session.id }],
-                terminals: [{ id: created.terminal.id, processId: 4242 }],
+                terminals: [{ id: created.terminal!.id, processId: 4242 }],
             });
 
             const remaining = await handlers['session.delete']({ sessionId: created.session.id });
@@ -349,7 +349,7 @@ describe('Runtime composition root', () => {
             expect(
                 await handlers['app.records']({
                     sessionIds: [created.session.id, 'missing-session'],
-                    terminalIds: [created.terminal.id, 'missing-terminal'],
+                    terminalIds: [created.terminal!.id, 'missing-terminal'],
                 }),
             ).toEqual({ sessions: [], terminals: [] });
         } finally {
@@ -475,7 +475,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             projectId: project.id,
             defaultAgent: 'claude',
         });
-        expect(created.terminal.provider).toBe('claude');
+        expect(created.terminal!.provider).toBe('claude');
         /** Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`. */
         await runtimeA.close();
 
@@ -483,10 +483,10 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             through the raw better-sqlite3 handle because `updateAgentMetadata` requires a matching
             provider snapshot, which this hermetic test does not produce. */
         const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
-        expect(direct.getTerminal(created.terminal.id)?.lastProcessState).toBe('interrupted');
+        expect(direct.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
         direct.database
             .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-            .run('sess-resume-1', created.terminal.id);
+            .run('sess-resume-1', created.terminal!.id);
         direct.close();
 
         const spawnSpy = vi.fn();
@@ -505,12 +505,12 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
 
             const bootstrap = await vi.waitFor(async () => {
                 const state = await runtimeB.handlers['app.bootstrap']({});
-                const terminal = state.terminals.find((entry) => entry.id === created.terminal.id);
+                const terminal = state.terminals.find((entry) => entry.id === created.terminal!.id);
                 expect(terminal?.lastProcessState).toBe('running');
                 return state;
             });
             const restoredTerminal = bootstrap.terminals.find(
-                (entry) => entry.id === created.terminal.id,
+                (entry) => entry.id === created.terminal!.id,
             );
             expect(restoredTerminal?.agentSessionId).toBe('sess-resume-1');
         } finally {
@@ -580,7 +580,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                 )
                     throw new Error('Missing scoped restore event');
                 expect(new Set(restored.payload.terminalIds)).toEqual(
-                    new Set([created.terminal.id, second.id]),
+                    new Set([created.terminal!.id, second.id]),
                 );
             });
         } finally {
@@ -629,7 +629,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             await runtimeB.handlers['terminal.terminateAll']({});
             const afterTerminate = await runtimeB.handlers['app.bootstrap']({});
             expect(
-                afterTerminate.terminals.find((entry) => entry.id === created.terminal.id)
+                afterTerminate.terminals.find((entry) => entry.id === created.terminal!.id)
                     ?.lastProcessState,
             ).toBe('stopped');
         } finally {
@@ -707,11 +707,11 @@ describe('selected Session Agent probes', () => {
 
         try {
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(1));
-            expect(snapshot.mock.calls[0]?.[0].correlationId).toBe(selected.terminal.id);
+            expect(snapshot.mock.calls[0]?.[0].correlationId).toBe(selected.terminal!.id);
 
             await runtimeB.handlers['session.select']({ sessionId: first.session.id });
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
-            expect(snapshot.mock.calls[1]?.[0].correlationId).toBe(first.terminal.id);
+            expect(snapshot.mock.calls[1]?.[0].correlationId).toBe(first.terminal!.id);
         } finally {
             await runtimeB.close();
         }
@@ -755,7 +755,7 @@ describe('Session state recovery', () => {
                 (state) => state.sessionId === created.session.id,
             );
             expect(repaired).toMatchObject({ openTabs: [], inspectorMode: 'files' });
-            expect(listLayoutTerminalIds(repaired?.layout ?? {})).toEqual([created.terminal.id]);
+            expect(listLayoutTerminalIds(repaired?.layout ?? {})).toEqual([created.terminal!.id]);
 
             const records = (await readFile(logger.path, 'utf8'))
                 .trim()

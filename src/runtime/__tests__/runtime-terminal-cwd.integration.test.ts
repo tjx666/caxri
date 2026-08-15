@@ -252,7 +252,7 @@ describe('Runtime Terminal cwd authorization', () => {
             kind: 'shell',
             cwd: projectFolder,
         });
-        await runtimeA.handlers['terminal.close']({ terminalId: created.terminal.id });
+        await runtimeA.handlers['terminal.close']({ terminalId: created.terminal!.id });
         await runtimeA.close();
 
         const events: RuntimeEvent[] = [];

@@ -50,14 +50,14 @@ describe('TerminalManager shell integration launch', () => {
         );
 
         try {
-            await manager.start(created.terminal);
+            await manager.start(created.terminal!);
             expect(shellIntegration).toHaveBeenCalledWith('/bin/zsh', expect.any(Object));
             const options = spawn.mock.calls[0]?.[2];
             expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
             expect(spawn.mock.calls[0]?.[1]).toEqual(['--controlled']);
             expect(options?.env).toMatchObject({ CAXRI_INTEGRATED: '/bin/zsh' });
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -82,11 +82,11 @@ describe('TerminalManager shell integration launch', () => {
         );
 
         try {
-            await expect(manager.start(created.terminal)).resolves.toBeDefined();
+            await expect(manager.start(created.terminal!)).resolves.toBeDefined();
             expect(spawn.mock.calls[0]?.[0]).toBe('/bin/fish');
             expect(spawn.mock.calls[0]?.[1]).toEqual(['-l']);
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });

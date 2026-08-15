@@ -144,7 +144,7 @@ describe('Agent dispatch Runtime integration', () => {
 
             expect(
                 runtime.handlers['terminal.sendInternal']({
-                    terminalId: created.terminal.id,
+                    terminalId: created.terminal!.id,
                     text: 'human steer',
                     enter: true,
                 }),

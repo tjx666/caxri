@@ -99,8 +99,8 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         );
 
         try {
-            await expect(manager.start(created.terminal)).resolves.toMatchObject({
-                id: created.terminal.id,
+            await expect(manager.start(created.terminal!)).resolves.toMatchObject({
+                id: created.terminal!.id,
                 lastProcessState: 'running',
             });
             expect(spawn).toHaveBeenCalledOnce();
@@ -112,7 +112,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         } finally {
             probeResult.resolve({ executable: '/bin/codex', version: 'codex-cli 0.147.0' });
             fake.kill();
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -137,7 +137,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             },
         );
 
-        const starting = manager.start(created.terminal);
+        const starting = manager.start(created.terminal!);
         try {
             await vi.waitFor(() => expect(onLifecycleStarted).toHaveBeenCalledOnce());
             expect(fake.process.onData).toHaveBeenCalledOnce();
@@ -146,16 +146,18 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             fake.emitData('ready before activation');
             fake.emitExit({ exitCode: 0 });
             await vi.waitFor(() =>
-                expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('stopped'),
+                expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe(
+                    'stopped',
+                ),
             );
-            expect(database.getSnapshot(created.terminal.id)?.payload).toContain(
+            expect(database.getSnapshot(created.terminal!.id)?.payload).toContain(
                 'ready before activation',
             );
             expect(
                 emitted.some(
                     (event) =>
                         event.event === 'terminal.exit' &&
-                        event.payload.terminalId === created.terminal.id,
+                        event.payload.terminalId === created.terminal!.id,
                 ),
             ).toBe(true);
 
@@ -163,7 +165,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             await expect(starting).resolves.toMatchObject({ lastProcessState: 'stopped' });
         } finally {
             activation.resolve();
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });
@@ -210,9 +212,9 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             },
         );
 
-        const starting = manager.start(created.terminal);
+        const starting = manager.start(created.terminal!);
         await vi.waitFor(() => expect(retire).toHaveBeenCalledOnce());
-        expect(endpoints.endpointForTerminal(created.terminal.id)).toBeUndefined();
+        expect(endpoints.endpointForTerminal(created.terminal!.id)).toBeUndefined();
         let settled = false;
         void starting.then(
             () => {
@@ -228,9 +230,9 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
 
         try {
             await expect(starting).rejects.toThrow('spawn failure');
-            expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('failed');
+            expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('failed');
         } finally {
-            manager.close(created.terminal.id);
+            manager.close(created.terminal!.id);
             database.close();
         }
     });

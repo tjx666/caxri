@@ -18,7 +18,7 @@ export async function selectSession(sessionId: string): Promise<boolean> {
     return selected !== undefined;
 }
 
-async function createSession(projectId: string, defaultAgent: TerminalKind): Promise<void> {
+async function createSession(projectId: string, defaultAgent: TerminalKind | null): Promise<void> {
     await tryCommand(
         'Session creation failed',
         async () => {
@@ -29,7 +29,10 @@ async function createSession(projectId: string, defaultAgent: TerminalKind): Pro
     );
 }
 
-async function createProjectSession(rootPath: string, defaultAgent: TerminalKind): Promise<void> {
+async function createProjectSession(
+    rootPath: string,
+    defaultAgent: TerminalKind | null,
+): Promise<void> {
     await tryCommand('Project creation failed', async () => {
         const project = await caxri.request('project.create', { rootPath });
         /** Keeps the Agent-choice dialog open, now anchored to the created Project. */
@@ -104,7 +107,7 @@ export function cancelPendingSession(): void {
     clearPendingSession();
 }
 
-export function confirmPendingSession(kind: TerminalKind): void {
+export function confirmPendingSession(kind: TerminalKind | null): void {
     const { pendingRoot, pendingProjectId } = useDialogStore.getState();
     if (pendingRoot) void createProjectSession(pendingRoot, kind);
     else if (pendingProjectId) void createSession(pendingProjectId, kind);

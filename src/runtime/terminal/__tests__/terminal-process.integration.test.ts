@@ -41,15 +41,15 @@ describe('TerminalManager process integration', () => {
             },
             new StructuredLogger(join(directory, 'logs')),
         );
-        await Promise.all([manager.start(created.terminal), manager.start(created.terminal)]);
-        await manager.attach(created.terminal.id);
-        manager.write(created.terminal.id, "printf 'CAXRI_INTEGRATION_OK\\n'\r");
+        await Promise.all([manager.start(created.terminal!), manager.start(created.terminal!)]);
+        await manager.attach(created.terminal!.id);
+        manager.write(created.terminal!.id, "printf 'CAXRI_INTEGRATION_OK\\n'\r");
         await marker;
-        manager.resize(created.terminal.id, 120, 40);
-        manager.write(created.terminal.id, 'exit\r');
+        manager.resize(created.terminal!.id, 120, 40);
+        manager.write(created.terminal!.id, 'exit\r');
         await exited;
         expect(events.some((event) => event.event === 'terminal.output')).toBe(true);
-        expect(database.getSnapshot(created.terminal.id)?.payload).toContain(
+        expect(database.getSnapshot(created.terminal!.id)?.payload).toContain(
             'CAXRI_INTEGRATION_OK',
         );
         const records = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
@@ -87,15 +87,15 @@ describe('TerminalManager process integration', () => {
             new StructuredLogger(join(directory, 'logs')),
         );
 
-        await manager.start(created.terminal);
-        await manager.attach(created.terminal.id);
-        await manager.restart(created.terminal.id);
-        manager.write(created.terminal.id, "printf 'CAXRI_RESTART_OK\\n'\r");
+        await manager.start(created.terminal!);
+        await manager.attach(created.terminal!.id);
+        await manager.restart(created.terminal!.id);
+        manager.write(created.terminal!.id, "printf 'CAXRI_RESTART_OK\\n'\r");
         await expect.poll(() => output).toContain('CAXRI_RESTART_OK');
-        expect(database.getTerminal(created.terminal.id)?.lastProcessState).toBe('running');
+        expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('running');
 
-        manager.close(created.terminal.id);
-        expect(database.getTerminal(created.terminal.id)).toBeUndefined();
+        manager.close(created.terminal!.id);
+        expect(database.getTerminal(created.terminal!.id)).toBeUndefined();
         await new Promise((resolve) => setTimeout(resolve, 100));
         database.close();
     });
@@ -111,14 +111,14 @@ describe('TerminalManager process integration', () => {
             new StructuredLogger(join(directory, 'logs')),
         );
 
-        expect(manager.write(created.terminal.id, 'ignored')).toBe(false);
-        expect(manager.resize(created.terminal.id, 120, 40)).toBe(false);
+        expect(manager.write(created.terminal!.id, 'ignored')).toBe(false);
+        expect(manager.resize(created.terminal!.id, 120, 40)).toBe(false);
 
-        await manager.start(created.terminal);
-        expect(manager.write(created.terminal.id, "printf 'CAXRI_LIVE_INPUT_OK\\n'\r")).toBe(true);
-        expect(manager.resize(created.terminal.id, 120, 40)).toBe(true);
+        await manager.start(created.terminal!);
+        expect(manager.write(created.terminal!.id, "printf 'CAXRI_LIVE_INPUT_OK\\n'\r")).toBe(true);
+        expect(manager.resize(created.terminal!.id, 120, 40)).toBe(true);
         manager.shutdown('orderly');
-        expect(manager.write(created.terminal.id, 'ignored')).toBe(false);
+        expect(manager.write(created.terminal!.id, 'ignored')).toBe(false);
         database.close();
     });
 });

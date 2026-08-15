@@ -525,7 +525,7 @@ export class SessionsModel {
         return rows.map((row) => this.readState(row));
     }
 
-    insertInitialState(sessionId: string, terminalId: string): void {
+    insertInitialState(sessionId: string, terminalId?: string): void {
         this.db
             .insert(sessionStateTable)
             .values({
@@ -534,7 +534,7 @@ export class SessionsModel {
                 openTabsJson: '[]',
                 activeTabJson: null,
                 inspectorMode: 'files',
-                layoutJson: JSON.stringify(createTerminalLayout(terminalId)),
+                layoutJson: JSON.stringify(terminalId ? createTerminalLayout(terminalId) : {}),
             })
             .run();
     }
