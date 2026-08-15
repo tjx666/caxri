@@ -2,8 +2,6 @@ import {
     ChevronDown,
     ChevronRight,
     Files,
-    Folder,
-    FolderOpen,
     GitBranch,
     GitPullRequest,
     RefreshCw,
@@ -16,6 +14,7 @@ import type { GitRepositorySummary } from '@shared/types';
 import { DisclosureMotion } from '../../../../components/DisclosureMotion';
 import { Button } from '../../../../components/ui/button';
 import { Tooltip } from '../../../../components/ui/tooltip';
+import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
 import { cn } from '../../../../lib/utils';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
@@ -79,17 +78,18 @@ function GitTreeItems({
                 title={file.path}
                 onClick={() => onSelect(file.path)}
             >
+                <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
+                <span className="min-w-0 flex-1 truncate">{node.name}</span>
                 <span
                     className={cn(
                         `status status-${file.kind}`,
-                        'min-w-4 font-mono font-bold text-warning',
+                        'min-w-4 flex-none text-center font-mono font-bold text-warning',
                         (file.kind === 'added' || file.kind === 'untracked') && 'text-success',
                         (file.kind === 'deleted' || file.kind === 'conflicted') && 'text-danger',
                     )}
                 >
                     {file.index === ' ' ? file.workingTree : file.index}
                 </span>
-                <span className="truncate">{node.name}</span>
             </button>
         );
     });
@@ -124,7 +124,7 @@ function GitTreeDirectory({
                 onClick={() => setDirectoryExpanded(expansionKey, !expanded)}
             >
                 {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                {expanded ? <FolderOpen size={14} /> : <Folder size={14} />}
+                <FileTypeIcon entry={{ kind: 'directory', name: node.name }} expanded={expanded} />
                 <span className="truncate">{node.name}</span>
             </button>
             <DisclosureMotion animate expanded={expanded} kind="git-directory">
