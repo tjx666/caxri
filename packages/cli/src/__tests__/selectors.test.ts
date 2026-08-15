@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveSelector } from './selectors';
+import { resolveSelector } from '../selectors';
 
 const sessions = [
     { id: 'session-1', displayTitle: 'Work', projectId: 'project-1' },

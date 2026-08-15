@@ -2,8 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import { capabilityIds, methods, type CaxriMethod } from '@caxri/protocol';
 
-import { parseCliArguments } from '../src/arguments';
-import { findCliCommand } from '../src/command-catalog';
+import { findCliCommand, parseCliArguments } from '../src/commands';
 
 const skill = await readFile(
     new URL('../../../skills/caxri-cli/SKILL.md', import.meta.url),

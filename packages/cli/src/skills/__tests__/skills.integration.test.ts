@@ -18,16 +18,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { agentMessagePullResultSchema } from '@caxri/protocol';
 
-import { runCli, type CliIo } from './application';
-import { CAXRI_SKILL_FILES } from './caxri-skill.generated';
+import { runCli, type CliIo } from '../../application';
+import { CLI_VERSION } from '../../version';
+import { CAXRI_SKILL_FILES } from '../caxri-skill.generated';
 import {
     inspectManagedSkill,
     installManagedSkill,
     prepareSkillParent,
     updateManagedSkill,
     withSkillMutationLock,
-} from './skill-filesystem';
-import { CLI_VERSION } from './version';
+} from '../filesystem';
 
 const temporaryDirectories: string[] = [];
 
@@ -545,11 +545,11 @@ describe('bundled Caxri Agent skill', () => {
 
     it('keeps canonical files and documented JSON examples schema-valid', async () => {
         const canonicalSkill = await readFile(
-            new URL('../../../skills/caxri-cli/SKILL.md', import.meta.url),
+            new URL('../../../../../skills/caxri-cli/SKILL.md', import.meta.url),
             'utf8',
         );
         const canonicalMetadata = await readFile(
-            new URL('../../../skills/caxri-cli/agents/openai.yaml', import.meta.url),
+            new URL('../../../../../skills/caxri-cli/agents/openai.yaml', import.meta.url),
             'utf8',
         );
         expect(CAXRI_SKILL_FILES).toEqual({

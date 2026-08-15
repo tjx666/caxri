@@ -18,7 +18,7 @@ export async function writeFileIfChanged(path: URL | string, source: string): Pr
 
 async function generateSkillBundle(): Promise<void> {
     const packageRoot = new URL('../', import.meta.url);
-    const outputUrl = new URL('src/caxri-skill.generated.ts', packageRoot);
+    const outputUrl = new URL('src/skills/caxri-skill.generated.ts', packageRoot);
     const files = {
         'SKILL.md': await readFile(new URL('../../skills/caxri-cli/SKILL.md', packageRoot), 'utf8'),
         'agents/openai.yaml': await readFile(

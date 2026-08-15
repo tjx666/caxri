@@ -4,7 +4,7 @@ import {
     resolveAgentEndpointCredential,
     resolveCliProfile,
     resolvePackagedHostLaunch,
-} from './environment';
+} from '../environment';
 
 describe('CLI profile resolution', () => {
     it('requires one complete Agent Endpoint generation credential', () => {

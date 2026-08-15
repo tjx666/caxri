@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Source Layout'
+  short_description: 'Place and name Caxri source files by directory contract'
+  default_prompt: 'Use $source-layout to place, split, or rename the current Caxri source files.'

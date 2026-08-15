@@ -5,7 +5,7 @@ import { createConnection, type Socket } from 'node:net';
 import { CaxriError, fromWireError, type HostManifest } from '@caxri/protocol';
 import { z } from 'zod';
 
-import { discoverHostManifest } from './host-client.js';
+import { discoverHostManifest } from './client.js';
 
 const LEGACY_V1_PROTOCOL_VERSION = 1;
 const MAX_LEGACY_V1_FRAME_BYTES = 16 * 1024;

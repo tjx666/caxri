@@ -13,7 +13,7 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
     readFile: readFileMock,
 }));
 
-import { discoverHostManifest, ensureHost } from './host-client';
+import { discoverHostManifest, ensureHost } from '../client';
 
 const temporaryDirectories: string[] = [];
 

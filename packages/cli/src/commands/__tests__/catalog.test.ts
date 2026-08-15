@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CLI_COMMANDS, findCliCommand } from './command-catalog';
+import { CLI_COMMANDS, findCliCommand } from '../catalog';
 
 describe('CLI business command catalog', () => {
     it('registers every bounded business and diagnostics command', () => {

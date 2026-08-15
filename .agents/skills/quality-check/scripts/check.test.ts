@@ -166,6 +166,12 @@ describe('testCandidatesForFile', () => {
                 'src/runtime/files/__tests__/files.integration.test.ts',
             ]),
         );
+        expect(testCandidatesForFile('packages/cli/src/skills/execute.ts')).toContain(
+            'packages/cli/src/skills/__tests__/skills.integration.test.ts',
+        );
+        expect(testCandidatesForFile('packages/cli/src/skills/filesystem.ts')).toContain(
+            'packages/cli/src/skills/__tests__/skills.integration.test.ts',
+        );
     });
 
     it('does not treat a top-level runtime file as a domain integration suite', () => {
