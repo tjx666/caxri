@@ -47,6 +47,12 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   constraints, prefer faster and cheaper presets for well-scoped tasks, and synthesize their results
   in the primary agent before acting. Never run Electron desktop tasks concurrently; additional
   desktop work must use the repository's isolated worktree and desktop-lease workflow.
+- A request to review current local work authorizes the primary agent to repair validated P0/P1
+  findings introduced by that work when the fix is unambiguous, local, and inside the requested
+  scope. This applies to direct review, `deep-review`, and `dianjiang` review. Keep delegated
+  reviewers read-only and let the primary agent own edits and validation. Stop for discussion when
+  multiple product choices are reasonable, the fix expands scope, or it requires destructive or
+  remote mutation; honor an explicit read-only or report-only request.
 
 ## Commands
 
