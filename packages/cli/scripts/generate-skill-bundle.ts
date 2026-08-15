@@ -27,7 +27,13 @@ async function generateSkillBundle(): Promise<void> {
         ),
     };
 
-    const source = `/** Generated from skills/caxri-cli. Do not edit directly. */
+    /**
+     * The header stays in the multi-line JSDoc form eslint --fix settles on, so regeneration and lint-staged never
+     * flip-flop the committed file between the two comment shapes.
+     */
+    const source = `/**
+ * Generated from skills/caxri-cli. Do not edit directly.
+ */
 export const CAXRI_SKILL_FILES = ${JSON.stringify(files, null, 4)} as const;
 `;
     const config = (await resolveConfig(outputUrl.pathname)) ?? {};
