@@ -1,19 +1,20 @@
+import type { ThemeTokens } from '@shared/types';
 import { Import } from 'lucide-react';
 
-import type { ThemeTokens } from '@shared/types';
-
 import { Button } from '../../components/ui/button';
-import { settingsFieldRowClassName } from '../../lib/utils';
+import { settingsFieldRowClassName } from '../../lib/utilities';
 import { ThemePreview } from './theme-preview';
 
-interface ThemeFormProps {
+interface ThemeFormProperties {
     theme: ThemeTokens;
     onColorChange: (section: 'colors' | 'terminal' | 'editor', key: string, value: string) => void;
     onImport: () => void;
 }
 
-/** Full-width structured editor and live preview for `theme.json`. */
-export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormProps) {
+/**
+Full-width structured editor and live preview for `theme.json`.
+ */
+export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormProperties) {
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
             <div className="flex items-center justify-between gap-3 p-3 pb-0">

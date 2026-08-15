@@ -1,15 +1,15 @@
 import { createHash } from 'node:crypto';
 
 import type {
+    AgentEndpointRef as AgentEndpointReference,
+    AgentEndpointSummary,
+    AgentPermissionClass,
+} from '../../shared/ipc/agent-endpoint-contract';
+import type {
     AgentHeldMessage,
     AgentHeldMessageDetail,
     AgentInboundPolicy,
 } from '../../shared/ipc/agent-inbox-contract';
-import type {
-    AgentEndpointRef,
-    AgentEndpointSummary,
-    AgentPermissionClass,
-} from '../../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { CommandExecutionContext } from '../../shared/ipc/principal';
 import type { AgentEndpointRegistry } from '../agent-endpoints';
@@ -25,11 +25,14 @@ export const LOOP_WINDOW_MS = 5 * 60 * 1_000;
 export const MAX_PAIR_MESSAGES_PER_WINDOW = 16;
 export const MAX_REPLY_DEPTH = 8;
 
-export function endpointKey(ref: AgentEndpointRef): string {
-    return `${ref.hostId}:${ref.endpointId}:${ref.generation}`;
+export function endpointKey(reference: AgentEndpointReference): string {
+    return `${reference.hostId}:${reference.endpointId}:${reference.generation}`;
 }
 
-export function refsEqual(left: AgentEndpointRef, right: AgentEndpointRef): boolean {
+export function areReferencesEqual(
+    left: AgentEndpointReference,
+    right: AgentEndpointReference,
+): boolean {
     return endpointKey(left) === endpointKey(right);
 }
 
@@ -52,7 +55,7 @@ export function heldMessageProjection(message: StoredMessage): AgentHeldMessage 
         byteLength: message.byteLength,
         createdAt: message.receipt.createdAt,
         expiresAt: message.receipt.expiresAt,
-        ...(message.receipt.replyTo ? { replyTo: message.receipt.replyTo } : {}),
+        ...(message.receipt.replyTo && { replyTo: message.receipt.replyTo }),
     };
 }
 
@@ -87,7 +90,9 @@ export function resolvePullReceiver(
     return receiver;
 }
 
-/** The complete auto-policy matrix is intentionally small enough to exhaustively regression test. */
+/**
+The complete auto-policy matrix is intentionally small enough to exhaustively regression test.
+ */
 export function decideInboundStatus(
     policy: AgentInboundPolicy,
     sender: AgentPermissionClass,

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type Locator, type Page } from './support/fixtures.ts';
-
+import type { Locator, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createProjectSession,
@@ -52,7 +52,9 @@ async function animationNameOf(locator: Locator): Promise<string> {
     return locator.evaluate((element) => getComputedStyle(element).animationName);
 }
 
-/** Lets a live `prefers-reduced-motion` toggle propagate through React before the next assertion. */
+/**
+Lets a live `prefers-reduced-motion` toggle propagate through React before the next assertion.
+ */
 async function settleMediaPreference(page: Page): Promise<void> {
     await page.evaluate(
         () =>
@@ -109,7 +111,11 @@ test('Project disclosure timing derives from motion tokens, unmounts children on
         await sessionCard(running.page, sessionId).click();
         await expect(sessionCard(running.page, sessionId)).toHaveClass(/active/);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -171,7 +177,11 @@ test('Work tabs animate presence with motion-token durations and switch Sessions
             await restoredTab.evaluate((element) => getComputedStyle(element).maxWidth),
         ).not.toBe('0px');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -209,7 +219,11 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         expect(await animationDurationMs(dialogPopup)).toBe(exitMs);
         await expect(dialogPopup).toHaveCount(0, { timeout: exitMs + 2_000 });
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -223,7 +237,9 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        /** The default-Terminal dialog retains its closed overlay until the exit animation ends. */
+        /**
+        The default-Terminal dialog retains its closed overlay until the exit animation ends.
+         */
         await expect(running.page.getByRole('dialog')).toHaveCount(0);
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
         await settleMediaPreference(running.page);
@@ -253,7 +269,11 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
         await reducedTab.getByRole('button', { name: 'Close Terminal' }).click();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -287,7 +307,11 @@ test('prefers-reduced-motion disables the overlay keyframe animation', async () 
         await dialogPopup.getByRole('button', { name: 'Close' }).click();
         await expect(dialogPopup).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -320,7 +344,11 @@ test('Files directory tree expands instantly with no disclosure-motion wrapper',
         const editorTab = running.page.locator('.work-tab:not([data-terminal-id])').last();
         await expect(editorTab).toHaveCSS('opacity', '1');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

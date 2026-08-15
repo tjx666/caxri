@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -169,7 +168,11 @@ exec /bin/zsh -l
             running.page.getByLabel('Git blame: uncommitted changes on line 1'),
         ).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import type { ProjectStatusRepository } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import { buildProjectStatusNodes } from './project-status-tree';
 
 describe('buildProjectStatusNodes', () => {
     it('builds the screenshot-defined branch, Linear, Vercel, and GitHub hierarchy', () => {
-        const repository: ProjectStatusRepository = {
+        const repo: ProjectStatusRepository = {
             id: 'repo-1',
             kind: 'primary',
             name: 'lobehub-cloud',
@@ -57,7 +56,7 @@ describe('buildProjectStatusNodes', () => {
             errors: [],
         };
 
-        const nodes = buildProjectStatusNodes(repository);
+        const nodes = buildProjectStatusNodes(repo);
 
         expect(nodes.map((node) => node.kind)).toEqual([
             'branch',
@@ -74,6 +73,9 @@ describe('buildProjectStatusNodes', () => {
         });
         expect(nodes[2]).not.toHaveProperty('url');
         if (nodes[2].kind === 'deployments')
+            // `children` here is a plain `ProjectStatusNode[]` data array, not a DOM `Element`'s
+            // `.children`, so `.firstElementChild` does not apply.
+            // eslint-disable-next-line unicorn/better-dom-traversing -- see comment above
             expect(nodes[2].children[0].description).toBeUndefined();
         expect(nodes[3]).toMatchObject({
             label: 'Production',

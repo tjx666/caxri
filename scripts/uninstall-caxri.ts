@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -107,37 +108,37 @@ function assertProfileName(profilePath: string): void {
         );
 }
 
-export function parseUninstallArgs(
+export function parseUninstallArguments(
     argv: readonly string[],
     environment: NodeJS.ProcessEnv = process.env,
     homeDirectory = homedir(),
-    repositoryRoot = process.cwd(),
+    repoRoot = process.cwd(),
 ): CaxriUninstallOptions | { help: true } {
-    let apply = false;
+    let isApply = false;
     let profilePath =
         environment.CAXRI_USER_DATA_DIR ??
         join(homeDirectory, 'Library', 'Application Support', 'Caxri');
-    let removeApplications = true;
-    let removeGlobalCli = true;
-    let includeDevProfiles = true;
+    let isRemoveApps = true;
+    let isRemoveGlobalCli = true;
+    let isIncludeDevelopmentProfiles = true;
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         if (argument === '--') continue;
         if (argument === '--help') return { help: true };
         if (argument === '--yes') {
-            apply = true;
+            isApply = true;
             continue;
         }
         if (argument === '--keep-app') {
-            removeApplications = false;
+            isRemoveApps = false;
             continue;
         }
         if (argument === '--keep-cli') {
-            removeGlobalCli = false;
+            isRemoveGlobalCli = false;
             continue;
         }
         if (argument === '--keep-dev') {
-            includeDevProfiles = false;
+            isIncludeDevelopmentProfiles = false;
             continue;
         }
         if (argument === '--profile') {
@@ -152,13 +153,13 @@ export function parseUninstallArgs(
     if (!isAbsolute(profilePath)) throw new Error('The uninstall profile path must be absolute');
     assertProfileName(profilePath);
     return {
-        apply,
-        archiveRootPath: uninstallArchiveRoot(repositoryRoot),
+        apply: isApply,
+        archiveRootPath: uninstallArchiveRoot(repoRoot),
         homeDirectory: resolve(homeDirectory),
-        includeDevProfiles,
+        includeDevProfiles: isIncludeDevelopmentProfiles,
         profilePath: resolve(profilePath),
-        removeApplications,
-        removeGlobalCli,
+        removeApplications: isRemoveApps,
+        removeGlobalCli: isRemoveGlobalCli,
     };
 }
 
@@ -168,8 +169,8 @@ function isWithin(parent: string, child: string): boolean {
 }
 
 function standardProfilePaths(options: CaxriUninstallOptions): [string, string] {
-    const applicationSupport = join(options.homeDirectory, 'Library', 'Application Support');
-    return [join(applicationSupport, 'Caxri'), join(applicationSupport, 'caxri')];
+    const appSupport = join(options.homeDirectory, 'Library', 'Application Support');
+    return [join(appSupport, 'Caxri'), join(appSupport, 'caxri')];
 }
 
 function assertSafeTarget(path: string, options: CaxriUninstallOptions): void {
@@ -182,9 +183,9 @@ function assertSafeTarget(path: string, options: CaxriUninstallOptions): void {
         '/Applications',
     ]);
     if (forbidden.has(target)) throw new Error(`Refusing broad uninstall target: ${target}`);
-    const exactProfile = target === options.profilePath;
-    const standardHomeTarget = isWithin(options.homeDirectory, target);
-    if (!exactProfile && !standardHomeTarget && target !== '/Applications/Caxri.app')
+    const isExactProfile = target === options.profilePath;
+    const isStandardHomeTarget = isWithin(options.homeDirectory, target);
+    if (!isExactProfile && !isStandardHomeTarget && target !== '/Applications/Caxri.app')
         throw new Error(`Refusing non-Caxri uninstall target: ${target}`);
 }
 
@@ -211,8 +212,8 @@ export function resolveUninstallTargets(
     ];
     const targets = [...new Set(paths.map((path) => resolve(path)))].filter(
         (candidate, index, candidates) =>
-            !candidates.some(
-                (parent, parentIndex) => parentIndex !== index && isWithin(parent, candidate),
+            candidates.every(
+                (parent, parentIndex) => parentIndex === index || !isWithin(parent, candidate),
             ),
     );
     for (const target of targets) assertSafeTarget(target, options);
@@ -223,13 +224,16 @@ async function optionalMetadata(path: string) {
     try {
         return await lstat(path);
     } catch (error) {
-        if (fileSystemCode(error) === 'ENOENT') return undefined;
+        if (fileSystemCode(error) === 'ENOENT') return;
         throw error;
     }
 }
 
 async function assertNotInsideGitWorktree(path: string): Promise<void> {
+    // Each ancestor check depends on the previous directory in the walk, so this must stay
+    // sequential rather than run concurrently.
     for (let current = path; ; current = dirname(current)) {
+        // eslint-disable-next-line no-await-in-loop -- sequential ancestor-directory walk
         if (await optionalMetadata(join(current, '.git')))
             throw new Error(`Refusing Caxri profile inside a Git worktree: ${path}`);
         const parent = dirname(current);
@@ -264,7 +268,9 @@ async function assertSelectedProfile(options: CaxriUninstallOptions): Promise<vo
         throw new Error(`Refusing directory without Caxri profile markers: ${options.profilePath}`);
 }
 
-async function discoverManagedDevProfiles(options: CaxriUninstallOptions): Promise<string[]> {
+async function discoverManagedDevelopmentProfiles(
+    options: CaxriUninstallOptions,
+): Promise<string[]> {
     if (!options.includeDevProfiles || !options.devProfileRoot) return [];
     const root = resolve(options.devProfileRoot);
     if (basename(root) !== 'profiles' || basename(dirname(root)) !== 'caxri-worktree-state') {
@@ -280,9 +286,14 @@ async function discoverManagedDevProfiles(options: CaxriUninstallOptions): Promi
         throw new Error(`Refusing unsafe managed development profile root: ${root}`);
     }
     const profiles: string[] = [];
-    for (const entry of await readdir(root, { withFileTypes: true })) {
+    const entries = await readdir(root, { withFileTypes: true });
+    for (const entry of entries) {
         if (!WORKTREE_PROFILE_ID.test(entry.name)) continue;
         const path = join(root, entry.name);
+        // Each candidate must be individually validated as safe before being trusted, and the
+        // validation order has no observable effect, but kept sequential to avoid opening many
+        // concurrent filesystem handles while walking an untrusted directory.
+        // eslint-disable-next-line no-await-in-loop -- sequential per-entry safety validation
         const entryMetadata = await lstat(path);
         if (
             !entryMetadata.isDirectory() ||
@@ -293,7 +304,7 @@ async function discoverManagedDevProfiles(options: CaxriUninstallOptions): Promi
         }
         profiles.push(path);
     }
-    return profiles.sort();
+    return profiles.toSorted((left, right) => left.localeCompare(right));
 }
 
 function metadataIdentity(path: string, metadata: Awaited<ReturnType<typeof lstat>>): string {
@@ -306,6 +317,9 @@ async function existingRealTargets(paths: readonly string[]): Promise<string[]> 
     const identities = new Set<string>();
     const targets: string[] = [];
     for (const path of paths) {
+        // Deduplication keeps the first occurrence of each filesystem identity, so paths must be
+        // checked in their given order rather than concurrently.
+        // eslint-disable-next-line no-await-in-loop -- sequential first-occurrence deduplication
         const metadata = await optionalMetadata(path);
         if (!metadata) continue;
         const identity = metadataIdentity(path, metadata);
@@ -326,8 +340,10 @@ async function resolveProfileEndpoint(profilePath: string): Promise<string> {
         canonicalProfile = await realpath(profilePath);
     } catch (error) {
         if (fileSystemCode(error) !== 'ENOENT') throw error;
-        /** A detached Host can outlive profile cleanup. Canonicalizing the still-existing parent
-         * preserves the exact endpoint hash without trusting stale manifest PID metadata. */
+        /**
+         * A detached Host can outlive profile cleanup. Canonicalizing the still-existing parent
+         * preserves the exact endpoint hash without trusting stale manifest PID metadata.
+         */
         canonicalProfile = join(await realpath(dirname(profilePath)), basename(profilePath));
     }
     const profileId = createHash('sha256').update(canonicalProfile).digest('hex').slice(0, 24);
@@ -336,15 +352,19 @@ async function resolveProfileEndpoint(profilePath: string): Promise<string> {
 
 async function discoverProfilePaths(
     options: CaxriUninstallOptions,
-    managedDevProfiles: readonly string[],
+    managedDevelopmentProfiles: readonly string[],
 ): Promise<string[]> {
     const profiles = new Map<string, string>();
-    const trustedManagedProfiles = new Set(managedDevProfiles);
-    for (const candidate of new Set([
+    const trustedManagedProfiles = new Set(managedDevelopmentProfiles);
+    const candidates = new Set([
         options.profilePath,
         ...standardProfilePaths(options),
-        ...managedDevProfiles,
-    ])) {
+        ...managedDevelopmentProfiles,
+    ]);
+    // Deduplication by canonical path keeps the first matching candidate, so candidates must be
+    // validated in order rather than concurrently.
+    for (const candidate of candidates) {
+        // eslint-disable-next-line no-await-in-loop -- sequential first-occurrence deduplication
         const metadata = await optionalMetadata(candidate);
         if (!metadata) {
             if (candidate === options.profilePath) profiles.set(candidate, candidate);
@@ -354,13 +374,15 @@ async function discoverProfilePaths(
             !metadata.isDirectory() ||
             metadata.isSymbolicLink() ||
             (typeof process.getuid === 'function' && metadata.uid !== process.getuid()) ||
+            // eslint-disable-next-line no-await-in-loop -- sequential first-occurrence deduplication
             (!trustedManagedProfiles.has(candidate) && !(await hasProfileMarker(candidate)))
         )
             continue;
+        // eslint-disable-next-line no-await-in-loop -- sequential first-occurrence deduplication
         const canonical = await realpath(candidate);
         if (!profiles.has(canonical)) profiles.set(canonical, candidate);
     }
-    return [...profiles.values()];
+    return profiles.values().toArray();
 }
 
 async function existingProfileEndpoint(profilePath: string): Promise<string | undefined> {
@@ -403,7 +425,7 @@ async function inspectProcess(pid: number): Promise<string | undefined> {
     }
 }
 
-function processIsAlive(pid: number): boolean {
+function isProcessAlive(pid: number): boolean {
     try {
         process.kill(pid, 0);
         return true;
@@ -412,13 +434,16 @@ function processIsAlive(pid: number): boolean {
     }
 }
 
-async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
+async function didProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-        if (!processIsAlive(pid)) return true;
+        if (!isProcessAlive(pid)) return true;
+        // Polling loop: each check depends on elapsed wall-clock time since the previous one, so
+        // it cannot be parallelized.
+        // eslint-disable-next-line no-await-in-loop -- sequential liveness-polling delay
         await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    return !processIsAlive(pid);
+    return !isProcessAlive(pid);
 }
 
 export async function removeGlobalCaxriCli(
@@ -434,7 +459,7 @@ export async function removeGlobalCaxriCli(
     const { stdout } = await runCommand('pnpm', listArguments);
     const listing: unknown = JSON.parse(stdout);
     if (!Array.isArray(listing)) throw new Error('pnpm global package listing is not an array');
-    const installed = listing.some((entry) => {
+    const isInstalled = listing.some((entry) => {
         if (typeof entry !== 'object' || entry === null) return false;
         const dependencies = (entry as Record<string, unknown>).dependencies;
         return (
@@ -443,7 +468,7 @@ export async function removeGlobalCaxriCli(
             Object.hasOwn(dependencies, '@caxri/cli')
         );
     });
-    if (installed) await runCommand('pnpm', ['remove', '--global', '@caxri/cli']);
+    if (isInstalled) await runCommand('pnpm', ['remove', '--global', '@caxri/cli']);
 }
 
 const defaultOperations: UninstallOperations = {
@@ -452,7 +477,7 @@ const defaultOperations: UninstallOperations = {
     moveToArchive: (source, destination) => rename(source, destination),
     removeGlobalCli: removeGlobalCaxriCli,
     signalProcess: (pid, signal) => process.kill(pid, signal),
-    waitForExit,
+    waitForExit: didProcessExit,
 };
 
 function operationsWith(overrides: Partial<UninstallOperations> | undefined): UninstallOperations {
@@ -504,8 +529,8 @@ async function createUninstallPlan(
     operations: UninstallOperations,
 ): Promise<UninstallPlan> {
     await assertSelectedProfile(options);
-    const managedDevProfiles = await discoverManagedDevProfiles(options);
-    const profiles = await discoverProfilePaths(options, managedDevProfiles);
+    const managedDevelopmentProfiles = await discoverManagedDevelopmentProfiles(options);
+    const profiles = await discoverProfilePaths(options, managedDevelopmentProfiles);
     const endpoints = (
         await Promise.all(profiles.map((profile) => existingProfileEndpoint(profile)))
     ).filter((path): path is string => path !== undefined);
@@ -518,7 +543,7 @@ async function createUninstallPlan(
         )
     ).filter((host): host is OwnedHost => host !== undefined);
     const targets = await existingRealTargets([
-        ...resolveUninstallTargets(options, managedDevProfiles),
+        ...resolveUninstallTargets(options, managedDevelopmentProfiles),
         ...endpoints,
     ]);
     return { hosts, targets };
@@ -529,7 +554,10 @@ async function stopOwnedHosts(
     operations: UninstallOperations,
 ): Promise<number[]> {
     const stopped: number[] = [];
+    // Hosts are stopped one at a time so a mid-loop failure leaves a precisely known set of
+    // already-stopped PIDs for the caller and tests to reason about.
     for (const expected of hosts) {
+        // eslint-disable-next-line no-await-in-loop -- sequential Host shutdown with a known-stopped prefix on failure
         const current = await resolveOwnedHost(
             expected.profilePath,
             expected.endpointPath,
@@ -539,6 +567,7 @@ async function stopOwnedHosts(
         if (current.pid !== expected.pid)
             throw new Error(`Caxri Host ownership changed for profile ${expected.profilePath}`);
         operations.signalProcess(current.pid, 'SIGTERM');
+        // eslint-disable-next-line no-await-in-loop -- sequential Host shutdown with a known-stopped prefix on failure
         if (!(await operations.waitForExit(current.pid, HOST_SHUTDOWN_TIMEOUT_MS)))
             throw new Error(`Caxri Host PID ${current.pid} did not stop; local data was not moved`);
         stopped.push(current.pid);
@@ -546,8 +575,8 @@ async function stopOwnedHosts(
     return stopped;
 }
 
-export function uninstallArchiveRoot(repositoryRoot: string): string {
-    const root = resolve(repositoryRoot);
+export function uninstallArchiveRoot(repoRoot: string): string {
+    const root = resolve(repoRoot);
     return join(dirname(root), `${basename(root)}-uninstall-archives`);
 }
 
@@ -617,8 +646,12 @@ export async function uninstallCaxri(
             })),
         };
         await writeArchiveManifest(manifest);
+        // The manifest is rewritten after every target so a crash mid-archive leaves an
+        // accurate on-disk record of exactly which targets were already moved; that recovery
+        // guarantee requires each target to be archived and persisted before the next begins.
         for (const target of manifest.targets) {
             try {
+                // eslint-disable-next-line no-await-in-loop -- incremental crash-recoverable manifest persistence
                 await operations.moveToArchive(target.originalPath, target.archivedPath);
                 target.status = 'archived';
                 movedTargets.push(target.originalPath);
@@ -630,6 +663,7 @@ export async function uninstallCaxri(
                     failedTargets.push({ message: target.error, path: target.originalPath });
                 }
             }
+            // eslint-disable-next-line no-await-in-loop -- incremental crash-recoverable manifest persistence
             await writeArchiveManifest(manifest);
         }
     }
@@ -650,11 +684,11 @@ export async function uninstallCaxri(
         hostPids,
         movedTargets,
         targets: plan.targets,
-        ...(archiveDirectory ? { archiveDirectory } : {}),
+        ...(archiveDirectory && { archiveDirectory }),
     };
 }
 
-export async function resolveUninstallRepositoryPaths(workingDirectory: string): Promise<{
+export async function resolveUninstallRepoPaths(workingDirectory: string): Promise<{
     devProfileRoot: string;
     repositoryRoot: string;
 }> {
@@ -677,12 +711,12 @@ export async function resolveUninstallRepositoryPaths(workingDirectory: string):
 }
 
 async function main(): Promise<void> {
-    const repositoryPaths = await resolveUninstallRepositoryPaths(process.cwd());
-    const parsed = parseUninstallArgs(
+    const repoPaths = await resolveUninstallRepoPaths(process.cwd());
+    const parsed = parseUninstallArguments(
         process.argv.slice(2),
         process.env,
         homedir(),
-        repositoryPaths.repositoryRoot,
+        repoPaths.repositoryRoot,
     );
     if ('help' in parsed) {
         console.log(usage());
@@ -691,7 +725,7 @@ async function main(): Promise<void> {
     const options: CaxriUninstallOptions = parsed.includeDevProfiles
         ? {
               ...parsed,
-              devProfileRoot: repositoryPaths.devProfileRoot,
+              devProfileRoot: repoPaths.devProfileRoot,
           }
         : parsed;
     const result = await uninstallCaxri(options);
@@ -717,8 +751,10 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-    void main().catch((error: unknown) => {
+    try {
+        await main();
+    } catch (error: unknown) {
         console.error(errorMessage(error));
         process.exitCode = 1;
-    });
+    }
 }

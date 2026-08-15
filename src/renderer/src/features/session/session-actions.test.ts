@@ -38,7 +38,7 @@ vi.mock('../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbe
 import {
     deleteSelectedSession,
     deleteSession,
-    reorderProject,
+    didReorderProject,
     selectProject,
 } from './session-actions';
 
@@ -73,7 +73,7 @@ describe('Session actions', () => {
     });
 
     it('lets the Runtime full-state event be the sole Project reorder refresh', async () => {
-        await expect(reorderProject('project-1', 2)).resolves.toBe(true);
+        await expect(didReorderProject('project-1', 2)).resolves.toBe(true);
 
         expect(mocks.caxriRequest).toHaveBeenCalledWith('project.reorder', {
             projectId: 'project-1',

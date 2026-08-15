@@ -2,9 +2,8 @@ import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
-
 import Database from 'better-sqlite3';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { listLayoutTerminalIds, splitTerminal } from '../../../shared/terminal-layout';
 import { CaxriDatabase } from '../repository';
@@ -12,12 +11,14 @@ import { CaxriDatabase } from '../repository';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
-async function tempDir(prefix: string): Promise<string> {
+async function temporaryDirectory(prefix: string): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     temporaryDirectories.push(directory);
     return directory;
@@ -26,7 +27,7 @@ async function tempDir(prefix: string): Promise<string> {
 /**
  * Facade-level coverage for `CaxriDatabase`: proves that `../index` (pure SQL) and
  * `../../session-policy` (pure decisions) are wired together correctly inside one transaction per
- * operation. Pure-SQL/schema behavior lives in `./db.integration.test.ts`;
+ * operation. Pure-SQL/schema behavior lives in `./database.integration.test.ts`;
  * pure-decision behavior lives in `../../session-policy.test.ts`.
  */
 describe('CaxriDatabase', () => {
@@ -37,7 +38,7 @@ describe('CaxriDatabase', () => {
     ] as const)(
         'starts a new %s Session as Untitled with a provider-specific Terminal title',
         async (kind, terminalTitle) => {
-            const directory = await tempDir(`caxri-db-untitled-${kind}-`);
+            const directory = await temporaryDirectory(`caxri-db-untitled-${kind}-`);
             const database = new CaxriDatabase(join(directory, 'state.db'));
             const created = database.createSession(database.createProject(directory).id, kind);
 
@@ -51,7 +52,7 @@ describe('CaxriDatabase', () => {
     );
 
     it('creates a Terminal-less Session with an empty layout when kind is null', async () => {
-        const directory = await tempDir('caxri-db-no-terminal-');
+        const directory = await temporaryDirectory('caxri-db-no-terminal-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, null);
 
@@ -65,7 +66,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('persists manual Session title ownership across metadata resets and reopen', async () => {
-        const directory = await tempDir('caxri-db-session-rename-');
+        const directory = await temporaryDirectory('caxri-db-session-rename-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const created = database.createSession(database.createProject(directory).id, 'codex');
@@ -90,7 +91,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('groups Sessions with the same root under one Project', async () => {
-        const directory = await tempDir('caxri-db-project-grouping-');
+        const directory = await temporaryDirectory('caxri-db-project-grouping-');
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -118,7 +119,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('keeps owner identity and Terminal cwd global while restoring editor state per Workbench Root', async () => {
-        const directory = await tempDir('caxri-db-workbench-root-');
+        const directory = await temporaryDirectory('caxri-db-workbench-root-');
         const ownerRoot = join(directory, 'owner');
         const worktreeRoot = join(directory, 'worktree');
         await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
@@ -189,7 +190,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('remaps durable editor state for an inactive Workbench Root idempotently', async () => {
-        const directory = await tempDir('caxri-db-inactive-root-remap-');
+        const directory = await temporaryDirectory('caxri-db-inactive-root-remap-');
         const ownerRoot = join(directory, 'owner');
         const worktreeRoot = join(directory, 'worktree');
         await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
@@ -257,7 +258,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('keeps Project and Session ordering stable when a Session is selected', async () => {
-        const directory = await tempDir('caxri-db-stable-selection-order-');
+        const directory = await temporaryDirectory('caxri-db-stable-selection-order-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const firstProject = database.createProject(join(directory, 'first'));
         const firstSession = database.createSession(firstProject.id, 'shell');
@@ -293,7 +294,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('persists bounded Project moves and rejects stale or malformed targets', async () => {
-        const directory = await tempDir('caxri-db-project-reorder-');
+        const directory = await temporaryDirectory('caxri-db-project-reorder-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const first = database.createProject(join(directory, 'first'));
@@ -331,7 +332,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('never removes the Project directory or user files when deleting metadata', async () => {
-        const directory = await tempDir('caxri-db-project-delete-');
+        const directory = await temporaryDirectory('caxri-db-project-delete-');
         const root = join(directory, 'project');
         await writeFile(root, 'user-owned', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -347,7 +348,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('falls back to another Project and its most recent Session when the selected Project is deleted', async () => {
-        const directory = await tempDir('caxri-db-project-fallback-');
+        const directory = await temporaryDirectory('caxri-db-project-fallback-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const first = database.createProject(join(directory, 'first'));
         await mkdir(first.rootPath);
@@ -365,7 +366,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('falls back to another Session in the same Project when the selected Session is deleted', async () => {
-        const directory = await tempDir('caxri-db-session-fallback-');
+        const directory = await temporaryDirectory('caxri-db-session-fallback-');
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -382,7 +383,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('archives Session metadata without deleting its Terminal and restores it later', async () => {
-        const directory = await tempDir('caxri-db-session-archive-');
+        const directory = await temporaryDirectory('caxri-db-session-archive-');
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -409,7 +410,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('synchronizes default Agent metadata into the Session and Terminal records', async () => {
-        const directory = await tempDir('caxri-db-agent-metadata-');
+        const directory = await temporaryDirectory('caxri-db-agent-metadata-');
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -450,7 +451,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('persists reliable primary-Agent attention and acknowledges only the current epoch', async () => {
-        const directory = await tempDir('caxri-db-session-attention-');
+        const directory = await temporaryDirectory('caxri-db-session-attention-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const created = database.createSession(database.createProject(directory).id, 'claude');
@@ -538,7 +539,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('promotes the first Agent Terminal in a Shell Session as its title source', async () => {
-        const directory = await tempDir('caxri-db-primary-agent-');
+        const directory = await temporaryDirectory('caxri-db-primary-agent-');
         const root = join(directory, 'project');
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -577,7 +578,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('keeps Untitled while promoting an Agent Terminal before metadata arrives', async () => {
-        const directory = await tempDir('caxri-db-primary-agent-succession-');
+        const directory = await temporaryDirectory('caxri-db-primary-agent-succession-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const claude = database.createTerminal(created.session.id, 'claude');
@@ -592,7 +593,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('marks Terminals that claimed to be running as interrupted after Runtime reopen', async () => {
-        const directory = await tempDir('caxri-db-recovery-');
+        const directory = await temporaryDirectory('caxri-db-recovery-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const created = database.createSession(database.createProject(directory).id, 'shell');
@@ -605,7 +606,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('clears the Session default Terminal reference when that Terminal closes', async () => {
-        const directory = await tempDir('caxri-db-close-terminal-');
+        const directory = await temporaryDirectory('caxri-db-close-terminal-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
 
@@ -616,7 +617,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('collapses only the empty Terminal group when its final Terminal closes', async () => {
-        const directory = await tempDir('caxri-db-close-terminal-group-');
+        const directory = await temporaryDirectory('caxri-db-close-terminal-group-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const second = database.createTerminal(created.session.id, 'shell');
@@ -635,7 +636,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('never reuses a Terminal order_index after closing a middle Terminal and creating a new one', async () => {
-        const directory = await tempDir('caxri-db-order-index-');
+        const directory = await temporaryDirectory('caxri-db-order-index-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const second = database.createTerminal(created.session.id, 'shell');
@@ -650,13 +651,13 @@ describe('CaxriDatabase', () => {
         expect(fourth.orderIndex).toBe(3);
         const remaining = database.listTerminals(created.session.id);
         const indexes = remaining.map((terminal) => terminal.orderIndex);
-        expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+        expect(indexes).toEqual(indexes.toSorted((a, b) => a - b));
         expect(new Set(indexes).size).toBe(indexes.length);
         database.close();
     });
 
     it('rejects databases created by a newer schema version', async () => {
-        const directory = await tempDir('caxri-db-future-schema-');
+        const directory = await temporaryDirectory('caxri-db-future-schema-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         database.close();
@@ -668,7 +669,7 @@ describe('CaxriDatabase', () => {
     });
 
     it('limits durable Terminals in one Session', async () => {
-        const directory = await tempDir('caxri-db-terminal-capacity-');
+        const directory = await temporaryDirectory('caxri-db-terminal-capacity-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         for (let index = 1; index < 16; index += 1) {

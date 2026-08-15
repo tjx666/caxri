@@ -1,35 +1,38 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:net';
+import type { Server } from 'node:net';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { CaxriUninstallOptions } from '../uninstall-caxri';
 import {
-    parseUninstallArgs,
+    parseUninstallArguments,
     removeGlobalCaxriCli,
     resolveUninstallTargets,
     uninstallCaxri,
-    type CaxriUninstallOptions,
 } from '../uninstall-caxri';
 
 const temporaryDirectories: string[] = [];
 const unixServers: Server[] = [];
 
 afterEach(async () => {
+    const serversToClose = [...unixServers];
+    unixServers.length = 0;
     await Promise.all(
-        unixServers
-            .splice(0)
-            .map(
-                (server) =>
-                    new Promise<void>((resolve, reject) =>
-                        server.close((error) => (error ? reject(error) : resolve())),
-                    ),
-            ),
+        serversToClose.map(
+            (server) =>
+                new Promise<void>((resolve, reject) =>
+                    server.close((error) => (error ? reject(error) : resolve())),
+                ),
+        ),
     );
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
+        directoriesToRemove.map((path) => rm(path, { force: true, recursive: true })),
     );
 });
 
@@ -56,7 +59,9 @@ async function fixture(): Promise<{
 
 describe('Caxri uninstaller', () => {
     it('defaults to a dry run for the standard profile', () => {
-        expect(parseUninstallArgs([], {}, '/Users/example', '/Users/example/code/caxri')).toEqual({
+        expect(
+            parseUninstallArguments([], {}, '/Users/example', '/Users/example/code/caxri'),
+        ).toEqual({
             apply: false,
             archiveRootPath: '/Users/example/code/caxri-uninstall-archives',
             homeDirectory: '/Users/example',
@@ -69,7 +74,7 @@ describe('Caxri uninstaller', () => {
 
     it('accepts an explicit profile but rejects relative deletion targets', () => {
         expect(
-            parseUninstallArgs(
+            parseUninstallArguments(
                 [
                     '--yes',
                     '--profile',
@@ -92,7 +97,7 @@ describe('Caxri uninstaller', () => {
             removeGlobalCli: false,
         });
         expect(() =>
-            parseUninstallArgs(
+            parseUninstallArguments(
                 ['--profile', 'relative-profile'],
                 {},
                 '/Users/example',
@@ -100,7 +105,7 @@ describe('Caxri uninstaller', () => {
             ),
         ).toThrow('must be absolute');
         expect(() =>
-            parseUninstallArgs(
+            parseUninstallArguments(
                 ['--profile', '/Users/example/Documents'],
                 {},
                 '/Users/example',
@@ -130,7 +135,12 @@ describe('Caxri uninstaller', () => {
     });
 
     it('preserves case-only profile variants until their filesystem identity is known', () => {
-        const options = parseUninstallArgs([], {}, '/Users/example', '/Users/example/code/caxri');
+        const options = parseUninstallArguments(
+            [],
+            {},
+            '/Users/example',
+            '/Users/example/code/caxri',
+        );
         if ('help' in options) throw new Error('Unexpected help result');
         const targets = resolveUninstallTargets(options);
 
@@ -145,11 +155,11 @@ describe('Caxri uninstaller', () => {
 
     it('refuses to treat a Git worktree as a Caxri profile', async () => {
         const { home } = await fixture();
-        const repository = join(home, 'code', 'caxri');
-        await mkdir(join(repository, '.git'), { recursive: true });
-        await writeFile(join(repository, 'caxri.db'), 'fixture', 'utf8');
-        const options = parseUninstallArgs(
-            ['--profile', repository, '--keep-app', '--keep-cli'],
+        const repo = join(home, 'code', 'caxri');
+        await mkdir(join(repo, '.git'), { recursive: true });
+        await writeFile(join(repo, 'caxri.db'), 'fixture', 'utf8');
+        const options = parseUninstallArguments(
+            ['--profile', repo, '--keep-app', '--keep-cli'],
             {},
             home,
             join(home, 'code', 'caxri'),
@@ -286,9 +296,11 @@ describe('Caxri uninstaller', () => {
         expect(await readFile(join(result.archiveDirectory!, '01-Caxri', 'caxri.db'), 'utf8')).toBe(
             'fixture',
         );
-        expect(
-            JSON.parse(await readFile(join(result.archiveDirectory!, 'manifest.json'), 'utf8')),
-        ).toMatchObject({
+        const manifestContents = await readFile(
+            join(result.archiveDirectory!, 'manifest.json'),
+            'utf8',
+        );
+        expect(JSON.parse(manifestContents)).toMatchObject({
             archiveDirectory: result.archiveDirectory,
             schemaVersion: 1,
             targets: [
@@ -304,7 +316,7 @@ describe('Caxri uninstaller', () => {
     it('archives every managed development profile with its original path in the manifest', async () => {
         const { home, options, profile } = await fixture();
         await writeFile(join(profile, 'caxri.db'), 'installed', 'utf8');
-        const devProfileRoot = join(
+        const developmentProfileRoot = join(
             home,
             'code',
             'caxri',
@@ -312,32 +324,41 @@ describe('Caxri uninstaller', () => {
             'caxri-worktree-state',
             'profiles',
         );
-        const devProfile = join(devProfileRoot, '0c96f205-681d-40c4-b54e-205cc275129d');
-        await mkdir(join(devProfile, 'logs'), { recursive: true });
-        await writeFile(join(devProfile, 'logs', 'host.jsonl'), 'dev log', 'utf8');
+        const developmentProfile = join(
+            developmentProfileRoot,
+            '0c96f205-681d-40c4-b54e-205cc275129d',
+        );
+        await mkdir(join(developmentProfile, 'logs'), { recursive: true });
+        await writeFile(join(developmentProfile, 'logs', 'host.jsonl'), 'dev log', 'utf8');
 
         const result = await uninstallCaxri(
             {
                 ...options,
                 apply: true,
-                devProfileRoot,
+                devProfileRoot: developmentProfileRoot,
                 removeGlobalCli: false,
             },
             { inspectPathOwner: () => Promise.resolve(undefined) },
         );
 
-        expect(result.movedTargets).toEqual([profile, devProfile]);
+        expect(result.movedTargets).toEqual([profile, developmentProfile]);
         const manifest = JSON.parse(
             await readFile(join(result.archiveDirectory!, 'manifest.json'), 'utf8'),
         ) as {
-            targets: { archivedPath: string; originalPath: string; status: string }[];
+            targets: Array<{ archivedPath: string; originalPath: string; status: string }>;
         };
-        const archivedDevProfile = manifest.targets.find(
-            (target) => target.originalPath === devProfile,
+        const archivedDevelopmentProfile = manifest.targets.find(
+            (target) => target.originalPath === developmentProfile,
         );
-        expect(archivedDevProfile).toMatchObject({ originalPath: devProfile, status: 'archived' });
+        expect(archivedDevelopmentProfile).toMatchObject({
+            originalPath: developmentProfile,
+            status: 'archived',
+        });
         expect(
-            await readFile(join(archivedDevProfile!.archivedPath, 'logs', 'host.jsonl'), 'utf8'),
+            await readFile(
+                join(archivedDevelopmentProfile!.archivedPath, 'logs', 'host.jsonl'),
+                'utf8',
+            ),
         ).toBe('dev log');
     });
 
@@ -449,9 +470,11 @@ describe('Caxri uninstaller', () => {
         expect(result.movedTargets).toEqual([preferences]);
         expect((await lstat(profile)).isDirectory()).toBe(true);
         await expect(readFile(preferences, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
-        expect(
-            JSON.parse(await readFile(join(result.archiveDirectory!, 'manifest.json'), 'utf8')),
-        ).toMatchObject({
+        const manifestContents = await readFile(
+            join(result.archiveDirectory!, 'manifest.json'),
+            'utf8',
+        );
+        expect(JSON.parse(manifestContents)).toMatchObject({
             targets: [
                 { originalPath: profile, status: 'failed' },
                 { originalPath: preferences, status: 'archived' },

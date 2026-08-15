@@ -1,21 +1,30 @@
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import process from 'node:process';
 
 import type { AgentProvider } from '../../shared/agents';
 import type { AgentActivityState, ProcessState } from '../../shared/types';
 import type { AgentHookAdapter } from './hooks/contract';
 
 export interface AgentSnapshotContext {
-    /** Keeps repeated probes bound to the Agent session already correlated with this Terminal. */
+    /**
+    Keeps repeated probes bound to the Agent session already correlated with this Terminal.
+     */
     agentSessionId?: string;
-    /** Keeps concurrent unbound Terminals in one Project from sharing a metadata probe. */
+    /**
+    Keeps concurrent unbound Terminals in one Project from sharing a metadata probe.
+     */
     correlationId?: string;
-    /** Prevents an unbound Terminal from claiming an Agent session already owned or restarted. */
+    /**
+    Prevents an unbound Terminal from claiming an Agent session already owned or restarted.
+     */
     excludedAgentSessionIds?: readonly string[];
     processState?: ProcessState;
     rootPath: string;
-    /** Rejects same-directory Agent sessions that existed before this Terminal process started. */
+    /**
+    Rejects same-directory Agent sessions that existed before this Terminal process started.
+     */
     startedAt?: number;
 }
 
@@ -66,7 +75,9 @@ export function processStateToAgentActivity(state?: ProcessState): AgentActivity
     return 'unknown';
 }
 
-/** Compares Agent-recorded working directories against a Project root without failing on removal. */
+/**
+Compares Agent-recorded working directories against a Project root without failing on removal.
+ */
 export async function canonicalPath(path: string): Promise<string> {
     try {
         return await realpath(path);

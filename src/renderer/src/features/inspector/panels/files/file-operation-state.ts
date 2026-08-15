@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { pathIsAtOrBelow } from '../../../../lib/file-path';
+import { isPathAtOrBelow } from '../../../../lib/file-path';
 
 export interface PendingFileOperation {
     id: string;
@@ -37,7 +37,9 @@ interface FileOperationState {
     clear(): void;
 }
 
-/** Renderer lifecycle for long file mutations; Runtime remains the authority for every path. */
+/**
+Renderer lifecycle for long file mutations; Runtime remains the authority for every path.
+ */
 export const useFileOperationStore = create<FileOperationState>((set, get) => ({
     operations: [],
     begin(operation) {
@@ -80,11 +82,13 @@ export function isPathBlockedByFileOperations(
     return operations.some(
         (operation) =>
             operation.projectId === projectId &&
-            operation.affectedPaths.some((affected) => pathIsAtOrBelow(path, affected)),
+            operation.affectedPaths.some((affected) => isPathAtOrBelow(path, affected)),
     );
 }
 
-/** Every pending operation for a Project whose affected subtree overlaps `path`, oldest first. */
+/**
+Every pending operation for a Project whose affected subtree overlaps `path`, oldest first.
+ */
 export function fileOperationsBlockingPath(
     operations: readonly PendingFileOperation[],
     projectId: string,
@@ -93,7 +97,7 @@ export function fileOperationsBlockingPath(
     return operations.filter(
         (operation) =>
             operation.projectId === projectId &&
-            operation.affectedPaths.some((affected) => pathIsAtOrBelow(path, affected)),
+            operation.affectedPaths.some((affected) => isPathAtOrBelow(path, affected)),
     );
 }
 

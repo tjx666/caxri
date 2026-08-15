@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriError } from '../../shared/ipc/errors';
 import type { DesktopOperation } from '../../shared/ipc/local-transport';
-import type { HostRuntimeSupervisor } from '../runtime-supervisor';
 import { HostDesktopRouter } from '../desktop-router';
+import type { HostRuntimeSupervisor } from '../runtime-supervisor';
 
 const project = {
     id: 'project-1',
@@ -177,7 +177,7 @@ describe('Host Desktop router', () => {
             bridge: {
                 invoke: () => Promise.resolve(null),
                 launch,
-                lease: () => undefined,
+                lease: () => {},
                 waitForLease,
             },
             runtime: runtime(
@@ -201,14 +201,14 @@ describe('Host Desktop router', () => {
     });
 
     it('distinguishes offline, background, and focused Desktop states', async () => {
-        let online = false;
+        let isOnline = false;
         const invoke = vi.fn((operation: DesktopOperation) =>
             Promise.resolve(operation.kind === 'status' ? { state: 'background' } : null),
         );
         const router = new HostDesktopRouter({
             bridge: {
                 lease: () =>
-                    online
+                    isOnline
                         ? { desktopId: 'desktop-1', generation: 8, expiresAt: Date.now() + 1_000 }
                         : undefined,
                 invoke,
@@ -216,7 +216,7 @@ describe('Host Desktop router', () => {
             runtime: runtime(),
         });
         await expect(router.status()).resolves.toEqual({ state: 'offline' });
-        online = true;
+        isOnline = true;
         await expect(router.status()).resolves.toEqual({ state: 'background', generation: 8 });
         await expect(router.focus(false)).resolves.toEqual({ state: 'focused', generation: 8 });
     });
@@ -230,7 +230,7 @@ describe('Host Desktop router', () => {
             bridge: {
                 invoke: () => Promise.resolve(null),
                 launch,
-                lease: () => undefined,
+                lease: () => {},
                 waitForLease,
             },
             runtime: runtime(),

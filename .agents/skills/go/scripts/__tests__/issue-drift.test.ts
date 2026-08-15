@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-    assessExpectationDrift,
     assertIssueExpectationDriftReady,
+    assessExpectationDrift,
     buildExpectationDriftComment,
     findPublishedDriftComment,
     isMaterialExpectationDrift,
@@ -10,7 +10,7 @@ import {
     publishExpectationDriftViaGh,
 } from '../issue-drift';
 import { createResumeCheckpoint } from '../resume';
-import { createInitialState, recordPullRequest, upsertIssue } from '../state';
+import { createInitialState, recordPullRequest, upsertIssue } from '../state-model';
 
 function driftState() {
     const state = createInitialState({ objective: 'Track issue drift', runId: 'drift-test' });
@@ -20,13 +20,13 @@ function driftState() {
     return state;
 }
 
-function materialAssessment(state: ReturnType<typeof driftState>, decisionRequired = false) {
+function materialAssessment(state: ReturnType<typeof driftState>, isDecisionRequired = false) {
     return assessExpectationDrift(state, {
         acceptanceImpact: '稳定检查 `issue-drift-comment` 改用 mock GitHub API，语义保持不变。',
-        decision: decisionRequired
+        decision: isDecisionRequired
             ? '记录当前发现并等待靖哥决定是否扩大冻结范围。'
             : '保留冻结范围，使用结构化评论记录最终实现决定。',
-        decisionRequired,
+        decisionRequired: isDecisionRequired,
         driftKey: 'comment-publication',
         evidence: '当前实现需要通过 `gh issue comment --body-file` 获取不可变评论 URL。',
         expectation: '原方案只要求在 ledger 中保存 comment URL 和关联 head。',

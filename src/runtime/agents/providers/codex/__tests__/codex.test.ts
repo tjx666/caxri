@@ -2,8 +2,8 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
@@ -13,9 +13,9 @@ const temporaryDirectories: string[] = [];
 afterEach(async () => {
     clearExecutableCache();
     vi.unstubAllEnvs();
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Codex provider', () => {

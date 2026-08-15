@@ -1,13 +1,13 @@
-import { ChevronDown, ChevronRight, GitCommitHorizontal, LoaderCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { GitCommit, GitRepositorySummary } from '@shared/types';
+import { ChevronDown, ChevronRight, GitCommitHorizontal, LoaderCircle } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { caxri } from '../../../../lib/caxri';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 
@@ -17,8 +17,8 @@ const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'au
 function useDebouncedValue(value: string, delayMs: number): string {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
-        const timer = window.setTimeout(() => setDebounced(value), delayMs);
-        return () => window.clearTimeout(timer);
+        const timer = setTimeout(() => setDebounced(value), delayMs);
+        return () => clearTimeout(timer);
     }, [delayMs, value]);
     return debounced;
 }
@@ -160,11 +160,11 @@ export function CommitHistory({
     const scopePath = debouncedPath.trim() || undefined;
 
     const loadPage = useCallback(
-        async (offset: number, replace: boolean, head?: string) => {
+        async (offset: number, shouldReplace: boolean, head?: string) => {
             const request = { head, sequence: ++requestSequence.current };
             activeRequest.current = request;
             setLoading(true);
-            if (replace) {
+            if (shouldReplace) {
                 setCommits([]);
                 setSelectedSha(undefined);
             }
@@ -178,11 +178,13 @@ export function CommitHistory({
                     path: scopePath,
                 });
                 if (request !== activeRequest.current) return;
-                setCommits((current) => (replace ? page.commits : [...current, ...page.commits]));
+                setCommits((current) =>
+                    shouldReplace ? page.commits : [...current, ...page.commits],
+                );
                 setNextOffset(page.nextOffset);
-            } catch (failure) {
+            } catch (error_) {
                 if (request !== activeRequest.current) return;
-                setError(describeFailure(failure, 'Unable to load commits'));
+                setError(describeFailure(error_, 'Unable to load commits'));
             } finally {
                 if (request === activeRequest.current) activeRequest.current = undefined;
                 setLoading(activeRequest.current !== undefined);
@@ -196,9 +198,14 @@ export function CommitHistory({
             activeRequest.current = undefined;
             return;
         }
-        const timer = window.setTimeout(() => void loadPage(0, true, repository.head), 0);
+        // loadPage tracks its own loading/error state via the effect's activeRequest guard, so
+        // this deferred kickoff intentionally discards the returned promise.
+        const timer = setTimeout(() => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void loadPage(0, true, repository.head);
+        }, 0);
         return () => {
-            window.clearTimeout(timer);
+            clearTimeout(timer);
             activeRequest.current = undefined;
         };
     }, [expanded, loadPage, repository.head]);
@@ -267,9 +274,10 @@ export function CommitHistory({
                                     className="w-full"
                                     variant="ghost"
                                     disabled={loading || path !== debouncedPath}
-                                    onClick={() =>
-                                        void loadPage(nextOffset, false, repository.head)
-                                    }
+                                    onClick={() => {
+                                        // eslint-disable-next-line no-void -- intentional floating-promise discard: loadPage owns its own loading/error state
+                                        void loadPage(nextOffset, false, repository.head);
+                                    }}
                                 >
                                     {loading ? 'Loading…' : 'Load more'}
                                 </Button>

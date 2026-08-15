@@ -1,8 +1,10 @@
-import { Input as InputPrimitive } from '@base-ui/react/input';
-import { cva, type VariantProps } from 'class-variance-authority';
 import type { ComponentProps, HTMLAttributes } from 'react';
 
-import { cn } from '@/lib/utils';
+import { Input as InputPrimitive } from '@base-ui/react/input';
+import type { VariantProps } from 'class-variance-authority';
+import { cva } from 'class-variance-authority';
+
+import { cn } from '@/lib/utilities';
 
 const inputVariants = cva(
     'block w-full min-w-0 appearance-none border text-inherit outline-none transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] aria-invalid:border-danger aria-invalid:focus-visible:border-danger disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
@@ -47,31 +49,35 @@ const inputGroupVariants = cva(
     },
 );
 
-export interface InputProps
+export interface InputProperties
     extends Omit<ComponentProps<'input'>, 'size'>, VariantProps<typeof inputVariants> {}
 
-/** Shared field primitive with the explicit density and appearance tiers from DESIGN.md. */
-export function Input({ appearance, className, size, type, ...props }: InputProps) {
+/**
+Shared field primitive with the explicit density and appearance tiers from DESIGN.md.
+ */
+export function Input({ appearance, className, size, type, ...properties }: InputProperties) {
     return (
         <InputPrimitive
             type={type}
             data-slot="input"
             className={cn(inputVariants({ appearance, size }), className)}
-            {...props}
+            {...properties}
         />
     );
 }
 
-export interface InputGroupProps
+export interface InputGroupProperties
     extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof inputGroupVariants> {}
 
-/** Owns shared field chrome when an Input needs leading or trailing adornments. */
-export function InputGroup({ appearance, className, size, ...props }: InputGroupProps) {
+/**
+Owns shared field chrome when an Input needs leading or trailing adornments.
+ */
+export function InputGroup({ appearance, className, size, ...properties }: InputGroupProperties) {
     return (
         <div
             data-slot="input-group"
             className={cn(inputGroupVariants({ appearance, size }), className)}
-            {...props}
+            {...properties}
         />
     );
 }

@@ -1,22 +1,22 @@
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
+import process from 'node:process';
 
-import { CaxriError } from '@caxri/protocol';
-import { hostCredentialTokenSchema, hostProcessIdentitySchema } from '@caxri/protocol';
+import { CaxriError, hostCredentialTokenSchema, hostProcessIdentitySchema } from '@caxri/protocol';
 import { z } from 'zod';
 
 export type CliAutomation = 'agent' | 'ci' | 'human';
 
-function enabled(value: string | undefined): boolean {
+function isEnabled(value: string | undefined): boolean {
     return value !== undefined && value !== '' && value !== '0' && value.toLowerCase() !== 'false';
 }
 
 export function detectAutomation(environment: NodeJS.ProcessEnv): CliAutomation {
-    if (enabled(environment.CI) || enabled(environment.GITHUB_ACTIONS)) return 'ci';
+    if (isEnabled(environment.CI) || isEnabled(environment.GITHUB_ACTIONS)) return 'ci';
     if (
-        enabled(environment.CODEX_THREAD_ID) ||
-        enabled(environment.CLAUDECODE) ||
-        enabled(environment.CLAUDE_CODE_ENTRYPOINT)
+        isEnabled(environment.CODEX_THREAD_ID) ||
+        isEnabled(environment.CLAUDECODE) ||
+        isEnabled(environment.CLAUDE_CODE_ENTRYPOINT)
     )
         return 'agent';
     return 'human';
@@ -47,7 +47,9 @@ export interface PackagedHostLaunch {
     executable: string;
 }
 
-/** Derives launch authority only from the currently executing packaged Caxri application layout. */
+/**
+Derives launch authority only from the currently executing packaged Caxri application layout.
+ */
 export function resolvePackagedHostLaunch(input: {
     executable: string;
     resourcesPath?: string;
@@ -66,7 +68,9 @@ export function resolvePackagedHostLaunch(input: {
     };
 }
 
-/** Requires the complete generation credential; partial inherited state is never authoritative. */
+/**
+Requires the complete generation credential; partial inherited state is never authoritative.
+ */
 export function resolveAgentEndpointCredential(
     environment: NodeJS.ProcessEnv,
 ): AgentEndpointCredential | undefined {

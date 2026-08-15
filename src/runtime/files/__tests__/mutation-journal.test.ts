@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { FileMutationOperation } from '../../../shared/types';
 import { StructuredLogger } from '../../../shared/node/logger';
+import type { FileMutationOperation } from '../../../shared/types';
 import { FileMutationJournal } from '../mutation-journal';
 
 const temporaryDirectories: string[] = [];
@@ -28,9 +28,9 @@ function createOperation(
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const paths = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('FileMutationJournal', () => {
@@ -40,7 +40,7 @@ describe('FileMutationJournal', () => {
         const gate = Promise.withResolvers<void>();
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { preStageTimeoutMs: 10 },
         );
@@ -68,7 +68,7 @@ describe('FileMutationJournal', () => {
         const release = Promise.withResolvers<void>();
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
         );
         await journal.initialize();
@@ -104,9 +104,9 @@ describe('FileMutationJournal', () => {
         await writeFile(source, 'preserved', 'utf8');
         const sourceStats = await lstat(source, { bigint: true });
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const first = new FileMutationJournal(path, () => undefined, logger);
+        const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
-        const never = new Promise<never>(() => undefined);
+        const never = new Promise<never>(() => {});
         const startedAt = Date.now();
         const pending = first.run(
             {
@@ -133,12 +133,13 @@ describe('FileMutationJournal', () => {
                 return result;
             },
         );
-        void pending.catch(() => undefined);
+        // eslint-disable-next-line unicorn/prefer-await -- `pending` awaits a never-resolving promise inside the journal executor; awaiting the rejection handler here would hang the test forever, so the rejection is deliberately observed fire-and-forget.
+        pending.catch(() => {});
         await expect.poll(() => first.get('operation-3')).toMatchObject({ phase: 'staged' });
         await expect(access(target)).resolves.toBeUndefined();
         await first.close();
 
-        const recovered = new FileMutationJournal(path, () => undefined, logger);
+        const recovered = new FileMutationJournal(path, () => {}, logger);
         await recovered.initialize();
         await expect(recovered.get('operation-3')).resolves.toMatchObject({
             phase: 'completed',
@@ -154,7 +155,7 @@ describe('FileMutationJournal', () => {
         const path = join(directory, 'operations.json');
         const target = join(directory, 'created.txt');
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const first = new FileMutationJournal(path, () => undefined, logger);
+        const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
         const pending = first.run(
             createOperation('operation-create-restart', directory),
@@ -168,11 +169,12 @@ describe('FileMutationJournal', () => {
                     device: stats.dev.toString(),
                     inode: stats.ino.toString(),
                 });
-                await new Promise<never>(() => undefined);
+                await new Promise<never>(() => {});
                 return result;
             },
         );
-        void pending.catch(() => undefined);
+        // eslint-disable-next-line unicorn/prefer-await -- `pending` awaits a never-resolving promise inside the journal executor; awaiting the rejection handler here would hang the test forever, so the rejection is deliberately observed fire-and-forget.
+        pending.catch(() => {});
         await expect
             .poll(async () => (await first.get('operation-create-restart'))?.phase)
             .toBe('staged');
@@ -182,7 +184,7 @@ describe('FileMutationJournal', () => {
         expect(typeof staged.expectedResult?.inode).toBe('string');
         await first.close();
 
-        const recovered = new FileMutationJournal(path, () => undefined, logger);
+        const recovered = new FileMutationJournal(path, () => {}, logger);
         await recovered.initialize();
 
         await expect(recovered.get('operation-create-restart')).resolves.toMatchObject({
@@ -203,7 +205,7 @@ describe('FileMutationJournal', () => {
         await writeFile(source, 'original', 'utf8');
         const sourceStats = await lstat(source, { bigint: true });
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const first = new FileMutationJournal(path, () => undefined, logger);
+        const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
         const pending = first.run(
             {
@@ -228,11 +230,12 @@ describe('FileMutationJournal', () => {
                 await rename(source, target);
                 await rename(target, preserved);
                 await writeFile(target, 'foreign', 'utf8');
-                await new Promise<never>(() => undefined);
+                await new Promise<never>(() => {});
                 return expected;
             },
         );
-        void pending.catch(() => undefined);
+        // eslint-disable-next-line unicorn/prefer-await -- `pending` awaits a never-resolving promise inside the journal executor; awaiting the rejection handler here would hang the test forever, so the rejection is deliberately observed fire-and-forget.
+        pending.catch(() => {});
         await expect
             .poll(() => first.get('operation-foreign-target'))
             .toMatchObject({
@@ -240,7 +243,7 @@ describe('FileMutationJournal', () => {
             });
         await first.close();
 
-        const recovered = new FileMutationJournal(path, () => undefined, logger);
+        const recovered = new FileMutationJournal(path, () => {}, logger);
         await recovered.initialize();
 
         await expect(recovered.get('operation-foreign-target')).resolves.toMatchObject({
@@ -262,7 +265,7 @@ describe('FileMutationJournal', () => {
         let writes = 0;
         const journal = new FileMutationJournal(
             path,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 completionRetryBaseMs: 1,
@@ -319,7 +322,7 @@ describe('FileMutationJournal', () => {
         let writes = 0;
         const journal = new FileMutationJournal(
             path,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 completionRetryBaseMs: 1,
@@ -362,7 +365,7 @@ describe('FileMutationJournal', () => {
         let writes = 0;
         const journal = new FileMutationJournal(
             path,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 completionRetryBaseMs: 100,
@@ -404,14 +407,15 @@ describe('FileMutationJournal', () => {
         temporaryDirectories.push(directory);
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { maximumActivePerSession: 1, preStageTimeoutMs: 30_000 },
         );
         await journal.initialize();
-        const never = new Promise<never>(() => undefined);
+        const never = new Promise<never>(() => {});
         const first = journal.run(createOperation('operation-4', directory), () => never);
-        void first.catch(() => undefined);
+        // eslint-disable-next-line unicorn/prefer-await -- `first` awaits a never-resolving promise inside the journal executor; awaiting the rejection handler here would hang the test forever, so the rejection is deliberately observed fire-and-forget.
+        first.catch(() => {});
 
         await expect.poll(() => journal.get('operation-4')).toMatchObject({ phase: 'pre_stage' });
         await expect(

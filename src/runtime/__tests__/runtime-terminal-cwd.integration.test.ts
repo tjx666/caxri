@@ -23,9 +23,9 @@ function createFakePty(): IPty {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime Terminal cwd authorization', () => {
@@ -36,16 +36,16 @@ describe('Runtime Terminal cwd authorization', () => {
         const projectFolder = join(projectRoot, 'folder');
         const outside = join(directory, 'outside');
         await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
-        let swapOnResolve = false;
+        let isSwapOnResolve = false;
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: async () => {
-                    if (swapOnResolve) {
-                        swapOnResolve = false;
+                    if (isSwapOnResolve) {
+                        isSwapOnResolve = false;
                         await rename(projectFolder, `${projectFolder}-original`);
                         await symlink(outside, projectFolder);
                     }
@@ -62,7 +62,7 @@ describe('Runtime Terminal cwd authorization', () => {
                 defaultAgent: 'shell',
             });
             expect(spawn).toHaveBeenCalledTimes(1);
-            swapOnResolve = true;
+            isSwapOnResolve = true;
 
             const terminal = await runtime.handlers['terminal.create']({
                 sessionId: created.session.id,
@@ -87,16 +87,16 @@ describe('Runtime Terminal cwd authorization', () => {
             mkdir(projectFolder, { recursive: true }),
             mkdir(join(outside, 'folder'), { recursive: true }),
         ]);
-        let swapOnResolve = false;
+        let isSwapOnResolve = false;
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: async () => {
-                    if (swapOnResolve) {
-                        swapOnResolve = false;
+                    if (isSwapOnResolve) {
+                        isSwapOnResolve = false;
                         await rename(projectRoot, `${projectRoot}-original`);
                         await symlink(outside, projectRoot);
                     }
@@ -118,7 +118,7 @@ describe('Runtime Terminal cwd authorization', () => {
                 cwd: projectFolder,
             });
             expect(spawn).toHaveBeenCalledTimes(2);
-            swapOnResolve = true;
+            isSwapOnResolve = true;
 
             await expect(
                 runtime.handlers['terminal.restart']({ terminalId: terminal.id, mode: 'resume' }),
@@ -143,7 +143,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         });
 
@@ -182,7 +182,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -206,7 +206,7 @@ describe('Runtime Terminal cwd authorization', () => {
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -236,7 +236,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -260,7 +260,9 @@ describe('Runtime Terminal cwd authorization', () => {
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: (event) => events.push(event),
+            send: (event) => {
+                events.push(event);
+            },
             terminal: {
                 resolveExecutable: async () => {
                     await rename(projectFolder, `${projectFolder}-original`);

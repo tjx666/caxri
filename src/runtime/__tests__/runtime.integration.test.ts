@@ -6,15 +6,17 @@ import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
-import { listLayoutTerminalIds } from '../../shared/terminal-layout';
 import { StructuredLogger } from '../../shared/node/logger';
+import { listLayoutTerminalIds } from '../../shared/terminal-layout';
 import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
 import { GitService } from '../git';
 
 const temporaryDirectories: string[] = [];
 
-/** A PTY stub keeps the in-process Runtime hermetic: no login shell is launched by these tests. */
+/**
+A PTY stub keeps the in-process Runtime hermetic: no login shell is launched by these tests.
+ */
 function createFakePty(): IPty {
     return {
         pid: 4242,
@@ -27,9 +29,9 @@ function createFakePty(): IPty {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime composition root', () => {
@@ -42,7 +44,7 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 agentEnvironment: () =>
                     Promise.resolve({ HOME: directory, PATH: '/login/bin:/usr/bin' }),
@@ -110,7 +112,7 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn,
@@ -223,7 +225,7 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -248,7 +250,7 @@ describe('Runtime composition root', () => {
             expect(() =>
                 runtime.handlers['session.rename']({
                     sessionId: created.session.id,
-                    displayTitle: '   ',
+                    displayTitle: ' '.repeat(3),
                 }),
             ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
         } finally {
@@ -266,7 +268,9 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: (event) => events.push(event),
+            send: (event) => {
+                events.push(event);
+            },
             startedAt: 1_700_000_000_000,
             pid: 1234,
             terminal: {
@@ -313,7 +317,9 @@ describe('Runtime composition root', () => {
             expect(populated.projects).toHaveLength(1);
             expect(populated.sessions).toHaveLength(1);
             expect(populated.selectedSessionId).toBe(created.session.id);
-            /** Live PTY identity is Runtime state, not durable metadata, so it must come from the manager. */
+            /**
+            Live PTY identity is Runtime state, not durable metadata, so it must come from the manager.
+             */
             expect(populated.terminals[0]).toMatchObject({
                 id: created.terminal!.id,
                 processId: 4242,
@@ -330,7 +336,9 @@ describe('Runtime composition root', () => {
             });
 
             const remaining = await handlers['session.delete']({ sessionId: created.session.id });
-            /** Session deletion removes Session metadata only; the Project keeps its durable root. */
+            /**
+            Session deletion removes Session metadata only; the Project keeps its durable root.
+             */
             expect(remaining).toMatchObject({
                 sessions: [],
                 terminals: [],
@@ -363,7 +371,7 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
         });
 
         try {
@@ -384,7 +392,7 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
         });
 
         expect(await runtime.handlers['runtime.shutdown']({})).toBeNull();
@@ -403,7 +411,7 @@ describe('Runtime composition root', () => {
         const runtime = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: { spawn: () => createFakePty() },
         });
 
@@ -441,13 +449,15 @@ describe('Runtime composition root', () => {
     });
 });
 
-/** No-op stub: the resume-restore workflow only needs `updateAgentMetadata` to stay a no-op so the
-    directly-written `agent_session_id` (see below) is never overwritten by a real probe result. */
+/**
+     No-op stub: the resume-restore workflow only needs `updateAgentMetadata` to stay a no-op so the
+    directly-written `agent_session_id` (see below) is never overwritten by a real probe result.
+ */
 function fakeAgentAdapters(): Record<
     'claude' | 'codex',
     { provider: 'claude' | 'codex'; snapshot: () => Promise<never> }
 > {
-    const pending = new Promise<never>(() => undefined);
+    const pending = new Promise<never>(() => {});
     return {
         claude: { provider: 'claude', snapshot: () => pending },
         codex: { provider: 'codex', snapshot: () => pending },
@@ -466,7 +476,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: { resolveExecutable, spawn: () => createFakePty() },
             agentAdapters: fakeAgentAdapters(),
         });
@@ -476,12 +486,16 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             defaultAgent: 'claude',
         });
         expect(created.terminal!.provider).toBe('claude');
-        /** Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`. */
+        /**
+        Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`.
+         */
         await runtimeA.close();
 
-        /** Simulate a capability-detected Agent session id having been bound before the shutdown; done
+        /**
+             Simulate a capability-detected Agent session id having been bound before the shutdown; done
             through the raw better-sqlite3 handle because `updateAgentMetadata` requires a matching
-            provider snapshot, which this hermetic test does not produce. */
+            provider snapshot, which this hermetic test does not produce.
+         */
         const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
         expect(direct.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
         direct.database
@@ -495,7 +509,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: () => undefined,
+            send: () => {},
             terminal: { resolveExecutable, spawn: spawnSpy },
             agentAdapters: fakeAgentAdapters(),
         });
@@ -528,7 +542,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -545,10 +559,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         });
         await runtimeA.close();
 
-        let releaseDiscovery = (): void => undefined;
-        const discoveryGate = new Promise<void>((resolve) => {
-            releaseDiscovery = resolve;
-        });
+        const { promise: discoveryGate, resolve: releaseDiscovery } = Promise.withResolvers<void>();
         const resolveExecutable = vi.fn(async () => {
             await discoveryGate;
             return '/bin/zsh';
@@ -559,7 +570,9 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: (event) => events.push(event),
+            send: (event) => {
+                events.push(event);
+            },
             terminal: { resolveExecutable, spawn: spawnSpy },
         });
         try {
@@ -600,7 +613,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: { resolveExecutable, spawn: () => createFakePty() },
             agentAdapters: fakeAgentAdapters(),
         });
@@ -609,7 +622,9 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             projectId: project.id,
             defaultAgent: 'claude',
         });
-        /** No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset. */
+        /**
+        No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset.
+         */
         await runtimeA.close();
 
         const freshSpawnSpy = vi.fn();
@@ -618,7 +633,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: () => undefined,
+            send: () => {},
             terminal: { resolveExecutable, spawn: freshSpawnSpy },
             agentAdapters: fakeAgentAdapters(),
         });
@@ -641,12 +656,14 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const runtimeC = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-c')),
-            send: () => undefined,
+            send: () => {},
             terminal: { resolveExecutable, spawn: noRestartSpawnSpy },
             agentAdapters: fakeAgentAdapters(),
         });
         try {
-            /** Give the fire-and-forget restore a beat to (not) run before asserting it stayed idle. */
+            /**
+            Give the fire-and-forget restore a beat to (not) run before asserting it stayed idle.
+             */
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(noRestartSpawnSpy).not.toHaveBeenCalled();
         } finally {
@@ -666,7 +683,7 @@ describe('selected Session Agent probes', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/usr/local/bin/claude'),
                 spawn: () => createFakePty(),
@@ -694,11 +711,11 @@ describe('selected Session Agent probes', () => {
                 sessionId: context.correlationId,
             }),
         );
-        const pending = new Promise<never>(() => undefined);
+        const pending = new Promise<never>(() => {});
         const runtimeB = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: () => undefined,
+            send: () => {},
             agentAdapters: {
                 claude: { provider: 'claude', snapshot },
                 codex: { provider: 'codex', snapshot: () => pending },
@@ -728,7 +745,7 @@ describe('Session state recovery', () => {
         const runtimeA = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -748,7 +765,7 @@ describe('Session state recovery', () => {
         direct.close();
 
         const logger = new StructuredLogger(join(directory, 'logs-b'));
-        const runtimeB = await createRuntime({ userDataPath, logger, send: () => undefined });
+        const runtimeB = await createRuntime({ userDataPath, logger, send: () => {} });
         try {
             const bootstrap = await runtimeB.handlers['app.bootstrap']({});
             const repaired = bootstrap.sessionStates.find(

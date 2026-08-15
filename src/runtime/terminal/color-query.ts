@@ -1,10 +1,12 @@
-const ESC = '\x1b';
-const BEL = '\x07';
+const ESC = '\u{1B}';
+const BEL = '\u{7}';
 const ST = `${ESC}\\`;
 
 export type TerminalColorQuerySlot = 10 | 11;
 
-/** The two default-color queries (OSC 10 foreground, OSC 11 background), each with both legal terminators. */
+/**
+The two default-color queries (OSC 10 foreground, OSC 11 background), each with both legal terminators.
+ */
 const QUERY_FORMS: Array<{ sequence: string; slot: TerminalColorQuerySlot; terminator: string }> = (
     [10, 11] as const
 ).flatMap((slot) =>
@@ -36,7 +38,9 @@ export class TerminalColorQueryResponder {
         private readonly onQuery: (slot: TerminalColorQuerySlot, terminator: string) => void,
     ) {}
 
-    /** Filters one output chunk, invoking `onQuery` for each complete query found. */
+    /**
+    Filters one output chunk, invoking `onQuery` for each complete query found.
+     */
     push(data: string): string {
         if (!data) return '';
         this.buffer += data;
@@ -44,7 +48,7 @@ export class TerminalColorQueryResponder {
         let cursor = 0;
         while (cursor < this.buffer.length) {
             const index = this.buffer.indexOf(ESC, cursor);
-            if (index < 0) {
+            if (index === -1) {
                 output += this.buffer.slice(cursor);
                 this.buffer = '';
                 return output;
@@ -58,7 +62,9 @@ export class TerminalColorQueryResponder {
                 continue;
             }
             if (QUERY_FORMS.some((form) => form.sequence.startsWith(remainder))) {
-                /** A query split across chunks: hold the partial tail until more bytes decide it. */
+                /**
+                A query split across chunks: hold the partial tail until more bytes decide it.
+                 */
                 this.buffer = remainder;
                 return output;
             }
@@ -69,7 +75,9 @@ export class TerminalColorQueryResponder {
         return output;
     }
 
-    /** Releases a held partial sequence when the stream ends without completing it. */
+    /**
+    Releases a held partial sequence when the stream ends without completing it.
+     */
     finish(): string {
         const output = this.buffer;
         this.buffer = '';
@@ -77,7 +85,9 @@ export class TerminalColorQueryResponder {
     }
 }
 
-/** Formats `#rrggbb` as the 16-bit-per-channel `rgb:` reply xterm and OSC probers expect. */
+/**
+Formats `#rrggbb` as the 16-bit-per-channel `rgb:` reply xterm and OSC probers expect.
+ */
 export function oscColorReply(
     slot: TerminalColorQuerySlot,
     hexColor: string,

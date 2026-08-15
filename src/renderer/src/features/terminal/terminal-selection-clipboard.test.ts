@@ -8,17 +8,20 @@ describe('TerminalSelectionClipboard', () => {
         const latestWrite = Promise.withResolvers<void>();
         const writes: string[] = [];
         let clipboard = '';
-        const writeText = vi.fn((value: string) => {
+        const writeText = vi.fn(async (value: string) => {
             writes.push(value);
             const pending = writes.length === 1 ? firstWrite.promise : latestWrite.promise;
-            return pending.then(() => {
-                clipboard = value;
-            });
+            await pending;
+            clipboard = value;
         });
-        const selectionClipboard = new TerminalSelectionClipboard(writeText, () => undefined);
+        const selectionClipboard = new TerminalSelectionClipboard(writeText, () => {});
 
         const settled = selectionClipboard.copy('first');
+        // Both intermediate copies are intentionally left unawaited: the test asserts that only the
+        // latest selection ('latest') is the one actually written once the writes settle.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void selectionClipboard.copy('stale intermediate');
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void selectionClipboard.copy('latest');
         expect(writes).toEqual(['first']);
         firstWrite.resolve();
@@ -31,7 +34,7 @@ describe('TerminalSelectionClipboard', () => {
 
     it('does not write an empty selection', async () => {
         const writeText = vi.fn(() => Promise.resolve());
-        const selectionClipboard = new TerminalSelectionClipboard(writeText, () => undefined);
+        const selectionClipboard = new TerminalSelectionClipboard(writeText, () => {});
 
         await selectionClipboard.copy('');
 

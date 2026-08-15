@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { acquireMutationLease, type MutationLease, releaseMutationLease } from './mutation-lease';
+import type { MutationLease } from './mutation-lease';
+import { acquireMutationLease, releaseMutationLease } from './mutation-lease';
 
 const validationLogPathSchema = z
     .string()
@@ -65,8 +66,8 @@ export function startValidation(
     const exactHeadCommand = state.validations.filter(
         ({ command, headSha }) => command === input.command && headSha === input.headSha,
     );
-    const passed = exactHeadCommand.find(({ result }) => result === 'passed');
-    if (passed)
+    const hasPassed = exactHeadCommand.some(({ result }) => result === 'passed');
+    if (hasPassed)
         throw new Error('A passed exact-head validation cannot be rerun without invalidation');
     const pending =
         exactHeadCommand.find(({ result }) => result === 'pending') ??
@@ -126,11 +127,11 @@ export function completeValidation(
     record.completedAt = completedAt;
     record.exitCode = input.exitCode;
     record.integrityError = integrityError;
-    record.result = input.exitCode === 0 && !integrityError ? 'passed' : 'failed';
+    record.result = !integrityError && input.exitCode === 0 ? 'passed' : 'failed';
     if (
         record.result === 'failed' &&
         record.attempt >= state.runBudget.policy.validationRepairLimit &&
-        !state.runBudget.repairStops.some(({ lineageId }) => lineageId === record.lineageId)
+        state.runBudget.repairStops.every(({ lineageId }) => lineageId !== record.lineageId)
     ) {
         state.runBudget.repairStops.push({
             at: completedAt,

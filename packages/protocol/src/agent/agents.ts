@@ -8,19 +8,27 @@ export const agentProviderIds = ['claude', 'codex'] as const;
 export type AgentProvider = (typeof agentProviderIds)[number];
 
 export interface AgentLaunchSettings {
-    /** Executable name or absolute path resolved by the Runtime without invoking a shell command. */
+    /**
+    Executable name or absolute path resolved by the Runtime without invoking a shell command.
+     */
     executable: string;
-    /** Structured arguments prepended to provider-owned resume arguments. */
+    /**
+    Structured arguments prepended to provider-owned resume arguments.
+     */
     args: string[];
 }
 
 interface AgentHookSettings {
-    /** Explicitly authorizes Caxri to install and maintain this provider's lifecycle hooks. */
+    /**
+    Explicitly authorizes Caxri to install and maintain this provider's lifecycle hooks.
+     */
     enabled: boolean;
 }
 
 interface AgentMessagingSettings {
-    /** Allows a managed Agent generation to exchange bounded peer text through the Host Inbox. */
+    /**
+    Allows a managed Agent generation to exchange bounded peer text through the Host Inbox.
+     */
     enabled: boolean;
 }
 
@@ -30,13 +38,21 @@ export interface AgentProviderSettings {
     messaging: AgentMessagingSettings;
 }
 
-/** Display and executable metadata for one Agent provider. */
+/**
+Display and executable metadata for one Agent provider.
+ */
 export interface AgentProviderCatalogEntry {
-    /** Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog). */
+    /**
+    Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
+     */
     displayName: string;
-    /** Name of the CLI executable resolved from `PATH` or the user's login shell. */
+    /**
+    Name of the CLI executable resolved from `PATH` or the user's login shell.
+     */
     executableName: string;
-    /** Safe image input Caxri can drive after an explicit user action, when supported. */
+    /**
+    Safe image input Caxri can drive after an explicit user action, when supported.
+     */
     imageInput?: {
         kind: 'systemClipboardPaste';
         terminalInput: string;
@@ -59,12 +75,14 @@ export const agentProviderCatalog = {
     codex: {
         displayName: 'Codex',
         executableName: 'codex',
-        imageInput: { kind: 'systemClipboardPaste', terminalInput: '\x16' },
+        imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
         resumeArguments: (agentSessionId) => ['resume', agentSessionId],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
 
-/** Provider-scoped defaults keep future CLI-specific settings under the provider they configure. */
+/**
+Provider-scoped defaults keep future CLI-specific settings under the provider they configure.
+ */
 export const defaultAgentProviderSettings = Object.fromEntries(
     agentProviderIds.map((provider) => [
         provider,

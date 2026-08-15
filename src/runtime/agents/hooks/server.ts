@@ -1,9 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { chmod, lstat, opendir, rm } from 'node:fs/promises';
-import { createServer, type Server, type Socket } from 'node:net';
+import type { Server, Socket } from 'node:net';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { agentProviderIds, type AgentProvider } from '../../../shared/agents';
+import type { AgentProvider } from '../../../shared/agents';
+import { agentProviderIds } from '../../../shared/agents';
 import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
 import { agentLifecyclePhases } from './contract';
 
@@ -37,7 +41,7 @@ function fileSystemErrorCode(error: unknown): string | undefined {
         : undefined;
 }
 
-function processIsAlive(processId: number): boolean {
+function isProcessAlive(processId: number): boolean {
     try {
         process.kill(processId, 0);
         return true;
@@ -66,7 +70,7 @@ export async function pruneStaleAgentHookSockets(
         const encodedProcessId = entry.name.slice(prefix.length, -'.sock'.length);
         if (!/^\d+$/.test(encodedProcessId)) continue;
         const processId = Number(encodedProcessId);
-        if (processId === currentProcessId || processIsAlive(processId)) continue;
+        if (processId === currentProcessId || isProcessAlive(processId)) continue;
         const path = join(directoryPath, entry.name);
         try {
             if ((await lstat(path)).isSocket()) {
@@ -113,8 +117,42 @@ export class AgentHookServer {
     constructor(
         readonly socketPath: string,
         private readonly schemaVersions: Readonly<Record<AgentProvider, number>>,
+        // `onSignal` names a callback property shared with `AgentHookManagerOptions.onSignal`
+        // and `src/runtime/bootstrap.ts`; renaming only here would break that shared contract.
+        // eslint-disable-next-line unicorn/consistent-boolean-name
         private readonly onSignal: (signal: AgentLifecycleSignal) => boolean,
     ) {}
+
+    private accept(socket: Socket): void {
+        socket.setEncoding('utf8');
+        socket.setTimeout(1_000, () => socket.destroy());
+        let source = '';
+        socket.on('data', (chunk: string) => {
+            source += chunk;
+            if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) socket.destroy();
+        });
+        socket.on('end', () => {
+            const signal = parseSignal(source);
+            if (!signal || !this.authorize(signal)) {
+                socket.end('{"ok":false}\n');
+                return;
+            }
+            const isAccepted = this.onSignal(signal);
+            socket.end(isAccepted ? '{"ok":true}\n' : '{"ok":false}\n');
+        });
+        socket.on('error', () => {});
+    }
+
+    private authorize(signal: HookWireSignal): boolean {
+        const launch = this.launchesByToken.get(signal.token);
+        return Boolean(
+            launch &&
+            launch.launchId === signal.launchId &&
+            launch.terminalId === signal.terminalId &&
+            (!launch.provider || launch.provider === signal.provider) &&
+            this.schemaVersions[signal.provider] === signal.schemaVersion,
+        );
+    }
 
     async start(): Promise<void> {
         if (this.server) return;
@@ -123,14 +161,14 @@ export class AgentHookServer {
         this.server = server;
         try {
             await new Promise<void>((resolve, reject) => {
-                const onError = (error: Error) => {
+                function onError(error: Error) {
                     server.off('listening', onListening);
                     reject(error);
-                };
-                const onListening = () => {
+                }
+                function onListening() {
                     server.off('error', onError);
                     resolve();
-                };
+                }
                 server.once('error', onError);
                 server.once('listening', onListening);
                 server.listen(this.socketPath);
@@ -155,37 +193,6 @@ export class AgentHookServer {
 
     unregister(token: string): void {
         this.launchesByToken.delete(token);
-    }
-
-    private accept(socket: Socket): void {
-        socket.setEncoding('utf8');
-        socket.setTimeout(1_000, () => socket.destroy());
-        let source = '';
-        socket.on('data', (chunk: string) => {
-            source += chunk;
-            if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) socket.destroy();
-        });
-        socket.on('end', () => {
-            const signal = parseSignal(source);
-            if (!signal || !this.authorize(signal)) {
-                socket.end('{"ok":false}\n');
-                return;
-            }
-            const accepted = this.onSignal(signal);
-            socket.end(accepted ? '{"ok":true}\n' : '{"ok":false}\n');
-        });
-        socket.on('error', () => undefined);
-    }
-
-    private authorize(signal: HookWireSignal): boolean {
-        const launch = this.launchesByToken.get(signal.token);
-        return Boolean(
-            launch &&
-            launch.launchId === signal.launchId &&
-            launch.terminalId === signal.terminalId &&
-            (!launch.provider || launch.provider === signal.provider) &&
-            this.schemaVersions[signal.provider] === signal.schemaVersion,
-        );
     }
 
     async close(): Promise<void> {

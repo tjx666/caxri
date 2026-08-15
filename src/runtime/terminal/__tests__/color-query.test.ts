@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { oscColorReply, TerminalColorQueryResponder } from '../color-query';
 
-const ESC = '\x1b';
-const BEL = '\x07';
+const ESC = '\u{1B}';
+const BEL = '\u{7}';
 const ST = `${ESC}\\`;
 
 describe('TerminalColorQueryResponder', () => {
@@ -33,7 +33,8 @@ describe('TerminalColorQueryResponder', () => {
         const onQuery = vi.fn();
         const filter = new TerminalColorQueryResponder(onQuery);
         let output = '';
-        for (const character of `head${ESC}]11;?${ST}tail`) output += filter.push(character);
+        const query = `head${ESC}]11;?${ST}tail`;
+        for (const character of query) output += filter.push(character);
         output += filter.finish();
         expect(output).toBe('headtail');
         expect(onQuery.mock.calls).toEqual([[11, ST]]);

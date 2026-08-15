@@ -2,11 +2,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { RuntimeHostControlRequest } from '../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { HostMethod } from '../../shared/ipc/methods';
-import {
-    hostForwardedMethods,
-    type HostForwardedMethod,
-    type HostHandledMethod,
-} from '../host-methods';
+import type { HostForwardedMethod, HostHandledMethod } from '../host-methods';
+import { hostForwardedMethods } from '../host-methods';
 
 describe('Host dispatch exhaustiveness', () => {
     it('splits every host-owned method into handled or explicitly forwarded', () => {

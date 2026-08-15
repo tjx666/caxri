@@ -9,8 +9,8 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../../../shared/types';
-import { terminals } from '../schema';
 import type { CaxriDrizzleDatabase } from '../connection';
+import { terminals } from '../schema';
 
 export const MAX_TERMINALS_PER_SESSION = 16;
 export const MAX_TERMINALS_GLOBAL = 32;
@@ -65,18 +65,20 @@ export interface NewTerminalInput {
  * instead of duplicating it.
  */
 export class TerminalsModel {
-    constructor(private readonly db: CaxriDrizzleDatabase) {}
+    constructor(private readonly database: CaxriDrizzleDatabase) {}
 
-    /** Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows. */
+    /**
+    Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows.
+     */
     list(sessionId?: string): TerminalRecord[] {
         const rows = sessionId
-            ? this.db
+            ? this.database
                   .select()
                   .from(terminals)
                   .where(eq(terminals.sessionId, sessionId))
                   .orderBy(asc(terminals.orderIndex), asc(terminals.id))
                   .all()
-            : this.db
+            : this.database
                   .select()
                   .from(terminals)
                   .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex), asc(terminals.id))
@@ -85,12 +87,12 @@ export class TerminalsModel {
     }
 
     get(id: string): TerminalRecord | undefined {
-        const row = this.db.select().from(terminals).where(eq(terminals.id, id)).get();
+        const row = this.database.select().from(terminals).where(eq(terminals.id, id)).get();
         return row ? mapTerminal(row) : undefined;
     }
 
     countAll(): number {
-        const row = this.db
+        const row = this.database
             .select({ count: sql<number>`count(*)` })
             .from(terminals)
             .get()!;
@@ -98,7 +100,7 @@ export class TerminalsModel {
     }
 
     countForSession(sessionId: string): number {
-        const row = this.db
+        const row = this.database
             .select({ count: sql<number>`count(*)` })
             .from(terminals)
             .where(eq(terminals.sessionId, sessionId))
@@ -109,11 +111,13 @@ export class TerminalsModel {
     insert(input: NewTerminalInput): TerminalRecord {
         const id = randomUUID();
         const now = Date.now();
-        /** Mirrors the original `COALESCE((SELECT MAX(order_index) + 1 FROM terminals WHERE
+        /**
+             Mirrors the original `COALESCE((SELECT MAX(order_index) + 1 FROM terminals WHERE
             session_id = ?), 0)` insert-time subquery so a Terminal removed from the middle of a
-            Session never collides with a surviving one's `order_index`. */
+            Session never collides with a surviving one's `order_index`.
+         */
         const orderIndex = sql<number>`COALESCE((SELECT MAX(${terminals.orderIndex}) + 1 FROM ${terminals} WHERE ${terminals.sessionId} = ${input.sessionId}), 0)`;
-        this.db
+        this.database
             .insert(terminals)
             .values({
                 id,
@@ -134,17 +138,19 @@ export class TerminalsModel {
     }
 
     remove(id: string): boolean {
-        return this.db.delete(terminals).where(eq(terminals.id, id)).run().changes === 1;
+        return this.database.delete(terminals).where(eq(terminals.id, id)).run().changes === 1;
     }
 
-    /** `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it. */
+    /**
+    `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it.
+     */
     updateState(
         id: string,
         state: ProcessState,
         failureReason?: TerminalFailureReason,
         now = Date.now(),
     ): void {
-        this.db
+        this.database
             .update(terminals)
             .set({
                 lastProcessState: state,
@@ -156,7 +162,7 @@ export class TerminalsModel {
     }
 
     updateAgentSessionId(id: string, agentSessionId: string | undefined, now = Date.now()): void {
-        this.db
+        this.database
             .update(terminals)
             .set({ agentSessionId: agentSessionId ?? null, updatedAt: now })
             .where(eq(terminals.id, id))
@@ -170,7 +176,7 @@ export class TerminalsModel {
         now = Date.now(),
     ): boolean {
         return (
-            this.db
+            this.database
                 .update(terminals)
                 .set({ kind: provider, provider, title, icon: provider, updatedAt: now })
                 .where(

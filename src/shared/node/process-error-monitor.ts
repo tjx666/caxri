@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 import type { StructuredLogger } from './logger';
 
 export type ProcessErrorWriter = Pick<StructuredLogger, 'write'>;
@@ -47,14 +49,16 @@ export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions):
     const buffered: BufferedProcessError[] = [];
     let writer: ProcessErrorWriter | undefined;
 
-    const write = (record: BufferedProcessError): boolean => {
+    const didWrite = (record: BufferedProcessError): boolean => {
         try {
             writer ??= options.bootstrapWriter?.();
             if (!writer) return false;
             writer.write('error', record.event, { fields: record.fields });
             return true;
         } catch {
-            /** Logging must never replace or delay the process's original fatal-error semantics. */
+            /**
+            Logging must never replace or delay the process's original fatal-error semantics.
+             */
             return false;
         }
     };
@@ -68,14 +72,17 @@ export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions):
                 origin,
             },
         };
-        if (!write(record) && buffered.length < MAX_BUFFERED_PROCESS_ERRORS) buffered.push(record);
+        if (!didWrite(record) && buffered.length < MAX_BUFFERED_PROCESS_ERRORS)
+            buffered.push(record);
     };
 
     target.on('uncaughtExceptionMonitor', listener);
     return {
         attach(nextWriter) {
             writer = nextWriter;
-            for (const record of buffered.splice(0)) write(record);
+            const pending = [...buffered];
+            buffered.length = 0;
+            for (const record of pending) didWrite(record);
         },
         dispose() {
             target.off('uncaughtExceptionMonitor', listener);

@@ -1,6 +1,6 @@
+import { inspectorModeRegistrations } from './inspector';
 import { inspectorCommandId } from './ipc';
 import type { CommandId, Keybinding } from './types';
-import { inspectorModeRegistrations } from './inspector';
 
 export type { CommandId };
 
@@ -28,7 +28,9 @@ export const nativeMenuIds = [
 
 export type NativeMenuId = (typeof nativeMenuIds)[number];
 
-/** One command catalog supplies the palette, shortcuts, native menus, and command-backed buttons. */
+/**
+One command catalog supplies the palette, shortcuts, native menus, and command-backed buttons.
+ */
 export const commandDefinitions: CommandDefinition[] = [
     {
         id: 'project.create',
@@ -269,11 +271,13 @@ export function getCommandDefinition(id: string): CommandDefinition {
     return definition;
 }
 
-/** Returns command-backed native-menu groups in their declared presentation order. */
+/**
+Returns command-backed native-menu groups in their declared presentation order.
+ */
 export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinition[][] {
     const placed = commandDefinitions
         .filter((command) => command.nativeMenu?.menu === menu)
-        .sort((a, b) => {
+        .toSorted((a, b) => {
             const aPlacement = a.nativeMenu;
             const bPlacement = b.nativeMenu;
             if (!aPlacement || !bPlacement) return 0;
@@ -289,7 +293,9 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
     return groups;
 }
 
-/** Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run. */
+/**
+Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run.
+ */
 export const defaultKeybindings: Keybinding[] = [
     /**
      * The path browser is a Helm-style directory walker, not a workspace-wide fuzzy quick-open, so

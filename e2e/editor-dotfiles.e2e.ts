@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator } from './support/fixtures.ts';
-
+import type { Locator } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 async function expectSyntaxColors(editor: Locator): Promise<void> {
@@ -48,7 +48,11 @@ test('ignore and rc dotfiles open with syntax highlighting', async () => {
         await expect(editor.locator('.view-lines')).toContainText('strict-ssl=true');
         await expectSyntaxColors(editor);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

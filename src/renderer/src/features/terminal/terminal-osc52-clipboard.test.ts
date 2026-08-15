@@ -59,12 +59,16 @@ describe('ControlledOsc52Clipboard', () => {
         clipboard.decodeText('not base64');
         expect(onBlocked).toHaveBeenCalledExactlyOnceWith('malformed');
 
-        /** A different reason inside the same window is a different explanation, so it still lands. */
+        /**
+        A different reason inside the same window is a different explanation, so it still lands.
+         */
         clipboard.decodeText(oversized);
         expect(onBlocked).toHaveBeenCalledTimes(2);
         expect(onBlocked).toHaveBeenNthCalledWith(2, 'oversized');
 
-        /** Repeats of either reason inside the window are suppressed. */
+        /**
+        Repeats of either reason inside the window are suppressed.
+         */
         clipboard.decodeText(oversized);
         clipboard.decodeText('not base64');
         expect(onBlocked).toHaveBeenCalledTimes(2);

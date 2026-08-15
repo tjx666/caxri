@@ -1,12 +1,9 @@
-import { Archive } from 'lucide-react';
-
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import type { AgentHookHealthMap, AgentSkillHealth, AppSettings } from '@shared/types';
+import { Archive } from 'lucide-react';
 
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
 import {
     Select,
     SelectContent,
@@ -14,12 +11,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
-import { cn, settingsFieldRowClassName } from '../../lib/utils';
-import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { cn, settingsFieldRowClassName } from '../../lib/utilities';
+import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
 import { AgentProviderSettings } from './agent-provider-settings';
+import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
 import { TrustedDomainsForm } from './trusted-domains-form';
 
-interface SettingsFormProps {
+interface SettingsFormProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
     trustedDomainsFocusRequestId?: number;
@@ -29,7 +28,8 @@ interface SettingsFormProps {
 
 function defaultAgentLabel(agent: AppSettings['session.defaultAgent']): string {
     if (agent === 'shell') return 'Shell';
-    if (agent && agent in agentProviderCatalog) return agentProviderCatalog[agent].displayName;
+    if (agent && Object.hasOwn(agentProviderCatalog, agent))
+        return agentProviderCatalog[agent].displayName;
     return 'Ask each time';
 }
 
@@ -39,14 +39,16 @@ const NEW_WORKTREE_BEHAVIOR_LABELS: Record<AppSettings['workbench.newWorktreeBeh
     ignore: 'Ignore',
 };
 
-/** Full-width structured editor for `settings.jsonc`. */
+/**
+Full-width structured editor for `settings.jsonc`.
+ */
 export function SettingsForm({
     agentHookHealth,
     agentSkillHealth,
     trustedDomainsFocusRequestId,
     settings,
     onFieldChange,
-}: SettingsFormProps) {
+}: SettingsFormProperties) {
     const maxFileMebibytes = bytesToMebibytes(settings['files.maxFileBytes']);
 
     return (
@@ -151,8 +153,10 @@ export function SettingsForm({
                         className="archived-sessions-entry w-44 flex-none"
                         variant="secondary"
                         onClick={() => {
-                            /** The manager is its own dialog; closing Settings first keeps a
-                             *  single modal layer instead of stacking two dismiss targets. */
+                            /**
+                             * The manager is its own dialog; closing Settings first keeps a
+                             *  single modal layer instead of stacking two dismiss targets.
+                             */
                             setSettingsOpen(false);
                             setArchivedSessionsOpen(true);
                         }}

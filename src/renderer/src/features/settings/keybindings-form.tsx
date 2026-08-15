@@ -1,16 +1,18 @@
-import { AlertTriangle, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { commandDefinitions } from '@shared/commands';
-import { findKeybindingConflicts } from '@shared/configuration';
+import { findKeybindingConflicts } from '@shared/config';
 import { normalizeShortcut } from '@shared/shortcuts';
 import type { Keybinding } from '@shared/types';
+import { AlertTriangle, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
 import { keyboardEventShortcut } from '../../lib/keybindings';
+import type { KeybindingRow, RecordingState } from './keybinding-editor';
 import {
     buildKeybindingRows,
     captureRecordingKey,
@@ -20,13 +22,13 @@ import {
     isFocusNavigationKey,
     isModifierKey,
     startRecording,
-    type KeybindingRow,
-    type RecordingState,
 } from './keybinding-editor';
 
-interface KeybindingsFormProps {
-    /** Bumped by the `settings.openKeybindings` command to focus the search field on open,
-     * mirroring `TrustedDomainsForm`'s `focusRequestId`. */
+interface KeybindingsFormProperties {
+    /**
+     * Bumped by the `settings.openKeybindings` command to focus the search field on open,
+     * mirroring `TrustedDomainsForm`'s `focusRequestId`.
+     */
     focusRequestId?: number;
     keybindings: Keybinding[];
     onAdd: (command: string, key: string) => void;
@@ -38,23 +40,27 @@ const titleByCommand = new Map<string, string>(
     commandDefinitions.map((command) => [command.id, command.title]),
 );
 
-/** Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`. */
+/**
+Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`.
+ */
 const clearSearchButtonClassName =
     'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:bg-elevated hover:text-foreground';
 
-/** Searchable, keyboard-operable command list backed by the lossless JSONC draft. */
+/**
+Searchable, keyboard-operable command list backed by the lossless JSONC draft.
+ */
 export function KeybindingsForm({
     focusRequestId,
     keybindings,
     onAdd,
     onChange,
     onRemove,
-}: KeybindingsFormProps) {
+}: KeybindingsFormProperties) {
     const [query, setQuery] = useState('');
     const [recording, setRecording] = useState<RecordingState>();
     const [focusRequest, setFocusRequest] = useState<{ command: string; id: number }>();
-    const rootRef = useRef<HTMLDivElement>(null);
-    const searchRef = useRef<HTMLInputElement>(null);
+    const rootReference = useRef<HTMLDivElement>(null);
+    const searchReference = useRef<HTMLInputElement>(null);
     const rows = useMemo(() => buildKeybindingRows(keybindings), [keybindings]);
     const visibleRows = useMemo(() => filterKeybindingRows(rows, query), [query, rows]);
     const conflictsByKey = useMemo(
@@ -68,15 +74,16 @@ export function KeybindingsForm({
     useLayoutEffect(() => {
         if (!focusRequest) return;
         const target = [
-            ...(rootRef.current?.querySelectorAll<HTMLButtonElement>('[data-keybinding-command]') ??
-                []),
+            ...(rootReference.current?.querySelectorAll<HTMLButtonElement>(
+                '[data-keybinding-command]',
+            ) ?? []),
         ].find((button) => button.dataset.keybindingCommand === focusRequest.command);
-        (target ?? searchRef.current)?.focus();
+        (target ?? searchReference.current)?.focus();
     }, [focusRequest, visibleRows]);
 
     useEffect(() => {
         if (!focusRequestId) return;
-        searchRef.current?.focus();
+        searchReference.current?.focus();
     }, [focusRequestId]);
 
     const restoreFocus = (command: string): void => {
@@ -143,12 +150,15 @@ export function KeybindingsForm({
     };
 
     return (
-        <div ref={rootRef} className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+        <div
+            ref={rootReference}
+            className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
+        >
             <div className="border-b border-border p-3">
                 <InputGroup appearance="workbench" size="dense">
                     <Search aria-hidden="true" className="shrink-0 text-muted" size={14} />
                     <Input
-                        ref={searchRef}
+                        ref={searchReference}
                         appearance="embedded"
                         aria-label="Search keyboard shortcuts"
                         placeholder="Search commands or shortcuts"

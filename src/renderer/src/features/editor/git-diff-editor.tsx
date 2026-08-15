@@ -1,7 +1,10 @@
-import Editor, { DiffEditor, type MonacoDiffEditor } from '@monaco-editor/react';
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { gitDiffModelPath, type GitDiffTab } from '@shared/git-diff';
+import type { MonacoDiffEditor } from '@monaco-editor/react';
+import Editor, { DiffEditor } from '@monaco-editor/react';
+import type { GitDiffTab } from '@shared/git-diff';
+import { gitDiffModelPath } from '@shared/git-diff';
 import type { GitDiffDocument, GitFileStatus } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
@@ -22,25 +25,22 @@ function useNearMultiDiffViewport(): {
     active: boolean;
     containerRef: RefObject<HTMLElement | null>;
 } {
-    const containerRef = useRef<HTMLElement | null>(null);
+    const containerReference = useRef<HTMLElement | null>(null);
     const [active, setActive] = useState(false);
     useEffect(() => {
-        const element = containerRef.current;
+        const element = containerReference.current;
         if (!element || typeof IntersectionObserver === 'undefined') {
             setActive(true);
             return;
         }
-        const observer = new IntersectionObserver(
-            ([entry]) => setActive(Boolean(entry?.isIntersecting)),
-            {
-                root: element.closest('.git-multi-diff'),
-                rootMargin: '720px 0px',
-            },
-        );
+        const observer = new IntersectionObserver(([entry]) => setActive(entry?.isIntersecting), {
+            root: element.closest('.git-multi-diff'),
+            rootMargin: '720px 0px',
+        });
         observer.observe(element);
         return () => observer.disconnect();
     }, []);
-    return { active, containerRef };
+    return { active, containerRef: containerReference };
 }
 
 function DiffSurface({
@@ -55,7 +55,7 @@ function DiffSurface({
     source: GitDiffTab['source'];
 }) {
     const theme = useTheme();
-    const editorRef = useRef<MonacoDiffEditor | null>(null);
+    const editorReference = useRef<MonacoDiffEditor | null>(null);
     useEffect(() => {
         if (theme) applyEditorTheme(theme);
     }, [theme]);
@@ -65,13 +65,13 @@ function DiffSurface({
              * Detach both models before the wrapper disposes them. Monaco otherwise observes a
              * disposed model from a still-mounted diff widget when many editors unmount together.
              */
-            editorRef.current?.setModel(null);
-            editorRef.current = null;
+            editorReference.current?.setModel(null);
+            editorReference.current = null;
         },
         [],
     );
     if (!theme) return null;
-    const modelRepositoryId = `${source}:${repositoryId}`;
+    const modelRepoId = `${source}:${repositoryId}`;
     const registrations = monaco.languages.getLanguages();
     const originalLanguage = resolveRegisteredEditorLanguage(
         document.originalPath ?? document.path,
@@ -83,7 +83,7 @@ function DiffSurface({
             <Editor
                 className="git-patch-editor w-full h-full"
                 language="diff"
-                path={`${gitDiffModelPath(sessionId, modelRepositoryId, document.path, 'modified')}.diff`}
+                path={`${gitDiffModelPath(sessionId, modelRepoId, document.path, 'modified')}.diff`}
                 value={document.modified}
                 theme="caxri-active"
                 beforeMount={() => applyEditorTheme(theme)}
@@ -105,20 +105,15 @@ function DiffSurface({
             modifiedLanguage={modifiedLanguage}
             originalModelPath={gitDiffModelPath(
                 sessionId,
-                modelRepositoryId,
+                modelRepoId,
                 document.originalPath ?? document.path,
                 'original',
             )}
-            modifiedModelPath={gitDiffModelPath(
-                sessionId,
-                modelRepositoryId,
-                document.path,
-                'modified',
-            )}
+            modifiedModelPath={gitDiffModelPath(sessionId, modelRepoId, document.path, 'modified')}
             theme="caxri-active"
             beforeMount={() => applyEditorTheme(theme)}
             onMount={(editor) => {
-                editorRef.current = editor;
+                editorReference.current = editor;
             }}
             options={{
                 automaticLayout: true,
@@ -245,13 +240,17 @@ function GitChangesDiffResult({
     );
 }
 
-interface GitChangesDiffContentProps {
+interface GitChangesDiffContentProperties {
     path: string;
     repositoryId: string;
     sessionId: string;
 }
 
-function WorkingChangesDiffContent({ path, repositoryId, sessionId }: GitChangesDiffContentProps) {
+function WorkingChangesDiffContent({
+    path,
+    repositoryId,
+    sessionId,
+}: GitChangesDiffContentProperties) {
     const {
         data: document,
         isError,
@@ -277,7 +276,7 @@ function PullRequestChangesDiffContent({
     path,
     repositoryId,
     sessionId,
-}: GitChangesDiffContentProps) {
+}: GitChangesDiffContentProperties) {
     const {
         data: document,
         isError,
@@ -381,16 +380,16 @@ function WorkingChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'c
             </div>
         );
     if (!summary) return <div className={emptyWorkClassName}>Loading changes…</div>;
-    const repository = summary.isRepository
+    const repo = summary.isRepository
         ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)
         : undefined;
-    if (!repository)
+    if (!repo)
         return <div className={emptyWorkClassName}>Git repository is no longer available</div>;
     return (
         <ChangesDiffList
             emptyLabel="Working tree clean."
-            files={repository.files}
-            repositoryId={repository.id}
+            files={repo.files}
+            repositoryId={repo.id}
             sessionId={sessionId}
             source="working"
         />

@@ -49,7 +49,7 @@ describe('TerminalProgressRegistry', () => {
         expect(registry.get('terminal-a')).toEqual({ kind: 'error', value: 30 });
         expect(registry.get('terminal-b')).toEqual({ kind: 'paused', value: 65 });
 
-        registry.update('terminal-a', { state: 1, value: Number.NaN });
+        registry.update('terminal-a', { state: 1, value: NaN });
         registry.update('terminal-a', { state: 8, value: 10 });
         expect(harness.frames.size).toBe(0);
         expect(registry.get('terminal-a')).toEqual({ kind: 'error', value: 30 });

@@ -1,5 +1,5 @@
-import { removeTerminal as removeTerminalFromLayout } from '../shared/terminal-layout';
 import { agentProviderCatalog } from '../shared/agents';
+import { removeTerminal as removeTerminalFromLayout } from '../shared/terminal-layout';
 import type {
     AgentActivityState,
     AgentSnapshot,
@@ -18,14 +18,18 @@ import type { AgentLifecyclePhase } from './agents';
  * composes these with `./db/models/*` (pure SQL) inside its own transactions.
  */
 
-/** Neutral automatic title used until a new Session gains useful Agent metadata or a manual name. */
+/**
+Neutral automatic title used until a new Session gains useful Agent metadata or a manual name.
+ */
 export const DEFAULT_SESSION_TITLE = 'Untitled';
 
 export function defaultTerminalTitle(kind: TerminalKind): string {
     return kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName;
 }
 
-/** Maps a Terminal process lifecycle state onto the coarser Agent activity state shown in the UI. */
+/**
+Maps a Terminal process lifecycle state onto the coarser Agent activity state shown in the UI.
+ */
 export function processActivityState(state: ProcessState): AgentActivityState {
     if (state === 'running' || state === 'starting') return 'running';
     if (state === 'stopped') return 'completed';
@@ -46,11 +50,17 @@ export function processActivityState(state: ProcessState): AgentActivityState {
 export type ShutdownReason = 'unclean' | 'orderly' | 'terminate';
 
 export interface ShutdownOutcome {
-    /** Terminal process states treated as "still alive" and eligible for bulk-marking. */
+    /**
+    Terminal process states treated as "still alive" and eligible for bulk-marking.
+     */
     liveProcessStates: ProcessState[];
-    /** Process state written to every previously-alive Terminal. */
+    /**
+    Process state written to every previously-alive Terminal.
+     */
     terminalProcessState: ProcessState;
-    /** Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`. */
+    /**
+    Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`.
+     */
     primaryAgentSessionState: AgentActivityState;
 }
 
@@ -72,7 +82,9 @@ const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
     },
 };
 
-/** Decides the bulk Terminal/Session state transition for a given shutdown `reason`. */
+/**
+Decides the bulk Terminal/Session state transition for a given shutdown `reason`.
+ */
 export function shutdownOutcome(reason: ShutdownReason): ShutdownOutcome {
     return SHUTDOWN_OUTCOMES[reason];
 }
@@ -124,7 +136,9 @@ export function choosePrimaryAgentSuccessor(
     };
 }
 
-/** Removes attachment-only prefixes that Codex includes in a thread title but users cannot act on. */
+/**
+Removes attachment-only prefixes that Codex includes in a thread title but users cannot act on.
+ */
 function agentDisplayTitle(title: string | undefined, fallback: string): string {
     const meaningfulTitle = title
         ?.trim()
@@ -134,9 +148,13 @@ function agentDisplayTitle(title: string | undefined, fallback: string): string 
 }
 
 export interface AgentMetadataDecision {
-    /** New value to persist on the Terminal row (`undefined` clears the column). */
+    /**
+    New value to persist on the Terminal row (`undefined` clears the column).
+     */
     agentSessionId: string | undefined;
-    /** Present only when this Terminal is the Session's primary Agent and its title/status changed. */
+    /**
+    Present only when this Terminal is the Session's primary Agent and its title/status changed.
+     */
     sessionPatch?: {
         attentionKind?: SessionAttentionKind;
         displayTitle: string;
@@ -144,7 +162,9 @@ export interface AgentMetadataDecision {
     };
 }
 
-/** Emits one attention generation per reliable state transition, never for process fallbacks. */
+/**
+Emits one attention generation per reliable state transition, never for process fallbacks.
+ */
 function reliableAttentionTransition(
     session: Pick<SessionRecord, 'lastActivityState' | 'lastAttentionKind'>,
     status: AgentActivityState,
@@ -196,8 +216,8 @@ export function decideAgentLifecycleUpdate(
         lastActivityState,
         requestedAttention,
     );
-    if (session.lastActivityState === lastActivityState && !attentionKind) return undefined;
-    return { lastActivityState, ...(attentionKind ? { attentionKind } : {}) };
+    if (!attentionKind && session.lastActivityState === lastActivityState) return undefined;
+    return { lastActivityState, ...(attentionKind && { attentionKind }) };
 }
 
 /**
@@ -227,20 +247,20 @@ export function decideAgentMetadataUpdate(
     const attentionKind = isPrimaryAgent
         ? reliableAttentionTransition(session, snapshot.status, snapshot.attentionKind)
         : undefined;
-    const noOp =
+    const isNoOp =
         (!isPrimaryAgent ||
             (session.displayTitle === displayTitle &&
                 session.lastActivityState === snapshot.status)) &&
         terminal.agentSessionId === agentSessionId &&
         !attentionKind;
-    if (noOp) return undefined;
+    if (isNoOp) return undefined;
     return {
         agentSessionId,
         sessionPatch: isPrimaryAgent
             ? {
                   displayTitle,
                   lastActivityState: snapshot.status,
-                  ...(attentionKind ? { attentionKind } : {}),
+                  ...(attentionKind && { attentionKind }),
               }
             : undefined,
     };

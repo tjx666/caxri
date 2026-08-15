@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri, runtimeStatus } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -92,7 +91,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             .filter(Boolean)
             .map((line) => JSON.parse(line) as { durationMs?: number; event: string })
             .filter((record) => record.event === 'process_explorer.sample')
-            .map((record) => record.durationMs ?? Number.POSITIVE_INFINITY);
+            .map((record) => record.durationMs ?? Infinity);
         const maxDurationMs = Math.max(...sampleDurations);
         expect(maxDurationMs).toBeLessThan(1_000);
         console.log(
@@ -114,7 +113,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await expect.poll(() => running.app.windows().length).toBe(1);
         await expect(runtimeStatus(running.page)).toHaveAttribute('data-runtime-status', 'ready');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

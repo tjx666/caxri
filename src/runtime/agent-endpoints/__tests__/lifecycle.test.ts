@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
-    AgentEndpointActivateParams,
-    AgentEndpointBeginParams,
-    AgentEndpointMessagingParams,
-    AgentEndpointRetireParams,
+    AgentEndpointActivateParams as AgentEndpointActivateParameters,
+    AgentEndpointBeginParams as AgentEndpointBeginParameters,
+    AgentEndpointBeginResult,
+    AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
+    AgentEndpointRetireParams as AgentEndpointRetireParameters,
 } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { TerminalRecord } from '../../../shared/types';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
@@ -15,7 +16,7 @@ function terminal(kind: 'codex' | 'shell' = 'codex', id = 'terminal-1'): Termina
         id,
         sessionId: 'session-1',
         kind,
-        ...(kind === 'shell' ? {} : { provider: kind }),
+        ...(kind !== 'shell' && { provider: kind }),
         cwd: '/project',
         title: kind === 'shell' ? 'Shell' : 'Codex',
         icon: 'terminal',
@@ -38,25 +39,26 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         });
 
     it('injects a Host-issued credential only for a direct Agent generation', async () => {
-        const begin = vi.fn((params: AgentEndpointBeginParams) => {
-            void params;
+        const begin = vi.fn<
+            (parameters: AgentEndpointBeginParameters) => Promise<AgentEndpointBeginResult>
+        >(() => {
             return Promise.resolve({
                 ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
                 token: 'ab'.repeat(32),
                 expiresAt: 10_000,
             });
         });
-        const retire = vi.fn((params: AgentEndpointRetireParams) => {
-            void params;
+        const retire = vi.fn<(parameters: AgentEndpointRetireParameters) => Promise<boolean>>(
+            () => {
+                return Promise.resolve(true);
+            },
+        );
+        let activationInput: AgentEndpointActivateParameters | undefined;
+        const activate = vi.fn((parameters: AgentEndpointActivateParameters) => {
+            activationInput = parameters;
             return Promise.resolve(true);
         });
-        let activationInput: AgentEndpointActivateParams | undefined;
-        const activate = vi.fn((params: AgentEndpointActivateParams) => {
-            activationInput = params;
-            return Promise.resolve(true);
-        });
-        const messaging = vi.fn((params: AgentEndpointMessagingParams) => {
-            void params;
+        const messaging = vi.fn(() => {
             return Promise.resolve(true);
         });
         const lifecycle = new RuntimeAgentEndpointLifecycle(
@@ -109,15 +111,15 @@ describe('RuntimeAgentEndpointLifecycle', () => {
 
     it('retires the exact prior launch before reusing a durable Terminal ID', async () => {
         let generation = 0;
-        const retire = vi.fn((params: AgentEndpointRetireParams) => {
-            void params;
-            return Promise.resolve(true);
-        });
+        const retire = vi.fn<(parameters: AgentEndpointRetireParameters) => Promise<boolean>>(
+            () => {
+                return Promise.resolve(true);
+            },
+        );
         const lifecycle = new RuntimeAgentEndpointLifecycle(
             {
                 activate: vi.fn(() => Promise.resolve(true)),
-                begin: vi.fn((params: AgentEndpointBeginParams) => {
-                    void params;
+                begin: vi.fn(() => {
                     generation += 1;
                     return Promise.resolve({
                         ref: {
@@ -205,10 +207,11 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 expiresAt: 10_000,
             }),
         );
-        const messaging = vi.fn((params: AgentEndpointMessagingParams) => {
-            void params;
-            return Promise.resolve(true);
-        });
+        const messaging = vi.fn<(parameters: AgentEndpointMessagingParameters) => Promise<boolean>>(
+            () => {
+                return Promise.resolve(true);
+            },
+        );
         const retire = vi.fn(() => Promise.resolve(true));
         const lifecycle = new RuntimeAgentEndpointLifecycle(
             { activate: vi.fn(() => Promise.resolve(true)), begin, messaging, retire },
@@ -260,12 +263,12 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         const lifecycle = new RuntimeAgentEndpointLifecycle(
             {
                 activate: vi.fn(() => Promise.resolve(true)),
-                begin: vi.fn((params: AgentEndpointBeginParams) => {
+                begin: vi.fn((parameters: AgentEndpointBeginParameters) => {
                     generation += 1;
                     return Promise.resolve({
                         ref: {
                             hostId: 'host-1',
-                            endpointId: `${params.terminalId}-endpoint`,
+                            endpointId: `${parameters.terminalId}-endpoint`,
                             generation,
                         },
                         token: 'ab'.repeat(32),

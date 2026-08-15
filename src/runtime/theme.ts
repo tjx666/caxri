@@ -3,15 +3,15 @@ import { extname } from 'node:path';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
-/** The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it. */
+/**
+The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
+ */
 import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
 import { parseJsonc } from '../shared/node/jsonc';
 import { themeImportFormats } from '../shared/theme-import';
 import type { ThemeTokens } from '../shared/types';
-import {
-    readBoundedRegularFileText,
-    type BoundedRegularFileReadOptions,
-} from './bounded-file-reader';
+import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
+import { readBoundedRegularFileText } from './bounded-file-reader';
 
 type ThemeImportFormat = (typeof themeImportFormats)[number];
 
@@ -24,7 +24,9 @@ type ThemeImportFormat = (typeof themeImportFormats)[number];
  */
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
 
-/** Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers. */
+/**
+Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers.
+ */
 export const draculaTheme: ThemeTokens = {
     id: 'dracula',
     name: 'Dracula',
@@ -90,7 +92,7 @@ export const draculaTheme: ThemeTokens = {
 function normalizedHex(value: unknown, fallback: string): string {
     if (typeof value !== 'string') return fallback;
     const candidate = value.startsWith('#') ? value : `#${value}`;
-    if (/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(candidate))
+    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate))
         return candidate.slice(0, 7).toLowerCase();
     return fallback;
 }
@@ -272,7 +274,9 @@ function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
         : parseVsCode(value as Record<string, unknown>, name);
 }
 
-/** Format id -> parser, keyed by `themeImportFormats[number]['id']` from the shared registry. */
+/**
+Format id -> parser, keyed by `themeImportFormats[number]['id']` from the shared registry.
+ */
 const parsersByFormatId: Record<
     ThemeImportFormat['id'],
     (source: string, name: string) => ThemeTokens
@@ -304,7 +308,9 @@ function resolveThemeImportFormat(extension: string, source: string): ThemeImpor
     return findFormatByExtension(extension) ?? findFormatById('vscode');
 }
 
-/** Test-only seam that makes an opened-file mutation deterministic without widening parser APIs. */
+/**
+Test-only seam that makes an opened-file mutation deterministic without widening parser APIs.
+ */
 interface ThemeImportTestSeam {
     beforeRead?: BoundedRegularFileReadOptions['beforeRead'];
 }

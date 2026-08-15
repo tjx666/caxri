@@ -2,11 +2,13 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication } from './support/fixtures.ts';
 import { connectToHost } from '@caxri/cli';
 
+import type { ElectronApplication as ElectronApp } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -19,22 +21,23 @@ interface PerformanceLog {
     fields?: Record<string, string | number | boolean | null>;
 }
 
-function launch(
+async function launch(
     userData: string,
     sessionRoot: string,
-    preserveHostOnClose: boolean,
-): Promise<ElectronApplication> {
-    return launchCaxriApp({
+    shouldPreserveHostOnClose: boolean,
+): Promise<ElectronApp> {
+    const { app } = await launchCaxriApp({
         userDataDir: userData,
         testRootPath: sessionRoot,
         executablePath,
-        preserveHostOnClose,
-    }).then(({ app }) => app);
+        preserveHostOnClose: shouldPreserveHostOnClose,
+    });
+    return app;
 }
 
 function expectTimedEvent(record: PerformanceLog | undefined): void {
     expect(typeof record?.durationMs).toBe('number');
-    expect(record?.durationMs ?? Number.POSITIVE_INFINITY).toBeLessThan(thresholdMs);
+    expect(record?.durationMs ?? Infinity).toBeLessThan(thresholdMs);
 }
 
 test('large Project opens Runtime, Terminal, files, and Git within three seconds', async () => {
@@ -70,19 +73,21 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await shellButton.waitFor();
         const sessionStartedAt = performance.now();
         await shellButton.click();
-        const terminalReady = Promise.all([
-            page.locator('.terminal-surface .xterm-rows').waitFor(),
-            page.locator('.process-running').waitFor(),
-        ]).then(() => performance.now() - sessionStartedAt);
-        const filesReady = page
-            .locator('.inspector .tree-row')
-            .first()
-            .waitFor()
-            .then(() => performance.now() - sessionStartedAt);
+        const terminalReady = (async () => {
+            await Promise.all([
+                page.locator('.terminal-surface .xterm-rows').waitFor(),
+                page.locator('.process-running').waitFor(),
+            ]);
+            return performance.now() - sessionStartedAt;
+        })();
+        const filesReady = (async () => {
+            await page.locator('.inspector .tree-row').first().waitFor();
+            return performance.now() - sessionStartedAt;
+        })();
         const [terminalReadyMs, filesReadyMs] = await Promise.all([terminalReady, filesReady]);
         const terminalInput = page.locator('.xterm-helper-textarea').last();
         await terminalInput.focus();
-        await terminalInput.pressSequentially("printf 'CAXRI_BENCHMARK_INPUT\\n'");
+        await terminalInput.pressSequentially(String.raw`printf 'CAXRI_BENCHMARK_INPUT\n'`);
         await terminalInput.press('Enter');
         await page.waitForFunction(() =>
             document.querySelector('.xterm-rows')?.textContent?.includes('CAXRI_BENCHMARK_INPUT'),
@@ -97,18 +102,18 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const restoredAt = performance.now();
         app = await launch(userData, sessionRoot, false);
         const restoredPage = await app.firstWindow();
-        const restoredTerminalSurface = restoredPage
-            .locator('.terminal-surface .xterm-rows')
-            .waitFor()
-            .then(() => performance.now() - restoredAt);
-        const restoredTerminalReady = restoredPage
-            .locator('.process-running')
-            .waitFor()
-            .then(() => performance.now() - restoredAt);
-        const restoredGit = restoredPage
-            .locator('.git-heading')
-            .waitFor()
-            .then(() => performance.now() - restoredAt);
+        const restoredTerminalSurface = (async () => {
+            await restoredPage.locator('.terminal-surface .xterm-rows').waitFor();
+            return performance.now() - restoredAt;
+        })();
+        const restoredTerminalReady = (async () => {
+            await restoredPage.locator('.process-running').waitFor();
+            return performance.now() - restoredAt;
+        })();
+        const restoredGit = (async () => {
+            await restoredPage.locator('.git-heading').waitFor();
+            return performance.now() - restoredAt;
+        })();
         await waitForRuntimeReady(restoredPage);
         const restoredRuntimeReadyMs = performance.now() - restoredAt;
         const [restoredTerminalSurfaceMs, restoredTerminalReadyMs, restoredGitReadyMs] =
@@ -224,7 +229,11 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expect(ipcFailures).toBe(0);
         expect(highFrequencyIpcLogs).toBe(0);
     } finally {
-        await app.close().catch(() => undefined);
+        try {
+            await app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(userData, { recursive: true, force: true });
     }
 });

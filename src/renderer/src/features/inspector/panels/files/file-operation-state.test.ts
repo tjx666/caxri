@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import type { PendingFileOperation } from './file-operation-state';
 import {
     CANCEL_REVEAL_THRESHOLD_MS,
     fileOperationsBlockingPath,
     isFileOperationCancelable,
     isPathBlockedByFileOperations,
-    type PendingFileOperation,
 } from './file-operation-state';
 
 function operation(overrides: Partial<PendingFileOperation> = {}): PendingFileOperation {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { commandIds } from '../ipc';
 import {
     commandDefinitions,
     defaultKeybindings,
@@ -8,6 +7,7 @@ import {
     nativeMenuIds,
 } from '../commands';
 import { inspectorModeRegistrations } from '../inspector';
+import { commandIds } from '../ipc';
 
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {
@@ -60,9 +60,9 @@ describe('command registry', () => {
             placements.every(
                 ({ menu, group, order }) =>
                     nativeMenuIds.includes(menu) &&
-                    Number.isInteger(group) &&
+                    Number.isSafeInteger(group) &&
                     group >= 0 &&
-                    Number.isInteger(order) &&
+                    Number.isSafeInteger(order) &&
                     order >= 0,
             ),
         ).toBe(true);

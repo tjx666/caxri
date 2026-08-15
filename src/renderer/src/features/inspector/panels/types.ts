@@ -1,9 +1,11 @@
-import type { LucideIcon } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 import type { InspectorCommandIdFor, InspectorMode } from '@shared/inspector';
+import type { LucideIcon } from 'lucide-react';
 
-/** One entry in the Inspector's panel registry, covering both the tab bar and the panel content. */
+/**
+One entry in the Inspector's panel registry, covering both the tab bar and the panel content.
+ */
 export interface InspectorPanelDefinition<Mode extends InspectorMode> {
     id: Mode;
     title: string;

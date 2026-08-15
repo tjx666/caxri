@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator, type Page } from './support/fixtures.ts';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import type { Locator, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -84,7 +84,7 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
 
         await typeTerminal(
             running.page,
-            'for value in {1..120}; do printf \'COMMAND_NAV_%03d\\n\' "$value"; done',
+            String.raw`for value in {1..120}; do printf 'COMMAND_NAV_%03d\n' "$value"; done`,
         );
         await expectCommandState(firstSurface, {
             commandCount: 1,
@@ -116,8 +116,10 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(terminalSurface(running.page, firstTerminalId)).toBeVisible();
-        /** A parsed attach snapshot cannot prove historical OSC boundaries. The remounted tracker
-         *  must start empty instead of fabricating or duplicating status from visible text. */
+        /**
+         * A parsed attach snapshot cannot prove historical OSC boundaries. The remounted tracker
+         *  must start empty instead of fabricating or duplicating status from visible text.
+         */
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
             commandCount: 0,
             completedCount: 0,
@@ -180,7 +182,11 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
             lastExitStatus: 0,
         });
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -228,7 +234,11 @@ test('bash reports successful and failed command status without retaining comman
         }));
         expect(JSON.stringify(commandMetadata)).not.toContain('COMMAND_BODY_PRIVATE');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -252,7 +262,7 @@ test('unsupported shells and Agent Terminals remain usable without inferred boun
     try {
         await createShellSession(running.page);
         const shellSurface = terminalSurface(running.page, await activeTerminalId(running.page));
-        await typeTerminal(running.page, "printf 'UNSUPPORTED_SHELL_READY\\n'");
+        await typeTerminal(running.page, String.raw`printf 'UNSUPPORTED_SHELL_READY\n'`);
         await expect(shellSurface.locator('.xterm-rows')).toContainText('UNSUPPORTED_SHELL_READY');
         await expectCommandState(shellSurface, { commandCount: 0, completedCount: 0 });
         await expect(
@@ -277,7 +287,11 @@ test('unsupported shells and Agent Terminals remain usable without inferred boun
         await expectCommandState(agentSurface, { commandCount: 0, completedCount: 0 });
         await expect(agentSurface.locator('.terminal-command-decoration')).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -1,15 +1,15 @@
-#!/usr/bin/env bun
-
-import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
+import type { TerminalFixturePreflightReceipt } from './fixture-preflight';
 import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
-    type TerminalFixturePreflightReceipt,
 } from './fixture-preflight';
+import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
 interface CdpTarget {
     type: string;
@@ -50,24 +50,25 @@ Usage:
   capture-renderer.ts dom --output FILE --selector SELECTOR [--port PORT] [--url-contains TEXT]
 `;
 
-function requiredValue(args: string[], index: number, option: string): string {
-    const value = args[index + 1];
+function requiredValue(arguments_: string[], index: number, option: string): string {
+    const value = arguments_[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`${option} requires a value`);
     return value;
 }
 
 function boundedPositiveInteger(raw: string, option: string, maximum: number): number {
     const value = Number(raw);
-    if (!Number.isInteger(value) || value <= 0 || value > maximum) {
+    if (!Number.isSafeInteger(value) || value <= 0 || value > maximum) {
         throw new Error(`${option} must be an integer between 1 and ${maximum}`);
     }
     return value;
 }
 
-export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
-    if (args.length === 0 || args.includes('--help') || args.includes('-h')) return 'help';
+export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'help' {
+    if (arguments_.length === 0 || arguments_.includes('--help') || arguments_.includes('-h'))
+        return 'help';
 
-    const command = args[0];
+    const command = arguments_[0];
     if (command !== 'dom' && command !== 'frames') {
         throw new Error(`Unknown command: ${command}`);
     }
@@ -84,11 +85,11 @@ export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
                   '--port',
                   '--url-contains',
               ]);
-    for (let index = 1; index < args.length; index += 2) {
-        const option = args[index];
+    for (let index = 1; index < arguments_.length; index += 2) {
+        const option = arguments_[index];
         if (!option?.startsWith('--')) throw new Error(`Unexpected argument: ${option}`);
         if (!allowedOptions.has(option)) throw new Error(`Unknown option: ${option}`);
-        values.set(option, requiredValue(args, index, option));
+        values.set(option, requiredValue(arguments_, index, option));
     }
 
     const rawPort = values.get('--port');
@@ -97,14 +98,14 @@ export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
 
     if (command === 'dom') {
         const output = values.get('--output');
-        const selector = values.get('--selector');
         if (!output) throw new Error('--output is required');
+        const selector = values.get('--selector');
         if (!selector) throw new Error('--selector is required');
         return { command, output: resolve(output), port, selector, urlContains };
     }
 
-    const outDir = values.get('--out-dir');
-    if (!outDir) throw new Error('--out-dir is required');
+    const outputDirectory = values.get('--out-dir');
+    if (!outputDirectory) throw new Error('--out-dir is required');
     const fixturePreflight = values.get('--fixture-preflight');
     if (!fixturePreflight) throw new Error('--fixture-preflight is required for frame capture');
     return {
@@ -116,7 +117,7 @@ export function parseCaptureOptions(args: string[]): CaptureOptions | 'help' {
             '--interval-ms',
             MAX_INTERVAL_MS,
         ),
-        outDir: resolve(outDir),
+        outDir: resolve(outputDirectory),
         port,
         urlContains,
     };
@@ -179,6 +180,37 @@ export function resolveOwnedCapturePort(runtimePort: number, requestedPort?: num
 }
 
 class CdpClient {
+    static async connect(url: string): Promise<CdpClient> {
+        const socket = new WebSocket(url);
+        await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                cleanup();
+                socket.close();
+                reject(new Error(`Timed out connecting to ${url}`));
+            }, CDP_TIMEOUT_MS);
+
+            function cleanup(): void {
+                clearTimeout(timeout);
+                socket.removeEventListener('open', onOpen);
+                socket.removeEventListener('error', onError);
+            }
+
+            function onOpen(): void {
+                cleanup();
+                resolve();
+            }
+
+            function onError(): void {
+                cleanup();
+                reject(new Error(`Unable to connect to ${url}`));
+            }
+
+            socket.addEventListener('open', onOpen, { once: true });
+            socket.addEventListener('error', onError, { once: true });
+        });
+        return new CdpClient(socket);
+    }
+
     private nextId = 1;
     private readonly pending = new Map<
         number,
@@ -207,60 +239,33 @@ class CdpClient {
         });
     }
 
-    static async connect(url: string): Promise<CdpClient> {
-        const socket = new WebSocket(url);
-        await new Promise<void>((resolveOpen, rejectOpen) => {
-            const cleanup = (): void => {
-                clearTimeout(timeout);
-                socket.removeEventListener('open', onOpen);
-                socket.removeEventListener('error', onError);
-            };
-            const onOpen = (): void => {
-                cleanup();
-                resolveOpen();
-            };
-            const onError = (): void => {
-                cleanup();
-                rejectOpen(new Error(`Unable to connect to ${url}`));
-            };
-            const timeout = setTimeout(() => {
-                cleanup();
-                socket.close();
-                rejectOpen(new Error(`Timed out connecting to ${url}`));
-            }, CDP_TIMEOUT_MS);
-            socket.addEventListener('open', onOpen, { once: true });
-            socket.addEventListener('error', onError, { once: true });
-        });
-        return new CdpClient(socket);
-    }
-
     close(): void {
         this.socket.close();
     }
 
     async request<T>(
         method: string,
-        params: Record<string, unknown> = {},
+        parameters: Record<string, unknown> = {},
         timeoutMs = CDP_TIMEOUT_MS,
     ): Promise<T> {
         const id = this.nextId++;
-        const result = new Promise<unknown>((resolveRequest, rejectRequest) => {
+        const result = new Promise<unknown>((resolve, reject) => {
             const timeout = setTimeout(() => {
                 this.pending.delete(id);
-                rejectRequest(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
+                reject(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
             }, timeoutMs);
             this.pending.set(id, {
                 reject: (error) => {
                     clearTimeout(timeout);
-                    rejectRequest(error);
+                    reject(error);
                 },
                 resolve: (value) => {
                     clearTimeout(timeout);
-                    resolveRequest(value);
+                    resolve(value);
                 },
             });
         });
-        this.socket.send(JSON.stringify({ id, method, params }));
+        this.socket.send(JSON.stringify({ id, method, params: parameters }));
         return (await result) as T;
     }
 }
@@ -290,9 +295,13 @@ async function captureFrames(options: FrameOptions, port: number): Promise<void>
         await client.request('Page.enable');
         await client.request('Page.bringToFront');
         const startedAt = Date.now();
+        // Frames are captured one at a time over a single CDP connection and paced by
+        // `intervalMs`; each iteration must await the previous capture and its pacing delay
+        // before requesting the next frame, so the awaits below are intentionally sequential.
         for (let index = 0; index < options.count; index += 1) {
             let result: { data: string };
             try {
+                // eslint-disable-next-line no-await-in-loop
                 result = await client.request<{ data: string }>(
                     'Page.captureScreenshot',
                     {
@@ -308,11 +317,13 @@ async function captureFrames(options: FrameOptions, port: number): Promise<void>
                 });
             }
             const path = resolve(options.outDir, `frame_${String(index).padStart(6, '0')}.png`);
+            // eslint-disable-next-line no-await-in-loop
             await writeFile(path, Buffer.from(result.data, 'base64'));
 
             const remaining = startedAt + (index + 1) * options.intervalMs - Date.now();
             if (remaining > 0 && index + 1 < options.count) {
-                await new Promise<void>((resolveWait) => setTimeout(resolveWait, remaining));
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise<void>((resolve) => setTimeout(resolve, remaining));
             }
         }
     } finally {
@@ -360,8 +371,10 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-    void main().catch((error: unknown) => {
+    try {
+        await main();
+    } catch (error: unknown) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    });
+    }
 }

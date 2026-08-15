@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    editorTabPathsToClose,
     editorModelPath,
+    editorTabPathsToClose,
     markTabsClean,
     openEditorTabState,
     pinEditorTabState,

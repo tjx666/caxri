@@ -1,31 +1,33 @@
-import { ShieldCheck, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '@shared/trusted-domains';
+import { ShieldCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 
-interface TrustedDomainsFormProps {
+interface TrustedDomainsFormProperties {
     focusRequestId?: number;
     rules: string[];
     onChange: (rules: string[]) => void;
 }
 
-/** Structured Settings editor for exact origins and explicit subdomain wildcard rules. */
+/**
+Structured Settings editor for exact origins and explicit subdomain wildcard rules.
+ */
 export function TrustedDomainsForm({
     focusRequestId = 0,
     rules,
     onChange,
-}: TrustedDomainsFormProps) {
+}: TrustedDomainsFormProperties) {
     const [draft, setDraft] = useState('');
     const [error, setError] = useState<string>();
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputReference = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!focusRequestId) return;
-        inputRef.current?.scrollIntoView({ block: 'center' });
-        inputRef.current?.focus();
+        inputReference.current?.scrollIntoView({ block: 'center' });
+        inputReference.current?.focus();
     }, [focusRequestId]);
 
     const add = (): void => {
@@ -62,7 +64,7 @@ export function TrustedDomainsForm({
             </div>
             <div className="mt-3 flex gap-2">
                 <Input
-                    ref={inputRef}
+                    ref={inputReference}
                     aria-label="Trusted domain rule"
                     aria-invalid={Boolean(error)}
                     className="min-w-0 flex-1 bg-elevated"

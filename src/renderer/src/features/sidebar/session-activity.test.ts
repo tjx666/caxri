@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { AgentActivityState } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import { formatSessionRelativeTime, sessionActivityPresentation } from './session-activity';
 

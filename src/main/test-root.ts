@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 interface TestRootOptions {
     environment?: NodeJS.ProcessEnv;
     isPackaged: boolean;
@@ -19,7 +21,9 @@ function parseQueuedTestRoots(value: string): string[] {
     return parsed as string[];
 }
 
-/** Exposes the deterministic directory-picker seam only to explicit development E2E runs. */
+/**
+Exposes the deterministic directory-picker seam only to explicit development E2E runs.
+ */
 export function resolveTestRootPath({
     environment = process.env,
     isPackaged,
@@ -28,7 +32,9 @@ export function resolveTestRootPath({
     return environment.CAXRI_TEST_ROOT_PATH;
 }
 
-/** Queues deterministic picker results for multi-Project desktop tests without affecting packages. */
+/**
+Queues deterministic picker results for multi-Project desktop tests without affecting packages.
+ */
 export function createTestRootPathResolver({
     environment = process.env,
     isPackaged,
@@ -38,7 +44,7 @@ export function createTestRootPathResolver({
     let queuedRoots: string[] | undefined;
 
     return () => {
-        if (isPackaged || environment.CAXRI_E2E !== '1') return undefined;
+        if (isPackaged || environment.CAXRI_E2E !== '1') return;
         const source = environment.CAXRI_TEST_ROOT_PATHS;
         if (!source) return environment.CAXRI_TEST_ROOT_PATH;
         if (source !== queuedSource) {

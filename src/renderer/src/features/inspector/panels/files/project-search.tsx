@@ -1,14 +1,14 @@
-import { ChevronDown, ChevronRight, ListFilter, LoaderCircle, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
+import { ChevronDown, ChevronRight, ListFilter, LoaderCircle, Search, X } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Input, InputGroup } from '../../../../components/ui/input';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { sessionViewScope } from '../../../../stores/session-view';
 import { openFile } from '../../../editor/document-actions';
@@ -36,8 +36,8 @@ type NameSearchNode = NameSearchDirectoryNode | NameSearchFileNode;
 function useDebouncedValue(value: string, delayMs: number): string {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
-        const timer = window.setTimeout(() => setDebounced(value), delayMs);
-        return () => window.clearTimeout(timer);
+        const timer = setTimeout(() => setDebounced(value), delayMs);
+        return () => clearTimeout(timer);
     }, [delayMs, value]);
     return debounced;
 }
@@ -90,12 +90,21 @@ function buildNameSearchTree(matches: readonly FileSearchMatch[]): NameSearchNod
     return roots;
 }
 
+/**
+ * `openSearchMatch` funnels its own failures through `openFile`'s `tryCommand` wrapper, so callers
+ * below intentionally discard the returned promise instead of awaiting it.
+ */
+function discard(promise: Promise<unknown>): void {
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void promise;
+}
+
 async function openSearchMatch(
     sessionId: string,
     match: FileSearchMatch,
-    preview = true,
+    isPreview = true,
 ): Promise<void> {
-    const opened = await openFile(match.path, { preview });
+    const opened = await openFile(match.path, { preview: isPreview });
     if (!opened || match.line === undefined || match.column === undefined) return;
     revealEditorMatch(editorModelPath(sessionViewScope(sessionId), match.path), {
         line: match.line,
@@ -152,8 +161,8 @@ function NameSearchTreeNode({
             className="search-result flex h-7 w-full items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground cursor-pointer hover:bg-elevated"
             style={{ paddingLeft: 23 + depth * 12 }}
             title={node.match.path}
-            onClick={() => void openSearchMatch(sessionId, node.match)}
-            onDoubleClick={() => void openSearchMatch(sessionId, node.match, false)}
+            onClick={() => discard(openSearchMatch(sessionId, node.match))}
+            onDoubleClick={() => discard(openSearchMatch(sessionId, node.match, false))}
         >
             <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
             <span className="truncate">{node.name}</span>
@@ -183,8 +192,8 @@ function ContentResultRow({ match, sessionId }: { match: FileSearchMatch; sessio
             type="button"
             className="search-result flex min-h-7 w-full items-start gap-2 border-0 bg-transparent py-1 pr-2 pl-5 text-left text-foreground cursor-pointer hover:bg-elevated"
             title={match.path}
-            onClick={() => void openSearchMatch(sessionId, match)}
-            onDoubleClick={() => void openSearchMatch(sessionId, match, false)}
+            onClick={() => discard(openSearchMatch(sessionId, match))}
+            onDoubleClick={() => discard(openSearchMatch(sessionId, match, false))}
         >
             <span className="w-8 shrink-0 text-right text-muted">{match.line}</span>
             <span className="truncate font-mono text-[11px]">
@@ -245,7 +254,7 @@ export function ProjectSearch({
     focusRevision: number;
     sessionId: string;
 }) {
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputReference = useRef<HTMLInputElement>(null);
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<FileSearchMode>('name');
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -254,8 +263,8 @@ export function ProjectSearch({
     const [include, setInclude] = useState('');
     const [exclude, setExclude] = useState('');
     const debouncedQuery = useDebouncedValue(query, 150);
-    const active = query.length > 0;
-    const settled = query === debouncedQuery;
+    const isActive = query.length > 0;
+    const isSettled = query === debouncedQuery;
     const result = useCaxriQuery(
         'files.search',
         {
@@ -278,10 +287,12 @@ export function ProjectSearch({
     const SearchModeIcon = mode === 'name' ? ListFilter : Search;
 
     useEffect(() => {
-        /** Focus after the panel commit so a Terminal attachment finishing in the same frame cannot
-         * reclaim focus from the app-wide Search Files command. */
-        const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-        return () => window.cancelAnimationFrame(frame);
+        /**
+         * Focus after the panel commit so a Terminal attachment finishing in the same frame cannot
+         * reclaim focus from the app-wide Search Files command.
+         */
+        const frame = requestAnimationFrame(() => inputReference.current?.focus());
+        return () => cancelAnimationFrame(frame);
     }, [focusRevision]);
 
     return (
@@ -294,7 +305,7 @@ export function ProjectSearch({
                         data-search-mode-icon={mode}
                     />
                     <Input
-                        ref={inputRef}
+                        ref={inputReference}
                         appearance="embedded"
                         className="flex-1 text-foreground"
                         aria-label={
@@ -305,10 +316,10 @@ export function ProjectSearch({
                         onChange={(event) => setQuery(event.currentTarget.value)}
                         size="dense"
                     />
-                    {(result.isFetching || (active && !settled)) && (
+                    {(result.isFetching || (isActive && !isSettled)) && (
                         <LoaderCircle size={13} className="shrink-0 animate-spin text-muted" />
                     )}
-                    {active && (
+                    {isActive && (
                         <Tooltip content="Clear Search">
                             <button
                                 type="button"
@@ -401,9 +412,9 @@ export function ProjectSearch({
                     </div>
                 )}
             </div>
-            {!active ? (
+            {!isActive ? (
                 <div className="min-h-0 flex-1" />
-            ) : !settled ? (
+            ) : !isSettled ? (
                 <div className="p-3 text-center text-muted">Searching…</div>
             ) : result.isError ? (
                 <div className="p-3 text-center text-danger" role="alert">

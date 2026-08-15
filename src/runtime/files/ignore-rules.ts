@@ -31,7 +31,9 @@ const TRAVERSAL_EXCLUDED_SEGMENTS = new Set([
  */
 const TRAVERSAL_EXCLUDED_SUFFIXES = ['.db-wal'];
 
-/** True when bounded search or polling should skip a bare file or directory name. */
+/**
+True when bounded search or polling should skip a bare file or directory name.
+ */
 export function isTraversalExcludedName(name: string): boolean {
     return (
         TRAVERSAL_EXCLUDED_SEGMENTS.has(name) ||
@@ -39,7 +41,9 @@ export function isTraversalExcludedName(name: string): boolean {
     );
 }
 
-/** True when bounded search or watching should skip any segment in a relative path. */
+/**
+True when bounded search or watching should skip any segment in a relative path.
+ */
 export function isTraversalExcludedPath(relativePath: string): boolean {
     return relativePath.split(sep).some((segment) => TRAVERSAL_EXCLUDED_SEGMENTS.has(segment));
 }

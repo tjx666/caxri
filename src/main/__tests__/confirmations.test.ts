@@ -30,8 +30,8 @@ describe('external link prompt', () => {
     });
 
     it('makes Cancel both the default and the Escape target in either shape', () => {
-        for (const allowTrust of [true, false]) {
-            const options = externalLinkPrompt(new URL('https://example.com/'), allowTrust);
+        for (const isAllowTrust of [true, false]) {
+            const options = externalLinkPrompt(new URL('https://example.com/'), isAllowTrust);
             const cancelIndex = options.buttons!.indexOf('Cancel');
             expect(options.defaultId).toBe(cancelIndex);
             expect(options.cancelId).toBe(cancelIndex);
@@ -43,7 +43,9 @@ describe('external link prompt', () => {
         expect(externalLinkChoice(1, true)).toBe('trust');
         expect(externalLinkChoice(2, true)).toBe('cancel');
         expect(externalLinkChoice(0, false)).toBe('open_once');
-        /** Without trust, index 1 is Cancel — it must never be read as an implicit trust. */
+        /**
+        Without trust, index 1 is Cancel — it must never be read as an implicit trust.
+         */
         expect(externalLinkChoice(1, false)).toBe('cancel');
     });
 });
@@ -55,7 +57,9 @@ describe('trash prompt', () => {
         expect(options.detail).toContain('You can recover this item from the Trash.');
     });
 
-    /** The Trash restores only what reached disk, so the blanket reassurance would be a lie here. */
+    /**
+    The Trash restores only what reached disk, so the blanket reassurance would be a lie here.
+     */
     it('withdraws the recovery promise when the editor holds unsaved changes', () => {
         const options = trashPrompt({
             name: 'notes.md',
@@ -104,7 +108,9 @@ describe('unsaved changes prompt', () => {
         expect(options.buttons).toEqual(['Save', "Don't Save", 'Cancel']);
     });
 
-    /** Enter must save and Escape must cancel; neither may land on the destructive choice. */
+    /**
+    Enter must save and Escape must cancel; neither may land on the destructive choice.
+     */
     it('never puts the destructive choice behind Enter or Escape', () => {
         const options = unsavedChangesPrompt('index.ts');
         expect(options.buttons![options.defaultId!]).toBe('Save');

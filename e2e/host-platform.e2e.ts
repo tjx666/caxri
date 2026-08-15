@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 
 import { connectToHost, ensureHost } from '@caxri/cli';
 
@@ -28,18 +29,18 @@ interface CliResult {
     stdout: string;
 }
 
-function runCli(args: readonly string[], environment: NodeJS.ProcessEnv): Promise<CliResult> {
-    return new Promise((resolveRun) => {
+function runCli(arguments_: readonly string[], environment: NodeJS.ProcessEnv): Promise<CliResult> {
+    return new Promise((resolve) => {
         execFile(
             process.execPath,
-            [cliPath, ...args],
+            [cliPath, ...arguments_],
             {
                 env: { ...process.env, ...environment },
                 maxBuffer: 2 * 1024 * 1024,
                 timeout: 15_000,
             },
             (error, stdout, stderr) => {
-                resolveRun({
+                resolve({
                     code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
                     stderr,
                     stdout,
@@ -50,12 +51,21 @@ function runCli(args: readonly string[], environment: NodeJS.ProcessEnv): Promis
 }
 
 async function stopHost(userDataPath: string): Promise<void> {
-    const client = await connectToHost(userDataPath, 2_000).catch(() => undefined);
+    let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    try {
+        client = await connectToHost(userDataPath, 2_000);
+    } catch {
+        client = undefined;
+    }
     if (!client) return;
     let pid: number | undefined;
     try {
         pid = (await client.request('host.status', {})).pid;
-        await client.request('host.stop', { confirmLivePtys: true }).catch(() => undefined);
+        try {
+            await client.request('host.stop', { confirmLivePtys: true });
+        } catch {
+            // Ignore stop failures; the poll below confirms the Host actually shut down.
+        }
     } finally {
         client.close();
     }
@@ -63,17 +73,21 @@ async function stopHost(userDataPath: string): Promise<void> {
     await expect
         .poll(
             async () => {
-                const manifestExists = await access(manifestPath)
-                    .then(() => true)
-                    .catch(() => false);
-                let processExists: boolean;
+                let isManifestExists: boolean;
+                try {
+                    await access(manifestPath);
+                    isManifestExists = true;
+                } catch {
+                    isManifestExists = false;
+                }
+                let isProcessExists: boolean;
                 try {
                     if (pid) process.kill(pid, 0);
-                    processExists = pid !== undefined;
+                    isProcessExists = pid !== undefined;
                 } catch {
-                    processExists = false;
+                    isProcessExists = false;
                 }
-                return { manifestExists, processExists };
+                return { manifestExists: isManifestExists, processExists: isProcessExists };
             },
             { timeout: 5_000 },
         )
@@ -105,9 +119,9 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
         XDG_CACHE_HOME: join(isolatedHome, 'cache'),
         XDG_CONFIG_HOME: join(isolatedHome, 'config'),
         XDG_DATA_HOME: join(isolatedHome, 'data'),
-        ...(process.env.CAXRI_E2E_WORKER_NAMESPACE
-            ? { CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE }
-            : {}),
+        ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
+            CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
+        }),
     };
     const environment = {
         ...hostEnvironment,
@@ -218,7 +232,11 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
         });
         expect(commands.map(({ stdout }) => stdout).join('\n')).not.toContain(unscopedSecret);
     } finally {
-        await running?.app.close().catch(() => undefined);
+        try {
+            await running?.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await stopHost(userData);
         await rm(testDirectory, { recursive: true, force: true });
     }

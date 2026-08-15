@@ -1,5 +1,3 @@
-import { useShallow } from 'zustand/react/shallow';
-
 import type {
     AppSettings,
     BootstrapState,
@@ -9,6 +7,7 @@ import type {
     TerminalRecord,
     ThemeTokens,
 } from '@shared/types';
+import { useShallow } from 'zustand/react/shallow';
 
 import { useWorkbenchStore } from './workbench';
 
@@ -18,7 +17,9 @@ export function selectSelectedSession(bootstrap?: BootstrapState): SessionRecord
     return bootstrap?.sessions.find((session) => session.id === bootstrap.selectedSessionId);
 }
 
-/** Falls back to the standalone Project selection so a Project with no Session still highlights. */
+/**
+Falls back to the standalone Project selection so a Project with no Session still highlights.
+ */
 export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
     if (!bootstrap) return undefined;
     const sessionProjectId = selectSelectedSession(bootstrap)?.projectId;
@@ -27,7 +28,9 @@ export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord
     );
 }
 
-/** Files, Editor, and Git follow this Project; Sidebar ownership still uses `selectSelectedProject`. */
+/**
+Files, Editor, and Git follow this Project; Sidebar ownership still uses `selectSelectedProject`.
+ */
 function selectSelectedWorkbenchProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
     if (!bootstrap) return undefined;
     const workbenchProjectId = selectSelectedSession(bootstrap)?.workbenchProjectId;
@@ -47,7 +50,9 @@ function selectSessionTerminals(bootstrap?: BootstrapState): TerminalRecord[] {
     );
 }
 
-/** Non-React read path: the store is the single source of truth for actions and event handlers. */
+/**
+Non-React read path: the store is the single source of truth for actions and event handlers.
+ */
 export function getBootstrap(): BootstrapState | undefined {
     return useWorkbenchStore.getState().bootstrap;
 }
@@ -56,7 +61,9 @@ export function getSelectedSession(): SessionRecord | undefined {
     return selectSelectedSession(getBootstrap());
 }
 
-/** File paths belong to a Workbench Project, so mutations reconcile Sessions currently sharing it. */
+/**
+File paths belong to a Workbench Project, so mutations reconcile Sessions currently sharing it.
+ */
 export function getProjectSessionIds(originSessionId: string): string[] {
     const sessions = getBootstrap()?.sessions ?? [];
     const projectId = sessions.find(
@@ -70,7 +77,9 @@ export function getProjectSessionIds(originSessionId: string): string[] {
     return sessionIds;
 }
 
-/** Returns Sessions whose current structured requests still resolve against this Workbench Root. */
+/**
+Returns Sessions whose current structured requests still resolve against this Workbench Root.
+ */
 export function getWorkbenchProjectSessionIds(
     workbenchProjectId: string,
     fallbackSessionId?: string,
@@ -139,7 +148,9 @@ export function useSessions(): SessionRecord[] | undefined {
     return useWorkbenchStore((state) => state.bootstrap?.sessions);
 }
 
-/** Stable shallow ID list for caches that must discard state after Session deletion. */
+/**
+Stable shallow ID list for caches that must discard state after Session deletion.
+ */
 export function useSessionIds(): string[] {
     return useWorkbenchStore(
         useShallow((state) => state.bootstrap?.sessions.map((session) => session.id) ?? []),
@@ -150,7 +161,9 @@ export function useTerminals(): TerminalRecord[] {
     return useWorkbenchStore((state) => state.bootstrap?.terminals ?? NO_TERMINALS);
 }
 
-/** Mirrors the native window's fullscreen state; see `window.fullScreen` in `stores/workbench.ts`. */
+/**
+Mirrors the native window's fullscreen state; see `window.fullScreen` in `stores/workbench.ts`.
+ */
 export function useIsFullScreen(): boolean {
     return useWorkbenchStore((state) => state.isFullScreen);
 }

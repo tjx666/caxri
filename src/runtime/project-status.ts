@@ -8,24 +8,26 @@ import { CaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type {
-    GitRepositorySummary,
+    GitRepositorySummary as GitRepoSummary,
     ProjectStatusCheck,
     ProjectStatusDeployment,
     ProjectStatusError,
     ProjectStatusLinearIssue,
     ProjectStatusOverview,
-    ProjectStatusRepository,
+    ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
     ProjectStatusSummary,
 } from '../shared/types';
-import type { GitService } from './git';
 import { resolveRuntimeExecutable, runtimeProcessEnvironment } from './executables';
+import type { GitService } from './git';
 import { SingleFlight } from './single-flight';
 
 const execFileAsync = promisify(execFile);
 const CLI_TIMEOUT_MS = 8_000;
 const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
-/** Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded. */
+/**
+Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded.
+ */
 const VERCEL_LINK_CACHE_LIMIT = 256;
 
 type ProjectStatusCommand = 'gh' | 'git' | 'linear' | 'vc';
@@ -34,13 +36,13 @@ type CliFailureKind =
 
 export type ProjectStatusRunner = (
     command: ProjectStatusCommand,
-    args: readonly string[],
+    arguments_: readonly string[],
     cwd: string,
 ) => Promise<string>;
 
 type RunProjectStatusFile = (
     executable: string,
-    args: string[],
+    arguments_: string[],
     options: {
         cwd: string;
         timeout: number;
@@ -55,8 +57,8 @@ export interface ProjectStatusCommandDependencies {
     run?: RunProjectStatusFile;
 }
 
-const runProjectStatusFile: RunProjectStatusFile = async (executable, args, options) => {
-    const { stdout } = await execFileAsync(executable, args, options);
+const runProjectStatusFile: RunProjectStatusFile = async (executable, arguments_, options) => {
+    const { stdout } = await execFileAsync(executable, arguments_, options);
     return { stdout };
 };
 
@@ -110,29 +112,31 @@ const vercelDeploymentListSchema = z.union([
     z.object({ deployments: z.array(vercelDeploymentSchema).optional() }),
 ]);
 
+const vercelTeamSchema = z.object({ slug: z.string().optional() });
+
 const vercelTeamListSchema = z.union([
-    z.array(z.object({ slug: z.string().optional() })),
-    z.object({ teams: z.array(z.object({ slug: z.string().optional() })).optional() }),
+    z.array(vercelTeamSchema),
+    z.object({ teams: z.array(vercelTeamSchema).optional() }),
 ]);
 
+const linearIssueStateSchema = z.object({
+    name: z.string().optional(),
+    type: z.string().optional(),
+});
+
+const linearIssueSchema = z.object({
+    identifier: z.string().optional(),
+    title: z.string().optional(),
+    url: z.string().optional(),
+    state: linearIssueStateSchema.optional(),
+});
+
+const linearIssueDataSchema = z.object({
+    issue: linearIssueSchema.optional(),
+});
+
 const linearIssueResponseSchema = z.object({
-    data: z
-        .object({
-            issue: z
-                .object({
-                    identifier: z.string().optional(),
-                    title: z.string().optional(),
-                    url: z.string().optional(),
-                    state: z
-                        .object({
-                            name: z.string().optional(),
-                            type: z.string().optional(),
-                        })
-                        .optional(),
-                })
-                .optional(),
-        })
-        .optional(),
+    data: linearIssueDataSchema.optional(),
 });
 
 export interface VercelLink {
@@ -145,7 +149,7 @@ interface LinearReference {
     workspace?: string;
 }
 
-interface RepositoryContext {
+interface RepoContext {
     branch: string;
     defaultBranch?: string;
     head?: string;
@@ -211,8 +215,8 @@ function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string
 function classifyCliFailure(
     error: NodeJS.ErrnoException & { killed?: boolean; stderr?: string },
 ): CliFailureKind {
-    const stderr = error.stderr ?? error.message ?? '';
     if (error.code === 'ENOENT') return 'not-found';
+    const stderr = error.stderr ?? error.message ?? '';
     if (error.killed || /timed out/i.test(stderr)) return 'timeout';
     if (/rate limit|abuse detection/i.test(stderr)) return 'rate-limited';
     if (
@@ -305,12 +309,13 @@ export function extractLinearReferences(body: string): LinearReference[] {
     )) {
         add(match[2], match[1]);
     }
-    const markerPattern = REFERENCE_MARKERS.map((marker) => marker.replaceAll(' ', '\\s+')).join(
-        '|',
-    );
-    const referenceLine = new RegExp(`(?:^|\\b)(?:${markerPattern})\\b([^\\n]*)`, 'giu');
+    const markerPattern = REFERENCE_MARKERS.map((marker) =>
+        marker.replaceAll(' ', String.raw`\s+`),
+    ).join('|');
+    const referenceLine = new RegExp(String.raw`(?:^|\b)(?:${markerPattern})\b([^\n]*)`, 'giu');
     for (const marker of body.matchAll(referenceLine)) {
-        for (const identifier of marker[1].matchAll(/\b([a-z][a-z0-9]*-[1-9]\d*)\b/giu)) {
+        const identifiers = marker[1].matchAll(/\b([a-z][a-z0-9]*-[1-9]\d*)\b/giu);
+        for (const identifier of identifiers) {
             add(identifier[1]);
         }
     }
@@ -340,7 +345,7 @@ function checkDuration(check: GitHubCheck): number | undefined {
 
 export function parseGitHubPullRequest(value: string): {
     body: string;
-    pullRequest?: ProjectStatusRepository['pullRequest'];
+    pullRequest?: ProjectStatusRepo['pullRequest'];
 } {
     const raw = parseExternalJson(value, githubPullRequestSchema, 'GitHub pull request');
     if (!raw.number || !raw.title || !raw.url) return { body: raw.body ?? '' };
@@ -374,7 +379,7 @@ function deploymentState(deployment: VercelDeployment): ProjectStatusState {
     const state = (deployment.readyState ?? deployment.state ?? '').toUpperCase();
     if (state === 'READY') return 'success';
     if (state === 'ERROR') return 'failure';
-    if (state === 'BUILDING' || state === 'QUEUED' || state === 'INITIALIZING') return 'pending';
+    if (['BUILDING', 'QUEUED', 'INITIALIZING'].includes(state)) return 'pending';
     return state === 'CANCELED' ? 'neutral' : 'unknown';
 }
 
@@ -425,7 +430,9 @@ function parseVercelList(value: string): VercelDeployment[] {
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
     private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
-    /** LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded. */
+    /**
+    LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
+     */
     private readonly vercelLinks = new Map<string, VercelLink>();
 
     constructor(
@@ -434,24 +441,14 @@ export class ProjectStatusService {
         private readonly runner: ProjectStatusRunner = runProjectStatusCommand,
     ) {}
 
-    summary(sessionId: string): Promise<ProjectStatusSummary> {
-        return this.requests.run(sessionId, () => this.load(sessionId));
-    }
-
-    overview(sessionId: string): Promise<ProjectStatusOverview> {
-        return this.overviewRequests.run(sessionId, () => this.loadOverview(sessionId));
-    }
-
     private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
         const gitSummary = await this.git.summary(sessionId);
         if (!gitSummary.isRepository) {
             return { refreshedAt: Date.now(), error: gitSummary.error };
         }
-        const repository = gitSummary.repositories.find(
-            (candidate) => candidate.kind === 'primary',
-        );
-        if (!repository) return { refreshedAt: Date.now(), error: 'No primary repository found.' };
-        const remote = await this.optionalGit(repository.rootPath, ['remote', 'get-url', 'origin']);
+        const repo = gitSummary.repositories.find((candidate) => candidate.kind === 'primary');
+        if (!repo) return { refreshedAt: Date.now(), error: 'No primary repository found.' };
+        const remote = await this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']);
         const github = parseGitHubRemote(remote);
         const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
         let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
@@ -462,13 +459,13 @@ export class ProjectStatusService {
                     [
                         'pr',
                         'view',
-                        repository.branch,
+                        repo.branch,
                         '--repo',
                         `${github.owner}/${github.repo}`,
                         '--json',
                         'number,title,url',
                     ],
-                    repository.rootPath,
+                    repo.rootPath,
                 );
                 const parsed = parseExternalJson(
                     output,
@@ -490,14 +487,14 @@ export class ProjectStatusService {
         }
         return {
             repository: {
-                id: repository.id,
-                branch: repository.branch,
+                id: repo.id,
+                branch: repo.branch,
                 branchUrl: githubUrl
-                    ? `${githubUrl}/tree/${encodeURIComponent(repository.branch)}`
+                    ? `${githubUrl}/tree/${encodeURIComponent(repo.branch)}`
                     : undefined,
-                changedFileCount: repository.files.length,
-                additions: repository.additions,
-                deletions: repository.deletions,
+                changedFileCount: repo.files.length,
+                additions: repo.additions,
+                deletions: repo.deletions,
                 pullRequest,
             },
             refreshedAt: Date.now(),
@@ -510,11 +507,11 @@ export class ProjectStatusService {
         if (!gitSummary.isRepository) {
             return { repositories: [], refreshedAt: Date.now(), error: gitSummary.error };
         }
-        const visibleRepositories: GitRepositorySummary[] = [];
-        for (const repository of gitSummary.repositories)
-            if (repository.kind !== 'worktree') visibleRepositories.push(repository);
+        const visibleRepositories: GitRepoSummary[] = [];
+        for (const repo of gitSummary.repositories)
+            if (repo.kind !== 'worktree') visibleRepositories.push(repo);
         const repositories = await Promise.all(
-            visibleRepositories.map((repository) => this.loadRepository(repository)),
+            visibleRepositories.map((repo) => this.loadRepository(repo)),
         );
         this.logger.write('info', 'project_status.summary', {
             durationMs: performance.now() - startedAt,
@@ -523,53 +520,51 @@ export class ProjectStatusService {
         return { repositories, refreshedAt: Date.now() };
     }
 
-    private async optionalGit(cwd: string, args: readonly string[]): Promise<string> {
+    private async optionalGit(cwd: string, arguments_: readonly string[]): Promise<string> {
         try {
-            return (await this.runner('git', args, cwd)).trim();
+            return (await this.runner('git', arguments_, cwd)).trim();
         } catch {
             return '';
         }
     }
 
-    private async loadRepository(
-        repository: GitRepositorySummary,
-    ): Promise<ProjectStatusRepository> {
+    private async loadRepository(repo: GitRepoSummary): Promise<ProjectStatusRepo> {
         const [remote, defaultBranch, head] = await Promise.all([
-            this.optionalGit(repository.rootPath, ['remote', 'get-url', 'origin']),
-            this.optionalGit(repository.rootPath, [
+            this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']),
+            this.optionalGit(repo.rootPath, [
                 'symbolic-ref',
                 '--short',
                 'refs/remotes/origin/HEAD',
             ]),
-            this.optionalGit(repository.rootPath, ['rev-parse', 'HEAD']),
+            this.optionalGit(repo.rootPath, ['rev-parse', 'HEAD']),
         ]);
         const github = parseGitHubRemote(remote);
-        const context: RepositoryContext = {
-            branch: repository.branch,
+        const context: RepoContext = {
+            branch: repo.branch,
             defaultBranch: defaultBranch.replace(/^origin\//, '') || undefined,
             head: head || undefined,
             owner: github?.owner,
             repo: github?.repo,
         };
         const [githubState, vercelState] = await Promise.all([
-            this.loadGitHub(repository.rootPath, context),
+            this.loadGitHub(repo.rootPath, context),
             this.loadVercel(context),
         ]);
-        const name = context.repo ?? repository.name;
+        const name = context.repo ?? repo.name;
         const githubUrl =
             context.owner && context.repo
                 ? `https://github.com/${context.owner}/${context.repo}`
                 : undefined;
         return {
-            id: repository.id,
-            kind: repository.kind,
+            id: repo.id,
+            kind: repo.kind,
             name,
-            rootPath: repository.rootPath,
-            branch: repository.branch,
+            rootPath: repo.rootPath,
+            branch: repo.branch,
             defaultBranch: context.defaultBranch,
             githubUrl,
             branchUrl: githubUrl
-                ? `${githubUrl}/tree/${encodeURIComponent(repository.branch)}`
+                ? `${githubUrl}/tree/${encodeURIComponent(repo.branch)}`
                 : undefined,
             pullRequest: githubState.pullRequest,
             linearIssues: githubState.linearIssues,
@@ -580,9 +575,9 @@ export class ProjectStatusService {
 
     private async loadGitHub(
         cwd: string,
-        context: RepositoryContext,
+        context: RepoContext,
     ): Promise<
-        Pick<ProjectStatusRepository, 'pullRequest' | 'linearIssues'> & {
+        Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues'> & {
             errors: ProjectStatusError[];
         }
     > {
@@ -630,15 +625,15 @@ export class ProjectStatusService {
         const issues = await Promise.all(
             references.map(async (reference): Promise<ProjectStatusLinearIssue> => {
                 try {
-                    const args = [
+                    const arguments_ = [
                         'api',
                         LINEAR_ISSUE_QUERY,
                         '--variable',
                         `id=${reference.identifier}`,
                     ];
-                    if (reference.workspace) args.push('--workspace', reference.workspace);
+                    if (reference.workspace) arguments_.push('--workspace', reference.workspace);
                     const raw = parseExternalJson(
-                        await this.runner('linear', args, cwd),
+                        await this.runner('linear', arguments_, cwd),
                         linearIssueResponseSchema,
                         'Linear issue',
                     );
@@ -679,7 +674,7 @@ export class ProjectStatusService {
             teams.map(async (team): Promise<VercelLink | undefined> => {
                 const output = await this.runner(
                     'vc',
-                    vcListArgs(team, { githubOrg: owner, githubRepo: repo }),
+                    vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
                     homedir(),
                 );
                 const project = parseVercelList(output)[0]?.name;
@@ -692,8 +687,8 @@ export class ProjectStatusService {
     }
 
     private async loadVercel(
-        context: RepositoryContext,
-    ): Promise<Pick<ProjectStatusRepository, 'deployments'> & { errors: ProjectStatusError[] }> {
+        context: RepoContext,
+    ): Promise<Pick<ProjectStatusRepo, 'deployments'> & { errors: ProjectStatusError[] }> {
         if (!context.owner || !context.repo) return { errors: [] };
         try {
             const link = await this.findVercelLink(context.owner, context.repo);
@@ -702,14 +697,14 @@ export class ProjectStatusService {
             const results = await Promise.all([
                 this.runner(
                     'vc',
-                    vcListArgs(link.team, { ...baseMeta, githubCommitRef: context.branch }),
+                    vcListArguments(link.team, { ...baseMeta, githubCommitRef: context.branch }),
                     homedir(),
                 ),
-                this.runner('vc', vcListArgs(link.team, baseMeta, 'production'), homedir()),
+                this.runner('vc', vcListArguments(link.team, baseMeta, 'production'), homedir()),
                 context.head
                     ? this.runner(
                           'vc',
-                          vcListArgs(link.team, { githubCommitSha: context.head }, 'preview'),
+                          vcListArguments(link.team, { githubCommitSha: context.head }, 'preview'),
                           homedir(),
                       )
                     : Promise.resolve('[]'),
@@ -739,23 +734,31 @@ export class ProjectStatusService {
             return { errors: [cliError('vc', failure.kind)] };
         }
     }
+
+    summary(sessionId: string): Promise<ProjectStatusSummary> {
+        return this.requests.run(sessionId, () => this.load(sessionId));
+    }
+
+    overview(sessionId: string): Promise<ProjectStatusOverview> {
+        return this.overviewRequests.run(sessionId, () => this.loadOverview(sessionId));
+    }
 }
 
-function vcListArgs(
+function vcListArguments(
     team: string,
     meta: Record<string, string>,
     environment?: ProjectStatusDeployment['environment'],
 ): string[] {
-    const args = ['ls', '--format', 'json', '--scope', team];
-    for (const [key, value] of Object.entries(meta)) args.push('--meta', `${key}=${value}`);
-    if (environment) args.push('--environment', environment);
-    args.push('--yes');
-    return args;
+    const arguments_ = ['ls', '--format', 'json', '--scope', team];
+    for (const [key, value] of Object.entries(meta)) arguments_.push('--meta', `${key}=${value}`);
+    if (environment) arguments_.push('--environment', environment);
+    arguments_.push('--yes');
+    return arguments_;
 }
 
 export async function runProjectStatusCommand(
     command: ProjectStatusCommand,
-    args: readonly string[],
+    arguments_: readonly string[],
     cwd: string,
     dependencies: ProjectStatusCommandDependencies = {},
 ): Promise<string> {
@@ -770,7 +773,7 @@ export async function runProjectStatusCommand(
             throw missing;
         }
         const environment = command === 'git' ? safeProcessEnvironment() : await readEnvironment();
-        const { stdout } = await run(executable, [...args], {
+        const { stdout } = await run(executable, [...arguments_], {
             cwd,
             timeout: CLI_TIMEOUT_MS,
             maxBuffer: CLI_MAX_BUFFER_BYTES,

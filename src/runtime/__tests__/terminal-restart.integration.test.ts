@@ -23,7 +23,7 @@ function createFakePty(): IPty {
 }
 
 function fakeAgentAdapters() {
-    const pending = new Promise<never>(() => undefined);
+    const pending = new Promise<never>(() => {});
     return {
         claude: { provider: 'claude' as const, snapshot: () => pending },
         codex: { provider: 'codex' as const, snapshot: () => pending },
@@ -31,9 +31,9 @@ function fakeAgentAdapters() {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Agent Terminal restart', () => {
@@ -60,7 +60,7 @@ describe('Agent Terminal restart', () => {
             const runtime = await createRuntime({
                 userDataPath,
                 logger: new StructuredLogger(join(directory, 'logs')),
-                send: () => undefined,
+                send: () => {},
                 terminal: {
                     resolveExecutable: () => Promise.resolve(`/usr/local/bin/${provider}`),
                     spawn,
@@ -109,7 +109,7 @@ describe('Agent Terminal restart', () => {
         const runtime = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/usr/local/bin/codex'),
                 spawn,

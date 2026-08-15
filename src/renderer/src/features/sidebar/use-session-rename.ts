@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@shared/types';
 
-import { renameSession } from '../session/session-actions';
+import { didRenameSession } from '../session/session-actions';
 
 export interface SessionRenameController {
     beginRename: (sessionId: string, displayTitle: string) => void;
@@ -26,8 +26,8 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
-    const renamingSessionIdRef = useRef<string | undefined>(undefined);
-    const restoreFocusSessionIdRef = useRef<string | undefined>(undefined);
+    const renamingSessionIdReference = useRef<string | undefined>(undefined);
+    const restoreFocusSessionIdReference = useRef<string | undefined>(undefined);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
         element?.focus();
@@ -36,14 +36,16 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
 
     useEffect(() => {
         if (renamingSessionId) return;
-        const sessionId = restoreFocusSessionIdRef.current;
+        const sessionId = restoreFocusSessionIdReference.current;
         if (!sessionId) return;
-        document.querySelector<HTMLElement>(`[data-session-id="${sessionId}"]`)?.focus();
-        restoreFocusSessionIdRef.current = undefined;
+        document
+            .querySelector<HTMLElement>(`[data-session-id="${CSS.escape(sessionId)}"]`)
+            ?.focus();
+        restoreFocusSessionIdReference.current = undefined;
     }, [renamingSessionId, sessions]);
 
     const beginRename = (sessionId: string, displayTitle: string): void => {
-        renamingSessionIdRef.current = sessionId;
+        renamingSessionIdReference.current = sessionId;
         setRenamingSessionId(sessionId);
         setRenameValue(displayTitle);
         setRenameError(undefined);
@@ -53,21 +55,21 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
      * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately
      * skips focus restoration so the control the user clicked keeps focus.
      */
-    const finishRename = (sessionId: string, restoreFocus: boolean): void => {
-        if (renamingSessionIdRef.current !== sessionId) return;
-        renamingSessionIdRef.current = undefined;
-        if (restoreFocus) restoreFocusSessionIdRef.current = sessionId;
+    const finishRename = (sessionId: string, shouldRestoreFocus: boolean): void => {
+        if (renamingSessionIdReference.current !== sessionId) return;
+        renamingSessionIdReference.current = undefined;
+        if (shouldRestoreFocus) restoreFocusSessionIdReference.current = sessionId;
         setRenamingSessionId((current) => (current === sessionId ? undefined : current));
         setRenameError(undefined);
     };
 
     const cancelRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
+        const sessionId = renamingSessionIdReference.current;
         if (sessionId) finishRename(sessionId, true);
     };
 
     const commitRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
+        const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
         const displayTitle = renameValue.trim();
         if (!displayTitle) {
@@ -76,17 +78,21 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
         }
         const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
         finishRename(sessionId, true);
-        if (displayTitle !== currentTitle) void renameSession(sessionId, displayTitle);
+        // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        if (displayTitle !== currentTitle) void didRenameSession(sessionId, displayTitle);
     };
 
     const blurRename = (): void => {
-        const sessionId = renamingSessionIdRef.current;
+        const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
         const displayTitle = renameValue.trim();
         const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
         finishRename(sessionId, false);
+        // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
         if (displayTitle && displayTitle !== currentTitle)
-            void renameSession(sessionId, displayTitle);
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void didRenameSession(sessionId, displayTitle);
     };
 
     const onRenameValueChange = (value: string): void => {

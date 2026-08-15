@@ -1,14 +1,18 @@
 import type { ProcessState, TerminalFailureReason } from '@shared/types';
 
 export interface TerminalExitPresentation {
-    /** `pending` marks an in-progress automatic restore; it must never share the `unexpected`
-     *  failure glyph, since nothing has actually gone wrong yet. */
+    /**
+     * `pending` marks an in-progress automatic restore; it must never share the `unexpected`
+     *  failure glyph, since nothing has actually gone wrong yet.
+     */
     icon: 'completed' | 'failed' | 'pending' | 'unexpected';
     label: string;
     tone: 'neutral' | 'danger';
 }
 
-/** Actionable copy for each distinct `failed` cause; keep the generic fallback below in sync with unmapped codes. */
+/**
+Actionable copy for each distinct `failed` cause; keep the generic fallback below in sync with unmapped codes.
+ */
 const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
     working_directory_unavailable: 'Working directory no longer exists',
     executable_not_found: 'Agent CLI executable was not found',

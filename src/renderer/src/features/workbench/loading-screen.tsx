@@ -2,7 +2,9 @@ import { Code2 } from 'lucide-react';
 
 import { useToastStore } from '../../stores/toasts';
 
-/** Shown until the first `app.bootstrap` resolves; a failure replaces the wait with its reason. */
+/**
+Shown until the first `app.bootstrap` resolves; a failure replaces the wait with its reason.
+ */
 export function LoadingScreen() {
     const message = useToastStore((state) => state.toasts.at(-1)?.message);
     return (

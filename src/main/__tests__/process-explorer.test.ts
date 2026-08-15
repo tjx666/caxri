@@ -105,7 +105,7 @@ describe('Process Explorer sampling', () => {
     it('falls back to the anonymous renderer label while a window has no known role', async () => {
         const sampler = new ProcessExplorerSampler({
             rootPid: 100,
-            runtimePid: () => undefined,
+            runtimePid: () => {},
             processList: () =>
                 Promise.resolve('100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n'),
             electronProcesses: () => [{ pid: 101, type: 'Tab', cpuPercent: 2, memoryMb: 30 }],

@@ -53,8 +53,10 @@ export function createE2EPoolPlan(
         if (!all.has(path)) throw new Error(`Unknown parallel-safe E2E spec: ${path}`);
         safe.add(path);
     }
-    const parallelSafe = [...safe].sort();
-    const desktopExclusive = [...all].filter((path) => !safe.has(path)).sort();
+    const parallelSafe = [...safe].toSorted((a, b) => a.localeCompare(b));
+    const desktopExclusive = [...all]
+        .filter((path) => !safe.has(path))
+        .toSorted((a, b) => a.localeCompare(b));
 
     return {
         desktopExclusive,

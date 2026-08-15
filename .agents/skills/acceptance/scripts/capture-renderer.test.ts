@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -14,7 +15,9 @@ import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true })));
+    const paths = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true })));
 });
 
 describe('Acceptance Renderer capture', () => {

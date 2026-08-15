@@ -2,25 +2,32 @@ import { lstat, opendir, readdir, realpath } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
 import { CaxriError, errorMessage } from '../../shared/ipc/errors';
-import {
-    MAX_FILE_BROWSE_ENTRIES,
-    type RuntimeMethodParams,
-    type RuntimeMethodResult,
+import type {
+    RuntimeMethodParams as RuntimeMethodParameters,
+    RuntimeMethodResult,
 } from '../../shared/ipc/methods';
+import { MAX_FILE_BROWSE_ENTRIES } from '../../shared/ipc/methods';
 import { AsyncSemaphore, mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileEntry } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
-import { matchesFileTreeExclude, type FileTreeExcludes } from './file-tree-excludes';
+import type { FileTreeExcludes } from './file-tree-excludes';
+import { isFileTreeExcludeMatch } from './file-tree-excludes';
 
 const MAX_CONCURRENT_ENTRY_STATS = 32;
-/** Bounds a rare or absent path refinement independently of how many names match it. */
+/**
+Bounds a rare or absent path refinement independently of how many names match it.
+ */
 export const MAX_FILE_BROWSE_SCANNED_ENTRIES = 4_096;
-/** Prevents path browsing from exhausting Runtime directory handles across concurrent Sessions. */
+/**
+Prevents path browsing from exhausting Runtime directory handles across concurrent Sessions.
+ */
 export const MAX_CONCURRENT_FILE_BROWSES = 4;
 
-/** Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it. */
+/**
+Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it.
+ */
 export type DirectoryListedListener = (sessionId: string, path: string) => void;
 export type OpenDirectory = (path: string) => ReturnType<typeof opendir>;
 export interface GitIgnoreDecoration {
@@ -37,7 +44,9 @@ export type GitIgnoreRulesListedListener = (
     paths: readonly string[],
 ) => Promise<void>;
 
-/** Lists directories under a Session's Project root, tolerating entries that vanish mid-listing. */
+/**
+Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
+ */
 export class ListingService {
     private readonly listRequests = new SingleFlight<string, FileEntry[]>();
     private readonly browseRequests = new SingleFlight<
@@ -45,7 +54,9 @@ export class ListingService {
         RuntimeMethodResult<'files.browse'>
     >();
     private readonly browseConcurrency = new AsyncSemaphore(MAX_CONCURRENT_FILE_BROWSES);
-    /** One dialog owns browsing per Session, so navigation supersedes its previous directory too. */
+    /**
+    One dialog owns browsing per Session, so navigation supersedes its previous directory too.
+     */
     private readonly activeBrowseTokens = new Map<string, symbol>();
 
     constructor(
@@ -58,37 +69,8 @@ export class ListingService {
         private readonly openDirectory: OpenDirectory = opendir,
     ) {}
 
-    list(sessionId: string, directory?: string): Promise<FileEntry[]> {
-        const excludes = this.fileTreeExcludes();
-        return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
-            this.loadList(sessionId, directory, excludes),
-        );
-    }
-
-    browse(
-        params: RuntimeMethodParams<'files.browse'>,
-    ): Promise<RuntimeMethodResult<'files.browse'>> {
-        const excludes = this.fileTreeExcludes();
-        return this.browseRequests.run(JSON.stringify([params, excludes]), async () => {
-            const token = Symbol('file-browse');
-            this.activeBrowseTokens.set(params.sessionId, token);
-            try {
-                return await this.browseConcurrency.run(() =>
-                    this.loadBrowse(
-                        params,
-                        excludes,
-                        () => this.activeBrowseTokens.get(params.sessionId) === token,
-                    ),
-                );
-            } finally {
-                if (this.activeBrowseTokens.get(params.sessionId) === token)
-                    this.activeBrowseTokens.delete(params.sessionId);
-            }
-        });
-    }
-
     private async loadBrowse(
-        { sessionId, directory, query }: RuntimeMethodParams<'files.browse'>,
+        { sessionId, directory, query }: RuntimeMethodParameters<'files.browse'>,
         excludes: FileTreeExcludes,
         isCurrent: () => boolean,
     ): Promise<RuntimeMethodResult<'files.browse'>> {
@@ -101,7 +83,7 @@ export class ListingService {
             throw new CaxriError('IO', 'Path is not a directory');
         const normalizedQuery = query.toLocaleLowerCase();
         const matches: FileEntry[] = [];
-        let reachedEnd = false;
+        let isReachedEnd = false;
         let scannedEntries = 0;
         const directoryHandle = await this.openDirectory(path);
         try {
@@ -109,16 +91,19 @@ export class ListingService {
                 matches.length <= MAX_FILE_BROWSE_ENTRIES &&
                 scannedEntries < MAX_FILE_BROWSE_SCANNED_ENTRIES
             ) {
+                // `Dir#read()` streams one entry per call from a single open directory handle; the
+                // reads are inherently sequential and cannot be parallelized.
+                // eslint-disable-next-line no-await-in-loop -- see comment above
                 const entry = await directoryHandle.read();
                 if (!isCurrent()) return { entries: [], truncated: true };
                 if (!entry) {
-                    reachedEnd = true;
+                    isReachedEnd = true;
                     break;
                 }
                 scannedEntries += 1;
                 const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
                 if (
-                    !matchesFileTreeExclude(relativePath, excludes) &&
+                    !isFileTreeExcludeMatch(relativePath, excludes) &&
                     entry.name.toLocaleLowerCase().includes(normalizedQuery)
                 )
                     matches.push({
@@ -132,11 +117,17 @@ export class ListingService {
                     });
             }
         } finally {
-            await directoryHandle.close().catch(() => undefined);
+            try {
+                await directoryHandle.close();
+            } catch {
+                // Ignore close failures: the directory handle is being discarded regardless.
+            }
         }
         if (!isCurrent()) return { entries: [], truncated: true };
         const after = await lstat(path);
-        /** Revalidate around streaming enumeration so a Session-root swap cannot disclose names. */
+        /**
+        Revalidate around streaming enumeration so a Session-root swap cannot disclose names.
+         */
         if (
             !after.isDirectory() ||
             after.isSymbolicLink() ||
@@ -145,10 +136,12 @@ export class ListingService {
             (await realpath(path)) !== path
         )
             throw new CaxriError('IO', 'Directory changed during listing');
-        const truncated = !reachedEnd || matches.length > MAX_FILE_BROWSE_ENTRIES;
-        /** Dirent metadata stays bound to the opened directory instead of restatting a mutable path. */
+        const isTruncated = !isReachedEnd || matches.length > MAX_FILE_BROWSE_ENTRIES;
+        /**
+        Dirent metadata stays bound to the opened directory instead of restatting a mutable path.
+         */
         const entries = matches
-            .sort((a, b) =>
+            .toSorted((a, b) =>
                 a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
             )
             .slice(0, MAX_FILE_BROWSE_ENTRIES);
@@ -159,10 +152,10 @@ export class ListingService {
                 path: relative(root, path) || '.',
                 entryCount: entries.length,
                 scannedEntries,
-                truncated,
+                truncated: isTruncated,
             },
         });
-        return { entries, truncated };
+        return { entries, truncated: isTruncated };
     }
 
     private async loadList(
@@ -178,7 +171,9 @@ export class ListingService {
             throw new CaxriError('IO', 'Path is not a directory');
         const entries = await readdir(path, { withFileTypes: true });
         const after = await lstat(path);
-        /** Revalidate around readdir so a Session-root swap cannot disclose another directory. */
+        /**
+        Revalidate around readdir so a Session-root swap cannot disclose another directory.
+         */
         if (
             !after.isDirectory() ||
             after.isSymbolicLink() ||
@@ -189,7 +184,7 @@ export class ListingService {
             throw new CaxriError('IO', 'Directory changed during listing');
         const visible = entries.filter((entry) => {
             const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
-            return !matchesFileTreeExclude(relativePath, excludes);
+            return !isFileTreeExcludeMatch(relativePath, excludes);
         });
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
@@ -209,7 +204,7 @@ export class ListingService {
                     ? { ...entry, gitIgnored: true as const }
                     : entry,
             );
-        const sorted = result.sort((a, b) =>
+        const sorted = result.toSorted((a, b) =>
             a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
         );
         this.logger.write('info', 'file.list', {
@@ -219,7 +214,9 @@ export class ListingService {
         return sorted;
     }
 
-    /** Git decoration is optional metadata; an unavailable CLI or non-repository never blocks browsing. */
+    /**
+    Git decoration is optional metadata; an unavailable CLI or non-repository never blocks browsing.
+     */
     private async loadGitIgnoredNames(
         sessionId: string,
         directory: string,
@@ -260,5 +257,34 @@ export class ListingService {
         if (stats.isSymbolicLink()) return { name, path: entryPath, kind: 'symlink' };
         if (stats.isDirectory()) return { name, path: entryPath, kind: 'directory' };
         return { name, path: entryPath, kind: 'file', size: stats.size };
+    }
+
+    list(sessionId: string, directory?: string): Promise<FileEntry[]> {
+        const excludes = this.fileTreeExcludes();
+        return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
+            this.loadList(sessionId, directory, excludes),
+        );
+    }
+
+    browse(
+        parameters: RuntimeMethodParameters<'files.browse'>,
+    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        const excludes = this.fileTreeExcludes();
+        return this.browseRequests.run(JSON.stringify([parameters, excludes]), async () => {
+            const token = Symbol('file-browse');
+            this.activeBrowseTokens.set(parameters.sessionId, token);
+            try {
+                return await this.browseConcurrency.run(() =>
+                    this.loadBrowse(
+                        parameters,
+                        excludes,
+                        () => this.activeBrowseTokens.get(parameters.sessionId) === token,
+                    ),
+                );
+            } finally {
+                if (this.activeBrowseTokens.get(parameters.sessionId) === token)
+                    this.activeBrowseTokens.delete(parameters.sessionId);
+            }
+        });
     }
 }

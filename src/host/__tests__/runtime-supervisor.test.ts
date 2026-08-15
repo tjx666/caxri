@@ -5,15 +5,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { HostRuntimeSupervisor } from '../runtime-supervisor';
 
+// Mocks Node's ChildProcess, which is itself an EventEmitter and is consumed via
+// `.on()`/`.emit()` by the production supervisor; EventTarget is not a drop-in replacement here.
+// eslint-disable-next-line unicorn/prefer-event-target -- interoperates with Node's EventEmitter-based ChildProcess API
 class FakeChild extends EventEmitter {
     connected = true;
     pid = 42;
     kill = vi.fn(() => true);
-    send = vi.fn((message: unknown, callback?: (error: Error | null) => void) => {
-        void message;
-        void callback;
-        return true;
-    });
+    send = vi.fn<(message: unknown, callback?: (error: Error | null) => void) => boolean>(
+        () => true,
+    );
 }
 
 function options() {
@@ -74,7 +75,7 @@ describe('Host Runtime supervisor', () => {
             vi.fn(() => child as never),
         );
         const event = vi.fn();
-        supervisor.on('event', event);
+        supervisor.onEvent(event);
         const starting = supervisor.start();
         child.emit('message', {
             event: 'runtime.status',
@@ -133,7 +134,7 @@ describe('Host Runtime supervisor', () => {
         });
         await starting;
         const runtimeExit = vi.fn();
-        supervisor.on('runtimeExit', runtimeExit);
+        supervisor.onRuntimeExit(runtimeExit);
         first.emit('exit', 1);
         expect(runtimeExit).toHaveBeenCalledOnce();
         await vi.advanceTimersByTimeAsync(250);

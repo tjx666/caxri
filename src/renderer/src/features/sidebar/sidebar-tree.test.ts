@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import type { SidebarProjectNode } from './sidebar-tree';
 import {
     flattenSidebarRows,
     nextSidebarRowId,
     rovingSidebarRowId,
     sidebarArchiveIntent,
     sidebarHorizontalIntent,
-    type SidebarProjectNode,
 } from './sidebar-tree';
 
 const projects: SidebarProjectNode[] = [

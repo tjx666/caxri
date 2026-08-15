@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { chmod, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 interface CliManifest {
@@ -65,11 +66,11 @@ async function linkGlobalCli(cliRoot = defaultCliRoot): Promise<void> {
         cwd: globalRoot,
         stdio: 'inherit',
     });
-    const exitCode = await new Promise<number>((resolveExit, rejectExit) => {
-        child.once('error', rejectExit);
+    const exitCode = await new Promise<number>((resolve, reject) => {
+        child.once('error', reject);
         child.once('exit', (code, signal) => {
-            if (signal) rejectExit(new Error(`pnpm exited with ${signal}`));
-            else resolveExit(code ?? 1);
+            if (signal) reject(new Error(`pnpm exited with ${signal}`));
+            else resolve(code ?? 1);
         });
     });
     if (exitCode !== 0) throw new Error(`pnpm add --global file:. exited with code ${exitCode}`);

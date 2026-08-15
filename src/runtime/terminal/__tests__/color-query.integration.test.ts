@@ -12,16 +12,22 @@ import { TerminalManager } from '..';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories
-            .splice(0)
-            .map((directory) =>
-                rm(directory, { recursive: true, force: true }).catch(() => undefined),
-            ),
+        directoriesToRemove.map(async (directory) => {
+            try {
+                await rm(directory, { recursive: true, force: true });
+            } catch {
+                // best-effort cleanup
+            }
+        }),
     );
 });
 
-/** Minimal PTY double exposing `write` as a standalone spy so assertions stay bound-method safe. */
+/**
+Minimal PTY double exposing `write` as a standalone spy so assertions stay bound-method safe.
+ */
 function createFakePty() {
     let onData: ((data: string) => void) | undefined;
     const write = vi.fn<(data: string) => void>();
@@ -66,12 +72,14 @@ describe('TerminalManager color-query replies', () => {
         try {
             await manager.start(created.terminal!);
             await manager.attach(created.terminal!.id);
-            /** The exact probe Codex sends at TUI startup (see codex-rs `terminal_probe.rs`). */
-            fake.emitData('boot\x1b]10;?\x1b\\\x1b]11;?\x1b\\ready');
+            /**
+            The exact probe Codex sends at TUI startup (see codex-rs `terminal_probe.rs`).
+             */
+            fake.emitData('boot\u{1B}]10;?\u{1B}\\\u{1B}]11;?\u{1B}\\ready');
             await vi.advanceTimersByTimeAsync(50);
 
-            expect(fake.write).toHaveBeenCalledWith('\x1b]10;rgb:f8f8/f8f8/f2f2\x1b\\');
-            expect(fake.write).toHaveBeenCalledWith('\x1b]11;rgb:2828/2a2a/3636\x1b\\');
+            expect(fake.write).toHaveBeenCalledWith('\u{1B}]10;rgb:f8f8/f8f8/f2f2\u{1B}\\');
+            expect(fake.write).toHaveBeenCalledWith('\u{1B}]11;rgb:2828/2a2a/3636\u{1B}\\');
             expect(output).toBe('bootready');
             expect(database.getSnapshot(created.terminal!.id)?.payload).toBe('bootready');
         } finally {
@@ -90,14 +98,14 @@ describe('TerminalManager color-query replies', () => {
             byteCount: 22,
             encodingVersion: 1,
             lineCount: 1,
-            payload: 'before\x1b]11;?\x1b\\after',
+            payload: 'before\u{1B}]11;?\u{1B}\\after',
             terminalId: created.terminal!.id,
             updatedAt: Date.now(),
         });
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );

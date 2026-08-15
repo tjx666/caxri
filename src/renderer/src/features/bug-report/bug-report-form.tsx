@@ -2,7 +2,7 @@ import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import type { BugReportDraft } from './bug-report';
 
-interface BugReportFormProps {
+interface BugReportFormProperties {
     busy: boolean;
     canPreview: boolean;
     contextError: string | undefined;
@@ -10,12 +10,14 @@ interface BugReportFormProps {
     hasTargets: boolean;
     imageFallbackNotice: string;
     includeScreenshot: boolean;
-    onIncludeScreenshotChange: (checked: boolean) => void;
+    onIncludeScreenshotChange: (isChecked: boolean) => void;
     onPreview: () => void;
     updateDraft: (field: keyof BugReportDraft, value: string) => void;
 }
 
-/** The draft-entry step of the Bug Report dialog, shown before a report has been previewed. */
+/**
+The draft-entry step of the Bug Report dialog, shown before a report has been previewed.
+ */
 export function BugReportForm({
     busy,
     canPreview,
@@ -27,7 +29,7 @@ export function BugReportForm({
     onIncludeScreenshotChange,
     onPreview,
     updateDraft,
-}: BugReportFormProps) {
+}: BugReportFormProperties) {
     return (
         <div className="grid gap-3 p-4">
             {contextError && (

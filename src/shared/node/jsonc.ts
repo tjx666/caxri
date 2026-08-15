@@ -1,4 +1,5 @@
-import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
+import type { ParseError } from 'jsonc-parser';
+import { parse, printParseErrorCode } from 'jsonc-parser';
 
 /**
  * Parses JSONC and throws a `line`/`column`-formatted error on the first parse

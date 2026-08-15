@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { GitFileStatus } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import { buildGitFileTree } from './git-tree';
 

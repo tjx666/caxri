@@ -1,22 +1,19 @@
-import { FitAddon } from '@xterm/addon-fit';
-import { ClipboardAddon } from '@xterm/addon-clipboard';
-import { ProgressAddon } from '@xterm/addon-progress';
-import {
-    SearchAddon,
-    type ISearchOptions,
-    type ISearchResultChangeEvent,
-} from '@xterm/addon-search';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import { errorMessage } from '@shared/ipc';
 import type { ProcessState, ThemeTokens } from '@shared/types';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { FitAddon } from '@xterm/addon-fit';
+import { ProgressAddon } from '@xterm/addon-progress';
+import type { ISearchOptions, ISearchResultChangeEvent } from '@xterm/addon-search';
+import { SearchAddon } from '@xterm/addon-search';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';
-import { sessionViewScope } from '../../stores/session-view';
 import { useDialogStore } from '../../stores/dialogs';
+import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { revealEditorLocation } from '../editor/editor-reveal';
@@ -30,35 +27,33 @@ import {
     TerminalCommandTracker,
 } from './terminal-commands';
 import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
+import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import {
     CODEX_IMAGE_PASTE_INPUT,
-    clipboardContainsImage,
+    isClipboardContainingImage,
     terminalKeyboardInput,
 } from './terminal-keyboard';
 import { registerTerminalLinks } from './terminal-links';
-import { ControlledOsc52Clipboard, type Osc52BlockReason } from './terminal-osc52-clipboard';
-import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
+import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
+import {
+    detachTerminalQuietly,
+    emptySearchResults,
+    onError,
+    opaqueSearchColor,
+    OSC52_BLOCK_MESSAGES,
+    RENDERER_FALLBACK_MESSAGES,
+} from './terminal-pane-support';
 import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from './terminal-process-focus';
-import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
+import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
-import {
-    TerminalRendererController,
-    type TerminalGpuAcceleration,
-    type TerminalRendererReason,
-    type TerminalRendererStatus,
-} from './terminal-renderer';
+import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
+import { TerminalRendererController } from './terminal-renderer';
 import { TerminalReplayCoordinator } from './terminal-replay';
-import {
-    TERMINAL_SEARCH_HIGHLIGHT_LIMIT,
-    type TerminalSearchOptions,
-    type TerminalSearchResults,
-} from './terminal-search';
+import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
+import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
-import {
-    terminalSizeChanged,
-    terminalSizeWithScrollbarGutter,
-    type TerminalSize,
-} from './terminal-size';
+import type { TerminalSize } from './terminal-size';
+import { didTerminalSizeChange, terminalSizeWithScrollbarGutter } from './terminal-size';
 
 interface TerminalPaneRuntimeOptions {
     active: boolean;
@@ -77,42 +72,9 @@ interface TerminalPaneRuntimeOptions {
     terminalTheme: ThemeTokens['terminal'] | undefined;
 }
 
-const onError = (message: string): void => pushToast('error', message);
-
 /**
- * A blocked OSC 52 write is expected policy enforcement, not a failure — it uses `info` (which
- * auto-dismisses) rather than the persistent `error` styling reserved for `onWriteFailure` below.
+Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
  */
-const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
-    'disabled':
-        'A Terminal program tried to copy to the clipboard, but OSC 52 access is off in Settings.',
-    'malformed': 'A Terminal program sent a malformed clipboard request; it was ignored.',
-    'oversized': 'A Terminal program tried to copy too much text at once; the request was ignored.',
-    'rate-limited':
-        'A Terminal program is copying to the clipboard too quickly; extra requests are being ignored.',
-};
-
-const emptySearchResults: TerminalSearchResults = { resultCount: 0, resultIndex: -1 };
-
-/**
- * Only the reasons the user did not choose are worth a toast: `disabled` reflects their own GPU
- * acceleration setting, `active`/`disposed` are healthy or teardown states, so neither needs one.
- */
-const RENDERER_FALLBACK_MESSAGES: Partial<Record<TerminalRendererReason, string>> = {
-    'context-loss':
-        'GPU acceleration was lost for this Terminal; it fell back to standard rendering.',
-    'load-failed':
-        'GPU acceleration could not start for this Terminal; it is using standard rendering.',
-    'unsupported':
-        'This Terminal is using standard rendering because GPU acceleration is unavailable.',
-};
-
-/** SearchAddon requires opaque `#RRGGBB`; imported semantic tokens may include an alpha byte. */
-function opaqueSearchColor(color: string): string {
-    return color.slice(0, 7);
-}
-
-/** Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component. */
 export function useTerminalPaneRuntime({
     active,
     attachEpoch,
@@ -129,21 +91,23 @@ export function useTerminalPaneRuntime({
     terminalSessionId,
     terminalTheme,
 }: TerminalPaneRuntimeOptions) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const xtermRef = useRef<Terminal | undefined>(undefined);
-    /** Set by the mount effect below; the context menu's Paste action reads through this instead of
-     *  capturing the imperative xterm instance directly, since the effect (re)runs per attach epoch. */
-    const pasteRef = useRef<(() => Promise<void>) | undefined>(undefined);
-    const searchRef = useRef<SearchAddon | undefined>(undefined);
-    const searchActiveRef = useRef(false);
-    const searchSignatureRef = useRef('');
-    const replayRef = useRef<TerminalReplayCoordinator | undefined>(undefined);
-    const rendererRef = useRef<TerminalRendererController | undefined>(undefined);
+    const containerReference = useRef<HTMLDivElement>(null);
+    const xtermReference = useRef<Terminal | undefined>(undefined);
+    /**
+     * Set by the mount effect below; the context menu's Paste action reads through this instead of
+     *  capturing the imperative xterm instance directly, since the effect (re)runs per attach epoch.
+     */
+    const pasteReference = useRef<(() => Promise<void>) | undefined>(undefined);
+    const searchReference = useRef<SearchAddon | undefined>(undefined);
+    const searchActiveReference = useRef(false);
+    const searchSignatureReference = useRef('');
+    const replayReference = useRef<TerminalReplayCoordinator | undefined>(undefined);
+    const rendererReference = useRef<TerminalRendererController | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
-    const attachedEpochRef = useRef(attachEpoch);
-    const previousProcessStateRef = useRef(processState);
-    const latestRef = useRef({
+    const attachedEpochReference = useRef(attachEpoch);
+    const previousProcessStateReference = useRef(processState);
+    const latestReference = useRef({
         active,
         copyOnSelect,
         fontSize,
@@ -159,7 +123,7 @@ export function useTerminalPaneRuntime({
     });
 
     useEffect(() => {
-        latestRef.current = {
+        latestReference.current = {
             active,
             copyOnSelect,
             fontSize,
@@ -189,25 +153,32 @@ export function useTerminalPaneRuntime({
     ]);
 
     useEffect(() => {
-        let canceled = false;
-        void loadTerminalFonts()
-            .catch((error: unknown) => {
+        let isCanceled = false;
+        const load = async (): Promise<void> => {
+            try {
+                await loadTerminalFonts();
+            } catch (error) {
                 onError(errorMessage(error, 'Bundled terminal fonts failed to load'));
-            })
-            .finally(() => {
-                /** A corrupt font must degrade to the system monospace stack instead of blocking the PTY. */
-                if (!canceled) setFontsReady(true);
-            });
+            } finally {
+                /**
+                A corrupt font must degrade to the system monospace stack instead of blocking the PTY.
+                 */
+                if (!isCanceled) setFontsReady(true);
+            }
+        };
+        // Effects cannot be async themselves; the failure path above already reports the error.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void load();
         return () => {
-            canceled = true;
+            isCanceled = true;
         };
     }, []);
 
     useEffect(() => {
-        const container = containerRef.current;
+        const container = containerReference.current;
         if (!fontsReady || !container) return;
         delete container.dataset.terminalAttached;
-        const latest = latestRef.current;
+        const latest = latestReference.current;
         const xterm = new Terminal({
             allowProposedApi: true,
             convertEol: false,
@@ -219,12 +190,14 @@ export function useTerminalPaneRuntime({
             theme: latest.terminalTheme,
         });
         const fit = new FitAddon();
-        /** One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing
-         *  Terminal text outside xterm's Unicode- and wrap-aware search engine. */
+        /**
+         * One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing
+         *  Terminal text outside xterm's Unicode- and wrap-aware search engine.
+         */
         const search = new SearchAddon({ highlightLimit: TERMINAL_SEARCH_HIGHLIGHT_LIMIT + 1 });
         const unicode11 = new Unicode11Addon();
         const osc52Clipboard = new ControlledOsc52Clipboard({
-            enabled: () => latestRef.current.osc52ClipboardWrite,
+            enabled: () => latestReference.current.osc52ClipboardWrite,
             onBlocked: (reason) => pushToast('info', OSC52_BLOCK_MESSAGES[reason]),
             onWriteFailure: () =>
                 onError('OSC 52 clipboard write was denied. Check macOS clipboard permissions.'),
@@ -260,7 +233,7 @@ export function useTerminalPaneRuntime({
                 if (lastExitStatus === undefined)
                     delete container.dataset.terminalCommandLastExitStatus;
                 else container.dataset.terminalCommandLastExitStatus = String(lastExitStatus);
-                if (completedCount > previousCompletedCommandCount && lastExitStatus !== undefined)
+                if (lastExitStatus !== undefined && completedCount > previousCompletedCommandCount)
                     commandStatusElement.textContent =
                         formatTerminalCommandCompletionStatus(lastExitStatus);
                 previousCompletedCommandCount = completedCount;
@@ -287,20 +260,24 @@ export function useTerminalPaneRuntime({
                 );
             });
         } catch {
-            /** Inline images are optional output decoration; addon activation must not make the
-             *  Terminal or its underlying PTY unavailable. */
+            /**
+             * Inline images are optional output decoration; addon activation must not make the
+             *  Terminal or its underlying PTY unavailable.
+             */
             images.dispose();
             container.dataset.terminalImageStatus = 'unavailable';
         }
-        searchRef.current = search;
+        searchReference.current = search;
         const searchResultsDisposable = search.onDidChangeResults(
             ({ resultCount, resultIndex }: ISearchResultChangeEvent) =>
                 setSearchResults({ resultCount, resultIndex }),
         );
         const progressDisposable = progress.onChange((update) => {
-            /** A stopped Terminal can replay historical OSC bytes during recovery; those bytes must
-             *  not resurrect progress after the process lifecycle already cleared it. */
-            if (latestRef.current.processState !== 'running') {
+            /**
+             * A stopped Terminal can replay historical OSC bytes during recovery; those bytes must
+             *  not resurrect progress after the process lifecycle already cleared it.
+             */
+            if (latestReference.current.processState !== 'running') {
                 clearTerminalProgress(terminalId);
                 return;
             }
@@ -308,43 +285,40 @@ export function useTerminalPaneRuntime({
         });
         const unregisterLinks = registerTerminalLinks(xterm, {
             get cwd() {
-                return latestRef.current.terminalCwd;
+                return latestReference.current.terminalCwd;
             },
             get projectRoot() {
-                return latestRef.current.projectRoot;
+                return latestReference.current.projectRoot;
             },
-            openFile(path, location) {
-                void openFile(path).then((resolvedPath) => {
-                    if (!resolvedPath || !location) return;
-                    revealEditorLocation(
-                        editorModelPath(
-                            sessionViewScope(latestRef.current.terminalSessionId),
-                            resolvedPath,
-                        ),
-                        location,
-                    );
-                });
+            async openFile(path, location) {
+                const resolvedPath = await openFile(path);
+                if (!resolvedPath || !location) return;
+                revealEditorLocation(
+                    editorModelPath(
+                        sessionViewScope(latestReference.current.terminalSessionId),
+                        resolvedPath,
+                    ),
+                    location,
+                );
             },
-            openUrl(url) {
-                void caxri
-                    .request('external.open', { url })
-                    .then((result) => {
-                        if (result.status !== 'rejected') return;
-                        onError(
-                            result.reason === 'unsupported_protocol'
-                                ? 'Only HTTP and HTTPS links can be opened'
-                                : result.reason === 'credentials_not_allowed'
-                                  ? 'External links cannot include credentials'
-                                  : 'External link is invalid',
-                        );
-                    })
-                    .catch((error) =>
-                        onError(errorMessage(error, 'External link could not be opened')),
+            async openUrl(url) {
+                try {
+                    const result = await caxri.request('external.open', { url });
+                    if (result.status !== 'rejected') return;
+                    onError(
+                        result.reason === 'unsupported_protocol'
+                            ? 'Only HTTP and HTTPS links can be opened'
+                            : result.reason === 'credentials_not_allowed'
+                              ? 'External links cannot include credentials'
+                              : 'External link is invalid',
                     );
+                } catch (error) {
+                    onError(errorMessage(error, 'External link could not be opened'));
+                }
             },
         });
         xterm.attachCustomKeyEventHandler((event) => {
-            const input = terminalKeyboardInput(event, latestRef.current.isCodex);
+            const input = terminalKeyboardInput(event, latestReference.current.isCodex);
             if (!input) return true;
             event.preventDefault();
             event.stopPropagation();
@@ -353,67 +327,82 @@ export function useTerminalPaneRuntime({
         });
         const handlePaste = (event: ClipboardEvent): void => {
             if (
-                !latestRef.current.isCodex ||
+                !latestReference.current.isCodex ||
                 !event.clipboardData ||
-                !clipboardContainsImage(event.clipboardData)
+                !isClipboardContainingImage(event.clipboardData)
             )
                 return;
-            /** Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding. */
+            /**
+            Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding.
+             */
             event.preventDefault();
             event.stopImmediatePropagation();
             xterm.input(CODEX_IMAGE_PASTE_INPUT);
         };
-        container.addEventListener('paste', handlePaste, true);
-        xtermRef.current = xterm;
-        let disposed = false;
+        container.addEventListener('paste', handlePaste, { capture: true });
+        xtermReference.current = xterm;
+        let isDisposed = false;
         const replay = new TerminalReplayCoordinator(
             (value) =>
                 new Promise<void>((resolve) => {
-                    if (disposed) resolve();
+                    if (isDisposed) resolve();
                     else xterm.write(value, resolve);
                 }),
             () => {
-                if (!disposed) xterm.reset();
+                if (!isDisposed) xterm.reset();
             },
         );
-        replayRef.current = replay;
+        replayReference.current = replay;
         let lastSentSize: TerminalSize | undefined;
 
         const fitToPane = (): TerminalSize | undefined => {
             const size = terminalSizeWithScrollbarGutter(fit.proposeDimensions());
             if (!size) return undefined;
-            if (terminalSizeChanged({ cols: xterm.cols, rows: xterm.rows }, size))
+            if (didTerminalSizeChange({ cols: xterm.cols, rows: xterm.rows }, size))
                 xterm.resize(size.cols, size.rows);
             return size;
+        };
+
+        const sendResize = async (size: TerminalSize): Promise<void> => {
+            try {
+                await caxri.request('terminal.resize', { terminalId, ...size });
+            } catch {
+                /**
+                Runtime restarts can reject a resize; allow the next layout observation to retry it.
+                 */
+                if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows)
+                    lastSentSize = undefined;
+            }
         };
 
         const fitAndResize = (): void => {
             try {
                 const size = fitToPane();
-                if (!size || latestRef.current.processState !== 'running') return;
-                if (!terminalSizeChanged(lastSentSize, size)) return;
+                if (!size || latestReference.current.processState !== 'running') return;
+                if (!didTerminalSizeChange(lastSentSize, size)) return;
                 lastSentSize = size;
-                void caxri.request('terminal.resize', { terminalId, ...size }).catch(() => {
-                    /** Runtime restarts can reject a resize; allow the next layout observation to retry it. */
-                    if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows)
-                        lastSentSize = undefined;
-                });
+                // A ResizeObserver callback cannot be async; the failure path above already retries
+                // on the next layout observation.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                void sendResize(size);
             } catch {
                 // The pane may be between layout and disposal during a Session switch.
             }
         };
 
-        let rendererFallbackNotified = false;
+        let isRendererFallbackNotified = false;
         const publishRendererStatus = (status: TerminalRendererStatus): void => {
             container.dataset.terminalRenderer = status.mode;
             container.dataset.terminalRendererReason = status.reason;
             container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
             container.dataset.terminalRendererRedraws = String(status.redrawCount);
-            /** A dropped GPU context can recur many times; only the first fallback for this pane's
-             *  lifetime is worth a toast; repeats would just be noise about the same known state. */
+            /**
+             * A dropped GPU context can recur many times; only the first fallback for this pane's
+             *  lifetime is worth a toast; repeats would just be noise about the same known state.
+             */
             const message = RENDERER_FALLBACK_MESSAGES[status.reason];
-            if (message && !rendererFallbackNotified) {
-                rendererFallbackNotified = true;
+            if (message && !isRendererFallbackNotified) {
+                isRendererFallbackNotified = true;
                 pushToast('info', message);
             }
         };
@@ -425,7 +414,7 @@ export function useTerminalPaneRuntime({
             },
             publishRendererStatus,
         );
-        rendererRef.current = renderer;
+        rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
         const restoreRenderer = (): void => {
             if (document.visibilityState === 'visible') renderer.restoreVisible();
@@ -434,37 +423,50 @@ export function useTerminalPaneRuntime({
         window.addEventListener('focus', restoreRenderer);
         window.addEventListener('pageshow', restoreRenderer);
 
-        const dataDisposable = xterm.onData((data) => {
-            if (latestRef.current.processState !== 'running') return;
-            void caxri.request('terminal.input', { terminalId, data }).catch((error: unknown) => {
+        const sendInput = async (data: string): Promise<void> => {
+            try {
+                await caxri.request('terminal.input', { terminalId, data });
+            } catch (error) {
                 onError(errorMessage(error, 'Terminal input failed'));
-            });
+            }
+        };
+        const dataDisposable = xterm.onData((data) => {
+            if (latestReference.current.processState !== 'running') return;
+            // xterm's onData callback cannot be async; sendInput already reports its own failure.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void sendInput(data);
         });
-        let clipboardFailureReported = false;
+        let isClipboardFailureReported = false;
         const selectionClipboard = new TerminalSelectionClipboard(
             (value) => navigator.clipboard.writeText(value),
             (error) => {
-                if (clipboardFailureReported) return;
-                clipboardFailureReported = true;
+                if (isClipboardFailureReported) return;
+                isClipboardFailureReported = true;
                 onError(errorMessage(error, 'Terminal selection could not be copied'));
             },
         );
         const selectionDisposable = xterm.onSelectionChange(() => {
-            /** SearchAddon represents the active match as a selection; it must not overwrite the
-             *  system clipboard when the user's copy-on-select preference is enabled. */
-            if (searchActiveRef.current) return;
-            if (!latestRef.current.copyOnSelect) return;
+            /**
+             * SearchAddon represents the active match as a selection; it must not overwrite the
+             *  system clipboard when the user's copy-on-select preference is enabled.
+             */
+            if (searchActiveReference.current) return;
+            if (!latestReference.current.copyOnSelect) return;
+            // xterm's onSelectionChange callback cannot be async; TerminalSelectionClipboard already
+            // reports its own write failures through the onFailure callback given to its constructor.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void selectionClipboard.copy(xterm.getSelection());
         });
         const unregisterSelectionHandlers = registerTerminalSelectionHandlers(terminalId, {
             copySelection: () => {
                 const selection = xterm.getSelection();
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 if (selection) void selectionClipboard.copy(selection);
             },
             hasSelection: () => xterm.hasSelection(),
         });
         const pasteFromClipboard = async (): Promise<void> => {
-            if (latestRef.current.processState !== 'running') return;
+            if (latestReference.current.processState !== 'running') return;
             try {
                 const text = await navigator.clipboard.readText();
                 if (text) xterm.paste(text);
@@ -472,40 +474,45 @@ export function useTerminalPaneRuntime({
                 onError(errorMessage(error, 'Terminal paste failed'));
             }
         };
-        pasteRef.current = pasteFromClipboard;
+        pasteReference.current = pasteFromClipboard;
         const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
             replay.push(event.payload.data);
-            /** Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an
+            /**
+             * Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an
              *  inline `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of
              *  folding them into this counter, so a nonzero value here is genuine output-queue
-             *  backpressure only. */
+             *  backpressure only.
+             */
             if (event.payload.droppedBytes)
                 replay.push(
                     `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
                 );
         });
         const observer = new ResizeObserver(fitAndResize);
-        let attachFocusSuperseded = false;
-        let terminalReceivedFocus = false;
+        let isAttachFocusSuperseded = false;
+        let isTerminalReceivedFocus = false;
         const trackNewerFocus = (event: FocusEvent): void => {
             const target = event.target;
             if (!(target instanceof Node)) return;
             if (container.contains(target)) {
-                terminalReceivedFocus = true;
+                isTerminalReceivedFocus = true;
                 return;
             }
-            if (terminalReceivedFocus && target !== document.body) attachFocusSuperseded = true;
+            if (isTerminalReceivedFocus && target !== document.body) isAttachFocusSuperseded = true;
         };
         const trackExplicitInteraction = (event: Event): void => {
             const target = event.target;
-            if (target instanceof Node && !container.contains(target)) attachFocusSuperseded = true;
+            if (target instanceof Node && !container.contains(target))
+                isAttachFocusSuperseded = true;
         };
         document.addEventListener('focusin', trackNewerFocus);
-        document.addEventListener('keydown', trackExplicitInteraction, true);
-        document.addEventListener('pointerdown', trackExplicitInteraction, true);
-        /** Restore into the final visible grid instead of xterm's default 80x24 viewport. */
+        document.addEventListener('keydown', trackExplicitInteraction, { capture: true });
+        document.addEventListener('pointerdown', trackExplicitInteraction, { capture: true });
+        /**
+        Restore into the final visible grid instead of xterm's default 80x24 viewport.
+         */
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
             let payload = '';
@@ -514,16 +521,18 @@ export function useTerminalPaneRuntime({
                     'terminal.attach',
                     initialSize ? { terminalId, ...initialSize } : { terminalId },
                 );
-                if (latestRef.current.processState === 'running' && initialSize)
+                if (initialSize && latestReference.current.processState === 'running')
                     lastSentSize = initialSize;
                 payload = attachment?.payload ?? '';
             } catch (error) {
-                if (!disposed) onError(errorMessage(error, 'Terminal attachment failed'));
+                if (!isDisposed) onError(errorMessage(error, 'Terminal attachment failed'));
             }
-            if (disposed) return;
+            if (isDisposed) return;
             await replay.restoreInitial(payload);
-            if (disposed) return;
-            /** Resize only after xterm has parsed the snapshot and every output event buffered behind it. */
+            if (isDisposed) return;
+            /**
+            Resize only after xterm has parsed the snapshot and every output event buffered behind it.
+             */
             fitAndResize();
             observer.observe(container);
             container.dataset.terminalAttached = 'true';
@@ -531,29 +540,33 @@ export function useTerminalPaneRuntime({
                 document.removeEventListener('focusin', trackNewerFocus);
                 document.removeEventListener('keydown', trackExplicitInteraction, true);
                 document.removeEventListener('pointerdown', trackExplicitInteraction, true);
-                if (disposed) return;
-                /** Dialog teardown may restore focus before xterm ever receives it, which is not a
+                if (isDisposed) return;
+                /**
+                 * Dialog teardown may restore focus before xterm ever receives it, which is not a
                  *  newer user choice. After Terminal focus or an explicit pointer/key action,
                  *  asynchronous attach completion must not reclaim focus from another control.
                  *  A modal can also open before xterm ever receives focus, so its registry is the
-                 *  authoritative keyboard owner even when no prior Terminal focus was observed. */
+                 *  authoritative keyboard owner even when no prior Terminal focus was observed.
+                 */
                 if (
-                    !attachFocusSuperseded &&
+                    !isAttachFocusSuperseded &&
                     shouldAutoFocusTerminal({
-                        active: latestRef.current.active,
+                        active: latestReference.current.active,
                         focusedElement: document.activeElement as HTMLElement | null,
                         isModalOpen: useDialogStore.getState().isModalOpen(),
-                        isRunning: latestRef.current.processState === 'running',
+                        isRunning: latestReference.current.processState === 'running',
                         terminalId,
                     })
                 )
                     xterm.focus();
             });
         };
+        // Effects cannot be async themselves; initialize already reports its own failure via onError.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initialize();
 
         return () => {
-            disposed = true;
+            isDisposed = true;
             delete container.dataset.terminalAttached;
             observer.disconnect();
             document.removeEventListener('focusin', trackNewerFocus);
@@ -568,7 +581,7 @@ export function useTerminalPaneRuntime({
             searchResultsDisposable.dispose();
             selectionDisposable.dispose();
             unregisterSelectionHandlers();
-            if (pasteRef.current === pasteFromClipboard) pasteRef.current = undefined;
+            if (pasteReference.current === pasteFromClipboard) pasteReference.current = undefined;
             dataDisposable.dispose();
             unregisterLinks();
             unregisterCommandNavigation();
@@ -576,23 +589,26 @@ export function useTerminalPaneRuntime({
             commandStatusElement.remove();
             unregisterTerminalImages();
             renderer.dispose();
-            /** Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore
-             *  reconciles against durable Terminal records instead of treating pane disposal as close. */
+            /**
+             * Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore
+             *  reconciles against durable Terminal records instead of treating pane disposal as close.
+             */
             xterm.dispose();
-            xtermRef.current = undefined;
-            if (rendererRef.current === renderer) rendererRef.current = undefined;
-            if (searchRef.current === search) searchRef.current = undefined;
-            searchActiveRef.current = false;
-            searchSignatureRef.current = '';
-            if (replayRef.current === replay) replayRef.current = undefined;
-            void caxri.request('terminal.detach', { terminalId }).catch(() => {
-                // Runtime restarts can race a pane teardown; a detached Runtime has no view to notify.
-            });
+            xtermReference.current = undefined;
+            if (rendererReference.current === renderer) rendererReference.current = undefined;
+            if (searchReference.current === search) searchReference.current = undefined;
+            searchActiveReference.current = false;
+            searchSignatureReference.current = '';
+            if (replayReference.current === replay) replayReference.current = undefined;
+            // A cleanup function cannot be async; a Runtime restart racing this teardown has no view
+            // left to notify, so the detach failure is intentionally unobserved.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void detachTerminalQuietly(terminalId);
         };
     }, [fontsReady, terminalId]);
 
     useEffect(() => {
-        rendererRef.current?.setPreference(gpuAcceleration);
+        rendererReference.current?.setPreference(gpuAcceleration);
     }, [gpuAcceleration]);
 
     useEffect(() => {
@@ -600,32 +616,39 @@ export function useTerminalPaneRuntime({
     }, [processState, terminalId]);
 
     useEffect(() => {
-        if (attachedEpochRef.current === attachEpoch) return;
-        attachedEpochRef.current = attachEpoch;
-        const replay = replayRef.current;
-        const xterm = xtermRef.current;
+        if (attachedEpochReference.current === attachEpoch) return;
+        attachedEpochReference.current = attachEpoch;
+        const replay = replayReference.current;
+        const xterm = xtermReference.current;
         if (!replay || !xterm) return;
-        /** Runtime-owned attachment state is lost with the utility process even though this pane remains mounted. */
-        void replay
-            .reattach(async () => {
-                const attachment = await caxri.request(
-                    'terminal.attach',
-                    latestRef.current.processState === 'running'
-                        ? { terminalId, cols: xterm.cols, rows: xterm.rows }
-                        : { terminalId },
-                );
-                return attachment?.payload ?? '';
-            })
-            .catch((error: unknown) =>
-                onError(errorMessage(error, 'Terminal reattachment failed')),
-            );
+        /**
+        Runtime-owned attachment state is lost with the utility process even though this pane remains mounted.
+         */
+        const reattach = async (): Promise<void> => {
+            try {
+                await replay.reattach(async () => {
+                    const attachment = await caxri.request(
+                        'terminal.attach',
+                        latestReference.current.processState === 'running'
+                            ? { terminalId, cols: xterm.cols, rows: xterm.rows }
+                            : { terminalId },
+                    );
+                    return attachment?.payload ?? '';
+                });
+            } catch (error) {
+                onError(errorMessage(error, 'Terminal reattachment failed'));
+            }
+        };
+        // Effects cannot be async themselves; the failure path above already reports the error.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void reattach();
     }, [attachEpoch, terminalId]);
 
     useEffect(() => {
-        const xterm = xtermRef.current;
-        const replay = replayRef.current;
-        const previousProcessState = previousProcessStateRef.current;
-        previousProcessStateRef.current = processState;
+        const xterm = xtermReference.current;
+        const replay = replayReference.current;
+        const previousProcessState = previousProcessStateReference.current;
+        previousProcessStateReference.current = processState;
         if (!xterm) return;
         const isRunning = processState === 'running';
         xterm.options.disableStdin = !isRunning;
@@ -640,45 +663,52 @@ export function useTerminalPaneRuntime({
             terminalId,
         });
         if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
-        /** The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.
+        /**
+         * The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.
          *  Reattach once at the measured grid so Runtime resizes its parsed screen behind an ordering
-         *  barrier, then replace any stale persisted snapshot ahead of later live output. */
-        void replay
-            .reattach(async () => {
-                const attachment = await caxri.request('terminal.attach', {
-                    terminalId,
-                    cols: xterm.cols,
-                    rows: xterm.rows,
+         *  barrier, then replace any stale persisted snapshot ahead of later live output.
+         */
+        const reattach = async (): Promise<void> => {
+            try {
+                await replay.reattach(async () => {
+                    const attachment = await caxri.request('terminal.attach', {
+                        terminalId,
+                        cols: xterm.cols,
+                        rows: xterm.rows,
+                    });
+                    return attachment?.payload ?? '';
                 });
-                return attachment?.payload ?? '';
-            })
-            .catch((error: unknown) =>
-                onError(errorMessage(error, 'Terminal recovery reconciliation failed')),
-            );
+            } catch (error) {
+                onError(errorMessage(error, 'Terminal recovery reconciliation failed'));
+            }
+        };
+        // Effects cannot be async themselves; the failure path above already reports the error.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void reattach();
     }, [active, processState, terminalId]);
 
     useEffect(() => {
-        if (!xtermRef.current) return;
-        xtermRef.current.options.fontSize = fontSize;
-        xtermRef.current.options.scrollback = scrollback;
-        xtermRef.current.options.theme = terminalTheme;
+        if (!xtermReference.current) return;
+        xtermReference.current.options.fontSize = fontSize;
+        xtermReference.current.options.scrollback = scrollback;
+        xtermReference.current.options.theme = terminalTheme;
     }, [fontSize, scrollback, terminalTheme]);
 
     useEffect(
-        () => registerTerminalClearHandler(terminalId, () => xtermRef.current?.clear()),
+        () => registerTerminalClearHandler(terminalId, () => xtermReference.current?.clear()),
         [terminalId],
     );
 
     const beginSearch = useCallback((): void => {
-        searchActiveRef.current = true;
+        searchActiveReference.current = true;
     }, []);
 
     const endSearch = useCallback((): void => {
         try {
-            searchRef.current?.clearDecorations();
+            searchReference.current?.clearDecorations();
         } finally {
-            searchActiveRef.current = false;
-            searchSignatureRef.current = '';
+            searchActiveReference.current = false;
+            searchSignatureReference.current = '';
             setSearchResults(emptySearchResults);
         }
     }, []);
@@ -688,37 +718,37 @@ export function useTerminalPaneRuntime({
             direction: 'next' | 'previous',
             query: string,
             options: TerminalSearchOptions,
-            incremental = false,
+            isIncremental = false,
         ): void => {
-            const search = searchRef.current;
+            const search = searchReference.current;
             if (!search) return;
-            searchActiveRef.current = true;
-            const theme = latestRef.current.terminalTheme;
+            searchActiveReference.current = true;
+            const theme = latestReference.current.terminalTheme;
             const searchOptions: ISearchOptions = {
                 ...options,
-                incremental,
-                ...(theme
-                    ? {
-                          decorations: {
-                              activeMatchBackground: opaqueSearchColor(theme.yellow),
-                              activeMatchBorder: opaqueSearchColor(theme.foreground),
-                              activeMatchColorOverviewRuler: opaqueSearchColor(theme.yellow),
-                              matchBackground: opaqueSearchColor(theme.selectionBackground),
-                              matchBorder: opaqueSearchColor(theme.brightBlack),
-                              matchOverviewRuler: opaqueSearchColor(theme.selectionBackground),
-                          },
-                      }
-                    : {}),
+                incremental: isIncremental,
+                ...(theme && {
+                    decorations: {
+                        activeMatchBackground: opaqueSearchColor(theme.yellow),
+                        activeMatchBorder: opaqueSearchColor(theme.foreground),
+                        activeMatchColorOverviewRuler: opaqueSearchColor(theme.yellow),
+                        matchBackground: opaqueSearchColor(theme.selectionBackground),
+                        matchBorder: opaqueSearchColor(theme.brightBlack),
+                        matchOverviewRuler: opaqueSearchColor(theme.selectionBackground),
+                    },
+                }),
             };
             try {
                 const signature = JSON.stringify([query, options, theme]);
-                /** addon-search beta updates its cached options before checking whether options
+                /**
+                 * addon-search beta updates its cached options before checking whether options
                  *  changed, so toggling Match Case/Whole Word/Regex for the same query would retain
                  *  stale decorations and counts. Clear only on an incremental signature change;
-                 *  explicit next/previous navigation must preserve the current result. */
-                if (incremental && signature !== searchSignatureRef.current)
+                 *  explicit next/previous navigation must preserve the current result.
+                 */
+                if (isIncremental && signature !== searchSignatureReference.current)
                     search.clearDecorations();
-                searchSignatureRef.current = signature;
+                searchSignatureReference.current = signature;
                 if (!query) {
                     search.findNext('', searchOptions);
                     setSearchResults(emptySearchResults);
@@ -741,15 +771,18 @@ export function useTerminalPaneRuntime({
         [],
     );
 
-    const focusTerminal = useCallback((): void => xtermRef.current?.focus(), []);
+    const focusTerminal = useCallback((): void => xtermReference.current?.focus(), []);
 
     const pasteFromClipboard = useCallback((): void => {
-        void pasteRef.current?.();
+        // This wrapper is called from sync command/menu handlers; the underlying paste already
+        // reports its own failure through onError.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void pasteReference.current?.();
     }, []);
 
     return {
         beginSearch,
-        containerRef,
+        containerRef: containerReference,
         endSearch,
         find,
         focusTerminal,

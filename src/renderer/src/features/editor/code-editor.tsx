@@ -1,6 +1,7 @@
-import Editor, { type OnMount } from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
 
+import type { OnMount } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 import type { ThemeTokens } from '@shared/types';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
@@ -10,7 +11,7 @@ import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
 import { useEditorStatusStore } from './editor-status';
 
-export interface CodeEditorProps {
+export interface CodeEditorProperties {
     path: string;
     statusKey?: string;
     value: string;
@@ -35,15 +36,15 @@ function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undef
     });
 }
 
-export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEditorProps) {
-    const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
-    const registrationRef = useRef<(() => void) | undefined>(undefined);
-    const cursorSubscriptionRef = useRef<{ dispose(): void } | undefined>(undefined);
-    const statusKeyRef = useRef(statusKey);
+export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEditorProperties) {
+    const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
+    const registrationReference = useRef<(() => void) | undefined>(undefined);
+    const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
+    const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
     useEffect(() => applyEditorTheme(theme), [theme]);
     useEffect(() => {
-        const editor = editorRef.current;
+        const editor = editorReference.current;
         if (!editor) return;
         /**
          * Monaco 0.56 can leave a newly selected custom-language model un-tokenized while its
@@ -56,27 +57,28 @@ export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEdit
             monaco.editor.setModelLanguage(model, 'plaintext');
             monaco.editor.setModelLanguage(model, language);
         }
-        registrationRef.current?.();
+        registrationReference.current?.();
         const unregister = registerEditorRevealTarget(path, editor);
-        registrationRef.current = unregister;
+        registrationReference.current = unregister;
         return () => {
             unregister();
-            if (registrationRef.current === unregister) registrationRef.current = undefined;
+            if (registrationReference.current === unregister)
+                registrationReference.current = undefined;
         };
     }, [language, path]);
     useEffect(() => {
-        statusKeyRef.current = statusKey;
-        const frame = window.requestAnimationFrame(() => {
-            if (editorRef.current) publishEditorStatus(editorRef.current, statusKey);
+        statusKeyReference.current = statusKey;
+        const frame = requestAnimationFrame(() => {
+            if (editorReference.current) publishEditorStatus(editorReference.current, statusKey);
         });
         return () => {
-            window.cancelAnimationFrame(frame);
+            cancelAnimationFrame(frame);
             if (statusKey) useEditorStatusStore.getState().clearStatus(statusKey);
         };
     }, [path, statusKey]);
     useEffect(
         () => () => {
-            cursorSubscriptionRef.current?.dispose();
+            cursorSubscriptionReference.current?.dispose();
         },
         [],
     );
@@ -92,14 +94,14 @@ export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEdit
                 applyEditorTheme(theme);
             }}
             onMount={(editor) => {
-                editorRef.current = editor;
-                cursorSubscriptionRef.current?.dispose();
-                cursorSubscriptionRef.current = editor.onDidChangeCursorSelection(() =>
-                    publishEditorStatus(editor, statusKeyRef.current),
+                editorReference.current = editor;
+                cursorSubscriptionReference.current?.dispose();
+                cursorSubscriptionReference.current = editor.onDidChangeCursorSelection(() =>
+                    publishEditorStatus(editor, statusKeyReference.current),
                 );
-                registrationRef.current?.();
-                registrationRef.current = registerEditorRevealTarget(path, editor);
-                publishEditorStatus(editor, statusKeyRef.current);
+                registrationReference.current?.();
+                registrationReference.current = registerEditorRevealTarget(path, editor);
+                publishEditorStatus(editor, statusKeyReference.current);
                 markEditorMounted();
             }}
             onChange={onChange}

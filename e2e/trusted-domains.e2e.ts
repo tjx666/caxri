@@ -2,9 +2,10 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from './support/fixtures.ts';
 import type { MessageBoxOptions } from 'electron';
 
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { clickTerminalLink, launchCaxri, pageRequest, typeTerminal } from './support/helpers.ts';
 
 async function createFocusedShell(page: Page): Promise<void> {
@@ -23,7 +24,9 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        /** Project creation is not under test here, so avoid the animated Agent picker surface. */
+        /**
+        Project creation is not under test here, so avoid the animated Agent picker surface.
+         */
         await createFocusedShell(running.page);
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {
@@ -55,7 +58,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
         });
 
         const firstUrl = 'https://example.com/first';
-        await typeTerminal(running.page, `printf '%s\\n' '${firstUrl}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${firstUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(firstUrl);
         await clickTerminalLink(running.page, firstUrl);
         await expect
@@ -68,15 +71,15 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
                 }),
             )
             .toContain(firstUrl);
-        await expect(
-            pageRequest<{ value: { 'security.trustedDomains': string[] } }>(
-                running.page,
-                'settings.get',
-            ).then((result) => result.value['security.trustedDomains']),
-        ).resolves.toEqual(['https://example.com']);
+        const trustedDomainsSettings = await pageRequest<{
+            value: { 'security.trustedDomains': string[] };
+        }>(running.page, 'settings.get');
+        expect(trustedDomainsSettings.value['security.trustedDomains']).toEqual([
+            'https://example.com',
+        ]);
 
         const secondUrl = 'https://example.com/without-prompt';
-        await typeTerminal(running.page, `printf '%s\\n' '${secondUrl}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${secondUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(secondUrl);
         await clickTerminalLink(running.page, secondUrl);
         await expect
@@ -160,7 +163,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
             target.caxriTrustedDomainProbe!.response = 0;
         });
         const revokedUrl = 'https://example.com/after-revoke';
-        await typeTerminal(running.page, `printf '%s\\n' '${revokedUrl}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${revokedUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(revokedUrl);
         await clickTerminalLink(running.page, revokedUrl);
         await expect
@@ -203,7 +206,11 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
             }),
         ).resolves.toEqual(beforeRejected);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

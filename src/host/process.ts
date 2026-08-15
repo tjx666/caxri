@@ -1,14 +1,15 @@
 import { dirname, join } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import {
     HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
     hostDesktopLaunchSchema,
 } from '../shared/ipc/desktop-launch';
+import { e2eAgentPolicyEnvironment, readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
-import { e2eAgentPolicyEnvironment, readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
-import { startHostApplication } from './application';
+import { startHostApp } from './app';
 import { createDesktopLauncher } from './desktop-launcher';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
@@ -38,30 +39,52 @@ const cliPath =
         ? join(process.resourcesPath, 'cli', 'caxri.cjs')
         : join(hostOutputDirectory, '../../packages/cli/dist/caxri.cjs'));
 
-const application = await startHostApplication({
+const app = await startHostApp({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     commit,
     cliPath,
     executable: process.execPath,
-    ...(desktopLaunch
-        ? {
-              launchDesktop: createDesktopLauncher({
-                  launch: desktopLaunch,
-                  userDataPath,
-              }),
-          }
-        : {}),
+    ...(desktopLaunch && {
+        launchDesktop: createDesktopLauncher({
+            launch: desktopLaunch,
+            userDataPath,
+        }),
+    }),
     runtimePath: join(hostOutputDirectory, 'runtime.js'),
     runtimeEnvironment: e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
     userDataPath,
     version,
 });
 
-let signalReceived = false;
-const stopForSignal = (signal: NodeJS.Signals): void => {
-    if (signalReceived) return;
-    signalReceived = true;
-    void application.stop(signal).finally(() => process.exit(0));
-};
-process.once('SIGINT', stopForSignal);
-process.once('SIGTERM', stopForSignal);
+{
+    let isSignalReceived = false;
+    const stopForSignal = async (signal: NodeJS.Signals): Promise<void> => {
+        if (isSignalReceived) return;
+        isSignalReceived = true;
+        try {
+            await app.stop(signal);
+        } finally {
+            // This file is the Host subprocess entrypoint (forked as its own OS process by Main);
+            // an explicit exit after graceful async shutdown is the correct terminal action here,
+            // not a throw, which would just surface as an unhandled rejection instead of a clean exit.
+            // eslint-disable-next-line unicorn/no-process-exit -- Host subprocess entrypoint, not a library
+            process.exit(0);
+        }
+    };
+    process.once('SIGINT', async (signal) => {
+        try {
+            await stopForSignal(signal);
+        } catch {
+            // stopForSignal already exits the process on success; a rejection here means
+            // shutdown itself failed, which is not actionable from a signal handler.
+        }
+    });
+    process.once('SIGTERM', async (signal) => {
+        try {
+            await stopForSignal(signal);
+        } catch {
+            // stopForSignal already exits the process on success; a rejection here means
+            // shutdown itself failed, which is not actionable from a signal handler.
+        }
+    });
+}

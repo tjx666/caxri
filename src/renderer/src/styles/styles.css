@@ -120,7 +120,7 @@
 
 /*
  * Suspense-fallback shimmer for the lazy Monaco-backed structured editors (Settings/Keybindings/
- * Theme forms; see `configurationEditorLoadingClassName` in `lib/utils.ts`). The `background-position`
+ * Theme forms; see `configEditorLoadingClassName` in `lib/utilities.ts`). The `background-position`
  * sweep over a `color-mix` gradient isn't expressible as a single Tailwind utility, so the keyframes
  * stay here while the element's own classes are Tailwind (including an `animate-[…]` referencing it).
  */

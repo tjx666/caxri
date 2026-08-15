@@ -1,4 +1,5 @@
-import { applyEdits, modify, type JSONPath } from 'jsonc-parser';
+import type { JSONPath } from 'jsonc-parser';
+import { applyEdits, modify } from 'jsonc-parser';
 
 /**
  * The three configuration files editable from the Settings dialog, also used as the
@@ -9,7 +10,9 @@ export const CONFIG_KINDS = ['settings', 'keybindings', 'theme'] as const;
 
 export type ConfigKind = (typeof CONFIG_KINDS)[number];
 
-/** File names shown to the user when reporting which tab failed to save. */
+/**
+File names shown to the user when reporting which tab failed to save.
+ */
 export const CONFIG_FILE_NAMES: Record<ConfigKind, string> = {
     settings: 'settings.jsonc',
     keybindings: 'keybindings.jsonc',
@@ -31,12 +34,16 @@ export function applyFormEdit(source: string, path: JSONPath, value: unknown): s
 
 const BYTES_PER_MEBIBYTE = 1024 * 1024;
 
-/** Converts a persisted byte count into the MB value shown/edited in the form. */
+/**
+Converts a persisted byte count into the MB value shown/edited in the form.
+ */
 export function bytesToMebibytes(bytes: number): number {
     return Math.round((bytes / BYTES_PER_MEBIBYTE) * 1_000_000) / 1_000_000;
 }
 
-/** Converts a user-entered MB value back into the byte count that is actually persisted. */
+/**
+Converts a user-entered MB value back into the byte count that is actually persisted.
+ */
 export function mebibytesToBytes(mebibytes: number): number {
     return Math.round(mebibytes * BYTES_PER_MEBIBYTE);
 }

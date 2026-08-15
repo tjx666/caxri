@@ -1,9 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { isSecretKey, redactLogValue } from './redaction';
 
-/** Node-only structured JSONL logger; never import from src/renderer. */
+/**
+Node-only structured JSONL logger; never import from src/renderer.
+ */
 export interface LogRecord {
     timestamp: string;
     process: 'host' | 'main' | 'runtime';
@@ -12,7 +16,9 @@ export interface LogRecord {
     correlationId?: string;
     durationMs?: number;
     fields?: Record<string, string | number | boolean | null>;
-    /** Build correlation, from `CAXRI_APP_VERSION`/`CAXRI_GIT_COMMIT`; omitted when unset. */
+    /**
+    Build correlation, from `CAXRI_APP_VERSION`/`CAXRI_GIT_COMMIT`; omitted when unset.
+     */
     appVersion?: string;
     commit?: string;
 }
@@ -40,11 +46,13 @@ function safeFields(fields?: LogRecord['fields']): LogRecord['fields'] {
 }
 
 export class StructuredLogger {
-    readonly path: string;
     private bytesWritten: number;
-    /** Read once at construction, not per-write, since the build stamp never changes at runtime. */
+    /**
+    Read once at construction, not per-write, since the build stamp never changes at runtime.
+     */
     private readonly appVersion?: string;
     private readonly commit?: string;
+    readonly path: string;
 
     constructor(
         logDirectory: string,

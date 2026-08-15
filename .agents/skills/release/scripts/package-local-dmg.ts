@@ -1,13 +1,15 @@
+import type { Buffer } from 'node:buffer';
 import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
-const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/;
+const VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Z.-]+)?$/i;
 
 export interface CommandResult {
     exitCode: number;
@@ -18,7 +20,7 @@ export interface CommandResult {
 export interface CommandExecutor {
     run(
         command: string,
-        args: string[],
+        arguments_: string[],
         options: { capture: boolean; cwd: string },
     ): Promise<CommandResult>;
 }
@@ -40,20 +42,20 @@ interface ProcessFailure extends Error {
 }
 
 const defaultExecutor: CommandExecutor = {
-    async run(command, args, options) {
+    async run(command, arguments_, options) {
         if (!options.capture) {
-            const child = spawn(command, args, { cwd: options.cwd, stdio: 'inherit' });
-            const exitCode = await new Promise<number>((resolveExit, rejectExit) => {
-                child.once('error', rejectExit);
+            const child = spawn(command, arguments_, { cwd: options.cwd, stdio: 'inherit' });
+            const exitCode = await new Promise<number>((resolve, reject) => {
+                child.once('error', reject);
                 child.once('exit', (code, signal) => {
-                    if (signal) rejectExit(new Error(`${command} exited with ${signal}`));
-                    else resolveExit(code ?? 1);
+                    if (signal) reject(new Error(`${command} exited with ${signal}`));
+                    else resolve(code ?? 1);
                 });
             });
             return { exitCode, stderr: '', stdout: '' };
         }
         try {
-            const { stderr, stdout } = await execFileAsync(command, args, {
+            const { stderr, stdout } = await execFileAsync(command, arguments_, {
                 cwd: options.cwd,
                 encoding: 'utf8',
                 maxBuffer: MAX_CAPTURE_BYTES,
@@ -75,14 +77,36 @@ function assertVersion(value: string): string {
     return value;
 }
 
-export function parseLocalDmgArguments(args: string[], cwd = process.cwd()): CliOptions {
+/**
+ * Applies a single CLI argument to `options` and reports how many extra `arguments_` entries it
+ * consumed (e.g. `--version <semver>`). Extracted out of the parsing loop so the `switch` cases
+ * can `return` instead of nesting `break` inside a loop.
+ */
+function applyLocalDmgArgument(
+    argument: string,
+    nextArgument: string | undefined,
+    options: CliOptions,
+): number {
+    switch (argument) {
+        case '--help':
+        case '-h':
+            options.help = true;
+            return 0;
+        case '--allow-dirty':
+            options.allowDirty = true;
+            return 0;
+        case '--version':
+            options.version = assertVersion(nextArgument ?? '');
+            return 1;
+        default:
+            throw new Error(`Unknown option: ${argument}`);
+    }
+}
+
+export function parseLocalDmgArguments(arguments_: string[], cwd = process.cwd()): CliOptions {
     const options: CliOptions = { allowDirty: false, cwd, help: false, version: '' };
-    for (let index = 0; index < args.length; index += 1) {
-        const argument = args[index];
-        if (argument === '--help' || argument === '-h') options.help = true;
-        else if (argument === '--allow-dirty') options.allowDirty = true;
-        else if (argument === '--version') options.version = assertVersion(args[++index] ?? '');
-        else throw new Error(`Unknown option: ${argument}`);
+    for (let index = 0; index < arguments_.length; index += 1) {
+        index += applyLocalDmgArgument(arguments_[index], arguments_[index + 1], options);
     }
     if (!options.help && !options.version) throw new Error('Missing --version');
     return options;
@@ -96,12 +120,12 @@ function commandFailure(command: string, result: CommandResult): Error {
 async function runRequired(
     executor: CommandExecutor,
     command: string,
-    args: string[],
+    arguments_: string[],
     cwd: string,
-    capture = true,
+    shouldCaptureOutput = true,
 ): Promise<CommandResult> {
-    const result = await executor.run(command, args, { capture, cwd });
-    if (result.exitCode !== 0) throw commandFailure(`${command} ${args.join(' ')}`, result);
+    const result = await executor.run(command, arguments_, { capture: shouldCaptureOutput, cwd });
+    if (result.exitCode !== 0) throw commandFailure(`${command} ${arguments_.join(' ')}`, result);
     return result;
 }
 
@@ -139,7 +163,9 @@ function signingField(source: string, name: string): string | null {
     return match?.[1]?.trim() ?? null;
 }
 
-/** Temporarily updates pnpm-owned version metadata and restores the exact original bytes. */
+/**
+Temporarily updates pnpm-owned version metadata and restores the exact original bytes.
+ */
 async function buildVersionedDmg(
     options: LocalDmgOptions,
     executor: CommandExecutor,
@@ -175,8 +201,10 @@ async function buildVersionedDmg(
     let buildStartedAt = 0;
     let interruptedSignal: NodeJS.Signals | undefined;
     let restoreError: Error | undefined;
-    let versionChanged = false;
-    /** Keep the parent alive long enough to restore manifests when an interactive build is stopped. */
+    let isVersionChanged = false;
+    /**
+    Keep the parent alive long enough to restore manifests when an interactive build is stopped.
+     */
     const onInterrupt = (): void => {
         interruptedSignal = 'SIGINT';
     };
@@ -187,7 +215,7 @@ async function buildVersionedDmg(
     process.once('SIGTERM', onTerminate);
     try {
         if (originalVersion !== options.version) {
-            versionChanged = true;
+            isVersionChanged = true;
             await runRequired(
                 executor,
                 'pnpm',
@@ -209,7 +237,7 @@ async function buildVersionedDmg(
     } catch (error) {
         buildError = error;
     } finally {
-        if (versionChanged) {
+        if (isVersionChanged) {
             try {
                 await Promise.all([
                     restoreFileAtomic(packagePath, packageSource),
@@ -336,8 +364,8 @@ The script restores package.json and pnpm-lock.yaml after success or failure.
 It never creates a commit, tag, GitHub Release, or upload.`;
 }
 
-async function main(args: string[]): Promise<void> {
-    const options = parseLocalDmgArguments(args);
+async function main(arguments_: string[]): Promise<void> {
+    const options = parseLocalDmgArguments(arguments_);
     if (options.help) {
         console.log(help());
         return;
@@ -349,8 +377,10 @@ const SCRIPT_PATH = resolve(fileURLToPath(import.meta.url));
 const invokedPath =
     process.argv[1] && (isAbsolute(process.argv[1]) ? process.argv[1] : resolve(process.argv[1]));
 if (invokedPath === SCRIPT_PATH) {
-    void main(process.argv.slice(2)).catch((error: unknown) => {
+    try {
+        await main(process.argv.slice(2));
+    } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    });
+    }
 }

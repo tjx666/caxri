@@ -1,13 +1,8 @@
+import type { AppSettings, ThemeTokens } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import type { AppSettings, ThemeTokens } from '@shared/types';
-
-import {
-    configReducer,
-    initialConfigState,
-    parseConfigSource,
-    type ConfigState,
-} from './settings-drafts';
+import type { ConfigState } from './settings-drafts';
+import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
 
 const SETTINGS_SOURCE = `{
   // This comment must survive a source-to-UI round trip.

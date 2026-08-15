@@ -12,7 +12,9 @@ interface FileClipboardState {
     set(entry: FileClipboardEntry): void;
 }
 
-/** Application-local clipboard; filesystem authority is rechecked by Runtime on every paste. */
+/**
+Application-local clipboard; filesystem authority is rechecked by Runtime on every paste.
+ */
 export const useFileClipboardStore = create<FileClipboardState>((set) => ({
     clear: () => set({ entry: undefined }),
     set: (entry) => set({ entry }),

@@ -1,3 +1,8 @@
+import { useState } from 'react';
+
+import type { GitDiffTab } from '@shared/git-diff';
+import { parseGitDiffTab } from '@shared/git-diff';
+import type { GitRepositorySummary } from '@shared/types';
 import {
     ChevronDown,
     ChevronRight,
@@ -6,27 +11,24 @@ import {
     GitPullRequest,
     RefreshCw,
 } from 'lucide-react';
-import { useState } from 'react';
-
-import { parseGitDiffTab, type GitDiffTab } from '@shared/git-diff';
-import type { GitRepositorySummary } from '@shared/types';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
 import { useActiveWork } from '../../../../stores/session-view';
+import { CommitHistory } from './commit-history';
 import {
     openGitChangesDiff,
     openGitFileDiff,
     openPullRequestChangesDiff,
     openPullRequestFileDiff,
 } from './git-diff-actions';
-import { buildGitFileTree, type GitFileTreeNode } from './git-tree';
-import { CommitHistory } from './commit-history';
+import type { GitFileTreeNode } from './git-tree';
+import { buildGitFileTree } from './git-tree';
 
 const gitRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
@@ -48,7 +50,7 @@ function GitTreeItems({
     onSelect: (path: string) => void;
     repositoryKey: string;
     selected?: string;
-    setDirectoryExpanded: (key: string, expanded: boolean) => void;
+    setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
 }) {
     return nodes.map((node) => {
         if (node.kind === 'directory') {
@@ -110,24 +112,27 @@ function GitTreeDirectory({
     onSelect: (path: string) => void;
     repositoryKey: string;
     selected?: string;
-    setDirectoryExpanded: (key: string, expanded: boolean) => void;
+    setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
 }) {
     const expansionKey = `${repositoryKey}:${node.path}`;
-    const expanded = expandedDirectories[expansionKey] ?? true;
+    const isExpanded = expandedDirectories[expansionKey] ?? true;
     return (
         <div>
             <button
                 className="git-tree-directory flex w-full h-7 items-center gap-1.5 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
                 style={{ paddingLeft: 8 + depth * 14 }}
-                aria-expanded={expanded}
+                aria-expanded={isExpanded}
                 title={node.path}
-                onClick={() => setDirectoryExpanded(expansionKey, !expanded)}
+                onClick={() => setDirectoryExpanded(expansionKey, !isExpanded)}
             >
-                {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <FileTypeIcon entry={{ kind: 'directory', name: node.name }} expanded={expanded} />
+                {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <FileTypeIcon
+                    entry={{ kind: 'directory', name: node.name }}
+                    expanded={isExpanded}
+                />
                 <span className="truncate">{node.name}</span>
             </button>
-            <DisclosureMotion animate expanded={expanded} kind="git-directory">
+            <DisclosureMotion animate expanded={isExpanded} kind="git-directory">
                 {() => (
                     <GitTreeItems
                         depth={depth + 1}
@@ -144,7 +149,7 @@ function GitTreeDirectory({
     );
 }
 
-function GitRepositorySection({
+function GitRepoSection({
     activeDiff,
     expanded,
     expandedDirectories,
@@ -159,11 +164,11 @@ function GitRepositorySection({
     expanded: boolean;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     mode: GitPanelMode;
-    onExpandedChange: (expanded: boolean) => void;
+    onExpandedChange: (isExpanded: boolean) => void;
     pullRequestRefresh: number;
     repository: GitRepositorySummary;
     sessionId: string;
-    setDirectoryExpanded: (key: string, expanded: boolean) => void;
+    setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
 }) {
     const pullRequestQuery = useCaxriQuery(
         'git.pullRequestChanges',
@@ -336,9 +341,9 @@ export function GitPanel() {
         }));
     };
     const setMode = (nextMode: GitPanelMode): void => updateNavigation({ mode: nextMode });
-    const setDirectoryExpanded = (key: string, expanded: boolean): void =>
+    const setDirectoryExpanded = (key: string, isExpanded: boolean): void =>
         updateNavigation({
-            expandedDirectories: { ...navigation.expandedDirectories, [key]: expanded },
+            expandedDirectories: { ...navigation.expandedDirectories, [key]: isExpanded },
         });
     const sessionId = session?.id;
     const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
@@ -358,10 +363,6 @@ export function GitPanel() {
         { enabled: Boolean(sessionId) },
     );
     useToastOnQueryError(isError, error, 'Git refresh failed');
-    const refresh = (): void => {
-        if (mode === 'working') void refetch();
-        else setPullRequestRefresh((value) => value + 1);
-    };
     if (!session)
         return (
             <div className="empty-panel py-4 px-3 text-muted text-center">
@@ -380,6 +381,16 @@ export function GitPanel() {
                 No approved Git repositories found.
             </div>
         );
+    const refresh = (): void => {
+        // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed
+        // refetch, so this manual refresh trigger has nothing further to await.
+        if (mode === 'working') {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void refetch();
+        } else {
+            setPullRequestRefresh((value) => value + 1);
+        }
+    };
     return (
         <div className="inspector-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="git-heading flex items-center gap-2 p-2 border-b border-border">
@@ -435,19 +446,19 @@ export function GitPanel() {
                 className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border"
                 aria-label="Git repositories"
             >
-                {summary.repositories.map((repository) => (
-                    <GitRepositorySection
-                        key={repository.id}
-                        repository={repository}
+                {summary.repositories.map((repo) => (
+                    <GitRepoSection
+                        key={repo.id}
+                        repository={repo}
                         activeDiff={activeDiff}
-                        expanded={navigation.expandedRepositories[repository.id] ?? true}
+                        expanded={navigation.expandedRepositories[repo.id] ?? true}
                         expandedDirectories={navigation.expandedDirectories}
                         mode={mode}
-                        onExpandedChange={(expanded) =>
+                        onExpandedChange={(isExpanded) =>
                             updateNavigation({
                                 expandedRepositories: {
                                     ...navigation.expandedRepositories,
-                                    [repository.id]: expanded,
+                                    [repo.id]: isExpanded,
                                 },
                             })
                         }

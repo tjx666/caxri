@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 async function loggedWindowMode(userDataDirectory: string): Promise<string | undefined> {
@@ -55,7 +54,11 @@ test('focused E2E keeps every Electron window hidden while the Renderer stays us
             )
             .toEqual([false, false]);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -81,7 +84,11 @@ test('desktop E2E can explicitly show the native window', async () => {
             .toBe(true);
         await expect.poll(() => loggedWindowMode(userData)).toBe('visible');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

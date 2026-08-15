@@ -1,12 +1,8 @@
-import {
-    QueryClient,
-    useQuery,
-    type UseQueryOptions,
-    type UseQueryResult,
-} from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import type { CaxriMethod, MethodResult, ParamsArg } from '@shared/ipc';
+import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
+import { QueryClient, useQuery } from '@tanstack/react-query';
 
 import { caxri } from '../lib/caxri';
 import { describeFailure, pushToast } from '../stores/toasts';
@@ -35,8 +31,10 @@ export const queryClient = new QueryClient({
     },
 });
 
-/** The single params argument a Caxri method accepts, or `undefined` for a no-params method. */
-type MethodParams<M extends CaxriMethod> = ParamsArg<M>[0];
+/**
+The single params argument a Caxri method accepts, or `undefined` for a no-params method.
+ */
+type MethodParameters<M extends CaxriMethod> = ParamsArg<M>[0];
 
 /**
  * Cache key for a Caxri read: the method name paired with its params, so distinct params (a
@@ -44,13 +42,13 @@ type MethodParams<M extends CaxriMethod> = ParamsArg<M>[0];
  * by method name + params" factory the server-state layer is built on — every read and every
  * targeted invalidation goes through it instead of an ad hoc string.
  */
-export type CaxriQueryKey<M extends CaxriMethod> = readonly [M, MethodParams<M>];
+export type CaxriQueryKey<M extends CaxriMethod> = readonly [M, MethodParameters<M>];
 
 export function caxriQueryKey<M extends CaxriMethod>(
     method: M,
-    params: MethodParams<M>,
+    parameters: MethodParameters<M>,
 ): CaxriQueryKey<M> {
-    return [method, params] as CaxriQueryKey<M>;
+    return [method, parameters] as CaxriQueryKey<M>;
 }
 
 /**
@@ -62,15 +60,15 @@ export function caxriQueryKey<M extends CaxriMethod>(
  */
 export function useCaxriQuery<M extends CaxriMethod>(
     method: M,
-    params: MethodParams<M>,
+    parameters: MethodParameters<M>,
     options?: Omit<
         UseQueryOptions<MethodResult<M>, Error, MethodResult<M>, CaxriQueryKey<M>>,
         'queryKey' | 'queryFn'
     >,
 ): UseQueryResult<MethodResult<M>, Error> {
     return useQuery({
-        queryKey: caxriQueryKey(method, params),
-        queryFn: () => caxri.request(method, ...([params] as ParamsArg<M>)),
+        queryKey: caxriQueryKey(method, parameters),
+        queryFn: () => caxri.request(method, ...([parameters] as ParamsArg<M>)),
         ...options,
     });
 }

@@ -1,17 +1,22 @@
-import { useEffect, useState, type ReactNode, type TransitionEvent } from 'react';
+import type { ReactNode, TransitionEvent } from 'react';
+import { useEffect, useState } from 'react';
 
-import { motionSettleTimeoutMs, usePrefersReducedMotion } from '../lib/motion';
-import { cn } from '../lib/utils';
+import { motionSettleTimeoutMs, useShouldReduceMotion } from '../lib/motion';
+import { cn } from '../lib/utilities';
 
-interface DisclosureMotionProps {
-    /** Only user-toggled disclosures animate; restored startup state renders still. */
+interface DisclosureMotionProperties {
+    /**
+    Only user-toggled disclosures animate; restored startup state renders still.
+     */
     animate: boolean;
     children: ReactNode | (() => ReactNode);
     className?: string;
     expanded: boolean;
     hidden?: boolean;
     id?: string;
-    /** Disclosure site name, exposed as `data-disclosure` for tests and debugging. */
+    /**
+    Disclosure site name, exposed as `data-disclosure` for tests and debugging.
+     */
     kind: string;
 }
 
@@ -33,10 +38,10 @@ export function DisclosureMotion({
     hidden = false,
     id,
     kind,
-}: DisclosureMotionProps) {
-    const reducedMotion = usePrefersReducedMotion();
-    const motionEnabled = animate && !reducedMotion;
-    const interactive = expanded && !hidden;
+}: DisclosureMotionProperties) {
+    const isReducedMotion = useShouldReduceMotion();
+    const isMotionEnabled = animate && !isReducedMotion;
+    const isInteractive = expanded && !hidden;
     const [exitPresent, setExitPresent] = useState(false);
     /**
      * Collapse presence must begin in the same render that drops `expanded` — an effect runs
@@ -46,23 +51,25 @@ export function DisclosureMotion({
     const [previousExpanded, setPreviousExpanded] = useState(expanded);
     if (previousExpanded !== expanded) {
         setPreviousExpanded(expanded);
-        setExitPresent(!expanded && motionEnabled);
+        setExitPresent(!expanded && isMotionEnabled);
     }
-    /** A live reduced-motion toggle mid-collapse must release the exit DOM immediately. */
-    if (exitPresent && !motionEnabled) setExitPresent(false);
+    /**
+    A live reduced-motion toggle mid-collapse must release the exit DOM immediately.
+     */
+    if (exitPresent && !isMotionEnabled) setExitPresent(false);
 
     useEffect(() => {
         if (!exitPresent) return;
-        const timer = window.setTimeout(
+        const timer = setTimeout(
             () => setExitPresent(false),
             motionSettleTimeoutMs('--motion-collapse'),
         );
-        return () => window.clearTimeout(timer);
+        return () => clearTimeout(timer);
     }, [exitPresent]);
 
-    const present = expanded || exitPresent;
+    const isPresent = expanded || exitPresent;
     const onTransitionEnd = (event: TransitionEvent<HTMLDivElement>): void => {
-        if (event.target === event.currentTarget && event.propertyName === 'height' && !expanded)
+        if (!expanded && event.target === event.currentTarget && event.propertyName === 'height')
             setExitPresent(false);
     };
 
@@ -73,11 +80,11 @@ export function DisclosureMotion({
             data-disclosure={kind}
             data-expanded={expanded}
             data-motion={animate || undefined}
-            aria-hidden={!interactive}
-            inert={!interactive ? true : undefined}
+            aria-hidden={!isInteractive}
+            inert={!isInteractive ? true : undefined}
             onTransitionEnd={onTransitionEnd}
         >
-            {present ? (typeof children === 'function' ? children() : children) : null}
+            {isPresent ? (typeof children === 'function' ? children() : children) : null}
         </div>
     );
 }

@@ -15,7 +15,9 @@ export interface CommandContext {
         copySelection(): void;
         findActive(): void;
         hasActive(): boolean;
-        /** True only when the active work item is a Terminal that currently owns a selection. */
+        /**
+        True only when the active work item is a Terminal that currently owns a selection.
+         */
         hasSelection(): boolean;
         navigateCommand(direction: 1 | -1): void;
         restartActive(): void;
@@ -41,20 +43,28 @@ export interface CommandDefinition {
     id: CommandId;
     title: string;
     category: string;
-    /** Executes the command against the active {@link CommandContext}. */
-    run(ctx: CommandContext, args?: unknown): void;
-    /** Optional gate; a command whose `when` reports false is treated as a no-op. */
-    when?(ctx: CommandContext): boolean;
+    /**
+    Executes the command against the active {@link CommandContext}.
+     */
+    run(context: CommandContext, arguments_?: unknown): void;
+    /**
+    Optional gate; a command whose `when` reports false is treated as a no-op.
+     */
+    when?(context: CommandContext): boolean;
     /**
      * Keeps the command reachable from its keybinding while an editable target (input, textarea,
      * Monaco, xterm) owns focus. Defaults to false: shortcuts stand down while the user is typing.
      */
     allowInEditable?: boolean;
-    /** Marks a destructive command whose confirmation is already handled inside `run` (native dialog). */
+    /**
+    Marks a destructive command whose confirmation is already handled inside `run` (native dialog).
+     */
     confirm?: boolean;
 }
 
-/** Identity helper that keeps definition modules declarative while still type-checking the shape. */
+/**
+Identity helper that keeps definition modules declarative while still type-checking the shape.
+ */
 export function defineCommand(definition: CommandDefinition): CommandDefinition {
     return definition;
 }

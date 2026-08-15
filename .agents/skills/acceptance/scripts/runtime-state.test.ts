@@ -1,6 +1,8 @@
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -31,7 +33,8 @@ describe('Acceptance runtime ownership', () => {
                 userDataDir: '/tmp/caxri-acceptance-user-test',
             }).launcherIdentity,
         ).toBe('started-at command');
-        expect(errorCode(Object.assign(new Error('missing'), { code: 'ENOENT' }))).toBe('ENOENT');
+        const missingError = Object.assign(new Error('missing'), { code: 'ENOENT' });
+        expect(errorCode(missingError)).toBe('ENOENT');
     });
 
     it('anchors launcher ownership to process identity instead of PID alone', async () => {
@@ -149,20 +152,27 @@ describe('Acceptance runtime ownership', () => {
     });
 
     it('keeps mutable cases order-independent and removes every owned profile', async () => {
-        const profiles: Awaited<ReturnType<typeof prepareAcceptanceUserData>>[] = [];
+        const profiles: Array<Awaited<ReturnType<typeof prepareAcceptanceUserData>>> = [];
+        /**
+         * This test asserts that processing caseIds in a given sequential order still yields the
+         * same order-independent final state, so caseIds must actually be awaited in order here.
+         */
         const runOrder = async (caseIds: string[]) => {
             const observations: string[] = [];
             for (const caseId of caseIds) {
+                // eslint-disable-next-line no-await-in-loop
                 const profile = await prepareAcceptanceUserData({
                     caseId,
                     cleanupReusable: false,
                 });
                 profiles.push(profile);
                 const marker = join(profile.userDataDir, 'case-state.txt');
+                // eslint-disable-next-line no-await-in-loop
                 await writeFile(marker, caseId);
+                // eslint-disable-next-line no-await-in-loop
                 observations.push(await readFile(marker, 'utf8'));
             }
-            return observations.sort();
+            return observations.toSorted((a, b) => a.localeCompare(b));
         };
         try {
             await expect(runOrder(['settings-case', 'session-case'])).resolves.toEqual([

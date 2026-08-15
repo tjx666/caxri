@@ -6,7 +6,9 @@
  * pulls in editor workers and browser-only globals at module load time).
  */
 
-/** Threshold below which a background is treated as dark for Monaco's base theme. */
+/**
+Threshold below which a background is treated as dark for Monaco's base theme.
+ */
 const DARK_LUMINANCE_THRESHOLD = 0.5;
 
 /**
@@ -18,7 +20,8 @@ const DARK_LUMINANCE_THRESHOLD = 0.5;
  */
 export function relativeLuminance(hexColor: string): number {
     const hex = hexColor.replace('#', '');
-    const channel = (start: number): number => parseInt(hex.slice(start, start + 2), 16) / 255;
+    const channel = (start: number): number =>
+        Number.parseInt(hex.slice(start, start + 2), 16) / 255;
     const linearize = (value: number): number =>
         value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 

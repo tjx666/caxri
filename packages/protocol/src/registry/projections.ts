@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
+import type { ProjectRecord } from '../domain/domain.js';
 import {
     appSettingsSchema,
     projectRecordSchema,
     sessionRecordSchema,
     terminalRecordSchema,
-    type ProjectRecord,
 } from '../domain/domain.js';
 import type { Principal } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
@@ -45,7 +45,9 @@ const terminalSummarySchema = terminalRecordSchema.pick({
     failureReason: true,
 });
 
-/** Minimal schemas are exported even before a command exposes the corresponding domain. */
+/**
+Minimal schemas are exported even before a command exposes the corresponding domain.
+ */
 export const principalProjectionSchemas = {
     project: scopedProjectSchema,
     session: sessionSummarySchema,
@@ -80,7 +82,9 @@ function projectScope(principal: Principal): ReadonlySet<string> | undefined {
         : undefined;
 }
 
-/** Removes path and unrelated-Project data before a project list leaves the application handler. */
+/**
+Removes path and unrelated-Project data before a project list leaves the application handler.
+ */
 export function projectListForPrincipal(value: unknown, principal: Principal): ProjectListResult {
     const parsed = projectListResultSchema.parse(value);
     const records = parsed.projects as ProjectRecord[];

@@ -1,19 +1,19 @@
 import { asc, eq, inArray, sql } from 'drizzle-orm';
 
+import type {
+    AgentDispatchFailure,
+    AgentDispatchLaunch,
+    AgentDispatchOperation,
+    AgentDispatchReceipt,
+    AgentDispatchStatus,
+} from '../../../shared/ipc/agent-dispatch-contract';
 import {
     agentDispatchFailureSchema,
     agentDispatchLaunchSchema,
     agentDispatchReceiptSchema,
-    type AgentDispatchFailure,
-    type AgentDispatchLaunch,
-    type AgentDispatchOperation,
-    type AgentDispatchReceipt,
-    type AgentDispatchStatus,
 } from '../../../shared/ipc/agent-dispatch-contract';
-import {
-    agentEndpointRefSchema,
-    type AgentEndpointRef,
-} from '../../../shared/ipc/agent-endpoint-contract';
+import type { AgentEndpointRef as AgentEndpointReference } from '../../../shared/ipc/agent-endpoint-contract';
+import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../../../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../../../shared/ipc/errors';
 import type { AgentProvider } from '../../../shared/types';
 import type { CaxriDrizzleDatabase } from '../connection';
@@ -61,7 +61,7 @@ export interface NewAgentDispatchReceipt {
 export interface AgentDispatchReceiptPatch {
     status: AgentDispatchStatus;
     terminalId?: string;
-    endpoint?: AgentEndpointRef;
+    endpoint?: AgentEndpointReference;
     failure?: AgentDispatchFailure;
     now: number;
 }
@@ -83,7 +83,7 @@ function mapRow(row: DispatchRow): StoredAgentDispatchReceipt {
             status: row.status,
             projectId: row.projectId,
             sessionId: row.sessionId,
-            ...(row.terminalId ? { terminalId: row.terminalId } : {}),
+            ...(row.terminalId && { terminalId: row.terminalId }),
             provider: row.provider,
             requestedLaunch: agentDispatchLaunchSchema.parse(
                 parseJson(row.requestedLaunchJson, 'requested launch'),
@@ -91,20 +91,14 @@ function mapRow(row: DispatchRow): StoredAgentDispatchReceipt {
             effectiveLaunch: agentDispatchLaunchSchema.parse(
                 parseJson(row.effectiveLaunchJson, 'effective launch'),
             ),
-            ...(row.endpointJson
-                ? {
-                      endpoint: agentEndpointRefSchema.parse(
-                          parseJson(row.endpointJson, 'endpoint'),
-                      ),
-                  }
-                : {}),
-            ...(row.failureJson
-                ? {
-                      failure: agentDispatchFailureSchema.parse(
-                          parseJson(row.failureJson, 'failure'),
-                      ),
-                  }
-                : {}),
+            ...(row.endpointJson && {
+                endpoint: agentEndpointReferenceSchema.parse(
+                    parseJson(row.endpointJson, 'endpoint'),
+                ),
+            }),
+            ...(row.failureJson && {
+                failure: agentDispatchFailureSchema.parse(parseJson(row.failureJson, 'failure')),
+            }),
             revision: row.revision,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
@@ -112,12 +106,38 @@ function mapRow(row: DispatchRow): StoredAgentDispatchReceipt {
     };
 }
 
-/** Pure bounded CRUD for durable Agent dispatch idempotency and lifecycle receipts. */
+/**
+Pure bounded CRUD for durable Agent dispatch idempotency and lifecycle receipts.
+ */
 export class AgentDispatchReceiptsModel {
-    constructor(private readonly db: CaxriDrizzleDatabase) {}
+    constructor(private readonly database: CaxriDrizzleDatabase) {}
+
+    private prune(): void {
+        const count = this.database
+            .select({ value: sql<number>`count(*)` })
+            .from(agentDispatchReceipts)
+            .get()!.value;
+        const overflow = count - MAX_DISPATCH_RECEIPTS;
+        if (overflow <= 0) return;
+        const removable = this.database
+            .select({ dispatchId: agentDispatchReceipts.dispatchId })
+            .from(agentDispatchReceipts)
+            .where(inArray(agentDispatchReceipts.status, ['stopped', 'interrupted', 'failed']))
+            .orderBy(asc(agentDispatchReceipts.updatedAt), asc(agentDispatchReceipts.dispatchId))
+            .limit(overflow)
+            .all()
+            .map(({ dispatchId }) => dispatchId);
+        if (removable.length > 0)
+            this.database
+                .delete(agentDispatchReceipts)
+                .where(inArray(agentDispatchReceipts.dispatchId, removable))
+                .run();
+        if (count - removable.length > MAX_DISPATCH_RECEIPTS)
+            throw new CaxriError('CAPACITY', 'Too many active Agent dispatch receipts');
+    }
 
     get(dispatchId: string): StoredAgentDispatchReceipt | undefined {
-        const row = this.db
+        const row = this.database
             .select()
             .from(agentDispatchReceipts)
             .where(eq(agentDispatchReceipts.dispatchId, dispatchId))
@@ -126,7 +146,7 @@ export class AgentDispatchReceiptsModel {
     }
 
     insert(input: NewAgentDispatchReceipt): StoredAgentDispatchReceipt {
-        this.db
+        this.database
             .insert(agentDispatchReceipts)
             .values({
                 dispatchId: input.dispatchId,
@@ -153,7 +173,7 @@ export class AgentDispatchReceiptsModel {
     update(dispatchId: string, patch: AgentDispatchReceiptPatch): StoredAgentDispatchReceipt {
         const current = this.get(dispatchId);
         if (!current) throw new CaxriError('NOT_FOUND', 'Agent dispatch receipt was not found');
-        this.db
+        this.database
             .update(agentDispatchReceipts)
             .set({
                 status: patch.status,
@@ -165,10 +185,8 @@ export class AgentDispatchReceiptsModel {
                       : undefined,
                 failureJson: patch.failure
                     ? JSON.stringify(patch.failure)
-                    : patch.status === 'failed'
-                      ? current.receipt.failure
-                          ? JSON.stringify(current.receipt.failure)
-                          : null
+                    : patch.status === 'failed' && current.receipt.failure
+                      ? JSON.stringify(current.receipt.failure)
                       : null,
                 revision: current.receipt.revision + 1,
                 updatedAt: patch.now,
@@ -179,7 +197,7 @@ export class AgentDispatchReceiptsModel {
     }
 
     active(): StoredAgentDispatchReceipt[] {
-        return this.db
+        return this.database
             .select()
             .from(agentDispatchReceipts)
             .where(inArray(agentDispatchReceipts.status, ACTIVE_STATUSES))
@@ -188,36 +206,12 @@ export class AgentDispatchReceiptsModel {
     }
 
     forTerminal(terminalId: string): StoredAgentDispatchReceipt[] {
-        return this.db
+        return this.database
             .select()
             .from(agentDispatchReceipts)
             .where(eq(agentDispatchReceipts.terminalId, terminalId))
             .orderBy(asc(agentDispatchReceipts.createdAt), asc(agentDispatchReceipts.dispatchId))
             .all()
             .map(mapRow);
-    }
-
-    private prune(): void {
-        const count = this.db
-            .select({ value: sql<number>`count(*)` })
-            .from(agentDispatchReceipts)
-            .get()!.value;
-        const overflow = count - MAX_DISPATCH_RECEIPTS;
-        if (overflow <= 0) return;
-        const removable = this.db
-            .select({ dispatchId: agentDispatchReceipts.dispatchId })
-            .from(agentDispatchReceipts)
-            .where(inArray(agentDispatchReceipts.status, ['stopped', 'interrupted', 'failed']))
-            .orderBy(asc(agentDispatchReceipts.updatedAt), asc(agentDispatchReceipts.dispatchId))
-            .limit(overflow)
-            .all()
-            .map(({ dispatchId }) => dispatchId);
-        if (removable.length > 0)
-            this.db
-                .delete(agentDispatchReceipts)
-                .where(inArray(agentDispatchReceipts.dispatchId, removable))
-                .run();
-        if (count - removable.length > MAX_DISPATCH_RECEIPTS)
-            throw new CaxriError('CAPACITY', 'Too many active Agent dispatch receipts');
     }
 }

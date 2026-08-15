@@ -33,7 +33,7 @@ const INVALID_PROGRESS = Symbol('invalid-progress');
 function normalizeProgress(
     update: TerminalProgressUpdate,
 ): TerminalProgress | undefined | typeof INVALID_PROGRESS {
-    if (!Number.isInteger(update.state) || update.state < 0 || update.state > 4)
+    if (!Number.isSafeInteger(update.state) || update.state < 0 || update.state > 4)
         return INVALID_PROGRESS;
     if (update.state === 0) return undefined;
     if (!Number.isFinite(update.value)) return INVALID_PROGRESS;
@@ -44,7 +44,7 @@ function normalizeProgress(
     return { kind: 'paused', value };
 }
 
-function progressEqual(left: TerminalProgress | undefined, right: TerminalProgress): boolean {
+function isProgressEqual(left: TerminalProgress | undefined, right: TerminalProgress): boolean {
     if (left?.kind !== right.kind) return false;
     if (left.kind === 'indeterminate' || right.kind === 'indeterminate') return true;
     return left.value === right.value;
@@ -61,10 +61,26 @@ export class TerminalProgressRegistry {
     private frame: number | undefined;
 
     constructor(
-        private readonly requestFrame: RequestFrame = (callback) =>
-            window.requestAnimationFrame(callback),
-        private readonly cancelFrame: CancelFrame = (frame) => window.cancelAnimationFrame(frame),
+        private readonly requestFrame: RequestFrame = (callback) => requestAnimationFrame(callback),
+        private readonly cancelFrame: CancelFrame = (frame) => cancelAnimationFrame(frame),
     ) {}
+
+    private flush(): void {
+        this.frame = undefined;
+        const updates = [...this.pending];
+        this.pending.clear();
+        for (const [terminalId, progress] of updates) {
+            if (!progress) continue;
+            if (isProgressEqual(this.current.get(terminalId), progress)) continue;
+            this.current.set(terminalId, progress);
+            this.notify(terminalId);
+        }
+    }
+
+    private notify(terminalId: string): void {
+        const listeners = this.listeners.get(terminalId) ?? [];
+        for (const listener of listeners) listener();
+    }
 
     get(terminalId: string): TerminalProgress | undefined {
         return this.current.get(terminalId);
@@ -92,36 +108,22 @@ export class TerminalProgressRegistry {
         this.frame = this.requestFrame(() => this.flush());
     }
 
-    /** Lifecycle clears are synchronous so a queued frame cannot resurrect a closed Terminal. */
+    /**
+    Lifecycle clears are synchronous so a queued frame cannot resurrect a closed Terminal.
+     */
     clear(terminalId: string): void {
         this.pending.delete(terminalId);
-        const changed = this.current.delete(terminalId);
+        const isChanged = this.current.delete(terminalId);
         if (this.pending.size === 0 && this.frame !== undefined) {
             this.cancelFrame(this.frame);
             this.frame = undefined;
         }
-        if (changed) this.notify(terminalId);
+        if (isChanged) this.notify(terminalId);
     }
 
     retain(terminalIds: ReadonlySet<string>): void {
         const tracked = new Set([...this.current.keys(), ...this.pending.keys()]);
         for (const terminalId of tracked) if (!terminalIds.has(terminalId)) this.clear(terminalId);
-    }
-
-    private flush(): void {
-        this.frame = undefined;
-        const updates = [...this.pending];
-        this.pending.clear();
-        for (const [terminalId, progress] of updates) {
-            if (!progress) continue;
-            if (progressEqual(this.current.get(terminalId), progress)) continue;
-            this.current.set(terminalId, progress);
-            this.notify(terminalId);
-        }
-    }
-
-    private notify(terminalId: string): void {
-        for (const listener of this.listeners.get(terminalId) ?? []) listener();
     }
 }
 

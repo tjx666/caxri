@@ -1,24 +1,37 @@
-import type { CodeEditor } from './code-editor';
 import type * as MonacoApi from '../../lib/monaco';
+import type { CodeEditor } from './code-editor';
 
 const EDITOR_PRELOAD_MEASURE = 'caxri.editor.preload';
 
-type CodeEditorModule = { CodeEditor: typeof CodeEditor };
+interface CodeEditorModule {
+    CodeEditor: typeof CodeEditor;
+}
 type MonacoModule = typeof MonacoApi;
 
-let dependenciesPromise: Promise<[CodeEditorModule, MonacoModule]> | undefined;
-let loadedEditor: typeof CodeEditor | undefined;
-let userLoadRequested = false;
 /**
- * Bumped on every user-initiated load. Warm-up captures the generation it started with and keeps
- * running as long as no *further* user load has begun, so warm-up still completes when the user's
- * first load simply happened to race ahead of the idle preload (see editor-loader.test.ts).
+ * Mutable module state grouped behind a single object so functions below mutate a property instead
+ * of reassigning a top-level binding (`unicorn/no-top-level-assignment-in-function`).
  */
-let loadGeneration = 0;
+const state: {
+    dependenciesPromise: Promise<[CodeEditorModule, MonacoModule]> | undefined;
+    loadedEditor: typeof CodeEditor | undefined;
+    isUserLoadRequested: boolean;
+    /**
+     * Bumped on every user-initiated load. Warm-up captures the generation it started with and keeps
+     * running as long as no *further* user load has begun, so warm-up still completes when the user's
+     * first load simply happened to race ahead of the idle preload (see editor-loader.test.ts).
+     */
+    loadGeneration: number;
+} = {
+    dependenciesPromise: undefined,
+    loadedEditor: undefined,
+    isUserLoadRequested: false,
+    loadGeneration: 0,
+};
 const listeners = new Set<() => void>();
 
-export function getLoadedCodeEditor(): typeof loadedEditor {
-    return loadedEditor;
+export function getLoadedCodeEditor(): typeof state.loadedEditor {
+    return state.loadedEditor;
 }
 
 export function subscribeLoadedCodeEditor(listener: () => void): () => void {
@@ -28,28 +41,33 @@ export function subscribeLoadedCodeEditor(listener: () => void): () => void {
     };
 }
 
-function loadDependencies(): Promise<[CodeEditorModule, MonacoModule]> {
-    dependenciesPromise ??= Promise.all([
-        import('./code-editor'),
-        import('../../lib/monaco'),
-    ]).catch((error: unknown) => {
-        dependenciesPromise = undefined;
+async function loadDependenciesUncached(): Promise<[CodeEditorModule, MonacoModule]> {
+    try {
+        return await Promise.all([import('./code-editor'), import('../../lib/monaco')]);
+    } catch (error) {
+        state.dependenciesPromise = undefined;
         throw error;
-    });
-    return dependenciesPromise;
+    }
+}
+
+function loadDependencies(): Promise<[CodeEditorModule, MonacoModule]> {
+    state.dependenciesPromise ??= loadDependenciesUncached();
+    return state.dependenciesPromise;
 }
 
 function publishCodeEditor(module: CodeEditorModule): CodeEditorModule {
-    if (loadedEditor) return module;
-    loadedEditor = module.CodeEditor;
+    if (state.loadedEditor) return module;
+    state.loadedEditor = module.CodeEditor;
     for (const listener of listeners) listener();
     return module;
 }
 
-/** User intent publishes the real editor as soon as its module loads instead of blocking on warm-up. */
+/**
+User intent publishes the real editor as soon as its module loads instead of blocking on warm-up.
+ */
 export async function loadCodeEditor(): Promise<CodeEditorModule> {
-    userLoadRequested = true;
-    loadGeneration += 1;
+    state.isUserLoadRequested = true;
+    state.loadGeneration += 1;
     const [module] = await loadDependencies();
     return publishCodeEditor(module);
 }
@@ -69,11 +87,17 @@ async function preloadCodeEditor(): Promise<void> {
     performance.mark('caxri.editor.preload-start');
     const [module, { warmMonacoEditor }] = await loadDependencies();
     publishCodeEditor(module);
-    const startGeneration = loadGeneration;
-    const shouldContinue = (): boolean => loadGeneration === startGeneration;
+    const startGeneration = state.loadGeneration;
+    const shouldContinue = (): boolean => state.loadGeneration === startGeneration;
     const warmup = warmMonacoEditor(shouldContinue);
-    if (userLoadRequested) {
-        void warmup.catch(() => undefined);
+    if (state.isUserLoadRequested) {
+        // Warm-up only matters in the background once a user load is already in flight; a failure
+        // here has nothing left to report to, so it is intentionally swallowed.
+        try {
+            await warmup;
+        } catch {
+            // ignored: background warm-up failures do not affect the user-requested load.
+        }
     } else {
         await warmup;
     }
@@ -85,22 +109,37 @@ async function preloadCodeEditor(): Promise<void> {
     );
 }
 
-/** Starts after initial workbench work yields, without moving Monaco into the entry bundle. */
+/**
+Starts after initial workbench work yields, without moving Monaco into the entry bundle.
+ */
+async function preloadCodeEditorIgnoringFailure(): Promise<void> {
+    try {
+        await preloadCodeEditor();
+    } catch {
+        // ignored: idle preload has no UI surface to report a failure through; a later user-driven
+        // `loadCodeEditor()` call will surface the same error if the module truly cannot load.
+    }
+}
+
 export function scheduleCodeEditorPreload(): () => void {
-    let canceled = false;
+    let isCanceled = false;
     const preload = (): void => {
-        if (!canceled) void preloadCodeEditor().catch(() => undefined);
+        if (isCanceled) return;
+        // Fire-and-forget: failures are already funneled into `preloadCodeEditorIgnoringFailure`
+        // above, so there is nothing left for this scheduler to await or react to.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void preloadCodeEditorIgnoringFailure();
     };
-    if (typeof window.requestIdleCallback === 'function') {
-        const idleId = window.requestIdleCallback(preload, { timeout: 1_000 });
+    if (typeof requestIdleCallback === 'function') {
+        const idleId = requestIdleCallback(preload, { timeout: 1_000 });
         return () => {
-            canceled = true;
-            window.cancelIdleCallback(idleId);
+            isCanceled = true;
+            cancelIdleCallback(idleId);
         };
     }
-    const timer = window.setTimeout(preload, 0);
+    const timer = setTimeout(preload, 0);
     return () => {
-        canceled = true;
-        window.clearTimeout(timer);
+        isCanceled = true;
+        clearTimeout(timer);
     };
 }

@@ -1,7 +1,9 @@
 import { mkdtemp, rm } from 'node:fs/promises';
-import { createConnection, type Socket } from 'node:net';
+import type { Socket } from 'node:net';
+import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -15,7 +17,9 @@ import { acquireHostProfile } from '../profile';
 const cleanups: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
-    await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+    const cleanupsToRun = cleanups.slice();
+    cleanups.length = 0;
+    await Promise.all(cleanupsToRun.map((cleanup) => cleanup()));
 });
 
 async function profile() {
@@ -60,18 +64,22 @@ function lineReader(socket: Socket) {
         }
     });
     socket.on('close', () => {
-        for (const waiter of pending.splice(0)) waiter.reject(new Error('Socket closed'));
+        const pendingToReject = pending.slice();
+        pending.length = 0;
+        for (const waiter of pendingToReject) waiter.reject(new Error('Socket closed'));
     });
     return () =>
         values.length > 0
             ? Promise.resolve(values.shift())
-            : new Promise<unknown>((resolve, reject) => pending.push({ resolve, reject }));
+            : new Promise<unknown>((resolve, reject) => {
+                  pending.push({ resolve, reject });
+              });
 }
 
-function command(id: string, method: string, params: unknown) {
+function command(id: string, method: string, parameters: unknown) {
     return `${JSON.stringify({
         type: 'command',
-        request: { protocolVersion: CAXRI_PROTOCOL_VERSION, id, method, params },
+        request: { protocolVersion: CAXRI_PROTOCOL_VERSION, id, method, params: parameters },
     })}\n`;
 }
 
@@ -121,15 +129,9 @@ describe('local Host transport regressions', () => {
 
     it('renews the Desktop lease while an ordered business request is still running', async () => {
         const lease = await profile();
-        const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
-        let releaseRead!: () => void;
-        const readStarted = new Promise<void>((resolve) => {
-            releaseRead = resolve;
-        });
-        let markStarted!: () => void;
-        const started = new Promise<void>((resolve) => {
-            markStarted = resolve;
-        });
+        const nativeSetTimeout = setTimeout.bind(globalThis);
+        const { promise: readStarted, resolve: releaseRead } = Promise.withResolvers<void>();
+        const { promise: started, resolve: markStarted } = Promise.withResolvers<void>();
         const host: CommandAdapter = {
             invoke: async (request) => {
                 if (request.method === 'files.read') {
@@ -173,7 +175,7 @@ describe('local Host transport regressions', () => {
         await expect(
             Promise.race([
                 read(),
-                new Promise((_, reject) =>
+                new Promise((_resolve, reject) =>
                     nativeSetTimeout(() => reject(new Error('Lease renewal was queued')), 200),
                 ),
             ]),

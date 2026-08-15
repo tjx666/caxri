@@ -42,8 +42,10 @@ function createFakePty() {
 }
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
@@ -80,7 +82,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
@@ -128,7 +130,9 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const emitted: RuntimeEvent[] = [];
         const manager = new TerminalManager(
             database,
-            (event) => emitted.push(event),
+            (event) => {
+                emitted.push(event);
+            },
             new StructuredLogger(join(directory, 'logs')),
             {
                 onLifecycleStarted,
@@ -193,7 +197,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         );
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
@@ -215,17 +219,20 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const starting = manager.start(created.terminal!);
         await vi.waitFor(() => expect(retire).toHaveBeenCalledOnce());
         expect(endpoints.endpointForTerminal(created.terminal!.id)).toBeUndefined();
-        let settled = false;
-        void starting.then(
-            () => {
-                settled = true;
-            },
-            () => {
-                settled = true;
-            },
-        );
+        let isSettled = false;
+        // Intentionally not awaited: the test must observe `isSettled` before `starting` settles,
+        // so this attaches an observer instead of blocking on the promise.
+        /* eslint-disable unicorn/prefer-await */
+        starting
+            .then(() => {
+                isSettled = true;
+            })
+            .catch(() => {
+                isSettled = true;
+            });
+        /* eslint-enable unicorn/prefer-await */
         await Promise.resolve();
-        expect(settled).toBe(false);
+        expect(isSettled).toBe(false);
         retirement.resolve(true);
 
         try {

@@ -1,5 +1,3 @@
-import { CircleAlert, LoaderCircle, Pause, Plus } from 'lucide-react';
-import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react';
 import {
     Fragment,
     useCallback,
@@ -10,26 +8,29 @@ import {
     useState,
 } from 'react';
 
-import type { TerminalRecord } from '@shared/types';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
-import { workItemKey, workItemsEqual, type WorkItem } from '@shared/work-item';
+import type { TerminalRecord } from '@shared/types';
+import type { WorkItem } from '@shared/work-item';
+import { areWorkItemsEqual, workItemKey } from '@shared/work-item';
+import { CircleAlert, LoaderCircle, Pause, Plus } from 'lucide-react';
+import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
 import { Button } from '../../components/ui/button';
-import { CommandTooltip } from '../../components/ui/tooltip';
 import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../components/ui/context-menu';
+import { CommandTooltip } from '../../components/ui/tooltip';
+import { cn } from '../../lib/utilities';
+import { usePanelLayoutStore } from '../../stores/panel-layout';
 import {
     useSelectedSession,
     useSessionIds,
     useSessionState,
     useSessionTerminals,
 } from '../../stores/selectors';
-import { usePanelLayoutStore } from '../../stores/panel-layout';
 import { sessionViewScope, useActiveWork, useSessionViewStore } from '../../stores/session-view';
-import { cn } from '../../lib/utils';
 import {
     closeAllEditors,
     closeEditor,
@@ -45,24 +46,18 @@ import {
     TERMINAL_DRAG_TYPE,
 } from '../terminal/terminal-actions';
 import {
+    retainTerminalProgress,
     terminalProgressAriaLabel,
     terminalProgressLabel,
-    retainTerminalProgress,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
+import type { EditorTabMotionState } from './editor-tab-motion';
+import { pruneEditorTabMotionStates, reconcileEditorTabMotion } from './editor-tab-motion';
 import { WorkTab } from './work-tab';
-import {
-    type WorkTabNavigationKey,
-    workTabId,
-    workTabNavigationTarget,
-} from './work-tab-accessibility';
-import {
-    pruneEditorTabMotionStates,
-    reconcileEditorTabMotion,
-    type EditorTabMotionState,
-} from './editor-tab-motion';
+import type { WorkTabNavigationKey } from './work-tab-accessibility';
+import { workTabId, workTabNavigationTarget } from './work-tab-accessibility';
 
-const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
+const fileName = (path: string): string => path.split('/').findLast(Boolean) ?? path;
 
 function TerminalWorkTab({
     active,
@@ -144,7 +139,9 @@ function TerminalWorkTab({
     );
 }
 
-/** Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped. */
+/**
+Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped.
+ */
 function EditorWorkTab({
     active,
     motionIdentity,
@@ -164,12 +161,10 @@ function EditorWorkTab({
 }) {
     const session = useSelectedSession();
     const gitDiffTab = parseGitDiffTab(path);
-    const dirty = useSessionViewStore((state) =>
+    const isDirty = useSessionViewStore((state) =>
         session
-            ? Boolean(
-                  state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
-                      ?.dirty,
-              )
+            ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
+                  ?.dirty
             : false,
     );
     const openTabs = useSessionState()?.openTabs ?? [];
@@ -178,7 +173,7 @@ function EditorWorkTab({
         <WorkTab
             active={active}
             closeLabel="Close Editor"
-            dirty={dirty}
+            dirty={isDirty}
             fileIconName={
                 gitDiffTab?.kind === 'file'
                     ? fileName(gitDiffTab.path)
@@ -191,7 +186,10 @@ function EditorWorkTab({
             motionIdentity={motionIdentity}
             tabId={tabId}
             onDoubleClick={() => pinEditorTab(path)}
-            onClose={() => void closeEditor(path)}
+            onClose={() => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, closeEditor() reports its own errors
+                void closeEditor(path);
+            }}
             onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
                 event.preventDefault();
@@ -200,21 +198,39 @@ function EditorWorkTab({
             onSelect={onSelect}
             contextMenu={
                 <ContextMenuContent>
-                    <ContextMenuItem onClick={() => void closeEditor(path)}>Close</ContextMenuItem>
+                    <ContextMenuItem
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, closeEditor() reports its own errors
+                            void closeEditor(path);
+                        }}
+                    >
+                        Close
+                    </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
                         disabled={openTabs.length < 2}
-                        onClick={() => void closeOtherEditors(path)}
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, closeOtherEditors() reports its own errors
+                            void closeOtherEditors(path);
+                        }}
                     >
                         Close Others
                     </ContextMenuItem>
                     <ContextMenuItem
-                        disabled={index < 0 || index === openTabs.length - 1}
-                        onClick={() => void closeEditorsToRight(path)}
+                        disabled={index === -1 || index === openTabs.length - 1}
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, closeEditorsToRight() reports its own errors
+                            void closeEditorsToRight(path);
+                        }}
                     >
                         Close to the Right
                     </ContextMenuItem>
-                    <ContextMenuItem onClick={() => void closeAllEditors(path)}>
+                    <ContextMenuItem
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, closeAllEditors() reports its own errors
+                            void closeAllEditors(path);
+                        }}
+                    >
                         Close All
                     </ContextMenuItem>
                 </ContextMenuContent>
@@ -225,7 +241,7 @@ function EditorWorkTab({
 }
 
 function isActive(activeWork: WorkItem | undefined, item: WorkItem): boolean {
-    return workItemsEqual(activeWork, item);
+    return areWorkItemsEqual(activeWork, item);
 }
 
 type WorkTabItem =
@@ -238,9 +254,9 @@ export function WorkTabStrip() {
     const selectedSessionId = useSelectedSession()?.id;
     const sessionIds = useSessionIds();
     const activeWork = useActiveWork();
-    const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
+    const isSidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     const [editorMotionStates] = useState(() => new Map<string, EditorTabMotionState>());
-    const stripRef = useRef<HTMLDivElement>(null);
+    const stripReference = useRef<HTMLDivElement>(null);
     const activeWorkKey = workItemKey(activeWork);
     /**
      * `overflow-x-auto` (below) has no built-in cue for "the active tab is off to the side," so
@@ -249,7 +265,7 @@ export function WorkTabStrip() {
      * the page from also scrolling vertically to reveal an element that never left the viewport.
      */
     useEffect(() => {
-        stripRef.current
+        stripReference.current
             ?.querySelector<HTMLElement>('[data-tab-active="true"]')
             ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }, [activeWorkKey]);
@@ -304,11 +320,13 @@ export function WorkTabStrip() {
             );
             if (!target || !selectedSessionId) return;
             const targetId = workTabId(selectedSessionId, target);
-            const targetTab = document.getElementById(targetId);
-            if (targetTab && stripRef.current?.contains(targetTab)) {
-                /** Terminal activation normally moves focus into xterm. This marker exists only
+            const targetTab = document.querySelector<HTMLElement>(`#${CSS.escape(targetId)}`);
+            if (targetTab && stripReference.current?.contains(targetTab)) {
+                /**
+                 * Terminal activation normally moves focus into xterm. This marker exists only
                  * for keyboard navigation and is removed on blur, so the Terminal process effect
-                 * can preserve the WAI-ARIA tab focus without changing mouse selection behavior. */
+                 * can preserve the WAI-ARIA tab focus without changing mouse selection behavior.
+                 */
                 if (target.kind === 'terminal') targetTab.dataset.preserveTerminalFocus = 'true';
                 targetTab.focus();
             }
@@ -318,10 +336,10 @@ export function WorkTabStrip() {
     );
     return (
         <div
-            ref={stripRef}
+            ref={stripReference}
             className={cn(
                 'work-tabs flex h-11 items-end overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag]',
-                !sidebarVisible && 'pl-[78px]',
+                !isSidebarVisible && 'pl-[78px]',
             )}
         >
             <div
@@ -379,7 +397,10 @@ export function WorkTabStrip() {
                         size="icon"
                         variant="ghost"
                         aria-label="New Terminal"
-                        onClick={() => void createTerminal('shell')}
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
+                            void createTerminal('shell');
+                        }}
                     >
                         <Plus size={14} />
                     </Button>

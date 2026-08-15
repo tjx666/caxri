@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
 import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
+import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import { AsyncSemaphore } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
@@ -15,17 +16,16 @@ import type {
     GitCommitPage,
     GitDiffDocument,
     GitFileStatus,
-    GitRepositorySummary,
+    GitRepositorySummary as GitRepoSummary,
     GitSummary,
 } from '../../shared/types';
-import type { RuntimeMethodParams } from '../../shared/ipc/methods';
 import { assertInsideRoot } from '../path-security';
-import { SingleFlight } from '../single-flight';
 import type { ProjectRootResolver } from '../project-roots';
+import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { toGitError } from './errors';
 import { GitPullRequestService } from './pull-request';
-import { GitRepositoryService, parseWorktreeEntries } from './repository';
+import { GitRepoService, parseWorktreeEntries } from './repo';
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -43,7 +43,7 @@ interface DiffTarget {
     candidate: string;
     file: GitFileStatus;
     relativePath: string;
-    repository: GitRepositorySummary;
+    repository: GitRepoSummary;
 }
 
 export interface GitWorktreeTopology {
@@ -54,19 +54,25 @@ export { describeGitFailure } from './errors';
 
 const COMMIT_FORMAT = '%H%x00%an%x00%at%x00%P%x00%D%x00%s%x00';
 
-/** Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects. */
+/**
+Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects.
+ */
 function parseCommitLog(output: string): GitCommit[] {
     const fields = output.split('\0');
     const commits: GitCommit[] = [];
-    for (let index = 0; index < fields.length && fields[index];) {
-        const sha = fields[index++].replace(/^\n+/, '');
+    let index = 0;
+    while (index < fields.length) {
+        const rawSha = fields[index];
+        if (!rawSha) break;
+        const sha = rawSha.replace(/^\n+/, '');
+        index += 1;
         const author = fields[index++];
         const authoredAt = fields[index++];
         const parents = fields[index++] ?? '';
         const decorations = fields[index++] ?? '';
         const subject = fields[index++] ?? '';
         const terminator = fields[index++];
-        if (!/^[0-9a-f]{40}$/.test(sha) || !/^\d+$/.test(authoredAt) || terminator !== '')
+        if (terminator !== '' || !/^[0-9a-f]{40}$/.test(sha) || !/^\d+$/.test(authoredAt))
             throw new CaxriError('GIT', 'Git returned malformed commit history');
         commits.push({
             sha,
@@ -120,7 +126,7 @@ function parseCommitFiles(output: string): GitCommitFile[] {
 export class GitService {
     private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
     private readonly histories = new SingleFlight<string, GitCommitPage>();
-    private readonly repositoryService: GitRepositoryService;
+    private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;
     private readonly pullRequestService: GitPullRequestService;
 
@@ -128,44 +134,45 @@ export class GitService {
         private readonly paths: ProjectRootResolver,
         private readonly logger: StructuredLogger,
     ) {
-        this.repositoryService = new GitRepositoryService(this.paths, {
-            git: (cwd, args, options) => this.git(cwd, args, options),
+        this.repositoryService = new GitRepoService(this.paths, {
+            git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
         });
         this.pullRequestService = new GitPullRequestService({
-            git: (cwd, args, options) => this.git(cwd, args, options),
+            git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
             ghPullRequestView: (cwd) => this.ghPullRequestView(cwd),
-            resolveRepository: (sessionId, repositoryId) =>
-                this.resolveRepository(sessionId, repositoryId),
+            resolveRepository: (sessionId, repoId) => this.resolveRepository(sessionId, repoId),
         });
         this.blameService = new GitBlameService(this.paths, {
-            git: (cwd, args, options) => this.git(cwd, args, options),
+            git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
             summary: (sessionId) => this.summary(sessionId),
         });
     }
 
     private async git(
         cwd: string,
-        args: string[],
+        arguments_: string[],
         options: GitCommandOptions = {},
     ): Promise<string> {
         const startedAt = performance.now();
         return this.commands.run(async () => {
             try {
-                const execution = execFileAsync('git', args, {
+                const execution = execFileAsync('git', arguments_, {
                     cwd,
                     timeout: 10_000,
                     maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
                     env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
                 });
                 if (options.input !== undefined) {
-                    /** A fast Git failure may close stdin before the bounded batch is written. */
-                    execution.child.stdin?.on('error', () => undefined);
+                    /**
+                    A fast Git failure may close stdin before the bounded batch is written.
+                     */
+                    execution.child.stdin?.on('error', () => {});
                     execution.child.stdin?.end(options.input);
                 }
                 const { stdout } = await execution;
                 this.logger.write('info', 'git.command', {
                     durationMs: performance.now() - startedAt,
-                    fields: { operation: args[0] ?? 'unknown' },
+                    fields: { operation: arguments_[0] ?? 'unknown' },
                 });
                 return stdout;
             } catch (error) {
@@ -173,7 +180,7 @@ export class GitService {
                 this.logger.write('warn', 'git.command_failed', {
                     durationMs: performance.now() - startedAt,
                     fields: {
-                        operation: args[0] ?? 'unknown',
+                        operation: arguments_[0] ?? 'unknown',
                         error: errorMessage(error, 'unknown'),
                     },
                 });
@@ -182,7 +189,9 @@ export class GitService {
         });
     }
 
-    /** Reads GitHub PR metadata through fixed `gh` argv without granting the Renderer CLI access. */
+    /**
+    Reads GitHub PR metadata through fixed `gh` argv without granting the Renderer CLI access.
+     */
     private async ghPullRequestView(cwd: string): Promise<string> {
         const startedAt = performance.now();
         return this.commands.run(async () => {
@@ -225,73 +234,17 @@ export class GitService {
         });
     }
 
-    summary(sessionId: string): Promise<GitSummary> {
-        return this.repositoryService.summary(sessionId);
-    }
-
-    /**
-     * Returns the canonical linked-worktree topology for one known Project repository. This is an
-     * internal Runtime boundary: discovery does not imply authorization and never reaches Renderer.
-     */
-    async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
-        const root = await realpath(projectRoot);
-        const [commonDirectoryOutput, worktreeOutput] = await Promise.all([
-            this.git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
-            this.git(root, ['worktree', 'list', '--porcelain', '-z']),
-        ]);
-        const repositoryKey = await realpath(commonDirectoryOutput.trim());
-        const worktrees = (
-            await Promise.all(
-                parseWorktreeEntries(worktreeOutput).map(async (entry) => {
-                    try {
-                        const rootPath = await realpath(entry.rootPath);
-                        const stats = await lstat(rootPath);
-                        return stats.isDirectory() && !stats.isSymbolicLink()
-                            ? [{ ...entry, rootPath }]
-                            : [];
-                    } catch {
-                        return [];
-                    }
-                }),
-            )
-        ).flat();
-        return { repositoryKey, worktrees };
-    }
-
-    /** Returns ignored direct children using one NUL-delimited Git batch for the listed directory. */
-    async ignoredEntries(
-        sessionId: string,
-        directory: string,
-        names: readonly string[],
-    ): Promise<{ ignoredNames: ReadonlySet<string>; rulePaths: readonly string[] }> {
-        const repository = await this.repositoryService.resolveDirectory(sessionId, directory);
-        if (!repository) return { ignoredNames: new Set(), rulePaths: [] };
-        if (names.length === 0)
-            return { ignoredNames: new Set(), rulePaths: repository.ignoreRulePaths };
-        const output = await this.git(repository.directoryPath, ['check-ignore', '--stdin', '-z'], {
-            allowFailure: true,
-            input: `${names.join('\0')}\0`,
-        });
-        return {
-            ignoredNames: new Set(output.split('\0').filter(Boolean)),
-            rulePaths: repository.ignoreRulePaths,
-        };
-    }
-
-    private resolveRepository(
-        sessionId: string,
-        repositoryIdValue: string,
-    ): Promise<GitRepositorySummary> {
-        return this.repositoryService.resolveRepository(sessionId, repositoryIdValue);
+    private resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {
+        return this.repositoryService.resolveRepository(sessionId, repoIdValue);
     }
 
     private async listBranches(
-        repository: GitRepositorySummary,
+        repo: GitRepoSummary,
     ): Promise<Array<{ name: string; committedAt: number }>> {
         // Most recently committed branches first (GitLens-style recency); the earlier
         // `--sort=refname` is the tiebreaker — with multiple keys the last one is primary.
         // `%00` keeps the name/date split unambiguous: branch names cannot contain NUL.
-        const output = await this.git(repository.rootPath, [
+        const output = await this.git(repo.rootPath, [
             'for-each-ref',
             `--count=${MAX_LOCAL_BRANCHES}`,
             '--sort=refname',
@@ -304,58 +257,23 @@ export class GitService {
             .map((line) => line.trim())
             .filter(Boolean)
             .map((line) => {
-                const [name, committedAt] = line.split('\0');
+                const [name, committedAt] = line.split('\0', 2);
                 return { name, committedAt: Number(committedAt) * 1_000 };
             });
     }
 
-    async branches(
-        params: RuntimeMethodParams<'git.branches'>,
-    ): Promise<Array<{ name: string; committedAt: number }>> {
-        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
-        return this.listBranches(repository);
-    }
-
-    async switchBranch(params: RuntimeMethodParams<'git.switchBranch'>): Promise<null> {
-        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
-        const branches = await this.listBranches(repository);
-        if (!branches.some((candidate) => candidate.name === params.branch))
-            throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
-        if (repository.branch !== params.branch)
-            await this.git(repository.rootPath, ['switch', '--', params.branch]);
-        return null;
-    }
-
-    pullRequestChanges(params: RuntimeMethodParams<'git.pullRequestChanges'>) {
-        return this.pullRequestService.changes(params);
-    }
-
-    pullRequestDiffDocument(params: RuntimeMethodParams<'git.pullRequestDiffDocument'>) {
-        return this.pullRequestService.diffDocument(params);
-    }
-
-    /** Drops Pull Request file lists whose Session ownership was removed from persistence. */
-    evictPullRequestSessions(sessionIds: readonly string[]): void {
-        this.pullRequestService.evictSessions(sessionIds);
-    }
-
-    /** Releases retained Pull Request metadata at the Runtime lifecycle boundary. */
-    close(): void {
-        this.pullRequestService.clear();
-    }
-
     private async resolveHistoryPath(
-        repository: GitRepositorySummary,
+        repo: GitRepoSummary,
         input?: string,
     ): Promise<string | undefined> {
         if (!input || input === '.') return undefined;
-        const candidate = isAbsolute(input) ? input : resolve(repository.rootPath, input);
+        const candidate = isAbsolute(input) ? input : resolve(repo.rootPath, input);
         try {
             const stats = await lstat(candidate);
             if (stats.isSymbolicLink())
                 throw new CaxriError('PATH_DENIED', 'Git history path cannot be a symlink');
             const canonical = await realpath(candidate);
-            const relativePath = relative(repository.rootPath, canonical);
+            const relativePath = relative(repo.rootPath, canonical);
             assertInsideRoot(relativePath, 'Git history path is outside the selected repository');
             return relativePath || undefined;
         } catch (error) {
@@ -376,92 +294,27 @@ export class GitService {
         }
     }
 
-    commits(params: RuntimeMethodParams<'git.commits'>): Promise<GitCommitPage> {
-        return this.histories.run(JSON.stringify(params), async () => {
-            const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
-            if (!repository.head) return { commits: [] };
-            const path = await this.resolveHistoryPath(repository, params.path);
-            const args = [
-                'log',
-                '-z',
-                '--date-order',
-                '--full-history',
-                '--decorate=short',
-                `--skip=${params.offset}`,
-                `--max-count=${params.pageSize + 1}`,
-                `--format=${COMMIT_FORMAT}`,
-            ];
-            if (path) args.push('--', path);
-            const commits = parseCommitLog(await this.git(repository.rootPath, args));
-            const hasMore = commits.length > params.pageSize;
-            return {
-                commits: commits.slice(0, params.pageSize),
-                nextOffset: hasMore ? params.offset + params.pageSize : undefined,
-            };
-        });
-    }
-
-    async commitDetails(
-        params: RuntimeMethodParams<'git.commitDetails'>,
-    ): Promise<GitCommitDetails> {
-        const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
-        const [path, commitOutput] = await Promise.all([
-            this.resolveHistoryPath(repository, params.path),
-            this.git(repository.rootPath, [
-                'show',
-                '-s',
-                '-z',
-                '--decorate=short',
-                `--format=${COMMIT_FORMAT}`,
-                params.sha,
-            ]),
-        ]);
-        const commit = parseCommitLog(commitOutput)[0];
-        if (!commit) throw new CaxriError('NOT_FOUND', 'Git commit no longer exists');
-        const fileArguments = [
-            'diff-tree',
-            '--root',
-            '--first-parent',
-            '-m',
-            '--no-commit-id',
-            '--name-status',
-            '-r',
-            '-z',
-            '-M',
-            params.sha,
-        ];
-        if (path) fileArguments.push('--', path);
-        const files = parseCommitFiles(await this.git(repository.rootPath, fileArguments));
-        return {
-            commit,
-            files: files.slice(0, MAX_COMMIT_FILES),
-            filesTruncated: files.length > MAX_COMMIT_FILES,
-        };
-    }
-
-    blame(params: RuntimeMethodParams<'git.blame'>) {
-        return this.blameService.blame(params);
-    }
-
     private async resolveDiffTarget(
         sessionId: string,
-        repositoryIdValue: string,
+        repoIdValue: string,
         path: string,
     ): Promise<DiffTarget> {
-        const repository = await this.resolveRepository(sessionId, repositoryIdValue);
-        let candidate = isAbsolute(path) ? path : resolve(repository.rootPath, path);
+        const repo = await this.resolveRepository(sessionId, repoIdValue);
+        let candidate = isAbsolute(path) ? path : resolve(repo.rootPath, path);
         try {
             candidate = await realpath(candidate);
         } catch {
-            /** Deleted Git paths no longer resolve; the lexical path is revalidated below. */
+            /**
+            Deleted Git paths no longer resolve; the lexical path is revalidated below.
+             */
         }
-        const relativePath = relative(repository.rootPath, candidate);
-        const outsideRepository = 'Git path is outside the selected repository';
-        assertInsideRoot(relativePath, outsideRepository);
-        if (!relativePath) throw new CaxriError('PATH_DENIED', outsideRepository);
-        const file = repository.files.find((item) => item.path === relativePath);
+        const relativePath = relative(repo.rootPath, candidate);
+        const outsideRepo = 'Git path is outside the selected repository';
+        assertInsideRoot(relativePath, outsideRepo);
+        if (!relativePath) throw new CaxriError('PATH_DENIED', outsideRepo);
+        const file = repo.files.find((item) => item.path === relativePath);
         if (!file) throw new CaxriError('NOT_FOUND', 'Git change no longer exists');
-        return { candidate, file, relativePath, repository };
+        return { candidate, file, relativePath, repository: repo };
     }
 
     private async readWorkingTreeFile(path: string): Promise<string | undefined> {
@@ -480,7 +333,7 @@ export class GitService {
     }
 
     private async loadPatch(
-        repositoryRoot: string,
+        repoRoot: string,
         file: GitFileStatus,
         relativePath: string,
         extraArguments: readonly string[] = [],
@@ -489,7 +342,7 @@ export class GitService {
         if (![' ', '?'].includes(file.index)) {
             chunks.push(
                 await this.git(
-                    repositoryRoot,
+                    repoRoot,
                     [
                         'diff',
                         '--cached',
@@ -506,7 +359,7 @@ export class GitService {
         if (![' ', '?'].includes(file.workingTree)) {
             chunks.push(
                 await this.git(
-                    repositoryRoot,
+                    repoRoot,
                     ['diff', '--no-ext-diff', '--no-color', ...extraArguments, '--', relativePath],
                     { maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES },
                 ),
@@ -515,14 +368,177 @@ export class GitService {
         return chunks.filter(Boolean).join('\n');
     }
 
+    summary(sessionId: string): Promise<GitSummary> {
+        return this.repositoryService.summary(sessionId);
+    }
+
+    /**
+     * Returns the canonical linked-worktree topology for one known Project repository. This is an
+     * internal Runtime boundary: discovery does not imply authorization and never reaches Renderer.
+     */
+    async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
+        const root = await realpath(projectRoot);
+        const [commonDirectoryOutput, worktreeOutput] = await Promise.all([
+            this.git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
+            this.git(root, ['worktree', 'list', '--porcelain', '-z']),
+        ]);
+        const repoKey = await realpath(commonDirectoryOutput.trim());
+        const worktrees = (
+            await Promise.all(
+                parseWorktreeEntries(worktreeOutput).map(async (entry) => {
+                    try {
+                        const rootPath = await realpath(entry.rootPath);
+                        const stats = await lstat(rootPath);
+                        return stats.isDirectory() && !stats.isSymbolicLink()
+                            ? [{ ...entry, rootPath }]
+                            : [];
+                    } catch {
+                        return [];
+                    }
+                }),
+            )
+        ).flat();
+        return { repositoryKey: repoKey, worktrees };
+    }
+
+    /**
+    Returns ignored direct children using one NUL-delimited Git batch for the listed directory.
+     */
+    async ignoredEntries(
+        sessionId: string,
+        directory: string,
+        names: readonly string[],
+    ): Promise<{ ignoredNames: ReadonlySet<string>; rulePaths: readonly string[] }> {
+        const repo = await this.repositoryService.resolveDirectory(sessionId, directory);
+        if (!repo) return { ignoredNames: new Set(), rulePaths: [] };
+        if (names.length === 0) return { ignoredNames: new Set(), rulePaths: repo.ignoreRulePaths };
+        const output = await this.git(repo.directoryPath, ['check-ignore', '--stdin', '-z'], {
+            allowFailure: true,
+            input: `${names.join('\0')}\0`,
+        });
+        return {
+            ignoredNames: new Set(output.split('\0').filter(Boolean)),
+            rulePaths: repo.ignoreRulePaths,
+        };
+    }
+
+    async branches(
+        parameters: RuntimeMethodParameters<'git.branches'>,
+    ): Promise<Array<{ name: string; committedAt: number }>> {
+        const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
+        return this.listBranches(repo);
+    }
+
+    async switchBranch(parameters: RuntimeMethodParameters<'git.switchBranch'>): Promise<null> {
+        const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
+        const branches = await this.listBranches(repo);
+        if (branches.every((candidate) => candidate.name !== parameters.branch))
+            throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
+        if (repo.branch !== parameters.branch)
+            await this.git(repo.rootPath, ['switch', '--', parameters.branch]);
+        return null;
+    }
+
+    pullRequestChanges(parameters: RuntimeMethodParameters<'git.pullRequestChanges'>) {
+        return this.pullRequestService.changes(parameters);
+    }
+
+    pullRequestDiffDocument(parameters: RuntimeMethodParameters<'git.pullRequestDiffDocument'>) {
+        return this.pullRequestService.diffDocument(parameters);
+    }
+
+    /**
+    Drops Pull Request file lists whose Session ownership was removed from persistence.
+     */
+    evictPullRequestSessions(sessionIds: readonly string[]): void {
+        this.pullRequestService.evictSessions(sessionIds);
+    }
+
+    /**
+    Releases retained Pull Request metadata at the Runtime lifecycle boundary.
+     */
+    close(): void {
+        this.pullRequestService.clear();
+    }
+
+    commits(parameters: RuntimeMethodParameters<'git.commits'>): Promise<GitCommitPage> {
+        return this.histories.run(JSON.stringify(parameters), async () => {
+            const repo = await this.resolveRepository(
+                parameters.sessionId,
+                parameters.repositoryId,
+            );
+            if (!repo.head) return { commits: [] };
+            const path = await this.resolveHistoryPath(repo, parameters.path);
+            const arguments_ = [
+                'log',
+                '-z',
+                '--date-order',
+                '--full-history',
+                '--decorate=short',
+                `--skip=${parameters.offset}`,
+                `--max-count=${parameters.pageSize + 1}`,
+                `--format=${COMMIT_FORMAT}`,
+            ];
+            if (path) arguments_.push('--', path);
+            const commits = parseCommitLog(await this.git(repo.rootPath, arguments_));
+            const hasMore = commits.length > parameters.pageSize;
+            return {
+                commits: commits.slice(0, parameters.pageSize),
+                nextOffset: hasMore ? parameters.offset + parameters.pageSize : undefined,
+            };
+        });
+    }
+
+    async commitDetails(
+        parameters: RuntimeMethodParameters<'git.commitDetails'>,
+    ): Promise<GitCommitDetails> {
+        const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
+        const [path, commitOutput] = await Promise.all([
+            this.resolveHistoryPath(repo, parameters.path),
+            this.git(repo.rootPath, [
+                'show',
+                '-s',
+                '-z',
+                '--decorate=short',
+                `--format=${COMMIT_FORMAT}`,
+                parameters.sha,
+            ]),
+        ]);
+        const commit = parseCommitLog(commitOutput)[0];
+        if (!commit) throw new CaxriError('NOT_FOUND', 'Git commit no longer exists');
+        const fileArguments = [
+            'diff-tree',
+            '--root',
+            '--first-parent',
+            '-m',
+            '--no-commit-id',
+            '--name-status',
+            '-r',
+            '-z',
+            '-M',
+            parameters.sha,
+        ];
+        if (path) fileArguments.push('--', path);
+        const files = parseCommitFiles(await this.git(repo.rootPath, fileArguments));
+        return {
+            commit,
+            files: files.slice(0, MAX_COMMIT_FILES),
+            filesTruncated: files.length > MAX_COMMIT_FILES,
+        };
+    }
+
+    blame(parameters: RuntimeMethodParameters<'git.blame'>) {
+        return this.blameService.blame(parameters);
+    }
+
     async diffDocument(
         sessionId: string,
-        repositoryIdValue: string,
+        repoIdValue: string,
         path: string,
     ): Promise<GitDiffDocument> {
         const { candidate, file, relativePath, repository } = await this.resolveDiffTarget(
             sessionId,
-            repositoryIdValue,
+            repoIdValue,
             path,
         );
         const workingTreeContent = await this.readWorkingTreeFile(candidate);

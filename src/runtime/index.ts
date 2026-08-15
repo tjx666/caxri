@@ -1,34 +1,52 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
-import { createRuntime } from './bootstrap';
-/** Runtime domains expose public root barrels by architecture contract; deep imports are rejected
- * by `src/runtime/__tests__/structure.test.ts`. */
+/**
+ * Runtime domains expose public root barrels by architecture contract; deep imports are rejected
+ * by `src/runtime/__tests__/structure.test.ts`.
+ */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import {
     RuntimeAgentEndpointControlClient,
     RuntimeAgentEndpointLifecycle,
 } from './agent-endpoints';
-import { createDispatcher, type RuntimeRequestEnvelope } from './dispatch';
+import { createRuntime } from './bootstrap';
+import type { RuntimeRequestEnvelope } from './dispatch';
+import { createDispatcher } from './dispatch';
 import { createRuntimeParentPort } from './port';
 
 const bootStartedAt = performance.now();
-let runtimeLogger: StructuredLogger | undefined;
-const createBootstrapLogger = (): StructuredLogger | undefined => {
-    const bootstrapUserDataPath = process.env.CAXRI_USER_DATA_PATH;
-    const bootstrapLogDirectory =
-        process.env.CAXRI_LOG_DIRECTORY ??
-        (bootstrapUserDataPath ? join(bootstrapUserDataPath, 'logs') : undefined);
-    if (!bootstrapLogDirectory) return undefined;
-    return (runtimeLogger ??= new StructuredLogger(
-        bootstrapLogDirectory,
-        'runtime',
-        process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
-    ));
-};
+/**
+ * Memoizes the bootstrap Logger behind a closure instead of a top-level `let` so the module scope
+ * never gets mutated from inside a function; `getRuntimeLogger` exposes the memoized instance once
+ * created.
+ */
+function createLoggerFactory(): {
+    createBootstrapLogger: () => StructuredLogger | undefined;
+    getRuntimeLogger: () => StructuredLogger | undefined;
+} {
+    let runtimeLogger: StructuredLogger | undefined;
+    return {
+        createBootstrapLogger: () => {
+            const bootstrapUserDataPath = process.env.CAXRI_USER_DATA_PATH;
+            const bootstrapLogDirectory =
+                process.env.CAXRI_LOG_DIRECTORY ??
+                (bootstrapUserDataPath && join(bootstrapUserDataPath, 'logs'));
+            if (!bootstrapLogDirectory) return;
+            return (runtimeLogger ??= new StructuredLogger(
+                bootstrapLogDirectory,
+                'runtime',
+                process.env.CAXRI_LOG_LEVEL === 'info' ? 'info' : 'debug',
+            ));
+        },
+        getRuntimeLogger: () => runtimeLogger,
+    };
+}
+const { createBootstrapLogger, getRuntimeLogger } = createLoggerFactory();
 const processErrorMonitor = installProcessErrorMonitor({
     bootstrapWriter: createBootstrapLogger,
     processName: 'runtime',
@@ -40,7 +58,7 @@ const agentEndpointControl = new RuntimeAgentEndpointControlClient(parentPort);
 const agentEndpoints = new RuntimeAgentEndpointLifecycle(agentEndpointControl, userDataPath);
 
 await mkdir(userDataPath, { recursive: true });
-const logger = runtimeLogger ?? createBootstrapLogger();
+const logger = getRuntimeLogger() ?? createBootstrapLogger();
 if (!logger) throw new Error('CAXRI_LOG_DIRECTORY is required');
 processErrorMonitor.attach(logger);
 const runtime = await createRuntime({
@@ -52,21 +70,39 @@ const runtime = await createRuntime({
 });
 const dispatch = createDispatcher(runtime.handlers, logger);
 
-/** A Host crash closes Node IPC; the Runtime must not survive as an orphan SQLite/PTY owner. */
+/**
+ * A Host crash closes Node IPC; the Runtime must not survive as an orphan SQLite/PTY owner. This is
+ * a dedicated utility process, so exiting here is the intended clean-shutdown/orphan-recovery path,
+ * not the CLI misuse `unicorn/no-process-exit` normally guards against.
+ */
 const closeOrphanedRuntime = (): void => {
-    void runtime.close().finally(() => process.exit(0));
+    // `parentPort.onDisconnect` takes a synchronous callback, so this cannot become `await`; the
+    // `.catch()` only prevents an unhandled rejection, `finally` still exits either way.
+    runtime
+        .close()
+        // eslint-disable-next-line unicorn/prefer-await -- sync callback signature, see comment above
+        .catch(() => {})
+        // eslint-disable-next-line unicorn/prefer-await, unicorn/no-process-exit -- Runtime utility-process shutdown, see comment above
+        .finally(() => process.exit(0));
 };
 parentPort.onDisconnect?.(closeOrphanedRuntime);
 if (!parentPort.connected()) closeOrphanedRuntime();
 
 parentPort.onMessage((message) => {
     if (agentEndpointControl.handleMessage(message)) return;
-    void (async () => {
+    // `parentPort.onMessage` takes a synchronous callback, so this cannot become `await`; `dispatch`
+    // already converts every handler fault into a wire response and never rejects, so `.catch()`
+    // only prevents an unhandled-rejection warning for a truly unexpected failure.
+    (async () => {
         const envelope = message as RuntimeRequestEnvelope;
         parentPort.send(await dispatch(envelope));
-        /** Shutdown acknowledges before exiting so Main observes an ordered termination. */
+        /**
+        Shutdown acknowledges before exiting so Main observes an ordered termination.
+         */
+        // eslint-disable-next-line unicorn/no-process-exit -- Runtime utility-process shutdown, see comment above
         if (envelope.method === 'runtime.shutdown') setTimeout(() => process.exit(0), 10);
-    })();
+        // eslint-disable-next-line unicorn/prefer-await -- sync callback signature, see comment above
+    })().catch(() => {});
 });
 
 logger.write('info', 'runtime.ready', {

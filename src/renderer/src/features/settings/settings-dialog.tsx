@@ -1,7 +1,7 @@
-import { Braces, FileJson, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import type { AgentHookHealthMap, AgentSkillHealth, AppSettings, Keybinding } from '@shared/types';
+import { Braces, FileJson, SlidersHorizontal } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { Button } from '../../components/ui/button';
@@ -16,8 +16,9 @@ import { caxri } from '../../lib/caxri';
 import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
 import { describeFailure, pushToast } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
-import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS, type ConfigKind } from './config-edit';
-import { ConfigurationSourceView } from './configuration-source-view';
+import type { ConfigKind } from './config-edit';
+import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
+import { ConfigSourceView } from './config-source-view';
 import {
     appendKeybindingSource,
     removeKeybindingSource,
@@ -28,7 +29,12 @@ import { configReducer, initialConfigState, parseConfigSource } from './settings
 import { SettingsForm } from './settings-form';
 import { ThemeForm } from './theme-form';
 
-const onApplied = (): void => void refreshWorkbench();
+const onApplied = (): void => {
+    // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
+    // callers of this synchronous-looking wrapper never need to await the outcome.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void refreshWorkbench();
+};
 const onError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
 
@@ -40,7 +46,7 @@ const onError = (error: unknown, label: string): void =>
 const WRITE_DEBOUNCE_MS = 300;
 
 function useSettingsDialogController() {
-    const open = useDialogStore((state) => state.settingsOpen);
+    const isOpen = useDialogStore((state) => state.settingsOpen);
     const request = useDialogStore((state) => state.settingsRequest);
     const onOpenChange = setSettingsOpen;
     const [tab, setTab] = useState<ConfigKind>('settings');
@@ -55,9 +61,9 @@ function useSettingsDialogController() {
     // `commitSource`/`handleExternalChange` are stable callbacks (empty/narrow dep arrays) that
     // still need the latest reducer state; a ref synced in an effect (never during render) gives
     // them that without resubscribing the event listener on every dispatch.
-    const stateRef = useRef(state);
+    const stateReference = useRef(state);
     useEffect(() => {
-        stateRef.current = state;
+        stateReference.current = state;
     }, [state]);
 
     // Per-kind write coordination: `writeTimers` holds a pending debounced write, and
@@ -72,9 +78,10 @@ function useSettingsDialogController() {
 
     const persistNow = useCallback((kind: ConfigKind, source: string): void => {
         const timer = writeTimers.current[kind];
-        if (timer !== undefined) window.clearTimeout(timer);
+        if (timer !== undefined) clearTimeout(timer);
         delete writeTimers.current[kind];
         const generation = ++writeGeneration.current[kind];
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via onError
         void (async (): Promise<void> => {
             try {
                 if (kind === 'settings') {
@@ -111,8 +118,8 @@ function useSettingsDialogController() {
     const schedulePersist = useCallback(
         (kind: ConfigKind, source: string): void => {
             const timer = writeTimers.current[kind];
-            if (timer !== undefined) window.clearTimeout(timer);
-            writeTimers.current[kind] = window.setTimeout(
+            if (timer !== undefined) clearTimeout(timer);
+            writeTimers.current[kind] = setTimeout(
                 () => persistNow(kind, source),
                 WRITE_DEBOUNCE_MS,
             );
@@ -121,13 +128,15 @@ function useSettingsDialogController() {
     );
 
     const load = useCallback((): void => {
-        void Promise.all([
-            caxri.request('settings.get'),
-            caxri.request('keybindings.get'),
-            caxri.request('theme.get'),
-            caxri.request('agentHooks.get'),
-        ])
-            .then(([settingsResult, keybindingsResult, themeResult, hookHealth]) => {
+        async function loadConfig(): Promise<void> {
+            try {
+                const [settingsResult, keybindingsResult, themeResult, hookHealth] =
+                    await Promise.all([
+                        caxri.request('settings.get'),
+                        caxri.request('keybindings.get'),
+                        caxri.request('theme.get'),
+                        caxri.request('agentHooks.get'),
+                    ]);
                 dispatch({
                     type: 'loaded',
                     settings: { value: settingsResult.value, source: settingsResult.source },
@@ -140,15 +149,24 @@ function useSettingsDialogController() {
                 });
                 setAgentHookHealth(hookHealth);
                 setLoaded(true);
-            })
-            .catch((error: unknown) => onError(error, 'Unable to load configuration'));
+            } catch (error: unknown) {
+                onError(error, 'Unable to load configuration');
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadConfig();
     }, []);
 
     const loadAgentSkillHealth = useCallback((): void => {
-        void caxri
-            .request('agentSkills.get')
-            .then(setAgentSkillHealth)
-            .catch((error: unknown) => onError(error, 'Unable to inspect Caxri CLI skills'));
+        async function loadSkillHealth(): Promise<void> {
+            try {
+                setAgentSkillHealth(await caxri.request('agentSkills.get'));
+            } catch (error: unknown) {
+                onError(error, 'Unable to inspect Caxri CLI skills');
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadSkillHealth();
     }, []);
 
     const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
@@ -170,7 +188,7 @@ function useSettingsDialogController() {
     const commitSource = useCallback(
         (kind: ConfigKind): void => {
             if (kind === 'settings') {
-                const entry = stateRef.current.settings;
+                const entry = stateReference.current.settings;
                 const result = parseConfigSource('settings', entry.source);
                 if (!result.ok) {
                     setSourceError('settings', result.error);
@@ -182,7 +200,7 @@ function useSettingsDialogController() {
                 return;
             }
             if (kind === 'keybindings') {
-                const entry = stateRef.current.keybindings;
+                const entry = stateReference.current.keybindings;
                 const result = parseConfigSource('keybindings', entry.source);
                 if (!result.ok) {
                     setSourceError('keybindings', result.error);
@@ -193,7 +211,7 @@ function useSettingsDialogController() {
                 if (entry.source !== entry.appliedSource) persistNow('keybindings', entry.source);
                 return;
             }
-            const entry = stateRef.current.theme;
+            const entry = stateReference.current.theme;
             const result = parseConfigSource('theme', entry.source);
             if (!result.ok) {
                 setSourceError('theme', result.error);
@@ -215,12 +233,12 @@ function useSettingsDialogController() {
      */
     const handleExternalChange = useCallback(
         (kind: ConfigKind, payload: { source: string; error?: string }): void => {
-            const current = stateRef.current[kind];
+            const current = stateReference.current[kind];
             // Our own write's broadcast echoes back exactly the text we just persisted — skip the
             // redundant reparse/redispatch instead of treating it as a foreign change.
             if (payload.source === current.appliedSource) return;
             const timer = writeTimers.current[kind];
-            if (timer !== undefined) window.clearTimeout(timer);
+            if (timer !== undefined) clearTimeout(timer);
             delete writeTimers.current[kind];
             writeGeneration.current[kind] += 1;
             if (kind === 'settings') {
@@ -285,21 +303,23 @@ function useSettingsDialogController() {
     // state instead of re-reading from disk (external changes already stay in sync via the event
     // subscription above).
     useEffect(() => {
-        if (open && !loaded) load();
-    }, [load, open, loaded]);
+        if (isOpen && !loaded) load();
+    }, [load, isOpen, loaded]);
 
     // Provider skill files can change through the offline CLI while the app is running. Refresh on
     // every open instead of persisting derived filesystem health or showing the first read forever.
     useEffect(() => {
-        if (open) loadAgentSkillHealth();
-    }, [loadAgentSkillHealth, open]);
+        if (isOpen) loadAgentSkillHealth();
+    }, [loadAgentSkillHealth, isOpen]);
 
     useEffect(() => {
         if (!loaded || handledRequestId.current === request.id) return;
-        let cancelled = false;
-        /** Defer the local view transition and consume the request only after StrictMode cleanup. */
+        let isCancelled = false;
+        /**
+        Defer the local view transition and consume the request only after StrictMode cleanup.
+         */
         queueMicrotask(() => {
-            if (cancelled || handledRequestId.current === request.id) return;
+            if (isCancelled || handledRequestId.current === request.id) return;
             handledRequestId.current = request.id;
             if (view === 'source') commitSource(tab);
             if (request.view === 'source') {
@@ -320,7 +340,7 @@ function useSettingsDialogController() {
             setView('ui');
         });
         return () => {
-            cancelled = true;
+            isCancelled = true;
         };
     }, [commitSource, loaded, request.id, request.view, tab, view]);
 
@@ -431,7 +451,7 @@ function useSettingsDialogController() {
             // The importer writes theme.json directly: drop any pending debounced write and bump
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             const timer = writeTimers.current.theme;
-            if (timer !== undefined) window.clearTimeout(timer);
+            if (timer !== undefined) clearTimeout(timer);
             delete writeTimers.current.theme;
             writeGeneration.current.theme += 1;
             const result = await caxri.request('theme.get');
@@ -451,7 +471,7 @@ function useSettingsDialogController() {
         importTheme,
         keybindingsFocusRequestId: request.view === 'keybindings' ? request.id : undefined,
         onOpenChange,
-        open,
+        open: isOpen,
         removeBinding,
         showSource,
         showUi,
@@ -496,12 +516,12 @@ function SettingsDialogView({
     // outline draws around it, which reads as a stray box rather than an intentional
     // affordance. Focusing the popup container itself instead avoids that, while Tab
     // still moves focus into the dialog's controls normally.
-    const popupRef = useRef<HTMLDivElement>(null);
+    const popupReference = useRef<HTMLDivElement>(null);
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                ref={popupRef}
-                initialFocus={popupRef}
+                ref={popupReference}
+                initialFocus={popupReference}
                 className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden"
             >
                 <DialogHeader>
@@ -551,7 +571,7 @@ function SettingsDialogView({
                         state.settings.value &&
                         state.theme.value &&
                         (view === 'source' ? (
-                            <ConfigurationSourceView
+                            <ConfigSourceView
                                 error={sourceErrors.settings}
                                 kind="settings"
                                 source={state.settings.source}
@@ -579,7 +599,7 @@ function SettingsDialogView({
                     {tab === 'keybindings' &&
                         state.theme.value &&
                         (view === 'source' ? (
-                            <ConfigurationSourceView
+                            <ConfigSourceView
                                 error={sourceErrors.keybindings}
                                 kind="keybindings"
                                 source={state.keybindings.source}
@@ -607,7 +627,7 @@ function SettingsDialogView({
                     {tab === 'theme' &&
                         state.theme.value &&
                         (view === 'source' ? (
-                            <ConfigurationSourceView
+                            <ConfigSourceView
                                 error={sourceErrors.theme}
                                 kind="theme"
                                 source={state.theme.source}
@@ -619,7 +639,10 @@ function SettingsDialogView({
                             <ThemeForm
                                 theme={state.theme.value}
                                 onColorChange={updateThemeColor}
-                                onImport={() => void importTheme()}
+                                onImport={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
+                                    void importTheme();
+                                }}
                             />
                         ))}
                 </ChromeTabPanel>
@@ -627,7 +650,17 @@ function SettingsDialogView({
                 <footer className="dialog-actions flex justify-end gap-2 border-t border-border px-3 py-2">
                     <Button
                         variant="ghost"
-                        onClick={() => void caxri.request('app.openConfigFile', { kind: tab })}
+                        onClick={() => {
+                            async function openConfigFile(): Promise<void> {
+                                try {
+                                    await caxri.request('app.openConfigFile', { kind: tab });
+                                } catch (error: unknown) {
+                                    onError(error, 'Unable to open the config file');
+                                }
+                            }
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                            void openConfigFile();
+                        }}
                     >
                         <FileJson size={14} /> Open Config File
                     </Button>

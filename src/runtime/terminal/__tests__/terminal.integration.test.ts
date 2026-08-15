@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentLaunchSettings } from '../../../shared/agents';
+import { StructuredLogger } from '../../../shared/node/logger';
 import type { TerminalKind } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';
@@ -54,9 +54,9 @@ function createFakePty() {
 
 afterEach(async () => {
     vi.unstubAllEnvs();
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('TerminalManager', () => {
@@ -65,7 +65,7 @@ describe('TerminalManager', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
-        const spawned: ReturnType<typeof createFakePty>[] = [];
+        const spawned: Array<ReturnType<typeof createFakePty>> = [];
         const spawn = vi.fn<typeof spawnPty>(() => {
             const fake = createFakePty();
             spawned.push(fake);
@@ -75,7 +75,7 @@ describe('TerminalManager', () => {
         const retired = vi.fn();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 lifecycleEnvironment: () => ({
@@ -112,7 +112,7 @@ describe('TerminalManager', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
-        const spawned: ReturnType<typeof createFakePty>[] = [];
+        const spawned: Array<ReturnType<typeof createFakePty>> = [];
         const spawn = vi.fn<typeof spawnPty>(() => {
             const fake = createFakePty();
             spawned.push(fake);
@@ -120,7 +120,7 @@ describe('TerminalManager', () => {
         });
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 agentLaunchSettings: () => ({
@@ -174,7 +174,7 @@ describe('TerminalManager', () => {
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 agentLaunchSettings: () => ({
@@ -216,10 +216,8 @@ describe('TerminalManager', () => {
         const fake = createFakePty();
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
         let launch = { executable: '/old/codex', args: ['--old-profile'] };
-        let finishResolution: (() => void) | undefined;
-        const resolutionPending = new Promise<void>((resolve) => {
-            finishResolution = resolve;
-        });
+        const { promise: resolutionPending, resolve: finishResolution } =
+            Promise.withResolvers<void>();
         const resolveExecutable = vi.fn(
             async (_kind: TerminalKind, settings?: AgentLaunchSettings) => {
                 await resolutionPending;
@@ -229,7 +227,7 @@ describe('TerminalManager', () => {
         );
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
@@ -243,7 +241,7 @@ describe('TerminalManager', () => {
             const starting = manager.start(created.terminal!);
             await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledOnce());
             launch = { executable: '/new/codex', args: ['--new-profile'] };
-            finishResolution!();
+            finishResolution();
             await starting;
 
             expect(resolveExecutable).toHaveBeenCalledWith('codex', {
@@ -266,7 +264,7 @@ describe('TerminalManager', () => {
         const failed = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),
@@ -293,7 +291,7 @@ describe('TerminalManager', () => {
         const saveSnapshot = vi.spyOn(database, 'saveSnapshot');
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
@@ -340,7 +338,7 @@ describe('TerminalManager', () => {
         try {
             await manager.start(created.terminal!);
             await manager.attach(created.terminal!.id);
-            const image = '\x1b]1337;File=inline=1:PNG_SECRET\x07';
+            const image = '\u{1B}]1337;File=inline=1:PNG_SECRET\u{7}';
             fake.emitData(`before${image}after`);
             await vi.advanceTimersByTimeAsync(50);
 
@@ -365,14 +363,14 @@ describe('TerminalManager', () => {
             byteCount: 43,
             encodingVersion: 1,
             lineCount: 1,
-            payload: 'before\x1b]1337;File=inline=1:OLD_SECRET\x07after',
+            payload: 'before\u{1B}]1337;File=inline=1:OLD_SECRET\u{7}after',
             terminalId: created.terminal!.id,
             updatedAt: Date.now(),
         });
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
@@ -398,7 +396,7 @@ describe('TerminalManager', () => {
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => executable.promise,
@@ -409,7 +407,12 @@ describe('TerminalManager', () => {
         const starting = manager.start(created.terminal!);
         manager.close(created.terminal!.id);
         executable.resolve('/bin/zsh');
-        const result = await starting.catch((error: unknown) => error);
+        let result: unknown;
+        try {
+            result = await starting;
+        } catch (error) {
+            result = error;
+        }
 
         try {
             expect(result).toBeInstanceOf(Error);
@@ -430,7 +433,7 @@ describe('TerminalManager', () => {
         const spawn = vi.fn(() => createFakePty().process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => executable.promise, spawn },
         );
@@ -490,7 +493,7 @@ describe('TerminalManager', () => {
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
@@ -518,7 +521,7 @@ describe('TerminalManager', () => {
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
@@ -544,7 +547,7 @@ describe('TerminalManager', () => {
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
@@ -569,7 +572,7 @@ describe('TerminalManager', () => {
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
@@ -597,7 +600,7 @@ describe('TerminalManager', () => {
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
@@ -612,11 +615,14 @@ describe('TerminalManager', () => {
             shouldStart = false;
             manager.shutdown('orderly');
 
-            const completedBeforeTimeout = await Promise.race([
-                starting.then(() => true),
+            const isCompletedBeforeTimeout = await Promise.race([
+                (async () => {
+                    await starting;
+                    return true;
+                })(),
                 new Promise<false>((resolve) => setTimeout(() => resolve(false), 20)),
             ]);
-            expect(completedBeforeTimeout).toBe(true);
+            expect(isCompletedBeforeTimeout).toBe(true);
             expect(spawn).not.toHaveBeenCalled();
         } finally {
             shouldStart = false;
@@ -633,7 +639,7 @@ describe('TerminalManager', () => {
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
@@ -648,11 +654,14 @@ describe('TerminalManager', () => {
             await new Promise((resolve) => setTimeout(resolve, 0));
             cancellation.abort();
 
-            const completedBeforeTimeout = await Promise.race([
-                starting.then(() => true),
+            const isCompletedBeforeTimeout = await Promise.race([
+                (async () => {
+                    await starting;
+                    return true;
+                })(),
                 new Promise<false>((resolve) => setTimeout(() => resolve(false), 20)),
             ]);
-            expect(completedBeforeTimeout).toBe(true);
+            expect(isCompletedBeforeTimeout).toBe(true);
             expect(spawn).not.toHaveBeenCalled();
         } finally {
             cancellation.abort();
@@ -697,7 +706,7 @@ describe('TerminalManager', () => {
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
@@ -756,7 +765,7 @@ describe('TerminalManager', () => {
         const fake = createFakePty();
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),
@@ -768,8 +777,8 @@ describe('TerminalManager', () => {
         await manager.start(created.terminal!);
         await manager.attach(created.terminal!.id);
         manager.detachView(created.terminal!.id);
-        fake.emitData('\u001B[2J\u001B[HRETAINED_HEADER');
-        const cursorUpdate = '\u001B[2;1Hprogress';
+        fake.emitData('\u{1B}[2J\u{1B}[HRETAINED_HEADER');
+        const cursorUpdate = '\u{1B}[2;1Hprogress';
         fake.emitData(
             cursorUpdate.repeat(Math.ceil((maximumSnapshotBytes + 65_536) / cursorUpdate.length)),
         );

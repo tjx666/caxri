@@ -21,24 +21,24 @@ import {
  */
 export function FileConflictDialog() {
     const request = useFileConflictDialogStore((state) => state.request);
-    const contentRef = useRef<HTMLDivElement>(null);
-    const open = Boolean(request);
+    const contentReference = useRef<HTMLDivElement>(null);
+    const isOpen = Boolean(request);
 
     return (
         <Dialog
-            open={open}
+            open={isOpen}
             onOpenChange={(nextOpen) => {
                 if (!nextOpen) resolveFileConflictChoice('cancel');
             }}
         >
             {request && (
                 <DialogContent
-                    ref={contentRef}
+                    ref={contentReference}
                     className="file-conflict-dialog"
                     // Cancel is the safe default action, so it — not Base UI's default first
                     // tabbable element (Keep Both) — receives initial focus.
                     initialFocus={() =>
-                        contentRef.current?.querySelector<HTMLButtonElement>(
+                        contentReference.current?.querySelector<HTMLButtonElement>(
                             '[data-conflict-cancel]',
                         ) ?? null
                     }

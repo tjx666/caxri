@@ -1,4 +1,5 @@
-import { errorMessage, isCaxriError, type MethodResult } from '@shared/ipc';
+import type { MethodResult } from '@shared/ipc';
+import { errorMessage, isCaxriError } from '@shared/ipc';
 import type { FileEntry, MutableFileEntry } from '@shared/types';
 
 import { caxri } from '../../../../lib/caxri';
@@ -16,30 +17,39 @@ import {
     openFile,
 } from '../../../editor/document-actions';
 import { createTerminal } from '../../../terminal/terminal-actions';
-import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog-store';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
+import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog-store';
 import {
     clearFailureToastSuppression,
+    didFileMutationReconcile,
     reconcileFileMutation,
     suppressFailureToast,
-    waitForFileMutationReconciliation,
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
 
-/** Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`). */
+/**
+Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`).
+ */
 function pathBasename(path: string): string {
     return path.slice(path.lastIndexOf('/') + 1);
 }
 
-/** Looks up one entry's kind from its directory listing; undefined when not found or unreadable. */
+/**
+Looks up one entry's kind from its directory listing; undefined when not found or unreadable.
+ */
 async function entryKind(
     sessionId: string,
     directory: string,
     name: string,
 ): Promise<FileEntry['kind'] | undefined> {
-    const entries = await caxri.request('files.list', { sessionId, directory }).catch(() => []);
+    let entries: FileEntry[];
+    try {
+        entries = await caxri.request('files.list', { sessionId, directory });
+    } catch {
+        entries = [];
+    }
     return entries.find((entry) => entry.name === name)?.kind;
 }
 
@@ -90,7 +100,7 @@ async function runDurableFileMutation<Value>(options: {
     id: string;
     label: string;
     projectId: string;
-    propagateFailure?: boolean;
+    shouldPropagateFailure?: boolean;
     run: () => Promise<Value>;
 }): Promise<Value | undefined> {
     const store = useFileOperationStore.getState();
@@ -110,18 +120,23 @@ async function runDurableFileMutation<Value>(options: {
             operationId: options.id,
         });
         if (operation) await reconcileFileMutation(operation);
-        else if (!(await waitForFileMutationReconciliation(options.id))) {
+        else if (!(await didFileMutationReconcile(options.id))) {
             useFileOperationStore.getState().finish(options.id);
             pushToast('error', 'File operation recovery is temporarily unavailable');
         }
         return result;
     } catch (error) {
         if (isCaxriError(error) && error.code === 'TIMEOUT') {
-            const operation = await caxri
-                .request('files.operation.cancel', { operationId: options.id })
-                .catch(() => null);
+            let operation: MethodResult<'files.operation.cancel'> | null;
+            try {
+                operation = await caxri.request('files.operation.cancel', {
+                    operationId: options.id,
+                });
+            } catch {
+                operation = null;
+            }
             if (!operation) {
-                if (!(await waitForFileMutationReconciliation(options.id)))
+                if (!(await didFileMutationReconcile(options.id)))
                     pushToast('error', 'File operation recovery is temporarily unavailable');
                 return undefined;
             }
@@ -131,31 +146,36 @@ async function runDurableFileMutation<Value>(options: {
                 return undefined;
             }
             await reconcileFileMutation(operation);
-            if (options.propagateFailure)
+            if (options.shouldPropagateFailure)
                 throw new Error(operation.error?.message ?? options.errorLabel, { cause: error });
             return undefined;
         }
-        const operation = await caxri
-            .request('files.operation.get', { operationId: options.id })
-            .catch(() => null);
+        let operation: MethodResult<'files.operation.get'> | null;
+        try {
+            operation = await caxri.request('files.operation.get', { operationId: options.id });
+        } catch {
+            operation = null;
+        }
         if (operation?.phase === 'staged') {
             await reconcileFileMutation(operation);
             pushToast('info', 'File change is still finishing safely in the background');
             return undefined;
         }
-        if (operation)
-            await reconcileFileMutation(operation).catch(() => {
+        if (operation) {
+            try {
+                await reconcileFileMutation(operation);
+            } catch {
                 pushToast('error', 'File operation recovery is temporarily unavailable');
-            });
-        else if (await waitForFileMutationReconciliation(options.id)) {
-            if (options.propagateFailure) throw error;
+            }
+        } else if (await didFileMutationReconcile(options.id)) {
+            if (options.shouldPropagateFailure) throw error;
             return undefined;
         } else {
             useFileOperationStore.getState().finish(options.id);
-            if (!options.propagateFailure)
+            if (!options.shouldPropagateFailure)
                 pushToast('error', errorMessage(error, options.errorLabel));
         }
-        if (options.propagateFailure) throw error;
+        if (options.shouldPropagateFailure) throw error;
         return undefined;
     }
 }
@@ -174,7 +194,7 @@ export async function createItem(
         id: operationId,
         label: 'Creating item…',
         projectId,
-        propagateFailure: true,
+        shouldPropagateFailure: true,
         run: () =>
             caxri.request('files.create', {
                 operationId,
@@ -185,7 +205,11 @@ export async function createItem(
             }),
     });
     if (!created) return undefined;
-    if (kind === 'file' && getSelectedSession()?.id === sessionId) void openFile(created.path);
+    if (kind === 'file' && getSelectedSession()?.id === sessionId) {
+        // openFile funnels its own failures into a toast via tryCommand, nothing to await here.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void openFile(created.path);
+    }
     return created;
 }
 
@@ -223,7 +247,7 @@ export async function renameFile(
         id: operationId,
         label: 'Renaming item…',
         projectId,
-        propagateFailure: true,
+        shouldPropagateFailure: true,
         run: () => caxri.request('files.rename', { operationId, sessionId, path, name }),
     });
 }
@@ -239,7 +263,7 @@ function attemptMove(
     path: string,
     directory: string,
     conflict: 'reject' | 'rename' | 'replace',
-    propagateFailure: boolean,
+    shouldPropagateFailure: boolean,
     operationId: string = crypto.randomUUID(),
 ): Promise<MethodResult<'files.move'> | undefined> {
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
@@ -249,7 +273,7 @@ function attemptMove(
         id: operationId,
         label: 'Moving item…',
         projectId,
-        propagateFailure,
+        shouldPropagateFailure,
         run: () =>
             caxri.request('files.move', {
                 operationId,
@@ -268,7 +292,7 @@ function attemptMove(
  *
  * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining
  * whatever that attempt fails with. It generates that attempt's operation id itself, registers it
- * with `suppressFailureToast` before calling `attemptMove` (`propagateFailure: true` makes the
+ * with `suppressFailureToast` before calling `attemptMove` (`shouldPropagateFailure: true` makes the
  * rejection reach this `catch` instead of `runDurableFileMutation`'s own error-toast path), and
  * always clears the registration in `finally` via `clearFailureToastSuppression` — on success, on a
  * `CONFLICT`, on any other failure, and even if the failed operation never makes it back through
@@ -336,9 +360,12 @@ export async function moveFile(
  * after staging still reconciles to whatever Runtime finished with instead of pretending it stopped.
  */
 export async function cancelFileOperation(operationId: string): Promise<void> {
-    const operation = await caxri
-        .request('files.operation.cancel', { operationId })
-        .catch(() => null);
+    let operation: MethodResult<'files.operation.cancel'> | null;
+    try {
+        operation = await caxri.request('files.operation.cancel', { operationId });
+    } catch {
+        operation = null;
+    }
     if (!operation) {
         pushToast('error', 'Unable to cancel item operation');
         return;
@@ -399,7 +426,7 @@ export function copyFilePath(path: string, projectRoot?: string): Promise<void |
     });
 }
 
-export async function trashFile(sessionId: string, path: string): Promise<boolean> {
+export async function didTrashFile(sessionId: string, path: string): Promise<boolean> {
     /**
      * Checked before the request so Main's confirmation copy can stop promising full
      * recoverability: Trash can only restore the last bytes written to disk, never an unsaved

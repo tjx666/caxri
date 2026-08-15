@@ -1,15 +1,16 @@
+import { Buffer } from 'node:buffer';
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AgentActivityState } from '../../../../shared/types';
 import { mapWithConcurrency } from '../../../../shared/node/concurrency';
-import {
-    canonicalPath,
-    type AgentEnvironment,
-    type AgentProviderDescriptor,
-    type AgentSnapshotContext,
-    type LocalAgentState,
+import type { AgentActivityState } from '../../../../shared/types';
+import type {
+    AgentEnvironment,
+    AgentProviderDescriptor,
+    AgentSnapshotContext,
+    LocalAgentState,
 } from '../../contract';
+import { canonicalPath } from '../../contract';
 import { claudeHookAdapter } from './hooks';
 
 interface ClaudeSessionMetadata {
@@ -56,7 +57,9 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
     return undefined;
 }
 
-/** Reads only Claude Code's compact live-session metadata, never project transcripts. */
+/**
+Reads only Claude Code's compact live-session metadata, never project transcripts.
+ */
 async function readClaudeState(
     context: AgentSnapshotContext,
     configDirectory: string,
@@ -65,7 +68,8 @@ async function readClaudeState(
     let names: string[];
     try {
         names = [];
-        for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const entries = await readdir(directory, { withFileTypes: true });
+        for (const entry of entries) {
             if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
             names.push(entry.name);
             if (names.length === MAX_CLAUDE_METADATA_FILES) break;
@@ -74,57 +78,60 @@ async function readClaudeState(
         return undefined;
     }
     const requestedRoot = await canonicalPath(context.rootPath);
-    const excludedSessionIds = new Set(context.excludedAgentSessionIds ?? []);
+    const excludedSessionIds = new Set(context.excludedAgentSessionIds);
     const matches = await mapWithConcurrency(names, MAX_CONCURRENT_CLAUDE_READS, async (name) => {
         try {
             const metadata = await readMetadata(join(directory, name));
-            if (!metadata) return undefined;
-            if (typeof metadata.cwd !== 'string') return undefined;
-            if ((await canonicalPath(metadata.cwd)) !== requestedRoot) return undefined;
-            if (context.agentSessionId && metadata.sessionId !== context.agentSessionId)
-                return undefined;
+            if (!metadata) return;
+            if (typeof metadata.cwd !== 'string') return;
+            if ((await canonicalPath(metadata.cwd)) !== requestedRoot) return;
+            if (context.agentSessionId && metadata.sessionId !== context.agentSessionId) return;
             if (
                 !context.agentSessionId &&
                 typeof metadata.sessionId === 'string' &&
                 excludedSessionIds.has(metadata.sessionId)
             ) {
-                return undefined;
+                return;
             }
             if (
                 !context.agentSessionId &&
                 context.startedAt &&
                 sessionStartedAt(metadata) < context.startedAt
             ) {
-                return undefined;
+                return;
             }
             return metadata;
         } catch {
-            return undefined;
+            return;
         }
     });
     let latest: ClaudeSessionMetadata | undefined;
     for (const metadata of matches) {
         if (!metadata) continue;
-        const preferred =
+        const isPreferred =
             !context.agentSessionId && context.startedAt
                 ? sessionStartedAt(metadata) < sessionStartedAt(latest ?? {})
                 : timestamp(metadata.updatedAt) > timestamp(latest?.updatedAt);
-        if (!latest || preferred) latest = metadata;
+        if (!latest || isPreferred) latest = metadata;
     }
     if (!latest) return undefined;
-    /** A resumed process can briefly expose the previous turn's terminal status. Keep its identity
-     *  and title, but do not publish attention until Claude updates metadata in this generation. */
-    const statusIsCurrentGeneration =
+    /**
+     * A resumed process can briefly expose the previous turn's terminal status. Keep its identity
+     *  and title, but do not publish attention until Claude updates metadata in this generation.
+     */
+    const isStatusIsCurrentGeneration =
         !context.startedAt || timestamp(latest.updatedAt) >= context.startedAt;
     return {
         sessionId: typeof latest.sessionId === 'string' ? latest.sessionId : undefined,
-        status: statusIsCurrentGeneration ? claudeStatus(latest.status) : undefined,
+        status: isStatusIsCurrentGeneration ? claudeStatus(latest.status) : undefined,
         title:
             typeof latest.name === 'string' && latest.name.trim() ? latest.name.trim() : undefined,
     };
 }
 
-/** Resolves Claude Code's config directory from generic environment inputs, honoring its override var. */
+/**
+Resolves Claude Code's config directory from generic environment inputs, honoring its override var.
+ */
 function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
     return environment.variables.CLAUDE_CONFIG_DIR || join(environment.homeDirectory, '.claude');
 }

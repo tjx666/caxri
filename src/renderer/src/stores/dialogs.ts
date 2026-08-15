@@ -10,9 +10,13 @@ interface DialogState {
     pathBrowserOpen: boolean;
     bugReportOpen: boolean;
     bugReportRequestId: number;
-    /** Directory granted by the native picker, awaiting the default-Agent choice. */
+    /**
+    Directory granted by the native picker, awaiting the default-Agent choice.
+     */
     pendingRoot?: string;
-    /** Existing Project awaiting the default-Agent choice for a new Session. */
+    /**
+    Existing Project awaiting the default-Agent choice for a new Session.
+     */
     pendingProjectId?: string;
     /**
      * IDs of currently mounted-and-open modals, registered by `useModalRegistration`
@@ -26,21 +30,27 @@ interface DialogState {
      * double-invoked effects idempotent.
      */
     openModalIds: Set<string>;
-    setArchivedSessionsOpen(open: boolean): void;
+    setArchivedSessionsOpen(isOpen: boolean): void;
     openSettings(view?: SettingsView): void;
-    setSettingsOpen(open: boolean): void;
-    setPaletteOpen(open: boolean): void;
-    setPathBrowserOpen(open: boolean): void;
+    setSettingsOpen(isOpen: boolean): void;
+    setPaletteOpen(isOpen: boolean): void;
+    setPathBrowserOpen(isOpen: boolean): void;
     openBugReport(): void;
-    setBugReportOpen(open: boolean): void;
+    setBugReportOpen(isOpen: boolean): void;
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
-    /** Registers an open modal's id; called by `useModalRegistration` on open/mount. */
+    /**
+    Registers an open modal's id; called by `useModalRegistration` on open/mount.
+     */
     registerModal(id: string): void;
-    /** Unregisters a modal's id; called by `useModalRegistration` on close/unmount. */
+    /**
+    Unregisters a modal's id; called by `useModalRegistration` on close/unmount.
+     */
     unregisterModal(id: string): void;
-    /** True while any modal owns the keyboard, so app-wide shortcuts must stand down. */
+    /**
+    True while any modal owns the keyboard, so app-wide shortcuts must stand down.
+     */
     isModalOpen(): boolean;
 }
 
@@ -92,14 +102,14 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     },
 }));
 
-export const setSettingsOpen = (open: boolean): void =>
-    useDialogStore.getState().setSettingsOpen(open);
-export const setArchivedSessionsOpen = (open: boolean): void =>
-    useDialogStore.getState().setArchivedSessionsOpen(open);
-export const setPaletteOpen = (open: boolean): void =>
-    useDialogStore.getState().setPaletteOpen(open);
-export const setPathBrowserOpen = (open: boolean): void =>
-    useDialogStore.getState().setPathBrowserOpen(open);
-export const setBugReportOpen = (open: boolean): void =>
-    useDialogStore.getState().setBugReportOpen(open);
+export const setSettingsOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setSettingsOpen(isOpen);
+export const setArchivedSessionsOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setArchivedSessionsOpen(isOpen);
+export const setPaletteOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setPaletteOpen(isOpen);
+export const setPathBrowserOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setPathBrowserOpen(isOpen);
+export const setBugReportOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setBugReportOpen(isOpen);
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();

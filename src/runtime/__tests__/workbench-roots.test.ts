@@ -14,9 +14,9 @@ import { WorkbenchRootService } from '../workbench-roots';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 async function fixture(
@@ -44,7 +44,9 @@ async function fixture(
     const service = new WorkbenchRootService({
         behavior: () => behavior,
         database,
-        emit: (event) => events.push(event),
+        emit: (event) => {
+            events.push(event);
+        },
         git: { worktreeTopology } as unknown as GitService,
         logger: new StructuredLogger(join(directory, 'logs')),
         ...options,
@@ -176,6 +178,7 @@ describe('WorkbenchRootService topology attribution', () => {
         const context = await fixture();
         for (let index = 0; index < 40; index += 1) {
             const rootPath = join(context.directory, `owner-${index}`);
+            // eslint-disable-next-line no-await-in-loop -- Project creation order determines recency, which this test asserts on; concurrent creation would make ordering nondeterministic.
             await mkdir(rootPath);
             const created = context.database.createSession(
                 context.database.createProject(rootPath).id,
@@ -229,12 +232,13 @@ describe('WorkbenchRootService topology attribution', () => {
         context.service.primeAll();
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         const closing = context.service.close();
-        let closed = false;
+        let isClosed = false;
+        // eslint-disable-next-line no-void -- intentionally not awaited here: the test observes `isClosed` before `closing` settles, which requires the tracking callback to run in the background.
         void closing.then(() => {
-            closed = true;
+            isClosed = true;
         });
         await Promise.resolve();
-        expect(closed).toBe(false);
+        expect(isClosed).toBe(false);
 
         pending.resolve(context.getTopology());
         await closing;

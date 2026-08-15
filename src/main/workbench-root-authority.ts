@@ -1,16 +1,20 @@
 import { realpath } from 'node:fs/promises';
 
-import { dialog, type BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
+import { dialog } from 'electron';
 
-import type { MainRequest } from '../shared/ipc/methods';
 import { CaxriError } from '../shared/ipc/errors';
+import type { MainRequest } from '../shared/ipc/methods';
 import type { DesktopHostConnection } from './host-connection';
 import type { ProjectRootGrants } from './root-grants';
 
-type ContinueParams = Extract<MainRequest, { method: 'session.continueInWorktree' }>['params'];
-type AuthorizeParams = Extract<MainRequest, { method: 'session.authorizeWorkbenchRoot' }>['params'];
-type CreateProjectParams = Extract<MainRequest, { method: 'project.create' }>['params'];
-type CancelProjectParams = Extract<MainRequest, { method: 'project.cancelCreate' }>['params'];
+type ContinueParameters = Extract<MainRequest, { method: 'session.continueInWorktree' }>['params'];
+type AuthorizeParameters = Extract<
+    MainRequest,
+    { method: 'session.authorizeWorkbenchRoot' }
+>['params'];
+type CreateProjectParameters = Extract<MainRequest, { method: 'project.create' }>['params'];
+type CancelProjectParameters = Extract<MainRequest, { method: 'project.cancelCreate' }>['params'];
 
 interface WorkbenchRootAuthorityOptions {
     getHost(): DesktopHostConnection;
@@ -43,23 +47,25 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 properties: ['openDirectory', 'createDirectory'],
             });
             const path = result.filePaths[0];
-            if (!result.canceled && path) options.grants.grant(path);
-            /** A dismissed or empty selection must resolve to null, never to an absent value. */
+            if (path && !result.canceled) options.grants.grant(path);
+            /**
+            A dismissed or empty selection must resolve to null, never to an absent value.
+             */
             return result.canceled ? null : (path ?? null);
         },
 
-        createProject(params: CreateProjectParams) {
-            return options.grants.use(params.rootPath, () =>
-                options.getHost().request('project.create', params),
+        createProject(parameters: CreateProjectParameters) {
+            return options.grants.use(parameters.rootPath, () =>
+                options.getHost().request('project.create', parameters),
             );
         },
 
-        cancelProjectCreate(params: CancelProjectParams) {
-            options.grants.revoke(params.rootPath);
+        cancelProjectCreate(parameters: CancelProjectParameters) {
+            options.grants.revoke(parameters.rootPath);
             return null;
         },
 
-        async authorizeSelection(params: AuthorizeParams) {
+        async authorizeSelection(parameters: AuthorizeParameters) {
             const testRoot = options.nextTestRoot();
             const result = testRoot
                 ? { canceled: false, filePaths: [testRoot] }
@@ -68,13 +74,13 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                       properties: ['openDirectory'],
                   });
             const selectedPath = result.filePaths[0];
-            if (result.canceled || !selectedPath) return { canceled: true as const };
+            if (!selectedPath || result.canceled) return { canceled: true as const };
             const canonicalRoot = await realpath(selectedPath);
             options.grants.grant(canonicalRoot);
             try {
                 return await options.grants.use(canonicalRoot, () =>
                     options.getHost().request('session.workbenchRoot.authorizeSelection', {
-                        sessionId: params.sessionId,
+                        sessionId: parameters.sessionId,
                         rootPath: canonicalRoot,
                     }),
                 );
@@ -84,8 +90,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             }
         },
 
-        async continueInWorktree(params: ContinueParams) {
-            const { candidateId, sessionId } = params;
+        async continueInWorktree(parameters: ContinueParameters) {
+            const { candidateId, sessionId } = parameters;
             const host = options.getHost();
             const candidate = await host.request('session.workbenchCandidate.claim', {
                 candidateId,
@@ -106,7 +112,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                           properties: ['openDirectory'],
                       });
                 const selectedPath = result.filePaths[0];
-                if (result.canceled || !selectedPath) return { canceled: true as const };
+                if (!selectedPath || result.canceled) return { canceled: true as const };
                 const [expectedRoot, selectedRoot] = await Promise.all([
                     realpath(candidate.rootPath),
                     realpath(selectedPath),
@@ -130,9 +136,14 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                     throw error;
                 }
             } finally {
-                await host
-                    .request('session.workbenchCandidate.cancel', { candidateId, sessionId })
-                    .catch(() => undefined);
+                try {
+                    await host.request('session.workbenchCandidate.cancel', {
+                        candidateId,
+                        sessionId,
+                    });
+                } catch {
+                    // Best-effort cleanup; the outer try already owns the result or error.
+                }
             }
         },
     };

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,8 +17,10 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
+    const directoriesToRemove = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
@@ -184,13 +187,9 @@ describe('UpdateService', () => {
     it('coalesces concurrent checks into one GitHub request', async () => {
         const directory = await temporaryDirectory();
         const dmg = new TextEncoder().encode('dmg fixture');
-        let resolveResponse!: (response: Response) => void;
-        const fetch = vi.fn(
-            () =>
-                new Promise<Response>((resolve) => {
-                    resolveResponse = resolve;
-                }),
-        );
+        const { promise: pendingResponse, resolve: resolveResponse } =
+            Promise.withResolvers<Response>();
+        const fetch = vi.fn(() => pendingResponse);
         const service = new UpdateService({
             currentVersion: '0.0.3',
             downloadDirectory: directory,

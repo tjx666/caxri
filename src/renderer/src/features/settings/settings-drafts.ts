@@ -1,10 +1,11 @@
-import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
-
-import { keybindingsFileSchema, settingsFileSchema } from '@shared/configuration';
+import { keybindingsFileSchema, settingsFileSchema } from '@shared/config';
 import { themeTokensSchema } from '@shared/ipc/domain';
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
+import type { ParseError } from 'jsonc-parser';
+import { parse, printParseErrorCode } from 'jsonc-parser';
 
-import { CONFIG_FILE_NAMES, type ConfigKind } from './config-edit';
+import type { ConfigKind } from './config-edit';
+import { CONFIG_FILE_NAMES } from './config-edit';
 
 export interface ConfigState {
     settings: { value: AppSettings | undefined; source: string; appliedSource: string };
@@ -200,7 +201,9 @@ function parseJsonc(source: string): { ok: true; value: unknown } | { ok: false;
     };
 }
 
-/** Parses one in-memory draft without rewriting its comments or formatting. */
+/**
+Parses one in-memory draft without rewriting its comments or formatting.
+ */
 export function parseConfigSource<Kind extends ConfigKind>(
     kind: Kind,
     source: string,

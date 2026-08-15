@@ -1,6 +1,8 @@
 import type { DragEvent } from 'react';
 
-/** Custom MIME type carrying the dragged entry's absolute path between file-tree rows. */
+/**
+Custom MIME type carrying the dragged entry's absolute path between file-tree rows.
+ */
 export const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
 
 export function dragPath(event: DragEvent): string | undefined {

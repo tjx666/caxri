@@ -1,11 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 
-import { HostClient, discoverHostManifest } from '@caxri/cli';
+import { discoverHostManifest, HostClient } from '@caxri/cli';
 
-import { expect, test } from './support/fixtures.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     createShellSession,
@@ -60,11 +62,11 @@ test('direct Agent Endpoint is scoped, grantable, private, and fenced on restart
         userDataDir: userData,
         providers: {
             codex: {
-                executableSource: `#!${process.execPath}
+                executableSource: String.raw`#!${process.execPath}
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 if (process.argv.includes('--version')) {
-  process.stdout.write('codex-test 1.0\\n');
+  process.stdout.write('codex-test 1.0\n');
   process.exit(0);
 }
 const invocation = spawnSync(process.execPath, [${JSON.stringify(cliPath)}, 'agent-context', '--json'], {
@@ -80,8 +82,8 @@ fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({
     generation: Number(process.env.CAXRI_AGENT_ENDPOINT_GENERATION),
     token: process.env.CAXRI_AGENT_ENDPOINT_TOKEN,
   },
-}) + '\\n');
-process.stdout.write('Agent Endpoint ' + context.status + ' generation ' + context.endpoint.ref.generation + '\\r\\n');
+}) + '\n');
+process.stdout.write('Agent Endpoint ' + context.status + ' generation ' + context.endpoint.ref.generation + '\r\n');
 process.stdin.resume();
 `,
             },
@@ -149,7 +151,11 @@ process.stdin.resume();
             expect(snapshot.payload).not.toContain(token);
         }
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -164,15 +170,15 @@ test('Shell-promoted Agent has no managed Endpoint credential', async () => {
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: `#!/bin/zsh
+                executableSource: String.raw`#!/bin/zsh
 if [ "$1" = "--version" ]; then
-  printf 'claude-test 1.0\\n'
+  printf 'claude-test 1.0\n'
   exit 0
 fi
 "${process.execPath}" ${JSON.stringify(cliPath)} agent-context --json
 now_ms="$(date +%s)999"
-printf '{"cwd":${JSON.stringify(root)},"name":"Shell Claude","sessionId":"shell-agent","startedAt":%s,"updatedAt":%s,"status":"busy"}\\n' "$now_ms" "$now_ms" > "$CLAUDE_CONFIG_DIR/sessions/current.json"
-exec -a claude /bin/zsh -c 'while :; do printf "shell-agent-tick\\n"; sleep 1; done'
+printf '{"cwd":${JSON.stringify(root)},"name":"Shell Claude","sessionId":"shell-agent","startedAt":%s,"updatedAt":%s,"status":"busy"}\n' "$now_ms" "$now_ms" > "$CLAUDE_CONFIG_DIR/sessions/current.json"
+exec -a claude /bin/zsh -c 'while :; do printf "shell-agent-tick\n"; sleep 1; done'
 `,
             },
         },
@@ -200,7 +206,11 @@ exec -a claude /bin/zsh -c 'while :; do printf "shell-agent-tick\\n"; sleep 1; d
             })
             .toBe('claude');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

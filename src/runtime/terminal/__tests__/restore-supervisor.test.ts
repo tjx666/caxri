@@ -60,15 +60,15 @@ describe('TerminalRestoreSupervisor', () => {
         );
         await staleWaveStarted.promise;
 
-        let currentStarted = false;
+        let isCurrentStarted = false;
         const currentSession = supervisor.restore('session-b', [
             () => {
-                currentStarted = true;
+                isCurrentStarted = true;
                 return Promise.resolve(true);
             },
         ]);
 
-        await vi.waitFor(() => expect(currentStarted).toBe(true));
+        await vi.waitFor(() => expect(isCurrentStarted).toBe(true));
         expect(await staleSession).toEqual([false, false, false, false]);
         expect(await currentSession).toEqual([true]);
     });

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 const skillDirectory = join(dirname(fileURLToPath(import.meta.url)), '..');
 const skillsDirectory = join(skillDirectory, '..');
-const repositoryRoot = join(skillsDirectory, '..', '..');
+const repoRoot = join(skillsDirectory, '..', '..');
 const unitSkill = readFileSync(join(skillsDirectory, 'unit-testing', 'SKILL.md'), 'utf8');
 const e2eSkill = readFileSync(join(skillDirectory, 'SKILL.md'), 'utf8');
 
@@ -46,7 +46,7 @@ describe('testing skill routing', () => {
         expect(existsSync(join(skillsDirectory, 'unit-test'))).toBe(false);
         const legacyPath = ['.agents', 'skills', 'test', 'SKILL.md'].join('/');
         const legacyInvocation = ['$', 'test'].join('');
-        for (const path of contractFiles(repositoryRoot)) {
+        for (const path of contractFiles(repoRoot)) {
             const source = readFileSync(path, 'utf8');
             expect(source, path).not.toContain(legacyPath);
             expect(source, path).not.toContain('.agents/skills/unit-test/');

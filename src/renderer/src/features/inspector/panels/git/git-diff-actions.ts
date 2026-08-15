@@ -7,18 +7,18 @@ import {
 
 import { openEditorTab } from '../../../editor/document-actions';
 
-export function openGitFileDiff(repositoryId: string, path: string): void {
-    openEditorTab(gitFileDiffTabPath(repositoryId, path));
+export function openGitFileDiff(repoId: string, path: string): void {
+    openEditorTab(gitFileDiffTabPath(repoId, path));
 }
 
-export function openGitChangesDiff(repositoryId: string, repositoryName: string): void {
-    openEditorTab(gitChangesDiffTabPath(repositoryId, repositoryName));
+export function openGitChangesDiff(repoId: string, repoName: string): void {
+    openEditorTab(gitChangesDiffTabPath(repoId, repoName));
 }
 
-export function openPullRequestFileDiff(repositoryId: string, path: string): void {
-    openEditorTab(gitPullRequestFileDiffTabPath(repositoryId, path));
+export function openPullRequestFileDiff(repoId: string, path: string): void {
+    openEditorTab(gitPullRequestFileDiffTabPath(repoId, path));
 }
 
-export function openPullRequestChangesDiff(repositoryId: string, repositoryName: string): void {
-    openEditorTab(gitPullRequestChangesDiffTabPath(repositoryId, repositoryName));
+export function openPullRequestChangesDiff(repoId: string, repoName: string): void {
+    openEditorTab(gitPullRequestChangesDiffTabPath(repoId, repoName));
 }

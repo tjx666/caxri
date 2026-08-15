@@ -65,5 +65,6 @@ export function assertE2EErrorPolicy(
         unexpected.size > 0 ? `Unexpected E2E errors: ${formatCounts(unexpected)}` : undefined,
         missing.size > 0 ? `Missing E2E errors: ${formatCounts(missing)}` : undefined,
     ].filter(Boolean);
-    if (failures.length > 0) throw new Error(failures.join('\n'));
+    if (failures.length > 0)
+        throw new Error(failures.join('\n') || 'Unexpected E2E error-count mismatch');
 }

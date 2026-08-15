@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import type { IPty, spawn as spawnPty } from 'node-pty';
@@ -26,7 +27,7 @@ function createFakePty(): IPty {
 }
 
 function pendingAgentAdapters(): Record<'claude' | 'codex', AgentAdapter> {
-    const pending = new Promise<never>(() => undefined);
+    const pending = new Promise<never>(() => {});
     return {
         claude: { provider: 'claude', snapshot: () => pending },
         codex: { provider: 'codex', snapshot: () => pending },
@@ -34,9 +35,9 @@ function pendingAgentAdapters(): Record<'claude' | 'codex', AgentAdapter> {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime Agent hook integration', () => {
@@ -56,7 +57,7 @@ describe('Runtime Agent hook integration', () => {
             agentHooksPath: join(directory, 'shared-hooks'),
             logger: new StructuredLogger(join(directory, 'logs')),
             runtimeExecutable: process.execPath,
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),
                 spawn,

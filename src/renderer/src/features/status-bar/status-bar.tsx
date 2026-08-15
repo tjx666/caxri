@@ -1,3 +1,12 @@
+import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
+
+import { parseGitDiffTab } from '@shared/git-diff';
+import type { InspectorCommandId } from '@shared/inspector';
+import type { CaxriMethod } from '@shared/ipc';
+import type { BootstrapState } from '@shared/types';
+import { useQueryClient } from '@tanstack/react-query';
+import type { LucideIcon } from 'lucide-react';
 import {
     Braces,
     Cast,
@@ -13,15 +22,7 @@ import {
     Monitor,
     Pause,
     Workflow,
-    type LucideIcon,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-
-import { parseGitDiffTab } from '@shared/git-diff';
-import type { InspectorCommandId } from '@shared/inspector';
-import type { CaxriMethod } from '@shared/ipc';
-import type { BootstrapState } from '@shared/types';
 
 import { executeCommand } from '../../commands/execute';
 import {
@@ -33,12 +34,12 @@ import {
 } from '../../components/ui/select';
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { sessionViewScope, useActiveWork } from '../../stores/session-view';
-import { useWorkbenchStore } from '../../stores/workbench';
 import { tryCommand } from '../../stores/toasts';
+import { useWorkbenchStore } from '../../stores/workbench';
 import {
     editorLanguageLabel,
     editorStatusKey,
@@ -51,7 +52,9 @@ import {
     useTerminalProgress,
 } from '../terminal/terminal-progress';
 
-/** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
+/**
+No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
+ */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 const AUTHORIZE_WORKBENCH_ROOT_VALUE = '__authorize_workbench_root__';
 
@@ -85,8 +88,8 @@ function relativeTime(timestamp: number): string {
 function useDebouncedValue<T>(value: T, delayMs: number): T {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
-        const timer = window.setTimeout(() => setDebounced(value), delayMs);
-        return () => window.clearTimeout(timer);
+        const timer = setTimeout(() => setDebounced(value), delayMs);
+        return () => clearTimeout(timer);
     }, [delayMs, value]);
     return debounced;
 }
@@ -278,7 +281,9 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
 const DEGRADED_STATES: Partial<
     Record<RuntimeStatus, { label: string; detail: string; className: string }>
 > = {
-    /** No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip. */
+    /**
+    No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
+     */
     failed: {
         label: 'Backend stopped',
         detail: "Caxri's backend process stopped unexpectedly. Recovery is offered in the native Relaunch dialog.",
@@ -293,7 +298,9 @@ const DEGRADED_STATES: Partial<
     },
 };
 
-/** Same hover-tooltip contract as {@link StatusInfo}, for the clickable status-bar entries. */
+/**
+Same hover-tooltip contract as {@link StatusInfo}, for the clickable status-bar entries.
+ */
 function StatusItem({
     ariaLabel,
     children,
@@ -362,8 +369,8 @@ const SCREENCAST_CHIP_LABEL =
     'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
 
 function ScreencastModeChip() {
-    const enabled = useScreencastStore((state) => state.enabled);
-    if (!enabled) return null;
+    const isEnabled = useScreencastStore((state) => state.enabled);
+    if (!isEnabled) return null;
     return (
         <StatusItem
             icon={Cast}
@@ -399,7 +406,7 @@ function useProjectOverview(sessionId: string | undefined) {
     const overview = sessionId ? overviewQuery.data : undefined;
     if (!overview?.repository) return overview;
     const primary = gitSummaryQuery.data?.isRepository
-        ? gitSummaryQuery.data.repositories.find((repository) => repository.kind === 'primary')
+        ? gitSummaryQuery.data.repositories.find((repo) => repo.kind === 'primary')
         : undefined;
     if (!primary) return overview;
     return {
@@ -468,12 +475,13 @@ function BranchPicker({
             if (result === undefined) return;
             await queryClient.invalidateQueries({
                 predicate: (query) => {
-                    const [method, params] = query.queryKey as [
+                    const [method, parameters] = query.queryKey as [
                         CaxriMethod,
                         { sessionId?: string } | undefined,
                     ];
                     return (
-                        BRANCH_SWITCH_DEPENDENCIES.has(method) && params?.sessionId === sessionId
+                        BRANCH_SWITCH_DEPENDENCIES.has(method) &&
+                        parameters?.sessionId === sessionId
                     );
                 },
             });
@@ -488,7 +496,10 @@ function BranchPicker({
             open={open}
             disabled={switching}
             onOpenChange={setOpen}
-            onValueChange={(value) => void switchBranch(value)}
+            onValueChange={(value) => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
+                void switchBranch(value);
+            }}
         >
             <SelectTrigger
                 showIcon={false}
@@ -573,7 +584,10 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
             open={open}
             disabled={switching}
             onOpenChange={setOpen}
-            onValueChange={(value) => void switchRoot(value)}
+            onValueChange={(value) => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, switchRoot() reports its own errors via tryCommand
+                void switchRoot(value);
+            }}
         >
             <SelectTrigger
                 showIcon={false}
@@ -585,10 +599,12 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
                 )}
             >
                 <FolderGit2 size={13} />
-                {/** The trigger shows only the root's title: the adjacent BranchPicker already
+                {/**
+                 * The trigger shows only the root's title: the adjacent BranchPicker already
                  *  renders the same branch, so repeating it here made the status bar read
                  *  "title · branch · branch". The dropdown items keep "title · branch" because
-                 *  the branch is what tells parallel worktree roots apart. */}
+                 *  the branch is what tells parallel worktree roots apart.
+                 */}
                 <SelectValue>{current.displayTitle}</SelectValue>
             </SelectTrigger>
             <SelectContent className="min-w-56 max-w-96">
@@ -622,7 +638,7 @@ export function StatusBar() {
     const workbenchProject = useSelectedWorkbenchProject();
     const sessionId = session?.id;
     const overview = useProjectOverview(sessionId);
-    const repository = overview?.repository;
+    const repo = overview?.repository;
     const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = runtimeStatus ? DEGRADED_STATES[runtimeStatus] : undefined;
     const activeWork = useActiveWork();
@@ -636,9 +652,11 @@ export function StatusBar() {
             data-runtime-status={runtimeStatus ?? 'starting'}
         >
             <div className="statusbar-context min-w-0 flex-1 flex items-center gap-0.5 overflow-hidden">
-                {/** With a Session selected, the WorkbenchRootPicker below already names the same
+                {/**
+                 * With a Session selected, the WorkbenchRootPicker below already names the same
                  *  root (and its tooltip shows the same rootPath), so a separate project chip
-                 *  would print the title twice; the chip only covers the no-Session state. */}
+                 *  would print the title twice; the chip only covers the no-Session state.
+                 */}
                 {workbenchProject && !sessionId && (
                     <StatusItem
                         icon={Monitor}
@@ -654,34 +672,32 @@ export function StatusBar() {
                         No Project selected
                     </span>
                 )}
-                {sessionId && (
-                    <WorkbenchRootPicker branch={repository?.branch} sessionId={sessionId} />
-                )}
-                {repository && sessionId && (
+                {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
+                {repo && sessionId && (
                     <BranchPicker
-                        branch={repository.branch}
-                        repositoryId={repository.id}
+                        branch={repo.branch}
+                        repositoryId={repo.id}
                         sessionId={sessionId}
                     />
                 )}
-                {repository?.pullRequest && (
+                {repo?.pullRequest && (
                     <StatusItem
                         icon={GitPullRequest}
-                        href={repository.pullRequest.url}
-                        ariaLabel={`Open pull request #${repository.pullRequest.number}`}
-                        title={repository.pullRequest.title}
+                        href={repo.pullRequest.url}
+                        ariaLabel={`Open pull request #${repo.pullRequest.number}`}
+                        title={repo.pullRequest.title}
                     >
-                        #{repository.pullRequest.number}
+                        #{repo.pullRequest.number}
                     </StatusItem>
                 )}
-                {repository && (
+                {repo && (
                     <StatusItem
                         icon={FileDiff}
-                        ariaLabel={`Open changes: ${repository.additions} ${repository.additions === 1 ? 'addition' : 'additions'}, ${repository.deletions} ${repository.deletions === 1 ? 'deletion' : 'deletions'}`}
+                        ariaLabel={`Open changes: ${repo.additions} ${repo.additions === 1 ? 'addition' : 'additions'}, ${repo.deletions} ${repo.deletions === 1 ? 'deletion' : 'deletions'}`}
                         title="Show primary repository changes"
                         onClick={() => showInspector('inspector.showGit')}
                     >
-                        +{repository.additions} -{repository.deletions}
+                        +{repo.additions} -{repo.deletions}
                     </StatusItem>
                 )}
             </div>

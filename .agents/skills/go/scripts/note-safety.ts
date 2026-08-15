@@ -8,13 +8,13 @@ export interface SafeNoteText {
     truncated: boolean;
 }
 
-export function sanitizeNoteText(value: string, truncate = false): SafeNoteText {
+export function sanitizeNoteText(value: string, shouldTruncate = false): SafeNoteText {
     const trimmed = value.trim();
     if (!trimmed) throw new Error('Note text is required');
-    if (!truncate && trimmed.length > MAX_NOTE_TEXT_CHARACTERS) {
+    if (!shouldTruncate && trimmed.length > MAX_NOTE_TEXT_CHARACTERS) {
         throw new Error(`Note text exceeds ${MAX_NOTE_TEXT_CHARACTERS} characters`);
     }
-    const bounded = truncate ? trimmed.slice(0, MAX_NOTE_TEXT_CHARACTERS) : trimmed;
+    const bounded = shouldTruncate ? trimmed.slice(0, MAX_NOTE_TEXT_CHARACTERS) : trimmed;
     const text = redactSecretText(bounded);
     return {
         redacted: text !== bounded,

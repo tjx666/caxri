@@ -3,9 +3,11 @@ import { once } from 'node:events';
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { DesktopLeaseHandle } from './desktop-lease';
 import {
     acquireDesktopLease,
     assertDesktopLeasesReleased,
@@ -14,15 +16,14 @@ import {
     reclaimDesktopLeasesByOwner,
     releaseDesktopLease,
     transferDesktopLease,
-    type DesktopLeaseHandle,
 } from './desktop-lease';
 import { runCapture } from './process';
-import { writeJsonAtomic } from './repository';
+import { writeJsonAtomic } from './repo';
 
 const temporaryDirectories: string[] = [];
 const activeLeases: DesktopLeaseHandle[] = [];
 
-async function createRepository(): Promise<string> {
+async function createRepo(): Promise<string> {
     const temporary = await mkdtemp(join(tmpdir(), 'caxri-desktop-namespace-'));
     temporaryDirectories.push(temporary);
     const root = join(temporary, 'repository');
@@ -37,17 +38,23 @@ async function createRepository(): Promise<string> {
 }
 
 afterEach(async () => {
-    for (const lease of activeLeases.splice(0).reverse()) await releaseDesktopLease(lease);
+    const leasesToRelease = activeLeases.toReversed();
+    activeLeases.length = 0;
+    // Leases must release in reverse acquisition order: releasing a coordinator
+    // while its worker leases are still held throws, so this loop cannot run in parallel.
+    // eslint-disable-next-line no-await-in-loop -- sequential LIFO release order is required
+    for (const lease of leasesToRelease) await releaseDesktopLease(lease);
+
+    const directoriesToRemove = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories
-            .splice(0)
-            .map((directory) => rm(directory, { recursive: true, force: true })),
+        directoriesToRemove.map((directory) => rm(directory, { recursive: true, force: true })),
     );
 });
 
 describe('desktop lease worker namespaces', () => {
     it('persists a CI owner and reclaims only its verified-dead leases', async () => {
-        const root = await createRepository();
+        const root = await createRepo();
         const previousOwner = process.env.CAXRI_DESKTOP_LEASE_OWNER;
         process.env.CAXRI_DESKTOP_LEASE_OWNER = 'caxri-42-1-control';
         try {
@@ -69,7 +76,7 @@ describe('desktop lease worker namespaces', () => {
     });
 
     it('isolates namespaced leases under one repository-wide coordinator', async () => {
-        const root = await createRepository();
+        const root = await createRepo();
         const coordinator = await acquireDesktopLease(root, 'repository desktop');
         activeLeases.push(coordinator);
         const first = await acquireDesktopLease(root, 'parallel worker 0', process.pid, {
@@ -93,7 +100,7 @@ describe('desktop lease worker namespaces', () => {
     });
 
     it('reclaims a dead worker namespace without disturbing its coordinator', async () => {
-        const root = await createRepository();
+        const root = await createRepo();
         const coordinator = await acquireDesktopLease(root, 'parallel pool coordinator');
         activeLeases.push(coordinator);
         const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
@@ -124,7 +131,7 @@ describe('desktop lease worker namespaces', () => {
     });
 
     it('refuses to release a coordinator while a worker child still owns the desktop', async () => {
-        const root = await createRepository();
+        const root = await createRepo();
         const coordinator = await acquireDesktopLease(root, 'parallel pool coordinator');
         activeLeases.push(coordinator);
         const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
@@ -148,7 +155,7 @@ describe('desktop lease worker namespaces', () => {
     });
 
     it('reclaims dead worker leases before a new repository-wide owner starts', async () => {
-        const root = await createRepository();
+        const root = await createRepo();
         const coordinator = await acquireDesktopLease(root, 'old coordinator');
         const worker = await acquireDesktopLease(root, 'old worker', process.pid, {
             coordinatorToken: coordinator.token,

@@ -12,10 +12,12 @@ function createTerminalHost() {
     let nextLine = 10;
     const terminal = {
         parser: {
-            registerOscHandler: vi.fn((protocol: number, handler: (data: string) => boolean) => {
-                handlers.set(protocol, handler);
-                return { dispose: () => handlers.delete(protocol) };
-            }),
+            registerOscHandler: vi.fn(
+                (protocol: number, canHandleOscData: (data: string) => boolean) => {
+                    handlers.set(protocol, canHandleOscData);
+                    return { dispose: () => handlers.delete(protocol) };
+                },
+            ),
         },
         registerDecoration: vi.fn(({ marker }: { marker: IMarker }) => {
             const classNames = new Set<string>();
@@ -101,8 +103,13 @@ describe('TerminalCommandTracker', () => {
         const host = createTerminalHost();
         const tracker = new TerminalCommandTracker(host.terminal, colors, vi.fn());
         for (const status of [0, 1, 0]) {
+            // Each OSC event mutates shared tracker state and must be observed in this exact
+            // prompt -> command -> finish order, so the awaits cannot be parallelized.
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
             await host.handlers.get(133)?.('A');
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
             await host.handlers.get(133)?.('C');
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
             await host.handlers.get(133)?.(`D;${status}`);
         }
 
@@ -146,8 +153,13 @@ describe('TerminalCommandTracker', () => {
         const tracker = new TerminalCommandTracker(host.terminal, colors, publish);
 
         for (let command = 0; command < 1_001; command += 1) {
+            // Each OSC event mutates shared tracker state and must be observed in this exact
+            // prompt -> command -> finish order, so the awaits cannot be parallelized.
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
             await host.handlers.get(133)?.('A');
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
             await host.handlers.get(133)?.('C');
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
             await host.handlers.get(133)?.('D;0');
         }
 

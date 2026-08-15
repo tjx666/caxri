@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 import { describe, expect, it } from 'vitest';
 
 import { captureCommand } from '../command-runner';
@@ -23,11 +25,16 @@ describe('bounded Go command runner', () => {
 
     it('does not copy raw stderr into bounded failure evidence', async () => {
         const secret = 'token=private-command-value';
-        const failure = await captureCommand(
-            process.execPath,
-            ['-e', `process.stderr.write(${JSON.stringify(secret)}); process.exit(7)`],
-            { maxOutputBytes: 1024 },
-        ).catch((error: unknown) => error);
+        let failure: unknown;
+        try {
+            await captureCommand(
+                process.execPath,
+                ['-e', `process.stderr.write(${JSON.stringify(secret)}); process.exit(7)`],
+                { maxOutputBytes: 1024 },
+            );
+        } catch (error: unknown) {
+            failure = error;
+        }
 
         expect(failure).toBeInstanceOf(Error);
         expect((failure as Error).message).toContain('exited 7');

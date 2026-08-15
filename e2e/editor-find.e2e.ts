@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -76,7 +75,11 @@ test('editor Find controls remain stable and close on the first click', async ()
         await findWidget.getByRole('button', { name: /^Close \(Escape\)$/ }).click();
         await expect(findWidget).toHaveAttribute('aria-hidden', 'true');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -1,11 +1,12 @@
-import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import type { ReactElement, ReactNode } from 'react';
 
-import { getCommandDefinition, type CommandId } from '@shared/commands';
+import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
+import type { CommandId } from '@shared/commands';
+import { getCommandDefinition } from '@shared/commands';
 
-import { ShortcutBadge } from '../shortcut-badge';
 import { useCommandShortcut } from '../../lib/keybindings';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
+import { ShortcutBadge } from '../shortcut-badge';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
     return (

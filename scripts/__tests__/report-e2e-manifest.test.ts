@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatE2EManifestMetric, summarizeE2EReceipts } from '../report-e2e-manifest';
-import { createE2EPoolReceipt, type E2EPoolReceipt } from '../reporters/e2e-receipt-reporter';
+import type { E2EPoolReceipt } from '../reporters/e2e-receipt-reporter';
+import { createE2EPoolReceipt } from '../reporters/e2e-receipt-reporter';
 
 function receipt(pool: string, id: string, status: 'failed' | 'passed' = 'passed'): E2EPoolReceipt {
     return createE2EPoolReceipt({

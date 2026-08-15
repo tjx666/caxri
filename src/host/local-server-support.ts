@@ -18,7 +18,9 @@ import type { CommandReplyEnvelope } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
-/** Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic. */
+/**
+Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic.
+ */
 export const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
 export const DESKTOP_LEASE_MS = 60_000;
@@ -30,7 +32,7 @@ export function fileSystemCode(error: unknown): string | undefined {
         : undefined;
 }
 
-export function tokenMatches(candidate: string, expected: string): boolean {
+export function isTokenMatch(candidate: string, expected: string): boolean {
     const candidateDigest = createHash('sha256').update(candidate).digest();
     const expectedDigest = createHash('sha256').update(expected).digest();
     return timingSafeEqual(candidateDigest, expectedDigest);
@@ -55,7 +57,9 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'terminals.read',
             'terminals.steer',
         ],
-        /** The authenticated profile is the retry identity across short-lived CLI connections. */
+        /**
+        The authenticated profile is the retry identity across short-lived CLI connections.
+         */
         principal: { kind: 'human-cli', id: `human-cli:${profileId}` },
     };
 }
@@ -116,7 +120,9 @@ export interface LocalHostServerOptions {
     }): CommandExecutionContext;
     consumeDesktopTarget?(targetId: string, generation: number): Promise<DesktopTargetPayload>;
     desktopCredential: HostDesktopCredential;
-    /** Test seam for exercising lease expiry without a minute-long integration test. */
+    /**
+    Test seam for exercising lease expiry without a minute-long integration test.
+     */
     desktopLeaseDurationMs?: number;
     invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
     manifest: HostManifest;

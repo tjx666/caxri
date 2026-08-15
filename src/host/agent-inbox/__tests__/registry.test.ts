@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentMessageBodySchema } from '../../../shared/ipc/agent-inbox-contract';
-import type { AgentEndpointBeginParams } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
+import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { AgentMessageReceipt } from '../../../shared/ipc/agent-inbox-contract';
+import { agentMessageBodySchema } from '../../../shared/ipc/agent-inbox-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { AgentInboxRegistry, decideInboundStatus } from '..';
 import { MAX_RECEIPTS } from '../rules';
@@ -26,12 +26,14 @@ function setup() {
     });
     const receiptEvents: AgentMessageReceipt[] = [];
     const inbox = new AgentInboxRegistry(endpoints, {
-        emitReceipt: (_endpoint, receipt) => receiptEvents.push(receipt),
+        emitReceipt: (_endpoint, receipt) => {
+            receiptEvents.push(receipt);
+        },
         id: () => `message-${nextId++}`,
         now: () => now,
     });
 
-    function begin(overrides: Partial<AgentEndpointBeginParams> = {}) {
+    function begin(overrides: Partial<AgentEndpointBeginParameters> = {}) {
         const index = issuedTokens.length;
         const result = endpoints.begin({
             terminalId: `terminal-${index + 1}`,
@@ -78,7 +80,7 @@ function sendInput(to: { hostId: string; endpointId: string; generation: number 
 describe('AgentInboxRegistry', () => {
     it('rejects oversized and protocol-control message bodies', () => {
         expect(agentMessageBodySchema.safeParse('plain\npeer text').success).toBe(true);
-        expect(agentMessageBodySchema.safeParse(`/approve\u001b[2J`).success).toBe(false);
+        expect(agentMessageBodySchema.safeParse(`/approve\u{1B}[2J`).success).toBe(false);
         expect(agentMessageBodySchema.safeParse('x'.repeat(16 * 1024 + 1)).success).toBe(false);
     });
 

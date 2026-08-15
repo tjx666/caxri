@@ -1,21 +1,27 @@
 import { z } from 'zod';
 
-import { agentEndpointRefSchema, agentEndpointSummarySchema } from './agent-endpoint-contract.js';
 import { identifierSchema } from '../domain/domain.js';
-import { commandPolicy, type MethodSpec } from '../transport/method-spec.js';
+import type { MethodSpec } from '../transport/method-spec.js';
+import { commandPolicy } from '../transport/method-spec.js';
+import {
+    agentEndpointRefSchema as agentEndpointReferenceSchema,
+    agentEndpointSummarySchema,
+} from './agent-endpoint-contract.js';
 
 export const MAX_AGENT_MESSAGE_BYTES = 16 * 1024;
 export const AGENT_MESSAGE_APPROVAL_TTL_MS = 5 * 60 * 1_000;
 
-function containsProtocolControlCharacter(value: string): boolean {
+function hasProtocolControlCharacter(value: string): boolean {
     for (const character of value) {
         const code = character.codePointAt(0)!;
-        if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127) return true;
+        if (code === 127 || (code !== 9 && code !== 10 && code !== 13 && code < 32)) return true;
     }
     return false;
 }
 
-/** Peer Inbox V1 is text-only: it cannot encode commands, attachments, or opaque task payloads. */
+/**
+Peer Inbox V1 is text-only: it cannot encode commands, attachments, or opaque task payloads.
+ */
 export const agentMessageBodySchema = z
     .string()
     .min(1)
@@ -24,7 +30,7 @@ export const agentMessageBodySchema = z
         `Message body exceeds ${MAX_AGENT_MESSAGE_BYTES} UTF-8 bytes`,
     )
     .refine(
-        (value) => !containsProtocolControlCharacter(value),
+        (value) => !hasProtocolControlCharacter(value),
         'Message body contains protocol control characters',
     );
 
@@ -43,14 +49,16 @@ export const agentHeldRetentionSchema = z.enum(['approval-window', 'endpoint']);
 
 export const agentMessageReceiptSchema = z.strictObject({
     messageId: identifierSchema,
-    from: agentEndpointRefSchema,
-    to: agentEndpointRefSchema,
+    from: agentEndpointReferenceSchema,
+    to: agentEndpointReferenceSchema,
     status: agentMessageStatusSchema,
     createdAt: z.number().int().positive(),
     updatedAt: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
     replyTo: identifierSchema.optional(),
-    /** Present only when an explicit wake dispatch created the receiving generation. */
+    /**
+    Present only when an explicit wake dispatch created the receiving generation.
+     */
     dispatchId: identifierSchema.optional(),
 });
 
@@ -58,7 +66,7 @@ export const agentInboundMessageSchema = z.strictObject({
     id: identifierSchema,
     origin: z.literal('peer'),
     from: agentEndpointSummarySchema,
-    to: agentEndpointRefSchema,
+    to: agentEndpointReferenceSchema,
     body: agentMessageBodySchema,
     createdAt: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
@@ -68,7 +76,7 @@ export const agentInboundMessageSchema = z.strictObject({
 export const agentHeldMessageSchema = z.strictObject({
     messageId: identifierSchema,
     from: agentEndpointSummarySchema,
-    to: agentEndpointRefSchema,
+    to: agentEndpointReferenceSchema,
     preview: z.string().max(240),
     byteLength: z.number().int().positive().max(MAX_AGENT_MESSAGE_BYTES),
     createdAt: z.number().int().positive(),
@@ -76,7 +84,9 @@ export const agentHeldMessageSchema = z.strictObject({
     replyTo: identifierSchema.optional(),
 });
 
-/** Full held text is fetched on demand and never enters the event journal or held-message list. */
+/**
+Full held text is fetched on demand and never enters the event journal or held-message list.
+ */
 export const agentHeldMessageDetailSchema = agentHeldMessageSchema.extend({
     body: agentMessageBodySchema,
 });
@@ -91,8 +101,8 @@ export const agentMessagePullResultSchema = z.strictObject({
     outcome: z.enum(['message', 'empty', 'timed_out']),
 });
 
-const sendParamsSchema = z.strictObject({
-    to: agentEndpointRefSchema,
+const sendParametersSchema = z.strictObject({
+    to: agentEndpointReferenceSchema,
     body: agentMessageBodySchema,
     idempotencyKey: identifierSchema.optional(),
     ttlMs: z.number().int().min(1_000).max(3_600_000).default(AGENT_MESSAGE_APPROVAL_TTL_MS),
@@ -104,15 +114,17 @@ const desktopMessageTargetSchema = z.strictObject({ messageId: identifierSchema 
 export const agentInboxMethods = {
     'agent.message.send': {
         ...commandPolicy('host', 'write', ['agents.message']),
-        params: sendParamsSchema,
+        params: sendParametersSchema,
         result: agentMessageReceiptSchema,
     },
     'agent.message.reply': {
         ...commandPolicy('host', 'write', ['agents.message']),
-        params: sendParamsSchema.extend({ replyTo: identifierSchema }),
+        params: sendParametersSchema.extend({ replyTo: identifierSchema }),
         result: agentMessageReceiptSchema,
     },
-    /** A pull consumes only after the Host confirms that its UDS reply was flushed. */
+    /**
+    A pull consumes only after the Host confirms that its UDS reply was flushed.
+     */
     'agent.message.wait': {
         ...commandPolicy('host', 'read', ['agents.message']),
         params: z.strictObject({

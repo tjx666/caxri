@@ -2,8 +2,8 @@ import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg?no-
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg?no-inline';
 import grok from '@lobehub/icons-static-svg/icons/grok.svg?no-inline';
 import openCode from '@lobehub/icons-static-svg/icons/opencode.svg?no-inline';
-
-import { agentProviderCatalog, agentProviderIds, type AgentProvider } from '@shared/agents';
+import type { AgentProvider } from '@shared/agents';
+import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import type { TerminalKind } from '@shared/types';
 
 export type AgentIconIdentity = TerminalKind | 'grok' | 'opencode' | 'unknown';

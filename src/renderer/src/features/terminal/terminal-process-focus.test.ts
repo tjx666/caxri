@@ -6,7 +6,7 @@ const focusedElement = (): HTMLElement | null => null;
 
 function keyboardFocusedWorkTab(terminalId: string): HTMLElement {
     return {
-        closest: () => ({ getAttribute: () => terminalId }),
+        closest: () => ({ dataset: { terminalId } }),
         dataset: { preserveTerminalFocus: 'true' },
     } as unknown as HTMLElement;
 }
@@ -14,7 +14,7 @@ function keyboardFocusedWorkTab(terminalId: string): HTMLElement {
 describe('reconcileTerminalProcessFocus', () => {
     it('does not reclaim focus when a modal opens before the scheduled frame', () => {
         let scheduled: FrameRequestCallback | undefined;
-        let modalOpen = false;
+        let isModalOpen = false;
         const focus = vi.fn();
 
         reconcileTerminalProcessFocus({
@@ -22,7 +22,7 @@ describe('reconcileTerminalProcessFocus', () => {
             blur: vi.fn(),
             focus,
             getFocusedElement: focusedElement,
-            isModalOpen: () => modalOpen,
+            isModalOpen: () => isModalOpen,
             isRunning: true,
             requestFrame: (callback) => {
                 scheduled = callback;
@@ -31,7 +31,7 @@ describe('reconcileTerminalProcessFocus', () => {
             terminalId: 'terminal-1',
         });
 
-        modalOpen = true;
+        isModalOpen = true;
         scheduled?.(0);
 
         expect(focus).not.toHaveBeenCalled();

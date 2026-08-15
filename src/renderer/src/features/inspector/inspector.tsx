@@ -38,16 +38,16 @@ export function Inspector() {
                 )}
             />
             {tabs.map(({ value }) => {
-                const active = value === mode;
+                const isActive = value === mode;
                 return (
                     <ChromeTabPanel
                         key={value}
-                        active={active}
+                        active={isActive}
                         className="flex min-h-0 flex-1 flex-col overflow-hidden [&>*]:min-h-0 [&>*]:flex-1"
                         idPrefix="inspector"
                         value={value}
                     >
-                        {active && (
+                        {isActive && (
                             <ActiveComponent
                                 key={activePanel.resetOnSessionChange ? sessionId : undefined}
                             />

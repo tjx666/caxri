@@ -1,12 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type Page } from './support/fixtures.ts';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     createShellSession,
@@ -42,7 +43,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
     try {
         await createShellSession(running.page);
         const firstTerminalId = (await terminalIds(running.page))[0];
-        await typeInTerminal(running.page, firstTerminalId, "printf 'FIRST_MARKER\\n'");
+        await typeInTerminal(running.page, firstTerminalId, String.raw`printf 'FIRST_MARKER\n'`);
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
@@ -52,7 +53,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
-        await typeInTerminal(running.page, secondTerminalId, "printf 'SECOND_MARKER\\n'");
+        await typeInTerminal(running.page, secondTerminalId, String.raw`printf 'SECOND_MARKER\n'`);
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
@@ -67,7 +68,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
                 `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('SECOND_MARKER');
-        await typeInTerminal(running.page, firstTerminalId, "printf 'AFTER_CLEAR\\n'");
+        await typeInTerminal(running.page, firstTerminalId, String.raw`printf 'AFTER_CLEAR\n'`);
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
@@ -99,7 +100,11 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
             ),
         ).toContainText('AFTER_CLEAR');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -158,7 +163,11 @@ test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', 
         await input.press('Meta+V');
         await expect(rows).toContainText('INPUT_HEX:544558545f5041535445');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

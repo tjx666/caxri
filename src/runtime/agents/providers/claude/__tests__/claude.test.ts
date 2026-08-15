@@ -12,9 +12,9 @@ const temporaryDirectories: string[] = [];
 afterEach(async () => {
     clearExecutableCache();
     vi.unstubAllEnvs();
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Claude Code provider', () => {

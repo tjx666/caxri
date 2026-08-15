@@ -1,18 +1,8 @@
-import {
-    Fragment,
-    useCallback,
-    useEffect,
-    useLayoutEffect,
-    useRef,
-    useState,
-    type HTMLAttributes,
-    type KeyboardEvent,
-    type ReactElement,
-    type ReactNode,
-} from 'react';
+import type { HTMLAttributes, KeyboardEvent, ReactElement, ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { usePrefersReducedMotion } from '../lib/motion';
-import { cn } from '../lib/utils';
+import { useShouldReduceMotion } from '../lib/motion';
+import { cn } from '../lib/utilities';
 
 interface ChromeTabItem<Value extends string> {
     content: ReactNode;
@@ -20,11 +10,11 @@ interface ChromeTabItem<Value extends string> {
     value: Value;
 }
 
-interface ChromeTabsProps<Value extends string> {
+interface ChromeTabsProperties<Value extends string> {
     ariaLabel: string;
     className?: string;
     idPrefix: string;
-    items: readonly ChromeTabItem<Value>[];
+    items: ReadonlyArray<ChromeTabItem<Value>>;
     onValueChange: (value: Value) => void;
     renderTab?: (item: ChromeTabItem<Value>, tab: ReactElement) => ReactNode;
     tabClassName?: string;
@@ -36,7 +26,9 @@ interface IndicatorGeometry {
     width: number;
 }
 
-/** Shared top-level chrome tabs with automatic activation and one measured moving indicator. */
+/**
+Shared top-level chrome tabs with automatic activation and one measured moving indicator.
+ */
 export function ChromeTabs<Value extends string>({
     ariaLabel,
     className,
@@ -46,21 +38,23 @@ export function ChromeTabs<Value extends string>({
     renderTab,
     tabClassName,
     value,
-}: ChromeTabsProps<Value>) {
-    const reducedMotion = usePrefersReducedMotion();
-    const listRef = useRef<HTMLDivElement>(null);
-    const tabRefs = useRef(new Map<Value, HTMLButtonElement>());
-    const contentRefs = useRef(new Map<Value, HTMLSpanElement>());
+}: ChromeTabsProperties<Value>) {
+    const isReducedMotion = useShouldReduceMotion();
+    const listReference = useRef<HTMLDivElement>(null);
+    const tabReferences = useRef(new Map<Value, HTMLButtonElement>());
+    const contentReferences = useRef(new Map<Value, HTMLSpanElement>());
     const [geometry, setGeometry] = useState<IndicatorGeometry>();
     const [motionReady, setMotionReady] = useState(false);
 
     const measureIndicator = useCallback((): void => {
-        const list = listRef.current;
-        const content = contentRefs.current.get(value);
+        const list = listReference.current;
+        const content = contentReferences.current.get(value);
         if (!list || !content) return;
         const listBox = list.getBoundingClientRect();
         const contentBox = content.getBoundingClientRect();
-        /** Dialog enter motion scales client rects; normalize them back into this list's CSS pixels. */
+        /**
+        Dialog enter motion scales client rects; normalize them back into this list's CSS pixels.
+         */
         const scaleX = list.offsetWidth > 0 ? listBox.width / list.offsetWidth : 1;
         const next = {
             left: (contentBox.left - listBox.left) / scaleX,
@@ -78,8 +72,8 @@ export function ChromeTabs<Value extends string>({
     useLayoutEffect(() => {
         measureIndicator();
         const observer = new ResizeObserver(measureIndicator);
-        if (listRef.current) observer.observe(listRef.current);
-        for (const content of contentRefs.current.values()) observer.observe(content);
+        if (listReference.current) observer.observe(listReference.current);
+        for (const content of contentReferences.current.values()) observer.observe(content);
         return () => observer.disconnect();
     }, [items, measureIndicator]);
 
@@ -90,20 +84,35 @@ export function ChromeTabs<Value extends string>({
 
     const activateFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>, at: number): void => {
         let nextIndex: number | undefined;
-        if (event.key === 'ArrowLeft') nextIndex = (at - 1 + items.length) % items.length;
-        else if (event.key === 'ArrowRight') nextIndex = (at + 1) % items.length;
-        else if (event.key === 'Home') nextIndex = 0;
-        else if (event.key === 'End') nextIndex = items.length - 1;
+        switch (event.key) {
+            case 'ArrowLeft': {
+                nextIndex = (at - 1 + items.length) % items.length;
+                break;
+            }
+            case 'ArrowRight': {
+                nextIndex = (at + 1) % items.length;
+                break;
+            }
+            case 'Home': {
+                nextIndex = 0;
+                break;
+            }
+            case 'End': {
+                nextIndex = items.length - 1;
+                // No default
+                break;
+            }
+        }
         if (nextIndex === undefined) return;
         event.preventDefault();
         const next = items[nextIndex];
         onValueChange(next.value);
-        tabRefs.current.get(next.value)?.focus();
+        tabReferences.current.get(next.value)?.focus();
     };
 
     return (
         <div
-            ref={listRef}
+            ref={listReference}
             role="tablist"
             aria-label={ariaLabel}
             aria-orientation="horizontal"
@@ -111,33 +120,33 @@ export function ChromeTabs<Value extends string>({
             data-slot="chrome-tabs"
         >
             {items.map((item, index) => {
-                const selected = item.value === value;
+                const isSelected = item.value === value;
                 const tab = (
                     <button
                         ref={(element) => {
-                            if (element) tabRefs.current.set(item.value, element);
-                            else tabRefs.current.delete(item.value);
+                            if (element) tabReferences.current.set(item.value, element);
+                            else tabReferences.current.delete(item.value);
                         }}
                         id={`${idPrefix}-tab-${item.value}`}
                         role="tab"
                         type="button"
                         aria-controls={`${idPrefix}-panel-${item.value}`}
                         aria-label={item.label}
-                        aria-selected={selected}
+                        aria-selected={isSelected}
                         className={cn(
                             'relative flex items-center justify-center border-0 bg-surface text-muted cursor-pointer hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground',
-                            selected && 'active text-foreground',
+                            isSelected && 'active text-foreground',
                             tabClassName,
                         )}
                         data-value={item.value}
-                        tabIndex={selected ? 0 : -1}
+                        tabIndex={isSelected ? 0 : -1}
                         onClick={() => onValueChange(item.value)}
                         onKeyDown={(event) => activateFromKeyboard(event, index)}
                     >
                         <span
                             ref={(element) => {
-                                if (element) contentRefs.current.set(item.value, element);
-                                else contentRefs.current.delete(item.value);
+                                if (element) contentReferences.current.set(item.value, element);
+                                else contentReferences.current.delete(item.value);
                             }}
                             className="inline-flex items-center justify-center gap-1"
                             data-slot="chrome-tab-content"
@@ -158,7 +167,7 @@ export function ChromeTabs<Value extends string>({
                     opacity: geometry ? 1 : 0,
                     transform: `translate3d(${geometry?.left ?? 0}px, 0, 0)`,
                     transitionDuration:
-                        motionReady && !reducedMotion ? 'var(--motion-chrome-switch)' : '0ms',
+                        motionReady && !isReducedMotion ? 'var(--motion-chrome-switch)' : '0ms',
                     transitionTimingFunction: 'var(--motion-ease-emphasized)',
                     width: geometry?.width ?? 0,
                 }}
@@ -167,23 +176,25 @@ export function ChromeTabs<Value extends string>({
     );
 }
 
-interface ChromeTabPanelProps<Value extends string> extends HTMLAttributes<HTMLDivElement> {
+interface ChromeTabPanelProperties<Value extends string> extends HTMLAttributes<HTMLDivElement> {
     active: boolean;
     idPrefix: string;
     value: Value;
 }
 
-/** Mounted panel counterpart that keeps every tab's `aria-controls` target resolvable. */
+/**
+Mounted panel counterpart that keeps every tab's `aria-controls` target resolvable.
+ */
 export function ChromeTabPanel<Value extends string>({
     active,
     className,
     idPrefix,
     value,
-    ...props
-}: ChromeTabPanelProps<Value>) {
+    ...properties
+}: ChromeTabPanelProperties<Value>) {
     return (
         <div
-            {...props}
+            {...properties}
             id={`${idPrefix}-panel-${value}`}
             role="tabpanel"
             aria-labelledby={`${idPrefix}-tab-${value}`}

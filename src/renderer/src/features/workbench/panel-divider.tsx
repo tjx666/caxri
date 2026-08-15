@@ -1,4 +1,5 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import type { KeyboardEvent, PointerEvent } from 'react';
+import { useRef } from 'react';
 
 import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
 
@@ -25,14 +26,18 @@ const dividerClassName =
     'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
     'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]';
 
-interface PanelDividerProps {
+interface PanelDividerProperties {
     ariaLabel: string;
-    /** The last committed width; only updated on pointer up, arrow key, or reset — never mid-drag. */
+    /**
+    The last committed width; only updated on pointer up, arrow key, or reset — never mid-drag.
+     */
     width: number;
     min: number;
     max: number;
     defaultWidth: number;
-    /** Custom property this divider drives directly during a drag, bypassing React state. */
+    /**
+    Custom property this divider drives directly during a drag, bypassing React state.
+     */
     cssVariable: '--sidebar-width' | '--inspector-width';
     /**
      * `1` when the panel grows as the pointer moves right (Sidebar), `-1` when it grows as the
@@ -55,16 +60,17 @@ interface DragState {
  * React state, so a mousemove never triggers a render; the width only reaches the panel-layout
  * store — and `localStorage` — once the gesture ends.
  */
-export function PanelDivider(props: PanelDividerProps) {
+export function PanelDivider(properties: PanelDividerProperties) {
     const drag = useRef<DragState | null>(null);
 
-    const clamp = (value: number): number => Math.min(props.max, Math.max(props.min, value));
+    const clamp = (value: number): number =>
+        Math.min(properties.max, Math.max(properties.min, value));
 
     const widthFromPointer = (clientX: number, state: DragState): number =>
-        clamp(state.startWidth + (clientX - state.startX) * props.growDirection);
+        clamp(state.startWidth + (clientX - state.startX) * properties.growDirection);
 
     const applyLiveWidth = (next: number, element: HTMLElement): void => {
-        document.documentElement.style.setProperty(props.cssVariable, `${next}px`);
+        document.documentElement.style.setProperty(properties.cssVariable, `${next}px`);
         element.setAttribute('aria-valuenow', String(Math.round(next)));
     };
 
@@ -73,22 +79,22 @@ export function PanelDivider(props: PanelDividerProps) {
         if (!state || state.pointerId !== event.pointerId) return;
         drag.current = null;
         document.body.classList.remove(DRAG_CLASS);
-        event.currentTarget.removeAttribute('data-dragging');
-        props.onCommit(widthFromPointer(event.clientX, state));
+        delete event.currentTarget.dataset.dragging;
+        properties.onCommit(widthFromPointer(event.clientX, state));
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            props.onCommit(props.defaultWidth);
+            properties.onCommit(properties.defaultWidth);
             return;
         }
-        const decrease = event.key === 'ArrowLeft';
-        const increase = event.key === 'ArrowRight';
-        if (!decrease && !increase) return;
+        const isDecrease = event.key === 'ArrowLeft';
+        const isIncrease = event.key === 'ArrowRight';
+        if (!isDecrease && !isIncrease) return;
         event.preventDefault();
-        const step = PANEL_RESIZE_STEP * props.growDirection * (increase ? 1 : -1);
-        props.onCommit(clamp(props.width + step));
+        const step = PANEL_RESIZE_STEP * properties.growDirection * (isIncrease ? 1 : -1);
+        properties.onCommit(clamp(properties.width + step));
     };
 
     return (
@@ -97,19 +103,19 @@ export function PanelDivider(props: PanelDividerProps) {
             tabIndex={0}
             className={dividerClassName}
             aria-orientation="vertical"
-            aria-label={props.ariaLabel}
-            aria-valuemin={props.min}
-            aria-valuemax={props.max}
-            aria-valuenow={Math.round(props.width)}
+            aria-label={properties.ariaLabel}
+            aria-valuemin={properties.min}
+            aria-valuemax={properties.max}
+            aria-valuenow={Math.round(properties.width)}
             onPointerDown={(event) => {
                 event.currentTarget.setPointerCapture(event.pointerId);
                 drag.current = {
                     pointerId: event.pointerId,
                     startX: event.clientX,
-                    startWidth: props.width,
+                    startWidth: properties.width,
                 };
                 document.body.classList.add(DRAG_CLASS);
-                event.currentTarget.setAttribute('data-dragging', 'true');
+                event.currentTarget.dataset.dragging = 'true';
             }}
             onPointerMove={(event) => {
                 const state = drag.current;
@@ -118,7 +124,7 @@ export function PanelDivider(props: PanelDividerProps) {
             }}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
-            onDoubleClick={() => props.onCommit(props.defaultWidth)}
+            onDoubleClick={() => properties.onCommit(properties.defaultWidth)}
             onKeyDown={handleKeyDown}
         />
     );

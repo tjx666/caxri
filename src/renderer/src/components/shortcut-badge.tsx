@@ -1,20 +1,22 @@
 import { formatShortcut, formatShortcutParts } from '../lib/keybindings';
-import { cn } from '../lib/utils';
+import { cn } from '../lib/utilities';
 
-interface ShortcutBadgeProps {
+interface ShortcutBadgeProperties {
     className?: string;
     compact?: boolean;
     keyClassName?: string;
     shortcut: string;
 }
 
-/** Shared macOS keycap presentation for live and draft shortcuts. */
+/**
+Shared macOS keycap presentation for live and draft shortcuts.
+ */
 export function ShortcutBadge({
     className,
     compact = false,
     keyClassName,
     shortcut,
-}: ShortcutBadgeProps) {
+}: ShortcutBadgeProperties) {
     return (
         <span
             aria-label={formatShortcut(shortcut)}

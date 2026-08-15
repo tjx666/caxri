@@ -1,3 +1,6 @@
+import { useState } from 'react';
+
+import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 import {
     Activity,
     AlertTriangle,
@@ -7,8 +10,8 @@ import {
     CircleCheck,
     CircleDot,
     CircleX,
-    EyeOff,
     ExternalLink,
+    EyeOff,
     GitBranch,
     GitPullRequest,
     LoaderCircle,
@@ -17,19 +20,19 @@ import {
     RefreshCw,
     Rocket,
 } from 'lucide-react';
-import { useState } from 'react';
-
-import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Tooltip } from '../../../../components/ui/tooltip';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
-import { buildProjectStatusNodes, type ProjectStatusTreeNode } from './project-status-tree';
+import type { ProjectStatusTreeNode } from './project-status-tree';
+import { buildProjectStatusNodes } from './project-status-tree';
 
-/** No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval. */
+/**
+No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
+ */
 const PROJECT_STATUS_REFETCH_INTERVAL_MS = 60_000;
 
 const rowClassName =
@@ -58,13 +61,13 @@ function NodeIcon({ node }: { node: ProjectStatusTreeNode }) {
 }
 
 function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTreeNode }) {
-    const expandable = node.kind === 'deployments' || node.kind === 'pullRequest';
+    const isExpandable = node.kind === 'deployments' || node.kind === 'pullRequest';
     const [expanded, setExpanded] = useState(
         node.kind === 'pullRequest' && node.state === 'failure',
     );
     const content = (
         <>
-            {expandable ? (
+            {isExpandable ? (
                 expanded ? (
                     <ChevronDown size={13} />
                 ) : (
@@ -97,7 +100,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
     const style = { paddingLeft: 8 + depth * 16 };
     return (
         <>
-            {expandable ? (
+            {isExpandable ? (
                 <div
                     className="project-status-expandable-row flex min-w-0 items-center bg-surface"
                     style={style}
@@ -139,7 +142,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     {content}
                 </div>
             )}
-            {expandable && (
+            {isExpandable && (
                 <DisclosureMotion animate expanded={expanded} kind="status-node">
                     {() =>
                         node.children.map((child) => (
@@ -152,7 +155,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
     );
 }
 
-function RepositorySection({ repository }: { repository: ProjectStatusRepository }) {
+function RepoSection({ repository }: { repository: ProjectStatusRepository }) {
     const [expanded, setExpanded] = useState(true);
     const Icon = repository.kind === 'submodule' ? Package : Monitor;
     return (
@@ -183,7 +186,9 @@ function RepositorySection({ repository }: { repository: ProjectStatusRepository
     );
 }
 
-/** Loads delivery metadata only while the Status tab is mounted, keeping startup CLI-free. */
+/**
+Loads delivery metadata only while the Status tab is mounted, keeping startup CLI-free.
+ */
 export function ProjectStatusPanel() {
     const session = useSelectedSession();
     const sessionId = session?.id;
@@ -202,8 +207,6 @@ export function ProjectStatusPanel() {
         },
     );
     useToastOnQueryError(isError, error, 'Project Status refresh failed');
-    const refresh = (): void => void refetch();
-    const refreshing = isFetching;
 
     if (!session)
         return (
@@ -211,6 +214,13 @@ export function ProjectStatusPanel() {
                 Create a Session to inspect status.
             </div>
         );
+    const isRefreshing = isFetching;
+    const refresh = (): void => {
+        // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed
+        // refetch, so this manual refresh trigger has nothing further to await.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void refetch();
+    };
     return (
         <div className="inspector-content project-status-panel flex min-h-0 flex-1 flex-col overflow-auto">
             <div className="project-status-heading flex min-h-[38px] items-center justify-between pt-1 pr-1.5 pb-1 pl-2.5 border-b border-border uppercase">
@@ -222,10 +232,13 @@ export function ProjectStatusPanel() {
                         size="icon"
                         variant="ghost"
                         aria-label="Refresh Project Status"
-                        disabled={refreshing}
+                        disabled={isRefreshing}
                         onClick={refresh}
                     >
-                        <RefreshCw className={refreshing ? 'animate-spin' : undefined} size={14} />
+                        <RefreshCw
+                            className={isRefreshing ? 'animate-spin' : undefined}
+                            size={14}
+                        />
                     </Button>
                 </Tooltip>
             </div>
@@ -247,8 +260,8 @@ export function ProjectStatusPanel() {
                     className="project-status-repositories min-h-0 flex-1 overflow-auto"
                     aria-label="Project Status repositories"
                 >
-                    {summary.repositories.map((repository) => (
-                        <RepositorySection key={repository.id} repository={repository} />
+                    {summary.repositories.map((repo) => (
+                        <RepoSection key={repo.id} repository={repo} />
                     ))}
                 </div>
             )}

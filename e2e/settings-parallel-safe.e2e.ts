@@ -1,9 +1,8 @@
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 test('Settings shortcut opens while Terminal input has focus', async () => {
@@ -23,7 +22,11 @@ test('Settings shortcut opens while Terminal input has focus', async () => {
 
         await expect(running.page.getByRole('dialog')).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -143,7 +146,11 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await running.page.keyboard.press('Meta+Alt+I');
         await expect(running.page.locator('.inspector')).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

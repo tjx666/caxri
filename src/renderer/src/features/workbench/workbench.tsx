@@ -5,15 +5,15 @@ import { useSelectedSession, useSessionState } from '../../stores/selectors';
 import { useActiveWork } from '../../stores/session-view';
 import { EditorSurface } from '../editor/editor-surface';
 import { chooseProjectDirectory } from '../session/session-actions';
+import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
+import { WorkTabStrip } from '../tabs/work-tab-strip';
 import { createTerminal } from '../terminal/terminal-actions';
 import { TerminalLayoutView } from '../terminal/terminal-layout-view';
-import { WorkTabStrip } from '../tabs/work-tab-strip';
-import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 
 function WorkSurface({ sessionId }: { sessionId: string }) {
     const activeWork = useActiveWork();
     const hasLayout = Boolean(useSessionState()?.layout.root);
-    const tabPanelProps = activeWork
+    const tabPanelProperties = activeWork
         ? {
               'aria-labelledby': workTabId(sessionId, activeWork),
               'id': workPanelId(sessionId, activeWork),
@@ -27,19 +27,26 @@ function WorkSurface({ sessionId }: { sessionId: string }) {
      */
     if (activeWork?.kind === 'editor')
         return (
-            <div className="work-surface relative min-h-0 flex-1" {...tabPanelProps}>
+            <div className="work-surface relative min-h-0 flex-1" {...tabPanelProperties}>
                 <EditorSurface path={activeWork.path} />
             </div>
         );
     return (
-        <div className="work-surface relative min-h-0 flex-1" {...tabPanelProps}>
+        <div className="work-surface relative min-h-0 flex-1" {...tabPanelProperties}>
             {hasLayout ? (
                 <TerminalLayoutView />
             ) : (
                 <div className="empty-work flex h-full flex-col items-center justify-center gap-3 text-muted">
                     <TerminalSquare size={30} />
                     <p>No Terminal in this Session.</p>
-                    <Button onClick={() => void createTerminal('shell')}>New Terminal</Button>
+                    <Button
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
+                            void createTerminal('shell');
+                        }}
+                    >
+                        New Terminal
+                    </Button>
                 </div>
             )}
         </div>
@@ -57,7 +64,12 @@ function Welcome() {
                 Add a local folder as a Project, then keep every Agent and Shell Session together
                 beneath it.
             </p>
-            <Button onClick={() => void chooseProjectDirectory()}>
+            <Button
+                onClick={() => {
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, chooseProjectDirectory() reports its own errors via tryCommand
+                    void chooseProjectDirectory();
+                }}
+            >
                 <Plus size={15} /> Add Project
             </Button>
         </div>

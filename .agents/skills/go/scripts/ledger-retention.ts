@@ -5,8 +5,8 @@ import { basename, dirname, join } from 'node:path';
 
 import { z } from 'zod';
 
-import type { GoState } from './state-model';
 import { sanitizeLedgerDetail } from './note-safety';
+import type { GoState } from './state-model';
 
 const MAX_EVENTS = 120;
 const MAX_NOTES_PER_KIND = 20;
@@ -61,7 +61,9 @@ function trimFront<T>(
     );
 }
 
-/** Archived history is still persisted data, so it receives the same secret and size boundary. */
+/**
+Archived history is still persisted data, so it receives the same secret and size boundary.
+ */
 function sanitizeArchiveValue(value: unknown): unknown {
     if (typeof value === 'string') return sanitizeLedgerDetail(value);
     if (Array.isArray(value)) return value.map((item) => sanitizeArchiveValue(item));
@@ -161,7 +163,9 @@ async function ensureArtifactDirectory(
         throw new Error('Go run directory changed during history retention');
     }
     const path = join(runDirectory, 'artifacts');
-    await mkdir(path).catch((error: unknown) => {
+    try {
+        await mkdir(path);
+    } catch (error: unknown) {
         if (
             typeof error !== 'object' ||
             error === null ||
@@ -170,7 +174,7 @@ async function ensureArtifactDirectory(
         ) {
             throw error;
         }
-    });
+    }
     const metadata = await lstat(path);
     if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
         throw new Error('Go history artifact directory must be a direct directory');
@@ -182,7 +186,7 @@ async function readArchive(
     runDirectory: string,
     retention: LedgerRetention,
     expectedRunDirectory?: string,
-    loadEntries = true,
+    shouldLoadEntries = true,
 ): Promise<ArchiveEntry[]> {
     const receipt = retention.archive;
     if (!receipt) return [];
@@ -204,8 +208,10 @@ async function readArchive(
     if (metadata.size !== receipt.byteLength) {
         throw new Error('Go history artifact size does not match the ledger');
     }
-    /** Resume checks bounded metadata only; targeted audits and retention rewrites load content. */
-    if (!loadEntries) return [];
+    /**
+    Resume checks bounded metadata only; targeted audits and retention rewrites load content.
+     */
+    if (!shouldLoadEntries) return [];
     const source = await readFile(path, 'utf8');
     if (createHash('sha256').update(source).digest('hex') !== receipt.sha256) {
         throw new Error('Go history artifact checksum does not match the ledger');

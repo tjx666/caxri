@@ -1,8 +1,10 @@
 #!/usr/bin/env bun
 
-import { appendFile } from 'node:fs/promises';
+import type { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
+import { appendFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
+import process from 'node:process';
 
 interface ProcessSample {
     pid: number;
@@ -17,18 +19,22 @@ interface CommandMetricReceipt {
     peakRSSKiB?: number;
 }
 
-/** Keeps wall-time and RSS evidence machine-readable in the immutable Actions job log. */
+/**
+Keeps wall-time and RSS evidence machine-readable in the immutable Actions job log.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-metrics.test.ts
 export function formatMetricReceipt(receipt: CommandMetricReceipt): string {
     return `CAXRI_CI_METRIC ${JSON.stringify({
         elapsedSeconds: Number(receipt.elapsedSeconds.toFixed(3)),
         exitCode: receipt.exitCode,
-        label: receipt.label.replace(/[\r\n|]/gu, ' '),
+        label: receipt.label.replaceAll(/[\r\n|]/gu, ' '),
         ...(receipt.peakRSSKiB === undefined
             ? { peakRSSMiB: null }
             : { peakRSSMiB: Number((receipt.peakRSSKiB / 1_024).toFixed(1)) }),
     })}`;
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-metrics.test.ts
 export function processTreeRSSKiB(snapshot: string, rootPid: number): number | undefined {
     const processes = snapshot.split('\n').flatMap((line): ProcessSample[] => {
         const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s*$/u.exec(line);
@@ -63,9 +69,9 @@ async function processSnapshot(): Promise<string> {
     });
     let stdout = '';
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-    return await new Promise<string>((resolveSnapshot) => {
-        child.once('error', () => resolveSnapshot(''));
-        child.once('exit', (code) => resolveSnapshot(code === 0 ? stdout : ''));
+    return await new Promise<string>((resolve) => {
+        child.once('error', () => resolve(''));
+        child.once('exit', (code) => resolve(code === 0 ? stdout : ''));
     });
 }
 
@@ -83,29 +89,41 @@ async function main(): Promise<void> {
     const childPid = child.pid;
     if (!childPid) throw new Error(`Could not start metrics command: ${command}`);
     let peakRSSKiB: number | undefined;
-    let samplePending = false;
+    let isSamplePending = false;
     const sample = async (): Promise<void> => {
-        if (samplePending) return;
-        samplePending = true;
+        if (isSamplePending) return;
+        isSamplePending = true;
         try {
             const rss = processTreeRSSKiB(await processSnapshot(), childPid);
             if (rss !== undefined) peakRSSKiB = Math.max(peakRSSKiB ?? 0, rss);
         } finally {
-            samplePending = false;
+            isSamplePending = false;
         }
     };
     await sample();
-    const timer = setInterval(() => void sample(), 250);
-    const exitCode = await new Promise<number>((resolveExit, reject) => {
+    const timer = setInterval((): void => {
+        // Sampling failures must not crash the periodic timer; `sample()` already
+        // swallows its own errors internally, so this async IIFE is a defensive
+        // backstop against any unexpected rejection.
+        // eslint-disable-next-line no-void -- fire-and-forget periodic sampler tick; failures are non-fatal by design
+        void (async (): Promise<void> => {
+            try {
+                await sample();
+            } catch {
+                // Ignored: see comment above.
+            }
+        })();
+    }, 250);
+    const exitCode = await new Promise<number>((resolve, reject) => {
         child.once('error', reject);
-        child.once('exit', (code, signal) => resolveExit(code ?? (signal ? 1 : 0)));
+        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });
     clearInterval(timer);
     const elapsedSeconds = (performance.now() - started) / 1_000;
     console.log(formatMetricReceipt({ elapsedSeconds, exitCode, label, peakRSSKiB }));
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (summary) {
-        const safeLabel = label.replace(/[\r\n|]/gu, ' ');
+        const safeLabel = label.replaceAll(/[\r\n|]/gu, ' ');
         const peak =
             peakRSSKiB === undefined ? 'unavailable' : `${(peakRSSKiB / 1_024).toFixed(1)} MiB`;
         await appendFile(

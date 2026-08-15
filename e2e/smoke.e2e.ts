@@ -2,10 +2,10 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri, typeTerminal } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -46,7 +46,11 @@ test('smoke: launches, creates a shell Session, and runs a Terminal command', as
         await typeTerminal(running.page, 'echo caxri-smoke-ok');
         await expect(running.page.locator('.xterm-rows')).toContainText('caxri-smoke-ok');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

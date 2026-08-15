@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import type { CSSProperties, PointerEvent } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { moveTerminal, resizeSplit, splitTerminal } from '@shared/terminal-layout';
 import type {
@@ -8,7 +9,7 @@ import type {
     TerminalSplitNode,
 } from '@shared/types';
 
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
 import { useSessionState, useSessionTerminals } from '../../stores/selectors';
 import { activateTerminal, applyTerminalLayout, TERMINAL_DRAG_TYPE } from './terminal-actions';
 import { TerminalPane } from './terminal-pane';
@@ -17,7 +18,9 @@ type DropZone = 'center' | 'right' | 'down';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
 
-/** The focused pane ring is the app's one accent indicator (DESIGN.md "Terminal panes"). */
+/**
+The focused pane ring is the app's one accent indicator (DESIGN.md "Terminal panes").
+ */
 const terminalGroupClassName = cn('terminal-group', fullBleedClassName, 'relative');
 
 const terminalDropPreviewClassName =
@@ -34,7 +37,7 @@ const dropZoneClassName: Record<DropZone, string> = {
  * scrollback, attach epoch) and callbacks are read from the stores by the node that needs them, so a
  * snapshot refresh no longer rerenders every node in the tree.
  */
-interface NodeViewProps {
+interface NodeViewProperties {
     groupNumbers: Map<string, number>;
     layout: TerminalLayout;
     node: TerminalLayoutNode;
@@ -58,21 +61,23 @@ function groupNumbers(root?: TerminalLayoutNode): Map<string, number> {
 function dropZone(event: React.DragEvent<HTMLElement>): DropZone {
     const bounds = event.currentTarget.getBoundingClientRect();
     const horizontal = (event.clientX - bounds.left) / bounds.width;
-    const vertical = (event.clientY - bounds.top) / bounds.height;
     if (horizontal > 0.67) return 'right';
+    const vertical = (event.clientY - bounds.top) / bounds.height;
     if (vertical > 0.67) return 'down';
     return 'center';
 }
 
-function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
+function TerminalGroupView(properties: NodeViewProperties & { node: TerminalGroupNode }) {
     const [activeDropZone, setActiveDropZone] = useState<DropZone>();
     const terminals = useSessionTerminals();
     const terminalId =
-        props.node.activeTerminalId && props.node.terminalIds.includes(props.node.activeTerminalId)
-            ? props.node.activeTerminalId
-            : props.node.terminalIds[0];
+        properties.node.activeTerminalId &&
+        properties.node.terminalIds.includes(properties.node.activeTerminalId)
+            ? properties.node.activeTerminalId
+            : properties.node.terminalIds[0];
     const terminal = terminals.find((candidate) => candidate.id === terminalId);
-    const isActive = props.layout.activeGroupId === props.node.id;
+    if (!terminal) return null;
+    const isActive = properties.layout.activeGroupId === properties.node.id;
     const applyDrop = (event: React.DragEvent<HTMLDivElement>): void => {
         event.preventDefault();
         const draggedTerminalId =
@@ -83,18 +88,17 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
         if (!draggedTerminalId) return;
         const next =
             zone === 'center'
-                ? moveTerminal(props.layout, draggedTerminalId, props.node.id)
+                ? moveTerminal(properties.layout, draggedTerminalId, properties.node.id)
                 : splitTerminal(
-                      props.layout,
+                      properties.layout,
                       draggedTerminalId,
-                      props.node.id,
+                      properties.node.id,
                       zone === 'right' ? 'horizontal' : 'vertical',
                   );
         applyTerminalLayout(next);
         activateTerminal(draggedTerminalId);
     };
-    if (!terminal) return null;
-    const label = `Terminal group ${props.groupNumbers.get(props.node.id) ?? 1}: ${terminal.title}`;
+    const label = `Terminal group ${properties.groupNumbers.get(properties.node.id) ?? 1}: ${terminal.title}`;
     return (
         <div
             className={cn(
@@ -103,7 +107,7 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
                     'active shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_55%,transparent)]',
             )}
             data-drop-zone={activeDropZone}
-            data-group-id={props.node.id}
+            data-group-id={properties.node.id}
             onDragEnter={(event) => {
                 event.preventDefault();
                 setActiveDropZone(dropZone(event));
@@ -139,16 +143,16 @@ function TerminalGroupView(props: NodeViewProps & { node: TerminalGroupNode }) {
     );
 }
 
-function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
+function TerminalSplitView(properties: NodeViewProperties & { node: TerminalSplitNode }) {
     const dragging = useRef(false);
     const [draftRatio, setDraftRatio] = useState<number>();
-    const ratio = draftRatio ?? props.node.ratio;
-    const horizontal = props.node.direction === 'horizontal';
+    const ratio = draftRatio ?? properties.node.ratio;
+    const isHorizontal = properties.node.direction === 'horizontal';
     const updateRatio = (event: PointerEvent<HTMLDivElement>): number => {
         const container = event.currentTarget.parentElement;
         if (!container) return ratio;
         const bounds = container.getBoundingClientRect();
-        const next = horizontal
+        const next = isHorizontal
             ? (event.clientX - bounds.left) / bounds.width
             : (event.clientY - bounds.top) / bounds.height;
         return Math.min(0.85, Math.max(0.15, next));
@@ -159,18 +163,18 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
     return (
         <div
             className={cn(
-                `terminal-split terminal-split-${props.node.direction}`,
+                `terminal-split terminal-split-${properties.node.direction}`,
                 fullBleedClassName,
                 'flex',
-                horizontal ? 'flex-row' : 'flex-col',
+                isHorizontal ? 'flex-row' : 'flex-col',
             )}
-            data-split-id={props.node.id}
+            data-split-id={properties.node.id}
         >
             <div
                 className={cn('terminal-layout-child', fullBleedClassName, 'flex-1')}
                 style={firstStyle}
             >
-                <TerminalNodeView {...props} node={props.node.first} />
+                <TerminalNodeView {...properties} node={properties.node.first} />
             </div>
             <div
                 role="separator"
@@ -179,24 +183,28 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                     'terminal-splitter',
                     'relative z-[3] flex-none basis-1 border-0 bg-border',
                     'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
-                    horizontal ? 'cursor-col-resize' : 'cursor-row-resize',
+                    isHorizontal ? 'cursor-col-resize' : 'cursor-row-resize',
                 )}
-                aria-label={`Resize ${horizontal ? 'horizontal' : 'vertical'} Terminal split`}
-                aria-orientation={horizontal ? 'vertical' : 'horizontal'}
+                aria-label={`Resize ${isHorizontal ? 'horizontal' : 'vertical'} Terminal split`}
+                aria-orientation={isHorizontal ? 'vertical' : 'horizontal'}
                 aria-valuemin={15}
                 aria-valuemax={85}
                 aria-valuenow={Math.round(ratio * 100)}
                 onKeyDown={(event) => {
-                    const decrease = horizontal
+                    const isDecrease = isHorizontal
                         ? event.key === 'ArrowLeft'
                         : event.key === 'ArrowUp';
-                    const increase = horizontal
+                    const isIncrease = isHorizontal
                         ? event.key === 'ArrowRight'
                         : event.key === 'ArrowDown';
-                    if (!decrease && !increase) return;
+                    if (!isDecrease && !isIncrease) return;
                     event.preventDefault();
                     applyTerminalLayout(
-                        resizeSplit(props.layout, props.node.id, ratio + (decrease ? -0.05 : 0.05)),
+                        resizeSplit(
+                            properties.layout,
+                            properties.node.id,
+                            ratio + (isDecrease ? -0.05 : 0.05),
+                        ),
                     );
                 }}
                 onPointerDown={(event) => {
@@ -211,7 +219,9 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                     dragging.current = false;
                     const nextRatio = updateRatio(event);
                     setDraftRatio(undefined);
-                    applyTerminalLayout(resizeSplit(props.layout, props.node.id, nextRatio));
+                    applyTerminalLayout(
+                        resizeSplit(properties.layout, properties.node.id, nextRatio),
+                    );
                 }}
                 onPointerCancel={() => {
                     dragging.current = false;
@@ -223,17 +233,17 @@ function TerminalSplitView(props: NodeViewProps & { node: TerminalSplitNode }) {
                 }}
             />
             <div className={cn('terminal-layout-child', fullBleedClassName, 'flex-1')}>
-                <TerminalNodeView {...props} node={props.node.second} />
+                <TerminalNodeView {...properties} node={properties.node.second} />
             </div>
         </div>
     );
 }
 
-function TerminalNodeView(props: NodeViewProps) {
-    return props.node.type === 'group' ? (
-        <TerminalGroupView {...props} node={props.node} />
+function TerminalNodeView(properties: NodeViewProperties) {
+    return properties.node.type === 'group' ? (
+        <TerminalGroupView {...properties} node={properties.node} />
     ) : (
-        <TerminalSplitView {...props} node={props.node} />
+        <TerminalSplitView {...properties} node={properties.node} />
     );
 }
 

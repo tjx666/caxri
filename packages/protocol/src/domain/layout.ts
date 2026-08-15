@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-/** Terminal layout trees are recursive, so the node shapes are declared once and reused by `z.lazy`. */
+/**
+Terminal layout trees are recursive, so the node shapes are declared once and reused by `z.lazy`.
+ */
 export interface TerminalGroupNode {
     type: 'group';
     id: string;
@@ -33,6 +35,9 @@ const terminalGroupNodeSchema: z.ZodType<TerminalGroupNode, TerminalGroupNode> =
     activeTerminalId: layoutId.optional(),
 });
 
+// eslint-disable-next-line prefer-const -- mutually recursive with `terminalSplitNodeSchema` below; must be forward-declared and assigned after it to satisfy no-use-before-define, so a single later assignment is unavoidable.
+let terminalLayoutNodeSchema: z.ZodType<TerminalLayoutNode, TerminalLayoutNode>;
+
 const terminalSplitNodeSchema: z.ZodType<TerminalSplitNode, TerminalSplitNode> = z.object({
     type: z.literal('split'),
     id: layoutId,
@@ -42,10 +47,7 @@ const terminalSplitNodeSchema: z.ZodType<TerminalSplitNode, TerminalSplitNode> =
     second: z.lazy(() => terminalLayoutNodeSchema),
 });
 
-const terminalLayoutNodeSchema: z.ZodType<TerminalLayoutNode, TerminalLayoutNode> = z.union([
-    terminalGroupNodeSchema,
-    terminalSplitNodeSchema,
-]);
+terminalLayoutNodeSchema = z.union([terminalGroupNodeSchema, terminalSplitNodeSchema]);
 
 /**
  * Enforces the invariants the tree shape cannot express: bounded node and Terminal counts, unique
@@ -54,10 +56,10 @@ const terminalLayoutNodeSchema: z.ZodType<TerminalLayoutNode, TerminalLayoutNode
  */
 function checkLayoutInvariants(
     layout: { root?: TerminalLayoutNode; activeGroupId?: string },
-    ctx: z.RefinementCtx,
+    context: z.RefinementCtx,
 ): void {
-    const fail = (message: string): void => ctx.addIssue({ code: 'custom', message });
     if (!layout.root) return;
+    const fail = (message: string): void => context.addIssue({ code: 'custom', message });
     const nodeIds = new Set<string>();
     const terminalIds = new Set<string>();
     const pending: TerminalLayoutNode[] = [layout.root];

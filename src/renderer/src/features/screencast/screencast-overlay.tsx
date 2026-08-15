@@ -4,11 +4,8 @@ import { getRegisteredCommand } from '../../commands/registry';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { isEditableEventTarget } from '../../lib/keybindings';
 import { useWorkbenchStore } from '../../stores/workbench';
-import {
-    describeScreencastKey,
-    useScreencastStore,
-    type ScreencastKeyDescription,
-} from './screencast';
+import type { ScreencastKeyDescription } from './screencast';
+import { describeScreencastKey, useScreencastStore } from './screencast';
 
 const CLICK_LIFETIME_MS = 700;
 const KEY_LIFETIME_MS = 1_500;
@@ -36,7 +33,7 @@ function ActiveScreencastOverlay() {
         const onPointerDown = (event: PointerEvent): void => {
             const marker = { id: ++nextId.current, x: event.clientX, y: event.clientY };
             setClicks((current) => [...current, marker]);
-            const timer = window.setTimeout(() => {
+            const timer = setTimeout(() => {
                 timers.delete(timer);
                 setClicks((current) => current.filter((item) => item.id !== marker.id));
             }, CLICK_LIFETIME_MS);
@@ -50,18 +47,18 @@ function ActiveScreencastOverlay() {
             });
             if (!description) return;
             setKeyOverlay({ ...description, id: ++nextId.current });
-            if (keyTimer.current !== undefined) window.clearTimeout(keyTimer.current);
-            keyTimer.current = window.setTimeout(() => setKeyOverlay(undefined), KEY_LIFETIME_MS);
+            if (keyTimer.current !== undefined) clearTimeout(keyTimer.current);
+            keyTimer.current = setTimeout(() => setKeyOverlay(undefined), KEY_LIFETIME_MS);
         };
 
-        window.addEventListener('pointerdown', onPointerDown, { capture: true });
-        window.addEventListener('keydown', onKeyDown, { capture: true });
+        addEventListener('pointerdown', onPointerDown, { capture: true });
+        addEventListener('keydown', onKeyDown, { capture: true });
         return () => {
-            window.removeEventListener('pointerdown', onPointerDown, { capture: true });
-            window.removeEventListener('keydown', onKeyDown, { capture: true });
-            for (const timer of timers) window.clearTimeout(timer);
+            removeEventListener('pointerdown', onPointerDown, { capture: true });
+            removeEventListener('keydown', onKeyDown, { capture: true });
+            for (const timer of timers) clearTimeout(timer);
             timers.clear();
-            if (keyTimer.current !== undefined) window.clearTimeout(keyTimer.current);
+            if (keyTimer.current !== undefined) clearTimeout(keyTimer.current);
         };
     }, [keybindings]);
 
@@ -99,6 +96,6 @@ function ActiveScreencastOverlay() {
 }
 
 export function ScreencastOverlay() {
-    const enabled = useScreencastStore((state) => state.enabled);
-    return enabled ? <ActiveScreencastOverlay /> : null;
+    const isEnabled = useScreencastStore((state) => state.enabled);
+    return isEnabled ? <ActiveScreencastOverlay /> : null;
 }

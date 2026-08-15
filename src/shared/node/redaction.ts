@@ -9,12 +9,16 @@ import { isSecretKey, redactSecretText } from '../redaction';
  */
 export { isSecretKey } from '../redaction';
 
-/** Redacts secret-shaped tokens and `key=value` assignments from free-form log text. */
+/**
+Redacts secret-shaped tokens and `key=value` assignments from free-form log text.
+ */
 export function redactLogValue(value: string): string {
     return redactSecretText(value.replaceAll(homedir(), '$HOME'));
 }
 
-/** Recursively redacts secret-shaped keys and values from structured diagnostics data. */
+/**
+Recursively redacts secret-shaped keys and values from structured diagnostics data.
+ */
 export function redactSecrets(value: unknown, key = ''): unknown {
     if (isSecretKey(key)) return '[REDACTED]';
     if (Array.isArray(value)) return value.map((item) => redactSecrets(item));

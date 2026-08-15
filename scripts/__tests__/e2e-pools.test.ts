@@ -3,12 +3,9 @@ import { readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import { createE2EPoolPlan, parallelSafeSpecs } from '../../e2e/support/pools';
+import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
+import { createE2EPoolReceipt, stableErrorIdentity } from '../reporters/e2e-receipt-reporter';
 import { combinePoolReceipts, mergeCensusReceipts, parseE2EPool } from '../run-e2e-pools';
-import {
-    createE2EPoolReceipt,
-    stableErrorIdentity,
-    type E2ETestReceipt,
-} from '../reporters/e2e-receipt-reporter';
 
 const allSpecs = [
     'e2e/editor-dotfiles.e2e.ts',
@@ -95,17 +92,19 @@ describe('E2E pools', () => {
     });
 
     it('partitions the current repository manifest without duplicates or omissions', async () => {
-        const repositorySpecs = (await readdir(new URL('../../e2e', import.meta.url)))
+        const repoSpecs = (await readdir(new URL('../../e2e', import.meta.url)))
             .filter((name) => name.endsWith('.e2e.ts'))
             .map((name) => `e2e/${name}`)
-            .sort();
-        const plan = createE2EPoolPlan(repositorySpecs);
+            .toSorted((left, right) => left.localeCompare(right));
+        const plan = createE2EPoolPlan(repoSpecs);
 
         expect(plan.parallelSafe).toHaveLength(parallelSafeSpecs.length);
-        expect(plan.desktopExclusive.length + plan.parallelSafe.length).toBe(
-            repositorySpecs.length,
-        );
-        expect([...plan.desktopExclusive, ...plan.parallelSafe].sort()).toEqual(repositorySpecs);
+        expect(plan.desktopExclusive.length + plan.parallelSafe.length).toBe(repoSpecs.length);
+        expect(
+            [...plan.desktopExclusive, ...plan.parallelSafe].toSorted((left, right) =>
+                left.localeCompare(right),
+            ),
+        ).toEqual(repoSpecs);
         expect(parallelSafeSpecs).toContain('e2e/settings-parallel-safe.e2e.ts');
         expect(plan.desktopExclusive).toContain('e2e/settings.e2e.ts');
         expect(plan.parallelSafeInvocations).toEqual([{ specs: plan.parallelSafe }]);

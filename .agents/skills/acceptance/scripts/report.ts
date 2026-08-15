@@ -1,24 +1,31 @@
-#!/usr/bin/env bun
-
-import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+
 import { z } from 'zod';
 
-import { validateHumanText, validateReportLanguage } from './validate-report';
 import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
-import { rebindReportDocument, type RebindReportHeadInput } from './report-head';
+import type { RebindReportHeadInput } from './report-head';
+import { rebindReportDocument } from './report-head';
 import { reportCliHelp } from './report-help';
+import {
+    errorCode,
+    isInside,
+    prepareReportParent,
+    PROJECT_ROOT,
+    resolveReportDirectory,
+    validateExistingReportDirectory,
+    writeJsonAtomically,
+} from './report-paths';
+import { validateHumanText, validateReportLanguage } from './validate-report';
 
 export type { RebindReportHeadInput } from './report-head';
 
-const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
-const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const CASE_STATUSES = ['pass', 'fail', 'blocked'] as const;
 const DEFAULT_CONCLUSIONS = {
     fail: '当前 PR 头提交未满足全部计划中的桌面验收项。',
@@ -129,109 +136,12 @@ function assertUniqueIds(items: Array<{ id: string }>, kind: string): void {
     if (duplicate) throw new Error(`Duplicate ${kind} id: ${duplicate.id}`);
 }
 
-function errorCode(error: unknown): string | undefined {
-    if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
-    return typeof error.code === 'string' ? error.code : undefined;
-}
-
-function inside(parent: string, candidate: string): boolean {
-    const path = relative(parent, candidate);
-    return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path);
-}
-
-function resolveReportDirectory(path: string): string {
-    const directory = resolve(PROJECT_ROOT, path);
-    if (!inside(RECORDS_ROOT, directory)) {
-        throw new Error('Acceptance report directory must stay under .records/');
-    }
-    if (!/^round-[1-9]\d*$/.test(basename(directory))) {
-        throw new Error('Acceptance report directory must end with round-<positive integer>');
-    }
-    return directory;
-}
-
-async function ensureDirectDirectory(path: string): Promise<void> {
-    try {
-        const metadata = await lstat(path);
-        if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
-            throw new Error(
-                `Acceptance report path must not contain symbolic links: ${relative(PROJECT_ROOT, path)}`,
-            );
-        }
-    } catch (error: unknown) {
-        if (errorCode(error) !== 'ENOENT') throw error;
-        await mkdir(path);
-    }
-}
-
-async function validateRecordsRoot(): Promise<string> {
-    const metadata = await lstat(RECORDS_ROOT);
-    if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
-        throw new Error('Acceptance report path must not contain symbolic links: .records');
-    }
-    const [canonicalProjectRoot, canonicalRecordsRoot] = await Promise.all([
-        realpath(PROJECT_ROOT),
-        realpath(RECORDS_ROOT),
-    ]);
-    if (canonicalRecordsRoot !== join(canonicalProjectRoot, '.records')) {
-        throw new Error('Acceptance report directory must stay under .records/');
-    }
-    return canonicalRecordsRoot;
-}
-
-async function prepareReportParent(directory: string): Promise<string> {
-    await ensureDirectDirectory(RECORDS_ROOT);
-    const parent = dirname(directory);
-    const parentSegments = relative(RECORDS_ROOT, parent).split(sep).filter(Boolean);
-    let current = RECORDS_ROOT;
-    for (const segment of parentSegments) {
-        current = join(current, segment);
-        await ensureDirectDirectory(current);
-    }
-    const canonicalRecordsRoot = await validateRecordsRoot();
-    const canonicalParent = await realpath(parent);
-    if (!inside(canonicalRecordsRoot, canonicalParent)) {
-        throw new Error('Acceptance report directory must stay under .records/');
-    }
-    return parent;
-}
-
-async function validateExistingReportDirectory(path: string): Promise<string> {
-    const directory = resolveReportDirectory(path);
-    await validateRecordsRoot();
-    const segments = relative(RECORDS_ROOT, directory).split(sep);
-    let current = RECORDS_ROOT;
-    for (const segment of segments) {
-        current = join(current, segment);
-        const metadata = await lstat(current);
-        if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
-            throw new Error(
-                `Acceptance report path must not contain symbolic links: ${relative(PROJECT_ROOT, current)}`,
-            );
-        }
-    }
-    const [canonicalRecordsRoot, canonicalDirectory] = await Promise.all([
-        realpath(RECORDS_ROOT),
-        realpath(directory),
-    ]);
-    if (!inside(canonicalRecordsRoot, canonicalDirectory)) {
-        throw new Error('Acceptance report directory must stay under .records/');
-    }
-    return directory;
-}
-
 function lifecycleEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
 }
 
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
-}
-
-async function writeJsonAtomically(path: string, value: unknown): Promise<void> {
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
 }
 
 export async function loadAcceptanceCasePlan(
@@ -441,7 +351,7 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
     const notesPath = join(directory, 'report.md');
 
     const result = {
-        ...(input.branch ? { branch: input.branch } : {}),
+        ...(input.branch && { branch: input.branch }),
         cases: parsedPlan.map(({ category, id, title }) => ({
             category,
             evidence: [],
@@ -451,11 +361,11 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
             status: 'TODO',
             surface: 'desktop',
         })),
-        ...(input.commit ? { commit: input.commit } : {}),
+        ...(input.commit && { commit: input.commit }),
         createdAt: new Date().toISOString(),
         entry,
         plan: parsedPlan,
-        ...(input.pullRequest ? { pullRequest: { number: input.pullRequest } } : {}),
+        ...(input.pullRequest && { pullRequest: { number: input.pullRequest } }),
         requirement,
         surfaces: ['desktop'],
         title,
@@ -499,10 +409,10 @@ function evidenceTypeForPath(path: string): RequiredEvidenceType {
     return 'text';
 }
 
+const todoCaseSchema = z.object({ id: z.string(), status: z.unknown() });
+
 function assertNoTodoCases(report: unknown): void {
-    const parsed = z
-        .object({ cases: z.array(z.object({ id: z.string(), status: z.unknown() })) })
-        .safeParse(report);
+    const parsed = z.object({ cases: z.array(todoCaseSchema) }).safeParse(report);
     if (!parsed.success) return;
     const placeholder = parsed.data.cases.find(({ status }) => status === 'TODO');
     if (placeholder) throw new Error(`Case ${placeholder.id} is still a TODO placeholder`);
@@ -510,15 +420,18 @@ function assertNoTodoCases(report: unknown): void {
 
 async function validateEvidenceFile(directory: string, evidence: string): Promise<string> {
     if (isAbsolute(evidence)) throw new Error(`Evidence path must be relative: ${evidence}`);
-    const normalized = evidence.split('\\').join('/');
+    const normalized = evidence.replaceAll('\\', '/');
     if (normalized !== 'assets' && !normalized.startsWith('assets/')) {
         throw new Error(`Evidence path must stay under assets/: ${evidence}`);
     }
     const canonicalAssets = await realpath(join(directory, 'assets'));
-    const canonicalEvidence = await realpath(resolve(directory, evidence)).catch(() => {
+    let canonicalEvidence: string;
+    try {
+        canonicalEvidence = await realpath(resolve(directory, evidence));
+    } catch {
         throw new Error(`Evidence file does not exist: ${evidence}`);
-    });
-    if (!inside(canonicalAssets, canonicalEvidence)) {
+    }
+    if (!isInside(canonicalAssets, canonicalEvidence)) {
         throw new Error(`Evidence path must stay under assets/: ${evidence}`);
     }
     const metadata = await lstat(canonicalEvidence);
@@ -539,12 +452,11 @@ async function validateFixturePreflightEvidence(
 ): Promise<void> {
     if (plan.fixturePreflight !== 'terminal') return;
     const evidence = preflightEvidencePath(plan.id);
-    if (!acceptanceCase.evidence.some((item) => evidencePath(item) === evidence)) {
+    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
         throw new Error(`Case ${plan.id} must include its fixture preflight receipt`);
     }
-    const receipt = terminalFixturePreflightReceiptSchema.parse(
-        JSON.parse(await readFile(join(directory, evidence), 'utf8')),
-    );
+    const rawReceipt: unknown = JSON.parse(await readFile(join(directory, evidence), 'utf8'));
+    const receipt = terminalFixturePreflightReceiptSchema.parse(rawReceipt);
     const verified = createTerminalFixturePreflightReceipt(receipt.fixture, receipt.caseId);
     if (
         receipt.caseId !== plan.id ||
@@ -562,12 +474,11 @@ async function validateCaseLifecycleEvidence(
 ): Promise<void> {
     if (plan.stateIsolation.mode === 'readonly_checkpoint') return;
     const evidence = lifecycleEvidencePath(plan.id);
-    if (!acceptanceCase.evidence.some((item) => evidencePath(item) === evidence)) {
+    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
         throw new Error(`Case ${plan.id} must include its state-isolation receipt`);
     }
-    const receipt = caseLifecycleReceiptSchema.parse(
-        JSON.parse(await readFile(join(directory, evidence), 'utf8')),
-    );
+    const rawReceipt: unknown = JSON.parse(await readFile(join(directory, evidence), 'utf8'));
+    const receipt = caseLifecycleReceiptSchema.parse(rawReceipt);
     if (
         receipt.caseId !== plan.id ||
         JSON.stringify(receipt.stateIsolation) !== JSON.stringify(plan.stateIsolation) ||
@@ -592,12 +503,12 @@ async function validateCaseLifecycleEvidence(
     const priorReadyLaunches = readyLaunches.slice(0, -1);
     const finalReadyLaunch = readyLaunches.at(-1);
     if (
+        finalLaunch !== finalReadyLaunch ||
         readyLaunches.length < 2 ||
         receipt.profileIdentity !== plan.stateIsolation.profileId ||
-        priorReadyLaunches.some(({ cleanupCompleted, cleanupRequested }) =>
-            Boolean(cleanupCompleted || cleanupRequested),
+        priorReadyLaunches.some(
+            ({ cleanupCompleted, cleanupRequested }) => cleanupCompleted || cleanupRequested,
         ) ||
-        finalLaunch !== finalReadyLaunch ||
         !finalReadyLaunch?.cleanupRequested ||
         !finalReadyLaunch.cleanupCompleted
     ) {
@@ -654,6 +565,10 @@ export async function finalizeReport(input: FinalizeReportInput) {
         }
         const actualTypes = new Set<string>();
         for (const evidence of item.evidence) {
+            // Sequential await preserves deterministic, index-ordered failure reporting when
+            // multiple evidence entries are invalid; Promise.all would report whichever
+            // filesystem check settles first instead of the first evidence entry in plan order.
+            // eslint-disable-next-line no-await-in-loop
             actualTypes.add(await validateEvidenceFile(directory, evidencePath(evidence)));
         }
         const missing = requiredEvidenceTypes(planned).filter(
@@ -662,7 +577,11 @@ export async function finalizeReport(input: FinalizeReportInput) {
         if (missing.length > 0) {
             throw new Error(`Case ${item.id} is missing required evidence: ${missing.join(', ')}`);
         }
+        // Sequential await preserves deterministic, plan-ordered failure reporting across cases;
+        // see the evidence-file validation loop above for the same rationale.
+        // eslint-disable-next-line no-await-in-loop
         await validateFixturePreflightEvidence(directory, planned, item);
+        // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
     }
 
@@ -678,7 +597,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
         ? validateHumanText(input.conclusion, 'conclusion')
         : undefined;
     const summary = {
-        ...(report.summary ?? {}),
+        ...report.summary,
         ...summaryFor(report.cases, requestedConclusion ?? customConclusion),
     };
     const finalized = { ...report, summary };
@@ -701,9 +620,9 @@ function parseOptions(tokens: string[]): Options {
     return options;
 }
 
-function option(options: Options, key: string, required = false): string | undefined {
+function option(options: Options, key: string, isRequired = false): string | undefined {
     const value = options[key];
-    if (required && (typeof value !== 'string' || value.length === 0)) {
+    if (isRequired && (typeof value !== 'string' || value.length === 0)) {
         throw new Error(`Missing --${key}`);
     }
     return typeof value === 'string' ? value : undefined;
@@ -762,7 +681,7 @@ async function main(argv: string[]): Promise<void> {
         if (!planPath || !title || !entry) throw new Error('Missing report scaffold input');
         const pullRequestRaw = option(options, 'pull-request');
         const pullRequest = pullRequestRaw === undefined ? undefined : Number(pullRequestRaw);
-        if (pullRequest !== undefined && (!Number.isInteger(pullRequest) || pullRequest <= 0)) {
+        if (pullRequest !== undefined && (!Number.isSafeInteger(pullRequest) || pullRequest <= 0)) {
             throw new Error('--pull-request must be a positive integer');
         }
         const path = await initializeReport({
@@ -789,11 +708,14 @@ async function main(argv: string[]): Promise<void> {
     }
 }
 
+const SCRIPT_PATH = resolve(fileURLToPath(import.meta.url));
 const invokedPath =
     process.argv[1] && (isAbsolute(process.argv[1]) ? process.argv[1] : resolve(process.argv[1]));
 if (invokedPath === SCRIPT_PATH) {
-    void main(process.argv.slice(2)).catch((error: unknown) => {
+    try {
+        await main(process.argv.slice(2));
+    } catch (error: unknown) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    });
+    }
 }

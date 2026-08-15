@@ -7,15 +7,15 @@ export interface ShellIntegrationLaunch {
     environment: NodeJS.ProcessEnv;
 }
 
-const ZSH_ENV = String.raw`typeset -g __caxri_user_zdotdir="${'$'}{CAXRI_USER_ZDOTDIR:-${'$'}{HOME:-}}"
-typeset -g __caxri_integration_zdotdir="${'$'}{CAXRI_SHELL_INTEGRATION_DIR:-}"
+const ZSH_ENV = `typeset -g __caxri_user_zdotdir="\${CAXRI_USER_ZDOTDIR:-\${HOME:-}}"
+typeset -g __caxri_integration_zdotdir="\${CAXRI_SHELL_INTEGRATION_DIR:-}"
 if [[ -n "$__caxri_user_zdotdir" && "$__caxri_user_zdotdir" != "$__caxri_integration_zdotdir" && -r "$__caxri_user_zdotdir/.zshenv" ]]; then
   source "$__caxri_user_zdotdir/.zshenv"
 fi
 [[ -n "$__caxri_integration_zdotdir" ]] && ZDOTDIR="$__caxri_integration_zdotdir"
 `;
 
-const ZSH_PROFILE = String.raw`if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zprofile" ]]; then
+const ZSH_PROFILE = `if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zprofile" ]]; then
   source "$__caxri_user_zdotdir/.zprofile"
 fi
 `;
@@ -41,7 +41,7 @@ add-zsh-hook precmd __caxri_prompt_started
 add-zsh-hook preexec __caxri_command_started
 `;
 
-const ZSH_LOGIN = String.raw`if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zlogin" ]]; then
+const ZSH_LOGIN = `if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zlogin" ]]; then
   source "$__caxri_user_zdotdir/.zlogin"
 fi
 [[ -n "$__caxri_user_zdotdir" ]] && ZDOTDIR="$__caxri_user_zdotdir"
@@ -112,8 +112,10 @@ fi
 unset CAXRI_SHELL_INTEGRATION_DIR CAXRI_USER_ZDOTDIR
 `;
 
-/** Replaces only regular files beneath the private integration directory without following a
- *  user-controlled leaf symlink left behind by an older or interrupted launch. */
+/**
+ * Replaces only regular files beneath the private integration directory without following a
+ *  user-controlled leaf symlink left behind by an older or interrupted launch.
+ */
 async function writeOwnedScript(path: string, source: string): Promise<void> {
     const handle = await open(
         path,
@@ -128,10 +130,10 @@ async function writeOwnedScript(path: string, source: string): Promise<void> {
     }
 }
 
-/** Writes Caxri-owned startup scripts and maps only allowlisted shell executables to them. */
+/**
+Writes Caxri-owned startup scripts and maps only allowlisted shell executables to them.
+ */
 export class ShellIntegrationService {
-    private constructor(private readonly directory: string) {}
-
     static async create(userDataPath: string): Promise<ShellIntegrationService> {
         const directory = join(userDataPath, 'shell-integration');
         await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -153,6 +155,8 @@ export class ShellIntegrationService {
         );
         return new ShellIntegrationService(directory);
     }
+
+    private constructor(private readonly directory: string) {}
 
     resolve(
         executable: string,

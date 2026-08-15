@@ -1,4 +1,5 @@
-import { agentProviderCatalog, type AgentProvider } from '@shared/agents';
+import type { AgentProvider } from '@shared/agents';
+import { agentProviderCatalog } from '@shared/agents';
 import type {
     AgentHookHealthMap,
     AgentSkillHealth,
@@ -7,11 +8,11 @@ import type {
     AppSettings,
 } from '@shared/types';
 
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 
-interface AgentProviderSettingsProps {
+interface AgentProviderSettingsProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
     provider: AgentProvider;
@@ -50,10 +51,10 @@ function skillScopeSummary(
  * checkbox: restart the provider's Agent Terminals.
  */
 function hookHealthLabel(
-    enabled: boolean,
+    isEnabled: boolean,
     health: AgentHookHealthMap['codex'] | undefined,
 ): string {
-    if (!enabled) return 'Disabled';
+    if (!isEnabled) return 'Disabled';
     if (!health) return 'Checking installation…';
     const label = (() => {
         switch (health.kind) {
@@ -80,23 +81,25 @@ function hookHealthLabel(
     return health.message ? `${label} — ${health.message}` : label;
 }
 
-/** Provider-specific lifecycle, messaging, skill-health, and launch controls. */
+/**
+Provider-specific lifecycle, messaging, skill-health, and launch controls.
+ */
 export function AgentProviderSettings({
     agentHookHealth,
     agentSkillHealth,
     provider,
     providerSettings,
     onChange,
-}: AgentProviderSettingsProps) {
+}: AgentProviderSettingsProperties) {
     const launch = providerSettings.launch;
     const providerName = agentProviderCatalog[provider].displayName;
     const updateLaunch = (
         next: Partial<AppSettings['agents.providers'][typeof provider]['launch']>,
     ): void => onChange({ ...providerSettings, launch: { ...launch, ...next } });
-    const updateHooks = (enabled: boolean): void =>
-        onChange({ ...providerSettings, hooks: { enabled } });
-    const updateMessaging = (enabled: boolean): void =>
-        onChange({ ...providerSettings, messaging: { enabled } });
+    const updateHooks = (isEnabled: boolean): void =>
+        onChange({ ...providerSettings, hooks: { enabled: isEnabled } });
+    const updateMessaging = (isEnabled: boolean): void =>
+        onChange({ ...providerSettings, messaging: { enabled: isEnabled } });
 
     return (
         <section

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 60_000;
@@ -18,7 +19,7 @@ export interface CommandCaptureOptions {
  */
 export function captureCommand(
     command: string,
-    args: string[],
+    arguments_: string[],
     options: CommandCaptureOptions = {},
 ): Promise<string> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
@@ -28,8 +29,8 @@ export function captureCommand(
         throw new Error('Command capture limits must be positive');
     }
 
-    return new Promise((resolveCapture, rejectCapture) => {
-        const child = spawn(command, args, {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, arguments_, {
             cwd: options.cwd,
             stdio: ['ignore', 'pipe', 'pipe'],
         });
@@ -38,17 +39,9 @@ export function captureCommand(
         let stderrBytes = 0;
         let termination: 'output' | 'timeout' | null = null;
         let forceKill: NodeJS.Timeout | undefined;
-        let settled = false;
+        let isSettled = false;
 
         const evidence = (): string => `stdoutBytes=${stdoutBytes}, stderrBytes=${stderrBytes}`;
-        const finish = (error?: Error): void => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            if (forceKill) clearTimeout(forceKill);
-            if (error) rejectCapture(error);
-            else resolveCapture(Buffer.concat(stdout).toString('utf8').trim());
-        };
         const terminate = (reason: 'output' | 'timeout'): void => {
             if (termination) return;
             termination = reason;
@@ -58,6 +51,14 @@ export function captureCommand(
         };
         const timeout = setTimeout(() => terminate('timeout'), timeoutMs);
         timeout.unref();
+        const finish = (error?: Error): void => {
+            if (isSettled) return;
+            isSettled = true;
+            clearTimeout(timeout);
+            if (forceKill) clearTimeout(forceKill);
+            if (error) reject(error);
+            else resolve(Buffer.concat(stdout).toString('utf8').trim());
+        };
 
         child.stdout.on('data', (chunk: Buffer) => {
             stdoutBytes += chunk.byteLength;

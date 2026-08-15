@@ -1,5 +1,6 @@
-import type { AgentHeldMessage, AgentHeldMessageDetail } from '@shared/ipc';
 import { useEffect, useMemo, useState } from 'react';
+
+import type { AgentHeldMessage, AgentHeldMessageDetail } from '@shared/ipc';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -19,7 +20,7 @@ import {
 function upsert(messages: AgentHeldMessage[], incoming: AgentHeldMessage): AgentHeldMessage[] {
     const next = messages.filter((message) => message.messageId !== incoming.messageId);
     next.push(incoming);
-    return next.sort((left, right) => left.createdAt - right.createdAt);
+    return next.toSorted((left, right) => left.createdAt - right.createdAt);
 }
 
 /**
@@ -35,13 +36,17 @@ export function AgentMessageApprovalDialog() {
     const currentMessageId = current?.messageId;
 
     useEffect(() => {
-        let active = true;
-        void caxri
-            .request('agent.message.held')
-            .then(({ messages: initial }) => active && setMessages(initial))
-            .catch((error: unknown) =>
-                pushToast('error', describeFailure(error, 'Unable to load held peer messages')),
-            );
+        let isActive = true;
+        async function loadHeldMessages(): Promise<void> {
+            try {
+                const { messages: initial } = await caxri.request('agent.message.held');
+                if (isActive) setMessages(initial);
+            } catch (error: unknown) {
+                pushToast('error', describeFailure(error, 'Unable to load held peer messages'));
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadHeldMessages();
         const unsubscribe = caxri.onEvent((event) => {
             if (event.event === 'agent.message.held')
                 setMessages((existing) => upsert(existing, event.payload));
@@ -50,7 +55,7 @@ export function AgentMessageApprovalDialog() {
                     existing.filter(({ messageId }) => messageId !== event.payload.messageId),
                 );
         });
-        const expiryTimer = window.setInterval(
+        const expiryTimer = setInterval(
             () =>
                 setMessages((existing) =>
                     existing.filter(({ expiresAt }) => expiresAt > Date.now()),
@@ -58,34 +63,40 @@ export function AgentMessageApprovalDialog() {
             1_000,
         );
         return () => {
-            active = false;
+            isActive = false;
             unsubscribe();
-            window.clearInterval(expiryTimer);
+            clearInterval(expiryTimer);
         };
     }, []);
 
     useEffect(() => {
-        let active = true;
         setDetail(undefined);
         setDetailFailed(false);
-        if (!currentMessageId) return () => undefined;
-        void caxri
-            .request('agent.message.held.get', { messageId: currentMessageId })
-            .then((value) => active && setDetail(value))
-            .catch((error: unknown) => {
-                if (!active) return;
+        if (!currentMessageId) return () => {};
+        let isActive = true;
+        async function loadDetail(): Promise<void> {
+            try {
+                const value = await caxri.request('agent.message.held.get', {
+                    messageId: currentMessageId,
+                });
+                if (isActive) setDetail(value);
+            } catch (error: unknown) {
+                if (!isActive) return;
                 setDetailFailed(true);
                 pushToast(
                     'error',
                     describeFailure(error, 'Unable to load the complete peer message'),
                 );
-            });
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadDetail();
         return () => {
-            active = false;
+            isActive = false;
         };
     }, [currentMessageId]);
 
-    const endpointRef = useMemo(() => {
+    const endpointReference = useMemo(() => {
         if (!current) return '';
         const { hostId, endpointId, generation } = current.from.ref;
         return `${hostId}:${endpointId}:${generation}`;
@@ -136,8 +147,8 @@ export function AgentMessageApprovalDialog() {
                             <dt className="text-muted">Permission</dt>
                             <dd className="m-0">{current.from.permissionClass}</dd>
                             <dt className="text-muted">Endpoint</dt>
-                            <dd className="m-0 truncate font-mono" title={endpointRef}>
-                                {endpointRef}
+                            <dd className="m-0 truncate font-mono" title={endpointReference}>
+                                {endpointReference}
                             </dd>
                         </dl>
                         <pre
@@ -153,13 +164,19 @@ export function AgentMessageApprovalDialog() {
                             <Button
                                 variant="secondary"
                                 disabled={pending}
-                                onClick={() => void settle('deny')}
+                                onClick={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
+                                    void settle('deny');
+                                }}
                             >
                                 Deny
                             </Button>
                             <Button
                                 disabled={pending || detail?.messageId !== current.messageId}
-                                onClick={() => void settle('approve')}
+                                onClick={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
+                                    void settle('approve');
+                                }}
                             >
                                 Approve message
                             </Button>

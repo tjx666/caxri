@@ -1,7 +1,7 @@
-import { CheckCircle2, Download, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
 import type { UpdateState } from '@shared/types';
+import { CheckCircle2, Download, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -112,7 +112,7 @@ function UpdateActions({ state }: { state: UpdateState | undefined }) {
 }
 
 export function UpdateDialog() {
-    const open = useUpdateStore((store) => store.open);
+    const isOpen = useUpdateStore((store) => store.open);
     const state = useUpdateStore((store) => store.state);
     const copy = statusCopy(state);
     useEffect(subscribeUpdateState, []);
@@ -123,7 +123,7 @@ export function UpdateDialog() {
             : undefined;
 
     return (
-        <Dialog open={open} onOpenChange={(next) => useUpdateStore.getState().setOpen(next)}>
+        <Dialog open={isOpen} onOpenChange={(next) => useUpdateStore.getState().setOpen(next)}>
             <DialogContent data-update-status={state?.status ?? 'loading'}>
                 <DialogHeader>
                     <DialogTitle>Software Update</DialogTitle>

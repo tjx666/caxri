@@ -10,7 +10,9 @@ interface AttentionVisibility {
     windowFocused: boolean;
 }
 
-/** Read acknowledgement requires both durable unread state and a genuinely visible selection. */
+/**
+Read acknowledgement requires both durable unread state and a genuinely visible selection.
+ */
 export function shouldAcknowledgeSessionAttention(
     session: SessionRecord | undefined,
     visibility: AttentionVisibility,
@@ -25,24 +27,35 @@ function currentVisibility(): AttentionVisibility {
     };
 }
 
-/** Acknowledges the selected generation only after the Electron window actually displays it. */
+/**
+Acknowledges the selected generation only after the Electron window actually displays it.
+ */
 export function useSessionAttentionAcknowledgement(): void {
     const session = useSelectedSession();
     useEffect(() => {
         if (!session?.hasUnread) return;
-        let pending = false;
-        const acknowledge = (): void => {
-            if (pending || !shouldAcknowledgeSessionAttention(session, currentVisibility())) return;
-            pending = true;
-            void caxri
-                .request('session.markRead', {
+        let isPending = false;
+        const acknowledgeAsync = async (): Promise<void> => {
+            try {
+                await caxri.request('session.markRead', {
                     sessionId: session.id,
                     attentionEpoch: session.attentionEpoch,
-                })
-                .catch(() => {
-                    /** Runtime recovery or the next focus event can safely retry the same generation. */
-                    pending = false;
                 });
+            } catch {
+                /**
+                Runtime recovery or the next focus event can safely retry the same generation.
+                 */
+                isPending = false;
+            }
+        };
+        const acknowledge = (): void => {
+            if (isPending || !shouldAcknowledgeSessionAttention(session, currentVisibility()))
+                return;
+            isPending = true;
+            // Fire-and-forget: failures reset `isPending` above so the next focus/visibility event
+            // retries; there is nothing left for this handler to await.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void acknowledgeAsync();
         };
         acknowledge();
         window.addEventListener('focus', acknowledge);

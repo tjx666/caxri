@@ -1,9 +1,10 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { expect, test, type Page } from './support/fixtures.ts';
-
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -35,7 +36,7 @@ async function terminalTextBounds(
             const rowElements = [...rows.children];
             const renderedText = rowElements.map((row) => row.textContent ?? '').join('');
             const targetStart = renderedText.indexOf(target);
-            if (targetStart < 0) throw new Error(`Terminal text not found: ${target}`);
+            if (targetStart === -1) throw new Error(`Terminal text not found: ${target}`);
 
             const characterBounds = (targetOffset: number): CharacterBounds => {
                 let renderedOffset = 0;
@@ -109,8 +110,8 @@ async function terminalIds(page: Page): Promise<string[]> {
 
 test('Terminal selection copies exact text and stays isolated across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
-    const ciParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
-    const longPath = ciParity
+    const isCiParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
+    const longPath = isCiParity
         ? join(
               'ci-parity-path-segment-0123456789',
               'another-long-path-segment-0123456789',
@@ -122,7 +123,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
     const multilineOutput = join(testDirectory, 'multiline-output.sh');
     const splitOutput = join(testDirectory, 'split-output.sh');
     const splitText = 'PANE_TWO';
-    const firstLine = ciParity ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END` : 'FIRST Ω 中';
+    const firstLine = isCiParity ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END` : 'FIRST Ω 中';
     const lastLine = 'SECOND  spaced text';
     await mkdir(root, { recursive: true });
     await Promise.all([
@@ -133,7 +134,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        if (ciParity) {
+        if (isCiParity) {
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.setBounds({ width: 720, height: 640 }),
             );
@@ -146,7 +147,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
         );
         await expect(firstRows).toContainText(firstLine);
         await expect(firstRows).toContainText(lastLine);
-        if (ciParity) {
+        if (isCiParity) {
             const wrappedBounds = await terminalTextBounds(
                 running.page,
                 firstTerminalId,
@@ -209,14 +210,18 @@ test('Terminal selection copies exact text and stays isolated across split panes
             .toBe(splitText);
 
         await running.app.evaluate(({ clipboard }) =>
-            clipboard.writeText("printf 'PASTE_STILL_WORKS\\n'"),
+            clipboard.writeText(String.raw`printf 'PASTE_STILL_WORKS\n'`),
         );
         await secondInput.focus();
         await secondInput.press('Meta+V');
         await secondInput.press('Enter');
         await expect(secondRows).toContainText('PASTE_STILL_WORKS');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

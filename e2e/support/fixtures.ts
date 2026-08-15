@@ -1,5 +1,6 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
 
 import { expect, test as base } from '@playwright/test';
 
@@ -18,15 +19,13 @@ interface E2EWorkerFixtures {
 
 export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
     e2eErrorGate: [
-        async ({ browserName }, use, testInfo) => {
-            void browserName;
+        async (_fixtures, use, testInfo) => {
             await runWithE2EErrorGate(testInfo, use);
         },
         { auto: true },
     ],
     e2eWorkerIsolation: [
-        async ({ browserName }, runWorker) => {
-            void browserName;
+        async (_fixtures, runWorker) => {
             const original = {
                 TEMP: process.env.TEMP,
                 TMP: process.env.TMP,
@@ -43,9 +42,11 @@ export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
                 process.env.TMPDIR = workerDirectory;
             }
             let failure: unknown;
-            await runWorker().catch((error: unknown) => {
+            try {
+                await runWorker();
+            } catch (error: unknown) {
                 failure = error;
-            });
+            }
             try {
                 for (const [key, value] of Object.entries(original)) {
                     if (value === undefined) delete process.env[key];
@@ -67,7 +68,9 @@ export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
     ],
 });
 
-/** Unguarded only so `error-gate.e2e.ts` can assert the shared gate's own teardown failures. */
+/**
+Unguarded only so `error-gate.e2e.ts` can assert the shared gate's own teardown failures.
+ */
 export const errorGateSelfTest = base;
 
 export { expect };

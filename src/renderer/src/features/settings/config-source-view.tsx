@@ -1,16 +1,17 @@
-import { Suspense, lazy } from 'react';
+import { lazy, Suspense } from 'react';
 
 import type { ThemeTokens } from '@shared/types';
 
-import { configurationEditorLoadingClassName } from '../../lib/utils';
-import { CONFIG_FILE_NAMES, type ConfigKind } from './config-edit';
+import { configEditorLoadingClassName } from '../../lib/utilities';
+import type { ConfigKind } from './config-edit';
+import { CONFIG_FILE_NAMES } from './config-edit';
 
-const ConfigurationEditor = lazy(async () => {
-    const module = await import('./configuration-editor');
-    return { default: module.ConfigurationEditor };
+const ConfigEditor = lazy(async () => {
+    const module = await import('./config-editor');
+    return { default: module.ConfigEditor };
 });
 
-interface ConfigurationSourceViewProps {
+interface ConfigSourceViewProperties {
     error?: string;
     kind: ConfigKind;
     source: string;
@@ -24,22 +25,22 @@ interface ConfigurationSourceViewProps {
  * editor loses focus (see `onBlur`), not on every keystroke; a parse failure reports inline below
  * instead of being written.
  */
-export function ConfigurationSourceView({
+export function ConfigSourceView({
     error,
     kind,
     source,
     theme,
     onBlur,
     onChange,
-}: ConfigurationSourceViewProps) {
+}: ConfigSourceViewProperties) {
     const fileName = CONFIG_FILE_NAMES[kind];
     return (
         <div
             className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
             data-config-source={kind}
         >
-            <Suspense fallback={<div className={configurationEditorLoadingClassName} />}>
-                <ConfigurationEditor
+            <Suspense fallback={<div className={configEditorLoadingClassName} />}>
+                <ConfigEditor
                     ariaLabel={`${fileName} source`}
                     path={`/caxri/${fileName}`}
                     theme={theme}

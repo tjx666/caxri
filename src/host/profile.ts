@@ -1,25 +1,27 @@
+import { Buffer } from 'node:buffer';
 import { createHash, randomBytes } from 'node:crypto';
 import { constants as fileConstants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import { CaxriError } from '../shared/ipc/errors';
+import type { HostDesktopCredential, HostLock, HostManifest } from '../shared/ipc/local-transport';
 import {
-    HOST_MANIFEST_VERSION,
     HOST_DESKTOP_CREDENTIAL_VERSION,
+    HOST_MANIFEST_VERSION,
     hostDesktopCredentialSchema,
     hostLockSchema,
     hostManifestSchema,
-    type HostDesktopCredential,
-    type HostLock,
-    type HostManifest,
 } from '../shared/ipc/local-transport';
-import { CaxriError } from '../shared/ipc/errors';
+import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
 const MAX_UNIX_SOCKET_PATH_BYTES = 103;
-/** Darwin supports atomic open-time advisory locking, but Node omits this flag from `fs.constants`. */
+/**
+Darwin supports atomic open-time advisory locking, but Node omits this flag from `fs.constants`.
+ */
 const DARWIN_OPEN_EXCLUSIVE_LOCK = 0x20;
 
 export interface HostProfilePaths {
@@ -136,11 +138,16 @@ async function acquireProcessLock(path: string) {
         DARWIN_OPEN_EXCLUSIVE_LOCK;
     for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
+            // Each attempt must observe whether the exclusive create failed with EEXIST before
+            // deciding whether to retry against the existing file, so these opens cannot be
+            // parallelized across attempts.
+            // eslint-disable-next-line no-await-in-loop -- sequential CAS retry, see comment above
             return await open(path, flags | fileConstants.O_CREAT | fileConstants.O_EXCL, 0o600);
         } catch (error) {
             if (fileSystemCode(error) !== 'EEXIST') throw error;
         }
         try {
+            // eslint-disable-next-line no-await-in-loop -- sequential CAS retry, see comment above
             return await open(path, flags, 0o600);
         } catch (error) {
             const code = fileSystemCode(error);
@@ -226,7 +233,7 @@ async function optionalPrivateJson<T>(read: (path: string) => Promise<T>, path: 
     try {
         return await read(path);
     } catch (error) {
-        if (fileSystemCode(error) === 'ENOENT') return undefined;
+        if (fileSystemCode(error) === 'ENOENT') return;
         throw error;
     }
 }
@@ -294,7 +301,7 @@ async function cleanPreviousOwner(
     await rm(paths.desktopCredential, { force: true });
 }
 
-async function manifestOwnedBy(path: string, processIdentity: string) {
+async function isManifestOwnedBy(path: string, processIdentity: string) {
     try {
         const value = await readHostManifest(path);
         return value.processIdentity === processIdentity;
@@ -304,7 +311,9 @@ async function manifestOwnedBy(path: string, processIdentity: string) {
     }
 }
 
-/** Acquires the profile before Runtime startup, preventing a second SQLite writer from spawning. */
+/**
+Acquires the profile before Runtime startup, preventing a second SQLite writer from spawning.
+ */
 export async function acquireHostProfile(options: {
     processState?: (pid: number) => HostProcessState;
     socketDirectory?: string;
@@ -314,7 +323,9 @@ export async function acquireHostProfile(options: {
 }): Promise<HostProfileLease> {
     const paths = await resolveHostProfilePaths(options.userDataPath, options.socketDirectory);
     await privateDirectory(paths.directory);
-    /** The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS. */
+    /**
+    The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
+     */
     const lockHandle = await acquireProcessLock(paths.lock);
     const processIdentity = randomBytes(16).toString('hex');
     const startedAt = options.startedAt ?? Date.now();
@@ -356,14 +367,14 @@ export async function acquireHostProfile(options: {
         processIdentity,
         desktopToken: randomBytes(32).toString('hex'),
     });
-    let published = false;
-    let released = false;
+    let isPublished = false;
+    let isReleased = false;
     return {
         desktopCredential,
         manifest,
         paths,
         async publish() {
-            if (published) return;
+            if (isPublished) return;
             const endpoint = await lstat(paths.endpoint);
             if (!endpoint.isSocket())
                 throw new CaxriError('PATH_DENIED', 'Host endpoint is not a Unix socket');
@@ -372,18 +383,24 @@ export async function acquireHostProfile(options: {
             await chmod(paths.endpoint, 0o600);
             await replacePrivateJson(paths.directory, paths.desktopCredential, desktopCredential);
             await replacePrivateJson(paths.directory, paths.manifest, manifest);
-            published = true;
+            isPublished = true;
         },
         async release() {
-            if (released) return;
-            released = true;
+            if (isReleased) return;
+            isReleased = true;
             try {
-                if (await manifestOwnedBy(paths.manifest, processIdentity))
+                if (await isManifestOwnedBy(paths.manifest, processIdentity))
                     await rm(paths.manifest, { force: true });
             } catch {
-                /** A corrupted manifest must not prevent release of the authenticated live owner. */
+                /**
+                A corrupted manifest must not prevent release of the authenticated live owner.
+                 */
             }
-            await rm(paths.desktopCredential, { force: true }).catch(() => undefined);
+            try {
+                await rm(paths.desktopCredential, { force: true });
+            } catch {
+                // Best-effort cleanup; release() must still finish tearing down the lock below.
+            }
             try {
                 try {
                     if ((await lstat(paths.endpoint)).isSocket())

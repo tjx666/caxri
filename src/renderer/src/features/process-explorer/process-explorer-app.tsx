@@ -1,12 +1,13 @@
-import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { errorMessage } from '@shared/ipc';
 import type { ProcessExplorerSnapshot } from '@shared/process-explorer';
+import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 
 import { applyCssTheme } from '../../lib/theme-css';
-import { cn } from '../../lib/utils';
-import { buildProcessTree, type ProcessTreeNode } from './process-tree';
+import { cn } from '../../lib/utilities';
+import type { ProcessTreeNode } from './process-tree';
+import { buildProcessTree } from './process-tree';
 
 const SAMPLE_INTERVAL_MS = 2_000;
 
@@ -26,15 +27,15 @@ function ProcessRow({
     node: ProcessTreeNode;
     toggle: (pid: number) => void;
 }) {
-    const expandable = node.children.length > 0;
-    const expanded = expandable && !collapsed.has(node.pid);
+    const isExpandable = node.children.length > 0;
+    const isExpanded = isExpandable && !collapsed.has(node.pid);
     return (
         <>
             <div
                 className="process-row grid min-h-7 grid-cols-[minmax(320px,1fr)_110px_140px_90px] hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]"
                 role="row"
                 aria-level={depth + 1}
-                aria-expanded={expandable ? expanded : undefined}
+                aria-expanded={isExpandable ? isExpanded : undefined}
                 data-process-pid={node.pid}
             >
                 <div
@@ -46,11 +47,11 @@ function ProcessRow({
                         type="button"
                         className="process-name flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden border-0 bg-transparent p-0 text-left cursor-pointer disabled:cursor-default disabled:text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
                         title={node.name}
-                        disabled={!expandable}
+                        disabled={!isExpandable}
                         onClick={() => toggle(node.pid)}
                     >
-                        {expandable ? (
-                            expanded ? (
+                        {isExpandable ? (
+                            isExpanded ? (
                                 <ChevronDown className="shrink-0 w-3.5" size={14} />
                             ) : (
                                 <ChevronRight className="shrink-0 w-3.5" size={14} />
@@ -73,7 +74,7 @@ function ProcessRow({
                     {node.pid}
                 </span>
             </div>
-            {expanded &&
+            {isExpanded &&
                 node.children.map((child) => (
                     <ProcessRow
                         key={child.pid}
@@ -94,27 +95,35 @@ export function ProcessExplorerApp() {
     const [refreshing, setRefreshing] = useState(false);
     const refresh = useCallback((): void => {
         setRefreshing(true);
-        void window.processExplorer
-            .snapshot()
-            .then((nextSnapshot) => {
+        async function runRefresh(): Promise<void> {
+            try {
+                const nextSnapshot = await globalThis.processExplorer.snapshot();
                 setSnapshot(nextSnapshot);
                 setError(undefined);
-            })
-            .catch((failure: unknown) =>
-                setError(errorMessage(failure, 'Unable to sample processes')),
-            )
-            .finally(() => setRefreshing(false));
+            } catch (error_: unknown) {
+                setError(errorMessage(error_, 'Unable to sample processes'));
+            } finally {
+                setRefreshing(false);
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void runRefresh();
     }, []);
     useEffect(() => {
-        const initialRefresh = window.setTimeout(refresh, 0);
-        const interval = window.setInterval(refresh, SAMPLE_INTERVAL_MS);
-        void window.processExplorer
-            .theme()
-            .then(applyCssTheme)
-            .catch(() => undefined);
+        const initialRefresh = setTimeout(refresh, 0);
+        const interval = setInterval(refresh, SAMPLE_INTERVAL_MS);
+        async function loadTheme(): Promise<void> {
+            try {
+                applyCssTheme(await globalThis.processExplorer.theme());
+            } catch {
+                // Theme sync is best-effort; the process tree still renders with the default theme.
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadTheme();
         return () => {
-            window.clearTimeout(initialRefresh);
-            window.clearInterval(interval);
+            clearTimeout(initialRefresh);
+            clearInterval(interval);
         };
     }, [refresh]);
     const roots = useMemo(() => buildProcessTree(snapshot?.processes ?? []), [snapshot?.processes]);

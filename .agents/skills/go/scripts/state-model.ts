@@ -1,4 +1,5 @@
 import { isAbsolute } from 'node:path';
+
 import { z } from 'zod';
 
 import { validateHumanText } from '../../acceptance/scripts/validate-report';
@@ -21,6 +22,9 @@ import {
     createEmptyIssueExpectationDrift,
     issueExpectationDriftSchema,
 } from './issue-drift';
+import { createEmptyLedgerRetention, ledgerRetentionSchema } from './ledger-retention';
+import { mutationLeaseSchema } from './mutation-lease';
+import { MAX_NOTE_TEXT_CHARACTERS, sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
 import {
     assertReviewHeadFrozen,
     createEmptyReviewGate,
@@ -37,9 +41,6 @@ import {
 } from './run-budget';
 import { migrateState } from './state-migration';
 import { validationsSchema } from './validation-gate';
-import { createEmptyLedgerRetention, ledgerRetentionSchema } from './ledger-retention';
-import { mutationLeaseSchema } from './mutation-lease';
-import { MAX_NOTE_TEXT_CHARACTERS, sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
 
 const SCHEMA_VERSION = 10;
 
@@ -306,7 +307,8 @@ function decisionHead(state: GoState): string | null {
 }
 
 function assertAllIssueExpectationDriftReady(state: GoState, expectedHeadSha: string): void {
-    for (const issue of state.issues.filter(({ status }) => status !== 'deferred')) {
+    for (const issue of state.issues) {
+        if (issue.status === 'deferred') continue;
         assertIssueExpectationDriftReady(issue, expectedHeadSha);
     }
 }
@@ -316,11 +318,11 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
     if (!allowed.has(phase))
         throw new Error(`Invalid phase transition: ${state.phase} -> ${phase}`);
     ensurePhaseCheckpoint(state);
-    if (state.phase === 'intake' && phase === 'planning') freezeRunBudgetPolicy(state);
-    if (state.phase === 'issue_execution' && phase === 'deep_review') {
+    if (phase === 'planning' && state.phase === 'intake') freezeRunBudgetPolicy(state);
+    if (phase === 'deep_review' && state.phase === 'issue_execution') {
         recordCostCheckpoint(state, { boundary: 'batch' });
     }
-    if (state.phase === 'deep_review' && phase === 'delivery') assertReviewHeadFrozen(state);
+    if (phase === 'delivery' && state.phase === 'deep_review') assertReviewHeadFrozen(state);
     if (state.phase === 'delivery' && ['acceptance', 'acceptance_handoff'].includes(phase)) {
         const headSha = state.pullRequest.headSha;
         if (!headSha) throw new Error('Acceptance requires the exact pull request head');
@@ -331,7 +333,7 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
             throw new Error('Only an explicit Acceptance waiver can skip directly to handoff');
         }
     }
-    if (state.phase === 'acceptance' && phase === 'acceptance_handoff') {
+    if (phase === 'acceptance_handoff' && state.phase === 'acceptance') {
         if (
             state.acceptance.status !== 'pending' ||
             !state.acceptance.id ||
@@ -342,7 +344,7 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
         }
         assertPublishedAcceptanceLineage(state, state.pullRequest.headSha ?? undefined);
     }
-    if (state.phase === 'acceptance_handoff' && phase === 'waiting_acceptance') {
+    if (phase === 'waiting_acceptance' && state.phase === 'acceptance_handoff') {
         if (state.acceptance.status !== 'pending') {
             throw new Error('Waiting Acceptance requires a pending human decision');
         }
@@ -356,12 +358,14 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
         if (state.acceptance.status === 'waived') assertHandoffReady(state, headSha, false);
         else assertPublishedAcceptanceLineage(state, headSha);
     }
-    if (state.phase === 'merge' && phase === 'finalization') {
-        if (state.pullRequest.status !== 'merged') {
-            throw new Error('Finalization requires a remotely merged pull request');
-        }
+    if (
+        phase === 'finalization' &&
+        state.phase === 'merge' &&
+        state.pullRequest.status !== 'merged'
+    ) {
+        throw new Error('Finalization requires a remotely merged pull request');
     }
-    if (state.phase === 'finalization' && phase === 'complete') {
+    if (phase === 'complete' && state.phase === 'finalization') {
         assertFinalizationComplete(state);
     }
 
@@ -373,10 +377,10 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
 }
 
 export function upsertIssue(state: GoState, input: IssueInput): GoState {
-    if (!Number.isInteger(input.number) || input.number <= 0) {
+    if (!Number.isSafeInteger(input.number) || input.number <= 0) {
         throw new Error('Issue number must be positive');
     }
-    if ((input.dependencies ?? []).some((number) => !Number.isInteger(number) || number <= 0)) {
+    if ((input.dependencies ?? []).some((number) => !Number.isSafeInteger(number) || number <= 0)) {
         throw new Error('Issue dependencies must be positive integers');
     }
     let issue = state.issues.find((item) => item.number === input.number);
@@ -410,7 +414,7 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
     uniqueAppend(issue.acceptanceCheckIds, input.checks ?? []);
     uniqueAppend(issue.validations, input.validations ?? []);
     if (input.status) issue.status = input.status;
-    if (input.status === 'complete' && !wasComplete) {
+    if (!wasComplete && input.status === 'complete') {
         recordCostCheckpoint(state, { boundary: 'issue', issueNumber: issue.number });
     }
     addEvent(state, 'issue', `#${issue.number} -> ${issue.status}`);
@@ -418,7 +422,7 @@ export function upsertIssue(state: GoState, input: IssueInput): GoState {
 }
 
 export function recordPullRequest(state: GoState, input: PullRequestInput): GoState {
-    if (input.number !== undefined && (!Number.isInteger(input.number) || input.number <= 0)) {
+    if (input.number !== undefined && (!Number.isSafeInteger(input.number) || input.number <= 0)) {
         throw new Error('PR number must be positive');
     }
     if (input.status === 'ready') {
@@ -426,14 +430,14 @@ export function recordPullRequest(state: GoState, input: PullRequestInput): GoSt
         if (!headSha) throw new Error('PR readiness requires the exact head');
         assertAllIssueExpectationDriftReady(state, headSha);
     }
-    const headChanged = Boolean(
+    const isHeadChanged = Boolean(
         input.headSha && state.pullRequest.headSha && input.headSha !== state.pullRequest.headSha,
     );
-    if (headChanged && state.ciFallback.status !== 'not_requested') {
+    if (isHeadChanged && state.ciFallback.status !== 'not_requested') {
         addEvent(state, 'ci_fallback', `Invalidated fallback for ${state.ciFallback.headSha}`);
         state.ciFallback = createEmptyCiFallback();
     }
-    if (headChanged) {
+    if (isHeadChanged) {
         if (state.reviewGate.frozenHeadSha !== input.headSha) {
             state.reviewGate.frozenHeadSha = null;
         }
@@ -462,12 +466,6 @@ export function recordWorktree(state: GoState, input: WorktreeInput, createdAt =
     if (input.path === input.mainCheckoutPath) {
         throw new Error('Go worktree must be isolated from the main checkout');
     }
-    const worktree = {
-        baseSha: input.baseSha,
-        createdAt,
-        mainCheckoutPath: input.mainCheckoutPath,
-        path: input.path,
-    };
     if (
         state.worktree &&
         (state.worktree.baseSha !== input.baseSha ||
@@ -479,6 +477,12 @@ export function recordWorktree(state: GoState, input: WorktreeInput, createdAt =
     if (input.branch && state.branch && state.branch !== input.branch) {
         throw new Error('A Go run cannot switch to a different branch');
     }
+    const worktree = {
+        baseSha: input.baseSha,
+        createdAt,
+        mainCheckoutPath: input.mainCheckoutPath,
+        path: input.path,
+    };
     state.worktree ??= worktree;
     if (input.branch) {
         state.branch = input.branch;
@@ -488,7 +492,7 @@ export function recordWorktree(state: GoState, input: WorktreeInput, createdAt =
 }
 
 export function recordAcceptance(state: GoState, input: AcceptanceInput): GoState {
-    if (input.round !== undefined && (!Number.isInteger(input.round) || input.round < 0)) {
+    if (input.round !== undefined && (!Number.isSafeInteger(input.round) || input.round < 0)) {
         throw new Error('Acceptance round must be a non-negative integer');
     }
     if (input.status === 'waived' && (!input.waivedHeadSha || !input.waiverReason?.trim())) {
@@ -521,7 +525,7 @@ export function recordNote(state: GoState, input: { kind: NoteKind; text: string
     const safe = sanitizeNoteText(input.text);
     const text =
         input.kind === 'workflow' ? validateHumanText(safe.text, 'workflow note') : safe.text;
-    if (!state.notes[input.kind].some((item) => item.text === text)) {
+    if (state.notes[input.kind].every((item) => item.text !== text)) {
         state.notes[input.kind].push({ at: now(), kind: input.kind, ...safe, text });
         addEvent(state, 'note', `${input.kind}: ${text}`);
     }
@@ -536,17 +540,18 @@ export function validateState(state: unknown): GoState {
     if (parsed.phase !== 'intake' && !parsed.runBudget.policyFrozenAt) {
         throw new Error('Invalid Go state: budget policy must be frozen after intake');
     }
-    if (parsed.worktree) {
-        if (!isAbsolute(parsed.worktree.path) || !isAbsolute(parsed.worktree.mainCheckoutPath)) {
-            throw new Error('Invalid Go state: worktree paths must be absolute');
-        }
+    if (
+        parsed.worktree &&
+        (!isAbsolute(parsed.worktree.path) || !isAbsolute(parsed.worktree.mainCheckoutPath))
+    ) {
+        throw new Error('Invalid Go state: worktree paths must be absolute');
     }
     const pendingValidations = parsed.validations.filter(({ result }) => result === 'pending');
     if (pendingValidations.length > 1) {
         throw new Error('Invalid Go state: only one validation may be pending');
     }
     if (parsed.mutationLease?.kind === 'validation') {
-        if (!pendingValidations.some(({ id }) => id === parsed.mutationLease?.holderId)) {
+        if (pendingValidations.every(({ id }) => id !== parsed.mutationLease?.holderId)) {
             throw new Error('Invalid Go state: validation lease has no matching pending receipt');
         }
     } else if (pendingValidations.length > 0) {
@@ -597,12 +602,11 @@ export function validateState(state: unknown): GoState {
     if (parsed.phase === 'waiting_acceptance') {
         assertHandoffReady(parsed, parsed.pullRequest.headSha ?? '');
     }
-    if (['merge', 'finalization', 'complete'].includes(parsed.phase)) {
-        if (!parsed.pullRequest.headSha || decisionHead(parsed) !== parsed.pullRequest.headSha) {
-            throw new Error(
-                'Invalid Go state: merge requires the exact accepted or waived PR head',
-            );
-        }
+    if (
+        ['merge', 'finalization', 'complete'].includes(parsed.phase) &&
+        (!parsed.pullRequest.headSha || decisionHead(parsed) !== parsed.pullRequest.headSha)
+    ) {
+        throw new Error('Invalid Go state: merge requires the exact accepted or waived PR head');
     }
     if (
         ['finalization', 'complete'].includes(parsed.phase) &&

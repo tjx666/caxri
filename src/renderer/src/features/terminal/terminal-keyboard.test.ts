@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     CODEX_IMAGE_PASTE_INPUT,
-    clipboardContainsImage,
+    isClipboardContainingImage,
     terminalKeyboardInput,
 } from './terminal-keyboard';
 
@@ -21,16 +21,16 @@ function keyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
 describe('terminalKeyboardInput', () => {
     it('maps Shift+Enter to Codex multiline input only for Codex Terminals', () => {
         const event = keyEvent({ key: 'Enter', shiftKey: true });
-        expect(terminalKeyboardInput(event, true)).toBe('\x1b\r');
+        expect(terminalKeyboardInput(event, true)).toBe('\u{1B}\r');
         expect(terminalKeyboardInput(event, false)).toBeUndefined();
     });
 
     it('maps macOS Command+Left and Command+Right to line boundaries', () => {
         expect(terminalKeyboardInput(keyEvent({ key: 'ArrowLeft', metaKey: true }), false)).toBe(
-            '\x01',
+            '\u{1}',
         );
         expect(terminalKeyboardInput(keyEvent({ key: 'ArrowRight', metaKey: true }), true)).toBe(
-            '\x05',
+            '\u{5}',
         );
     });
 
@@ -47,17 +47,17 @@ describe('terminalKeyboardInput', () => {
     });
 });
 
-describe('clipboardContainsImage', () => {
+describe('isClipboardContainingImage', () => {
     it('recognizes image MIME types and image files', () => {
         expect(
-            clipboardContainsImage({
+            isClipboardContainingImage({
                 files: [],
                 items: [],
                 types: ['image/png'],
             }),
         ).toBe(true);
         expect(
-            clipboardContainsImage({
+            isClipboardContainingImage({
                 files: [{ type: 'image/jpeg' }],
                 items: [],
                 types: ['Files'],
@@ -67,12 +67,12 @@ describe('clipboardContainsImage', () => {
 
     it('keeps ordinary text paste on xterm native handling', () => {
         expect(
-            clipboardContainsImage({
+            isClipboardContainingImage({
                 files: [],
                 items: [],
                 types: ['text/plain'],
             }),
         ).toBe(false);
-        expect(CODEX_IMAGE_PASTE_INPUT).toBe('\x16');
+        expect(CODEX_IMAGE_PASTE_INPUT).toBe('\u{16}');
     });
 });

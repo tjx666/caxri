@@ -1,10 +1,9 @@
+import type { TerminalRecord } from '@shared/types';
 import { CircleDot } from 'lucide-react';
 
-import type { TerminalRecord } from '@shared/types';
-
-import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon';
 import { resolveAgentIcon } from '../../../../icons/agents/agent-icon-registry';
-import { cn } from '../../../../lib/utils';
+import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon';
+import { cn } from '../../../../lib/utilities';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {
@@ -17,11 +16,15 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
     stopped: 'text-muted',
     dead: 'text-danger',
     failed: 'text-danger',
-    /** Same treatment as `dead`: an interrupted Terminal is restoring in the background, not a live process. */
+    /**
+    Same treatment as `dead`: an interrupted Terminal is restoring in the background, not a live process.
+     */
     interrupted: 'text-danger',
 };
 
-/** Scoped to the selected Session's Terminals so another Session's Agents never leak in here. */
+/**
+Scoped to the selected Session's Terminals so another Session's Agents never leak in here.
+ */
 export function TerminalInfoPanel() {
     const session = useSelectedSession();
     const terminals = useSessionTerminals();
@@ -41,7 +44,7 @@ export function TerminalInfoPanel() {
     return (
         <div className="inspector-content terminal-info-panel min-h-0 flex-1 overflow-auto p-2">
             {terminals.map((terminal) => {
-                const primary = terminal.id === session.primaryAgentTerminalId;
+                const isPrimary = terminal.id === session.primaryAgentTerminalId;
                 return (
                     <section
                         key={terminal.id}
@@ -53,7 +56,7 @@ export function TerminalInfoPanel() {
                             <strong className="min-w-0 flex-1 truncate font-semibold">
                                 {terminal.title}
                             </strong>
-                            {primary && (
+                            {isPrimary && (
                                 <span className="flex-none px-1 rounded bg-elevated text-muted text-[10px]">
                                     Title source
                                 </span>

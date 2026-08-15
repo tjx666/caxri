@@ -11,12 +11,14 @@ interface WorkbenchRootPromptState {
     show(candidate: WorkbenchRootCandidate): void;
 }
 
-/** Keeps one content-free candidate per Session until the user handles it. */
+/**
+Keeps one content-free candidate per Session until the user handles it.
+ */
 export const useWorkbenchRootPromptStore = create<WorkbenchRootPromptState>((set) => ({
     candidates: {},
     dismiss: (sessionId) =>
         set((state) => {
-            if (!state.candidates[sessionId]) return state;
+            if (!Object.hasOwn(state.candidates, sessionId)) return state;
             const candidates = { ...state.candidates };
             delete candidates[sessionId];
             return { candidates };

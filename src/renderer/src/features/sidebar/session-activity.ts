@@ -89,17 +89,23 @@ const TONE_CALLOUT_CLASSNAME: Record<SessionActivityPresentation['tone'], string
     warning: 'bg-warning/10 text-warning',
 };
 
-/** `border-*` utility for a tone-colored ring (e.g. the unread-attention indicator). */
+/**
+`border-*` utility for a tone-colored ring (e.g. the unread-attention indicator).
+ */
 export function sessionToneBorderClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_BORDER_CLASSNAME[tone];
 }
 
-/** `bg-*` utility for a tone-colored dot/fill, matching {@link sessionToneBorderClassName}'s tone. */
+/**
+`bg-*` utility for a tone-colored dot/fill, matching {@link sessionToneBorderClassName}'s tone.
+ */
 export function sessionToneBackgroundClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_BACKGROUND_CLASSNAME[tone];
 }
 
-/** Soft background + matching text for a tone-colored callout chip (e.g. the unread explanation). */
+/**
+Soft background + matching text for a tone-colored callout chip (e.g. the unread explanation).
+ */
 export function sessionToneCalloutClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_CALLOUT_CLASSNAME[tone];
 }
@@ -113,7 +119,9 @@ export function formatSessionRelativeTime(timestamp: number, now = Date.now()): 
     return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
 }
 
-/** Single source of truth for every visual and accessible Session activity explanation. */
+/**
+Single source of truth for every visual and accessible Session activity explanation.
+ */
 export function sessionActivityPresentation(
     state: AgentActivityState,
 ): SessionActivityPresentation {

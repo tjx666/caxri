@@ -25,14 +25,14 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
     if (!source) return undefined;
     if (/^\s*allow_managed_hooks_only\s*=\s*true\s*(?:#.*)?$/m.test(source))
         return 'Codex allows only managed hooks in config.toml';
-    let features = false;
+    let isFeatures = false;
     for (const line of source.split(/\r?\n/)) {
         const section = line.match(/^\s*\[([^\]]+)\]\s*(?:#.*)?$/)?.[1];
         if (section) {
-            features = section === 'features';
+            isFeatures = section === 'features';
             continue;
         }
-        if (features && /^\s*(?:hooks|codex_hooks)\s*=\s*false\s*(?:#.*)?$/.test(line))
+        if (isFeatures && /^\s*(?:hooks|codex_hooks)\s*=\s*false\s*(?:#.*)?$/.test(line))
             return 'Codex hooks are disabled in config.toml';
     }
     return undefined;

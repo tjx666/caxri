@@ -22,9 +22,9 @@ function createFakePty(): IPty {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('TerminalManager shell integration launch', () => {
@@ -40,7 +40,7 @@ describe('TerminalManager shell integration launch', () => {
         }));
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
@@ -70,7 +70,7 @@ describe('TerminalManager shell integration launch', () => {
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/fish'),

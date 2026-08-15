@@ -1,11 +1,8 @@
 import { isAbsolute } from 'node:path';
+import process from 'node:process';
 
-import {
-    agentProviderCatalog,
-    agentProviderIds,
-    type AgentLaunchSettings,
-    type AgentProvider,
-} from '../agents';
+import type { AgentLaunchSettings, AgentProvider } from '../agents';
+import { agentProviderCatalog, agentProviderIds } from '../agents';
 import { CaxriError } from '../ipc/errors';
 
 export type E2EAgentPolicy =
@@ -31,7 +28,9 @@ export function e2eFakeExecutableEnvironmentKey(provider: string): string {
     return `CAXRI_E2E_FAKE_${provider.toUpperCase().replaceAll(/[^A-Z0-9]/g, '_')}_EXECUTABLE`;
 }
 
-/** Lists every provider-specific fake executable key accepted at the process boundary. */
+/**
+Lists every provider-specific fake executable key accepted at the process boundary.
+ */
 export function e2eFakeExecutableEnvironmentKeys(
     providers: readonly string[] = agentProviderIds,
 ): string[] {
@@ -52,7 +51,9 @@ export function e2eFakeExecutableEnvironmentKeys(
     return entries.map((entry) => entry.key);
 }
 
-/** Serializes fake executable authority for exactly the supplied provider ids. */
+/**
+Serializes fake executable authority for exactly the supplied provider ids.
+ */
 export function e2eFakeExecutableEnvironment(
     executables: E2EFakeExecutables,
     providers: readonly string[] = agentProviderIds,
@@ -66,7 +67,9 @@ export function e2eFakeExecutableEnvironment(
     );
 }
 
-/** Reads fake executable authority only from the generated provider-specific environment keys. */
+/**
+Reads fake executable authority only from the generated provider-specific environment keys.
+ */
 export function readE2EFakeExecutables(
     environment: NodeJS.ProcessEnv,
     providers: readonly string[] = agentProviderIds,
@@ -91,7 +94,9 @@ export interface E2EAgentShellShimProvider {
     provider: string;
 }
 
-/** Returns one Shell shim descriptor per catalog entry, including a provider's CLI executable name. */
+/**
+Returns one Shell shim descriptor per catalog entry, including a provider's CLI executable name.
+ */
 export function e2eAgentShellShimProviders(): E2EAgentShellShimProvider[] {
     return agentProviderIds.map((provider) => ({
         provider,
@@ -120,9 +125,11 @@ export function e2eAgentShellShims(
     });
 }
 
-const portableShellExecutableName = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const portableShellExecutableName = /^[A-Z0-9][\w-]*$/i;
 
-/** Rejects names that could escape the generated PATH directory or shadow each other. */
+/**
+Rejects names that could escape the generated PATH directory or shadow each other.
+ */
 function assertE2EAgentShellShimProviders(providers: readonly E2EAgentShellShimProvider[]): void {
     const providersByExecutable = new Map<string, string>();
     for (const provider of providers) {
@@ -146,7 +153,10 @@ function shellQuote(value: string): string {
 }
 
 function isAgentProvider(value: string | undefined): value is AgentProvider {
-    return agentProviderIds.some((provider) => provider === value);
+    // `Array#includes` narrows its argument to the tuple's element type, but this is a runtime
+    // type guard over a `string | undefined` input; widen the array's type for the call instead
+    // of narrowing `value`.
+    return (agentProviderIds as ReadonlyArray<string | undefined>).includes(value);
 }
 
 /**
@@ -181,7 +191,9 @@ export function resolveE2EAgentPolicy(input: E2EAgentPolicyInput): E2EAgentPolic
     throw new Error(`Unsupported E2E Agent mode: ${mode}`);
 }
 
-/** Returns the only executable request allowed by the E2E policy. */
+/**
+Returns the only executable request allowed by the E2E policy.
+ */
 export function selectE2EAgentExecutable(
     policy: E2EAgentPolicy | undefined,
     provider: AgentProvider,
@@ -225,14 +237,16 @@ export function assertE2EAgentLaunch(
         );
     const prompt = launch.args.at(-1);
     const prefix = launch.args.slice(0, -1);
+    // Simple identifier-based conditions are ordered first per unicorn/prefer-simple-condition-first;
+    // every branch below is a pure boolean check with no side effects, so reordering is safe.
     if (
         provider !== 'codex' ||
-        launch.executable !== agentProviderCatalog.codex.executableName ||
-        prefix.length !== REAL_CODEX_ARGUMENT_PREFIX.length ||
-        !prefix.every((argument, index) => argument === REAL_CODEX_ARGUMENT_PREFIX[index]) ||
         !prompt ||
+        launch.executable !== agentProviderCatalog.codex.executableName ||
         prompt !== prompt.trim() ||
         prompt.length > 200 ||
+        prefix.length !== REAL_CODEX_ARGUMENT_PREFIX.length ||
+        prefix.some((argument, index) => argument !== REAL_CODEX_ARGUMENT_PREFIX[index]) ||
         /\p{Cc}/u.test(prompt)
     ) {
         throw new CaxriError(
@@ -242,7 +256,9 @@ export function assertE2EAgentLaunch(
     }
 }
 
-/** Real Agent E2E accepts its one natural prompt only through validated launch argv. */
+/**
+Real Agent E2E accepts its one natural prompt only through validated launch argv.
+ */
 export function assertE2EAgentInput(
     policy: E2EAgentPolicy | undefined,
     provider: AgentProvider,
@@ -254,24 +270,30 @@ export function assertE2EAgentInput(
         );
 }
 
-/** Real mode has no general-purpose Shell escape hatch; its one Codex process is managed directly. */
+/**
+Real mode has no general-purpose Shell escape hatch; its one Codex process is managed directly.
+ */
 export function assertE2EShellLaunch(policy: E2EAgentPolicy | undefined): void {
     if (policy?.mode === 'real')
         throw new CaxriError('VALIDATION', 'Real Agent E2E does not allow Shell Terminal launches');
 }
 
-/** Produces the narrow environment contract forwarded from Electron Main to the Runtime. */
+/**
+Produces the narrow environment contract forwarded from Electron Main to the Runtime.
+ */
 export function e2eAgentPolicyEnvironment(policy: E2EAgentPolicy | undefined): NodeJS.ProcessEnv {
     if (!policy) return {};
     return {
         CAXRI_E2E: '1',
         CAXRI_E2E_AGENT_MODE: policy.mode,
-        ...(policy.mode === 'real' ? { CAXRI_E2E_AGENT_PROVIDER: policy.provider } : {}),
-        ...(policy.mode === 'fake' ? e2eFakeExecutableEnvironment(policy.executables) : {}),
+        ...(policy.mode === 'real' && { CAXRI_E2E_AGENT_PROVIDER: policy.provider }),
+        ...(policy.mode === 'fake' && e2eFakeExecutableEnvironment(policy.executables)),
     };
 }
 
-/** Reads only the Main-approved Runtime variables; arbitrary parent environment is ignored. */
+/**
+Reads only the Main-approved Runtime variables; arbitrary parent environment is ignored.
+ */
 export function readE2EAgentPolicy(
     environment: NodeJS.ProcessEnv = process.env,
 ): E2EAgentPolicy | undefined {

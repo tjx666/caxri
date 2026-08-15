@@ -67,7 +67,9 @@ export function errorMessage(error: unknown, fallback: string): string {
     return error instanceof Error ? error.message : fallback;
 }
 
-/** Unknown codes decay to `INTERNAL` so a newer Runtime can never break an older reader. */
+/**
+Unknown codes decay to `INTERNAL` so a newer Runtime can never break an older reader.
+ */
 export function toErrorCode(value: unknown): CaxriErrorCode {
     return errorCodes.includes(value as CaxriErrorCode) ? (value as CaxriErrorCode) : 'INTERNAL';
 }
@@ -87,7 +89,9 @@ function isZodError(value: unknown): value is ZodError {
 
 const MAX_REPORTED_ISSUES = 5;
 
-/** Renders a Zod failure as one readable sentence without echoing the rejected values. */
+/**
+Renders a Zod failure as one readable sentence without echoing the rejected values.
+ */
 function describeValidationError(error: ZodError): string {
     const issues = error.issues.slice(0, MAX_REPORTED_ISSUES).map((issue) => {
         const path = issue.path.join('.');
@@ -114,7 +118,9 @@ export function toWireError(error: unknown): WireError {
     };
 }
 
-/** Rebuilds a `CaxriError` after a structured-clone hop erased the prototype and own properties. */
+/**
+Rebuilds a `CaxriError` after a structured-clone hop erased the prototype and own properties.
+ */
 export function fromWireError(wire: unknown): CaxriError {
     if (typeof wire !== 'object' || wire === null)
         return new CaxriError('INTERNAL', 'Unknown Caxri error');

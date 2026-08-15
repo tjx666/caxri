@@ -5,9 +5,9 @@ import { parseGitDiffTab } from '@shared/git-diff';
 
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
+import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-actions';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
-import type { CodeEditorProps } from './code-editor';
 import { editorStatusKey } from './editor-status';
 
 const GitDiffEditor = lazy(async () => {
@@ -18,17 +18,28 @@ const GitDiffEditor = lazy(async () => {
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
 
-function LoadedCodeEditor(props: CodeEditorProps) {
+async function loadCodeEditorIgnoringFailure(): Promise<void> {
+    try {
+        await loadCodeEditor();
+    } catch {
+        // ignored: see the call site's eslint-disable comment.
+    }
+}
+
+function LoadedCodeEditor(properties: CodeEditorProperties) {
     const CodeEditor = useSyncExternalStore(
         subscribeLoadedCodeEditor,
         getLoadedCodeEditor,
         getLoadedCodeEditor,
     );
     useEffect(() => {
-        void loadCodeEditor().catch(() => undefined);
+        // Fire-and-forget: a failed dynamic import leaves `CodeEditor` unset and the "Loading
+        // editor…" fallback below stays visible; there is no separate error UI to report into.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadCodeEditorIgnoringFailure();
     }, []);
     return CodeEditor ? (
-        createElement(CodeEditor, props)
+        createElement(CodeEditor, properties)
     ) : (
         <div className={emptyWorkClassName}>Loading editor…</div>
     );
@@ -47,6 +58,9 @@ function FileEditorSurface({ path }: { path: string }) {
 
     useEffect(() => {
         if (!sessionId || document) return;
+        // Fire-and-forget: `cacheDocument` funnels its own failures into a toast via `tryCommand`,
+        // so there is nothing left for this effect to await or react to.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void cacheDocument(sessionId, path);
     }, [document, path, sessionId]);
 

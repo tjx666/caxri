@@ -1,8 +1,9 @@
-import { workItemsEqual, type WorkItem } from '@shared/work-item';
+import type { WorkItem } from '@shared/work-item';
+import { areWorkItemsEqual } from '@shared/work-item';
 
-import { selectEditorTab } from '../editor/document-actions';
 import { getSelectedSession, getSessionState, getSessionTerminals } from '../../stores/selectors';
 import { getResolvedActiveWork } from '../../stores/session-view';
+import { selectEditorTab } from '../editor/document-actions';
 import { activateTerminal } from '../terminal/terminal-actions';
 
 /**
@@ -32,8 +33,8 @@ export function nextWorkItem(
     delta: 1 | -1,
 ): WorkItem | undefined {
     if (items.length === 0) return undefined;
-    const currentIndex = items.findIndex((item) => workItemsEqual(item, active));
-    if (currentIndex === -1) return delta === 1 ? items[0] : items[items.length - 1];
+    const currentIndex = items.findIndex((item) => areWorkItemsEqual(item, active));
+    if (currentIndex === -1) return delta === 1 ? items[0] : items.at(-1);
     const nextIndex = (currentIndex + delta + items.length) % items.length;
     return items[nextIndex];
 }

@@ -1,12 +1,15 @@
 import { z } from 'zod';
 
+import type { RuntimeEvent } from '../registry/events.js';
+import { runtimeEventSchema } from '../registry/events.js';
 import { CaxriError } from './errors.js';
-import { runtimeEventSchema, type RuntimeEvent } from '../registry/events.js';
 import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 
 const cursorSchema = z.number().int().nonnegative();
 
-/** One bounded replay window also caps pending durable events during client recovery. */
+/**
+One bounded replay window also caps pending durable events during client recovery.
+ */
 export const MAX_EVENT_JOURNAL_EVENTS = 256;
 export type TransientRuntimeEvent = Extract<
     RuntimeEvent,
@@ -24,17 +27,19 @@ export type TransientRuntimeEvent = Extract<
 >;
 export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
 
+const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
+    'terminal.output',
+    'agent.messaging.changed',
+    'agent.message.held',
+    'agent.message.receipt',
+    'command.execute',
+    'desktop.openRequested',
+    'workbench.candidate',
+    'workbench.changed',
+]);
+
 export function isTransientRuntimeEvent(event: RuntimeEvent): event is TransientRuntimeEvent {
-    return (
-        event.event === 'terminal.output' ||
-        event.event === 'agent.messaging.changed' ||
-        event.event === 'agent.message.held' ||
-        event.event === 'agent.message.receipt' ||
-        event.event === 'command.execute' ||
-        event.event === 'desktop.openRequested' ||
-        event.event === 'workbench.candidate' ||
-        event.event === 'workbench.changed'
-    );
+    return TRANSIENT_RUNTIME_EVENT_NAMES.has(event.event);
 }
 
 export const transientRuntimeEventSchema = runtimeEventSchema.refine(
@@ -42,7 +47,9 @@ export const transientRuntimeEventSchema = runtimeEventSchema.refine(
     'Only transient events can use direct delivery',
 ) as z.ZodType<TransientRuntimeEvent>;
 
-/** PTY bytes and one-shot UI commands retain direct delivery and never enter durable replay. */
+/**
+PTY bytes and one-shot UI commands retain direct delivery and never enter durable replay.
+ */
 export const durableRuntimeEventSchema = runtimeEventSchema.refine(
     (event) => !isTransientRuntimeEvent(event),
     'Transient events cannot enter durable protocol replay',
@@ -56,7 +63,9 @@ export const protocolEventEnvelopeSchema = z.object({
 
 export type ProtocolEventEnvelope = z.infer<typeof protocolEventEnvelopeSchema>;
 
-/** Bounded convergence metadata; full Desktop bootstrap data is deliberately not representable. */
+/**
+Bounded convergence metadata; full Desktop bootstrap data is deliberately not representable.
+ */
 export const protocolRecoverySnapshotSchema = z.object({
     cursor: cursorSchema,
     projectIds: z.array(z.string().min(1).max(200)).max(1_024),
@@ -104,13 +113,16 @@ export const observableEventNameSchema = z.enum(
         ...Array<DurableRuntimeEvent['event']>,
     ],
 );
+const observableEventEnvelopeSchema = z.object({
+    cursor: cursorSchema,
+    event: observableEventNameSchema,
+});
+
 export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('events'),
         cursor: cursorSchema,
-        events: z
-            .array(z.object({ cursor: cursorSchema, event: observableEventNameSchema }))
-            .max(MAX_EVENT_JOURNAL_EVENTS),
+        events: z.array(observableEventEnvelopeSchema).max(MAX_EVENT_JOURNAL_EVENTS),
     }),
     z.object({
         kind: z.literal('snapshot'),
@@ -120,7 +132,9 @@ export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
 ]);
 export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySchema>;
 
-/** Removes every event payload and snapshot identity before recovery reaches a non-Desktop client. */
+/**
+Removes every event payload and snapshot identity before recovery reaches a non-Desktop client.
+ */
 export function projectObservableEventRecovery(recovery: EventRecovery): ObservableEventRecovery {
     return observableEventRecoverySchema.parse(
         recovery.kind === 'events'
@@ -141,14 +155,16 @@ export interface EventJournal {
     recover(afterCursor: number): Promise<EventRecovery>;
 }
 
-/** Keeps only a bounded replay window and falls back to a bounded identity/revision snapshot. */
+/**
+Keeps only a bounded replay window and falls back to a bounded identity/revision snapshot.
+ */
 export function createEventJournal(options: {
     snapshot(cursor: number): Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot;
     maximumEvents?: number;
 }): EventJournal {
     const maximumEvents = options.maximumEvents ?? MAX_EVENT_JOURNAL_EVENTS;
     if (
-        !Number.isInteger(maximumEvents) ||
+        !Number.isSafeInteger(maximumEvents) ||
         maximumEvents < 1 ||
         maximumEvents > MAX_EVENT_JOURNAL_EVENTS
     )
@@ -171,7 +187,9 @@ export function createEventJournal(options: {
         },
         async recover(afterCursor) {
             cursorSchema.parse(afterCursor);
-            /** Freeze the barrier before any async snapshot read; later events remain replayable. */
+            /**
+            Freeze the barrier before any async snapshot read; later events remain replayable.
+             */
             const recoveryCursor = cursor;
             if (afterCursor > recoveryCursor)
                 throw new CaxriError('VALIDATION', 'Event cursor is ahead of the Host');
@@ -195,7 +213,9 @@ export function createEventJournal(options: {
     };
 }
 
-/** Drops duplicate replay and reports the first gap so a client can request convergence. */
+/**
+Drops duplicate replay and reports the first gap so a client can request convergence.
+ */
 export function acceptEventSequence(
     currentCursor: number,
     incoming: readonly ProtocolEventEnvelope[],

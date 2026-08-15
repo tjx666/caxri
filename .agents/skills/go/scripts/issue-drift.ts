@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { z } from 'zod';
 
 import { validateHumanText } from '../../acceptance/scripts/validate-report';
@@ -80,13 +81,15 @@ type CommentPublisher = (input: {
     fingerprint: string;
     issueNumber: number;
 }) => Promise<{ url: string }>;
-type CommandRunner = (command: string, args: string[]) => Promise<string>;
+type CommandRunner = (command: string, arguments_: string[]) => Promise<string>;
 
 export function createEmptyIssueExpectationDrift(): IssueExpectationDrift {
     return { assessedAt: null, assessmentHeadSha: null, records: [], status: 'none' };
 }
 
-/** Missing drift state predates the public-decision gate and remains resumable. */
+/**
+Missing drift state predates the public-decision gate and remains resumable.
+ */
 export function createImportedIssueExpectationDrift(): IssueExpectationDrift {
     return {
         assessedAt: 'legacy-unavailable',
@@ -258,10 +261,12 @@ export function assertIssueExpectationDriftReady(
     }
 }
 
+const githubCommentSchema = z.object({ body: z.string(), html_url: z.url() });
+
 export function findPublishedDriftComment(pages: unknown, fingerprintValue: string): string | null {
     const marker = `<!-- caxri-go-drift:${fingerprintValue} -->`;
     const existing = z
-        .array(z.array(z.object({ body: z.string(), html_url: z.url() })))
+        .array(z.array(githubCommentSchema))
         .parse(pages)
         .flat()
         .find(({ body }) => body.includes(marker));
@@ -278,12 +283,12 @@ export async function publishExpectationDriftViaGh(
 ): Promise<{ url: string }> {
     const pages: unknown[][] = [];
     for (let page = 1; page <= MAX_GITHUB_COMMENT_PAGES; page += 1) {
-        const comments: unknown = JSON.parse(
-            await runner('gh', [
-                'api',
-                `repos/tjx666/caxri/issues/${input.issueNumber}/comments?per_page=${GITHUB_COMMENT_PAGE_SIZE}&page=${page}`,
-            ]),
-        );
+        // eslint-disable-next-line no-await-in-loop -- pagination must run sequentially: each page's stop condition (match found or a short page) decides whether the next page is fetched at all.
+        const commentsSource = await runner('gh', [
+            'api',
+            `repos/tjx666/caxri/issues/${input.issueNumber}/comments?per_page=${GITHUB_COMMENT_PAGE_SIZE}&page=${page}`,
+        ]);
+        const comments: unknown = JSON.parse(commentsSource);
         const parsedPage = z.array(z.unknown()).parse(comments);
         pages.push(parsedPage);
         if (findPublishedDriftComment(pages, input.fingerprint)) break;

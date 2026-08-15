@@ -11,7 +11,7 @@ import {
 } from '../../components/ui/select';
 import type { Screenshot } from './use-bug-report-dialog';
 
-interface BugReportPreviewProps {
+interface BugReportPreviewProperties {
     busy: boolean;
     imageFallbackNotice: string;
     onBack: () => void;
@@ -28,7 +28,9 @@ interface BugReportPreviewProps {
     targets: TerminalRecord[];
 }
 
-/** The redacted-report review step of the Bug Report dialog, shown after a preview is built. */
+/**
+The redacted-report review step of the Bug Report dialog, shown after a preview is built.
+ */
 export function BugReportPreview({
     busy,
     imageFallbackNotice,
@@ -44,7 +46,7 @@ export function BugReportPreview({
     sessionChanged,
     target,
     targets,
-}: BugReportPreviewProps) {
+}: BugReportPreviewProperties) {
     return (
         <div className="grid gap-3 p-4">
             <pre className="m-0 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-border bg-background p-3 text-[11px] leading-relaxed text-foreground">
