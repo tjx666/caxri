@@ -31,6 +31,7 @@ import type { CaxriDatabase } from '../db';
 import { shutdownOutcome, type ShutdownReason } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
+import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
@@ -57,6 +58,7 @@ export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): No
 }
 
 interface LiveTerminal {
+    colorQuery?: TerminalColorQueryResponder;
     imageRecovery: TerminalImageRecoveryFilter;
     imageOutput: TerminalImageOutputFilter;
     process: pty.IPty;
@@ -103,6 +105,13 @@ export interface TerminalManagerOptions {
         executable: string,
         environment: NodeJS.ProcessEnv,
     ) => { args: string[]; environment: NodeJS.ProcessEnv } | undefined;
+    /**
+     * Current theme terminal colors used to answer OSC 10/11 default-color queries at the PTY
+     * boundary. Without this, an Agent CLI's short startup color probe (Codex allows ~100ms)
+     * always expires before the Renderer's xterm.js attaches and can reply, so TUIs silently
+     * drop their themed backgrounds. See {@link TerminalColorQueryResponder}.
+     */
+    terminalColors?: () => { background: string; foreground: string };
 }
 
 export interface TerminalWorkingDirectoryIdentity {
@@ -144,6 +153,7 @@ export class TerminalManager {
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
     private readonly shellIntegration?: TerminalManagerOptions['shellIntegration'];
+    private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -164,6 +174,7 @@ export class TerminalManager {
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
         this.shellIntegration = options.shellIntegration;
+        this.terminalColors = options.terminalColors;
     }
 
     start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
@@ -256,9 +267,16 @@ export class TerminalManager {
                 }
             }
             const storedSnapshot = this.database.getSnapshot(record.id);
+            /** A persisted snapshot can still hold color-query bytes captured by an older build;
+             *  replaying them would make the Renderer's xterm.js emit a stale, unsolicited reply
+             *  into the new process, so they are stripped without answering. */
+            const initialColorQuery = new TerminalColorQueryResponder(() => undefined);
+            const strippedSnapshot = `${initialColorQuery.push(
+                storedSnapshot?.payload ?? '',
+            )}${initialColorQuery.finish()}`;
             const initialImageRecovery = new TerminalImageRecoveryFilter();
             const initialSnapshot = `${initialImageRecovery.push(
-                storedSnapshot?.payload ?? '',
+                strippedSnapshot,
             )}${initialImageRecovery.finish()}`;
             const snapshot = new TerminalSnapshotBuffer(initialSnapshot, this.snapshotMaximumBytes);
             if (storedSnapshot && initialSnapshot !== storedSnapshot.payload) {
@@ -282,7 +300,23 @@ export class TerminalManager {
             if (!this.database.getTerminal(record.id)) {
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
+            const colorQuery = this.terminalColors
+                ? new TerminalColorQueryResponder((slot, terminator) => {
+                      const colors = this.terminalColors?.();
+                      if (!colors) return;
+                      const reply = oscColorReply(
+                          slot,
+                          slot === 10 ? colors.foreground : colors.background,
+                          terminator,
+                      );
+                      /** Protocol replies are Runtime-internal, so they bypass `write()`'s E2E
+                       *  agent-input policy; the liveness check drops a reply that raced retire. */
+                      if (!reply || this.terminals.get(record.id)?.process !== child) return;
+                      child.write(reply);
+                  })
+                : undefined;
             const startedLive: LiveTerminal = {
+                colorQuery,
                 imageRecovery: new TerminalImageRecoveryFilter(),
                 imageOutput: new TerminalImageOutputFilter(),
                 process: child,
@@ -396,11 +430,14 @@ export class TerminalManager {
         }, 16);
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
-        const recoveryData = live.imageRecovery.push(data);
+        /** Color queries are answered here and never reach the screen, snapshot, or Renderer —
+         *  a replayed query would otherwise make xterm.js send a duplicate, late reply. */
+        const filtered = live.colorQuery ? live.colorQuery.push(data) : data;
+        const recoveryData = live.imageRecovery.push(filtered);
         live.screen.write(recoveryData);
         live.snapshot.append(recoveryData);
         if (this.attached.has(live.record.id)) {
-            const droppedBytes = live.imageOutput.push(data, live.outputQueue);
+            const droppedBytes = live.imageOutput.push(filtered, live.outputQueue);
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
@@ -644,7 +681,10 @@ export class TerminalManager {
         this.flushOutput(live);
         this.flushMetrics(live);
         if (options.persist) {
-            const recoveryTail = live.imageRecovery.finish();
+            const colorTail = live.colorQuery?.finish() ?? '';
+            const recoveryTail = `${
+                colorTail ? live.imageRecovery.push(colorTail) : ''
+            }${live.imageRecovery.finish()}`;
             live.screen.write(recoveryTail);
             live.snapshot.append(recoveryTail);
             this.persistSnapshot(live);

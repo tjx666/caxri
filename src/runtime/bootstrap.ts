@@ -153,6 +153,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
+        terminalColors:
+            deps.terminal?.terminalColors ?? (() => configuration.getTheme().value.terminal),
     });
     const terminalRestores = new TerminalRestoreSupervisor();
     const projectStatus = new ProjectStatusService(git, logger);
