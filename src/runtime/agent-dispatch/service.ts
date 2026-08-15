@@ -97,7 +97,7 @@ function terminalStatePatch(
 }
 
 /**
-Runtime-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
+ * Runtime-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
  */
 export class AgentDispatchService {
     private readonly inFlight = new SingleFlight<string, AgentDispatchReceipt>();
@@ -335,7 +335,7 @@ export class AgentDispatchService {
 
     initialize(): void {
         /**
-        A Runtime restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn.
+         * A Runtime restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn.
          */
         for (const { receipt } of this.options.database.activeAgentDispatches())
             this.update(receipt.dispatchId, {

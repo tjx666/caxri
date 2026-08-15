@@ -27,8 +27,8 @@ function toChunk(text: string): SnapshotChunk {
 }
 
 /**
- * Keeps bounded PTY output as chunks so appends trim only the oldest prefix. A snapshot read joins
- * the retained chunks once; it never builds a full string and then splits that second copy by line.
+ * Keeps bounded PTY output as chunks so appends trim only the oldest prefix. A snapshot read joins the retained chunks
+ * once; it never builds a full string and then splits that second copy by line.
  */
 export class TerminalSnapshotBuffer {
     private chunks: SnapshotChunk[];
@@ -135,7 +135,7 @@ export class TerminalSnapshotBuffer {
 }
 
 /**
-Maintains a bounded Renderer delivery queue with constant-time byte accounting.
+ * Maintains a bounded Renderer delivery queue with constant-time byte accounting.
  */
 export class TerminalOutputQueue {
     private readonly chunks: string[] = [];
@@ -162,7 +162,7 @@ export class TerminalOutputQueue {
     }
 
     /**
-    Appends one control sequence in full or drops it in full, never exposing a partial parser state.
+     * Appends one control sequence in full or drops it in full, never exposing a partial parser state.
      */
     appendAtomic(data: string): number {
         const byteCount = Buffer.byteLength(data, 'utf8');

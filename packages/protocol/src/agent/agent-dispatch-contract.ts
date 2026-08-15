@@ -17,7 +17,7 @@ export const agentDispatchStatusSchema = z.enum([
 ]);
 
 /**
-Auditable launch evidence without exposing provider arguments that may contain local secrets.
+ * Auditable launch evidence without exposing provider arguments that may contain local secrets.
  */
 export const agentDispatchLaunchSchema = z.strictObject({
     provider: agentProviderSchema,

@@ -9,18 +9,18 @@ import { MAX_EVENT_JOURNAL_EVENTS } from './event-journal.js';
 
 export interface RecoveringEventClient {
     /**
-    Requests the suffix (or bounded snapshot) needed by a newly attached client.
+     * Requests the suffix (or bounded snapshot) needed by a newly attached client.
      */
     start(): Promise<void>;
     /**
-    Accepts Host-pushed envelopes; terminal output remains on its non-durable direct path.
+     * Accepts Host-pushed envelopes; terminal output remains on its non-durable direct path.
      */
     receive(message: ProtocolEventEnvelope | TransientRuntimeEvent): void;
 }
 
 /**
- * Zero-dependency reconnect state machine for sandboxed preloads and other constrained clients.
- * The Host dispatcher already validates recovery results; this layer only orders their cursors.
+ * Zero-dependency reconnect state machine for sandboxed preloads and other constrained clients. The Host dispatcher
+ * already validates recovery results; this layer only orders their cursors.
  */
 export function createRecoveringEventClient(options: {
     emit(event: RuntimeEvent): void;
@@ -33,7 +33,7 @@ export function createRecoveringEventClient(options: {
     let isQueuedOverflowed = false;
 
     /**
-    A fresh journal recovery converges state when live delivery outpaces the bounded queue.
+     * A fresh journal recovery converges state when live delivery outpaces the bounded queue.
      */
     function queue(envelope: ProtocolEventEnvelope): void {
         if (isQueuedOverflowed) return;
@@ -66,7 +66,7 @@ export function createRecoveringEventClient(options: {
     }
 
     /**
-    Drains the live-event queue accumulated during recovery, applying each batch in order.
+     * Drains the live-event queue accumulated during recovery, applying each batch in order.
      */
     function didDrainQueue(): boolean {
         while (!isQueuedOverflowed && queued.length > 0) {

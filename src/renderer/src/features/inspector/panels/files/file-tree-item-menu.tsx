@@ -26,10 +26,9 @@ export interface FileTreeItemMenuProperties {
 }
 
 /**
- * Every menu item below fires an already-tracked file/terminal action whose own `tryCommand`
- * wrapper (or, for `confirmTrash`/`duplicateEntry`/`pasteIntoEntry`, an inner action that itself
- * funnels through `tryCommand`) reports failures via a toast, so these `onClick` handlers
- * intentionally discard the returned promise instead of awaiting it.
+ * Every menu item below fires an already-tracked file/terminal action whose own `tryCommand` wrapper (or, for
+ * `confirmTrash`/`duplicateEntry`/`pasteIntoEntry`, an inner action that itself funnels through `tryCommand`) reports
+ * failures via a toast, so these `onClick` handlers intentionally discard the returned promise instead of awaiting it.
  */
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -37,9 +36,9 @@ function discard(promise: Promise<unknown>): void {
 }
 
 /**
- * The right-click menu for one file-tree row. Split out of `FileTreeItem` so that component stays
- * focused on the row's DOM/interaction wiring; every item here dispatches straight to the same
- * action functions and callbacks the row already computed, so behavior is unchanged.
+ * The right-click menu for one file-tree row. Split out of `FileTreeItem` so that component stays focused on the row's
+ * DOM/interaction wiring; every item here dispatches straight to the same action functions and callbacks the row
+ * already computed, so behavior is unchanged.
  */
 export function FileTreeItemMenu({
     confirmTrash,

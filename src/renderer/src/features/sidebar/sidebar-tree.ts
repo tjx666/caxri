@@ -1,7 +1,7 @@
 /**
- * Pure row-order and arrow-key math for the Sidebar's ARIA tree. Kept separate from
- * `ProjectGroup`/`ProjectSidebar` so the navigation logic is covered by fast unit tests instead of
- * an Electron E2E workflow (see the `unit-testing` skill).
+ * Pure row-order and arrow-key math for the Sidebar's ARIA tree. Kept separate from `ProjectGroup`/`ProjectSidebar` so
+ * the navigation logic is covered by fast unit tests instead of an Electron E2E workflow (see the `unit-testing`
+ * skill).
  */
 
 export interface SidebarProjectNode {
@@ -13,15 +13,15 @@ export interface SidebarTreeRow {
     id: string;
     kind: 'project' | 'session';
     /**
-    The owning Project id; equals `id` itself for a Project row.
+     * The owning Project id; equals `id` itself for a Project row.
      */
     projectId: string;
 }
 
 /**
- * Flattens the Sidebar into the exact row order arrow-key navigation should walk: each Project
- * heading, followed by its active Sessions while that Project is expanded. Matches
- * `DisclosureMotion`'s collapsed state exactly so focus never lands on a hidden row.
+ * Flattens the Sidebar into the exact row order arrow-key navigation should walk: each Project heading, followed by its
+ * active Sessions while that Project is expanded. Matches `DisclosureMotion`'s collapsed state exactly so focus never
+ * lands on a hidden row.
  */
 export function flattenSidebarRows(
     projects: readonly SidebarProjectNode[],
@@ -40,8 +40,8 @@ export function flattenSidebarRows(
 export type SidebarVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
 
 /**
- * Returns the row id roving focus should move to for Up/Down/Home/End, or `undefined` when the key
- * does not move focus (empty tree, or already at an edge).
+ * Returns the row id roving focus should move to for Up/Down/Home/End, or `undefined` when the key does not move focus
+ * (empty tree, or already at an edge).
  */
 export function nextSidebarRowId(
     rows: readonly SidebarTreeRow[],
@@ -59,19 +59,19 @@ export function nextSidebarRowId(
 
 export interface SidebarHorizontalIntent {
     /**
-    Present when Left/Right should flip a Project's expanded state.
+     * Present when Left/Right should flip a Project's expanded state.
      */
     expanded?: boolean;
     /**
-    Present when Left/Right should move roving focus to a different row.
+     * Present when Left/Right should move roving focus to a different row.
      */
     focusRowId?: string;
 }
 
 /**
- * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a
- * collapsed Project, Left closes an open one. A Session has no children of its own, so Left instead
- * moves focus to its owning Project heading — Sessions are never collapse/expand targets themselves.
+ * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project, Left
+ * closes an open one. A Session has no children of its own, so Left instead moves focus to its owning Project heading —
+ * Sessions are never collapse/expand targets themselves.
  */
 export function sidebarHorizontalIntent(
     row: SidebarTreeRow,
@@ -84,12 +84,11 @@ export function sidebarHorizontalIntent(
 }
 
 /**
- * Resolves which row owns the Sidebar tree's single roving Tab stop (standard ARIA tree
- * authoring pattern: one Tab stop, arrow keys move focus inside it). Prefers the last row the
- * user actually focused, but that id can go stale — a Session gets archived, or a Project
- * collapses over the Session that was focused — so it falls back through the selected Session's
- * row, then the selected Project's heading row, then the first row, exactly like a fresh tree
- * with no focus history yet.
+ * Resolves which row owns the Sidebar tree's single roving Tab stop (standard ARIA tree authoring pattern: one Tab
+ * stop, arrow keys move focus inside it). Prefers the last row the user actually focused, but that id can go stale — a
+ * Session gets archived, or a Project collapses over the Session that was focused — so it falls back through the
+ * selected Session's row, then the selected Project's heading row, then the first row, exactly like a fresh tree with
+ * no focus history yet.
  */
 export function rovingSidebarRowId(
     rows: readonly SidebarTreeRow[],
@@ -108,10 +107,9 @@ export function rovingSidebarRowId(
 export type SidebarRowKeyIntent = 'archive';
 
 /**
- * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row has an
- * archive action, so a Project row (or any other key) resolves to no intent; the caller is
- * responsible for the actual `archiveSession` side effect (archiving is reversible via the
- * Archived Sessions dialog, so this intentionally skips a confirmation step).
+ * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row has an archive action, so a
+ * Project row (or any other key) resolves to no intent; the caller is responsible for the actual `archiveSession` side
+ * effect (archiving is reversible via the Archived Sessions dialog, so this intentionally skips a confirmation step).
  */
 export function sidebarArchiveIntent(
     row: SidebarTreeRow,

@@ -33,7 +33,7 @@ async function findCodexDatabases(directories: string[]): Promise<string[]> {
                 .map((name) => join(directory, name));
         } catch {
             /**
-            Missing or unreadable state directories are normal capability misses.
+             * Missing or unreadable state directories are normal capability misses.
              */
             return [];
         }
@@ -42,7 +42,7 @@ async function findCodexDatabases(directories: string[]): Promise<string[]> {
 }
 
 /**
-Queries only a capability-detected Codex thread index and never opens rollout transcripts.
+ * Queries only a capability-detected Codex thread index and never opens rollout transcripts.
  */
 async function readCodexState(
     context: AgentSnapshotContext,
@@ -117,7 +117,7 @@ async function readCodexState(
             };
         } catch {
             /**
-            Private schema drift must degrade to unknown instead of affecting the Runtime.
+             * Private schema drift must degrade to unknown instead of affecting the Runtime.
              */
         } finally {
             database?.close();
@@ -127,9 +127,9 @@ async function readCodexState(
 }
 
 /**
- * Resolves the ordered set of directories Codex may keep its thread index SQLite databases in, from
- * generic environment inputs. `CODEX_SQLITE_HOME` takes priority when set, followed by Codex's own
- * `sqlite` subdirectory and its home directory, mirroring Codex's own resolution order.
+ * Resolves the ordered set of directories Codex may keep its thread index SQLite databases in, from generic environment
+ * inputs. `CODEX_SQLITE_HOME` takes priority when set, followed by Codex's own `sqlite` subdirectory and its home
+ * directory, mirroring Codex's own resolution order.
  */
 function resolveCodexStateDirectories(environment: AgentEnvironment): string[] {
     const codexHome = environment.variables.CODEX_HOME || join(environment.homeDirectory, '.codex');

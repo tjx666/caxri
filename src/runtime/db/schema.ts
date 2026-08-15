@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 
 /**
-Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart.
+ * Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart.
  */
 export const DEFAULT_LAYOUT_VERSION = 2;
 export const CURRENT_SESSION_STATE_VERSION = 1;
@@ -31,13 +31,13 @@ export const sessions = sqliteTable(
             .notNull()
             .references(() => projects.id, { onDelete: 'cascade' }),
         /**
-        Null is the migration-safe representation of "use the owning Project".
+         * Null is the migration-safe representation of "use the owning Project".
          */
         workbenchProjectId: text('workbench_project_id').references(() => projects.id, {
             onDelete: 'set null',
         }),
         /**
-        Captured only for an alternate root so replacement of its pathname fails closed.
+         * Captured only for an alternate root so replacement of its pathname fails closed.
          */
         workbenchRootDevice: text('workbench_root_device'),
         workbenchRootInode: text('workbench_root_inode'),
@@ -76,7 +76,7 @@ export const terminals = sqliteTable(
         agentSessionId: text('agent_session_id'),
         lastProcessState: text('last_process_state').notNull(),
         /**
-        Set only alongside `lastProcessState = 'failed'`; see `TerminalFailureReason`.
+         * Set only alongside `lastProcessState = 'failed'`; see `TerminalFailureReason`.
          */
         failureReason: text('failure_reason'),
         createdAt: integer('created_at').notNull(),
@@ -84,8 +84,8 @@ export const terminals = sqliteTable(
     },
     (table) => [
         /**
-             order_index is unique per Session by construction (see terminals.ts); id breaks
-            ties deterministically for any legacy row that predates that guarantee.
+         * Order_index is unique per Session by construction (see terminals.ts); id breaks ties deterministically for
+         * any legacy row that predates that guarantee.
          */
         index('terminals_session_order').on(table.sessionId, table.orderIndex, table.id),
     ],
@@ -103,8 +103,8 @@ export const terminalSnapshots = sqliteTable('terminal_snapshots', {
 });
 
 /**
-     Renderer-owned JSON is validated through the shared Session-state schema on every read.
-    `state_version` selects the reader/repair path before any blob is decoded.
+ * Renderer-owned JSON is validated through the shared Session-state schema on every read. `state_version` selects the
+ * reader/repair path before any blob is decoded.
  */
 export const sessionState = sqliteTable('session_state', {
     sessionId: text('session_id')
@@ -115,7 +115,7 @@ export const sessionState = sqliteTable('session_state', {
     activeTabJson: text('active_tab_json'),
     editorRemapOperationId: text('editor_remap_operation_id'),
     /**
-    Root-local Editor snapshots keyed by authorized Project ID; Terminal layout stays global.
+     * Root-local Editor snapshots keyed by authorized Project ID; Terminal layout stays global.
      */
     workbenchStateJson: text('workbench_state_json').notNull().default('{}'),
     inspectorMode: text('inspector_mode').notNull(),
@@ -128,9 +128,9 @@ export const appState = sqliteTable('app_state', {
 });
 
 /**
- * Durable Agent dispatch receipts fence request retries across Host/Runtime restarts. Project and
- * Session IDs intentionally are not foreign keys: a receipt remains valid evidence after metadata
- * deletion, while its bounded retention prevents unbounded history growth.
+ * Durable Agent dispatch receipts fence request retries across Host/Runtime restarts. Project and Session IDs
+ * intentionally are not foreign keys: a receipt remains valid evidence after metadata deletion, while its bounded
+ * retention prevents unbounded history growth.
  */
 export const agentDispatchReceipts = sqliteTable(
     'agent_dispatch_receipts',

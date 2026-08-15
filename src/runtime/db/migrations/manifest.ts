@@ -20,9 +20,9 @@ interface MigrationJournal {
 }
 
 /**
- * Fails closed when the SQL bundled into the Runtime diverges from Drizzle's generated journal.
- * Keeping this check at module initialization makes an omitted, reordered, or duplicate manifest
- * entry fail in tests and at startup instead of silently splitting fresh and upgraded databases.
+ * Fails closed when the SQL bundled into the Runtime diverges from Drizzle's generated journal. Keeping this check at
+ * module initialization makes an omitted, reordered, or duplicate manifest entry fail in tests and at startup instead
+ * of silently splitting fresh and upgraded databases.
  */
 export function assertMigrationManifestMatchesJournal(
     manifestTags: readonly string[],
@@ -70,7 +70,7 @@ assertMigrationManifestMatchesJournal(
 );
 
 /**
-Schema 7 is the first preservation commitment; older pre-release databases may be rebuilt.
+ * Schema 7 is the first preservation commitment; older pre-release databases may be rebuilt.
  */
 export const PRESERVED_SCHEMA_VERSION = 7;
 
@@ -89,7 +89,7 @@ export const preservingMigrations = migrationManifest
     }));
 
 /**
-Derived from the preserved migration chain; appending a manifest entry advances it automatically.
+ * Derived from the preserved migration chain; appending a manifest entry advances it automatically.
  */
 export const CURRENT_SCHEMA_VERSION = PRESERVED_SCHEMA_VERSION + preservingMigrations.length;
 

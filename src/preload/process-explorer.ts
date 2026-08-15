@@ -4,8 +4,8 @@ import type { ProcessExplorerBridge } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
 
 /**
- * Kept entry-local because sharing this constant across both preload entries makes Vite extract a
- * CommonJS chunk, which Electron's sandboxed preload loader cannot require.
+ * Kept entry-local because sharing this constant across both preload entries makes Vite extract a CommonJS chunk, which
+ * Electron's sandboxed preload loader cannot require.
  */
 const rendererErrorChannel = 'caxri:process-explorer:renderer-error';
 

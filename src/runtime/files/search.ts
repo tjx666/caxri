@@ -44,10 +44,9 @@ function escapeRegex(value: string): string {
 }
 
 /**
- * Scans a single parenthesized group starting right after its opening `(` at `start`, returning
- * the index just past its matching `)` together with whether the group directly contains a
- * quantifier. Kept as its own function (rather than nested inside `hasNestedQuantifier`'s loop) so
- * its scan stays a single, non-nested loop.
+ * Scans a single parenthesized group starting right after its opening `(` at `start`, returning the index just past its
+ * matching `)` together with whether the group directly contains a quantifier. Kept as its own function (rather than
+ * nested inside `hasNestedQuantifier`'s loop) so its scan stays a single, non-nested loop.
  */
 function scanGroup(source: string, start: number): { end: number; hasQuantifier: boolean } {
     let depth = 1;
@@ -68,10 +67,9 @@ function scanGroup(source: string, start: number): { end: number; hasQuantifier:
 }
 
 /**
- * Detects the common catastrophic-backtracking shape `(…quantified…)quantifier`, e.g. `(a+)+`.
- * Implemented as a manual scan (rather than a single regex) because a regex expressive enough to
- * find nested quantifiers is itself prone to the same superlinear-backtracking pitfall it is meant
- * to catch.
+ * Detects the common catastrophic-backtracking shape `(…quantified…)quantifier`, e.g. `(a+)+`. Implemented as a manual
+ * scan (rather than a single regex) because a regex expressive enough to find nested quantifiers is itself prone to the
+ * same superlinear-backtracking pitfall it is meant to catch.
  */
 function hasNestedQuantifier(source: string): boolean {
     for (let index = 0; index < source.length; index += 1) {
@@ -89,7 +87,7 @@ function hasNestedQuantifier(source: string): boolean {
 function compileQuery(parameters: SearchParameters): RegExp {
     const source = parameters.regex ? parameters.query : escapeRegex(parameters.query);
     /**
-    Reject the common catastrophic nested-quantifier shape before running user regex on files.
+     * Reject the common catastrophic nested-quantifier shape before running user regex on files.
      */
     if (parameters.regex && hasNestedQuantifier(source))
         throw new CaxriError('VALIDATION', 'Regular expression is too expensive to search safely');
@@ -149,7 +147,7 @@ function previewLine(
 }
 
 /**
-Bounded, Session-rooted Project search with latest-request cancellation per Session.
+ * Bounded, Session-rooted Project search with latest-request cancellation per Session.
  */
 export class SearchService {
     private readonly active = new Map<string, AbortController>();
@@ -191,10 +189,10 @@ export class SearchService {
         const directories = [root];
 
         /**
-         * `directories` is a shared work stack and `accumulator` (scanned-file count, byte budget,
-         * fullness) is a shared accumulator that each directory's scan checks and updates; walking
-         * concurrently would let scanning race past the scanned-file/result-size limits before any
-         * single check could observe them, so the tree walk stays sequential.
+         * `directories` is a shared work stack and `accumulator` (scanned-file count, byte budget, fullness) is a
+         * shared accumulator that each directory's scan checks and updates; walking concurrently would let scanning
+         * race past the scanned-file/result-size limits before any single check could observe them, so the tree walk
+         * stays sequential.
          */
         while (directories.length > 0 && !signal.aborted) {
             if (performance.now() - startedAt > this.timeoutMs) {
@@ -280,10 +278,9 @@ export class SearchService {
     }
 
     /**
-     * Scans one already-listed directory's entries, pushing subdirectories onto the shared work
-     * stack and files into the shared accumulator. Kept as the sole loop in this method (rather than
-     * nested inside `run`'s directory-walk loop) so its early `break`/`continue` control flow stays
-     * scoped to a single loop.
+     * Scans one already-listed directory's entries, pushing subdirectories onto the shared work stack and files into
+     * the shared accumulator. Kept as the sole loop in this method (rather than nested inside `run`'s directory-walk
+     * loop) so its early `break`/`continue` control flow stays scoped to a single loop.
      */
     private async scanDirectoryEntries(
         parameters: SearchParameters,
@@ -362,9 +359,9 @@ export class SearchService {
     }
 
     /**
-     * Appends every match on a single line. Kept as its own method (rather than nested inside
-     * `searchDocument`'s per-line loop) so its early `break` on a fully-consumed accumulator or an
-     * empty match stays scoped to a single loop.
+     * Appends every match on a single line. Kept as its own method (rather than nested inside `searchDocument`'s
+     * per-line loop) so its early `break` on a fully-consumed accumulator or an empty match stays scoped to a single
+     * loop.
      */
     private appendLineMatches(
         path: string,

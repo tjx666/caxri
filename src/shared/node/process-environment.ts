@@ -32,7 +32,7 @@ const INHERITED_ENVIRONMENT_KEYS = [
 ] as const;
 
 /**
-Retains explicit launch context without copying unrelated application credentials.
+ * Retains explicit launch context without copying unrelated application credentials.
  */
 export function safeProcessEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = {};

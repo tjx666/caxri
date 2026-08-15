@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 /**
-Minimal PTY double exposing `write` as a standalone spy so assertions stay bound-method safe.
+ * Minimal PTY double exposing `write` as a standalone spy so assertions stay bound-method safe.
  */
 function createFakePty() {
     let onData: ((data: string) => void) | undefined;
@@ -73,7 +73,7 @@ describe('TerminalManager color-query replies', () => {
             await manager.start(created.terminal!);
             await manager.attach(created.terminal!.id);
             /**
-            The exact probe Codex sends at TUI startup (see codex-rs `terminal_probe.rs`).
+             * The exact probe Codex sends at TUI startup (see codex-rs `terminal_probe.rs`).
              */
             fake.emitData('boot\u{1B}]10;?\u{1B}\\\u{1B}]11;?\u{1B}\\ready');
             await vi.advanceTimersByTimeAsync(50);

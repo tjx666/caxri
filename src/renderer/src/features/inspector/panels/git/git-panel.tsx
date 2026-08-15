@@ -119,7 +119,7 @@ function GitTreeDirectory({
     return (
         <div>
             <button
-                className="git-tree-directory flex w-full h-7 items-center gap-1.5 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
+                className="git-tree-directory flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface pr-2 text-left text-foreground hover:bg-elevated"
                 style={{ paddingLeft: 8 + depth * 14 }}
                 aria-expanded={isExpanded}
                 title={node.path}
@@ -207,7 +207,7 @@ function GitRepoSection({
     return (
         <section className="git-repository-section border-b border-border">
             <button
-                className="git-repository-row flex w-full min-w-0 items-center gap-2 overflow-hidden p-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
+                className="git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground hover:bg-elevated"
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => onExpandedChange(!expanded)}
@@ -219,17 +219,17 @@ function GitRepoSection({
                     ) : (
                         <GitBranch size={12} />
                     )}
-                    <strong className="git-repository-name shrink-0 whitespace-nowrap font-semibold">
+                    <strong className="git-repository-name shrink-0 font-semibold whitespace-nowrap">
                         {repository.name}
                     </strong>
                     {repository.kind !== 'primary' && (
-                        <small className="git-repository-kind shrink-0 whitespace-nowrap text-muted text-[11px]">
+                        <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
                             {repository.kind}
                         </small>
                     )}
                 </span>
                 <span
-                    className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-muted text-[11px]"
+                    className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-[11px] text-muted"
                     title={
                         pullRequest
                             ? `Pull request #${pullRequest.number}: ${pullRequest.baseRefName} ← ${pullRequest.headRefName}`
@@ -251,7 +251,7 @@ function GitRepoSection({
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
-                        <div className="git-changes-caption flex items-center justify-between py-1.5 px-2 text-muted text-[10px] font-bold tracking-[0.06em] uppercase">
+                        <div className="git-changes-caption flex items-center justify-between px-2 py-1.5 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
                             <span>
                                 {pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}
                             </span>
@@ -282,7 +282,7 @@ function GitRepoSection({
                             </span>
                         </div>
                         {files.length === 0 && (
-                            <div className="empty-panel py-4 px-3 text-muted text-center">
+                            <div className="empty-panel px-3 py-4 text-center text-muted">
                                 {emptyMessage}
                             </div>
                         )}
@@ -307,8 +307,8 @@ function GitRepoSection({
 }
 
 /**
- * Mounted with `key={session.id}` by the Inspector shell. Workbench-root navigation is retained in
- * this component so switching roots clears stale selection while a later return restores it.
+ * Mounted with `key={session.id}` by the Inspector shell. Workbench-root navigation is retained in this component so
+ * switching roots clears stale selection while a later return restores it.
  */
 export function GitPanel() {
     const session = useSelectedSession();
@@ -348,9 +348,8 @@ export function GitPanel() {
     const sessionId = session?.id;
     const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
     /**
-     * `files.changed` invalidation is wired centrally in `useRuntimeQueryInvalidation`, so this
-     * query only needs to describe what it reads; the debounced re-fetch on Git-affecting file
-     * activity happens without a local effect.
+     * `files.changed` invalidation is wired centrally in `useRuntimeQueryInvalidation`, so this query only needs to
+     * describe what it reads; the debounced re-fetch on Git-affecting file activity happens without a local effect.
      */
     const {
         data: summary,
@@ -365,19 +364,19 @@ export function GitPanel() {
     useToastOnQueryError(isError, error, 'Git refresh failed');
     if (!session)
         return (
-            <div className="empty-panel py-4 px-3 text-muted text-center">
+            <div className="empty-panel px-3 py-4 text-center text-muted">
                 Create a Session to inspect Git.
             </div>
         );
     if (!summary)
         return (
-            <div className="empty-panel py-4 px-3 text-muted text-center">Loading Git status…</div>
+            <div className="empty-panel px-3 py-4 text-center text-muted">Loading Git status…</div>
         );
     if (!summary.isRepository)
-        return <div className="empty-panel py-4 px-3 text-muted text-center">{summary.error}</div>;
+        return <div className="empty-panel px-3 py-4 text-center text-muted">{summary.error}</div>;
     if (summary.repositories.length === 0)
         return (
-            <div className="empty-panel py-4 px-3 text-muted text-center">
+            <div className="empty-panel px-3 py-4 text-center text-muted">
                 No approved Git repositories found.
             </div>
         );
@@ -393,7 +392,7 @@ export function GitPanel() {
     };
     return (
         <div className="inspector-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="git-heading flex items-center gap-2 p-2 border-b border-border">
+            <div className="git-heading flex items-center gap-2 border-b border-border p-2">
                 <span className="flex items-center gap-2">
                     <GitBranch size={13} /> Source Control
                 </span>
@@ -406,7 +405,7 @@ export function GitPanel() {
                         <button
                             type="button"
                             className={cn(
-                                'grid size-6 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:text-foreground',
+                                'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
                                 mode === 'working' && 'bg-surface text-foreground',
                             )}
                             aria-label="Working Tree Changes"
@@ -420,7 +419,7 @@ export function GitPanel() {
                         <button
                             type="button"
                             className={cn(
-                                'grid size-6 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:text-foreground',
+                                'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
                                 mode === 'pull-request' && 'bg-surface text-foreground',
                             )}
                             aria-label="Pull Request Changes"

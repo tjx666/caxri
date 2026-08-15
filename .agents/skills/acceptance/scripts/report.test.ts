@@ -19,7 +19,7 @@ import {
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
-The production path guard requires fixtures under the real project `.records/` root.
+ * The production path guard requires fixtures under the real project `.records/` root.
  */
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const TEST_ROOT = join(RECORDS_ROOT, '__test__', `acceptance-report-${process.pid}`);

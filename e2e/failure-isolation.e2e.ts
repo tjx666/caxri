@@ -18,8 +18,8 @@ test('controlled worker interruption preserves the original failure', async () =
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
 
     /**
-     * Playwright stops this worker after the assertion, exercising fixture-driven Electron and
-     * namespaced lease teardown before scheduling the replacement test in a fresh worker.
+     * Playwright stops this worker after the assertion, exercising fixture-driven Electron and namespaced lease
+     * teardown before scheduling the replacement test in a fresh worker.
      */
     try {
         expect(running.app.process().pid).toBeLessThan(0);

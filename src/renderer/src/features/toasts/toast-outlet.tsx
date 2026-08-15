@@ -16,10 +16,10 @@ const TOAST_ICONS: Record<ToastKind, typeof Info> = {
 };
 
 /**
- * The notification stack. Errors — and any notice pushed with `persist: true` — have no
- * auto-expiry (`stores/toasts.ts` owns that timing), so every toast carries an explicit dismiss
- * control; clicking the body still dismisses it, which is how the surface behaved before. This
- * motion layer only affects mount/unmount timing, never whether or when a toast disappears.
+ * The notification stack. Errors — and any notice pushed with `persist: true` — have no auto-expiry (`stores/toasts.ts`
+ * owns that timing), so every toast carries an explicit dismiss control; clicking the body still dismisses it, which is
+ * how the surface behaved before. This motion layer only affects mount/unmount timing, never whether or when a toast
+ * disappears.
  */
 export function ToastOutlet() {
     const toasts = useToastStore((state) => state.toasts);
@@ -56,7 +56,7 @@ export function ToastOutlet() {
                                 key={toast.id}
                                 className={cn(
                                     'toast',
-                                    'flex max-w-[460px] items-start gap-2 rounded-md border border-border border-l-[3px] border-l-muted bg-elevated px-3 py-2 text-left shadow-[0_8px_24px_var(--shadow)]',
+                                    'flex max-w-[460px] items-start gap-2 rounded-md border border-l-[3px] border-border border-l-muted bg-elevated px-3 py-2 text-left shadow-[0_8px_24px_var(--shadow)]',
                                     toast.kind === 'success' && 'border-l-success',
                                     toast.kind === 'error' && 'border-l-danger',
                                 )}

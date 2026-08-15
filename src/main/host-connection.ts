@@ -61,7 +61,7 @@ export function resolveDesktopLaunch(options: {
 }
 
 /**
-Desktop-side client facade preserving Main's typed Runtime request call sites during migration.
+ * Desktop-side client facade preserving Main's typed Runtime request call sites during migration.
  */
 export class DesktopHostConnection extends EventTarget {
     private client?: HostClient;
@@ -149,7 +149,7 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-    Subscribes to Runtime protocol events; returns an unsubscribe function.
+     * Subscribes to Runtime protocol events; returns an unsubscribe function.
      */
     onEvent(listener: (event: RuntimeEvent) => void): () => void {
         const handler = (event: Event): void =>
@@ -203,7 +203,7 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-    Compatibility name for old Main teardown call sites; it never stops the Host-owned Runtime.
+     * Compatibility name for old Main teardown call sites; it never stops the Host-owned Runtime.
      */
     shutdown(): Promise<void> {
         this.close();

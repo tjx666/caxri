@@ -29,7 +29,7 @@ interface BugReportPreviewProperties {
 }
 
 /**
-The redacted-report review step of the Bug Report dialog, shown after a preview is built.
+ * The redacted-report review step of the Bug Report dialog, shown after a preview is built.
  */
 export function BugReportPreview({
     busy,
@@ -49,7 +49,7 @@ export function BugReportPreview({
 }: BugReportPreviewProperties) {
     return (
         <div className="grid gap-3 p-4">
-            <pre className="m-0 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-border bg-background p-3 text-[11px] leading-relaxed text-foreground">
+            <pre className="m-0 max-h-72 overflow-auto rounded border border-border bg-background p-3 text-[11px] leading-relaxed whitespace-pre-wrap text-foreground">
                 {report}
             </pre>
             {screenshot && (
@@ -60,7 +60,7 @@ export function BugReportPreview({
                     </p>
                     <img
                         alt="Unredacted screenshot of the current Caxri window, including any open files and terminal output"
-                        className="max-h-48 w-full rounded border border-border object-contain bg-background"
+                        className="max-h-48 w-full rounded border border-border bg-background object-contain"
                         height={screenshot.height}
                         src={screenshot.dataUrl}
                         width={screenshot.width}

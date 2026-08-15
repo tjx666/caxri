@@ -8,14 +8,13 @@ import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 /**
- * Simulates the literal keystroke macOS delivers for Option+P: the OS composes Option+<letter>
- * into a symbol (`event.key === 'π'` for Option+P), not the plain letter. Playwright's synthetic
- * `press('Alt+P')` cannot reproduce this composition — its USKeyboardLayout table reports
- * `key: 'p'` for `KeyP` unconditionally, regardless of the Alt modifier, so it would pass equally
- * well against the pre-fix `event.key`-based chord matching and prove nothing about the regression
- * this shortcut migration fixed (see `keybindings.ts`'s `shortcutMainKey`). Dispatching the exact
- * composed event on the currently focused element instead exercises the real `event.code`-based
- * resolution end to end, the same way `keybindings.test.ts` already covers it at the unit level.
+ * Simulates the literal keystroke macOS delivers for Option+P: the OS composes Option+<letter> into a symbol
+ * (`event.key === 'π'` for Option+P), not the plain letter. Playwright's synthetic `press('Alt+P')` cannot reproduce
+ * this composition — its USKeyboardLayout table reports `key: 'p'` for `KeyP` unconditionally, regardless of the Alt
+ * modifier, so it would pass equally well against the pre-fix `event.key`-based chord matching and prove nothing about
+ * the regression this shortcut migration fixed (see `keybindings.ts`'s `shortcutMainKey`). Dispatching the exact
+ * composed event on the currently focused element instead exercises the real `event.code`-based resolution end to end,
+ * the same way `keybindings.test.ts` already covers it at the unit level.
  */
 async function pressOptionP(page: Page): Promise<void> {
     await page.evaluate(() => {

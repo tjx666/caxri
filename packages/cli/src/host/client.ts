@@ -107,7 +107,7 @@ function profileIdFor(path: string): string {
 }
 
 /**
-Host shutdown may unlink discovery data after `lstat`; keep that race classified as absence.
+ * Host shutdown may unlink discovery data after `lstat`; keep that race classified as absence.
  */
 async function readDiscoveryJson(
     path: string,
@@ -129,7 +129,7 @@ async function readDiscoveryJson(
 }
 
 /**
-Reads only the private discovery record; business state always goes through Host commands.
+ * Reads only the private discovery record; business state always goes through Host commands.
  */
 export async function discoverHostManifest(userDataPath: string): Promise<HostManifest> {
     let canonicalPath: string;
@@ -183,7 +183,7 @@ export async function discoverHostManifest(userDataPath: string): Promise<HostMa
 }
 
 /**
-Reads the Desktop-only credential and binds it to the current Host process identity.
+ * Reads the Desktop-only credential and binds it to the current Host process identity.
  */
 export async function discoverDesktopCredential(
     userDataPath: string,
@@ -223,7 +223,7 @@ export async function discoverDesktopCredential(
 }
 
 /**
-Authenticated local client shared by the CLI command surface and its future Agent adapter.
+ * Authenticated local client shared by the CLI command surface and its future Agent adapter.
  */
 export class HostClient {
     static async connect(
@@ -591,7 +591,7 @@ export class HostClient {
     }
 
     /**
-    Preserves the caller's transport request ID across the Desktop-to-Host hop.
+     * Preserves the caller's transport request ID across the Desktop-to-Host hop.
      */
     requestWithId<M extends CaxriMethod>(
         id: string,
@@ -609,7 +609,7 @@ export class HostClient {
     }
 
     /**
-    Announces that Main has an attached Renderer event listener for one-shot window commands.
+     * Announces that Main has an attached Renderer event listener for one-shot window commands.
      */
     markDesktopReady(): Promise<void> {
         if (this.closed)
@@ -671,11 +671,11 @@ export async function connectDesktopToHost(
 
 export interface HostLaunchOptions {
     /**
-    Electron binary, or the packaged Caxri executable with the RunAsNode fuse enabled.
+     * Electron binary, or the packaged Caxri executable with the RunAsNode fuse enabled.
      */
     executable: string;
     /**
-    Built `host.js`, including an app.asar path for the packaged Desktop shim.
+     * Built `host.js`, including an app.asar path for the packaged Desktop shim.
      */
     entryPath: string;
     environment?: NodeJS.ProcessEnv;
@@ -720,7 +720,7 @@ async function launchHost(userDataPath: string, options: HostLaunchOptions): Pro
 }
 
 /**
-Reuses a healthy owner or launches exactly one contender and waits for authenticated readiness.
+ * Reuses a healthy owner or launches exactly one contender and waits for authenticated readiness.
  */
 export async function ensureHost(
     userDataPath: string,
@@ -740,10 +740,10 @@ export async function ensureHost(
             if (!(error instanceof CaxriError) || error.code !== 'NOT_FOUND') throw error;
         }
         /**
-         * An incompatible live Host fails closed and requires the explicit pre-release reset tool.
-         * If its recorded process is already gone, no PTY owner remains to protect and the stale
-         * discovery record must not permanently block launching the current Host. The profile lock
-         * arbitrates the replacement; this path never signals or removes another process.
+         * An incompatible live Host fails closed and requires the explicit pre-release reset tool. If its recorded
+         * process is already gone, no PTY owner remains to protect and the stale discovery record must not permanently
+         * block launching the current Host. The profile lock arbitrates the replacement; this path never signals or
+         * removes another process.
          */
         if (
             manifest &&

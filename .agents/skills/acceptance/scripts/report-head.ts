@@ -26,7 +26,7 @@ const reportHeadSchema = z.looseObject({
 });
 
 /**
-Builds the audited replacement document after the report boundary validates its safe path.
+ * Builds the audited replacement document after the report boundary validates its safe path.
  */
 export function rebindReportDocument(raw: unknown, input: RebindReportHeadInput) {
     const report = reportHeadSchema.parse(raw);

@@ -3,12 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { motionDurationMs, motionSettleTimeoutMs } from './motion';
 
 /**
- * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so
- * `document`/`getComputedStyle` do not exist. `motionDurationMs` only ever reads one custom
- * property off `document.documentElement` through `getComputedStyle`, so a minimal stub — a
- * fake element paired with a `getComputedStyle` that resolves properties from a plain map — is
- * enough to drive it deterministically without a full DOM, mirroring the same
- * mock-the-boundary approach as `commands/execute.test.ts`.
+ * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so `document`/`getComputedStyle`
+ * do not exist. `motionDurationMs` only ever reads one custom property off `document.documentElement` through
+ * `getComputedStyle`, so a minimal stub — a fake element paired with a `getComputedStyle` that resolves properties from
+ * a plain map — is enough to drive it deterministically without a full DOM, mirroring the same mock-the-boundary
+ * approach as `commands/execute.test.ts`.
  */
 const tokenValuesState = { current: {} as Record<string, string> };
 

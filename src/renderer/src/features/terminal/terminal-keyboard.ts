@@ -9,7 +9,7 @@ interface ClipboardDataLike {
 }
 
 /**
-Detects an image-only browser paste before xterm discards its non-text clipboard payload.
+ * Detects an image-only browser paste before xterm discards its non-text clipboard payload.
  */
 export function isClipboardContainingImage(data: ClipboardDataLike): boolean {
     return (
@@ -20,9 +20,8 @@ export function isClipboardContainingImage(data: ClipboardDataLike): boolean {
 }
 
 /**
- * Maps macOS editing gestures onto the control bytes supported by shells and Codex. Codex binds
- * Alt+Enter to newline by default, so Shift+Enter uses ESC+CR without depending on a terminal's
- * optional enhanced-keyboard protocol.
+ * Maps macOS editing gestures onto the control bytes supported by shells and Codex. Codex binds Alt+Enter to newline by
+ * default, so Shift+Enter uses ESC+CR without depending on a terminal's optional enhanced-keyboard protocol.
  */
 export function terminalKeyboardInput(
     event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey' | 'type'>,

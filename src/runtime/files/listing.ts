@@ -17,16 +17,16 @@ import { isFileTreeExcludeMatch } from './file-tree-excludes';
 
 const MAX_CONCURRENT_ENTRY_STATS = 32;
 /**
-Bounds a rare or absent path refinement independently of how many names match it.
+ * Bounds a rare or absent path refinement independently of how many names match it.
  */
 export const MAX_FILE_BROWSE_SCANNED_ENTRIES = 4_096;
 /**
-Prevents path browsing from exhausting Runtime directory handles across concurrent Sessions.
+ * Prevents path browsing from exhausting Runtime directory handles across concurrent Sessions.
  */
 export const MAX_CONCURRENT_FILE_BROWSES = 4;
 
 /**
-Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it.
+ * Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it.
  */
 export type DirectoryListedListener = (sessionId: string, path: string) => void;
 export type OpenDirectory = (path: string) => ReturnType<typeof opendir>;
@@ -45,7 +45,7 @@ export type GitIgnoreRulesListedListener = (
 ) => Promise<void>;
 
 /**
-Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
+ * Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
  */
 export class ListingService {
     private readonly listRequests = new SingleFlight<string, FileEntry[]>();
@@ -55,7 +55,7 @@ export class ListingService {
     >();
     private readonly browseConcurrency = new AsyncSemaphore(MAX_CONCURRENT_FILE_BROWSES);
     /**
-    One dialog owns browsing per Session, so navigation supersedes its previous directory too.
+     * One dialog owns browsing per Session, so navigation supersedes its previous directory too.
      */
     private readonly activeBrowseTokens = new Map<string, symbol>();
 
@@ -126,7 +126,7 @@ export class ListingService {
         if (!isCurrent()) return { entries: [], truncated: true };
         const after = await lstat(path);
         /**
-        Revalidate around streaming enumeration so a Session-root swap cannot disclose names.
+         * Revalidate around streaming enumeration so a Session-root swap cannot disclose names.
          */
         if (
             !after.isDirectory() ||
@@ -138,7 +138,7 @@ export class ListingService {
             throw new CaxriError('IO', 'Directory changed during listing');
         const isTruncated = !isReachedEnd || matches.length > MAX_FILE_BROWSE_ENTRIES;
         /**
-        Dirent metadata stays bound to the opened directory instead of restatting a mutable path.
+         * Dirent metadata stays bound to the opened directory instead of restatting a mutable path.
          */
         const entries = matches
             .toSorted((a, b) =>
@@ -172,7 +172,7 @@ export class ListingService {
         const entries = await readdir(path, { withFileTypes: true });
         const after = await lstat(path);
         /**
-        Revalidate around readdir so a Session-root swap cannot disclose another directory.
+         * Revalidate around readdir so a Session-root swap cannot disclose another directory.
          */
         if (
             !after.isDirectory() ||
@@ -215,7 +215,7 @@ export class ListingService {
     }
 
     /**
-    Git decoration is optional metadata; an unavailable CLI or non-repository never blocks browsing.
+     * Git decoration is optional metadata; an unavailable CLI or non-repository never blocks browsing.
      */
     private async loadGitIgnoredNames(
         sessionId: string,
@@ -235,9 +235,9 @@ export class ListingService {
     }
 
     /**
-     * Describes one directory entry, tolerating entries that vanish between `readdir` and `lstat`.
-     * An AI agent or build tool can rewrite a directory rapidly enough that this is routine, not
-     * exceptional, so a single missing entry must never fail the whole listing.
+     * Describes one directory entry, tolerating entries that vanish between `readdir` and `lstat`. An AI agent or build
+     * tool can rewrite a directory rapidly enough that this is routine, not exceptional, so a single missing entry must
+     * never fail the whole listing.
      */
     private async describeEntry(directory: string, name: string): Promise<FileEntry | undefined> {
         const entryPath = resolve(directory, name);

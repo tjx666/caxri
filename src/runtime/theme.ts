@@ -4,7 +4,7 @@ import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
 /**
-The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
+ * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
  */
 import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
 import { parseJsonc } from '../shared/node/jsonc';
@@ -16,16 +16,15 @@ import { readBoundedRegularFileText } from './bounded-file-reader';
 type ThemeImportFormat = (typeof themeImportFormats)[number];
 
 /**
- * Ceiling for a theme file selected for import. Theme files (VS Code color themes, iTerm2
- * plists, Warp YAML, Caxri JSON) are small hand-authored documents; 1 MiB is generous while still
- * bounding the amount of untrusted content handed to the plist/YAML/JSONC parsers, mirroring the
- * size cap other untrusted-file reads apply (see `files/documents.ts` and
- * `MAX_CONFIGURABLE_FILE_BYTES` in `shared/ipc/domain.ts`).
+ * Ceiling for a theme file selected for import. Theme files (VS Code color themes, iTerm2 plists, Warp YAML, Caxri
+ * JSON) are small hand-authored documents; 1 MiB is generous while still bounding the amount of untrusted content
+ * handed to the plist/YAML/JSONC parsers, mirroring the size cap other untrusted-file reads apply (see
+ * `files/documents.ts` and `MAX_CONFIGURABLE_FILE_BYTES` in `shared/ipc/domain.ts`).
  */
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
 
 /**
-Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers.
+ * Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers.
  */
 export const draculaTheme: ThemeTokens = {
     id: 'dracula',
@@ -37,14 +36,13 @@ export const draculaTheme: ThemeTokens = {
         elevated: '#343746',
         foreground: '#f8f8f2',
         /**
-         * Deliberately NOT Dracula's `#6272a4`. That value is the palette's *comment* color, tuned
-         * for syntax that is meant to recede behind code; `--muted` is the UI's secondary-text role
-         * (133 of its 135 uses in the Renderer are `text-muted`), so it has to stay readable. On the
-         * lightest chrome surface (`elevated` `#343746`) `#6272a4` measures 3.35:1 against
-         * `surface` and only 2.50:1 against `elevated`, both below the WCAG AA 4.5:1 floor for body
-         * text. This value keeps the same blue-grey hue and stays clearly subordinate to
-         * `foreground`, while clearing AA on every chrome surface (4.81:1 on `elevated`). The
-         * comment color itself is unchanged below, where it is still correct.
+         * Deliberately NOT Dracula's `#6272a4`. That value is the palette's _comment_ color, tuned for syntax that is
+         * meant to recede behind code; `--muted` is the UI's secondary-text role (133 of its 135 uses in the Renderer
+         * are `text-muted`), so it has to stay readable. On the lightest chrome surface (`elevated` `#343746`)
+         * `#6272a4` measures 3.35:1 against `surface` and only 2.50:1 against `elevated`, both below the WCAG AA 4.5:1
+         * floor for body text. This value keeps the same blue-grey hue and stays clearly subordinate to `foreground`,
+         * while clearing AA on every chrome surface (4.81:1 on `elevated`). The comment color itself is unchanged
+         * below, where it is still correct.
          */
         muted: '#9aa5c4',
         border: '#44475a',
@@ -262,9 +260,9 @@ export function parseCaxriTheme(source: string): ThemeTokens {
 }
 
 /**
- * VS Code files aren't distinguished by content sniffing: a full Caxri theme export and a VS
- * Code color theme are both plain JSON. Try parsing as a Caxri theme first, and only fall back
- * to the VS Code token mapping when that validation fails.
+ * VS Code files aren't distinguished by content sniffing: a full Caxri theme export and a VS Code color theme are both
+ * plain JSON. Try parsing as a Caxri theme first, and only fall back to the VS Code token mapping when that validation
+ * fails.
  */
 function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
     const value = parseJsonc(source);
@@ -275,7 +273,7 @@ function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
 }
 
 /**
-Format id -> parser, keyed by `themeImportFormats[number]['id']` from the shared registry.
+ * Format id -> parser, keyed by `themeImportFormats[number]['id']` from the shared registry.
  */
 const parsersByFormatId: Record<
     ThemeImportFormat['id'],
@@ -299,9 +297,9 @@ function findFormatById(id: ThemeImportFormat['id']): ThemeImportFormat {
 }
 
 /**
- * Picks the import format for a file. The `<plist` content sniff takes priority over the
- * extension so extensionless or misnamed iTerm2 exports still parse correctly; any extension
- * that isn't declared in `themeImportFormats` falls back to the VS Code/Caxri JSON path.
+ * Picks the import format for a file. The `<plist` content sniff takes priority over the extension so extensionless or
+ * misnamed iTerm2 exports still parse correctly; any extension that isn't declared in `themeImportFormats` falls back
+ * to the VS Code/Caxri JSON path.
  */
 function resolveThemeImportFormat(extension: string, source: string): ThemeImportFormat {
     if (source.includes('<plist')) return findFormatById('iterm2');
@@ -309,7 +307,7 @@ function resolveThemeImportFormat(extension: string, source: string): ThemeImpor
 }
 
 /**
-Test-only seam that makes an opened-file mutation deterministic without widening parser APIs.
+ * Test-only seam that makes an opened-file mutation deterministic without widening parser APIs.
  */
 interface ThemeImportTestSeam {
     beforeRead?: BoundedRegularFileReadOptions['beforeRead'];

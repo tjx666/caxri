@@ -36,7 +36,7 @@ async function createProjectSession(
     await tryCommand('Project creation failed', async () => {
         const project = await caxri.request('project.create', { rootPath });
         /**
-        Keeps the Agent-choice dialog open, now anchored to the created Project.
+         * Keeps the Agent-choice dialog open, now anchored to the created Project.
          */
         useDialogStore.getState().askAgentForProject(project.id);
         await createSession(project.id, defaultAgent);
@@ -44,7 +44,7 @@ async function createProjectSession(
 }
 
 /**
-Skips the Agent-choice dialog whenever the user configured a default Agent.
+ * Skips the Agent-choice dialog whenever the user configured a default Agent.
  */
 export function beginSessionCreation(projectId: string): void {
     const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
@@ -111,8 +111,8 @@ export async function didRenameSession(sessionId: string, displayTitle: string):
 }
 
 /**
- * The directory-picker grant is a single-use Main-process authorization, so abandoning the Agent
- * choice must revoke it instead of leaving the root reachable.
+ * The directory-picker grant is a single-use Main-process authorization, so abandoning the Agent choice must revoke it
+ * instead of leaving the root reachable.
  */
 export function cancelPendingSession(): void {
     const pendingRoot = useDialogStore.getState().pendingRoot;

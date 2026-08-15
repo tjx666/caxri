@@ -47,9 +47,9 @@ export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEdit
         const editor = editorReference.current;
         if (!editor) return;
         /**
-         * Monaco 0.56 can leave a newly selected custom-language model un-tokenized while its
-         * background scheduler is busy. Prime the registered Monarch grammar, then rebind the
-         * model once per path so Monaco schedules tokenization for the visible model immediately.
+         * Monaco 0.56 can leave a newly selected custom-language model un-tokenized while its background scheduler is
+         * busy. Prime the registered Monarch grammar, then rebind the model once per path so Monaco schedules
+         * tokenization for the visible model immediately.
          */
         const model = editor.getModel();
         if (language && model?.getLanguageId() === language) {

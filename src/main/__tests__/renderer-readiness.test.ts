@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { RendererReadiness } from '../renderer-readiness';
 
 /**
- * Mocks Electron's WebContents, which is EventEmitter-based, and is consumed via
- * `.on()`/`.emit()` by the production `RendererReadiness` tracker.
+ * Mocks Electron's WebContents, which is EventEmitter-based, and is consumed via `.on()`/`.emit()` by the production
+ * `RendererReadiness` tracker.
  */
 function contents(): EventEmitter {
     // eslint-disable-next-line unicorn/prefer-event-target -- see comment above

@@ -32,7 +32,7 @@ type TopologyValidation =
 
 interface WorkbenchRootServiceOptions {
     /**
-    Integration-test seam for replacing a root between its identity read and canonicalization.
+     * Integration-test seam for replacing a root between its identity read and canonicalization.
      */
     beforeRootIdentityRealpath?: () => Promise<void>;
     behavior(): NewWorktreeBehavior;
@@ -63,8 +63,8 @@ function isSameWorkbenchBinding(
 }
 
 /**
- * Owns the only bridge from content-free Agent shell timing to authoritative Git worktree
- * topology. A discovered path remains inert until it matches an independently authorized Project.
+ * Owns the only bridge from content-free Agent shell timing to authoritative Git worktree topology. A discovered path
+ * remains inert until it matches an independently authorized Project.
  */
 export class WorkbenchRootService {
     private readonly candidates = new Map<string, WorkbenchCandidate>();
@@ -112,8 +112,8 @@ export class WorkbenchRootService {
         }
         if (reason === 'valid') return false;
         /**
-         * Validation crosses filesystem and Git boundaries. A newer selection wins if the
-         *  captured binding changed while either asynchronous check was in flight.
+         * Validation crosses filesystem and Git boundaries. A newer selection wins if the captured binding changed
+         * while either asynchronous check was in flight.
          */
         if (
             !isSameWorkbenchBinding(
@@ -127,10 +127,10 @@ export class WorkbenchRootService {
     }
 
     /**
-     * `this.queue` must be reassigned synchronously (not after an `await`) so that back-to-back
-     *  synchronous callers (e.g. `primeTerminal`, `observeShellToolFinished`) each chain onto the
-     *  latest link instead of racing onto the same original promise; an `async`/`await` rewrite
-     *  would introduce a microtask gap before the reassignment and break that serialization.
+     * `this.queue` must be reassigned synchronously (not after an `await`) so that back-to-back synchronous callers
+     * (e.g. `primeTerminal`, `observeShellToolFinished`) each chain onto the latest link instead of racing onto the
+     * same original promise; an `async`/`await` rewrite would introduce a microtask gap before the reassignment and
+     * break that serialization.
      */
     private enqueue(run: () => Promise<void>): void {
         if (this.closed) return;
@@ -176,8 +176,8 @@ export class WorkbenchRootService {
     }
 
     /**
-     * Attributes a topology delta only when exactly one Session signaled for that repository in the
-     * debounce batch. Processing order can therefore never assign a shared delta to a random Agent.
+     * Attributes a topology delta only when exactly one Session signaled for that repository in the debounce batch.
+     * Processing order can therefore never assign a shared delta to a random Agent.
      */
     private async refreshForSignals(signals: readonly AgentLifecycleSignal[]): Promise<void> {
         const startedAt = performance.now();
@@ -188,9 +188,9 @@ export class WorkbenchRootService {
             const initialSession = this.options.database.getSession(terminal.sessionId);
             if (!initialSession) continue;
             /**
-             * Sequential by design: the surrounding docstring guarantees a topology delta is only
-             *  attributed once exactly one Session's validation has settled per debounce batch, so
-             *  running these concurrently could race two signals onto the same shared delta.
+             * Sequential by design: the surrounding docstring guarantees a topology delta is only attributed once
+             * exactly one Session's validation has settled per debounce batch, so running these concurrently could race
+             * two signals onto the same shared delta.
              */
             // eslint-disable-next-line no-await-in-loop -- see comment above
             await this.validateSession(initialSession.id);
@@ -253,10 +253,9 @@ export class WorkbenchRootService {
             const authorized = this.options.database.findProjectByRootPath(rootPath);
             if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
                 /**
-                 * Kept sequential across repository groups: `select()` mutates the shared
-                 *  `topologySnapshots`/candidate state this loop also reads via `rememberTopology`
-                 *  and `addCandidate` a few lines below, so concurrent iterations could interleave
-                 *  on that shared state.
+                 * Kept sequential across repository groups: `select()` mutates the shared `topologySnapshots`/candidate
+                 * state this loop also reads via `rememberTopology` and `addCandidate` a few lines below, so concurrent
+                 * iterations could interleave on that shared state.
                  */
                 // eslint-disable-next-line no-await-in-loop -- see comment above
                 await this.select(session.id, authorized.id);
@@ -393,7 +392,7 @@ export class WorkbenchRootService {
     }
 
     /**
-    Primes topology before an Agent can create its first worktree in a new PTY generation.
+     * Primes topology before an Agent can create its first worktree in a new PTY generation.
      */
     primeTerminal(terminalId: string): void {
         const terminal = this.options.database.getTerminal(terminalId);
@@ -402,7 +401,7 @@ export class WorkbenchRootService {
     }
 
     /**
-    Best-effort startup baseline; it never delays Runtime readiness.
+     * Best-effort startup baseline; it never delays Runtime readiness.
      */
     primeAll(): void {
         const ownerProjectIds = new Set<string>();
@@ -540,7 +539,7 @@ export class WorkbenchRootService {
     }
 
     /**
-    Main cleanup is idempotent because successful authorization consumes the candidate first.
+     * Main cleanup is idempotent because successful authorization consumes the candidate first.
      */
     cancelCandidate(sessionId: string, candidateId: string): void {
         const candidate = this.candidates.get(candidateId);
@@ -580,7 +579,7 @@ export class WorkbenchRootService {
     }
 
     /**
-    Authorizes a user-selected linked worktree even when provider hooks are unavailable.
+     * Authorizes a user-selected linked worktree even when provider hooks are unavailable.
      */
     async authorizeSelection(sessionId: string, rootPath: string): Promise<SessionRecord> {
         const canonical = await realpath(rootPath);
@@ -626,9 +625,9 @@ export class WorkbenchRootService {
             groups.set(binding.projectId, entries);
         }
         /**
-         * This sweep gates Workbench Root filesystem authorization, so it deliberately stays
-         * sequential: an unexpected throw must stop the remaining validations instead of letting
-         * concurrently dispatched entries finish mutating Session bindings after the failure.
+         * This sweep gates Workbench Root filesystem authorization, so it deliberately stays sequential: an unexpected
+         * throw must stop the remaining validations instead of letting concurrently dispatched entries finish mutating
+         * Session bindings after the failure.
          */
         for (const [ownerProjectId, entries] of groups) {
             const owner = this.options.database.getProject(ownerProjectId);
@@ -658,7 +657,7 @@ export class WorkbenchRootService {
     }
 
     /**
-    Stops new background work and waits for any topology read that already crossed the boundary.
+     * Stops new background work and waits for any topology read that already crossed the boundary.
      */
     async close(): Promise<void> {
         this.closed = true;
@@ -685,7 +684,7 @@ type WorkbenchRuntimeHandlers = Pick<
 >;
 
 /**
-Keeps the Workbench Root protocol surface beside its state machine instead of in bootstrap.
+ * Keeps the Workbench Root protocol surface beside its state machine instead of in bootstrap.
  */
 export function createWorkbenchRootHandlers(
     service: WorkbenchRootService,

@@ -16,7 +16,7 @@ export function e2eWorkerTemporaryDirectory(
 }
 
 /**
-Derives worker-scoped native ownership only for the explicitly classified parallel pool.
+ * Derives worker-scoped native ownership only for the explicitly classified parallel pool.
  */
 export function resolveE2EWorkerIsolation(environment: NodeJS.ProcessEnv): E2EWorkerIsolation {
     if (environment.CAXRI_E2E_POOL !== 'parallel-safe') {

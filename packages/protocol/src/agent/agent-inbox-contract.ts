@@ -20,7 +20,7 @@ function hasProtocolControlCharacter(value: string): boolean {
 }
 
 /**
-Peer Inbox V1 is text-only: it cannot encode commands, attachments, or opaque task payloads.
+ * Peer Inbox V1 is text-only: it cannot encode commands, attachments, or opaque task payloads.
  */
 export const agentMessageBodySchema = z
     .string()
@@ -57,7 +57,7 @@ export const agentMessageReceiptSchema = z.strictObject({
     expiresAt: z.number().int().positive(),
     replyTo: identifierSchema.optional(),
     /**
-    Present only when an explicit wake dispatch created the receiving generation.
+     * Present only when an explicit wake dispatch created the receiving generation.
      */
     dispatchId: identifierSchema.optional(),
 });
@@ -85,7 +85,7 @@ export const agentHeldMessageSchema = z.strictObject({
 });
 
 /**
-Full held text is fetched on demand and never enters the event journal or held-message list.
+ * Full held text is fetched on demand and never enters the event journal or held-message list.
  */
 export const agentHeldMessageDetailSchema = agentHeldMessageSchema.extend({
     body: agentMessageBodySchema,
@@ -123,7 +123,7 @@ export const agentInboxMethods = {
         result: agentMessageReceiptSchema,
     },
     /**
-    A pull consumes only after the Host confirms that its UDS reply was flushed.
+     * A pull consumes only after the Host confirms that its UDS reply was flushed.
      */
     'agent.message.wait': {
         ...commandPolicy('host', 'read', ['agents.message']),

@@ -13,7 +13,7 @@ function markFromOpen(mark: string, measure: string): void {
 }
 
 /**
-Retains only the latest editor-open measurement so repeated navigation cannot grow the timeline.
+ * Retains only the latest editor-open measurement so repeated navigation cannot grow the timeline.
  */
 export function markEditorOpenStarted(): void {
     performance.clearMarks(EDITOR_OPEN_START_MARK);

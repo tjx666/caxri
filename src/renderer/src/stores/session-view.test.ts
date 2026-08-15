@@ -12,8 +12,8 @@ import {
 import { useWorkbenchStore } from './workbench';
 
 /**
- * `isDirty` maps to the shared `EditorDocument.dirty` field (defined outside src/renderer); the
- * local parameter is renamed for unicorn/consistent-boolean-name without touching that shared type.
+ * `isDirty` maps to the shared `EditorDocument.dirty` field (defined outside src/renderer); the local parameter is
+ * renamed for unicorn/consistent-boolean-name without touching that shared type.
  */
 const document = (path: string, isDirty = false): EditorDocument => ({
     path,

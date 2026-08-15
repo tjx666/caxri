@@ -40,7 +40,7 @@ interface WorkTabProperties {
 }
 
 /**
-Target width the tab grows to/from during its enter/exit width animation.
+ * Target width the tab grows to/from during its enter/exit width animation.
  */
 const TAB_MAX_WIDTH = 180;
 
@@ -86,10 +86,10 @@ export function WorkTab({
     const tab = (
         <m.div
             className={cn(
-                'work-tab group relative flex items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground [-webkit-app-region:no-drag]',
+                'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
-                    "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
+                    "active bg-background text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
             )}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
@@ -134,7 +134,7 @@ export function WorkTab({
                 aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
                 aria-selected={isVisuallyActive}
                 tabIndex={isVisuallyActive ? 0 : -1}
-                className="tab-select flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit cursor-pointer"
+                className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit"
                 onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
                 onClick={onSelect}
                 onKeyDown={onKeyDown}
@@ -168,11 +168,11 @@ export function WorkTab({
                 hover/focus" — one slot, not two. The dirty dot and the Terminal status dot both
                 live here (mutually exclusive: dirty only applies to editor tabs, status only to
                 Terminal tabs) and fade out in favor of the close button on hover/focus. */}
-            <span className="tab-tail relative w-6 h-6 flex-none">
+            <span className="tab-tail relative h-6 w-6 flex-none">
                 {dirty && (
                     <b
                         aria-hidden="true"
-                        className="dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-warning text-[10px] group-hover:opacity-0 group-focus-within:opacity-0"
+                        className="dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-[10px] text-warning group-focus-within:opacity-0 group-hover:opacity-0"
                     >
                         ●
                     </b>
@@ -183,7 +183,7 @@ export function WorkTab({
                         className={cn(
                             processIndicatorClassName,
                             'absolute inset-0 m-auto',
-                            'group-hover:opacity-0 group-focus-within:opacity-0',
+                            'group-focus-within:opacity-0 group-hover:opacity-0',
                             `process-${status}`,
                             (status === 'running' && 'bg-success') ||
                                 (['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger'),
@@ -193,7 +193,7 @@ export function WorkTab({
                 <Tooltip content={closeLabel}>
                     <button
                         type="button"
-                        className="tab-close absolute inset-0 m-auto grid w-5 h-5 place-items-center p-0 border-0 rounded text-inherit bg-transparent cursor-pointer opacity-0 pointer-events-none hover:bg-[var(--selection)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+                        className="tab-close pointer-events-none absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-[var(--selection)]"
                         aria-label={closeLabel}
                         tabIndex={-1}
                         onClick={onClose}

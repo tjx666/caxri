@@ -67,10 +67,10 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 /**
- * The defaults shipped immediately before Terminal Copy and tab cycling were added and
- * `pathBrowser.open` moved off `Cmd+P`. Each historical set below is derived from the one after it,
- * so a new default has to be stripped here as well — otherwise every older set would also claim to
- * contain bindings that release never had, and no untouched file would match any of them.
+ * The defaults shipped immediately before Terminal Copy and tab cycling were added and `pathBrowser.open` moved off
+ * `Cmd+P`. Each historical set below is derived from the one after it, so a new default has to be stripped here as well
+ * — otherwise every older set would also claim to contain bindings that release never had, and no untouched file would
+ * match any of them.
  */
 const preTerminalCopyDefaultKeybindings = defaultKeybindings.flatMap((binding) => {
     if (['terminal.copy', 'workbench.nextTab', 'workbench.previousTab'].includes(binding.command))
@@ -97,10 +97,10 @@ const newlyAddedDefaultCommands = new Set([
     'sidebar.toggle',
 ]);
 /**
- * Every historical default set {@link migrateLegacyDefaultKeybindings} still recognizes as
- * untouched. Exported so tests can drive the migration from the real derivation chain: a test that
- * rebuilds a past release by filtering the *current* catalog silently rots the moment a default is
- * added or rebound, because the fixture then contains chords that release never shipped.
+ * Every historical default set {@link migrateLegacyDefaultKeybindings} still recognizes as untouched. Exported so tests
+ * can drive the migration from the real derivation chain: a test that rebuilds a past release by filtering the
+ * _current_ catalog silently rots the moment a default is added or rebound, because the fixture then contains chords
+ * that release never shipped.
  */
 export const previousDefaultKeybindingSets = [
     preTerminalCopyDefaultKeybindings,
@@ -119,13 +119,13 @@ export const previousDefaultKeybindingSets = [
 
 interface ConfigServiceOptions {
     /**
-    Overrides the fallback watcher cadence for deterministic integration tests.
+     * Overrides the fallback watcher cadence for deterministic integration tests.
      */
     fallbackPollIntervalMs?: number;
 }
 
 /**
-Upgrades known untouched historical defaults while preserving every customized keybinding file.
+ * Upgrades known untouched historical defaults while preserving every customized keybinding file.
  */
 function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[] {
     const source = JSON.stringify(keybindings);
@@ -195,7 +195,7 @@ async function readBoundedConfigSource(path: string): Promise<string> {
         }
 
         /**
-        The extra byte detects growth between stat and read without loading the full file.
+         * The extra byte detects growth between stat and read without loading the full file.
          */
         const buffer = Buffer.allocUnsafe(MAX_CONFIGURATION_SOURCE_BYTES + 1);
         let bytesRead = 0;
@@ -292,7 +292,7 @@ export class ConfigService {
     }
 
     /**
-    Suppresses repeated polling errors without retaining any rejected source bytes.
+     * Suppresses repeated polling errors without retaining any rejected source bytes.
      */
     private rememberRejectedSource(path: string, error: unknown): boolean {
         if (!(error instanceof ConfigSourceReadError)) {
@@ -465,7 +465,7 @@ export class ConfigService {
     }
 
     /**
-    Serializes read-modify-write Settings operations so concurrent trust prompts cannot lose rules.
+     * Serializes read-modify-write Settings operations so concurrent trust prompts cannot lose rules.
      */
     private mutateSettings<T>(operation: () => Promise<T>): Promise<T> {
         const previousTail = this.settingsMutationTail;
@@ -507,7 +507,7 @@ export class ConfigService {
             this.watcher = await parcelWatcher.subscribe(watchedDirectory, onEvents, { backend });
         } catch (error) {
             /**
-            Polling three known files avoids consuming another OS watcher when global FSEvents capacity is exhausted.
+             * Polling three known files avoids consuming another OS watcher when global FSEvents capacity is exhausted.
              */
             const timer = setInterval(() => {
                 for (const path of [this.settingsPath, this.keybindingsPath, this.themePath]) {
@@ -555,7 +555,7 @@ export class ConfigService {
     }
 
     /**
-    Applies a field-bounded patch through the same schema and atomic update path as Desktop.
+     * Applies a field-bounded patch through the same schema and atomic update path as Desktop.
      */
     patchSettings(
         changes: readonly SettingsPatchChange[],

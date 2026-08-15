@@ -539,8 +539,8 @@ interface SkillHealthSelection {
 }
 
 /**
- * Uses the same bounded marker and content inspection as the offline CLI while returning only the
- * path-free health projection that Desktop Settings may expose over typed IPC.
+ * Uses the same bounded marker and content inspection as the offline CLI while returning only the path-free health
+ * projection that Desktop Settings may expose over typed IPC.
  */
 export async function inspectBundledSkillHealth(
     context: SkillExecutionContext,
@@ -570,7 +570,7 @@ export async function inspectBundledSkillHealth(
 }
 
 /**
-Executes an offline bundled-skill command without connecting to a Host or exposing local paths.
+ * Executes an offline bundled-skill command without connecting to a Host or exposing local paths.
  */
 export async function executeSkillCommand(
     action: string,

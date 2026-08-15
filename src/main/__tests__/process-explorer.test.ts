@@ -70,8 +70,8 @@ describe('Process Explorer sampling', () => {
     });
 
     /**
-     * Electron reports no `name` for `Tab` processes, so both of Caxri's renderer windows used to
-     * list as a bare `window (renderer)` and a diagnostics tool could not identify its own window.
+     * Electron reports no `name` for `Tab` processes, so both of Caxri's renderer windows used to list as a bare
+     * `window (renderer)` and a diagnostics tool could not identify its own window.
      */
     it('labels each renderer window by role instead of listing two anonymous windows', async () => {
         const sampler = new ProcessExplorerSampler({

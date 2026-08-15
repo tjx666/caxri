@@ -59,7 +59,7 @@ export function gitDiffTabLabel(tab: GitDiffTab): string {
 }
 
 /**
-Gives both Monaco sides unique Session-scoped URIs while preserving file extensions.
+ * Gives both Monaco sides unique Session-scoped URIs while preserving file extensions.
  */
 export function gitDiffModelPath(
     sessionId: string,

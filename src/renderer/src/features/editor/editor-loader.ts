@@ -9,17 +9,17 @@ interface CodeEditorModule {
 type MonacoModule = typeof MonacoApi;
 
 /**
- * Mutable module state grouped behind a single object so functions below mutate a property instead
- * of reassigning a top-level binding (`unicorn/no-top-level-assignment-in-function`).
+ * Mutable module state grouped behind a single object so functions below mutate a property instead of reassigning a
+ * top-level binding (`unicorn/no-top-level-assignment-in-function`).
  */
 const state: {
     dependenciesPromise: Promise<[CodeEditorModule, MonacoModule]> | undefined;
     loadedEditor: typeof CodeEditor | undefined;
     isUserLoadRequested: boolean;
     /**
-     * Bumped on every user-initiated load. Warm-up captures the generation it started with and keeps
-     * running as long as no *further* user load has begun, so warm-up still completes when the user's
-     * first load simply happened to race ahead of the idle preload (see editor-loader.test.ts).
+     * Bumped on every user-initiated load. Warm-up captures the generation it started with and keeps running as long as
+     * no _further_ user load has begun, so warm-up still completes when the user's first load simply happened to race
+     * ahead of the idle preload (see editor-loader.test.ts).
      */
     loadGeneration: number;
 } = {
@@ -63,7 +63,7 @@ function publishCodeEditor(module: CodeEditorModule): CodeEditorModule {
 }
 
 /**
-User intent publishes the real editor as soon as its module loads instead of blocking on warm-up.
+ * User intent publishes the real editor as soon as its module loads instead of blocking on warm-up.
  */
 export async function loadCodeEditor(): Promise<CodeEditorModule> {
     state.isUserLoadRequested = true;
@@ -73,12 +73,11 @@ export async function loadCodeEditor(): Promise<CodeEditorModule> {
 }
 
 /**
- * Idle work primes Monaco before any file selection without delaying a selection already in flight.
- * `warmMonacoEditor` is idempotent (module-cached promise), so it is always invoked here even when a
- * user load already published the real editor by the time idle work runs — otherwise a user opening a
- * file inside the up-to-1s `requestIdleCallback` window would permanently skip warm-up for the rest of
- * the app session. When the user has already requested a load, warm-up is only ever useful in the
- * background, so it runs without blocking (or being included in) the preload measurement.
+ * Idle work primes Monaco before any file selection without delaying a selection already in flight. `warmMonacoEditor`
+ * is idempotent (module-cached promise), so it is always invoked here even when a user load already published the real
+ * editor by the time idle work runs — otherwise a user opening a file inside the up-to-1s `requestIdleCallback` window
+ * would permanently skip warm-up for the rest of the app session. When the user has already requested a load, warm-up
+ * is only ever useful in the background, so it runs without blocking (or being included in) the preload measurement.
  */
 async function preloadCodeEditor(): Promise<void> {
     performance.clearMarks('caxri.editor.preload-start');
@@ -110,7 +109,7 @@ async function preloadCodeEditor(): Promise<void> {
 }
 
 /**
-Starts after initial workbench work yields, without moving Monaco into the entry bundle.
+ * Starts after initial workbench work yields, without moving Monaco into the entry bundle.
  */
 async function preloadCodeEditorIgnoringFailure(): Promise<void> {
     try {

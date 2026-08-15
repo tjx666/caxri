@@ -52,7 +52,7 @@ interface GreenReuseResolution extends CIReusableGreenRun {
 }
 
 /**
-The workflow contract pins this step as the receipt that the checks job used full scope.
+ * The workflow contract pins this step as the receipt that the checks job used full scope.
  */
 const fullChecksReceiptStep = 'Run ESLint';
 
@@ -103,7 +103,7 @@ export function isProtectedRetryPath(path: string): boolean {
 }
 
 /**
-Aggregates legacy, split-matrix, and single-machine logical-pool E2E evidence without hiding failures.
+ * Aggregates legacy, split-matrix, and single-machine logical-pool E2E evidence without hiding failures.
  */
 const poolStepNames = {
     'control': 'Run one-worker control suite',
@@ -365,8 +365,8 @@ async function loadBaseRun(repo: string, runId: number): Promise<BaseRunEvidence
 }
 
 /**
- * Searches only the latest successful runs on the current PR branch. Missing API, lineage, job,
- * or path evidence returns no receipt so the caller keeps full Linux and macOS coverage.
+ * Searches only the latest successful runs on the current PR branch. Missing API, lineage, job, or path evidence
+ * returns no receipt so the caller keeps full Linux and macOS coverage.
  */
 async function findReusableGreenRun(input: {
     currentHeadSha: string;

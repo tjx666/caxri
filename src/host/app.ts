@@ -47,7 +47,7 @@ export interface HostApp {
 }
 
 /**
-Starts the profile owner, authenticated local transport, and its sole Runtime child.
+ * Starts the profile owner, authenticated local transport, and its sole Runtime child.
  */
 export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const startedAt = Date.now();
@@ -140,7 +140,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     };
 
     /**
-    Keeps public dispatch identity independent while preserving principal-scoped request retry.
+     * Keeps public dispatch identity independent while preserving principal-scoped request retry.
      */
     const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
         `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
@@ -353,7 +353,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     if (isTargetIsActive)
                         return agentInbox.send(context, request.params, invocation.requestId);
                     /**
-                    Only an exact bounded tombstone can be promoted into a wake dispatch.
+                     * Only an exact bounded tombstone can be promoted into a wake dispatch.
                      */
                     const retired = agentEndpoints.resolveRetired(request.params.to);
                     assertProjectScope(context, retired.projectId);
@@ -485,7 +485,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                             );
                         isAccepted = true;
                         /**
-                        Stop even if the requesting client disconnects before its reply can flush.
+                         * Stop even if the requesting client disconnects before its reply can flush.
                          */
                         commandStopFallback ??= setImmediate(async () => {
                             try {

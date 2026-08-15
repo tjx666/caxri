@@ -25,7 +25,7 @@ function mapSnapshot(row: SnapshotRow): TerminalSnapshot {
 }
 
 /**
-Pure CRUD over the `terminal_snapshots` table.
+ * Pure CRUD over the `terminal_snapshots` table.
  */
 export class SnapshotsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}

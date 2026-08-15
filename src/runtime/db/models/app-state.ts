@@ -22,7 +22,7 @@ export type AppStateKey = keyof typeof appStateValueSchemas;
 export type AppStateValue<K extends AppStateKey> = z.infer<(typeof appStateValueSchemas)[K]>;
 
 /**
-Parses one `app_state` JSON cell. Malformed JSON or a shape mismatch is VALIDATION, not `as T`.
+ * Parses one `app_state` JSON cell. Malformed JSON or a shape mismatch is VALIDATION, not `as T`.
  */
 export function parseAppStateValue<K extends AppStateKey>(
     key: K,
@@ -40,7 +40,7 @@ export function parseAppStateValue<K extends AppStateKey>(
 }
 
 /**
-Pure key/value CRUD over the `app_state` table.
+ * Pure key/value CRUD over the `app_state` table.
  */
 export class AppStateModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}

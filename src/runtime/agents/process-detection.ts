@@ -49,9 +49,9 @@ function commandProvider(command: string): AgentProvider | undefined {
 }
 
 /**
- * Identifies an Agent only when its executable belongs to the Shell PTY's active foreground process
- * group. This resolves shell aliases without reading shell configuration or mistaking a background
- * Agent in the same process tree for the command the user just submitted.
+ * Identifies an Agent only when its executable belongs to the Shell PTY's active foreground process group. This
+ * resolves shell aliases without reading shell configuration or mistaking a background Agent in the same process tree
+ * for the command the user just submitted.
  */
 export function foregroundAgentProviderFromProcessList(
     output: string,
@@ -88,7 +88,7 @@ export function foregroundAgentProviderFromProcessList(
 }
 
 /**
-Reads process identity only; the output is never logged, persisted, or sent to the Renderer.
+ * Reads process identity only; the output is never logged, persisted, or sent to the Renderer.
  */
 export async function detectForegroundAgentProvider(
     shellPid: number,

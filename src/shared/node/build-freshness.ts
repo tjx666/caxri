@@ -14,15 +14,15 @@ export interface BuildFreshnessOptions {
 
 export interface BuildFreshnessGuard {
     /**
-    Runs a full recursive scan only after creation or an observed filesystem change.
+     * Runs a full recursive scan only after creation or an observed filesystem change.
      */
     assertFresh(): Promise<void>;
     /**
-    Releases filesystem watchers when a long-lived test process shuts down.
+     * Releases filesystem watchers when a long-lived test process shuts down.
      */
     dispose(): void;
     /**
-    Exposes scan work for focused performance regressions without timing assertions.
+     * Exposes scan work for focused performance regressions without timing assertions.
      */
     readonly fullScanCount: number;
 }
@@ -133,9 +133,8 @@ function areSnapshotsEqual(
 }
 
 /**
- * Rejects focused E2E runs when any declared build input is newer than the oldest required output.
- * Comparing every process entry prevents a fresh Main bundle from masking a stale Runtime, preload,
- * or Renderer bundle.
+ * Rejects focused E2E runs when any declared build input is newer than the oldest required output. Comparing every
+ * process entry prevents a fresh Main bundle from masking a stale Runtime, preload, or Renderer bundle.
  */
 export async function assertBuildOutputsFresh(options: BuildFreshnessOptions): Promise<void> {
     const io = new AsyncSemaphore(32);
@@ -159,12 +158,11 @@ export async function assertBuildOutputsFresh(options: BuildFreshnessOptions): P
 }
 
 /**
- * Keeps focused Playwright launches fail-closed without walking every build input for every app
- * launch. A recursive watcher invalidates the cached success for source changes, while required
- * outputs are still statted on every launch so a deleted bundle cannot be hidden by watcher timing.
- * Direct Playwright commands start a new process and therefore always scan before their first
- * launch; within one worker, trusting the watcher avoids replacing the traversal with hundreds of
- * per-file stats. E2E specs must not rewrite repository build inputs while their worker is running.
+ * Keeps focused Playwright launches fail-closed without walking every build input for every app launch. A recursive
+ * watcher invalidates the cached success for source changes, while required outputs are still statted on every launch
+ * so a deleted bundle cannot be hidden by watcher timing. Direct Playwright commands start a new process and therefore
+ * always scan before their first launch; within one worker, trusting the watcher avoids replacing the traversal with
+ * hundreds of per-file stats. E2E specs must not rewrite repository build inputs while their worker is running.
  */
 export function createBuildFreshnessGuard(
     options: BuildFreshnessOptions,

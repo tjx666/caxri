@@ -1,5 +1,5 @@
 /**
-Match Runtime's delivery batch ceiling while also bounding many tiny IPC events.
+ * Match Runtime's delivery batch ceiling while also bounding many tiny IPC events.
  */
 const DEFAULT_MAXIMUM_PENDING_BYTES = 256 * 1024;
 const DEFAULT_MAXIMUM_PENDING_ITEMS = 256;
@@ -28,7 +28,7 @@ function utf8Prefix(value: string, maximumBytes: number): string {
 }
 
 /**
-Orders output received during terminal attachment behind its restored snapshot.
+ * Orders output received during terminal attachment behind its restored snapshot.
  */
 export class TerminalReplayBuffer {
     private restored = false;
@@ -57,8 +57,8 @@ export class TerminalReplayBuffer {
     }
 
     /**
-     * Preserve xterm write order while draining output that may continue arriving during a write.
-     * Each captured batch is serialized, then a later batch picks up anything queued meanwhile.
+     * Preserve xterm write order while draining output that may continue arriving during a write. Each captured batch
+     * is serialized, then a later batch picks up anything queued meanwhile.
      */
     private async drainPending(): Promise<void> {
         // The removed elements are the batch being drained below, so `.length = 0` would discard
@@ -75,7 +75,7 @@ export class TerminalReplayBuffer {
                 `\r\n[Caxri dropped ${droppedBytes} bytes while terminal output was replaying]\r\n`,
             );
             /**
-            Later output follows the marker directly, so a blocked marker cannot reopen the queue.
+             * Later output follows the marker directly, so a blocked marker cannot reopen the queue.
              */
             this.restored = true;
             await marker;
@@ -132,7 +132,7 @@ export class TerminalReplayBuffer {
 }
 
 /**
-Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output.
+ * Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output.
  */
 export class TerminalReplayCoordinator {
     private readonly initial = Promise.withResolvers<void>();
@@ -171,8 +171,8 @@ export class TerminalReplayCoordinator {
                 await replay.restore(snapshot);
             } catch (error) {
                 /**
-                 * Keep the existing screen on an attach failure, but release output buffered while
-                 *  the Runtime request was pending.
+                 * Keep the existing screen on an attach failure, but release output buffered while the Runtime request
+                 * was pending.
                  */
                 await replay.restore('');
                 throw error;
@@ -184,9 +184,8 @@ export class TerminalReplayCoordinator {
 }
 
 /**
- * `tail` must never reject, or the next `reattach` call's `await this.tail` would throw before it
- * ever starts its own attach attempt. The caller-visible failure still surfaces through the
- * returned `task` in `reattach`.
+ * `tail` must never reject, or the next `reattach` call's `await this.tail` would throw before it ever starts its own
+ * attach attempt. The caller-visible failure still surfaces through the returned `task` in `reattach`.
  */
 async function settleQuietly(task: Promise<void>): Promise<void> {
     try {

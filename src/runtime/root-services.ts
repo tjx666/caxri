@@ -10,7 +10,7 @@ import { ProjectRootResolver } from './project-roots';
 import { WorkbenchRootService } from './workbench-roots';
 
 /**
-Applies durable inactive-root editor state before the journal record becomes unrecoverable.
+ * Applies durable inactive-root editor state before the journal record becomes unrecoverable.
  */
 export async function acknowledgeFileMutation(
     database: CaxriDatabase,
@@ -33,7 +33,7 @@ export async function acknowledgeFileMutation(
 }
 
 /**
-Builds the persistence and root-authorized services that Files, Git, and Workbench share.
+ * Builds the persistence and root-authorized services that Files, Git, and Workbench share.
  */
 export async function createRootServices({ logger, send, userDataPath }: RuntimeDependencies) {
     const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {

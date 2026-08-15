@@ -14,23 +14,22 @@ import type { ProtocolWelcome } from '../shared/ipc/version';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 
 /**
- * Kept entry-local because sharing this constant across both preload entries makes Vite extract a
- * CommonJS chunk, which Electron's sandboxed preload loader cannot require.
+ * Kept entry-local because sharing this constant across both preload entries makes Vite extract a CommonJS chunk, which
+ * Electron's sandboxed preload loader cannot require.
  */
 const rendererErrorChannel = 'caxri:renderer-error';
 
 /**
- * Forwards a structured request and hands the reply envelope back untouched. Main answers with
- * `{ id, ok, result | error }` rather than throwing so the Caxri error code survives both the
- * Electron IPC hop and the `contextBridge` copy, which reduces a thrown error to its message and
- * stack.
+ * Forwards a structured request and hands the reply envelope back untouched. Main answers with `{ id, ok, result |
+ * error }` rather than throwing so the Caxri error code survives both the Electron IPC hop and the `contextBridge`
+ * copy, which reduces a thrown error to its message and stack.
  */
 async function request<M extends CaxriMethod>(
     method: M,
     ...arguments_: ParametersArgument<M>
 ): Promise<MethodReply<M>> {
     /**
-    The payload crosses a process boundary as unknown; the method table owns its static shape.
+     * The payload crosses a process boundary as unknown; the method table owns its static shape.
      */
     return (await ipcRenderer.invoke('caxri:request', {
         protocolVersion: CAXRI_PROTOCOL_VERSION,

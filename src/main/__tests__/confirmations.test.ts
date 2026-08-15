@@ -44,7 +44,7 @@ describe('external link prompt', () => {
         expect(externalLinkChoice(2, true)).toBe('cancel');
         expect(externalLinkChoice(0, false)).toBe('open_once');
         /**
-        Without trust, index 1 is Cancel — it must never be read as an implicit trust.
+         * Without trust, index 1 is Cancel — it must never be read as an implicit trust.
          */
         expect(externalLinkChoice(1, false)).toBe('cancel');
     });
@@ -58,7 +58,7 @@ describe('trash prompt', () => {
     });
 
     /**
-    The Trash restores only what reached disk, so the blanket reassurance would be a lie here.
+     * The Trash restores only what reached disk, so the blanket reassurance would be a lie here.
      */
     it('withdraws the recovery promise when the editor holds unsaved changes', () => {
         const options = trashPrompt({
@@ -109,7 +109,7 @@ describe('unsaved changes prompt', () => {
     });
 
     /**
-    Enter must save and Escape must cancel; neither may land on the destructive choice.
+     * Enter must save and Escape must cancel; neither may land on the destructive choice.
      */
     it('never puts the destructive choice behind Enter or Escape', () => {
         const options = unsavedChangesPrompt('index.ts');

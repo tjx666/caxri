@@ -20,29 +20,28 @@ import { describeFailure, pushToast } from './toasts';
 
 interface WorkbenchState {
     /**
-    The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves.
+     * The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves.
      */
     bootstrap?: BootstrapState;
     /**
-     * Bumped every time the Runtime reports ready again. Mounted Terminal panes watch this to
-     * re-issue `terminal.attach`, because a Runtime restart drops attachment state the pane cannot
-     * observe on its own.
+     * Bumped every time the Runtime reports ready again. Mounted Terminal panes watch this to re-issue
+     * `terminal.attach`, because a Runtime restart drops attachment state the pane cannot observe on its own.
      */
     attachEpoch: number;
     /**
-    Mirrors the native window's fullscreen state, pushed by Main via `window.fullScreen`.
+     * Mirrors the native window's fullscreen state, pushed by Main via `window.fullScreen`.
      */
     isFullScreen: boolean;
     /**
-    Idempotent attach used on mount; joins an in-flight snapshot read instead of duplicating it.
+     * Idempotent attach used on mount; joins an in-flight snapshot read instead of duplicating it.
      */
     initialize(): Promise<void>;
     /**
-    Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read.
+     * Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read.
      */
     refresh(): Promise<void>;
     /**
-    Optimistically applies a Session layout/tab/inspector change and reports persistence.
+     * Optimistically applies a Session layout/tab/inspector change and reports persistence.
      */
     patchSessionState(
         next: SessionState,
@@ -91,8 +90,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 state.workbenchProjectId === next.workbenchProjectId,
         );
         /**
-         * Async UI work may finish after a root switch. Never make that stale root visible or
-         *  submit a write Runtime must reject.
+         * Async UI work may finish after a root switch. Never make that stale root visible or submit a write Runtime
+         * must reject.
          */
         if (!previous) return false;
         sessionPatchRevision.current += 1;
@@ -124,9 +123,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
             // write's own later success/failure) that has since superseded it.
             const isLatestRevision = pendingSessionPatches.get(patchKey)?.revision === revision;
             /**
-             * A durable file move cannot safely restore its old path. Retaining the latest
-             * optimistic patch also shields it from stale bootstrap reads until retry replaces
-             * this revision and eventually persists it.
+             * A durable file move cannot safely restore its old path. Retaining the latest optimistic patch also
+             * shields it from stale bootstrap reads until retry replaces this revision and eventually persists it.
              */
             const isRetainLatest = isLatestRevision && failureMode === 'retain';
             if (!isRetainLatest) finish();
@@ -159,9 +157,9 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
 }));
 
 /**
- * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer
- * write. Preserve the latest unacknowledged Session state so that stale Runtime snapshots cannot
- * make a just-selected tab or layout visibly jump backwards.
+ * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer write. Preserve the
+ * latest unacknowledged Session state so that stale Runtime snapshots cannot make a just-selected tab or layout visibly
+ * jump backwards.
  */
 function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
     if (pendingSessionPatches.size === 0) return state;
@@ -174,7 +172,7 @@ function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
 
 async function applySnapshot(state: BootstrapState): Promise<void> {
     /**
-    Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state.
+     * Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state.
      */
     const { sessionViewScope, useSessionViewStore } = await import('./session-view');
     const documents = useSessionViewStore.getState().documents;
@@ -298,10 +296,10 @@ function loadBootstrap(): Promise<void> {
 }
 
 /**
- * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse
- * it — its own mutation may not be reflected there — so every such caller shares one follow-up read
- * instead of issuing a burst of `app.bootstrap` requests. React StrictMode's double mount therefore
- * never doubles the Runtime work, and neither does a burst of `state.changed` events.
+ * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse it — its own
+ * mutation may not be reflected there — so every such caller shares one follow-up read instead of issuing a burst of
+ * `app.bootstrap` requests. React StrictMode's double mount therefore never doubles the Runtime work, and neither does
+ * a burst of `state.changed` events.
  */
 export function initializeWorkbench(): Promise<void> {
     return bootstrapRead.inFlight ?? loadBootstrap();
@@ -331,8 +329,8 @@ export function patchSessionState(
 }
 
 /**
- * Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime.
- * `retainOnFailure` pins a target-path state that would be unsafe to roll back after disk mutation.
+ * Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime. `retainOnFailure` pins a
+ * target-path state that would be unsafe to roll back after disk mutation.
  */
 export function persistSessionState(
     next: SessionState,
@@ -355,21 +353,21 @@ export function persistSessionState(
 
 export interface WorkbenchEventHandlers {
     /**
-     * Runs a command id pushed by the native menu, honouring the modal guard. `wasViaAccelerator`
-     * forwards whether the menu item fired from its keyboard accelerator rather than a mouse/touch
-     * click, so the caller can apply the editable-focus shortcut policy only to the accelerator path.
+     * Runs a command id pushed by the native menu, honouring the modal guard. `wasViaAccelerator` forwards whether the
+     * menu item fired from its keyboard accelerator rather than a mouse/touch click, so the caller can apply the
+     * editable-focus shortcut policy only to the accelerator path.
      */
     onCommand(command: CommandId, wasViaAccelerator: boolean): void;
     /**
-    Applies an authenticated Host open request after Main redeemed its one-use target.
+     * Applies an authenticated Host open request after Main redeemed its one-use target.
      */
     onDesktopOpen(sessionId: string, path?: string): void;
 }
 
 /**
- * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to
- * live inside App's mount effect dispatches into this store instead. Unhandled events must be
- * listed as explicit no-ops so a new Runtime event fails compile instead of disappearing.
+ * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to live inside App's
+ * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Runtime
+ * event fails compile instead of disappearing.
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {

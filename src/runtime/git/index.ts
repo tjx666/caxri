@@ -55,7 +55,7 @@ export { describeGitFailure } from './errors';
 const COMMIT_FORMAT = '%H%x00%an%x00%at%x00%P%x00%D%x00%s%x00';
 
 /**
-Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects.
+ * Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects.
  */
 function parseCommitLog(output: string): GitCommit[] {
     const fields = output.split('\0');
@@ -164,7 +164,7 @@ export class GitService {
                 });
                 if (options.input !== undefined) {
                     /**
-                    A fast Git failure may close stdin before the bounded batch is written.
+                     * A fast Git failure may close stdin before the bounded batch is written.
                      */
                     execution.child.stdin?.on('error', () => {});
                     execution.child.stdin?.end(options.input);
@@ -190,7 +190,7 @@ export class GitService {
     }
 
     /**
-    Reads GitHub PR metadata through fixed `gh` argv without granting the Renderer CLI access.
+     * Reads GitHub PR metadata through fixed `gh` argv without granting the Renderer CLI access.
      */
     private async ghPullRequestView(cwd: string): Promise<string> {
         const startedAt = performance.now();
@@ -305,7 +305,7 @@ export class GitService {
             candidate = await realpath(candidate);
         } catch {
             /**
-            Deleted Git paths no longer resolve; the lexical path is revalidated below.
+             * Deleted Git paths no longer resolve; the lexical path is revalidated below.
              */
         }
         const relativePath = relative(repo.rootPath, candidate);
@@ -373,8 +373,8 @@ export class GitService {
     }
 
     /**
-     * Returns the canonical linked-worktree topology for one known Project repository. This is an
-     * internal Runtime boundary: discovery does not imply authorization and never reaches Renderer.
+     * Returns the canonical linked-worktree topology for one known Project repository. This is an internal Runtime
+     * boundary: discovery does not imply authorization and never reaches Renderer.
      */
     async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
         const root = await realpath(projectRoot);
@@ -402,7 +402,7 @@ export class GitService {
     }
 
     /**
-    Returns ignored direct children using one NUL-delimited Git batch for the listed directory.
+     * Returns ignored direct children using one NUL-delimited Git batch for the listed directory.
      */
     async ignoredEntries(
         sessionId: string,
@@ -448,14 +448,14 @@ export class GitService {
     }
 
     /**
-    Drops Pull Request file lists whose Session ownership was removed from persistence.
+     * Drops Pull Request file lists whose Session ownership was removed from persistence.
      */
     evictPullRequestSessions(sessionIds: readonly string[]): void {
         this.pullRequestService.evictSessions(sessionIds);
     }
 
     /**
-    Releases retained Pull Request metadata at the Runtime lifecycle boundary.
+     * Releases retained Pull Request metadata at the Runtime lifecycle boundary.
      */
     close(): void {
         this.pullRequestService.clear();

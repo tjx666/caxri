@@ -129,9 +129,9 @@ function haveEqualValues(left: string[], right: string[]): boolean {
 }
 
 /**
- * Run history can contain legacy `agent` rows and interrupted rows with null lineage fields.
- * They cannot prove that this exact round already exists, so discovery ignores them while the
- * matching candidate and subsequent Acceptance readback remain strictly validated.
+ * Run history can contain legacy `agent` rows and interrupted rows with null lineage fields. They cannot prove that
+ * this exact round already exists, so discovery ignores them while the matching candidate and subsequent Acceptance
+ * readback remain strictly validated.
  */
 function discoverableAcceptanceRuns(
     value: unknown,
@@ -292,7 +292,7 @@ export function recordOrphanedAcceptance(
 
     const pending = state.acceptance.publication.pendingAttempt;
     /**
-    Only the explicit, immutable orphan record for the exact remote run permits a fresh upload.
+     * Only the explicit, immutable orphan record for the exact remote run permits a fresh upload.
      */
     if (
         verifyRunId !== null &&

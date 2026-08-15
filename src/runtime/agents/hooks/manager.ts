@@ -33,8 +33,8 @@ const LOCK_RETRY_MS = 25;
 const LOCK_TIMEOUT_MS = 2_000;
 const MAX_CONCURRENT_PROFILE_STATS = 8;
 /**
- * Provider-owned hook configs are small user-authored documents; never hand unbounded input to
- * their syntax adapters or let reconciliation rewrite a file it could not safely inspect.
+ * Provider-owned hook configs are small user-authored documents; never hand unbounded input to their syntax adapters or
+ * let reconciliation rewrite a file it could not safely inspect.
  */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
 const STALE_LOCK_MS = 30_000;
@@ -216,8 +216,8 @@ function healthFor(status: AgentHookEntryStatus, isActive: boolean): AgentHookHe
 }
 
 /**
- * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the
- * cross-process lock, atomic filesystem changes, bridge/server lifecycle, health, and PTY tokens.
+ * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the cross-process lock,
+ * atomic filesystem changes, bridge/server lifecycle, health, and PTY tokens.
  */
 export class AgentHookManager {
     private readonly activeProviders = new Set<AgentProvider>();
@@ -248,8 +248,8 @@ export class AgentHookManager {
             await this.withInstallLock(async () => {
                 const globallyEnabled = await this.updateProfileIntent(settings);
                 /**
-                 * Provider adapters own disjoint config files; the shared profile registry is
-                 * already durable before these independent reconciliations begin.
+                 * Provider adapters own disjoint config files; the shared profile registry is already durable before
+                 * these independent reconciliations begin.
                  */
                 await Promise.all(
                     agentProviderIds.map((provider) =>
@@ -343,10 +343,9 @@ export class AgentHookManager {
     }
 
     /**
-     * Provider configs are user-global while Caxri settings are profile-scoped. Persisting the
-     * union of profile intents prevents one worktree/profile from uninstalling hooks that another
-     * profile still explicitly enables; missing profile directories are pruned so explicit profile
-     * cleanup cannot leave an unremovable global hook.
+     * Provider configs are user-global while Caxri settings are profile-scoped. Persisting the union of profile intents
+     * prevents one worktree/profile from uninstalling hooks that another profile still explicitly enables; missing
+     * profile directories are pruned so explicit profile cleanup cannot leave an unremovable global hook.
      */
     private async updateProfileIntent(
         settings: Record<AgentProvider, AgentProviderSettings>,
@@ -397,8 +396,8 @@ export class AgentHookManager {
         targetById: ReadonlyMap<string, AgentHookConfigTarget>,
     ): Promise<void> {
         /**
-         * Adapter edits are an ordered transaction plan; parallel replacement could expose a
-         * mixed provider configuration or overwrite a later edit to the same target.
+         * Adapter edits are an ordered transaction plan; parallel replacement could expose a mixed provider
+         * configuration or overwrite a later edit to the same target.
          */
         for (const edit of edits) {
             const target = targetById.get(edit.targetId);
@@ -453,7 +452,7 @@ export class AgentHookManager {
     }
 
     /**
-    Watches only provider config files; Codex state/transcript churn in the same home is ignored.
+     * Watches only provider config files; Codex state/transcript churn in the same home is ignored.
      */
     private async refreshConfigWatchers(
         settings: Record<AgentProvider, AgentProviderSettings>,
@@ -477,8 +476,8 @@ export class AgentHookManager {
         for (const [directory, targets] of desired)
             if (!this.configWatchers.has(directory)) pendingWatchers.push([directory, targets]);
         /**
-         * Native subscriptions for separate directories are independent; apply their results only
-         * after every attempt settles so shared fallback state remains ordered.
+         * Native subscriptions for separate directories are independent; apply their results only after every attempt
+         * settles so shared fallback state remains ordered.
          */
         const additions = await Promise.all(
             pendingWatchers.map(async ([directory, targets]) => {
@@ -493,7 +492,7 @@ export class AgentHookManager {
                                 return;
                             }
                             /**
-                            Native macOS paths may canonicalize `/var` to `/private/var`.
+                             * Native macOS paths may canonicalize `/var` to `/private/var`.
                              */
                             if (events.some((event) => targetNames.has(basename(event.path))))
                                 this.scheduleConfigReconcile();
@@ -554,9 +553,8 @@ export class AgentHookManager {
         const lockPath = join(this.options.sharedPath!, 'install.lock');
         const deadline = Date.now() + LOCK_TIMEOUT_MS;
         /**
-         * Lock acquisition is inherently sequential: each retry must observe the previous
-         * attempt's outcome (mkdir success/EEXIST, staleness check, timeout) before deciding
-         * whether to wait and retry.
+         * Lock acquisition is inherently sequential: each retry must observe the previous attempt's outcome (mkdir
+         * success/EEXIST, staleness check, timeout) before deciding whether to wait and retry.
          */
         while (true) {
             try {
@@ -644,9 +642,9 @@ export class AgentHookManager {
     reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
         this.settings = settings;
         /**
-         * The queue field must be reassigned synchronously (not after an `await`) so concurrent
-         * `reconcile()` calls serialize onto the same chain instead of racing to read
-         * `reconcileQueue` before this call's continuation is attached.
+         * The queue field must be reassigned synchronously (not after an `await`) so concurrent `reconcile()` calls
+         * serialize onto the same chain instead of racing to read `reconcileQueue` before this call's continuation is
+         * attached.
          */
         // eslint-disable-next-line unicorn/prefer-await -- see comment above; the queue must be reassigned synchronously
         const run = this.reconcileQueue.then(() => this.reconcileNow(settings));

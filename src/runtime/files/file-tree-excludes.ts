@@ -34,7 +34,7 @@ function compilePattern(input: string): RegExp {
 }
 
 /**
-Matches a Project-relative path against enabled `files.exclude` glob entries.
+ * Matches a Project-relative path against enabled `files.exclude` glob entries.
  */
 export function isFileTreeExcludeMatch(relativePath: string, excludes: FileTreeExcludes): boolean {
     const normalizedPath = relativePath.replaceAll('\\', '/').replace(/^\.\//, '');

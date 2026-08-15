@@ -55,7 +55,7 @@ const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
 
 /**
-Clears a possibly-unset timer and returns the `undefined` it should be replaced with.
+ * Clears a possibly-unset timer and returns the `undefined` it should be replaced with.
  */
 function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
     if (timer) clearTimeout(timer);
@@ -120,9 +120,9 @@ export class TerminalManager {
     ): Promise<TerminalRecord> {
         const startedAt = performance.now();
         /**
-         * Tracks which spawn stage is in flight so the `catch` below can attach a precise
-         * `TerminalFailureReason` instead of pattern-matching the thrown error's message. Defaults
-         * to the last stage (`spawn_failed`) since a `pty.spawn` failure has no distinct guard.
+         * Tracks which spawn stage is in flight so the `catch` below can attach a precise `TerminalFailureReason`
+         * instead of pattern-matching the thrown error's message. Defaults to the last stage (`spawn_failed`) since a
+         * `pty.spawn` failure has no distinct guard.
          */
         let failureReason: TerminalFailureReason = 'spawn_failed';
         let spawned: pty.IPty | undefined;
@@ -188,8 +188,8 @@ export class TerminalManager {
                     }
                 } catch (error) {
                     /**
-                     * Shell integration is optional decoration metadata; startup must retain the
-                     *  ordinary login-shell path if its resolver becomes unavailable.
+                     * Shell integration is optional decoration metadata; startup must retain the ordinary login-shell
+                     * path if its resolver becomes unavailable.
                      */
                     this.logger.write('warn', 'pty.shell_integration_unavailable', {
                         fields: {
@@ -201,9 +201,9 @@ export class TerminalManager {
             }
             const storedSnapshot = this.database.getSnapshot(record.id);
             /**
-             * A persisted snapshot can still hold color-query bytes captured by an older build;
-             *  replaying them would make the Renderer's xterm.js emit a stale, unsolicited reply
-             *  into the new process, so they are stripped without answering.
+             * A persisted snapshot can still hold color-query bytes captured by an older build; replaying them would
+             * make the Renderer's xterm.js emit a stale, unsolicited reply into the new process, so they are stripped
+             * without answering.
              */
             const initialColorQuery = new TerminalColorQueryResponder(() => {});
             const strippedSnapshot = `${initialColorQuery.push(
@@ -232,7 +232,7 @@ export class TerminalManager {
             });
             spawned = child;
             /**
-            A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell.
+             * A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell.
              */
             if (!this.database.getTerminal(record.id)) {
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
@@ -247,8 +247,8 @@ export class TerminalManager {
                           terminator,
                       );
                       /**
-                       * Protocol replies are Runtime-internal, so they bypass `write()`'s E2E
-                       *  agent-input policy; the liveness check drops a reply that raced retire.
+                       * Protocol replies are Runtime-internal, so they bypass `write()`'s E2E agent-input policy; the
+                       * liveness check drops a reply that raced retire.
                        */
                       if (!reply || this.terminals.get(record.id)?.process !== child) return;
                       child.write(reply);
@@ -340,7 +340,7 @@ export class TerminalManager {
     }
 
     /**
-    Revalidates the authorized cwd immediately before the path-based node-pty spawn.
+     * Revalidates the authorized cwd immediately before the path-based node-pty spawn.
      */
     private async assertWorkingDirectory(
         path: string,
@@ -372,8 +372,8 @@ export class TerminalManager {
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
         /**
-         * Color queries are answered here and never reach the screen, snapshot, or Renderer —
-         *  a replayed query would otherwise make xterm.js send a duplicate, late reply.
+         * Color queries are answered here and never reach the screen, snapshot, or Renderer — a replayed query would
+         * otherwise make xterm.js send a duplicate, late reply.
          */
         const filtered = live.colorQuery ? live.colorQuery.push(data) : data;
         const recoveryData = live.imageRecovery.push(filtered);
@@ -422,7 +422,7 @@ export class TerminalManager {
             live.snapshot.markPersisted();
         } catch (error) {
             /**
-            Snapshot persistence is recoverable and must never terminate the shared Runtime.
+             * Snapshot persistence is recoverable and must never terminate the shared Runtime.
              */
             this.logger.write('warn', 'pty.snapshot_failed', {
                 fields: {
@@ -456,11 +456,12 @@ export class TerminalManager {
 
     private onExit(live: LiveTerminal, exitCode: number, signal?: number): void {
         /**
-        onExit always persists the final snapshot; detach persists only when asked to preserve it.
+         * OnExit always persists the final snapshot; detach persists only when asked to preserve it.
          */
         if (!this.retireLiveTerminal(live, { shouldPersist: true })) return;
         /**
-        node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected death.
+         * Node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected
+         * death.
          */
         const isExitedNormally = exitCode === 0 && !signal;
         this.database.updateTerminalState(live.record.id, isExitedNormally ? 'stopped' : 'dead');
@@ -488,9 +489,9 @@ export class TerminalManager {
         return new Promise((resolve) => {
             let isCompleted = false;
             /**
-             * `setTimeout`'s callback must clear its own timer handle, and `clearTimeout` needs
-             *  that handle before `setTimeout` returns it. A boxed reference (rather than a
-             *  forward-declared `let`) resolves the mutual dependency without a reassigned binding.
+             * `setTimeout`'s callback must clear its own timer handle, and `clearTimeout` needs that handle before
+             * `setTimeout` returns it. A boxed reference (rather than a forward-declared `let`) resolves the mutual
+             * dependency without a reassigned binding.
              */
             const timerBox: { current?: NodeJS.Timeout } = {};
             const complete = (): void => {
@@ -522,17 +523,17 @@ export class TerminalManager {
     }
 
     /**
-     * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and
-     * optionally persists a final snapshot. Shared by `onExit` (always persists, then reports the
-     * exit) and `detach` (persists only when the caller wants the snapshot preserved, e.g. restart).
-     * Returns false when the terminal was already retired, which both callers treat as a no-op.
+     * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and optionally persists a final
+     * snapshot. Shared by `onExit` (always persists, then reports the exit) and `detach` (persists only when the caller
+     * wants the snapshot preserved, e.g. restart). Returns false when the terminal was already retired, which both
+     * callers treat as a no-op.
      */
     private retireLiveTerminal(live: LiveTerminal, options: { shouldPersist: boolean }): boolean {
         if (this.terminals.get(live.record.id) !== live) return false;
         this.clearTerminalTimers(live);
         /**
-         * A view may still be attached at close/exit/restart, so pass the queue: an image still
-         *  mid-capture becomes one honest placeholder instead of a silent gap in the final output.
+         * A view may still be attached at close/exit/restart, so pass the queue: an image still mid-capture becomes one
+         * honest placeholder instead of a silent gap in the final output.
          */
         live.droppedBytes += live.imageOutput.finish(live.outputQueue);
         this.flushOutput(live);
@@ -562,10 +563,10 @@ export class TerminalManager {
     }
 
     /**
-     * Normal exit cannot await Host control; failures stay observable without retaining local
-     * state. The caller (`retireLiveTerminal`, itself invoked from the synchronous node-pty
-     * `onExit` handler and other sync methods) cannot become `async` without changing the PTY
-     * event-listener contract, so the rejection is handled via `.catch()` instead of `await`.
+     * Normal exit cannot await Host control; failures stay observable without retaining local state. The caller
+     * (`retireLiveTerminal`, itself invoked from the synchronous node-pty `onExit` handler and other sync methods)
+     * cannot become `async` without changing the PTY event-listener contract, so the rejection is handled via
+     * `.catch()` instead of `await`.
      */
     private retireLifecycleSoon(terminalId: string): void {
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget from a synchronous caller, see comment above
@@ -577,7 +578,7 @@ export class TerminalManager {
     }
 
     /**
-    A pre-spawn failure awaits retirement so its prepared credential never outlives the failure.
+     * A pre-spawn failure awaits retirement so its prepared credential never outlives the failure.
      */
     private async retireLifecycle(terminalId: string): Promise<void> {
         await this.onLifecycleRetired?.(terminalId);
@@ -592,7 +593,8 @@ export class TerminalManager {
     write(terminalId: string, data: string): boolean {
         const live = this.terminals.get(terminalId);
         /**
-        Input can already be queued across IPC when a PTY exits; dropping that stale input is an expected lifecycle race.
+         * Input can already be queued across IPC when a PTY exits; dropping that stale input is an expected lifecycle
+         * race.
          */
         if (!live) return false;
         if (live.record.kind !== 'shell')
@@ -604,7 +606,7 @@ export class TerminalManager {
     }
 
     /**
-    Signals only the currently-owned PTY identity captured by the caller.
+     * Signals only the currently-owned PTY identity captured by the caller.
      */
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
         const live = this.terminals.get(terminalId);
@@ -616,11 +618,11 @@ export class TerminalManager {
     resize(terminalId: string, cols: number, rows: number): boolean {
         const live = this.terminals.get(terminalId);
         /**
-        ResizeObserver callbacks may likewise arrive after the PTY has exited or its pane has detached.
+         * ResizeObserver callbacks may likewise arrive after the PTY has exited or its pane has detached.
          */
         if (!live) return false;
         /**
-        A remounted Renderer forgets its last grid; avoid turning that first measurement into a redundant SIGWINCH.
+         * A remounted Renderer forgets its last grid; avoid turning that first measurement into a redundant SIGWINCH.
          */
         if (live.process.cols === cols && live.process.rows === rows) return true;
         live.screen.resize(cols, rows);
@@ -635,16 +637,16 @@ export class TerminalManager {
         const live = this.terminals.get(terminalId);
         if (!live && !this.database.getTerminal(terminalId)) return null;
         /**
-         * An interrupted Terminal may attach before its restore spawn. Retain the measured grid so
-         *  the resumed TUI starts at the visible geometry instead of the fallback 100x30 grid.
+         * An interrupted Terminal may attach before its restore spawn. Retain the measured grid so the resumed TUI
+         * starts at the visible geometry instead of the fallback 100x30 grid.
          */
         if (size) {
             this.attachedSizes.set(terminalId, size);
             this.resolveAttachedSizeWaiters(terminalId);
         }
         /**
-         * Serialize at the receiving xterm's grid. Restoring addon-serialize output into another
-         *  size can irreversibly wrap cursor-addressed alternate-screen content.
+         * Serialize at the receiving xterm's grid. Restoring addon-serialize output into another size can irreversibly
+         * wrap cursor-addressed alternate-screen content.
          */
         if (live && size) this.resize(terminalId, size.cols, size.rows);
         const wasAttached = this.attached.has(terminalId);
@@ -652,8 +654,8 @@ export class TerminalManager {
         if (!live) return this.database.getSnapshot(terminalId) ?? null;
         if (wasAttached) {
             /**
-             * A repeated attach replays the parsed screen, so pending live bytes already included in
-             *  that screen must not also be delivered after the attachment response.
+             * A repeated attach replays the parsed screen, so pending live bytes already included in that screen must
+             * not also be delivered after the attachment response.
              */
             live.outputTimer = clearScheduledTimer(live.outputTimer);
             live.outputQueue.clear();
@@ -675,7 +677,7 @@ export class TerminalManager {
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
         /**
-        No destination: no Renderer view remains attached to read a placeholder here.
+         * No destination: no Renderer view remains attached to read a placeholder here.
          */
         live.imageOutput.finish();
         live.droppedBytes = 0;
@@ -693,7 +695,7 @@ export class TerminalManager {
         const preservedSize = this.attachedSizes.get(terminalId);
         if (live) {
             /**
-            Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID.
+             * Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID.
              */
             this.detach(live, true);
             live.process.kill();
@@ -711,7 +713,7 @@ export class TerminalManager {
         const live = this.terminals.get(terminalId);
         if (live) {
             /**
-            Remove ownership before metadata so late node-pty exit events cannot write through deleted foreign keys.
+             * Remove ownership before metadata so late node-pty exit events cannot write through deleted foreign keys.
              */
             this.detach(live, false);
             live.process.kill();
@@ -755,14 +757,14 @@ export class TerminalManager {
     }
 
     /**
-     * Kills every live PTY (final snapshot persisted) and bulk-marks Terminals per `reason`.
-     * `unclean` is excluded: that recovery path only ever runs from `openDatabase` on the next
-     * Runtime start, never from a live Runtime shutting itself down.
+     * Kills every live PTY (final snapshot persisted) and bulk-marks Terminals per `reason`. `unclean` is excluded:
+     * that recovery path only ever runs from `openDatabase` on the next Runtime start, never from a live Runtime
+     * shutting itself down.
      */
     shutdown(reason: Exclude<ShutdownReason, 'unclean'>): void {
         /**
-         * Wake restore starts before their generation guard turns false so shutdown does not leave
-         *  the Runtime alive solely for the visible-Terminal grid grace period.
+         * Wake restore starts before their generation guard turns false so shutdown does not leave the Runtime alive
+         * solely for the visible-Terminal grid grace period.
          */
         for (const terminalId of this.attachedSizeWaiters.keys())
             this.resolveAttachedSizeWaiters(terminalId);

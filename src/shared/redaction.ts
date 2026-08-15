@@ -8,7 +8,7 @@ const PRESIGNED_QUERY_PARAMETER =
     /(?:^|&)(?:x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential|signature|sig)=/i;
 
 /**
-Presigned URLs are credentials, so retaining unrelated query fields still leaks access scope.
+ * Presigned URLs are credentials, so retaining unrelated query fields still leaks access scope.
  */
 function redactPresignedUrl(value: string): string {
     const queryStart = value.indexOf('?');
@@ -21,7 +21,7 @@ function redactPresignedUrl(value: string): string {
 }
 
 /**
-Browser-safe subset shared by diagnostics and user-previewed bug reports.
+ * Browser-safe subset shared by diagnostics and user-previewed bug reports.
  */
 export function redactSecretText(value: string): string {
     return value
@@ -38,7 +38,7 @@ export function redactSecretText(value: string): string {
 }
 
 /**
-True when a field name looks like it holds a credential.
+ * True when a field name looks like it holds a credential.
  */
 export function isSecretKey(key: string): boolean {
     return SECRET_KEY.test(key);

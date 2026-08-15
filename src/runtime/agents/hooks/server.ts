@@ -51,8 +51,8 @@ function isProcessAlive(processId: number): boolean {
 }
 
 /**
- * Removes only bounded, profile-owned socket entries whose encoded Runtime PID no longer exists.
- * A crash bypasses `close()`, while a live sibling Runtime for the same profile must stay intact.
+ * Removes only bounded, profile-owned socket entries whose encoded Runtime PID no longer exists. A crash bypasses
+ * `close()`, while a live sibling Runtime for the same profile must stay intact.
  */
 export async function pruneStaleAgentHookSockets(
     directoryPath: string,
@@ -107,8 +107,8 @@ function parseSignal(source: string): HookWireSignal | undefined {
 }
 
 /**
- * Authenticated local signal boundary. Provider hooks can report only a phase plus opaque PTY
- * generation; prompt text and provider hook payloads never cross into Caxri.
+ * Authenticated local signal boundary. Provider hooks can report only a phase plus opaque PTY generation; prompt text
+ * and provider hook payloads never cross into Caxri.
  */
 export class AgentHookServer {
     private readonly launchesByToken = new Map<string, RegisteredLaunch>();

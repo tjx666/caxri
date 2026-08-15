@@ -15,8 +15,8 @@ async function lint(path: string) {
 }
 
 /**
- * `ESLint#calculateConfigForFile` is typed as `Promise<any>` (there is no narrower public type),
- * so this local shape is asserted explicitly rather than relying on the untyped return value.
+ * `ESLint#calculateConfigForFile` is typed as `Promise<any>` (there is no narrower public type), so this local shape is
+ * asserted explicitly rather than relying on the untyped return value.
  */
 interface EffectiveConfig {
     rules?: Record<string, [number, ...unknown[]] | undefined>;

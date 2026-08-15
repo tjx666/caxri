@@ -133,7 +133,7 @@ export interface GitWorktreeEntry {
 }
 
 /**
-Shared parser for both Git Inspector discovery and Session Workbench Root attribution.
+ * Shared parser for both Git Inspector discovery and Session Workbench Root attribution.
  */
 export function parseWorktreeEntries(output: string): GitWorktreeEntry[] {
     return output.split('\0\0').flatMap((block) => {
@@ -188,12 +188,11 @@ function isHiddenByChildRepo(
 }
 
 /**
- * Owns Git repository discovery and containment for a Session: locating the primary repository
- * and its worktrees/submodules/nested repositories underneath an approved Project root, and
- * building the aggregated {@link GitSummary} that other Git operations resolve a repository from.
- * Callers reach this exclusively through {@link GitRepoService.summary} and
- * {@link GitRepoService.resolveRepository}; all path containment enforcement lives here so
- * it is never duplicated by a sibling service.
+ * Owns Git repository discovery and containment for a Session: locating the primary repository and its
+ * worktrees/submodules/nested repositories underneath an approved Project root, and building the aggregated
+ * {@link GitSummary} that other Git operations resolve a repository from. Callers reach this exclusively through
+ * {@link GitRepoService.summary} and {@link GitRepoService.resolveRepository}; all path containment enforcement lives
+ * here so it is never duplicated by a sibling service.
  */
 export class GitRepoService {
     private readonly summaries = new SingleFlight<string, GitSummary>();
@@ -368,7 +367,7 @@ export class GitRepoService {
             return { isRepository: true, repositories };
         } catch (error) {
             /**
-            A missing or unapproved repository is reported in the summary, never as a rejection.
+             * A missing or unapproved repository is reported in the summary, never as a rejection.
              */
             return {
                 isRepository: false,
@@ -394,7 +393,7 @@ export class GitRepoService {
     }
 
     /**
-    Resolves the repository that owns one listed directory without crossing its Project root.
+     * Resolves the repository that owns one listed directory without crossing its Project root.
      */
     async resolveDirectory(
         sessionId: string,
@@ -424,7 +423,7 @@ export class GitRepoService {
         try {
             const rootPath = await realpath(reportedRoot);
             /**
-            Project creation stores canonical roots; include the freshly resolved current root for migrated data.
+             * Project creation stores canonical roots; include the freshly resolved current root for migrated data.
              */
             const approvedRoots = [projectRoot, ...this.paths.listApprovedProjectRoots()];
             if (!isApproved(rootPath, approvedRoots)) return undefined;

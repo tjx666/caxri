@@ -19,7 +19,7 @@ import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
 /**
-Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic.
+ * Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic.
  */
 export const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
@@ -58,7 +58,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'terminals.steer',
         ],
         /**
-        The authenticated profile is the retry identity across short-lived CLI connections.
+         * The authenticated profile is the retry identity across short-lived CLI connections.
          */
         principal: { kind: 'human-cli', id: `human-cli:${profileId}` },
     };
@@ -121,7 +121,7 @@ export interface LocalHostServerOptions {
     consumeDesktopTarget?(targetId: string, generation: number): Promise<DesktopTargetPayload>;
     desktopCredential: HostDesktopCredential;
     /**
-    Test seam for exercising lease expiry without a minute-long integration test.
+     * Test seam for exercising lease expiry without a minute-long integration test.
      */
     desktopLeaseDurationMs?: number;
     invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;

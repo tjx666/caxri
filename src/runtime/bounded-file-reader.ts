@@ -9,7 +9,7 @@ type OpenRegularFile = (path: string, flags: number) => Promise<FileHandle>;
 
 export interface BoundedRegularFileReadOptions {
     /**
-    Test seam for mutating the opened file before the bounded read begins.
+     * Test seam for mutating the opened file before the bounded read begins.
      */
     beforeRead?: () => Promise<void>;
     capacityMessage?: string;
@@ -19,11 +19,10 @@ export interface BoundedRegularFileReadOptions {
 /**
  * Reads text from one opened regular-file handle without trusting a pathname's pre-read metadata.
  *
- * Final symlinks are intentionally followed because user-selected themes and provider-owned
- * configuration commonly point at dotfile-managed regular files. The opened handle is still
- * `fstat`-validated as a regular file, read with `O_NONBLOCK`, and capped before parser input is
- * exposed. The extra byte detects a file that grows after it is opened while keeping parser input
- * bounded.
+ * Final symlinks are intentionally followed because user-selected themes and provider-owned configuration commonly
+ * point at dotfile-managed regular files. The opened handle is still `fstat`-validated as a regular file, read with
+ * `O_NONBLOCK`, and capped before parser input is exposed. The extra byte detects a file that grows after it is opened
+ * while keeping parser input bounded.
  */
 export async function readBoundedRegularFileText(
     path: string,

@@ -13,7 +13,7 @@ import {
 } from './workbench-root-prompt-store';
 
 /**
-Non-modal prompt: Terminal and Editor interaction remain available while the user decides.
+ * Non-modal prompt: Terminal and Editor interaction remain available while the user decides.
  */
 export function WorkbenchRootPrompt() {
     const sessionId = useSelectedSession()?.id;
@@ -47,7 +47,7 @@ export function WorkbenchRootPrompt() {
             pushToast('error', describeFailure(error, 'Unable to dismiss worktree suggestion'));
         } finally {
             /**
-            An expired candidate is already inert in Runtime and must not strand the prompt.
+             * An expired candidate is already inert in Runtime and must not strand the prompt.
              */
             dismissWorkbenchRootCandidate(sessionId);
             setPending(false);

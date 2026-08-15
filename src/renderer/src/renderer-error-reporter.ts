@@ -1,8 +1,8 @@
 import type { RendererErrorKind } from '@shared/renderer-error';
 
 /**
- * Reports only the exception class across the preload boundary. Error values and rejection reasons
- * stay in the Renderer because they may include source, prompts, responses, or workspace data.
+ * Reports only the exception class across the preload boundary. Error values and rejection reasons stay in the Renderer
+ * because they may include source, prompts, responses, or workspace data.
  */
 export function installRendererErrorReporter(report: (kind: RendererErrorKind) => void): void {
     addEventListener('error', () => report('page-exception'));

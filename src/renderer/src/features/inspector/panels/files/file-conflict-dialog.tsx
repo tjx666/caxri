@@ -14,10 +14,10 @@ import {
 } from './file-conflict-dialog-store';
 
 /**
- * Finder-style Replace/Keep Both/Cancel prompt for a move that collided with an existing name.
- * Mounted once by `FileTreePanel` so every move call site (drag-and-drop, drop on the panel root,
- * cut-paste on a row, cut-paste on the root) shares one dialog instance driven by
- * `file-conflict-dialog.ts`'s module-level store instead of each caller owning local dialog state.
+ * Finder-style Replace/Keep Both/Cancel prompt for a move that collided with an existing name. Mounted once by
+ * `FileTreePanel` so every move call site (drag-and-drop, drop on the panel root, cut-paste on a row, cut-paste on the
+ * root) shares one dialog instance driven by `file-conflict-dialog.ts`'s module-level store instead of each caller
+ * owning local dialog state.
  */
 export function FileConflictDialog() {
     const request = useFileConflictDialogStore((state) => state.request);

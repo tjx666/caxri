@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
-Terminal layout trees are recursive, so the node shapes are declared once and reused by `z.lazy`.
+ * Terminal layout trees are recursive, so the node shapes are declared once and reused by `z.lazy`.
  */
 export interface TerminalGroupNode {
     type: 'group';
@@ -50,9 +50,9 @@ const terminalSplitNodeSchema: z.ZodType<TerminalSplitNode, TerminalSplitNode> =
 terminalLayoutNodeSchema = z.union([terminalGroupNodeSchema, terminalSplitNodeSchema]);
 
 /**
- * Enforces the invariants the tree shape cannot express: bounded node and Terminal counts, unique
- * node identities, one attachment per Terminal, a group-local active Terminal, and an active group
- * that actually exists in the persisted tree.
+ * Enforces the invariants the tree shape cannot express: bounded node and Terminal counts, unique node identities, one
+ * attachment per Terminal, a group-local active Terminal, and an active group that actually exists in the persisted
+ * tree.
  */
 function checkLayoutInvariants(
     layout: { root?: TerminalLayoutNode; activeGroupId?: string },

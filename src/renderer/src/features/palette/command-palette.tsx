@@ -19,10 +19,9 @@ const commandItemClassName =
 const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-[11px] text-muted';
 
 /**
- * Every command already carries a plain-language `description` in the shared catalog (e.g.
- * Screencast Mode's explains it overlays clicks/keystrokes without hiding anything), but nothing
- * in the palette ever rendered it. Showing it as a secondary line benefits every command, not just
- * the ones whose title alone is ambiguous.
+ * Every command already carries a plain-language `description` in the shared catalog (e.g. Screencast Mode's explains
+ * it overlays clicks/keystrokes without hiding anything), but nothing in the palette ever rendered it. Showing it as a
+ * secondary line benefits every command, not just the ones whose title alone is ambiguous.
  */
 function CommandRow({ command }: { command: (typeof commandDefinitions)[number] }) {
     const shortcut = useCommandShortcut(command.id);

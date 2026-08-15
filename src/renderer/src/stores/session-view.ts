@@ -20,22 +20,22 @@ import {
 import { patchSessionState } from './workbench';
 
 /**
- * Upper bound on cached file contents per Session. Closing a tab evicts its document immediately, so
- * this cap only matters for a Session with an unusually large open-tab set (`openTabs` allows 100).
- * Twenty documents keep every realistically reachable tab warm while bounding renderer memory; the
- * evicted tab stays open and re-reads from disk when it is selected again.
+ * Upper bound on cached file contents per Session. Closing a tab evicts its document immediately, so this cap only
+ * matters for a Session with an unusually large open-tab set (`openTabs` allows 100). Twenty documents keep every
+ * realistically reachable tab warm while bounding renderer memory; the evicted tab stays open and re-reads from disk
+ * when it is selected again.
  */
 export const MAX_CACHED_DOCUMENTS_PER_SESSION = 20;
 export const MAX_CACHED_DOCUMENT_BYTES_GLOBAL = 32 * 1024 * 1024;
 
 interface SessionViewState {
     /**
-    Locally focused WorkItem per Session; the persisted `activeTab` is the durable fallback.
+     * Locally focused WorkItem per Session; the persisted `activeTab` is the durable fallback.
      */
     activeWork: Record<string, WorkItem | undefined>;
     documents: SessionDocuments;
     /**
-    Least-recently-used order per Session, most recent last. Drives {@link evictExcess}.
+     * Least-recently-used order per Session, most recent last. Drives {@link evictExcess}.
      */
     recentDocuments: Record<string, string[]>;
     activateWork(item: WorkItem): void;
@@ -60,8 +60,8 @@ interface SessionViewState {
 }
 
 /**
- * Owner-root state keeps its historical Session key; alternate roots add the independently
- * authorized Project ID so dirty buffers with the same path can never collide.
+ * Owner-root state keeps its historical Session key; alternate roots add the independently authorized Project ID so
+ * dirty buffers with the same path can never collide.
  */
 export function sessionViewScope(sessionId: string, workbenchProjectId?: string): string {
     const session = getBootstrap()?.sessions?.find((candidate) => candidate.id === sessionId);
@@ -75,9 +75,9 @@ function touch(recent: readonly string[] | undefined, path: string): string[] {
 }
 
 /**
- * Drops the least recently used clean documents once a Session exceeds the cache cap. A dirty buffer
- * is never evicted implicitly: unlike the external-change rule, which replaces a dirty buffer with a
- * newer disk state the user can see, silent eviction would simply lose unsaved edits.
+ * Drops the least recently used clean documents once a Session exceeds the cache cap. A dirty buffer is never evicted
+ * implicitly: unlike the external-change rule, which replaces a dirty buffer with a newer disk state the user can see,
+ * silent eviction would simply lose unsaved edits.
  */
 function evictExcess(
     documents: Record<string, EditorDocument>,
@@ -108,9 +108,9 @@ function retainedBytes(document: EditorDocument): number {
 }
 
 /**
- * Applies one process-wide content budget after the per-Session count cap. Dirty buffers are the
- * only exception because reclaiming them would destroy unsaved work; they still displace every
- * eligible clean buffer before the cache is allowed to exceed the budget.
+ * Applies one process-wide content budget after the per-Session count cap. Dirty buffers are the only exception because
+ * reclaiming them would destroy unsaved work; they still displace every eligible clean buffer before the cache is
+ * allowed to exceed the budget.
  */
 function evictToGlobalBudget(
     documents: SessionDocuments,
@@ -168,9 +168,9 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     recentDocuments: {},
 
     /**
-     * The single write path for "what is focused in the center pane": updates the Session-scoped
-     * `activeWork` plus the persisted `sessionState.activeTab` (and, for a Terminal, the layout's
-     * active group) in one update. `resolveActiveWork` is the corresponding single read path.
+     * The single write path for "what is focused in the center pane": updates the Session-scoped `activeWork` plus the
+     * persisted `sessionState.activeTab` (and, for a Terminal, the layout's active group) in one update.
+     * `resolveActiveWork` is the corresponding single read path.
      */
     activateWork(item) {
         const sessionId = getSelectedSession()?.id;
@@ -229,7 +229,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     },
 
     /**
-    Closing a tab releases its content; the tab itself is owned by the persisted Session state.
+     * Closing a tab releases its content; the tab itself is owned by the persisted Session state.
      */
     evictDocument(sessionId, path, workbenchProjectId) {
         const scope = sessionViewScope(sessionId, workbenchProjectId);
@@ -315,7 +315,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     },
 
     /**
-    Inspector mode is persisted with the Session, so this writes through to the Runtime.
+     * Inspector mode is persisted with the Session, so this writes through to the Runtime.
      */
     setInspectorMode(mode) {
         const current = getSessionState();
@@ -342,7 +342,7 @@ export function getSessionActiveWork(
 }
 
 /**
-Non-React counterpart of {@link useActiveWork}, for command handlers and event listeners.
+ * Non-React counterpart of {@link useActiveWork}, for command handlers and event listeners.
  */
 export function getResolvedActiveWork(): WorkItem | undefined {
     const sessionId = getSelectedSession()?.id;
@@ -354,15 +354,15 @@ export function getResolvedActiveWork(): WorkItem | undefined {
 }
 
 /**
-Reads the focused WorkItem through the single `resolveActiveWork` fallback ladder.
+ * Reads the focused WorkItem through the single `resolveActiveWork` fallback ladder.
  */
 export function useActiveWork(): WorkItem | undefined {
     const session = useSelectedSession();
     const sessionTerminals = useSessionTerminals();
     const sessionState = useSessionState();
     /**
-     * Keep the Workbench Project in the reactive input set. React Compiler cannot observe the
-     * store read hidden inside `sessionViewScope(sessionId)` when the Session ID itself is stable.
+     * Keep the Workbench Project in the reactive input set. React Compiler cannot observe the store read hidden inside
+     * `sessionViewScope(sessionId)` when the Session ID itself is stable.
      */
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
     const activeWork = useSessionViewStore((state) =>

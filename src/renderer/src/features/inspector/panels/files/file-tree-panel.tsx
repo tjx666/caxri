@@ -34,12 +34,11 @@ const captionActionClassName =
     'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
 
 /**
- * A Cancel affordance would be noisy if it appeared for every fast operation, so it only reveals
- * once `pendingOperation` has been running past `CANCEL_REVEAL_THRESHOLD_MS`. `Date.now()` is
- * impure and React's render phase must stay pure, so every state update — including the
- * already-past-threshold case — goes through a `setTimeout` callback (0ms when the threshold has
- * already elapsed) instead of a synchronous `setState` call in the effect body. This mirrors
- * `useDebouncedValue` in `status-bar.tsx`, which defers its own correction the same way.
+ * A Cancel affordance would be noisy if it appeared for every fast operation, so it only reveals once
+ * `pendingOperation` has been running past `CANCEL_REVEAL_THRESHOLD_MS`. `Date.now()` is impure and React's render
+ * phase must stay pure, so every state update — including the already-past-threshold case — goes through a `setTimeout`
+ * callback (0ms when the threshold has already elapsed) instead of a synchronous `setState` call in the effect body.
+ * This mirrors `useDebouncedValue` in `status-bar.tsx`, which defers its own correction the same way.
  */
 function useIsCancelRevealed(operation: PendingFileOperation | undefined): boolean {
     const [isRevealed, setIsRevealed] = useState(false);
@@ -58,9 +57,8 @@ function useIsCancelRevealed(operation: PendingFileOperation | undefined): boole
 }
 
 /**
- * Every caller below fires an already-tracked file action whose own `tryCommand`-backed path
- * reports failures via a toast, so these event handlers intentionally discard the returned
- * promise instead of awaiting it.
+ * Every caller below fires an already-tracked file action whose own `tryCommand`-backed path reports failures via a
+ * toast, so these event handlers intentionally discard the returned promise instead of awaiting it.
  */
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -120,7 +118,7 @@ export function FileTreePanel() {
     const searchFocusRevision = useFileSearchStore((state) => state.focusRevision);
     if (!session)
         return (
-            <div className="empty-panel py-4 px-3 text-muted text-center">
+            <div className="empty-panel px-3 py-4 text-center text-muted">
                 Create a Session to browse files.
             </div>
         );
@@ -202,7 +200,7 @@ export function FileTreePanel() {
         >
             <div
                 ref={fileCaptionReference}
-                className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]"
+                className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 border-b border-border pt-[3px] pr-1 pb-[3px] pl-2 text-[11px] text-muted"
             >
                 <span className="truncate" title={session.rootPath}>
                     {project?.displayTitle ?? session.rootPath.split('/').findLast(Boolean) ?? ''}
@@ -248,7 +246,7 @@ export function FileTreePanel() {
                         <Button
                             className={cn(
                                 isSearchVisible
-                                    ? 'shrink-0 pointer-events-auto bg-elevated opacity-100 text-foreground'
+                                    ? 'pointer-events-auto shrink-0 bg-elevated text-foreground opacity-100'
                                     : captionActionClassName,
                             )}
                             size="icon"

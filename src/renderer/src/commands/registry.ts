@@ -3,8 +3,8 @@ import type { CommandId, InspectorMode } from '@shared/types';
 import type { SettingsView } from '../stores/dialogs';
 
 /**
- * Everything a command may reach. Passing this in keeps command `run` functions free of
- * module-level bindings to the feature actions, so a test can drive the registry with fakes.
+ * Everything a command may reach. Passing this in keeps command `run` functions free of module-level bindings to the
+ * feature actions, so a test can drive the registry with fakes.
  */
 export interface CommandContext {
     project: { create(): void; removeSelected(): void };
@@ -16,7 +16,7 @@ export interface CommandContext {
         findActive(): void;
         hasActive(): boolean;
         /**
-        True only when the active work item is a Terminal that currently owns a selection.
+         * True only when the active work item is a Terminal that currently owns a selection.
          */
         hasSelection(): boolean;
         navigateCommand(direction: 1 | -1): void;
@@ -44,26 +44,26 @@ export interface CommandDefinition {
     title: string;
     category: string;
     /**
-    Executes the command against the active {@link CommandContext}.
+     * Executes the command against the active {@link CommandContext}.
      */
     run(context: CommandContext, arguments_?: unknown): void;
     /**
-    Optional gate; a command whose `when` reports false is treated as a no-op.
+     * Optional gate; a command whose `when` reports false is treated as a no-op.
      */
     when?(context: CommandContext): boolean;
     /**
-     * Keeps the command reachable from its keybinding while an editable target (input, textarea,
-     * Monaco, xterm) owns focus. Defaults to false: shortcuts stand down while the user is typing.
+     * Keeps the command reachable from its keybinding while an editable target (input, textarea, Monaco, xterm) owns
+     * focus. Defaults to false: shortcuts stand down while the user is typing.
      */
     allowInEditable?: boolean;
     /**
-    Marks a destructive command whose confirmation is already handled inside `run` (native dialog).
+     * Marks a destructive command whose confirmation is already handled inside `run` (native dialog).
      */
     confirm?: boolean;
 }
 
 /**
-Identity helper that keeps definition modules declarative while still type-checking the shape.
+ * Identity helper that keeps definition modules declarative while still type-checking the shape.
  */
 export function defineCommand(definition: CommandDefinition): CommandDefinition {
     return definition;

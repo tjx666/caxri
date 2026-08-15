@@ -53,8 +53,8 @@ export const terminalFixturePreflightReceiptSchema = z.object({
 export type TerminalFixturePreflightReceipt = z.infer<typeof terminalFixturePreflightReceiptSchema>;
 
 /**
- * Validates the rendered fixture before recording starts. `string-width` follows terminal cell
- * semantics for CJK, emoji, and combining characters, so UTF-16 length can never certify a grid.
+ * Validates the rendered fixture before recording starts. `string-width` follows terminal cell semantics for CJK,
+ * emoji, and combining characters, so UTF-16 length can never certify a grid.
  */
 export function preflightTerminalFixture(input: TerminalFixture): FixturePreflightResult {
     const fixture = terminalFixtureSchema.parse(input);

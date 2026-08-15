@@ -2,6 +2,7 @@
     "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
     "include": [
         "types/**/*.d.ts",
+        "prettier.config.d.mts",
         "electron.vite.config.*",
         "drizzle.config.*",
         "vitest.config.*",

@@ -4,8 +4,8 @@ import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
 import type { AgentMessagingCapability } from '../../shared/ipc/agent-endpoint-contract';
 import { readE2EAgentPolicy } from '../../shared/node/e2e-agent-policy';
 /**
- * Runtime domains expose public root barrels by architecture contract; deep imports are rejected
- * by `src/runtime/__tests__/structure.test.ts`.
+ * Runtime domains expose public root barrels by architecture contract; deep imports are rejected by
+ * `src/runtime/__tests__/structure.test.ts`.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { discoverExecutable, readVersion } from '../agents';
@@ -45,7 +45,7 @@ interface CachedCapability {
 
 function normalizedLaunchKey(provider: AgentProvider, launch: AgentLaunchSettings): string {
     /**
-    Positional serialization makes independently allocated but equivalent launch settings share one probe.
+     * Positional serialization makes independently allocated but equivalent launch settings share one probe.
      */
     return JSON.stringify([provider, launch.executable, ...launch.args]);
 }
@@ -121,8 +121,8 @@ function unavailable(
 }
 
 /**
- * A prepared Endpoint is not visible yet. Once activated it can be listed and authenticated, but
- * messaging remains unavailable until this capability probe finishes.
+ * A prepared Endpoint is not visible yet. Once activated it can be listed and authenticated, but messaging remains
+ * unavailable until this capability probe finishes.
  */
 export function pendingMessagingCapability(checkedAt = Date.now()): AgentMessagingCapability {
     return {
@@ -135,7 +135,7 @@ export function pendingMessagingCapability(checkedAt = Date.now()): AgentMessagi
 }
 
 /**
-Bounded, cached capability probe. Unknown Provider versions fail closed without blocking PTY.
+ * Bounded, cached capability probe. Unknown Provider versions fail closed without blocking PTY.
  */
 export class AgentMessagingCapabilityProbe {
     private readonly cache = new Map<string, CachedCapability>();

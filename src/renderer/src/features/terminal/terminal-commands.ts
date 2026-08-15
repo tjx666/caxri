@@ -29,8 +29,8 @@ function opaqueColor(color: string): string {
 }
 
 /**
- * Maps explicit OSC 133/633 lifecycle controls to content-free xterm markers. It never inspects or
- * retains command text, prompt text, or output, and unsupported protocol fields are ignored.
+ * Maps explicit OSC 133/633 lifecycle controls to content-free xterm markers. It never inspects or retains command
+ * text, prompt text, or output, and unsupported protocol fields are ignored.
  */
 export class TerminalCommandTracker {
     private readonly commands: CommandBoundary[] = [];
@@ -98,8 +98,8 @@ export class TerminalCommandTracker {
     }
 
     /**
-     * xterm disposes markers as their scrollback lines are trimmed. Release our matching
-     *  decoration references before adding another boundary so a long-running shell stays bounded.
+     * Xterm disposes markers as their scrollback lines are trimmed. Release our matching decoration references before
+     * adding another boundary so a long-running shell stays bounded.
      */
     private pruneDisposedCommands(): void {
         for (let index = this.commands.length - 1; index >= 0; index -= 1) {
@@ -111,8 +111,8 @@ export class TerminalCommandTracker {
     }
 
     /**
-     * OSC controls can repeat without advancing the screen, so xterm may never trim their markers.
-     *  Enforce an independent cap before retaining another command boundary.
+     * OSC controls can repeat without advancing the screen, so xterm may never trim their markers. Enforce an
+     * independent cap before retaining another command boundary.
      */
     private pruneExcessCommands(): void {
         while (this.commands.length >= MAX_RETAINED_COMMANDS) {

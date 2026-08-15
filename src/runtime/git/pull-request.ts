@@ -143,7 +143,7 @@ export class GitPullRequestService {
     private readonly maximumCacheEntries: number;
     private readonly now: () => number;
     /**
-    Invalidates cache writes that began before a Session deletion or Runtime shutdown.
+     * Invalidates cache writes that began before a Session deletion or Runtime shutdown.
      */
     private cacheGeneration = 0;
 
@@ -173,7 +173,7 @@ export class GitPullRequestService {
     }
 
     /**
-    Removes file-list cache entries for Sessions whose backing records were deleted.
+     * Removes file-list cache entries for Sessions whose backing records were deleted.
      */
     evictSessions(sessionIds: readonly string[]): void {
         if (sessionIds.length === 0) return;
@@ -185,7 +185,7 @@ export class GitPullRequestService {
     }
 
     /**
-    Releases every retained Pull Request file list when the Runtime shuts down.
+     * Releases every retained Pull Request file list when the Runtime shuts down.
      */
     clear(): void {
         this.cache.clear();

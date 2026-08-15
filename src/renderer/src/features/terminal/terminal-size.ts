@@ -4,9 +4,9 @@ export interface TerminalSize {
 }
 
 /**
- * Keeps the final text cell clear of xterm's overlaid vertical scrollbar. The fit addon reserves
- * only the scrollbar's exact width, so fractional cell rounding can otherwise leave a zero-pixel
- * gutter and make the last glyph look clipped while the thumb is visible.
+ * Keeps the final text cell clear of xterm's overlaid vertical scrollbar. The fit addon reserves only the scrollbar's
+ * exact width, so fractional cell rounding can otherwise leave a zero-pixel gutter and make the last glyph look clipped
+ * while the thumb is visible.
  */
 export function terminalSizeWithScrollbarGutter(
     proposed: TerminalSize | undefined,
@@ -16,7 +16,7 @@ export function terminalSizeWithScrollbarGutter(
 }
 
 /**
-ResizeObserver can repeat unchanged layouts; only a new PTY grid size needs Runtime IPC.
+ * ResizeObserver can repeat unchanged layouts; only a new PTY grid size needs Runtime IPC.
  */
 export function didTerminalSizeChange(
     previous: TerminalSize | undefined,

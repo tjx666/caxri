@@ -20,7 +20,7 @@ interface CommandMetricReceipt {
 }
 
 /**
-Keeps wall-time and RSS evidence machine-readable in the immutable Actions job log.
+ * Keeps wall-time and RSS evidence machine-readable in the immutable Actions job log.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-metrics.test.ts
 export function formatMetricReceipt(receipt: CommandMetricReceipt): string {

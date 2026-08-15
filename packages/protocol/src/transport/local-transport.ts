@@ -9,15 +9,15 @@ import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } fro
 export const HOST_MANIFEST_VERSION = 1 as const;
 export const HOST_DESKTOP_CREDENTIAL_VERSION = 1 as const;
 /**
- * One authenticated JSON-line frame can contain two 16 MiB editor buffers. The extra headroom
- * covers worst-case JSON escaping while keeping a malformed local peer under a fixed memory cap.
+ * One authenticated JSON-line frame can contain two 16 MiB editor buffers. The extra headroom covers worst-case JSON
+ * escaping while keeping a malformed local peer under a fixed memory cap.
  */
 export const LOCAL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
 export const hostCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
 export const hostProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 
 /**
-Private profile discovery record. The credential must never appear in status or diagnostics.
+ * Private profile discovery record. The credential must never appear in status or diagnostics.
  */
 export const hostManifestSchema = z.object({
     manifestVersion: z.literal(HOST_MANIFEST_VERSION),
@@ -27,7 +27,7 @@ export const hostManifestSchema = z.object({
     startedAt: z.number().int().positive(),
     processIdentity: hostProcessIdentitySchema,
     /**
-    Kept open so an older client can report a clean incompatibility instead of a corrupt file.
+     * Kept open so an older client can report a clean incompatibility instead of a corrupt file.
      */
     protocolVersion: z.number().int().positive(),
     version: z.string().min(1).max(100),
@@ -46,7 +46,7 @@ export const hostLockSchema = hostManifestSchema.pick({
 export type HostLock = z.infer<typeof hostLockSchema>;
 
 /**
-Separate Desktop credential. It is never exposed through the operator discovery manifest.
+ * Separate Desktop credential. It is never exposed through the operator discovery manifest.
  */
 export const hostDesktopCredentialSchema = z.object({
     credentialVersion: z.literal(HOST_DESKTOP_CREDENTIAL_VERSION),
@@ -66,7 +66,7 @@ export const desktopLeaseSchema = z.object({
 export type DesktopLease = z.infer<typeof desktopLeaseSchema>;
 
 /**
-Incrementally decodes bounded JSON lines without repeatedly copying an incomplete frame.
+ * Incrementally decodes bounded JSON lines without repeatedly copying an incomplete frame.
  */
 export class LocalJsonLineDecoder {
     private readonly encoder = new TextEncoder();

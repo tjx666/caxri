@@ -63,7 +63,7 @@ export interface CommandExecutionContext {
 }
 
 /**
-Desktop is the local owner principal; every other principal needs each declared capability.
+ * Desktop is the local owner principal; every other principal needs each declared capability.
  */
 export function hasRequiredCapabilities(
     context: CommandExecutionContext,

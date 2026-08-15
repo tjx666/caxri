@@ -99,7 +99,7 @@ async function restoreManifest(path: string, source: Buffer | undefined): Promis
     try {
         await writeFile(temporary, source);
         /**
-        Same-directory rename replaces a symlink entry instead of following it to another file.
+         * Same-directory rename replaces a symlink entry instead of following it to another file.
          */
         await rename(temporary, path);
     } finally {
@@ -143,9 +143,9 @@ export async function installWorktreeDependencies(
         });
     } finally {
         /**
-         * Dependency installs may rewrite lockfile metadata during a no-change install. A
-         * managed worktree must preserve the caller's exact manifests, including existing edits.
-         * Each manifest restores to an independent path, so this can also run concurrently.
+         * Dependency installs may rewrite lockfile metadata during a no-change install. A managed worktree must
+         * preserve the caller's exact manifests, including existing edits. Each manifest restores to an independent
+         * path, so this can also run concurrently.
          */
         await Promise.all(
             [...manifests].map(([name, source]) => restoreManifest(join(path, name), source)),

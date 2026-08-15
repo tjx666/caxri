@@ -50,7 +50,7 @@ const ELEVATED_ARGUMENTS: Record<AgentProvider, ReadonlySet<string>> = {
 };
 
 /**
-Only exact built-in launch configuration is known-standard; all custom evidence fails closed.
+ * Only exact built-in launch configuration is known-standard; all custom evidence fails closed.
  */
 export function classifyAgentPermission(
     provider: AgentProvider,
@@ -64,7 +64,7 @@ export function classifyAgentPermission(
 }
 
 /**
-Owns the endpoint lease alongside its live direct-Agent PTY generation.
+ * Owns the endpoint lease alongside its live direct-Agent PTY generation.
  */
 export class RuntimeAgentEndpointLifecycle {
     private readonly active = new Map<string, ActiveEndpoint>();
@@ -78,7 +78,7 @@ export class RuntimeAgentEndpointLifecycle {
     ) {}
 
     /**
-    Fires without blocking `activate()`; failures are swallowed since this is a best-effort refresh.
+     * Fires without blocking `activate()`; failures are swallowed since this is a best-effort refresh.
      */
     private scheduleMessagingRefresh(endpoint: ActiveEndpoint): void {
         const input = {
@@ -100,7 +100,7 @@ export class RuntimeAgentEndpointLifecycle {
     }
 
     /**
-    A delayed capability result must never update a replacement Endpoint or newer settings revision.
+     * A delayed capability result must never update a replacement Endpoint or newer settings revision.
      */
     private async updateMessaging(
         endpoint: ActiveEndpoint,
@@ -138,7 +138,7 @@ export class RuntimeAgentEndpointLifecycle {
             name: terminal.title,
             permissionClass: classifyAgentPermission(terminal.kind, settings.launch),
             /**
-            A credential exists for the child env before spawn, but the Host keeps it inert.
+             * A credential exists for the child env before spawn, but the Host keeps it inert.
              */
             messaging: pendingMessagingCapability(),
         });
@@ -164,7 +164,7 @@ export class RuntimeAgentEndpointLifecycle {
     }
 
     /**
-    Activates the exact prepared credential after TerminalManager has registered the live PTY.
+     * Activates the exact prepared credential after TerminalManager has registered the live PTY.
      */
     async activate(terminalId: string): Promise<void> {
         const endpoint = this.active.get(terminalId);
@@ -225,7 +225,7 @@ export class RuntimeAgentEndpointLifecycle {
         if (!endpoint) return;
         endpoint.retiring = true;
         /**
-        Keep the local generation fenced if Host retirement fails, so a later caller may retry safely.
+         * Keep the local generation fenced if Host retirement fails, so a later caller may retry safely.
          */
         await this.control.retire({ ref: endpoint.ref, launchId: endpoint.launchId });
         if (this.active.get(terminalId) === endpoint) this.active.delete(terminalId);
@@ -239,7 +239,7 @@ export class RuntimeAgentEndpointLifecycle {
     }
 
     /**
-    Resolves an exact live Endpoint generation before a Runtime-owned PTY side effect.
+     * Resolves an exact live Endpoint generation before a Runtime-owned PTY side effect.
      */
     controlTarget(reference: AgentEndpointReference): RuntimeAgentControlTarget {
         const endpoint = this.active

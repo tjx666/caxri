@@ -18,7 +18,7 @@ export interface WorkbenchIpcOptions {
 }
 
 /**
-Installs the authenticated Electron transport without leaking Electron into the protocol.
+ * Installs the authenticated Electron transport without leaking Electron into the protocol.
  */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     function assertSender(sender: WebContents): void {
@@ -51,7 +51,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         try {
             assertSender(event.sender);
             /**
-            Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown.
+             * Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown.
              */
             if (options.isQuitting())
                 return {
@@ -68,7 +68,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             return reply;
         } catch (error) {
             /**
-            Replying with a classified envelope keeps the code intact across the preload.
+             * Replying with a classified envelope keeps the code intact across the preload.
              */
             const wire = toWireError(error);
             options.logger()?.write('error', 'ipc.request_failed', {

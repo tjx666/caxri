@@ -25,10 +25,9 @@ import { FileService } from '../service';
 import { didFingerprintChange, rememberPolledDirectory } from '../watcher';
 
 /**
- * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat`
- * directly. `vi.hoisted` exposes a settable override the mock factory reads per call, letting one
- * test simulate an entry that vanishes (or fails to stat) mid-listing while every other test keeps
- * the real filesystem behavior.
+ * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat` directly. `vi.hoisted`
+ * exposes a settable override the mock factory reads per call, letting one test simulate an entry that vanishes (or
+ * fails to stat) mid-listing while every other test keeps the real filesystem behavior.
  */
 const { setLstatOverride, getLstatOverride } = vi.hoisted(() => {
     let override: ((path: string) => Promise<unknown> | undefined) | undefined;
@@ -268,7 +267,7 @@ describe('FileService', () => {
             () => 1024,
         );
         /**
-        Simulates a file that an AI agent deletes (ENOENT) or a file that briefly fails to stat mid-listing.
+         * Simulates a file that an AI agent deletes (ENOENT) or a file that briefly fails to stat mid-listing.
          */
         setLstatOverride((path) => {
             if (path.endsWith('vanishes.txt'))

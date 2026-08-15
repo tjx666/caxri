@@ -25,7 +25,7 @@ export type ProviderMessageDelivery = z.infer<typeof providerMessageDeliverySche
 export type ProviderMessageAck = z.infer<typeof providerMessageAckSchema>;
 
 /**
-Host-side boundary for a documented Provider channel. Returning is the explicit ack boundary.
+ * Host-side boundary for a documented Provider channel. Returning is the explicit ack boundary.
  */
 export interface ProviderMessagingAdapter {
     deliver(delivery: ProviderMessageDelivery): Promise<ProviderMessageAck>;

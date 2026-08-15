@@ -29,7 +29,7 @@ function durationLabel(durationMs: number | undefined): string | undefined {
 }
 
 /**
-Keeps the screenshot-defined node order independent from React expansion state.
+ * Keeps the screenshot-defined node order independent from React expansion state.
  */
 export function buildProjectStatusNodes(repo: ProjectStatusRepository): ProjectStatusTreeNode[] {
     const nodes: ProjectStatusTreeNode[] = [

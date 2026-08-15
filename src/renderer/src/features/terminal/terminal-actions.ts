@@ -13,7 +13,7 @@ import { clearTerminalProgress } from './terminal-progress';
 import { openTerminalSearch } from './terminal-search';
 
 /**
-Drag payload type shared by the Terminal tab strip and the split-layout drop targets.
+ * Drag payload type shared by the Terminal tab strip and the split-layout drop targets.
  */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
 
@@ -71,8 +71,8 @@ export function closeTerminal(terminalId: string): void {
 async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fresh'): Promise<void> {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
     /**
-     * A stopped PTY lost Runtime attachment ownership, while a running PTY must not be reattached
-     *  because replaying its screen without a new xterm consumer would discard queued live output.
+     * A stopped PTY lost Runtime attachment ownership, while a running PTY must not be reattached because replaying its
+     * screen without a new xterm consumer would discard queued live output.
      */
     if (terminal?.lastProcessState !== 'running')
         await caxri.request('terminal.attach', { terminalId });
@@ -80,7 +80,7 @@ async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fres
 }
 
 /**
-Recovery path used by the in-pane Restart action.
+ * Recovery path used by the in-pane Restart action.
  */
 export function restartTerminal(terminalId: string): void {
     // This is a sync UI handler; tryCommand already routes any failure into a toast.
@@ -99,7 +99,7 @@ export function restartActiveTerminal(terminalId: string): void {
 }
 
 /**
-The only user action allowed to clear a durable provider-session binding.
+ * The only user action allowed to clear a durable provider-session binding.
  */
 export function startNewAgentSession(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
@@ -117,9 +117,9 @@ export function startNewAgentSession(terminalId: string): void {
 }
 
 /**
- * The mounted `TerminalPane` registers its clear handler here so `terminal.clear` can reach the
- * live xterm instance with a direct call instead of a window-wide `CustomEvent`. Only one pane owns a
- * given Terminal at a time, so a plain `Map` keyed by id is enough.
+ * The mounted `TerminalPane` registers its clear handler here so `terminal.clear` can reach the live xterm instance
+ * with a direct call instead of a window-wide `CustomEvent`. Only one pane owns a given Terminal at a time, so a plain
+ * `Map` keyed by id is enough.
  */
 const clearHandlers = new Map<string, () => void>();
 
@@ -135,11 +135,10 @@ export function clearActiveTerminal(terminalId: string): void {
 }
 
 /**
- * The mounted `TerminalPane` registers its live xterm selection here, mirroring
- * {@link registerTerminalClearHandler}: `copySelection` reuses `TerminalSelectionClipboard` (already
- * serializing writes against a stale selection) instead of a second clipboard write path, and
- * `hasSelection` backs both the `terminal.copy` command's `when` gate and the context menu's
- * disabled state.
+ * The mounted `TerminalPane` registers its live xterm selection here, mirroring {@link registerTerminalClearHandler}:
+ * `copySelection` reuses `TerminalSelectionClipboard` (already serializing writes against a stale selection) instead of
+ * a second clipboard write path, and `hasSelection` backs both the `terminal.copy` command's `when` gate and the
+ * context menu's disabled state.
  */
 interface TerminalSelectionHandlers {
     copySelection(): void;
@@ -163,7 +162,7 @@ export function copyActiveTerminalSelection(terminalId: string): void {
 }
 
 /**
-Answers only "does this Terminal currently own a selection" — focus is checked by the caller.
+ * Answers only "does this Terminal currently own a selection" — focus is checked by the caller.
  */
 export function hasActiveTerminalSelection(terminalId: string): boolean {
     return selectionHandlers.get(terminalId)?.hasSelection() ?? false;
@@ -181,8 +180,8 @@ export function navigateActiveTerminalCommand(
 }
 
 /**
- * Layout edits (drag, drop, splitter resize) clear `activeTab`; the drop handler re-activates the
- * moved Terminal right afterwards, and a resize leaves the layout's own active group in charge.
+ * Layout edits (drag, drop, splitter resize) clear `activeTab`; the drop handler re-activates the moved Terminal right
+ * afterwards, and a resize leaves the layout's own active group in charge.
  */
 export function applyTerminalLayout(layout: TerminalLayout): void {
     const current = getSessionState();

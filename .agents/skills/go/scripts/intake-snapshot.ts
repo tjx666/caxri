@@ -97,8 +97,8 @@ function positiveInteger(value: string, option: string): number {
 }
 
 /**
- * Applies one CLI argument to `options` and returns the argv index the loop should resume from.
- * Isolated from the loop body so the switch's `break` statements are not nested inside a loop.
+ * Applies one CLI argument to `options` and returns the argv index the loop should resume from. Isolated from the loop
+ * body so the switch's `break` statements are not nested inside a loop.
  */
 function applyIntakeArgument(
     argument: string,
@@ -207,9 +207,8 @@ function closingRepoName(repo: z.infer<typeof closingRepoSchema>): string {
 }
 
 /**
- * Retries read-only GitHub discovery once because the CLI can surface transient GraphQL transport
- * failures such as an unexpected EOF. Keep this wrapper local to intake so remote mutations are
- * never retried implicitly.
+ * Retries read-only GitHub discovery once because the CLI can surface transient GraphQL transport failures such as an
+ * unexpected EOF. Keep this wrapper local to intake so remote mutations are never retried implicitly.
  */
 async function captureReadOnlyGitHub(
     runner: CommandRunner,

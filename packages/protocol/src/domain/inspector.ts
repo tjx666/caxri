@@ -1,9 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Single registration point for Inspector modes and their commands. Renderer panel components are
- * exhaustively keyed by this list, while the command catalog, registry, schema, and defaults derive
- * from it.
+ * Single registration point for Inspector modes and their commands. Renderer panel components are exhaustively keyed by
+ * this list, while the command catalog, registry, schema, and defaults derive from it.
  */
 export const inspectorModeRegistrations = [
     {

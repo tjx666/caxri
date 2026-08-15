@@ -50,7 +50,7 @@ async function observeIpcFailure(
 }
 
 /**
-Runs the real gate directly so a negative regression can assert its exact teardown rejection.
+ * Runs the real gate directly so a negative regression can assert its exact teardown rejection.
  */
 async function expectGateFailure(
     testInfo: TestInfo,

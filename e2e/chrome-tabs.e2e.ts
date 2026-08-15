@@ -42,10 +42,10 @@ async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boole
 }
 
 /**
- * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is
- * scaled down by up to 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and
- * the tab content it tracks are scaled together and stay aligned throughout the animation. Poll for
- * two consecutive equal readings before pinning an absolute pixel baseline.
+ * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is scaled down by up to
+ * 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and the tab content it tracks are scaled
+ * together and stay aligned throughout the animation. Poll for two consecutive equal readings before pinning an
+ * absolute pixel baseline.
  */
 async function stableWidth(locator: Locator): Promise<number> {
     let previous = NaN;
@@ -179,12 +179,11 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
             settingsTabs.locator('[data-slot="chrome-tab-indicator"]'),
         );
         /**
-         * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it
-         * changes, with no draft/Apply step and no per-tab dirty badge for the chrome tab to grow
-         * around — `[data-dirty="true"]` no longer exists anywhere in the DOM. The regression this
-         * sub-case protects is the new contract instead: editing a field must persist without an
-         * explicit Apply affordance, and the moving indicator must keep tracking the (visually
-         * unchanged) tab through that write rather than drifting or losing alignment.
+         * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it changes, with no
+         * draft/Apply step and no per-tab dirty badge for the chrome tab to grow around — `[data-dirty="true"]` no
+         * longer exists anywhere in the DOM. The regression this sub-case protects is the new contract instead: editing
+         * a field must persist without an explicit Apply affordance, and the moving indicator must keep tracking the
+         * (visually unchanged) tab through that write rather than drifting or losing alignment.
          */
         await dialog.getByLabel('Terminal font size').fill('14');
         await expect

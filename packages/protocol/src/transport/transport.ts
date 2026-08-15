@@ -29,16 +29,16 @@ export const requestEnvelopeSchema = z.object({
 export type CommandRequestEnvelope = z.infer<typeof requestEnvelopeSchema>;
 
 /**
- * Validates params once and pairs them with their method so downstream `switch` statements narrow
- * both together. The assertion is the single correlation point: `methods[method]` is resolved from a
- * value, which TypeScript cannot relate back to the method literal on its own.
+ * Validates params once and pairs them with their method so downstream `switch` statements narrow both together. The
+ * assertion is the single correlation point: `methods[method]` is resolved from a value, which TypeScript cannot relate
+ * back to the method literal on its own.
  */
 export function parseCaxriRequest(method: CaxriMethod, parameters: unknown): CaxriRequest {
     return { method, params: methods[method].params.parse(parameters) } as CaxriRequest;
 }
 
 /**
-Runtime-side equivalent that also accepts the internal Main-to-Runtime methods.
+ * Runtime-side equivalent that also accepts the internal Main-to-Runtime methods.
  */
 export function parseRuntimeRequest(method: string, parameters: unknown): RuntimeRequest {
     const spec = getMethodSpec(method);
@@ -56,7 +56,7 @@ function invalidResult(method: string, issues: z.core.$ZodIssue[]): CaxriError {
 }
 
 /**
-Validates a Main or Runtime result before it crosses the Renderer IPC boundary.
+ * Validates a Main or Runtime result before it crosses the Renderer IPC boundary.
  */
 export function parseCaxriResult<M extends CaxriMethod>(
     method: M,
@@ -68,7 +68,7 @@ export function parseCaxriResult<M extends CaxriMethod>(
 }
 
 /**
-Validates a Runtime result, including internal Main-to-Runtime methods.
+ * Validates a Runtime result, including internal Main-to-Runtime methods.
  */
 export function parseRuntimeResult<M extends RuntimeMethod>(
     method: M,
@@ -103,7 +103,7 @@ export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
 export type RuntimeMessage = RuntimeResponse | RuntimeEvent;
 
 /**
-Parses an untrusted utility-process message as either a response or a declared Runtime event.
+ * Parses an untrusted utility-process message as either a response or a declared Runtime event.
  */
 export function parseRuntimeMessage(message: unknown): RuntimeMessage {
     const event = runtimeEventSchema.safeParse(message);
@@ -112,7 +112,7 @@ export function parseRuntimeMessage(message: unknown): RuntimeMessage {
 }
 
 /**
-Main answers `caxri:request` with this envelope so the error code survives the Electron hop.
+ * Main answers `caxri:request` with this envelope so the error code survives the Electron hop.
  */
 export type CaxriReply = CommandReplyEnvelope;
 
@@ -134,7 +134,7 @@ export const commandReplyEnvelopeSchema = z.discriminatedUnion('ok', [
 export type CommandReplyEnvelope = z.infer<typeof commandReplyEnvelopeSchema>;
 
 /**
-The same envelope once the method table has resolved the result shape.
+ * The same envelope once the method table has resolved the result shape.
  */
 export type MethodReply<M extends CaxriMethod> =
     | {
@@ -151,10 +151,10 @@ export type MethodReply<M extends CaxriMethod> =
       };
 
 /**
- * The preload allowlist. `request` resolves with a reply envelope instead of rejecting because
- * Electron's `contextBridge` copies only `message` and `stack` off a thrown Error: a `CaxriError`
- * raised in the preload would reach the Renderer as a plain `Error` with no `code`. The Renderer
- * rebuilds the typed error through {@link createCaxriClient}.
+ * The preload allowlist. `request` resolves with a reply envelope instead of rejecting because Electron's
+ * `contextBridge` copies only `message` and `stack` off a thrown Error: a `CaxriError` raised in the preload would
+ * reach the Renderer as a plain `Error` with no `code`. The Renderer rebuilds the typed error through
+ * {@link createCaxriClient}.
  */
 export interface CaxriBridge {
     negotiate(): Promise<ProtocolWelcome>;
@@ -164,13 +164,13 @@ export interface CaxriBridge {
     ): Promise<MethodReply<M>>;
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
     /**
-    Reports only a fault class; private exception values never cross the preload boundary.
+     * Reports only a fault class; private exception values never cross the preload boundary.
      */
     reportError(kind: RendererErrorKind): void;
 }
 
 /**
-Renderer-facing view of the bridge: results are unwrapped and failures reject with `CaxriError`.
+ * Renderer-facing view of the bridge: results are unwrapped and failures reject with `CaxriError`.
  */
 export interface CaxriClient {
     negotiate(): Promise<ProtocolWelcome>;

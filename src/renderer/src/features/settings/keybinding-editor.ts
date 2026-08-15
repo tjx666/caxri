@@ -26,23 +26,23 @@ const defaultByCommand = new Map<string, string>(
 const modifierKeyNames = new Set(['Alt', 'Control', 'Meta', 'Shift']);
 
 /**
-A lone modifier key press only arms further recording; it never forms a shortcut by itself.
+ * A lone modifier key press only arms further recording; it never forms a shortcut by itself.
  */
 export function isModifierKey(key: string): boolean {
     return modifierKeyNames.has(key);
 }
 
 /**
- * `Tab`/`Shift+Tab` must keep moving focus even while the shortcut recorder is active, so the
- * recorder never captures them as part of a shortcut. Without this, Tab would get trapped on the
- * recording button and the browser's normal focus order would break.
+ * `Tab`/`Shift+Tab` must keep moving focus even while the shortcut recorder is active, so the recorder never captures
+ * them as part of a shortcut. Without this, Tab would get trapped on the recording button and the browser's normal
+ * focus order would break.
  */
 export function isFocusNavigationKey(key: string): boolean {
     return key === 'Tab';
 }
 
 /**
-Builds lossless source-order rows, followed by catalog commands that have no binding.
+ * Builds lossless source-order rows, followed by catalog commands that have no binding.
  */
 export function buildKeybindingRows(keybindings: readonly Keybinding[]): KeybindingRow[] {
     const occurrences = new Map<string, number>();
@@ -111,8 +111,8 @@ export function appendKeybindingSource(
 }
 
 /**
- * In-progress shortcut capture for one row: armed but not yet holding a captured chord, or
- * holding the last-captured (but not yet committed) chord.
+ * In-progress shortcut capture for one row: armed but not yet holding a captured chord, or holding the last-captured
+ * (but not yet committed) chord.
  */
 export interface RecordingState {
     pending?: string;
@@ -120,8 +120,8 @@ export interface RecordingState {
 }
 
 /**
- * Outcome of a recording state transition: the next state to render, and the chord to persist
- * when the transition is a commit.
+ * Outcome of a recording state transition: the next state to render, and the chord to persist when the transition is a
+ * commit.
  */
 export interface RecordingResolution {
     next: RecordingState | undefined;
@@ -129,30 +129,30 @@ export interface RecordingResolution {
 }
 
 /**
-Arms recording for a row with no chord captured yet.
+ * Arms recording for a row with no chord captured yet.
  */
 export function startRecording(rowId: string): RecordingState {
     return { rowId };
 }
 
 /**
- * Records the latest captured chord; a further key press overwrites it, matching how a user
- * expects to be able to retry a shortcut before committing it.
+ * Records the latest captured chord; a further key press overwrites it, matching how a user expects to be able to retry
+ * a shortcut before committing it.
  */
 export function captureRecordingKey(state: RecordingState, key: string): RecordingState {
     return { ...state, pending: key };
 }
 
 /**
-Escape, Tab, and a blur with nothing captured yet all discard recording the same way.
+ * Escape, Tab, and a blur with nothing captured yet all discard recording the same way.
  */
 export function cancelRecording(): RecordingResolution {
     return { next: undefined };
 }
 
 /**
- * Enter only acts once a chord has been captured; with nothing captured yet it is a no-op (returns
- * `undefined`) so recording stays open for another attempt instead of silently closing.
+ * Enter only acts once a chord has been captured; with nothing captured yet it is a no-op (returns `undefined`) so
+ * recording stays open for another attempt instead of silently closing.
  */
 export function commitOnEnter(state: RecordingState): RecordingResolution | undefined {
     if (!state.pending) return undefined;
@@ -160,10 +160,9 @@ export function commitOnEnter(state: RecordingState): RecordingResolution | unde
 }
 
 /**
- * Blur must never silently drop an already-captured chord — the historical bug this closes, where
- * clicking away from the recording button discarded the shortcut the user just pressed. A captured
- * chord commits on blur exactly like Enter; only a blur before any key was captured has nothing to
- * lose, so it cancels recording instead.
+ * Blur must never silently drop an already-captured chord — the historical bug this closes, where clicking away from
+ * the recording button discarded the shortcut the user just pressed. A captured chord commits on blur exactly like
+ * Enter; only a blur before any key was captured has nothing to lose, so it cancels recording instead.
  */
 export function commitOnBlur(state: RecordingState): RecordingResolution {
     if (!state.pending) return cancelRecording();

@@ -154,8 +154,8 @@ describe('Acceptance runtime ownership', () => {
     it('keeps mutable cases order-independent and removes every owned profile', async () => {
         const profiles: Array<Awaited<ReturnType<typeof prepareAcceptanceUserData>>> = [];
         /**
-         * This test asserts that processing caseIds in a given sequential order still yields the
-         * same order-independent final state, so caseIds must actually be awaited in order here.
+         * This test asserts that processing caseIds in a given sequential order still yields the same order-independent
+         * final state, so caseIds must actually be awaited in order here.
          */
         const runOrder = async (caseIds: string[]) => {
             const observations: string[] = [];

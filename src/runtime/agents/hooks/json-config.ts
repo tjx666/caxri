@@ -45,8 +45,8 @@ function parseDocument(source: string | undefined): Record<string, unknown> | un
 }
 
 /**
- * Provider hook files are user-owned. Treat an unknown tree shape as malformed instead of
- * normalizing it, because replacing a scalar or array could destroy foreign configuration.
+ * Provider hook files are user-owned. Treat an unknown tree shape as malformed instead of normalizing it, because
+ * replacing a scalar or array could destroy foreign configuration.
  */
 function malformedHookTree(document: Record<string, unknown>): string | undefined {
     if (!Object.hasOwn(document, 'hooks')) return undefined;
@@ -70,7 +70,7 @@ function shellQuote(value: string): string {
 }
 
 /**
-Creates a stable hook definition; ordinary bridge/app upgrades do not change Codex's trust hash.
+ * Creates a stable hook definition; ordinary bridge/app upgrades do not change Codex's trust hash.
  */
 function buildBridgeCommand(
     desired: DesiredHookInstall,

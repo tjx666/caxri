@@ -91,10 +91,9 @@ function TerminalWorkTab({
                         className={cn(
                             'terminal-progress-tab inline-flex flex-none items-center gap-1 tabular-nums',
                             /**
-                             * `--accent` marks exactly one thing at a time — the focused pane/tab
-                             * (DESIGN.md principle 2). This badge renders on every tab with
-                             * progress, active or not, so a background `npm install` must not
-                             * wear the same accent color the focused tab's ring already owns.
+                             * `--accent` marks exactly one thing at a time — the focused pane/tab (DESIGN.md principle
+                             * 2). This badge renders on every tab with progress, active or not, so a background `npm
+                             * install` must not wear the same accent color the focused tab's ring already owns.
                              */
                             progress.kind === 'normal' && 'text-muted',
                             progress.kind === 'error' && 'text-danger',
@@ -140,7 +139,7 @@ function TerminalWorkTab({
 }
 
 /**
-Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped.
+ * Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped.
  */
 function EditorWorkTab({
     active,
@@ -259,10 +258,10 @@ export function WorkTabStrip() {
     const stripReference = useRef<HTMLDivElement>(null);
     const activeWorkKey = workItemKey(activeWork);
     /**
-     * `overflow-x-auto` (below) has no built-in cue for "the active tab is off to the side," so
-     * selecting or creating a tab that lands outside the visible strip must scroll it into view
-     * itself — matching the VS Code norm this strip otherwise follows. `block: 'nearest'` keeps
-     * the page from also scrolling vertically to reveal an element that never left the viewport.
+     * `overflow-x-auto` (below) has no built-in cue for "the active tab is off to the side," so selecting or creating a
+     * tab that lands outside the visible strip must scroll it into view itself — matching the VS Code norm this strip
+     * otherwise follows. `block: 'nearest'` keeps the page from also scrolling vertically to reveal an element that
+     * never left the viewport.
      */
     useEffect(() => {
         stripReference.current
@@ -323,9 +322,9 @@ export function WorkTabStrip() {
             const targetTab = document.querySelector<HTMLElement>(`#${CSS.escape(targetId)}`);
             if (targetTab && stripReference.current?.contains(targetTab)) {
                 /**
-                 * Terminal activation normally moves focus into xterm. This marker exists only
-                 * for keyboard navigation and is removed on blur, so the Terminal process effect
-                 * can preserve the WAI-ARIA tab focus without changing mouse selection behavior.
+                 * Terminal activation normally moves focus into xterm. This marker exists only for keyboard navigation
+                 * and is removed on blur, so the Terminal process effect can preserve the WAI-ARIA tab focus without
+                 * changing mouse selection behavior.
                  */
                 if (target.kind === 'terminal') targetTab.dataset.preserveTerminalFocus = 'true';
                 targetTab.focus();
@@ -391,7 +390,7 @@ export function WorkTabStrip() {
                     </Fragment>
                 </LazyMotion>
             </div>
-            <div className="tab-actions flex h-9 flex-none items-center px-1 bg-surface [-webkit-app-region:no-drag]">
+            <div className="tab-actions flex h-9 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
                     <Button
                         size="icon"

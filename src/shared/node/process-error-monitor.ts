@@ -36,10 +36,9 @@ function errorType(error: unknown): string {
 }
 
 /**
- * Observes fatal process errors through `uncaughtExceptionMonitor`, which does not suppress Node's
- * default crash behavior. A small buffer covers startup before the ordinary logger is attached;
- * callers may also provide a synchronous bootstrap writer so a process that exits immediately
- * still leaves a structured record.
+ * Observes fatal process errors through `uncaughtExceptionMonitor`, which does not suppress Node's default crash
+ * behavior. A small buffer covers startup before the ordinary logger is attached; callers may also provide a
+ * synchronous bootstrap writer so a process that exits immediately still leaves a structured record.
  */
 export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions): {
     attach(writer: ProcessErrorWriter): void;
@@ -57,7 +56,7 @@ export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions):
             return true;
         } catch {
             /**
-            Logging must never replace or delay the process's original fatal-error semantics.
+             * Logging must never replace or delay the process's original fatal-error semantics.
              */
             return false;
         }

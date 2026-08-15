@@ -12,7 +12,7 @@ interface WorkbenchRootPromptState {
 }
 
 /**
-Keeps one content-free candidate per Session until the user handles it.
+ * Keeps one content-free candidate per Session until the user handles it.
  */
 export const useWorkbenchRootPromptStore = create<WorkbenchRootPromptState>((set) => ({
     candidates: {},

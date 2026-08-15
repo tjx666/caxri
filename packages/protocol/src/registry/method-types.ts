@@ -18,11 +18,11 @@ export type HostMethod = {
 type AllMethods = typeof methods & typeof internalMethods;
 
 /**
-Parameters as a handler receives them, after Zod applied defaults and coercion.
+ * Parameters as a handler receives them, after Zod applied defaults and coercion.
  */
 type MethodParameters<M extends CaxriMethod> = z.infer<(typeof methods)[M]['params']>;
 /**
-Parameters as a caller supplies them; `undefined` is allowed when the schema has a default.
+ * Parameters as a caller supplies them; `undefined` is allowed when the schema has a default.
  */
 type MethodInput<M extends CaxriMethod> = z.input<(typeof methods)[M]['params']>;
 export type MethodResult<M extends CaxriMethod> = z.infer<(typeof methods)[M]['result']>;
@@ -33,7 +33,7 @@ type RuntimeMethodInput<M extends RuntimeMethod> = z.input<AllMethods[M]['params
 export type RuntimeMethodResult<M extends RuntimeMethod> = z.infer<AllMethods[M]['result']>;
 
 /**
-Makes the params argument optional exactly when the method's schema accepts `undefined`.
+ * Makes the params argument optional exactly when the method's schema accepts `undefined`.
  */
 // eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/renderer and src/preload, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type ParamsArg<M extends CaxriMethod> =
@@ -46,7 +46,7 @@ export type RuntimeParamsArg<M extends RuntimeMethod> =
         : [params: RuntimeMethodInput<M>, timeoutMs?: number];
 
 /**
-Discriminated request unions let a `switch` on `method` narrow `params` without a cast.
+ * Discriminated request unions let a `switch` on `method` narrow `params` without a cast.
  */
 export type CaxriRequest = {
     [M in CaxriMethod]: { method: M; params: MethodParameters<M> };
@@ -55,7 +55,7 @@ export type CaxriRequest = {
 export type DesktopRequest = Extract<CaxriRequest, { method: DesktopMethod }>;
 export type HostRequest = Extract<CaxriRequest, { method: HostMethod }>;
 /**
-Compatibility name for the Electron Main adapter while ownership moves to the Host protocol.
+ * Compatibility name for the Electron Main adapter while ownership moves to the Host protocol.
  */
 export type MainRequest = DesktopRequest;
 
@@ -68,21 +68,21 @@ export function isCaxriMethod(value: string): value is CaxriMethod {
 }
 
 /**
-Narrows a validated public request to the Main-owned portion of the method table.
+ * Narrows a validated public request to the Main-owned portion of the method table.
  */
 export function isDesktopRequest(request: CaxriRequest): request is DesktopRequest {
     return methods[request.method].owner === 'desktop';
 }
 
 /**
-Narrows a validated public request to the Host-owned portion of the method table.
+ * Narrows a validated public request to the Host-owned portion of the method table.
  */
 export function isHostRequest(request: CaxriRequest): request is HostRequest {
     return methods[request.method].owner === 'host';
 }
 
 /**
-Compatibility guard used by the current Electron adapter.
+ * Compatibility guard used by the current Electron adapter.
  */
 export function isMainRequest(request: CaxriRequest): request is MainRequest {
     return isDesktopRequest(request);

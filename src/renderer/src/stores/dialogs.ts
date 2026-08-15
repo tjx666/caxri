@@ -11,23 +11,21 @@ interface DialogState {
     bugReportOpen: boolean;
     bugReportRequestId: number;
     /**
-    Directory granted by the native picker, awaiting the default-Agent choice.
+     * Directory granted by the native picker, awaiting the default-Agent choice.
      */
     pendingRoot?: string;
     /**
-    Existing Project awaiting the default-Agent choice for a new Session.
+     * Existing Project awaiting the default-Agent choice for a new Session.
      */
     pendingProjectId?: string;
     /**
-     * IDs of currently mounted-and-open modals, registered by `useModalRegistration`
-     * (see `components/ui/dialog.tsx`) from every consumer of the shared `Dialog`
-     * primitive. `isModalOpen` used to be a hand-maintained OR of one boolean per
-     * dialog (settingsOpen, paletteOpen, pathBrowserOpen, pendingRoot, pendingProjectId); a future
-     * modal that forgot to add its field there would silently let app-wide shortcuts
-     * fire behind it. Registration is mount/open driven instead, so any dialog built
-     * on the shared primitive participates automatically and cannot drift out of sync.
-     * A `Set` (rather than a counter) keeps re-registration under React StrictMode's
-     * double-invoked effects idempotent.
+     * IDs of currently mounted-and-open modals, registered by `useModalRegistration` (see `components/ui/dialog.tsx`)
+     * from every consumer of the shared `Dialog` primitive. `isModalOpen` used to be a hand-maintained OR of one
+     * boolean per dialog (settingsOpen, paletteOpen, pathBrowserOpen, pendingRoot, pendingProjectId); a future modal
+     * that forgot to add its field there would silently let app-wide shortcuts fire behind it. Registration is
+     * mount/open driven instead, so any dialog built on the shared primitive participates automatically and cannot
+     * drift out of sync. A `Set` (rather than a counter) keeps re-registration under React StrictMode's double-invoked
+     * effects idempotent.
      */
     openModalIds: Set<string>;
     setArchivedSessionsOpen(isOpen: boolean): void;
@@ -41,15 +39,15 @@ interface DialogState {
     askAgentForProject(projectId: string): void;
     clearPending(): void;
     /**
-    Registers an open modal's id; called by `useModalRegistration` on open/mount.
+     * Registers an open modal's id; called by `useModalRegistration` on open/mount.
      */
     registerModal(id: string): void;
     /**
-    Unregisters a modal's id; called by `useModalRegistration` on close/unmount.
+     * Unregisters a modal's id; called by `useModalRegistration` on close/unmount.
      */
     unregisterModal(id: string): void;
     /**
-    True while any modal owns the keyboard, so app-wide shortcuts must stand down.
+     * True while any modal owns the keyboard, so app-wide shortcuts must stand down.
      */
     isModalOpen(): boolean;
 }

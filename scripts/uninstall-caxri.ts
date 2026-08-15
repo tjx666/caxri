@@ -341,8 +341,8 @@ async function resolveProfileEndpoint(profilePath: string): Promise<string> {
     } catch (error) {
         if (fileSystemCode(error) !== 'ENOENT') throw error;
         /**
-         * A detached Host can outlive profile cleanup. Canonicalizing the still-existing parent
-         * preserves the exact endpoint hash without trusting stale manifest PID metadata.
+         * A detached Host can outlive profile cleanup. Canonicalizing the still-existing parent preserves the exact
+         * endpoint hash without trusting stale manifest PID metadata.
          */
         canonicalProfile = join(await realpath(dirname(profilePath)), basename(profilePath));
     }

@@ -13,8 +13,8 @@ interface MarkdownlintCli2Config {
 }
 
 /**
- * Reuses the repository's own semantic rule set (`.markdownlint-cli2.jsonc`'s `config` block)
- * instead of hard-coding a second copy, so this contract stays in sync with the real gate.
+ * Reuses the repository's own semantic rule set (`.markdownlint-cli2.jsonc`'s `config` block) instead of hard-coding a
+ * second copy, so this contract stays in sync with the real gate.
  */
 async function markdownlintRuleConfig(): Promise<Record<string, unknown>> {
     const raw = await readFile(resolve(root, '.markdownlint-cli2.jsonc'), 'utf8');

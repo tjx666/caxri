@@ -17,14 +17,14 @@ type StageMutation = (expectedResult: FileMutationExpectedResult) => Promise<voi
 
 export interface FileMutationJournalOptions {
     /**
-    Test seam for shortening in-process finalization retries.
+     * Test seam for shortening in-process finalization retries.
      */
     completionRetryBaseMs?: number;
     maximumActivePerSession?: number;
     now?: () => number;
     preStageTimeoutMs?: number;
     /**
-    Test seam for transient journal persistence failures.
+     * Test seam for transient journal persistence failures.
      */
     writeJournal?: (path: string, source: string) => Promise<void>;
 }
@@ -47,7 +47,7 @@ class StagedCreatePersistenceError extends Error {
 }
 
 /**
-Lets the file-system service preserve the journal's post-native retry signal unchanged.
+ * Lets the file-system service preserve the journal's post-native retry signal unchanged.
  */
 export function isStagedCreatePersistenceError(error: unknown): error is Error {
     return error instanceof StagedCreatePersistenceError;
@@ -127,10 +127,10 @@ async function pathIdentity(
 }
 
 /**
- * Persists the lifecycle boundary around non-cancelable file-system mutations. `pre_stage` may be
- * canceled safely; `staged` durably captures the identities that are revalidated immediately before
- * mutation and is allowed to finish even after its original IPC waiter times out. Final records
- * remain until a Renderer acknowledges the editor and file-tree reconciliation they describe.
+ * Persists the lifecycle boundary around non-cancelable file-system mutations. `pre_stage` may be canceled safely;
+ * `staged` durably captures the identities that are revalidated immediately before mutation and is allowed to finish
+ * even after its original IPC waiter times out. Final records remain until a Renderer acknowledges the editor and
+ * file-tree reconciliation they describe.
  */
 export class FileMutationJournal {
     private readonly completionRetryBaseMs: number;
@@ -185,7 +185,7 @@ export class FileMutationJournal {
         }
         this.initialized = true;
         /**
-        Recovery stays sequential because staged paths may overlap and native identity checks mutate records.
+         * Recovery stays sequential because staged paths may overlap and native identity checks mutate records.
          */
         let isChanged = false;
         for (const operation of this.records.values()) {
@@ -323,8 +323,8 @@ export class FileMutationJournal {
             });
         } catch (error) {
             /**
-             * The native create already succeeded before its inode refinement is persisted. Keep
-             *  the durable pre-create stage and retry the identity plus completion in-process.
+             * The native create already succeeded before its inode refinement is persisted. Keep the durable pre-create
+             * stage and retry the identity plus completion in-process.
              */
             if (isRefinesCreatedIdentity)
                 throw new StagedCreatePersistenceError(expectedResult, { cause: error });
@@ -380,10 +380,10 @@ export class FileMutationJournal {
     }
 
     /**
-     * Must stay synchronous (not `async`): `this.writeTail` is chained and reassigned in the same
-     * tick that `mutate` is called, so back-to-back synchronous invocations serialize onto the same
-     * tail instead of racing to read a not-yet-updated `writeTail`. Converting the body to
-     * `async`/`await` would insert a microtask boundary before `this.writeTail` is reassigned below.
+     * Must stay synchronous (not `async`): `this.writeTail` is chained and reassigned in the same tick that `mutate` is
+     * called, so back-to-back synchronous invocations serialize onto the same tail instead of racing to read a
+     * not-yet-updated `writeTail`. Converting the body to `async`/`await` would insert a microtask boundary before
+     * `this.writeTail` is reassigned below.
      */
     private mutate<Value>(mutation: () => Value | Promise<Value>): Promise<Value> {
         // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
@@ -452,10 +452,10 @@ export class FileMutationJournal {
         const pending: PendingCompletion = { attempt: 0, expectedResult, result };
         this.pendingCompletions.set(operationId, pending);
         /**
-         * `schedule` and `retry` are mutually recursive (the timer calls `retry`, whose catch
-         * branch calls `schedule` again), so one of the two must be referenced before its own
-         * declaration. A boxed reference avoids a `let`-then-reassign pattern that would otherwise
-         * trip `prefer-const` since `retryReference.current` is only ever assigned once.
+         * `schedule` and `retry` are mutually recursive (the timer calls `retry`, whose catch branch calls `schedule`
+         * again), so one of the two must be referenced before its own declaration. A boxed reference avoids a
+         * `let`-then-reassign pattern that would otherwise trip `prefer-const` since `retryReference.current` is only
+         * ever assigned once.
          */
         const retryReference: { current?: () => Promise<void> } = {};
         const schedule = (): void => {
@@ -642,7 +642,7 @@ export class FileMutationJournal {
                         current.error?.message ?? 'File operation was canceled before it began',
                     );
                 /**
-                A successful staged native mutation must stay recoverable if final persistence fails.
+                 * A successful staged native mutation must stay recoverable if final persistence fails.
                  */
                 if (current?.phase === 'staged') this.scheduleCompletionRetry(operation.id, result);
                 else await this.fail(operation.id, error);

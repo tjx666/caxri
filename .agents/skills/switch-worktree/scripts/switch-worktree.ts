@@ -41,8 +41,8 @@ interface ParsedArguments {
 }
 
 /**
-Apply one parsed token to `result`, returning the index of the last token consumed. `--base`
-and `--label` consume the following token as their value, advancing the index by one.
+ * Apply one parsed token to `result`, returning the index of the last token consumed. `--base` and `--label` consume
+ * the following token as their value, advancing the index by one.
  */
 function applyToken(
     value: string,

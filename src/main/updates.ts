@@ -55,7 +55,7 @@ interface AutomaticUpdateCheckOptions {
 }
 
 /**
-Packaged E2E profiles stay deterministic and must never contact the release service.
+ * Packaged E2E profiles stay deterministic and must never contact the release service.
  */
 export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOptions): boolean {
     return options.isPackaged && !options.isE2E && !options.alreadyStarted;
@@ -68,7 +68,7 @@ function stableVersionParts(version: string): [number, number, number] {
 }
 
 /**
-Compares the stable `major.minor.patch` versions used by Caxri releases.
+ * Compares the stable `major.minor.patch` versions used by Caxri releases.
  */
 export function compareStableVersions(left: string, right: string): number {
     const leftParts = stableVersionParts(left);

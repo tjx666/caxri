@@ -8,12 +8,11 @@ import { cn } from '@/lib/utilities';
 import { useDialogStore } from '@/stores/dialogs';
 
 /**
- * Registers this Dialog instance with the shared modal-open registry while `open` is
- * true, and unregisters on close or unmount. Every consumer of the shared `Dialog`
- * primitive gets this for free, so `useDialogStore.isModalOpen()` (which gates
- * app-wide shortcuts in `commands/execute.ts`) stays correct as new dialogs are added
- * without anyone having to remember to OR in another boolean field. A `Set` of
- * `useId()`-derived ids keeps React StrictMode's double-invoked effects idempotent.
+ * Registers this Dialog instance with the shared modal-open registry while `open` is true, and unregisters on close or
+ * unmount. Every consumer of the shared `Dialog` primitive gets this for free, so `useDialogStore.isModalOpen()` (which
+ * gates app-wide shortcuts in `commands/execute.ts`) stays correct as new dialogs are added without anyone having to
+ * remember to OR in another boolean field. A `Set` of `useId()`-derived ids keeps React StrictMode's double-invoked
+ * effects idempotent.
  */
 function useModalRegistration(open: boolean | undefined): void {
     const id = useId();
@@ -84,7 +83,7 @@ export function DialogContent({
                     // `outline-none` also covers the popup container itself being focused
                     // (e.g. via `initialFocus`), where the browser would otherwise draw a
                     // default focus ring around the whole dialog.
-                    'fixed top-1/2 left-1/2 z-[51] w-[min(520px,calc(100vw-32px))] max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] outline-none',
+                    'fixed top-1/2 left-1/2 z-[51] max-h-[calc(100vh-48px)] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] outline-none',
                     'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
                     'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
                     className,
@@ -95,7 +94,7 @@ export function DialogContent({
                 {showCloseButton && (
                     <DialogPrimitive.Close
                         data-slot="dialog-close"
-                        className="absolute top-2 right-2 grid size-7 place-items-center rounded border-0 bg-transparent p-0 cursor-pointer hover:bg-elevated"
+                        className="absolute top-2 right-2 grid size-7 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-elevated"
                         aria-label="Close"
                     >
                         <X aria-hidden="true" size={15} />

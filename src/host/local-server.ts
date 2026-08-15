@@ -56,7 +56,7 @@ import {
 export type { LocalHostServerOptions } from './local-server-support';
 
 /**
-Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients.
+ * Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients.
  */
 export class LocalHostServer {
     private readonly clients = new Map<Socket, ClientState>();
@@ -126,8 +126,8 @@ export class LocalHostServer {
     }
 
     /**
-     * Limits one peer's concurrently executing work without reintroducing head-of-line blocking
-     * between normal Desktop work and Terminal keystrokes/resizes.
+     * Limits one peer's concurrently executing work without reintroducing head-of-line blocking between normal Desktop
+     * work and Terminal keystrokes/resizes.
      */
     private reserveRequest(
         state: ClientState,
@@ -342,17 +342,17 @@ export class LocalHostServer {
                     return;
                 }
                 /**
-                 * Reverse replies must settle outside the ordered protocol-control queue to avoid a
-                 * Desktop request deadlocking while Host routes a nested window operation back.
+                 * Reverse replies must settle outside the ordered protocol-control queue to avoid a Desktop request
+                 * deadlocking while Host routes a nested window operation back.
                  */
                 if (state && this.settleDesktopReply(state, raw)) continue;
                 const nestedTarget = state
                     ? localClientDesktopTargetConsumeSchema.safeParse(raw)
                     : undefined;
                 /**
-                 * A Host-issued Desktop command redeems its opaque target before it can reply. The
-                 *  redemption must bypass the command that is awaiting that reply or both sides
-                 *  deadlock; generation checks and the one-use target still bound this lane.
+                 * A Host-issued Desktop command redeems its opaque target before it can reply. The redemption must
+                 * bypass the command that is awaiting that reply or both sides deadlock; generation checks and the
+                 * one-use target still bound this lane.
                  */
                 if (state?.context.principal.kind === 'desktop' && nestedTarget?.success) {
                     // This branch intentionally bypasses `queue` to avoid the nested-command
@@ -366,8 +366,8 @@ export class LocalHostServer {
                 }
                 const renew = state ? localClientLeaseRenewSchema.safeParse(raw) : undefined;
                 /**
-                 * Lease renewal is authenticated control traffic, so it must not wait behind a
-                 * long ordered file operation and accidentally revoke the active Desktop.
+                 * Lease renewal is authenticated control traffic, so it must not wait behind a long ordered file
+                 * operation and accidentally revoke the active Desktop.
                  */
                 if (state?.context.principal.kind === 'desktop' && renew?.success) {
                     try {
@@ -386,9 +386,8 @@ export class LocalHostServer {
                     continue;
                 }
                 /**
-                 * Only authenticated Desktop PTY input can bypass a slow ordinary command. The
-                 * handshake remains on `queue`, and this path keeps its own bounded reservation in
-                 * `dispatchCommand`.
+                 * Only authenticated Desktop PTY input can bypass a slow ordinary command. The handshake remains on
+                 * `queue`, and this path keeps its own bounded reservation in `dispatchCommand`.
                  */
                 const hotCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
                 if (
@@ -593,7 +592,7 @@ export class LocalHostServer {
     }
 
     /**
-    Routes one typed window operation to exactly the current Desktop generation.
+     * Routes one typed window operation to exactly the current Desktop generation.
      */
     invokeDesktop(operation: DesktopOperation, expectedGeneration: number): Promise<unknown> {
         const state = this.currentDesktop;
@@ -667,13 +666,13 @@ export class LocalHostServer {
     broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
         /**
-        Raw Runtime payloads are a Desktop-only transport; other principals use projections.
+         * Raw Runtime payloads are a Desktop-only transport; other principals use projections.
          */
         if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
     }
 
     /**
-    Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
+     * Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
      */
     broadcastAgent(endpoint: AgentEndpointReference, event: TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
@@ -689,7 +688,7 @@ export class LocalHostServer {
     }
 
     /**
-    Delivers a one-shot Host UI event without placing it in the recoverable Runtime journal.
+     * Delivers a one-shot Host UI event without placing it in the recoverable Runtime journal.
      */
     broadcastDesktop(event: TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });

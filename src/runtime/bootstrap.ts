@@ -38,16 +38,16 @@ const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, hei
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export type { Runtime, RuntimeDependencies } from './bootstrap-types';
 /**
-Methods the Renderer may call but that only Electron Main can satisfy.
+ * Methods the Renderer may call but that only Electron Main can satisfy.
  */
 function mainOwned(method: RuntimeMethod): never {
     throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
 }
 
 /**
- * Composition root: constructs every Runtime service, wires the event flow between them, and returns
- * the typed handler table plus one disposal path. Nothing is constructed at module scope, so a test
- * can create several isolated Runtimes in one process.
+ * Composition root: constructs every Runtime service, wires the event flow between them, and returns the typed handler
+ * table plus one disposal path. Nothing is constructed at module scope, so a test can create several isolated Runtimes
+ * in one process.
  */
 export async function createRuntime(dependencies: RuntimeDependencies): Promise<Runtime> {
     const { logger, send, userDataPath } = dependencies;
@@ -99,7 +99,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     let agentSettingsReconcile = Promise.resolve();
     const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
         /**
-        Preserve setting-update order so a slow probe cannot restore authority after disable.
+         * Preserve setting-update order so a slow probe cannot restore authority after disable.
          */
         agentSettingsReconcile = (async () => {
             try {
@@ -124,8 +124,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         });
     }
     /**
-     * Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a
-     * shared event sink.
+     * Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a shared event sink.
      */
     const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
@@ -318,15 +317,14 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     }
 
     /**
-     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue
-     * #18). A Terminal with a bound Agent conversation (`terminal.provider` set) resumes it via
-     * `resumeArguments`, so `coordinator.prepareTerminalStart` — which clears the Agent session
-     * binding through `resetAgentMetadataForStart` — must be skipped for that Terminal; that clearing
-     * is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation
-     * (a shell, or an Agent Terminal that never reached a capability-detected session id) gets a
-     * fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
-     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued
-     * work, and the generation is checked again after executable discovery immediately before spawn.
+     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
+     * with a bound Agent conversation (`terminal.provider` set) resumes it via `resumeArguments`, so
+     * `coordinator.prepareTerminalStart` — which clears the Agent session binding through `resetAgentMetadataForStart`
+     * — must be skipped for that Terminal; that clearing is exactly what a normal (non-resuming) start wants. A
+     * Terminal without a bound conversation (a shell, or an Agent Terminal that never reached a capability-detected
+     * session id) gets a fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
+     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued work, and the
+     * generation is checked again after executable discovery immediately before spawn.
      */
     async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
         const sessionTerminals = database.listTerminals(sessionId);
@@ -399,9 +397,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     }
 
     /**
-     * File watching is recoverable background work (`FileWatcherService#watchSession` already catches
-     * and logs its own setup failures) and must never delay a Runtime IPC response, so every call site
-     * fires this without awaiting it.
+     * File watching is recoverable background work (`FileWatcherService#watchSession` already catches and logs its own
+     * setup failures) and must never delay a Runtime IPC response, so every call site fires this without awaiting it.
      */
     function watchSessionInBackground(sessionId: string | undefined): void {
         // This helper is intentionally synchronous (`void` return) so sync IPC handlers such as
@@ -415,8 +412,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     }
 
     /**
-     * Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay the
-     * triggering IPC response, so every call site fires this without awaiting it.
+     * Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay the triggering IPC
+     * response, so every call site fires this without awaiting it.
      */
     function restoreInterruptedTerminalsInBackground(sessionId: string): void {
         // Same fire-and-forget rationale as `watchSessionInBackground` above.
@@ -554,8 +551,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                     throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
             }
             /**
-             * Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report
-             *  cannot contain control characters capable of terminating the paste sequence.
+             * Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report cannot contain
+             * control characters capable of terminating the paste sequence.
              */
             if (!terminals.write(terminalId, `\u{1B}[200~${report}\u{1B}[201~\r`))
                 throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
@@ -711,7 +708,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             coordinator.forgetTerminal(terminalId);
             terminals.close(terminalId);
             /**
-            Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
+             * Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
              */
             if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.close' } });
@@ -783,8 +780,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     watchSessionInBackground(selectedSessionId());
     workbenchRoots.primeAll();
     /**
-         Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected
-        Session's interrupted Terminals must never delay Runtime startup past the 3s large-Project gate.
+     * Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected Session's
+     * interrupted Terminals must never delay Runtime startup past the 3s large-Project gate.
      */
     const initialSessionId = selectedSessionId();
     if (initialSessionId) {

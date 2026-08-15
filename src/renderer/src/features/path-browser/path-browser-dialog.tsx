@@ -130,10 +130,10 @@ function PathBrowserContent({
         void openFile(entry.path);
     };
     /**
-     * Reuses the file tree's own create action (`createItem`) instead of a second create path, so
-     * this affordance gets the same durable-mutation tracking, toasts, and Project-root containment
-     * (the target `directory` is always `nestedDirectory ?? root`, which navigation already keeps
-     * within root via `parentDirectoryWithinRoot`/listed entry paths).
+     * Reuses the file tree's own create action (`createItem`) instead of a second create path, so this affordance gets
+     * the same durable-mutation tracking, toasts, and Project-root containment (the target `directory` is always
+     * `nestedDirectory ?? root`, which navigation already keeps within root via `parentDirectoryWithinRoot`/listed
+     * entry paths).
      */
     const createFromQuery = async (): Promise<void> => {
         if (!candidateToCreate) return;

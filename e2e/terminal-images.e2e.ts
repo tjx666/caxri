@@ -142,9 +142,8 @@ test('inline images render real pixels, enforce budgets, and restore as content-
 
         await typeTerminal(running.page, `cat '${oversizedPath}'`);
         /**
-         * Caxri's own size policy now reports its own honest placeholder instead of folding the
-         *  drop into the generic PTY output-backpressure counter, which is reserved for genuine
-         *  queue-capacity refusals.
+         * Caxri's own size policy now reports its own honest placeholder instead of folding the drop into the generic
+         * PTY output-backpressure counter, which is reserved for genuine queue-capacity refusals.
          */
         await expect(running.page.locator('.xterm-rows')).toContainText(
             'Caxri dropped an inline image: it exceeds the size limit',
@@ -160,9 +159,9 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
 
         /**
-         * Terminal input can outrun xterm's asynchronous image decode on loaded CI runners.
-         *  Observe each accepted image before sending the next one so this remains a cache-budget
-         *  test instead of accidentally becoming an unbounded decoder-pressure test.
+         * Terminal input can outrun xterm's asynchronous image decode on loaded CI runners. Observe each accepted image
+         * before sending the next one so this remains a cache-budget test instead of accidentally becoming an unbounded
+         * decoder-pressure test.
          */
         for (let image = 0; image < 10; image += 1) {
             // eslint-disable-next-line no-await-in-loop -- each image must decode before the next is sent, see comment above.

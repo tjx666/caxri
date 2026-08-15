@@ -1,19 +1,18 @@
 /**
  * Pure helpers for choosing Monaco's base theme ('vs' vs 'vs-dark').
  *
- * Split from `editor-theme.ts` so tests can exercise the selection logic
- * without importing the real `monaco-editor` module (see `./monaco`, which
- * pulls in editor workers and browser-only globals at module load time).
+ * Split from `editor-theme.ts` so tests can exercise the selection logic without importing the real `monaco-editor`
+ * module (see `./monaco`, which pulls in editor workers and browser-only globals at module load time).
  */
 
 /**
-Threshold below which a background is treated as dark for Monaco's base theme.
+ * Threshold below which a background is treated as dark for Monaco's base theme.
  */
 const DARK_LUMINANCE_THRESHOLD = 0.5;
 
 /**
- * Computes the relative luminance of a `#rrggbb` (or `#rrggbbaa`) color per the
- * sRGB/Rec. 709 formula used for WCAG contrast calculations.
+ * Computes the relative luminance of a `#rrggbb` (or `#rrggbbaa`) color per the sRGB/Rec. 709 formula used for WCAG
+ * contrast calculations.
  *
  * @param hexColor - A hex color string starting with `#`.
  * @returns Relative luminance in the `[0, 1]` range.
@@ -33,9 +32,8 @@ export function relativeLuminance(hexColor: string): number {
 }
 
 /**
- * Picks Monaco's built-in base theme ('vs' for light, 'vs-dark' for dark) from
- * the editor canvas background color, since `ThemeTokens` has no explicit
- * light/dark kind field to read.
+ * Picks Monaco's built-in base theme ('vs' for light, 'vs-dark' for dark) from the editor canvas background color,
+ * since `ThemeTokens` has no explicit light/dark kind field to read.
  *
  * @param editorBackground - The `#rrggbb` color Monaco's editor background uses.
  */

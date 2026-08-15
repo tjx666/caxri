@@ -27,7 +27,7 @@ interface LockOwner {
 
 export interface RepoLockOptions {
     /**
-    Test seam for pausing after owner metadata is durable but before the lock is published.
+     * Test seam for pausing after owner metadata is durable but before the lock is published.
      */
     beforeLockPublish?: () => Promise<void>;
 }
@@ -114,7 +114,7 @@ export async function listWorktrees(context: RepoContext): Promise<WorktreeRecor
 export function worktreeDirectory(context: RepoContext, branch: string): string {
     const parent = join(dirname(context.primaryRoot), `${basename(context.primaryRoot)}-worktrees`);
     /**
-    A portable allowlist excludes percent-encoded separators and Windows-invalid path bytes.
+     * A portable allowlist excludes percent-encoded separators and Windows-invalid path bytes.
      */
     const readable = branch
         .replaceAll('/', '-')
@@ -166,7 +166,7 @@ async function readLockOwner(path: string): Promise<LockOwner | undefined> {
         source = await readFile(join(path, 'owner.json'), 'utf8');
     } catch (error) {
         /**
-        Older launchers could expose the directory before its owner record was durable.
+         * Older launchers could expose the directory before its owner record was durable.
          */
         if (errorCode(error) === 'ENOENT') return undefined;
         throw error;
@@ -179,7 +179,7 @@ async function readLockOwner(path: string): Promise<LockOwner | undefined> {
 }
 
 /**
-Serialize mutations shared by every linked checkout and reclaim only a verified stale owner.
+ * Serialize mutations shared by every linked checkout and reclaim only a verified stale owner.
  */
 export async function withRepoLock<T>(
     context: RepoContext,
@@ -221,9 +221,9 @@ export async function withRepoLock<T>(
             if (!(await isPathPresent(lockPath))) {
                 try {
                     /**
-                     * Publish a directory whose durable owner record already exists. A killed
-                     *  worker can leave an unreferenced pending directory, but never an ownerless
-                     *  repository lock that poisons every later Electron test.
+                     * Publish a directory whose durable owner record already exists. A killed worker can leave an
+                     * unreferenced pending directory, but never an ownerless repository lock that poisons every later
+                     * Electron test.
                      */
                     await rename(pendingPath, lockPath);
                     isAcquired = true;

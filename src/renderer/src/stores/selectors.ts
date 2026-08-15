@@ -18,7 +18,7 @@ export function selectSelectedSession(bootstrap?: BootstrapState): SessionRecord
 }
 
 /**
-Falls back to the standalone Project selection so a Project with no Session still highlights.
+ * Falls back to the standalone Project selection so a Project with no Session still highlights.
  */
 export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
     if (!bootstrap) return undefined;
@@ -29,7 +29,7 @@ export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord
 }
 
 /**
-Files, Editor, and Git follow this Project; Sidebar ownership still uses `selectSelectedProject`.
+ * Files, Editor, and Git follow this Project; Sidebar ownership still uses `selectSelectedProject`.
  */
 function selectSelectedWorkbenchProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
     if (!bootstrap) return undefined;
@@ -51,7 +51,7 @@ function selectSessionTerminals(bootstrap?: BootstrapState): TerminalRecord[] {
 }
 
 /**
-Non-React read path: the store is the single source of truth for actions and event handlers.
+ * Non-React read path: the store is the single source of truth for actions and event handlers.
  */
 export function getBootstrap(): BootstrapState | undefined {
     return useWorkbenchStore.getState().bootstrap;
@@ -62,7 +62,7 @@ export function getSelectedSession(): SessionRecord | undefined {
 }
 
 /**
-File paths belong to a Workbench Project, so mutations reconcile Sessions currently sharing it.
+ * File paths belong to a Workbench Project, so mutations reconcile Sessions currently sharing it.
  */
 export function getProjectSessionIds(originSessionId: string): string[] {
     const sessions = getBootstrap()?.sessions ?? [];
@@ -78,7 +78,7 @@ export function getProjectSessionIds(originSessionId: string): string[] {
 }
 
 /**
-Returns Sessions whose current structured requests still resolve against this Workbench Root.
+ * Returns Sessions whose current structured requests still resolve against this Workbench Root.
  */
 export function getWorkbenchProjectSessionIds(
     workbenchProjectId: string,
@@ -149,7 +149,7 @@ export function useSessions(): SessionRecord[] | undefined {
 }
 
 /**
-Stable shallow ID list for caches that must discard state after Session deletion.
+ * Stable shallow ID list for caches that must discard state after Session deletion.
  */
 export function useSessionIds(): string[] {
     return useWorkbenchStore(
@@ -162,7 +162,7 @@ export function useTerminals(): TerminalRecord[] {
 }
 
 /**
-Mirrors the native window's fullscreen state; see `window.fullScreen` in `stores/workbench.ts`.
+ * Mirrors the native window's fullscreen state; see `window.fullScreen` in `stores/workbench.ts`.
  */
 export function useIsFullScreen(): boolean {
     return useWorkbenchStore((state) => state.isFullScreen);

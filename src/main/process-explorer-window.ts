@@ -19,7 +19,7 @@ import type { E2EWindowMode } from './window-mode';
 interface ProcessExplorerWindowOptions {
     currentDirectory: string;
     /**
-    E2E-only render-exception seam; Main never enables it in normal launches.
+     * E2E-only render-exception seam; Main never enables it in normal launches.
      */
     forceRenderError?: boolean;
     logger: StructuredLogger;
@@ -95,9 +95,9 @@ export class ProcessExplorerWindowController {
     }
 
     /**
-     * OS process id of this window's renderer, or `undefined` while it is closed. The sampler uses
-     * it to label Caxri's two renderer processes by role; Electron's `getAppMetrics()` reports no
-     * name for `Tab` processes, so the diagnostics window could not otherwise identify itself.
+     * OS process id of this window's renderer, or `undefined` while it is closed. The sampler uses it to label Caxri's
+     * two renderer processes by role; Electron's `getAppMetrics()` reports no name for `Tab` processes, so the
+     * diagnostics window could not otherwise identify itself.
      */
     processId(): number | undefined {
         if (!this.window || this.window.isDestroyed()) return undefined;
@@ -138,8 +138,8 @@ export class ProcessExplorerWindowController {
         window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         window.webContents.on('will-navigate', (event, url) => {
             /**
-             * A crashed WebContents may no longer report its current URL. Compare against the
-             * immutable entry URL so recovery is allowed without widening navigation privileges.
+             * A crashed WebContents may no longer report its current URL. Compare against the immutable entry URL so
+             * recovery is allowed without widening navigation privileges.
              */
             if (url === rendererUrl) return;
             event.preventDefault();
@@ -190,8 +190,8 @@ export class ProcessExplorerWindowController {
                 },
             });
             /**
-             * Process Explorer is optional diagnostics, so stop only its failed window. Creating
-             * the next window resets crash history and leaves the healthy workbench untouched.
+             * Process Explorer is optional diagnostics, so stop only its failed window. Creating the next window resets
+             * crash history and leaves the healthy workbench untouched.
              */
             window.destroy();
         });

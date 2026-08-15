@@ -10,10 +10,9 @@ import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
 
 /**
- * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat`
- * directly. `vi.hoisted` exposes a settable override the mock factory reads per call, letting one
- * test simulate an entry that vanishes (or fails to stat) mid-listing while every other test keeps
- * the real filesystem behavior.
+ * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat` directly. `vi.hoisted`
+ * exposes a settable override the mock factory reads per call, letting one test simulate an entry that vanishes (or
+ * fails to stat) mid-listing while every other test keeps the real filesystem behavior.
  */
 const { setLstatOverride, getLstatOverride } = vi.hoisted(() => {
     let override: ((path: string) => Promise<unknown> | undefined) | undefined;
@@ -143,7 +142,7 @@ describe('FileService watcher and polling behavior', () => {
 
         await expect.poll(() => events.length, { timeout: 5_000 }).toBeGreaterThan(0);
         /**
-        Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.
+         * Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.
          */
         await new Promise((resolve) => setTimeout(resolve, 150));
         expect(events).toEqual([canonicalWatchedPath]);

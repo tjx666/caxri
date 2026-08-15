@@ -2,9 +2,9 @@ const BUILD_COMMIT_PATTERN = /process\.env\.CAXRI_GIT_COMMIT\s*=\s*["']([0-9a-f]
 const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/iu;
 
 /**
- * Prevents an Acceptance round from exercising a bundle built from an older commit. File mtimes
- * cannot detect a commit made after an otherwise current build, so the frozen report head is
- * compared with the commit that electron-vite stamps into Main.
+ * Prevents an Acceptance round from exercising a bundle built from an older commit. File mtimes cannot detect a commit
+ * made after an otherwise current build, so the frozen report head is compared with the commit that electron-vite
+ * stamps into Main.
  */
 export function assertAcceptanceBuildCommit(input: {
     builtMainSource: string;

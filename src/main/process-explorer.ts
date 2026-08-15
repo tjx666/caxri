@@ -32,11 +32,10 @@ interface ProcessExplorerSamplerOptions {
     electronProcesses: () => ElectronProcessSample[];
     processList?: ProcessListRunner;
     /**
-     * OS process id -> role for Caxri's renderer windows. Electron's `getAppMetrics()` leaves
-     * `name` undefined for `Tab` processes, so without this every renderer listed as a bare
-     * `window (renderer)` and the workbench was distinguishable from the diagnostics window itself
-     * only by PID. Roles are supplied by Main rather than read from window titles, which carry
-     * user Project names and change as the selection changes.
+     * OS process id -> role for Caxri's renderer windows. Electron's `getAppMetrics()` leaves `name` undefined for
+     * `Tab` processes, so without this every renderer listed as a bare `window (renderer)` and the workbench was
+     * distinguishable from the diagnostics window itself only by PID. Roles are supplied by Main rather than read from
+     * window titles, which carry user Project names and change as the selection changes.
      */
     rendererRoles?: () => ReadonlyMap<number, string>;
     rootPid: number;
@@ -45,14 +44,14 @@ interface ProcessExplorerSamplerOptions {
 }
 
 /**
-Converts kilobytes to megabytes, rounded to one decimal place for display.
+ * Converts kilobytes to megabytes, rounded to one decimal place for display.
  */
 export function kilobytesToMegabytes(kilobytes: number): number {
     return Math.round((kilobytes / 1024) * 10) / 10;
 }
 
 /**
-Hides common credential flag values without removing the useful executable and argv context.
+ * Hides common credential flag values without removing the useful executable and argv context.
  */
 export function redactProcessName(command: string): string {
     return command
@@ -138,7 +137,7 @@ async function runProcessList(): Promise<string> {
 }
 
 /**
-Coalesces overlapping refreshes so a manual refresh cannot duplicate the periodic OS sample.
+ * Coalesces overlapping refreshes so a manual refresh cannot duplicate the periodic OS sample.
  */
 export class ProcessExplorerSampler {
     private inFlight?: Promise<ProcessExplorerSnapshot>;
@@ -182,9 +181,8 @@ export class ProcessExplorerSampler {
     }
 
     /**
-     * `this.inFlight` coalesces overlapping refreshes: every concurrent caller shares and awaits
-     * the same in-flight promise, so this method returns it directly rather than awaiting it
-     * itself before returning.
+     * `this.inFlight` coalesces overlapping refreshes: every concurrent caller shares and awaits the same in-flight
+     * promise, so this method returns it directly rather than awaiting it itself before returning.
      */
     snapshot(): Promise<ProcessExplorerSnapshot> {
         // eslint-disable-next-line unicorn/prefer-await -- see JSDoc above, coalescing requires the shared promise itself

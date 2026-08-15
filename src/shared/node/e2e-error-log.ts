@@ -60,8 +60,8 @@ function parseSnapshotErrors(snapshot: E2ELogSnapshot): E2EErrorEvent[] {
 }
 
 /**
- * Reads the bounded logger rotation set synchronously so Electron teardown cannot delete the
- * isolated profile before Playwright has captured both the older and active process logs.
+ * Reads the bounded logger rotation set synchronously so Electron teardown cannot delete the isolated profile before
+ * Playwright has captured both the older and active process logs.
  */
 export function readE2ELogSnapshots(userDataDirectory: string): E2ELogSnapshot[] {
     const snapshots: E2ELogSnapshot[] = [];

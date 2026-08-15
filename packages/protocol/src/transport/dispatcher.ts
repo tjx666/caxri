@@ -77,7 +77,7 @@ function isAdapterAvailable(owner: CommandOwner, options: CommandDispatcherOptio
 }
 
 /**
-Produces the authenticated, capability-filtered welcome shared by every transport adapter.
+ * Produces the authenticated, capability-filtered welcome shared by every transport adapter.
  */
 export function createProtocolWelcome(
     options: CommandDispatcherOptions,
@@ -108,7 +108,7 @@ async function requestFingerprint(method: string, parameters: unknown): Promise<
 }
 
 /**
-Echoes a valid request ID even when another envelope field fails validation.
+ * Echoes a valid request ID even when another envelope field fails validation.
  */
 export function requestIdFromEnvelope(envelope: unknown): string | null {
     const parsed = z.object({ id: requestEnvelopeSchema.shape.id }).safeParse(envelope);
@@ -134,9 +134,9 @@ function errorReply(id: string | null, error: unknown): CommandReplyEnvelope {
 }
 
 /**
- * Executes the canonical command registry for Electron, in-memory tests, UDS, or future adapters.
- * Authentication remains transport-owned; this boundary validates the resulting principal and
- * capabilities before routing to exactly one application handler.
+ * Executes the canonical command registry for Electron, in-memory tests, UDS, or future adapters. Authentication
+ * remains transport-owned; this boundary validates the resulting principal and capabilities before routing to exactly
+ * one application handler.
  */
 export function createCommandDispatcher(options: CommandDispatcherOptions): CommandDispatcher {
     const maximumReceipts = options.maximumReceipts ?? 1_024;

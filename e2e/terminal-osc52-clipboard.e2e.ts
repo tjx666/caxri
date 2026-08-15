@@ -56,9 +56,9 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await typeTerminal(running.page, osc52(encoded('DEFAULT_BLOCKED')));
         await typeTerminal(running.page, osc52('?'));
         /**
-         * A write blocked because the setting is off now reports through the same notification
-         *  path as a real clipboard failure, with plain language pointing at Settings. Both writes
-         *  above land inside the same per-reason throttle window, so only one toast is expected.
+         * A write blocked because the setting is off now reports through the same notification path as a real clipboard
+         * failure, with plain language pointing at Settings. Both writes above land inside the same per-reason throttle
+         * window, so only one toast is expected.
          */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.disabled, { exact: true }),
@@ -78,8 +78,8 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await expect(setting).not.toBeChecked();
         await setting.check();
         /**
-         * Settings apply immediately (there is no Apply button); the observable invariant is the
-         *  Runtime actually persisting the change, not an arbitrary wait.
+         * Settings apply immediately (there is no Apply button); the observable invariant is the Runtime actually
+         * persisting the change, not an arbitrary wait.
          */
         await expect
             .poll(async () => {
@@ -96,11 +96,10 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             String.raw`printf '\033]52;c;${encoded('FIRST_WRITE')}\007\033]52;c;${encoded('RATE_BLOCKED')}\007'`,
         );
         /**
-         * The second write inside the same 1s window is blocked by rate limiting, not silently
-         *  dropped, and reports through its own distinct message. Asserted before the clipboard
-         *  poll below because an `info` toast auto-dismisses after 4s (`stores/toasts.ts`) while
-         *  the clipboard keeps its contents indefinitely: waiting on the expiring signal first
-         *  costs the durable one nothing, but not the other way round.
+         * The second write inside the same 1s window is blocked by rate limiting, not silently dropped, and reports
+         * through its own distinct message. Asserted before the clipboard poll below because an `info` toast
+         * auto-dismisses after 4s (`stores/toasts.ts`) while the clipboard keeps its contents indefinitely: waiting on
+         * the expiring signal first costs the durable one nothing, but not the other way round.
          */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.rateLimited, { exact: true }),
@@ -113,8 +112,8 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await typeTerminal(running.page, osc52('%%%'));
         await typeTerminal(running.page, osc52(encoded('PRIMARY_BLOCKED'), 'p'));
         /**
-         * Malformed base64 ('%%%') reports its own message; a valid write to a non-primary
-         *  selection ('p') stays a silent no-op, so exactly one new toast is expected here.
+         * Malformed base64 ('%%%') reports its own message; a valid write to a non-primary selection ('p') stays a
+         * silent no-op, so exactly one new toast is expected here.
          */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.malformed, { exact: true }),

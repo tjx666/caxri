@@ -13,9 +13,8 @@ export interface CommandCaptureOptions {
 }
 
 /**
- * Captures a subprocess without allowing time, output, or raw stderr to escape into the ledger.
- * A bounded byte-count summary is retained in errors so failures remain useful without persisting
- * arbitrary external output.
+ * Captures a subprocess without allowing time, output, or raw stderr to escape into the ledger. A bounded byte-count
+ * summary is retained in errors so failures remain useful without persisting arbitrary external output.
  */
 export function captureCommand(
     command: string,

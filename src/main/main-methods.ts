@@ -33,8 +33,8 @@ function assertNever(value: never): never {
 }
 
 /**
-Creates the Main-side handler for Desktop requests the Host forwards to Electron: native dialogs,
-Trash, screenshots, and update control all need direct Electron API access the Host process lacks.
+ * Creates the Main-side handler for Desktop requests the Host forwards to Electron: native dialogs, Trash, screenshots,
+ * and update control all need direct Electron API access the Host process lacks.
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     async function handleExternalUrl(
@@ -93,7 +93,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 if (result.response !== 0) return { canceled: true };
                 /**
-                Reauthorize after the native dialog so a replaced path cannot inherit approval.
+                 * Reauthorize after the native dialog so a replaced path cannot inherit approval.
                  */
                 const current = await supervisor.request('files.authorizeTrash', request.params);
                 if (
@@ -109,7 +109,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         'File or folder changed before it reached Trash',
                     );
                 /**
-                Electron's Trash API is path-based, so authorization is repeated immediately before it.
+                 * Electron's Trash API is path-based, so authorization is repeated immediately before it.
                  */
                 await shell.trashItem(current.path);
                 return item;
@@ -214,8 +214,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                             'Captured screenshot is not a valid image',
                         );
                     /**
-                     * The user explicitly opted into screenshot delivery. Codex's supported image
-                     *  input reads the macOS clipboard, so disclose this replacement before Send.
+                     * The user explicitly opted into screenshot delivery. Codex's supported image input reads the macOS
+                     * clipboard, so disclose this replacement before Send.
                      */
                     clipboard.writeImage(image);
                 }

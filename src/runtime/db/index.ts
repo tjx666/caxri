@@ -23,18 +23,18 @@ export interface CaxriDatabaseConnectionOptions {
 }
 
 /**
- * Owns the SQLite connection and composes one pure CRUD module per table family. No domain
- * decision-making lives here; see `../session-policy.ts` for primary-Agent succession, default
- * titles, deletion-fallback selection, and layout edits.
+ * Owns the SQLite connection and composes one pure CRUD module per table family. No domain decision-making lives here;
+ * see `../session-policy.ts` for primary-Agent succession, default titles, deletion-fallback selection, and layout
+ * edits.
  */
 export class CaxriDatabaseConnection {
     /**
-         Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
-        `table_info`/`user_version` touch this directly. Every query goes through {@link CaxriDatabaseConnection.db}.
+     * Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
+     * `table_info`/`user_version` touch this directly. Every query goes through {@link CaxriDatabaseConnection.db}.
      */
     readonly database: Database.Database;
     /**
-    Drizzle query-builder instance bound to `./schema`; used by every CRUD module below.
+     * Drizzle query-builder instance bound to `./schema`; used by every CRUD module below.
      */
     readonly db: CaxriDrizzleDatabase;
     readonly projects: ProjectsModel;

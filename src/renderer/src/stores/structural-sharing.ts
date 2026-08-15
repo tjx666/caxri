@@ -1,11 +1,11 @@
 /**
  * Structural sharing for Runtime snapshots.
  *
- * `app.bootstrap` crosses the IPC boundary as freshly structured-cloned JSON, so every refresh hands
- * the Renderer brand new object identities even when nothing changed. Without this merge a single
- * full-convergence refresh would invalidate every `useStore` selector and rerender the whole tree.
- * Merging both full and scoped snapshots against the previous state keeps the identity of every
- * deep-equal branch, so a Terminal title change only rerenders the consumers of that Terminal.
+ * `app.bootstrap` crosses the IPC boundary as freshly structured-cloned JSON, so every refresh hands the Renderer brand
+ * new object identities even when nothing changed. Without this merge a single full-convergence refresh would
+ * invalidate every `useStore` selector and rerender the whole tree. Merging both full and scoped snapshots against the
+ * previous state keeps the identity of every deep-equal branch, so a Terminal title change only rerenders the consumers
+ * of that Terminal.
  */
 
 type PlainObject = Record<string, unknown>;
@@ -15,8 +15,8 @@ function isPlainObject(value: unknown): value is PlainObject {
 }
 
 /**
- * Stable identity for an array element, so reordering or inserting does not discard the identity of
- * the elements that stayed the same. Falls back to positional matching when no key field exists.
+ * Stable identity for an array element, so reordering or inserting does not discard the identity of the elements that
+ * stayed the same. Falls back to positional matching when no key field exists.
  */
 function elementKey(value: unknown): string | undefined {
     if (!isPlainObject(value)) return undefined;
@@ -57,8 +57,8 @@ function mergeObject(previous: PlainObject, next: PlainObject): PlainObject {
 }
 
 /**
- * Returns `previous` when `next` is deeply equal to it, and otherwise a copy of `next` that reuses
- * every deep-equal branch of `previous`.
+ * Returns `previous` when `next` is deeply equal to it, and otherwise a copy of `next` that reuses every deep-equal
+ * branch of `previous`.
  */
 export function mergeStructurally<T>(previous: unknown, next: T): T {
     if (Object.is(previous, next)) return next;

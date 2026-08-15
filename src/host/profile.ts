@@ -20,7 +20,7 @@ import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
 const MAX_UNIX_SOCKET_PATH_BYTES = 103;
 /**
-Darwin supports atomic open-time advisory locking, but Node omits this flag from `fs.constants`.
+ * Darwin supports atomic open-time advisory locking, but Node omits this flag from `fs.constants`.
  */
 const DARWIN_OPEN_EXCLUSIVE_LOCK = 0x20;
 
@@ -312,7 +312,7 @@ async function isManifestOwnedBy(path: string, processIdentity: string) {
 }
 
 /**
-Acquires the profile before Runtime startup, preventing a second SQLite writer from spawning.
+ * Acquires the profile before Runtime startup, preventing a second SQLite writer from spawning.
  */
 export async function acquireHostProfile(options: {
     processState?: (pid: number) => HostProcessState;
@@ -324,7 +324,7 @@ export async function acquireHostProfile(options: {
     const paths = await resolveHostProfilePaths(options.userDataPath, options.socketDirectory);
     await privateDirectory(paths.directory);
     /**
-    The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
+     * The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
      */
     const lockHandle = await acquireProcessLock(paths.lock);
     const processIdentity = randomBytes(16).toString('hex');
@@ -393,7 +393,7 @@ export async function acquireHostProfile(options: {
                     await rm(paths.manifest, { force: true });
             } catch {
                 /**
-                A corrupted manifest must not prevent release of the authenticated live owner.
+                 * A corrupted manifest must not prevent release of the authenticated live owner.
                  */
             }
             try {

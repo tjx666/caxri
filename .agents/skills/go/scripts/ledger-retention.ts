@@ -62,7 +62,7 @@ function trimFront<T>(
 }
 
 /**
-Archived history is still persisted data, so it receives the same secret and size boundary.
+ * Archived history is still persisted data, so it receives the same secret and size boundary.
  */
 function sanitizeArchiveValue(value: unknown): unknown {
     if (typeof value === 'string') return sanitizeLedgerDetail(value);
@@ -209,7 +209,7 @@ async function readArchive(
         throw new Error('Go history artifact size does not match the ledger');
     }
     /**
-    Resume checks bounded metadata only; targeted audits and retention rewrites load content.
+     * Resume checks bounded metadata only; targeted audits and retention rewrites load content.
      */
     if (!shouldLoadEntries) return [];
     const source = await readFile(path, 'utf8');

@@ -21,10 +21,9 @@ function requiredString(value: unknown, field: string): string {
 }
 
 /**
- * pnpm 12 RC5 cannot load workspace/catalog dependencies in the global resolver used by
- * `pnpm add -g .`. The verified `caxri.cjs` bundle has no external dependencies, so expose a
- * minimal stable `file:` package that pnpm can register without publishing `@caxri/protocol`.
- * See https://pnpm.io/next/global-packages#registering-local-packages-globally.
+ * Pnpm 12 RC5 cannot load workspace/catalog dependencies in the global resolver used by `pnpm add -g .`. The verified
+ * `caxri.cjs` bundle has no external dependencies, so expose a minimal stable `file:` package that pnpm can register
+ * without publishing `@caxri/protocol`. See https://pnpm.io/next/global-packages#registering-local-packages-globally.
  */
 export async function prepareGlobalCliPackage(cliRoot = defaultCliRoot): Promise<string> {
     const manifest = JSON.parse(

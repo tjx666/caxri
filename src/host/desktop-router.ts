@@ -54,7 +54,7 @@ function isSameIdentity(left: AuthorizedEntry, right: AuthorizedEntry): boolean 
 }
 
 /**
-Resolves raw paths inside Runtime, then exposes only one-use generation-bound targets to Main.
+ * Resolves raw paths inside Runtime, then exposes only one-use generation-bound targets to Main.
  */
 export class HostDesktopRouter {
     private readonly maximumTargets: number;
@@ -218,7 +218,7 @@ export class HostDesktopRouter {
                     : 'The requested Desktop target is not a directory',
             );
         /**
-        Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop.
+         * Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop.
          */
         const lease = await this.requireLease(parameters.launchIfNeeded);
         const target = this.issueTarget(operation, lease.generation, resolved);
@@ -233,7 +233,7 @@ export class HostDesktopRouter {
         }
         return {
             /**
-            Renderer work is intentionally one-shot and asynchronous after Main dispatches it.
+             * Renderer work is intentionally one-shot and asynchronous after Main dispatches it.
              */
             state: operation === 'reveal' ? 'revealed' : 'requested',
             generation: lease.generation,

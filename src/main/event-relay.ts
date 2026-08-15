@@ -19,7 +19,7 @@ export interface MainEventRelayOptions {
 }
 
 /**
-Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host.
+ * Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host.
  */
 export function createMainEventRelay(options: MainEventRelayOptions) {
     const journal = createEventJournal({
@@ -31,7 +31,7 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                 sessionIds: state.sessions.map(({ id }) => id),
                 terminalIds: state.terminals.map(({ id }) => id),
                 /**
-                These domains converge through principal-specific reads after snapshot recovery.
+                 * These domains converge through principal-specific reads after snapshot recovery.
                  */
                 settingsRevision: cursor,
                 diagnosticsRevision: cursor,

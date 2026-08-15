@@ -42,16 +42,17 @@ import { createWorkbenchRootAuthority } from './workbench-root-authority';
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 /**
- * Stamps these before logging so Host and Desktop records correlate to this build; see
- * `global.d.ts` and `electron.vite.config.ts` for the injected constants.
+ * Stamps these before logging so Host and Desktop records correlate to this build; see `global.d.ts` and
+ * `electron.vite.config.ts` for the injected constants.
  */
 const caxriVersion = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
 process.env.CAXRI_APP_VERSION = caxriVersion;
 process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
 /**
- * Work around macOS deriving the native application-menu name from Electron's development process
- * title. `app.setName()` only changes Electron's internal name, so keep this unsupported behavior
- * limited to unpackaged macOS launches until Electron exposes a development-host naming API.
+ * Work around macOS deriving the native application-menu name from Electron's development process title.
+ * `app.setName()` only changes Electron's internal name, so keep this unsupported behavior limited to unpackaged macOS
+ * launches until Electron exposes a development-host naming API.
+ *
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
@@ -124,18 +125,18 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
             minHeight: 640,
             title: 'Caxri',
             /**
-             * Deliberately a literal, and the one color literal left in the app: it paints the window
-             * before any renderer CSS exists, which is what prevents a white flash on launch. It
-             * mirrors the default theme's `--background`; an imported theme cannot change it.
+             * Deliberately a literal, and the one color literal left in the app: it paints the window before any
+             * renderer CSS exists, which is what prevents a white flash on launch. It mirrors the default theme's
+             * `--background`; an imported theme cannot change it.
              */
             backgroundColor: '#282a36',
             /**
-             * No title bar row: the sidebar header is the drag region and carries the brand instead.
-             * `title` stays for VoiceOver and Mission Control, which still read the window title.
+             * No title bar row: the sidebar header is the drag region and carries the brand instead. `title` stays for
+             * VoiceOver and Mission Control, which still read the window title.
              */
             titleBarStyle: 'hiddenInset',
             /**
-        Centers the 12px macOS traffic lights in the Renderer's 44px drag header.
+             * Centers the 12px macOS traffic lights in the Renderer's 44px drag header.
              */
             trafficLightPosition: { x: 15, y: 15 },
             show: false,
@@ -151,7 +152,7 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
         let rendererCrashTimestampsMs: number[] = [];
         const persistWindowState = (): void => {
             /**
-        `before-quit` performs the final ordered write before Runtime shutdown.
+             * `before-quit` performs the final ordered write before Runtime shutdown.
              */
             if (isQuitStarted || window.isDestroyed()) return;
             const state = readWindowState(window);
@@ -184,11 +185,11 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
         });
         if (initialState.isMaximized) window.maximize();
         /**
-         * `setFullScreen(true)` here fires `enter-full-screen` synchronously, before `mainWindow` is
-         * assigned by the caller (it's only set once `createWindow` returns), so the module-level
-         * `sendEvent`/`mainWindow` path can't be used for this push. `did-finish-load` covers the
-         * matching case where the Renderer loads (or reloads/crash-recovers) while already fullscreen,
-         * so it observes the current state instead of missing the one-shot restore event above.
+         * `setFullScreen(true)` here fires `enter-full-screen` synchronously, before `mainWindow` is assigned by the
+         * caller (it's only set once `createWindow` returns), so the module-level `sendEvent`/`mainWindow` path can't
+         * be used for this push. `did-finish-load` covers the matching case where the Renderer loads (or
+         * reloads/crash-recovers) while already fullscreen, so it observes the current state instead of missing the
+         * one-shot restore event above.
          */
         if (initialState.isFullScreen) window.setFullScreen(true);
         mainLogger?.write('info', 'window.created');
@@ -207,16 +208,16 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
             ) {
                 isAutomaticUpdateCheckStarted = true;
                 /**
-            Update discovery stays off the awaited startup path and never delays the first window;
-            `updateService.check()` already publishes failures through its own state, so this is
-            deliberately fire-and-forget rather than awaited.
+                 * Update discovery stays off the awaited startup path and never delays the first window;
+                 * `updateService.check()` already publishes failures through its own state, so this is deliberately
+                 * fire-and-forget rather than awaited.
                  */
                 // eslint-disable-next-line unicorn/prefer-await -- see comment above
                 updateService.check().catch(() => {});
             }
         });
         /**
-    Passive page content never inherits authority from an explicitly trusted Terminal link.
+         * Passive page content never inherits authority from an explicitly trusted Terminal link.
          */
         window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         window.webContents.on('will-navigate', (event, url) => {
@@ -225,7 +226,7 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
             event.preventDefault();
         });
         /**
-    Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults.
+         * Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults.
          */
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
@@ -340,8 +341,8 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
         window.on('closed', () => {
             if (persistTimer) clearTimeout(persistTimer);
             /**
-             * Explicit quit can close the window before its already-queued IPC reaches Main. Retain
-             * the trusted sender identity until process exit without reading the destroyed window.
+             * Explicit quit can close the window before its already-queued IPC reaches Main. Retain the trusted sender
+             * identity until process exit without reading the destroyed window.
              */
             if (mainWindow === window && !isQuitStarted) {
                 mainWindow = undefined;
@@ -575,8 +576,8 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
                     hostPid: () => supervisor.hostProcessId(),
                     runtimePid: () => supervisor.processId(),
                     /**
-                     * Resolved lazily at sample time: the diagnostics window is created on demand, so its
-                     * renderer process does not exist yet while this controller is being constructed.
+                     * Resolved lazily at sample time: the diagnostics window is created on demand, so its renderer
+                     * process does not exist yet while this controller is being constructed.
                      */
                     rendererRoles: () => {
                         const roles = new Map<number, string>();

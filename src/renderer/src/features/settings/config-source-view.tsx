@@ -21,9 +21,8 @@ interface ConfigSourceViewProperties {
 }
 
 /**
- * Lazy application-owned source editor for the active configuration file. Text persists when the
- * editor loses focus (see `onBlur`), not on every keystroke; a parse failure reports inline below
- * instead of being written.
+ * Lazy application-owned source editor for the active configuration file. Text persists when the editor loses focus
+ * (see `onBlur`), not on every keystroke; a parse failure reports inline below instead of being written.
  */
 export function ConfigSourceView({
     error,

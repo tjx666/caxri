@@ -19,7 +19,7 @@ type DropZone = 'center' | 'right' | 'down';
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
 
 /**
-The focused pane ring is the app's one accent indicator (DESIGN.md "Terminal panes").
+ * The focused pane ring is the app's one accent indicator (DESIGN.md "Terminal panes").
  */
 const terminalGroupClassName = cn('terminal-group', fullBleedClassName, 'relative');
 
@@ -33,9 +33,9 @@ const dropZoneClassName: Record<DropZone, string> = {
 };
 
 /**
- * Only the structural facts travel down the recursion. Presentation inputs (theme, font size,
- * scrollback, attach epoch) and callbacks are read from the stores by the node that needs them, so a
- * snapshot refresh no longer rerenders every node in the tree.
+ * Only the structural facts travel down the recursion. Presentation inputs (theme, font size, scrollback, attach epoch)
+ * and callbacks are read from the stores by the node that needs them, so a snapshot refresh no longer rerenders every
+ * node in the tree.
  */
 interface NodeViewProperties {
     groupNumbers: Map<string, number>;

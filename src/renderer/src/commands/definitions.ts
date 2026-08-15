@@ -6,8 +6,8 @@ import type { CommandContext, CommandDefinition } from './registry';
 import { defineCommand, registerCommand } from './registry';
 
 /**
- * Builds a registry entry whose title/category are read from the shared catalog, so the catalog
- * stays the single source of truth for id/title/category and the two tables cannot drift apart.
+ * Builds a registry entry whose title/category are read from the shared catalog, so the catalog stays the single source
+ * of truth for id/title/category and the two tables cannot drift apart.
  */
 function fromCatalog(
     id: CommandId,
@@ -19,8 +19,8 @@ function fromCatalog(
 }
 
 /**
- * The command table. Populated once as a module side effect; `commands/execute.ts` imports this
- * module so every id in the shared catalog has a matching registry entry before the app runs.
+ * The command table. Populated once as a module side effect; `commands/execute.ts` imports this module so every id in
+ * the shared catalog has a matching registry entry before the app runs.
  */
 export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('project.create', (context) => context.project.create()),
@@ -28,8 +28,8 @@ export const commandDefinitions: CommandDefinition[] = [
         'project.delete',
         (context) => context.project.removeSelected(),
         /**
-         * The native confirm dialog (naming the Project, "files on disk are not touched") already
-         *  runs in Main before `project.delete` resolves; this flag only documents that contract.
+         * The native confirm dialog (naming the Project, "files on disk are not touched") already runs in Main before
+         * `project.delete` resolves; this flag only documents that contract.
          */
         { confirm: true },
     ),
@@ -38,7 +38,7 @@ export const commandDefinitions: CommandDefinition[] = [
         'session.delete',
         (context) => context.session.deleteSelected(),
         /**
-        Same native-confirm contract as `project.delete`, enforced in Main.
+         * Same native-confirm contract as `project.delete`, enforced in Main.
          */
         { confirm: true },
     ),
@@ -49,9 +49,8 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     /**
-     * `Cmd+C` is gated on a live Terminal selection rather than merely on an active Terminal: with
-     * no selection the chord must fall through untouched so Monaco, inputs, and the browser's own
-     * copy handling keep working.
+     * `Cmd+C` is gated on a live Terminal selection rather than merely on an active Terminal: with no selection the
+     * chord must fall through untouched so Monaco, inputs, and the browser's own copy handling keep working.
      */
     fromCatalog('terminal.copy', (context) => context.terminal.copySelection(), {
         allowInEditable: true,

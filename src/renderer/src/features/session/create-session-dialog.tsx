@@ -16,9 +16,9 @@ import { cancelPendingSession, confirmPendingSession } from './session-actions';
 
 /**
  * Mirrors the Runtime's own `basename(rootPath) || rootPath` Project title derivation
- * (`src/runtime/db/models/projects.ts`) so a not-yet-created Project previews the same friendly
- * name it will get once `project.create` persists it, instead of the raw absolute path. The
- * Renderer cannot import Node's `path` module, so this is a small POSIX/Windows-separator split.
+ * (`src/runtime/db/models/projects.ts`) so a not-yet-created Project previews the same friendly name it will get once
+ * `project.create` persists it, instead of the raw absolute path. The Renderer cannot import Node's `path` module, so
+ * this is a small POSIX/Windows-separator split.
  */
 function pathBasename(path: string): string {
     return path.split(/[\\/]/).findLast(Boolean) ?? path;
@@ -59,8 +59,8 @@ export function CreateSessionDialog() {
                         <AgentIdentityIcon identity="shell" size={15} /> Shell
                     </Button>
                     {/**
-                     * Deliberately quieter than the primary grid: skipping the Terminal is an
-                     *  escape hatch, not a peer of the three real choices.
+                     * Deliberately quieter than the primary grid: skipping the Terminal is an escape hatch, not a peer of the three real
+                     * choices.
                      */}
                     <Button
                         variant="ghost"

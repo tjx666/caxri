@@ -194,7 +194,7 @@ describe('theme import mapping', () => {
 });
 
 /**
-WCAG 2.1 relative luminance of an `#rrggbb` color.
+ * WCAG 2.1 relative luminance of an `#rrggbb` color.
  */
 function relativeLuminance(hex: string): number {
     const channels = [1, 3, 5].map((offset) => {
@@ -214,9 +214,9 @@ function contrastRatio(foreground: string, background: string): number {
 
 describe('built-in theme contrast', () => {
     /**
-     * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every
-     * chrome surface. Imported themes clone this palette and never override `muted`, which makes
-     * this single constant the contrast floor for all 133 `text-muted` call sites in the Renderer.
+     * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every chrome surface.
+     * Imported themes clone this palette and never override `muted`, which makes this single constant the contrast
+     * floor for all 133 `text-muted` call sites in the Renderer.
      */
     it('keeps muted secondary text at WCAG AA on every chrome surface', () => {
         const { muted, background, surface, elevated } = draculaTheme.colors;
@@ -231,9 +231,9 @@ describe('built-in theme contrast', () => {
     });
 
     /**
-     * `styles/theme.css` hardcodes the same palette as the pre-Runtime fallback that paints the
-     * first frame before `applyCssTheme` runs. Drift between the two shows up as a color flash, so
-     * the stylesheet is asserted against the source of truth rather than eyeballed.
+     * `styles/theme.css` hardcodes the same palette as the pre-Runtime fallback that paints the first frame before
+     * `applyCssTheme` runs. Drift between the two shows up as a color flash, so the stylesheet is asserted against the
+     * source of truth rather than eyeballed.
      */
     it('mirrors the built-in palette in the Renderer stylesheet fallback', async () => {
         const stylesheet = await readFile(

@@ -169,7 +169,7 @@ test('editor previews pin and expose the standard close actions', async () => {
         await expect(bTab).not.toHaveAttribute('data-preview');
 
         /**
-        Reproduces the custom tokenizer race seen on loaded GitHub-hosted runners.
+         * Reproduces the custom tokenizer race seen on loaded GitHub-hosted runners.
          */
         const cdp = await running.page.context().newCDPSession(running.page);
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });

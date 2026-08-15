@@ -11,9 +11,9 @@ import { terminalSearchResultLabel } from './terminal-search';
 
 /**
  * VS Code's Match Case/Whole Word/Regex chords, mapped to the toggle each fires. Resolved through
- * `keyboardEventShortcut`, which reads `event.code` rather than `event.key`, so Option+letter works
- * on macOS: the OS composes those into an accented character, so matching on `event.key` would see
- * "ç" for Option+C and type it into the Find input instead of toggling Match Case.
+ * `keyboardEventShortcut`, which reads `event.code` rather than `event.key`, so Option+letter works on macOS: the OS
+ * composes those into an accented character, so matching on `event.key` would see "ç" for Option+C and type it into the
+ * Find input instead of toggling Match Case.
  */
 const SEARCH_TOGGLE_SHORTCUTS: Record<string, keyof TerminalSearchOptions> = {
     'alt+c': 'caseSensitive',
@@ -69,8 +69,8 @@ export function TerminalSearchBar({
     };
 
     /**
-     * Listens at the search bar root (not just the input) so the chords work while a toggle button
-     *  or a navigation button owns focus too, not only while typing a query.
+     * Listens at the search bar root (not just the input) so the chords work while a toggle button or a navigation
+     * button owns focus too, not only while typing a query.
      */
     const handleSearchBarKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
         const option = SEARCH_TOGGLE_SHORTCUTS[keyboardEventShortcut(event.nativeEvent)];

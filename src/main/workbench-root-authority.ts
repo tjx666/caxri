@@ -31,8 +31,8 @@ async function chooseDirectory(
 }
 
 /**
- * Keeps candidate paths and single-use directory grants inside Electron Main. The Renderer sees
- * only opaque candidate IDs and can never nominate a path for automatic authorization.
+ * Keeps candidate paths and single-use directory grants inside Electron Main. The Renderer sees only opaque candidate
+ * IDs and can never nominate a path for automatic authorization.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
     return {
@@ -49,7 +49,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             const path = result.filePaths[0];
             if (path && !result.canceled) options.grants.grant(path);
             /**
-            A dismissed or empty selection must resolve to null, never to an absent value.
+             * A dismissed or empty selection must resolve to null, never to an absent value.
              */
             return result.canceled ? null : (path ?? null);
         },

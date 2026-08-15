@@ -6,11 +6,11 @@ import type { CommandId, Keybinding } from '@shared/types';
 import { useWorkbenchStore } from '../stores/workbench';
 
 /**
- * macOS composes Option+<letter> into a symbol: `Option+P` reports `event.key === 'π'`, so a chord
- * built from `event.key` could never match a stored `alt+p` — every Option+letter binding was dead,
- * both at dispatch and while recording one in Settings. Alt chords therefore read the physical
- * `event.code`, which stays stable for the letter and digit rows. Non-Alt chords keep using
- * `event.key` so a remapped or non-US layout still records what the user actually typed.
+ * MacOS composes Option+<letter> into a symbol: `Option+P` reports `event.key === 'π'`, so a chord built from
+ * `event.key` could never match a stored `alt+p` — every Option+letter binding was dead, both at dispatch and while
+ * recording one in Settings. Alt chords therefore read the physical `event.code`, which stays stable for the letter and
+ * digit rows. Non-Alt chords keep using `event.key` so a remapped or non-US layout still records what the user actually
+ * typed.
  */
 function shortcutMainKey(event: KeyboardEvent): string {
     if (event.altKey) {
@@ -38,9 +38,9 @@ export function keyboardEventShortcut(event: KeyboardEvent): string {
 }
 
 /**
- * Normalized chord -> command id, built once per keybinding change instead of scanning the whole
- * table on every keystroke. The first binding for a given chord wins, matching the previous
- * `Array#find` behaviour when the keybinding source declares a duplicate.
+ * Normalized chord -> command id, built once per keybinding change instead of scanning the whole table on every
+ * keystroke. The first binding for a given chord wins, matching the previous `Array#find` behaviour when the keybinding
+ * source declares a duplicate.
  */
 export function buildShortcutMap(keybindings: Keybinding[]): Map<string, string> {
     const map = new Map<string, string>();
@@ -54,9 +54,9 @@ export function buildShortcutMap(keybindings: Keybinding[]): Map<string, string>
 const EDITABLE_SELECTOR = 'input, textarea, [contenteditable], .monaco-editor, .xterm';
 
 /**
- * True when the event target is (or is nested inside) an editable surface: a form control, a
- * `contenteditable` region, the Monaco editor, or an xterm pane. Global shortcuts must stand down
- * for these unless the matched command opts in with `allowInEditable`.
+ * True when the event target is (or is nested inside) an editable surface: a form control, a `contenteditable` region,
+ * the Monaco editor, or an xterm pane. Global shortcuts must stand down for these unless the matched command opts in
+ * with `allowInEditable`.
  */
 export function isEditableEventTarget(target: EventTarget | null): boolean {
     return target instanceof Element && target.closest(EDITABLE_SELECTOR) !== null;
@@ -70,7 +70,7 @@ const MODIFIER_SYMBOLS: Record<string, string> = {
 };
 
 /**
-macOS modifier display order: Control, Option, Shift, Command.
+ * MacOS modifier display order: Control, Option, Shift, Command.
  */
 const MODIFIER_DISPLAY_ORDER = ['ctrl', 'alt', 'shift', 'cmd'];
 
@@ -88,7 +88,7 @@ const KEY_SYMBOLS: Record<string, string> = {
 };
 
 /**
-Formats one chord as keycap-sized parts in the shared macOS modifier order.
+ * Formats one chord as keycap-sized parts in the shared macOS modifier order.
  */
 export function formatShortcutParts(key: string): string[] {
     const parts = normalizeShortcut(key).split('+');
@@ -103,14 +103,14 @@ export function formatShortcutParts(key: string): string[] {
 }
 
 /**
-Formats a keybinding chord for accessible text, e.g. `cmd+shift+p` -> `⇧⌘P`.
+ * Formats a keybinding chord for accessible text, e.g. `cmd+shift+p` -> `⇧⌘P`.
  */
 export function formatShortcut(key: string): string {
     return formatShortcutParts(key).join('');
 }
 
 /**
-Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`.
+ * Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`.
  */
 export function useCommandShortcut(commandId: CommandId): string | undefined {
     const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);

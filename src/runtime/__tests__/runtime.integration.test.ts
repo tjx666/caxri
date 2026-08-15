@@ -15,7 +15,7 @@ import { GitService } from '../git';
 const temporaryDirectories: string[] = [];
 
 /**
-A PTY stub keeps the in-process Runtime hermetic: no login shell is launched by these tests.
+ * A PTY stub keeps the in-process Runtime hermetic: no login shell is launched by these tests.
  */
 function createFakePty(): IPty {
     return {
@@ -318,7 +318,7 @@ describe('Runtime composition root', () => {
             expect(populated.sessions).toHaveLength(1);
             expect(populated.selectedSessionId).toBe(created.session.id);
             /**
-            Live PTY identity is Runtime state, not durable metadata, so it must come from the manager.
+             * Live PTY identity is Runtime state, not durable metadata, so it must come from the manager.
              */
             expect(populated.terminals[0]).toMatchObject({
                 id: created.terminal!.id,
@@ -337,7 +337,7 @@ describe('Runtime composition root', () => {
 
             const remaining = await handlers['session.delete']({ sessionId: created.session.id });
             /**
-            Session deletion removes Session metadata only; the Project keeps its durable root.
+             * Session deletion removes Session metadata only; the Project keeps its durable root.
              */
             expect(remaining).toMatchObject({
                 sessions: [],
@@ -450,8 +450,8 @@ describe('Runtime composition root', () => {
 });
 
 /**
-     No-op stub: the resume-restore workflow only needs `updateAgentMetadata` to stay a no-op so the
-    directly-written `agent_session_id` (see below) is never overwritten by a real probe result.
+ * No-op stub: the resume-restore workflow only needs `updateAgentMetadata` to stay a no-op so the directly-written
+ * `agent_session_id` (see below) is never overwritten by a real probe result.
  */
 function fakeAgentAdapters(): Record<
     'claude' | 'codex',
@@ -487,14 +487,14 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         });
         expect(created.terminal!.provider).toBe('claude');
         /**
-        Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`.
+         * Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`.
          */
         await runtimeA.close();
 
         /**
-             Simulate a capability-detected Agent session id having been bound before the shutdown; done
-            through the raw better-sqlite3 handle because `updateAgentMetadata` requires a matching
-            provider snapshot, which this hermetic test does not produce.
+         * Simulate a capability-detected Agent session id having been bound before the shutdown; done through the raw
+         * better-sqlite3 handle because `updateAgentMetadata` requires a matching provider snapshot, which this
+         * hermetic test does not produce.
          */
         const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
         expect(direct.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
@@ -623,7 +623,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             defaultAgent: 'claude',
         });
         /**
-        No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset.
+         * No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset.
          */
         await runtimeA.close();
 
@@ -662,7 +662,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         });
         try {
             /**
-            Give the fire-and-forget restore a beat to (not) run before asserting it stayed idle.
+             * Give the fire-and-forget restore a beat to (not) run before asserting it stayed idle.
              */
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(noRestartSpawnSpy).not.toHaveBeenCalled();

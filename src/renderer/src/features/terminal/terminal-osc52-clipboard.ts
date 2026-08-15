@@ -4,13 +4,13 @@ export const MAX_OSC52_ENCODED_LENGTH = 87_384;
 export const MAX_OSC52_TEXT_CHARACTERS = 32_768;
 export const OSC52_MIN_WRITE_INTERVAL_MS = 1_000;
 /**
- * Minimum gap between `onBlocked` notifications for one reason, so a chatty or hostile
- *  program hammering OSC 52 cannot turn one blocked category into a wall of toasts.
+ * Minimum gap between `onBlocked` notifications for one reason, so a chatty or hostile program hammering OSC 52 cannot
+ * turn one blocked category into a wall of toasts.
  */
 export const OSC52_NOTIFICATION_THROTTLE_MS = 5_000;
 
 /**
-Distinct, user-facing categories for a write that never reached the system clipboard.
+ * Distinct, user-facing categories for a write that never reached the system clipboard.
  */
 export type Osc52BlockReason = 'disabled' | 'malformed' | 'oversized' | 'rate-limited';
 
@@ -18,7 +18,7 @@ interface ControlledOsc52ClipboardOptions {
     enabled: () => boolean;
     now?: () => number;
     /**
-    Fires (throttled) when a write is deliberately blocked by policy rather than failing.
+     * Fires (throttled) when a write is deliberately blocked by policy rather than failing.
      */
     onBlocked: (reason: Osc52BlockReason) => void;
     onWriteFailure: () => void;
@@ -28,10 +28,10 @@ interface ControlledOsc52ClipboardOptions {
 const strictBase64 = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/u;
 
 /**
- * Implements xterm's OSC 52 codec and provider as one fail-closed boundary. The addon otherwise
- * converts invalid base64 to an empty string and still calls `writeText`, which could silently clear
- * the system clipboard. Sharing one pending decoded value lets the provider distinguish a valid
- * empty-ish callback from any disabled, malformed, oversized, stale, or directly invoked write.
+ * Implements xterm's OSC 52 codec and provider as one fail-closed boundary. The addon otherwise converts invalid base64
+ * to an empty string and still calls `writeText`, which could silently clear the system clipboard. Sharing one pending
+ * decoded value lets the provider distinguish a valid empty-ish callback from any disabled, malformed, oversized,
+ * stale, or directly invoked write.
  */
 export class ControlledOsc52Clipboard implements IBase64, IClipboardProvider {
     private failureReported = false;
@@ -45,11 +45,11 @@ export class ControlledOsc52Clipboard implements IBase64, IClipboardProvider {
     }
 
     /**
-     * Throttled per reason, not globally: a burst of one kind still collapses to a single notice,
-     * which is the actual anti-spam goal, but four genuinely different explanations are not merged
-     * into whichever happened to fire first. That matters most for `disabled`, the only reason with
-     * a concrete next step ("turn the setting on") — a global throttle could let a chatty program's
-     * oversized writes suppress it until the program stopped, at which point it never appeared.
+     * Throttled per reason, not globally: a burst of one kind still collapses to a single notice, which is the actual
+     * anti-spam goal, but four genuinely different explanations are not merged into whichever happened to fire first.
+     * That matters most for `disabled`, the only reason with a concrete next step ("turn the setting on") — a global
+     * throttle could let a chatty program's oversized writes suppress it until the program stopped, at which point it
+     * never appeared.
      */
     private notifyBlocked(reason: Osc52BlockReason): void {
         const now = this.now();
@@ -70,8 +70,8 @@ export class ControlledOsc52Clipboard implements IBase64, IClipboardProvider {
         this.pendingText = undefined;
         if (!this.options.enabled()) {
             /**
-             * A zero-length request is a frequent no-op ping from some shells; only a genuine
-             *  payload while disabled is worth telling the user about.
+             * A zero-length request is a frequent no-op ping from some shells; only a genuine payload while disabled is
+             * worth telling the user about.
              */
             if (data.length > 0) this.notifyBlocked('disabled');
             return '';
@@ -103,7 +103,7 @@ export class ControlledOsc52Clipboard implements IBase64, IClipboardProvider {
     }
 
     /**
-    OSC 52 report requests always receive an empty response without accessing the clipboard.
+     * OSC 52 report requests always receive an empty response without accessing the clipboard.
      */
     readText(): string {
         return '';

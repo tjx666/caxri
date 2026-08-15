@@ -23,10 +23,10 @@ const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
 
 /**
- * The ring reuses `sessionActivityPresentation`'s tone (success/warning/danger/neutral) instead of
- * `--accent` — DESIGN.md reserves accent for the single focused pane/tab, and the Sidebar stays
- * entirely neutral otherwise. `lastAttentionKind` is a subset of `AgentActivityState`'s keys, so the
- * same presentation table already used for the activity dot applies unchanged.
+ * The ring reuses `sessionActivityPresentation`'s tone (success/warning/danger/neutral) instead of `--accent` —
+ * DESIGN.md reserves accent for the single focused pane/tab, and the Sidebar stays entirely neutral otherwise.
+ * `lastAttentionKind` is a subset of `AgentActivityState`'s keys, so the same presentation table already used for the
+ * activity dot applies unchanged.
  */
 function UnreadAttentionIndicator({ session }: { session: SessionRecord }) {
     if (!session.hasUnread) return null;
@@ -76,7 +76,7 @@ interface ActiveSessionRowProperties {
     renameValue: string;
     renaming: boolean;
     /**
-    True when this Session row currently owns the tree's single roving Tab stop.
+     * True when this Session row currently owns the tree's single roving Tab stop.
      */
     roving: boolean;
     selected: boolean;
@@ -109,7 +109,7 @@ function ActiveSessionRow({
             className={cn(
                 sessionCardClassName,
                 'pr-8',
-                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground',
+                'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 renaming && 'cursor-text',
             )}
@@ -175,7 +175,7 @@ function ActiveSessionRow({
                         <span
                             id={renameErrorId}
                             role="alert"
-                            className="session-rename-error absolute inset-x-0 top-full z-10 mt-0.5 wrap-break-word text-[11px] text-danger"
+                            className="session-rename-error absolute inset-x-0 top-full z-10 mt-0.5 text-[11px] wrap-break-word text-danger"
                         >
                             {renameError}
                         </span>
@@ -216,7 +216,7 @@ function ActiveSessionRow({
             <Tooltip content="Archive Session">
                 <button
                     type="button"
-                    className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 pointer-events-none cursor-pointer hover:text-foreground group-hover/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto"
+                    className="pointer-events-none absolute top-1/2 right-1 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 group-focus-within/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 hover:text-foreground"
                     aria-label={`Archive ${session.displayTitle}`}
                     aria-keyshortcuts="Delete"
                     tabIndex={-1}
@@ -255,7 +255,7 @@ interface ProjectGroupProperties {
     renameValue: string;
     renamingSessionId?: string;
     /**
-    Id of the row that currently owns the tree's single roving Tab stop.
+     * Id of the row that currently owns the tree's single roving Tab stop.
      */
     rovingRowId?: string;
     selectedSessionId?: string;
@@ -316,7 +316,7 @@ export function ProjectGroup({
                 aria-expanded={expanded}
                 aria-level={1}
                 aria-selected={active}
-                className="project-heading group/project-heading flex min-h-7 items-center gap-1 rounded-md text-foreground cursor-grab active:cursor-grabbing hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
+                className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
                 data-project-id={project.id}
                 role="treeitem"
                 // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
@@ -337,7 +337,7 @@ export function ProjectGroup({
             >
                 <Tooltip content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}>
                     <button
-                        className="project-disclosure grid h-7 w-6 flex-none place-items-center border-0 bg-transparent p-0 text-inherit cursor-pointer"
+                        className="project-disclosure grid h-7 w-6 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-inherit"
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
@@ -362,7 +362,7 @@ export function ProjectGroup({
                     </button>
                 </Tooltip>
                 <button
-                    className="project-select flex min-h-7 min-w-0 flex-1 items-center px-1 text-inherit text-left border-0 bg-transparent cursor-pointer"
+                    className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center border-0 bg-transparent px-1 text-left text-inherit"
                     aria-controls={projectDisclosureId}
                     aria-expanded={expanded}
                     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
@@ -386,13 +386,13 @@ export function ProjectGroup({
                     }}
                     title={project.rootPath}
                 >
-                    <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold">
+                    <strong className="min-w-0 flex-1 overflow-hidden font-semibold text-ellipsis whitespace-nowrap">
                         {project.displayTitle}
                     </strong>
                 </button>
                 <CommandTooltip commandId="session.create">
                     <Button
-                        className="pointer-events-none opacity-0 transition-opacity group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100 group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100"
+                        className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
                         size="icon"
                         variant="ghost"
                         aria-label={`New Session in ${project.displayTitle}`}
@@ -449,7 +449,7 @@ export function ProjectGroup({
                         ))}
                         {activeSessions.length === 0 && (
                             <button
-                                className="empty-project flex h-7 w-full items-center gap-2 px-2 border-0 rounded-md text-muted bg-transparent cursor-pointer hover:text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
+                                className="empty-project flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
                                 tabIndex={-1}
                                 onClick={onCreateSession}
                             >

@@ -13,7 +13,7 @@ interface TrustedDomainsFormProperties {
 }
 
 /**
-Structured Settings editor for exact origins and explicit subdomain wildcard rules.
+ * Structured Settings editor for exact origins and explicit subdomain wildcard rules.
  */
 export function TrustedDomainsForm({
     focusRequestId = 0,

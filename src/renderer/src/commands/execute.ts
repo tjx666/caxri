@@ -46,9 +46,8 @@ function activeTerminalId(): string | undefined {
 }
 
 /**
- * Makes an Inspector mode reachable before persisting it into the selected Session. Callers such
- * as the Status Bar and Command Palette must share this boundary so selecting a mode cannot leave
- * the Inspector collapsed.
+ * Makes an Inspector mode reachable before persisting it into the selected Session. Callers such as the Status Bar and
+ * Command Palette must share this boundary so selecting a mode cannot leave the Inspector collapsed.
  */
 function activateInspectorMode(
     mode: Parameters<CommandContext['inspector']['activateMode']>[0],
@@ -62,12 +61,11 @@ function activateInspectorMode(
 }
 
 /**
- * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is
- * `allowInEditable` so it can reach through the xterm surface. Availability therefore cannot rest on
- * "the active tab is a terminal with a selection" alone: a sidebar rename field or the path browser
- * input can hold focus while a stale terminal selection is still highlighted behind them, and
- * hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually sit inside
- * the terminal keeps the chord falling through to the native copy everywhere else.
+ * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is `allowInEditable` so it can reach
+ * through the xterm surface. Availability therefore cannot rest on "the active tab is a terminal with a selection"
+ * alone: a sidebar rename field or the path browser input can hold focus while a stale terminal selection is still
+ * highlighted behind them, and hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually
+ * sit inside the terminal keeps the chord falling through to the native copy everywhere else.
  */
 function isTerminalSurfaceFocused(): boolean {
     const focused = document.activeElement;
@@ -197,9 +195,9 @@ export function isCommandAvailable(
 }
 
 /**
- * Entry point for the palette, buttons, tabs, and the shortcut dispatcher. Looks the command up in
- * the registry populated by `./definitions`; an unknown id surfaces exactly one error toast instead
- * of throwing, since it may be reached from a stale keybinding or menu entry.
+ * Entry point for the palette, buttons, tabs, and the shortcut dispatcher. Looks the command up in the registry
+ * populated by `./definitions`; an unknown id surfaces exactly one error toast instead of throwing, since it may be
+ * reached from a stale keybinding or menu entry.
  */
 export function executeCommand(
     command: CommandId,
@@ -216,21 +214,19 @@ export function executeCommand(
 }
 
 /**
- * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state
- * behind a modal dialog, which is why the guard lives here and not in {@link executeCommand}.
+ * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state behind a modal
+ * dialog, which is why the guard lives here and not in {@link executeCommand}.
  *
- * This is also the single authority for the editable-focus shortcut policy (DESIGN.md:121-123) on
- * the native menu path: `useCommandShortcuts` already applies the same gate — using
- * `event.target` — before ever calling `runCommand`, so a keyboard shortcut typed while a Terminal
- * or the editor has focus never reaches here. The native menu's accelerator, however, is delivered
- * by Electron independently of that DOM keydown listener and previously bypassed the policy
- * entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator`
- * (set by the Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this
- * function re-apply the same `isEditableEventTarget` + `allowInEditable` gate — using
- * `document.activeElement` in place of a keydown `event.target` — but only for that accelerator
- * path. A menu item invoked by an actual mouse/touch click is a deliberate user action and Electron
- * cannot report focus state for it, so it is intentionally left ungated here; the tradeoff is that
- * a non-`allowInEditable` command remains reachable by clicking the native menu while a Terminal or
+ * This is also the single authority for the editable-focus shortcut policy (DESIGN.md:121-123) on the native menu path:
+ * `useCommandShortcuts` already applies the same gate — using `event.target` — before ever calling `runCommand`, so a
+ * keyboard shortcut typed while a Terminal or the editor has focus never reaches here. The native menu's accelerator,
+ * however, is delivered by Electron independently of that DOM keydown listener and previously bypassed the policy
+ * entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator` (set by the
+ * Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this function re-apply the same
+ * `isEditableEventTarget` + `allowInEditable` gate — using `document.activeElement` in place of a keydown
+ * `event.target` — but only for that accelerator path. A menu item invoked by an actual mouse/touch click is a
+ * deliberate user action and Electron cannot report focus state for it, so it is intentionally left ungated here; the
+ * tradeoff is that a non-`allowInEditable` command remains reachable by clicking the native menu while a Terminal or
  * the editor has focus, which matches the least-surprising behaviour for a mouse-driven action.
  */
 export function runCommand(

@@ -46,8 +46,8 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
 }
 
 /**
- * Renders the focused editor tab. A tab whose content is not cached — restored from a previous run,
- * or evicted by the document cache cap — reads it on demand instead of being closed.
+ * Renders the focused editor tab. A tab whose content is not cached — restored from a previous run, or evicted by the
+ * document cache cap — reads it on demand instead of being closed.
  */
 function FileEditorSurface({ path }: { path: string }) {
     const session = useSelectedSession();

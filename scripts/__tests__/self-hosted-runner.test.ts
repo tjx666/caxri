@@ -20,7 +20,7 @@ import {
 const execFile = promisify(execFileCallback);
 
 /**
-Overrides every runner path that the real setup action exports into hosted test processes.
+ * Overrides every runner path that the real setup action exports into hosted test processes.
  */
 function cleanupFixtureEnvironment(input: {
     githubSummary: string;
@@ -98,7 +98,7 @@ describe('self-hosted E2E runner ownership', () => {
                 cwd: workspace,
             });
             /**
-            A non-link collision proves rollback cannot remove a path it did not create.
+             * A non-link collision proves rollback cannot remove a path it did not create.
              */
             await mkdir(temporaryLink, { recursive: false });
 

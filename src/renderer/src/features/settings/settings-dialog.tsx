@@ -39,9 +39,9 @@ const onError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
 
 /**
- * Coalesces a burst of structured-control edits (rapid typing, a dragged color picker) into one
- * persisted write per kind instead of a request per keystroke. The visible value always updates
- * instantly through the reducer; only the network write is delayed.
+ * Coalesces a burst of structured-control edits (rapid typing, a dragged color picker) into one persisted write per
+ * kind instead of a request per keystroke. The visible value always updates instantly through the reducer; only the
+ * network write is delayed.
  */
 const WRITE_DEBOUNCE_MS = 300;
 
@@ -180,10 +180,9 @@ function useSettingsDialogController() {
     }, []);
 
     /**
-     * Parses the raw source text for `kind` and, when valid, refreshes the structured value and
-     * persists immediately — no debounce, since losing focus (or switching away) is already the
-     * deliberate commit boundary. An invalid parse reports inline next to the editor and is never
-     * sent to the Runtime.
+     * Parses the raw source text for `kind` and, when valid, refreshes the structured value and persists immediately —
+     * no debounce, since losing focus (or switching away) is already the deliberate commit boundary. An invalid parse
+     * reports inline next to the editor and is never sent to the Runtime.
      */
     const commitSource = useCallback(
         (kind: ConfigKind): void => {
@@ -225,11 +224,11 @@ function useSettingsDialogController() {
     );
 
     /**
-     * Reflects an external `*.changed` push (an edit made through "Open Config File", or our own
-     * write echoing back) into the dialog, so it never shows stale data — the live-verified bug
-     * this closes had the Theme tab keep showing the previous theme's name and swatches after the
-     * active theme changed. Disk changes replace the current buffer unconditionally, matching the
-     * app's explicit external-change rule, and supersede any in-flight write for that kind.
+     * Reflects an external `*.changed` push (an edit made through "Open Config File", or our own write echoing back)
+     * into the dialog, so it never shows stale data — the live-verified bug this closes had the Theme tab keep showing
+     * the previous theme's name and swatches after the active theme changed. Disk changes replace the current buffer
+     * unconditionally, matching the app's explicit external-change rule, and supersede any in-flight write for that
+     * kind.
      */
     const handleExternalChange = useCallback(
         (kind: ConfigKind, payload: { source: string; error?: string }): void => {
@@ -316,7 +315,7 @@ function useSettingsDialogController() {
         if (!loaded || handledRequestId.current === request.id) return;
         let isCancelled = false;
         /**
-        Defer the local view transition and consume the request only after StrictMode cleanup.
+         * Defer the local view transition and consume the request only after StrictMode cleanup.
          */
         queueMicrotask(() => {
             if (isCancelled || handledRequestId.current === request.id) return;

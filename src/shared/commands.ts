@@ -29,7 +29,7 @@ export const nativeMenuIds = [
 export type NativeMenuId = (typeof nativeMenuIds)[number];
 
 /**
-One command catalog supplies the palette, shortcuts, native menus, and command-backed buttons.
+ * One command catalog supplies the palette, shortcuts, native menus, and command-backed buttons.
  */
 export const commandDefinitions: CommandDefinition[] = [
     {
@@ -272,7 +272,7 @@ export function getCommandDefinition(id: string): CommandDefinition {
 }
 
 /**
-Returns command-backed native-menu groups in their declared presentation order.
+ * Returns command-backed native-menu groups in their declared presentation order.
  */
 export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinition[][] {
     const placed = commandDefinitions
@@ -294,13 +294,13 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
 }
 
 /**
-Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run.
+ * Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run.
  */
 export const defaultKeybindings: Keybinding[] = [
     /**
-     * The path browser is a Helm-style directory walker, not a workspace-wide fuzzy quick-open, so
-     * it deliberately avoids `Cmd+P`: that chord sets a "type any filename, jump anywhere"
-     * expectation this dialog cannot meet while `files.browse` stays bounded to one directory.
+     * The path browser is a Helm-style directory walker, not a workspace-wide fuzzy quick-open, so it deliberately
+     * avoids `Cmd+P`: that chord sets a "type any filename, jump anywhere" expectation this dialog cannot meet while
+     * `files.browse` stays bounded to one directory.
      */
     { key: 'alt+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },

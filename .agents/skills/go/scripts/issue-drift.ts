@@ -88,7 +88,7 @@ export function createEmptyIssueExpectationDrift(): IssueExpectationDrift {
 }
 
 /**
-Missing drift state predates the public-decision gate and remains resumable.
+ * Missing drift state predates the public-decision gate and remains resumable.
  */
 export function createImportedIssueExpectationDrift(): IssueExpectationDrift {
     return {

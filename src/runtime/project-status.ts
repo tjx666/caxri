@@ -26,7 +26,7 @@ const execFileAsync = promisify(execFile);
 const CLI_TIMEOUT_MS = 8_000;
 const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 /**
-Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded.
+ * Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded.
  */
 const VERCEL_LINK_CACHE_LIMIT = 256;
 
@@ -401,10 +401,9 @@ function mapDeployment(
 }
 
 /**
- * Inserts into the LRU-bounded `vercelLinks` cache, evicting the oldest entry once over capacity.
- * Mirrors the eviction pattern used by `files/watcher.ts`'s `rememberPolledDirectory`/
- * `rememberChangeFingerprint`: re-inserting a key refreshes its recency, and eviction removes the
- * least-recently-used entry (the `Map` iteration order's first key).
+ * Inserts into the LRU-bounded `vercelLinks` cache, evicting the oldest entry once over capacity. Mirrors the eviction
+ * pattern used by `files/watcher.ts`'s `rememberPolledDirectory`/ `rememberChangeFingerprint`: re-inserting a key
+ * refreshes its recency, and eviction removes the least-recently-used entry (the `Map` iteration order's first key).
  */
 export function rememberVercelLink(
     links: Map<string, VercelLink>,
@@ -431,7 +430,7 @@ export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
     private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
     /**
-    LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
+     * LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
      */
     private readonly vercelLinks = new Map<string, VercelLink>();
 

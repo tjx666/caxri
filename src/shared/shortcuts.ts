@@ -1,5 +1,5 @@
 /**
-Canonical chord normalization shared by dispatch, editing, and conflict detection.
+ * Canonical chord normalization shared by dispatch, editing, and conflict detection.
  */
 export function normalizeShortcut(value: string): string {
     return value

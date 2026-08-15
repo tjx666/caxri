@@ -19,9 +19,8 @@ function reliableAttentionKind(
 }
 
 /**
- * A descriptor's `readState` reads only that provider's local on-disk state. An adapter layers
- * executable discovery and version probing on top of a descriptor, so it is the unit that
- * `AgentService` actually snapshots.
+ * A descriptor's `readState` reads only that provider's local on-disk state. An adapter layers executable discovery and
+ * version probing on top of a descriptor, so it is the unit that `AgentService` actually snapshots.
  */
 export interface AgentAdapter {
     provider: AgentProvider;
@@ -29,9 +28,9 @@ export interface AgentAdapter {
 }
 
 /**
- * Single-flight sharing is safe only for identical provider inputs. In particular, a resumed
- * Terminal can retain its Agent session ID while changing process generation; omitting that
- * generation would let the new probe accept a stale snapshot from the previous process.
+ * Single-flight sharing is safe only for identical provider inputs. In particular, a resumed Terminal can retain its
+ * Agent session ID while changing process generation; omitting that generation would let the new probe accept a stale
+ * snapshot from the previous process.
  */
 function snapshotRequestKey(provider: AgentProvider, context: AgentSnapshotContext): string {
     return JSON.stringify([

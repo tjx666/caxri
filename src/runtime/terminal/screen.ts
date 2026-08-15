@@ -9,8 +9,8 @@ import type { Terminal as HeadlessTerminal } from '@xterm/headless';
 import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapshot';
 
 /**
- * electron-vite externalizes production dependencies, and these xterm Node packages publish
- *  CommonJS entry points whose named exports Node ESM cannot load directly.
+ * Electron-vite externalizes production dependencies, and these xterm Node packages publish CommonJS entry points whose
+ * named exports Node ESM cannot load directly.
  */
 const runtimeRequire = createRequire(import.meta.url);
 const { SerializeAddon } = runtimeRequire('@xterm/addon-serialize') as typeof SerializeAddonModule;
@@ -29,21 +29,21 @@ type ScreenOperation =
 
 export interface TerminalScreenStateOptions {
     /**
-    Test seam and hard ceiling for raw input waiting on xterm's asynchronous parser.
+     * Test seam and hard ceiling for raw input waiting on xterm's asynchronous parser.
      */
     maximumQueuedBytes?: number;
     onOverflow?: (droppedBytes: number) => void;
 }
 
 /**
-Allow the 2 MiB recovery snapshot to be rebuilt under a burst while bounding sustained parser lag.
+ * Allow the 2 MiB recovery snapshot to be rebuilt under a burst while bounding sustained parser lag.
  */
 const DEFAULT_MAXIMUM_QUEUED_BYTES = 4 * MAX_SNAPSHOT_BYTES;
 
 /**
- * Maintains the bounded, parsed Terminal screen owned by a live PTY. Raw ANSI retention can start
- * in the middle of a control sequence after trimming, so reattachment uses this serialized xterm
- * state while durable crash recovery keeps the existing raw snapshot fallback.
+ * Maintains the bounded, parsed Terminal screen owned by a live PTY. Raw ANSI retention can start in the middle of a
+ * control sequence after trimming, so reattachment uses this serialized xterm state while durable crash recovery keeps
+ * the existing raw snapshot fallback.
  */
 export class TerminalScreenState {
     private disposed = false;
@@ -74,8 +74,8 @@ export class TerminalScreenState {
             scrollback: MAX_SNAPSHOT_LINES,
         });
         /**
-         * These addons declare the browser Terminal activation type, but their Unicode and buffer
-         *  APIs are shared with `@xterm/headless` and are the supported Node.js composition.
+         * These addons declare the browser Terminal activation type, but their Unicode and buffer APIs are shared with
+         * `@xterm/headless` and are the supported Node.js composition.
          */
         this.terminal.loadAddon(new Unicode11Addon());
         this.terminal.unicode.activeVersion = '11';
@@ -94,8 +94,8 @@ export class TerminalScreenState {
         }
         this.queuedWriteBytes = 0;
         /**
-         * A queued attach barrier now resolves from the explicit reset state. Output arriving
-         *  after this overflow is appended behind those barriers and remains live-only.
+         * A queued attach barrier now resolves from the explicit reset state. Output arriving after this overflow is
+         * appended behind those barriers and remains live-only.
          */
         this.operations.push({ droppedBytes, type: 'reset' }, ...snapshots);
         this.onOverflow?.(droppedBytes);
@@ -183,7 +183,7 @@ export class TerminalScreenState {
     }
 
     /**
-    Inserts an exact ordering barrier so later live output can stream to the attached Renderer.
+     * Inserts an exact ordering barrier so later live output can stream to the attached Renderer.
      */
     snapshot(): Promise<ReturnType<typeof boundSnapshot>> {
         if (this.disposed) return Promise.resolve(boundSnapshot(''));
@@ -206,7 +206,7 @@ export class TerminalScreenState {
     }
 
     /**
-    Pending bytes exclude the one bounded write currently inside xterm's parser.
+     * Pending bytes exclude the one bounded write currently inside xterm's parser.
      */
     pendingByteCount(): number {
         return this.queuedWriteBytes;

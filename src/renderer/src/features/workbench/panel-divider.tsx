@@ -4,17 +4,16 @@ import { useRef } from 'react';
 import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
 
 /**
- * Applied to `document.body` for the duration of a drag; see `styles.css`. Suppresses selection
- * and pointer events globally so the gesture survives crossing an xterm surface or the Monaco
- * editor, neither of which a Tailwind utility on this component could reach.
+ * Applied to `document.body` for the duration of a drag; see `styles.css`. Suppresses selection and pointer events
+ * globally so the gesture survives crossing an xterm surface or the Monaco editor, neither of which a Tailwind utility
+ * on this component could reach.
  */
 const DRAG_CLASS = 'panel-resize-active';
 
 /**
- * A hairline sits centered in a wider invisible hit area so a 6px column stays comfortable to
- * grab without widening the visible seam. Hover/focus/drag states use a foreground tint, never
- * `--accent` — the divider is chrome, not the one focus indicator (DESIGN.md "One accent focus
- * per screen").
+ * A hairline sits centered in a wider invisible hit area so a 6px column stays comfortable to grab without widening the
+ * visible seam. Hover/focus/drag states use a foreground tint, never `--accent` — the divider is chrome, not the one
+ * focus indicator (DESIGN.md "One accent focus per screen").
  */
 const dividerClassName =
     'panel-divider relative w-1.5 min-w-1.5 bg-transparent cursor-col-resize touch-none ' +
@@ -29,20 +28,20 @@ const dividerClassName =
 interface PanelDividerProperties {
     ariaLabel: string;
     /**
-    The last committed width; only updated on pointer up, arrow key, or reset — never mid-drag.
+     * The last committed width; only updated on pointer up, arrow key, or reset — never mid-drag.
      */
     width: number;
     min: number;
     max: number;
     defaultWidth: number;
     /**
-    Custom property this divider drives directly during a drag, bypassing React state.
+     * Custom property this divider drives directly during a drag, bypassing React state.
      */
     cssVariable: '--sidebar-width' | '--inspector-width';
     /**
-     * `1` when the panel grows as the pointer moves right (Sidebar), `-1` when it grows as the
-     * pointer moves left (Inspector). Also flips the Arrow key mapping so Right always matches the
-     * physical drag direction for that divider.
+     * `1` when the panel grows as the pointer moves right (Sidebar), `-1` when it grows as the pointer moves left
+     * (Inspector). Also flips the Arrow key mapping so Right always matches the physical drag direction for that
+     * divider.
      */
     growDirection: 1 | -1;
     onCommit(width: number): void;
@@ -55,10 +54,9 @@ interface DragState {
 }
 
 /**
- * A min/max-constrained drag divider shared by the Sidebar↔main and main↔Inspector seams. Dragging
- * writes the live width straight to a root CSS custom property (and to `aria-valuenow`) instead of
- * React state, so a mousemove never triggers a render; the width only reaches the panel-layout
- * store — and `localStorage` — once the gesture ends.
+ * A min/max-constrained drag divider shared by the Sidebar↔main and main↔Inspector seams. Dragging writes the live
+ * width straight to a root CSS custom property (and to `aria-valuenow`) instead of React state, so a mousemove never
+ * triggers a render; the width only reaches the panel-layout store — and `localStorage` — once the gesture ends.
  */
 export function PanelDivider(properties: PanelDividerProperties) {
     const drag = useRef<DragState | null>(null);

@@ -7,7 +7,7 @@ export function createDoctorCommand(environment: NodeJS.ProcessEnv): string[] {
     const requestedBase = environment.CAXRI_REACT_DOCTOR_BASE?.trim();
 
     /**
-    GitHub reports an all-zero `before` SHA for an initial branch push, which has no diff base.
+     * GitHub reports an all-zero `before` SHA for an initial branch push, which has no diff base.
      */
     if (requestedBase && ZERO_SHA.test(requestedBase)) return ['run', 'doctor'];
 

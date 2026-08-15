@@ -84,7 +84,7 @@ function ActiveScreencastOverlay() {
                     // notification: every matched keystroke would otherwise be announced to
                     // screen readers via the container's `aria-live="polite"` region above.
                     aria-hidden="true"
-                    className="absolute bottom-10 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-[13px] text-foreground shadow-[0_8px_24px_var(--shadow)] motion-safe:animate-in fade-in-0 zoom-in-95"
+                    className="motion-safe:animate-in fade-in-0 zoom-in-95 absolute bottom-10 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-[13px] text-foreground shadow-[0_8px_24px_var(--shadow)]"
                     data-screencast-key
                 >
                     <ShortcutBadge shortcut={keyOverlay.shortcut} />

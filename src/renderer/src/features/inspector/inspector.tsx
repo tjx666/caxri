@@ -22,7 +22,7 @@ export function Inspector() {
         ),
     }));
     return (
-        <aside className="inspector min-w-0 flex min-h-0 flex-col bg-surface">
+        <aside className="inspector flex min-h-0 min-w-0 flex-col bg-surface">
             <ChromeTabs
                 ariaLabel="Inspector"
                 className="inspector-tabs grid h-11 grid-cols-4 items-end border-b border-border"

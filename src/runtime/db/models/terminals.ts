@@ -59,16 +59,15 @@ export interface NewTerminalInput {
 }
 
 /**
- * Pure CRUD over the `terminals` table. `order_index` is assigned atomically from the current
- * per-Session maximum (`COALESCE(MAX(order_index) + 1, 0)`), so a Terminal removed from the middle
- * of a Session never collides with a surviving one's index. Every caller shares this one INSERT
- * instead of duplicating it.
+ * Pure CRUD over the `terminals` table. `order_index` is assigned atomically from the current per-Session maximum
+ * (`COALESCE(MAX(order_index) + 1, 0)`), so a Terminal removed from the middle of a Session never collides with a
+ * surviving one's index. Every caller shares this one INSERT instead of duplicating it.
  */
 export class TerminalsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
 
     /**
-    Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows.
+     * Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows.
      */
     list(sessionId?: string): TerminalRecord[] {
         const rows = sessionId
@@ -112,9 +111,9 @@ export class TerminalsModel {
         const id = randomUUID();
         const now = Date.now();
         /**
-             Mirrors the original `COALESCE((SELECT MAX(order_index) + 1 FROM terminals WHERE
-            session_id = ?), 0)` insert-time subquery so a Terminal removed from the middle of a
-            Session never collides with a surviving one's `order_index`.
+         * Mirrors the original `COALESCE((SELECT MAX(order_index) + 1 FROM terminals WHERE session_id = ?), 0)`
+         * insert-time subquery so a Terminal removed from the middle of a Session never collides with a surviving one's
+         * `order_index`.
          */
         const orderIndex = sql<number>`COALESCE((SELECT MAX(${terminals.orderIndex}) + 1 FROM ${terminals} WHERE ${terminals.sessionId} = ${input.sessionId}), 0)`;
         this.database
@@ -142,7 +141,7 @@ export class TerminalsModel {
     }
 
     /**
-    `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it.
+     * `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it.
      */
     updateState(
         id: string,

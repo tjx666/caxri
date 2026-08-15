@@ -27,7 +27,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 /**
-A `files.list` stub that reports one plain-file entry for any directory it is asked about.
+ * A `files.list` stub that reports one plain-file entry for any directory it is asked about.
  */
 function fileEntryListing(name: string): unknown[] {
     return [{ name, path: `/anywhere/${name}`, kind: 'file' }];

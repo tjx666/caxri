@@ -23,7 +23,7 @@ function canonicalizeUrl(url: URL): URL | undefined {
 }
 
 /**
-Parses the only URL class Caxri may send to the operating system.
+ * Parses the only URL class Caxri may send to the operating system.
  */
 export function parseExternalHttpUrl(input: string): ExternalHttpUrlResult {
     let parsed: URL;
@@ -42,7 +42,7 @@ export function parseExternalHttpUrl(input: string): ExternalHttpUrlResult {
 }
 
 /**
-Returns a canonical exact-origin rule without path, query, fragment, or user information.
+ * Returns a canonical exact-origin rule without path, query, fragment, or user information.
  */
 export function externalUrlOrigin(url: URL): string {
     const canonical = canonicalizeUrl(url);
@@ -59,7 +59,7 @@ function hasOriginOnly(url: URL): boolean {
 }
 
 /**
-Canonicalizes one persisted exact-origin or explicit subdomain-wildcard rule.
+ * Canonicalizes one persisted exact-origin or explicit subdomain-wildcard rule.
  */
 export function normalizeTrustedDomainRule(input: string): string | undefined {
     const value = input.trim();
@@ -95,7 +95,7 @@ function isLoopback(hostname: string): boolean {
 }
 
 /**
-Matches Main-validated URLs against bounded, independently normalized persisted rules.
+ * Matches Main-validated URLs against bounded, independently normalized persisted rules.
  */
 export function isExternalUrlTrusted(url: URL, rules: readonly string[]): boolean {
     const origin = externalUrlOrigin(url);

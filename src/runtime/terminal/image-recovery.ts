@@ -110,9 +110,9 @@ function findTerminator(
 }
 
 /**
- * Removes image payloads from Runtime-owned recovery state while the raw bytes continue to the
- * attached Renderer. Chunk boundaries and oversized/incomplete sequences stay bounded and resolve
- * to one content-free placeholder, so SQLite and diagnostics never retain image contents.
+ * Removes image payloads from Runtime-owned recovery state while the raw bytes continue to the attached Renderer. Chunk
+ * boundaries and oversized/incomplete sequences stay bounded and resolve to one content-free placeholder, so SQLite and
+ * diagnostics never retain image contents.
  */
 export class TerminalImageRecoveryFilter {
     private buffer = '';
@@ -187,19 +187,18 @@ export class TerminalImageRecoveryFilter {
 }
 
 /**
- * Live counterpart to {@link TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}: inserted in place of an image
- * Caxri's own size policy refused to deliver, so the gap reads as a deliberate, explained decision
- * instead of folding into the generic `[N bytes dropped by output backpressure]` notice, which is
- * reserved for genuine PTY output-queue congestion.
+ * Live counterpart to {@link TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}: inserted in place of an image Caxri's own size policy
+ * refused to deliver, so the gap reads as a deliberate, explained decision instead of folding into the generic `[N
+ * bytes dropped by output backpressure]` notice, which is reserved for genuine PTY output-queue congestion.
  */
 export const TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER =
     '\r\n[Caxri dropped an inline image: it exceeds the size limit]\r\n';
 
 /**
- * Keeps live image controls atomic across PTY chunks and Renderer backpressure. An image sequence
- * is delivered whole; one Caxri sized it out, the returned byte count below reflects only genuine
- * `destination` backpressure (queue capacity), never the size of the image itself — that distinction
- * is what lets the caller keep its own backpressure counter honest.
+ * Keeps live image controls atomic across PTY chunks and Renderer backpressure. An image sequence is delivered whole;
+ * one Caxri sized it out, the returned byte count below reflects only genuine `destination` backpressure (queue
+ * capacity), never the size of the image itself — that distinction is what lets the caller keep its own backpressure
+ * counter honest.
  */
 export class TerminalImageOutputFilter {
     private buffer = '';
@@ -212,10 +211,9 @@ export class TerminalImageOutputFilter {
     }
 
     /**
-     * Returns only bytes `destination` itself refused (real output-queue backpressure). A sequence
-     * Caxri's own size policy refuses is replaced by one
-     * {@link TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER} instead of being tallied as dropped bytes,
-     * so the Renderer sees an honest inline reason rather than a generic byte count.
+     * Returns only bytes `destination` itself refused (real output-queue backpressure). A sequence Caxri's own size
+     * policy refuses is replaced by one {@link TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER} instead of being tallied as
+     * dropped bytes, so the Renderer sees an honest inline reason rather than a generic byte count.
      */
     push(data: string, destination: ImageOutputDestination): number {
         if (!data) return 0;
@@ -280,10 +278,9 @@ export class TerminalImageOutputFilter {
     }
 
     /**
-     * Called at teardown (detach/close/exit). `destination` is only passed when the caller still
-     * intends to flush its queue afterwards (a genuine close/exit); a bare detach passes none, since
-     * no Renderer view remains to read the placeholder and appending it would just leave stale
-     * content sitting in a queue nobody drains.
+     * Called at teardown (detach/close/exit). `destination` is only passed when the caller still intends to flush its
+     * queue afterwards (a genuine close/exit); a bare detach passes none, since no Renderer view remains to read the
+     * placeholder and appending it would just leave stale content sitting in a queue nobody drains.
      */
     finish(destination?: ImageOutputDestination): number {
         const wasCapturing = this.capturing !== undefined;

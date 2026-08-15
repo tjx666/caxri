@@ -7,15 +7,15 @@ export interface PendingFileOperation {
     label: string;
     projectId: string;
     /**
-     * Directory (or item) paths whose listing this operation can still change. UI blocking is
-     * scoped to these subtrees instead of gating the entire Project, so one slow folder copy no
-     * longer freezes unrelated Paste/Duplicate/Drag actions elsewhere in the tree.
+     * Directory (or item) paths whose listing this operation can still change. UI blocking is scoped to these subtrees
+     * instead of gating the entire Project, so one slow folder copy no longer freezes unrelated Paste/Duplicate/Drag
+     * actions elsewhere in the tree.
      */
     affectedPaths: readonly string[];
     /**
-     * Only a durable mutation (create/rename/move) is journaled with a Runtime-recognized
-     * `operationId`, so only those can be canceled through `files.operation.cancel`. A plain copy
-     * has no journal entry to cancel — offering Cancel for it would be a dead button.
+     * Only a durable mutation (create/rename/move) is journaled with a Runtime-recognized `operationId`, so only those
+     * can be canceled through `files.operation.cancel`. A plain copy has no journal entry to cancel — offering Cancel
+     * for it would be a dead button.
      */
     cancelable: boolean;
     startedAt: number;
@@ -38,7 +38,7 @@ interface FileOperationState {
 }
 
 /**
-Renderer lifecycle for long file mutations; Runtime remains the authority for every path.
+ * Renderer lifecycle for long file mutations; Runtime remains the authority for every path.
  */
 export const useFileOperationStore = create<FileOperationState>((set, get) => ({
     operations: [],
@@ -70,9 +70,9 @@ export const useFileOperationStore = create<FileOperationState>((set, get) => ({
 }));
 
 /**
- * True when a Project-scoped action targeting `path` overlaps a pending file operation's affected
- * subtree. Used instead of "any operation pending for this Project" so a slow copy in one folder
- * cannot block Paste/Duplicate/Drag somewhere unrelated in the same tree.
+ * True when a Project-scoped action targeting `path` overlaps a pending file operation's affected subtree. Used instead
+ * of "any operation pending for this Project" so a slow copy in one folder cannot block Paste/Duplicate/Drag somewhere
+ * unrelated in the same tree.
  */
 export function isPathBlockedByFileOperations(
     operations: readonly PendingFileOperation[],
@@ -87,7 +87,7 @@ export function isPathBlockedByFileOperations(
 }
 
 /**
-Every pending operation for a Project whose affected subtree overlaps `path`, oldest first.
+ * Every pending operation for a Project whose affected subtree overlaps `path`, oldest first.
  */
 export function fileOperationsBlockingPath(
     operations: readonly PendingFileOperation[],
@@ -102,8 +102,8 @@ export function fileOperationsBlockingPath(
 }
 
 /**
- * A Cancel affordance appears only once an operation has been running long enough that a progress
- * label alone is no longer reassuring, and only for a durable mutation Runtime can actually cancel.
+ * A Cancel affordance appears only once an operation has been running long enough that a progress label alone is no
+ * longer reassuring, and only for a durable mutation Runtime can actually cancel.
  */
 export const CANCEL_REVEAL_THRESHOLD_MS = 1_500;
 

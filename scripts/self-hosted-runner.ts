@@ -92,11 +92,10 @@ export function validateRunnerOwner(owner: string): string {
 }
 
 /**
- * macOS rejects AF_UNIX socket paths longer than 104 bytes (sun_path), and RUNNER_TEMP sits deep
- * inside the runner install, so pointing TMPDIR at the owned run root breaks every Unix-socket
- * consumer under it — the Runtime agent-hook bridge socket and Chromium's singleton socket both
- * live in TMPDIR. Jobs therefore reach the run-owned temp directory through this short
- * /private/tmp symlink; the budget keeps roughly 40 bytes free for socket file names.
+ * MacOS rejects AF_UNIX socket paths longer than 104 bytes (sun_path), and RUNNER_TEMP sits deep inside the runner
+ * install, so pointing TMPDIR at the owned run root breaks every Unix-socket consumer under it — the Runtime agent-hook
+ * bridge socket and Chromium's singleton socket both live in TMPDIR. Jobs therefore reach the run-owned temp directory
+ * through this short /private/tmp symlink; the budget keeps roughly 40 bytes free for socket file names.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export function shortTemporaryLinkPath(owner: string): string {
@@ -159,8 +158,7 @@ async function terminateOwnedProcesses(owner: string, cwd: string): Promise<numb
 }
 
 /**
-Returns `undefined` for a missing path instead of throwing, while still failing closed on every
-other `lstat` error.
+ * Returns `undefined` for a missing path instead of throwing, while still failing closed on every other `lstat` error.
  */
 async function lstatIfExists(path: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {
     try {

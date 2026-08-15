@@ -4,7 +4,7 @@ export interface E2ELaunchFinalizer {
 }
 
 /**
-Starts launch cleanup exactly once and makes fixture teardown wait for it before reporting.
+ * Starts launch cleanup exactly once and makes fixture teardown wait for it before reporting.
  */
 export function createE2ELaunchFinalizer(cleanup: () => Promise<void>): E2ELaunchFinalizer {
     let cleanupPromise: Promise<void> | undefined;

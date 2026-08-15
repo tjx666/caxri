@@ -6,19 +6,19 @@ import { Button } from './ui/button';
 interface ErrorBoundaryProperties {
     children: ReactNode;
     /**
-    Message shown when this Renderer entry fails during React rendering.
+     * Message shown when this Renderer entry fails during React rendering.
      */
     description?: string;
     /**
-    Prefix used by Main's mirrored console log to identify the failed Renderer entry.
+     * Prefix used by Main's mirrored console log to identify the failed Renderer entry.
      */
     logScope?: string;
     /**
-    Label for the full-window reload action.
+     * Label for the full-window reload action.
      */
     reloadLabel?: string;
     /**
-    Heading shown when this Renderer entry fails during React rendering.
+     * Heading shown when this Renderer entry fails during React rendering.
      */
     title?: string;
 }
@@ -28,14 +28,13 @@ interface ErrorBoundaryState {
 }
 
 /**
- * Top-level render-exception guard. React unmounts the whole tree on an uncaught error thrown
- * during render, which blanks the window with no in-app recovery path — Main's
- * `render-process-gone` handler only covers process crashes, not JS exceptions inside a live
- * renderer. A full reload is safe to offer as the recovery action: durable workbench state lives
- * in the Runtime, while Process Explorer is a read-only diagnostic projection.
+ * Top-level render-exception guard. React unmounts the whole tree on an uncaught error thrown during render, which
+ * blanks the window with no in-app recovery path — Main's `render-process-gone` handler only covers process crashes,
+ * not JS exceptions inside a live renderer. A full reload is safe to offer as the recovery action: durable workbench
+ * state lives in the Runtime, while Process Explorer is a read-only diagnostic projection.
  *
- * React 18/19 has no hook equivalent for `componentDidCatch`, so this stays a class component
- * rather than pulling in the `react-error-boundary` dependency for one boundary.
+ * React 18/19 has no hook equivalent for `componentDidCatch`, so this stays a class component rather than pulling in
+ * the `react-error-boundary` dependency for one boundary.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBoundaryState> {
     static getDerivedStateFromError(): ErrorBoundaryState {

@@ -3,37 +3,36 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 
 /**
- * Renderer-local chrome layout: Sidebar/Inspector widths and visibility. Unlike Session
- * state (`workbench.ts`), this is device-specific presentation, never written through to the
- * Runtime, so it persists to `localStorage` instead.
+ * Renderer-local chrome layout: Sidebar/Inspector widths and visibility. Unlike Session state (`workbench.ts`), this is
+ * device-specific presentation, never written through to the Runtime, so it persists to `localStorage` instead.
  */
 
 export const SIDEBAR_MIN_WIDTH = 180;
 export const SIDEBAR_MAX_WIDTH = 480;
 /**
-Matches the width `.app-shell` already shipped with in `styles.css` before this feature.
+ * Matches the width `.app-shell` already shipped with in `styles.css` before this feature.
  */
 export const SIDEBAR_DEFAULT_WIDTH = 230;
 
 export const INSPECTOR_MIN_WIDTH = 240;
 export const INSPECTOR_MAX_WIDTH = 600;
 /**
-Matches the width `.app-shell` already shipped with in `styles.css` before this feature.
+ * Matches the width `.app-shell` already shipped with in `styles.css` before this feature.
  */
 export const INSPECTOR_DEFAULT_WIDTH = 310;
 
 /**
-Width of each visible Sidebar/Inspector resize track in `app.tsx`.
+ * Width of each visible Sidebar/Inspector resize track in `app.tsx`.
  */
 export const PANEL_DIVIDER_WIDTH = 6;
 
 /**
-The main pane must keep at least this much room; see `clampLayoutToViewport`.
+ * The main pane must keep at least this much room; see `clampLayoutToViewport`.
  */
 export const MIN_MAIN_WIDTH = 320;
 
 /**
-Arrow-key resize step in pixels, per the divider's keyboard interaction contract.
+ * Arrow-key resize step in pixels, per the divider's keyboard interaction contract.
  */
 export const PANEL_RESIZE_STEP = 16;
 
@@ -59,9 +58,9 @@ export function clampWidth(width: number, min: number, max: number): number {
 }
 
 /**
- * Re-clamps both panels against the current viewport so neither can crowd the main pane below
- * {@link MIN_MAIN_WIDTH}. Shrinks the Inspector first, then the Sidebar, never below either
- * panel's own minimum — called on window resize and whenever a persisted layout is restored.
+ * Re-clamps both panels against the current viewport so neither can crowd the main pane below {@link MIN_MAIN_WIDTH}.
+ * Shrinks the Inspector first, then the Sidebar, never below either panel's own minimum — called on window resize and
+ * whenever a persisted layout is restored.
  */
 export function clampLayoutToViewport(layout: PanelLayout, viewportWidth: number): PanelLayout {
     let sidebarWidth = clampWidth(layout.sidebarWidth, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
@@ -99,7 +98,7 @@ function isBrowser(): boolean {
 }
 
 /**
-Falls back to defaults for a missing/corrupt entry instead of throwing during module load.
+ * Falls back to defaults for a missing/corrupt entry instead of throwing during module load.
  */
 function readPersistedLayout(): PanelLayout {
     if (!isBrowser()) return DEFAULT_PANEL_LAYOUT;
@@ -142,7 +141,7 @@ function writePersistedLayout(layout: PanelLayout): void {
 }
 
 /**
-Revalidates a visibility change immediately instead of waiting for the next window resize.
+ * Revalidates a visibility change immediately instead of waiting for the next window resize.
  */
 function fitCurrentViewport(layout: PanelLayout): PanelLayout {
     return isBrowser() ? clampLayoutToViewport(layout, window.innerWidth) : layout;
@@ -158,7 +157,7 @@ interface PanelLayoutState extends PanelLayout {
     setSidebarVisible(isVisible: boolean): void;
     setInspectorVisible(isVisible: boolean): void;
     /**
-    Re-clamps the persisted layout against a new viewport width; see {@link clampLayoutToViewport}.
+     * Re-clamps the persisted layout against a new viewport width; see {@link clampLayoutToViewport}.
      */
     clampToViewport(viewportWidth: number): void;
 }
@@ -234,8 +233,8 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => ({
 }));
 
 /**
- * Keeps the persisted layout valid as the window resizes. Runs once on mount (a persisted layout
- * from a wider window could otherwise overflow a narrower one) and again on every `resize` event.
+ * Keeps the persisted layout valid as the window resizes. Runs once on mount (a persisted layout from a wider window
+ * could otherwise overflow a narrower one) and again on every `resize` event.
  */
 export function usePanelViewportClamp(): void {
     useEffect(() => {

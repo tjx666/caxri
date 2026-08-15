@@ -107,7 +107,7 @@ function mapRow(row: DispatchRow): StoredAgentDispatchReceipt {
 }
 
 /**
-Pure bounded CRUD for durable Agent dispatch idempotency and lifecycle receipts.
+ * Pure bounded CRUD for durable Agent dispatch idempotency and lifecycle receipts.
  */
 export class AgentDispatchReceiptsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}

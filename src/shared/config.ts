@@ -80,7 +80,7 @@ const trustedDomainsSchema = z
     });
 
 /**
-Browser-safe single source of truth for Settings-file defaults and bounds.
+ * Browser-safe single source of truth for Settings-file defaults and bounds.
  */
 export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
     'session.defaultAgent': z
@@ -130,7 +130,7 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
 export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 
 /**
-Finds normalized chords assigned to more than one distinct command.
+ * Finds normalized chords assigned to more than one distinct command.
  */
 export function findKeybindingConflicts(keybindings: readonly Keybinding[]): KeybindingConflict[] {
     const byKey = new Map<string, Set<string>>();

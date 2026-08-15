@@ -6,8 +6,8 @@ import type { RuntimeEvent } from '../shared/ipc/events';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 /**
- * Runtime domains expose public root barrels by architecture contract; deep imports are rejected
- * by `src/runtime/__tests__/structure.test.ts`.
+ * Runtime domains expose public root barrels by architecture contract; deep imports are rejected by
+ * `src/runtime/__tests__/structure.test.ts`.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import {
@@ -21,9 +21,8 @@ import { createRuntimeParentPort } from './port';
 
 const bootStartedAt = performance.now();
 /**
- * Memoizes the bootstrap Logger behind a closure instead of a top-level `let` so the module scope
- * never gets mutated from inside a function; `getRuntimeLogger` exposes the memoized instance once
- * created.
+ * Memoizes the bootstrap Logger behind a closure instead of a top-level `let` so the module scope never gets mutated
+ * from inside a function; `getRuntimeLogger` exposes the memoized instance once created.
  */
 function createLoggerFactory(): {
     createBootstrapLogger: () => StructuredLogger | undefined;
@@ -71,9 +70,9 @@ const runtime = await createRuntime({
 const dispatch = createDispatcher(runtime.handlers, logger);
 
 /**
- * A Host crash closes Node IPC; the Runtime must not survive as an orphan SQLite/PTY owner. This is
- * a dedicated utility process, so exiting here is the intended clean-shutdown/orphan-recovery path,
- * not the CLI misuse `unicorn/no-process-exit` normally guards against.
+ * A Host crash closes Node IPC; the Runtime must not survive as an orphan SQLite/PTY owner. This is a dedicated utility
+ * process, so exiting here is the intended clean-shutdown/orphan-recovery path, not the CLI misuse
+ * `unicorn/no-process-exit` normally guards against.
  */
 const closeOrphanedRuntime = (): void => {
     // `parentPort.onDisconnect` takes a synchronous callback, so this cannot become `await`; the
@@ -97,7 +96,7 @@ parentPort.onMessage((message) => {
         const envelope = message as RuntimeRequestEnvelope;
         parentPort.send(await dispatch(envelope));
         /**
-        Shutdown acknowledges before exiting so Main observes an ordered termination.
+         * Shutdown acknowledges before exiting so Main observes an ordered termination.
          */
         // eslint-disable-next-line unicorn/no-process-exit -- Runtime utility-process shutdown, see comment above
         if (envelope.method === 'runtime.shutdown') setTimeout(() => process.exit(0), 10);

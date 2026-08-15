@@ -3,7 +3,7 @@ import type { FileEntry } from '@shared/types';
 import { isPathAtOrBelow } from '../../lib/file-path';
 
 /**
-Filters the already-lazy current-directory result; it never starts a Project-wide traversal.
+ * Filters the already-lazy current-directory result; it never starts a Project-wide traversal.
  */
 export function filterPathEntries(entries: readonly FileEntry[], query: string): FileEntry[] {
     const needle = query.toLocaleLowerCase();
@@ -12,7 +12,7 @@ export function filterPathEntries(entries: readonly FileEntry[], query: string):
 }
 
 /**
-Tab completion is deliberately deterministic: ambiguous matches leave the user's text intact.
+ * Tab completion is deliberately deterministic: ambiguous matches leave the user's text intact.
  */
 export function completePathQuery(
     entries: readonly FileEntry[],
@@ -25,7 +25,7 @@ export function completePathQuery(
 }
 
 /**
-Keeps an exhausted scan distinct from an authoritative empty directory result.
+ * Keeps an exhausted scan distinct from an authoritative empty directory result.
  */
 export function pathBrowserEmptyMessage(
     matchCount: number,
@@ -43,11 +43,11 @@ export interface PathBrowserCreateCandidate {
 }
 
 /**
- * The `bodil/vscode-file-browser` signature affordance: once filtering proves nothing in the
- * current directory matches, typing a name offers to create it — a trailing `/` is the folder
- * signal (matching Tab-completion's own directory-suffix convention). Only offered on an
- * authoritative empty result: a truncated scan might still contain a match Caxri never fetched, so
- * offering to create there could shadow an existing file instead of genuinely making a new one.
+ * The `bodil/vscode-file-browser` signature affordance: once filtering proves nothing in the current directory matches,
+ * typing a name offers to create it — a trailing `/` is the folder signal (matching Tab-completion's own
+ * directory-suffix convention). Only offered on an authoritative empty result: a truncated scan might still contain a
+ * match Caxri never fetched, so offering to create there could shadow an existing file instead of genuinely making a
+ * new one.
  */
 export function pathBrowserCreateCandidate(
     query: string,
@@ -62,7 +62,7 @@ export function pathBrowserCreateCandidate(
 }
 
 /**
-Returns one POSIX-style parent while keeping malformed or stale paths pinned to Project root.
+ * Returns one POSIX-style parent while keeping malformed or stale paths pinned to Project root.
  */
 export function parentDirectoryWithinRoot(root: string, directory: string): string {
     const isWithinRoot =

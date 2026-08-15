@@ -382,9 +382,9 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
 }
 
 /**
- * Rebinds an unfinished local round without reconstructing generated JSON by hand. The expected
- * old head makes stale callers fail closed, while the audit entry keeps the evidence lineage
- * visible when a non-product repair changes the exact delivery head before publication.
+ * Rebinds an unfinished local round without reconstructing generated JSON by hand. The expected old head makes stale
+ * callers fail closed, while the audit entry keeps the evidence lineage visible when a non-product repair changes the
+ * exact delivery head before publication.
  */
 export async function rebindReportHead(input: RebindReportHeadInput): Promise<void> {
     const directory = await validateExistingReportDirectory(input.directory);

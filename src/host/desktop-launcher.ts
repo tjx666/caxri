@@ -17,7 +17,7 @@ const DESKTOP_E2E_ENVIRONMENT_KEYS = [
 ] as const;
 
 /**
-Launches the application identity directly; no shell or caller-authored command is accepted.
+ * Launches the application identity directly; no shell or caller-authored command is accepted.
  */
 export function createDesktopLauncher(options: {
     launch: HostDesktopLaunch;

@@ -1,7 +1,7 @@
 /**
- * Single source of truth for the Agent provider family Caxri hosts (Claude Code, Codex). Both the
- * IPC domain schema and the Runtime Agent adapters derive from this catalog instead of hand-syncing
- * provider identifiers across the codebase.
+ * Single source of truth for the Agent provider family Caxri hosts (Claude Code, Codex). Both the IPC domain schema and
+ * the Runtime Agent adapters derive from this catalog instead of hand-syncing provider identifiers across the
+ * codebase.
  */
 export const agentProviderIds = ['claude', 'codex'] as const;
 
@@ -9,25 +9,25 @@ export type AgentProvider = (typeof agentProviderIds)[number];
 
 export interface AgentLaunchSettings {
     /**
-    Executable name or absolute path resolved by the Runtime without invoking a shell command.
+     * Executable name or absolute path resolved by the Runtime without invoking a shell command.
      */
     executable: string;
     /**
-    Structured arguments prepended to provider-owned resume arguments.
+     * Structured arguments prepended to provider-owned resume arguments.
      */
     args: string[];
 }
 
 interface AgentHookSettings {
     /**
-    Explicitly authorizes Caxri to install and maintain this provider's lifecycle hooks.
+     * Explicitly authorizes Caxri to install and maintain this provider's lifecycle hooks.
      */
     enabled: boolean;
 }
 
 interface AgentMessagingSettings {
     /**
-    Allows a managed Agent generation to exchange bounded peer text through the Host Inbox.
+     * Allows a managed Agent generation to exchange bounded peer text through the Host Inbox.
      */
     enabled: boolean;
 }
@@ -39,28 +39,28 @@ export interface AgentProviderSettings {
 }
 
 /**
-Display and executable metadata for one Agent provider.
+ * Display and executable metadata for one Agent provider.
  */
 export interface AgentProviderCatalogEntry {
     /**
-    Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
+     * Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
      */
     displayName: string;
     /**
-    Name of the CLI executable resolved from `PATH` or the user's login shell.
+     * Name of the CLI executable resolved from `PATH` or the user's login shell.
      */
     executableName: string;
     /**
-    Safe image input Caxri can drive after an explicit user action, when supported.
+     * Safe image input Caxri can drive after an explicit user action, when supported.
      */
     imageInput?: {
         kind: 'systemClipboardPaste';
         terminalInput: string;
     };
     /**
-     * Structured argv for resuming a previous provider conversation identified by
-     * `agentSessionId`. Used to auto-restore an Agent Terminal interrupted by an app shutdown
-     * (see GitHub issue #18) without losing its conversation history.
+     * Structured argv for resuming a previous provider conversation identified by `agentSessionId`. Used to
+     * auto-restore an Agent Terminal interrupted by an app shutdown (see GitHub issue #18) without losing its
+     * conversation history.
      */
     resumeArguments(agentSessionId: string): string[];
 }
@@ -81,7 +81,7 @@ export const agentProviderCatalog = {
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
 
 /**
-Provider-scoped defaults keep future CLI-specific settings under the provider they configure.
+ * Provider-scoped defaults keep future CLI-specific settings under the provider they configure.
  */
 export const defaultAgentProviderSettings = Object.fromEntries(
     agentProviderIds.map((provider) => [

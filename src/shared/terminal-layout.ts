@@ -109,7 +109,7 @@ export function firstLayoutTerminalId(layout: TerminalLayout): string | undefine
 }
 
 /**
-The Terminal shown by the layout's currently active group, if any.
+ * The Terminal shown by the layout's currently active group, if any.
  */
 export function activeLayoutTerminalId(layout: TerminalLayout): string | undefined {
     const group = layout.activeGroupId

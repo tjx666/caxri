@@ -91,8 +91,8 @@ function buildNameSearchTree(matches: readonly FileSearchMatch[]): NameSearchNod
 }
 
 /**
- * `openSearchMatch` funnels its own failures through `openFile`'s `tryCommand` wrapper, so callers
- * below intentionally discard the returned promise instead of awaiting it.
+ * `openSearchMatch` funnels its own failures through `openFile`'s `tryCommand` wrapper, so callers below intentionally
+ * discard the returned promise instead of awaiting it.
  */
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -128,7 +128,7 @@ function NameSearchTreeNode({
             <div>
                 <button
                     type="button"
-                    className="search-tree-folder flex h-7 w-full items-center gap-1.5 border-0 bg-transparent pr-2 text-left text-foreground cursor-pointer hover:bg-elevated"
+                    className="search-tree-folder flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent pr-2 text-left text-foreground hover:bg-elevated"
                     style={{ paddingLeft: 8 + depth * 12 }}
                     title={node.relativePath}
                     aria-expanded={expanded}
@@ -158,7 +158,7 @@ function NameSearchTreeNode({
     return (
         <button
             type="button"
-            className="search-result flex h-7 w-full items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground cursor-pointer hover:bg-elevated"
+            className="search-result flex h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground hover:bg-elevated"
             style={{ paddingLeft: 23 + depth * 12 }}
             title={node.match.path}
             onClick={() => discard(openSearchMatch(sessionId, node.match))}
@@ -190,7 +190,7 @@ function ContentResultRow({ match, sessionId }: { match: FileSearchMatch; sessio
     return (
         <button
             type="button"
-            className="search-result flex min-h-7 w-full items-start gap-2 border-0 bg-transparent py-1 pr-2 pl-5 text-left text-foreground cursor-pointer hover:bg-elevated"
+            className="search-result flex min-h-7 w-full cursor-pointer items-start gap-2 border-0 bg-transparent py-1 pr-2 pl-5 text-left text-foreground hover:bg-elevated"
             title={match.path}
             onClick={() => discard(openSearchMatch(sessionId, match))}
             onDoubleClick={() => discard(openSearchMatch(sessionId, match, false))}
@@ -220,7 +220,7 @@ function ContentResultGroup({
         <div className="search-result-group" title={relativePath}>
             <button
                 type="button"
-                className="sticky top-0 z-1 flex h-7 w-full min-w-0 items-center gap-1.5 border-x-0 border-t-0 border-b border-border bg-surface px-2 text-left text-[11px] font-medium text-foreground cursor-pointer hover:bg-elevated"
+                className="sticky top-0 z-1 flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 border-x-0 border-t-0 border-b border-border bg-surface px-2 text-left text-[11px] font-medium text-foreground hover:bg-elevated"
                 aria-expanded={expanded}
                 onClick={() => setExpanded((value) => !value)}
             >
@@ -288,8 +288,8 @@ export function ProjectSearch({
 
     useEffect(() => {
         /**
-         * Focus after the panel commit so a Terminal attachment finishing in the same frame cannot
-         * reclaim focus from the app-wide Search Files command.
+         * Focus after the panel commit so a Terminal attachment finishing in the same frame cannot reclaim focus from
+         * the app-wide Search Files command.
          */
         const frame = requestAnimationFrame(() => inputReference.current?.focus());
         return () => cancelAnimationFrame(frame);
@@ -375,7 +375,7 @@ export function ProjectSearch({
                             key={value}
                             type="button"
                             className={cn(
-                                'h-6 rounded border-0 bg-transparent text-muted text-[12px] font-medium cursor-pointer hover:text-foreground',
+                                'h-6 cursor-pointer rounded border-0 bg-transparent text-[12px] font-medium text-muted hover:text-foreground',
                                 mode === value && 'bg-surface text-foreground shadow-sm',
                             )}
                             aria-pressed={mode === value}
