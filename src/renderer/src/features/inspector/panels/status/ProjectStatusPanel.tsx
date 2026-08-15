@@ -11,7 +11,6 @@ import {
     ExternalLink,
     GitBranch,
     GitPullRequest,
-    ListTree,
     LoaderCircle,
     Monitor,
     Package,
@@ -49,7 +48,7 @@ function StateIcon({ state }: { state?: ProjectStatusState }) {
 function NodeIcon({ node }: { node: ProjectStatusTreeNode }) {
     if (node.state) return <StateIcon state={node.state} />;
     if (node.kind === 'branch') return <GitBranch size={14} />;
-    if (node.kind === 'deployments') return <ListTree size={14} />;
+    if (node.kind === 'deployments') return <Rocket size={14} />;
     if (node.kind === 'deployment') return <Rocket size={14} />;
     if (node.kind === 'pullRequest') return <GitPullRequest size={14} />;
     if (node.kind === 'hidden') return <EyeOff size={14} />;
@@ -75,9 +74,21 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                 <span className="project-status-indent w-[13px] flex-none" />
             )}
             <NodeIcon node={node} />
-            <span className="project-status-label min-w-0 flex-1 truncate">{node.label}</span>
+            {/*
+             * When the row overflows, the description (hostname, count) must give way before the
+             * label ("Production", check names): flex shrink is weighted by `factor x basis`, so
+             * the description's astronomic shrink factor keeps the label's share of any deficit
+             * below Chromium's 1/64px layout precision — a mere `shrink-[999]` still leaked
+             * ~0.02px of shrink onto the label, enough for `truncate` to render a spurious
+             * ellipsis on a label that "fits". Once the description bottoms out at 0 the label
+             * absorbs the rest and truncates for real. The label needs `grow` with an `auto`
+             * basis (NOT `flex-1`, whose 0 basis collapsed it to "Pro...").
+             */}
+            <span className="project-status-label min-w-0 grow basis-auto truncate">
+                {node.label}
+            </span>
             {node.description && (
-                <small className="project-status-description flex-[0_1_auto] truncate text-muted text-[11px]">
+                <small className="project-status-description ml-auto min-w-0 flex-[0_999999_auto] truncate text-muted text-[11px]">
                     {node.description}
                 </small>
             )}

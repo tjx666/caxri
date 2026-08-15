@@ -59,17 +59,25 @@ export function buildProjectStatusNodes(
         });
     }
     if (repository.deployments) {
+        const { branchDeployments } = repository.deployments;
+        const environments = [...new Set(branchDeployments.map((entry) => entry.environment))];
+        // The rows below already carry the state via their icon and the branch is printed two
+        // rows above, so descriptions avoid repeating either: the header counts per environment
+        // when the list is uniform, and rows only name their environment when the list mixes
+        // them. No dashboard `url` on the header — the per-deployment links cover navigation.
         nodes.push({
             id: `${repository.id}:deployments`,
             kind: 'deployments',
             label: 'Deployments',
-            description: `${repository.deployments.branchDeployments.length} on ${repository.branch}`,
-            url: repository.deployments.url,
-            children: repository.deployments.branchDeployments.map((deployment, index) => ({
+            description:
+                environments.length === 1
+                    ? `${branchDeployments.length} on ${environments[0]}`
+                    : `${branchDeployments.length} on ${repository.branch}`,
+            children: branchDeployments.map((deployment, index) => ({
                 id: `${repository.id}:branch-deployment:${index}`,
                 kind: 'deployment',
                 label: deployment.hostname,
-                description: `${deployment.environment} · ${deployment.state}`,
+                description: environments.length === 1 ? undefined : deployment.environment,
                 state: deployment.state,
                 url: deployment.url,
             })),
@@ -83,7 +91,7 @@ export function buildProjectStatusNodes(
                 id: `${repository.id}:${deployment.environment}`,
                 kind: 'deployment',
                 label,
-                description: `${deployment.state} · ${deployment.hostname}`,
+                description: deployment.hostname,
                 state: deployment.state,
                 url: deployment.url,
             });
