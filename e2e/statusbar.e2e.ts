@@ -118,9 +118,9 @@ exec /bin/zsh -l
         ]);
 
         await branch.click();
-        await running.page
-            .getByRole('option', { name: 'feature/local-picker', exact: true })
-            .click();
+        // The option's accessible name carries a relative-time affix (e.g. "feature/local-picker
+        // 5 seconds ago") since the picker sorts by commit recency, so match on the prefix.
+        await running.page.getByRole('option', { name: /^feature\/local-picker / }).click();
         await expect(
             running.page.getByRole('combobox', {
                 name: 'Switch branch from feature/local-picker',
