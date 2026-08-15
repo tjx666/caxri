@@ -1,8 +1,10 @@
 {
     "ignore": {
         // Third-party competitor repositories cloned locally for analysis (gitignored;
-        // absent from CI checkouts). Findings there are not ours to fix.
-        "files": ["competitors/**"],
+        // absent from CI checkouts). Findings there are not ours to fix. Negative lint
+        // fixtures violate rules on purpose so the toolchain contract tests can prove the
+        // rules fire; they must never fail a real gate.
+        "files": ["competitors/**", "scripts/fixtures/**"],
         "overrides": [
             {
                 // False positive: every one of these files is only reachable through
@@ -12,10 +14,33 @@
                 "files": [
                     "src/renderer/src/features/editor/code-editor.tsx",
                     "src/renderer/src/features/editor/git-diff-editor.tsx",
-                    "src/renderer/src/features/settings/configuration-editor.tsx",
+                    "src/renderer/src/features/settings/config-editor.tsx",
                     "src/renderer/src/lib/monaco.ts",
                 ],
                 "rules": ["react-doctor/prefer-dynamic-import"],
+            },
+            {
+                // Deliberate sequential awaits: each of these loops orders its awaits on
+                // purpose (lock/journal ordering, xterm parser writes, bounded retries,
+                // chunked copies). Every site carries an eslint no-await-in-loop disable
+                // with an inline rationale; the ESLint gate is the adjudicating owner.
+                "files": [
+                    "packages/cli/src/skills/execute.ts",
+                    "packages/cli/src/skills/filesystem.ts",
+                    "src/renderer/src/lib/monaco.ts",
+                    "src/runtime/agents/hooks/manager.ts",
+                    "src/runtime/files/mutation-journal.ts",
+                    "src/runtime/files/mutations-copy.ts",
+                    "src/runtime/terminal/screen.ts",
+                ],
+                "rules": ["react-doctor/async-await-in-loop"],
+            },
+            {
+                // The panel-layout key predates versioning; renaming it now would silently
+                // reset every user's saved layout. Versioning is deferred until a real
+                // schema change forces a migration.
+                "files": ["src/renderer/src/stores/panel-layout.ts"],
+                "rules": ["react-doctor/client-localstorage-no-version"],
             },
             {
                 // Keybinding rows have no stable identity: both the key and the command are
