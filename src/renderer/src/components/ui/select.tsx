@@ -37,7 +37,17 @@ export function SelectTrigger({
 export function SelectContent({ className, children, ...props }: SelectPrimitive.Popup.Props) {
     return (
         <SelectPrimitive.Portal>
-            <SelectPrimitive.Positioner sideOffset={4} className="z-[60]">
+            {/**
+             * Base UI defaults `alignItemWithTrigger` to true, which overlays the popup on the
+             * trigger (macOS-native style) and ignores `side`/`align` and `--available-height`.
+             * With long lists (e.g. the status-bar branch picker) that mode fills the window
+             * and spills past the viewport, so every Select uses regular popover positioning.
+             */}
+            <SelectPrimitive.Positioner
+                alignItemWithTrigger={false}
+                sideOffset={4}
+                className="z-[60]"
+            >
                 <SelectPrimitive.Popup
                     data-slot="select-content"
                     className={cn(
