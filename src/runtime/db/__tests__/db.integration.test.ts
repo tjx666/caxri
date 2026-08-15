@@ -31,7 +31,7 @@ describe('CaxriDb', () => {
         const db = new CaxriDb(join(directory, 'state.db'));
 
         expect(db.database.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
-        expect(db.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(db.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         expect(
             (db.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
                 (column) => column.name,
@@ -246,7 +246,7 @@ describe('CaxriDb', () => {
         expect(upgraded.database.pragma('user_version', { simple: true })).toBe(
             CURRENT_SCHEMA_VERSION,
         );
-        expect(upgraded.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(upgraded.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         upgraded.close();
     });
 
@@ -312,7 +312,7 @@ describe('CaxriDb', () => {
         expect(upgraded.database.pragma('user_version', { simple: true })).toBe(
             CURRENT_SCHEMA_VERSION,
         );
-        expect(upgraded.appState.get<number>('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(upgraded.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         expect(upgraded.database.pragma('table_info(agent_dispatch_receipts)')).not.toHaveLength(0);
         expect(
             (upgraded.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(

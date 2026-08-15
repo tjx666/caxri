@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { GitRepositorySummary } from '../../../shared/types';
-import { GitPullRequestService } from '../pull-request';
+import { GitPullRequestService, parsePullRequestView } from '../pull-request';
 
 const BASE_OID = 'a'.repeat(40);
 const HEAD_OID = 'b'.repeat(40);
@@ -55,6 +55,27 @@ function createService(options: { capacity?: number; now?: () => number } = {}) 
 function changes(service: GitPullRequestService, sessionId: string, repositoryId = 'repository') {
     return service.changes({ refresh: 0, repositoryId, sessionId });
 }
+
+describe('parsePullRequestView', () => {
+    it('rejects malformed GitHub CLI JSON as GIT instead of asserting a view', () => {
+        expect(() => parsePullRequestView('{')).toThrow(
+            expect.objectContaining({ code: 'GIT' }) as Error,
+        );
+        expect(() =>
+            parsePullRequestView(
+                JSON.stringify({
+                    number: '1',
+                    title: 'PR',
+                    url: 'https://github.com/tjx666/caxri/pull/1',
+                    baseRefName: 'main',
+                    headRefName: 'feature',
+                    baseRefOid: BASE_OID,
+                    headRefOid: HEAD_OID,
+                }),
+            ),
+        ).toThrow(expect.objectContaining({ code: 'GIT' }) as Error);
+    });
+});
 
 describe('GitPullRequestService', () => {
     it('reuses the same current repository state for 30 seconds', async () => {

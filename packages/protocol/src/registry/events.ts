@@ -8,6 +8,7 @@ import {
 import { agentDispatchReceiptSchema } from '../agent/agent-dispatch-contract.js';
 import { agentEndpointSummarySchema } from '../agent/agent-endpoint-contract.js';
 
+import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,
     fileChangeSchema,
@@ -69,17 +70,17 @@ export const runtimeEventPayloads = {
     }),
     'state.changed': stateChangedPayloadSchema,
     'terminal.output': z.object({
-        terminalId: z.string(),
+        terminalId: identifierSchema,
         data: z.string(),
         droppedBytes: z.number().optional(),
     }),
     'terminal.exit': z.object({
-        terminalId: z.string(),
+        terminalId: identifierSchema,
         exitCode: z.number(),
         signal: z.number().optional(),
     }),
     'files.changed': z.object({
-        sessionId: z.string(),
+        sessionId: identifierSchema,
         /** Stable Project scope lets inactive Sessions sharing this root converge their caches. */
         workbenchProjectId: identifierSchema,
         changes: z.array(fileChangeSchema),
@@ -123,7 +124,10 @@ export const runtimeEventPayloads = {
      * fired by an actual mouse/touch click, so the Renderer can apply the editable-focus shortcut
      * policy only to the accelerator path (see `commands/execute.ts#runCommand`).
      */
-    'command.execute': z.object({ command: z.string(), viaAccelerator: z.boolean().optional() }),
+    'command.execute': z.object({
+        command: commandIdSchema,
+        viaAccelerator: z.boolean().optional(),
+    }),
 } as const;
 
 type CaxriEventName = keyof typeof runtimeEventPayloads;

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { RuntimeMethodParams } from '../../shared/ipc/methods';
@@ -22,15 +24,17 @@ interface PullRequestCacheEntry {
     value: GitPullRequestChanges | null;
 }
 
-interface GitHubPullRequestView {
-    number: number;
-    title: string;
-    url: string;
-    baseRefName: string;
-    headRefName: string;
-    baseRefOid: string;
-    headRefOid: string;
-}
+const githubPullRequestViewSchema = z.object({
+    number: z.number().int().positive(),
+    title: z.string().min(1),
+    url: z.string().refine((value) => URL.canParse(value), 'Invalid pull request URL'),
+    baseRefName: z.string().min(1),
+    headRefName: z.string().min(1),
+    baseRefOid: z.string().regex(/^[0-9a-f]{40}$/),
+    headRefOid: z.string().regex(/^[0-9a-f]{40}$/),
+});
+
+type GitHubPullRequestView = z.infer<typeof githubPullRequestViewSchema>;
 
 interface GitPullRequestServiceDeps {
     git(
@@ -120,26 +124,17 @@ function pullRequestFileStatus(file: NameStatusFile): GitFileStatus {
     };
 }
 
-function parsePullRequestView(output: string): GitHubPullRequestView {
-    let view: GitHubPullRequestView;
+export function parsePullRequestView(output: string): GitHubPullRequestView {
+    let parsed: unknown;
     try {
-        view = JSON.parse(output) as GitHubPullRequestView;
+        parsed = JSON.parse(output);
     } catch {
         throw new CaxriError('GIT', 'GitHub CLI returned malformed pull request metadata');
     }
-    if (
-        !Number.isInteger(view.number) ||
-        view.number <= 0 ||
-        !view.title ||
-        !URL.canParse(view.url) ||
-        !view.baseRefName ||
-        !view.headRefName ||
-        !/^[0-9a-f]{40}$/.test(view.baseRefOid) ||
-        !/^[0-9a-f]{40}$/.test(view.headRefOid)
-    ) {
+    const view = githubPullRequestViewSchema.safeParse(parsed);
+    if (!view.success)
         throw new CaxriError('GIT', 'GitHub CLI returned incomplete pull request metadata');
-    }
-    return view;
+    return view.data;
 }
 
 export class GitPullRequestService {

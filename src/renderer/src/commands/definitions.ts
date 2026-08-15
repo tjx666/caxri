@@ -1,4 +1,4 @@
-import { getCommandDefinition } from '@shared/commands';
+import { getCommandDefinition, type CommandId } from '@shared/commands';
 import { inspectorModeRegistrations } from '@shared/inspector';
 
 import {
@@ -13,7 +13,7 @@ import {
  * stays the single source of truth for id/title/category and the two tables cannot drift apart.
  */
 function fromCatalog(
-    id: string,
+    id: CommandId,
     run: (ctx: CommandContext, args?: unknown) => void,
     extra?: Partial<Pick<CommandDefinition, 'allowInEditable' | 'confirm' | 'when'>>,
 ): CommandDefinition {

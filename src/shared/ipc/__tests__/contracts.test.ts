@@ -101,6 +101,25 @@ describe('method table', () => {
         ).toBe(false);
     });
 
+    it('rejects agent provider settings that omit a catalog provider', () => {
+        const entry = {
+            hooks: { enabled: false },
+            launch: { executable: 'claude', args: [] },
+            messaging: { enabled: true },
+        };
+        expect(
+            methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse({
+                claude: entry,
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse({
+                claude: entry,
+                codex: entry,
+            }).success,
+        ).toBe(true);
+    });
+
     it('rejects invalid Main and Runtime results as internal contract failures', () => {
         expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
@@ -237,6 +256,23 @@ describe('Renderer client', () => {
             client.request('files.read', { sessionId: 'session-1', path: '/etc/passwd' }),
         ).rejects.toThrow(
             expect.objectContaining({ code: 'PATH_DENIED', message: 'outside root' }) as Error,
+        );
+    });
+
+    it('rejects a successful reply whose result does not match the method schema', async () => {
+        const client = createCaxriClient({
+            request: () =>
+                Promise.resolve({
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id: 'request-1',
+                    ok: true,
+                    result: '2',
+                }),
+            onEvent: () => () => undefined,
+        } as unknown as CaxriBridge);
+
+        await expect(client.request('terminal.runningCount')).rejects.toThrow(
+            expect.objectContaining({ code: 'INTERNAL' }) as Error,
         );
     });
 });

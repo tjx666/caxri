@@ -34,7 +34,9 @@ interface KeybindingsFormProps {
     onRemove: (index: number) => void;
 }
 
-const titleByCommand = new Map(commandDefinitions.map((command) => [command.id, command.title]));
+const titleByCommand = new Map<string, string>(
+    commandDefinitions.map((command) => [command.id, command.title]),
+);
 
 /** Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`. */
 const clearSearchButtonClassName =

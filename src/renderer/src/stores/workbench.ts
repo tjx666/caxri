@@ -1,8 +1,15 @@
 import { create } from 'zustand';
 
 import { reconcileEditorTabDirtiness, withoutEditorTabDirtiness } from '@shared/editor-state';
+import { assertNever } from '@shared/ipc';
 import type { RuntimeEvent } from '@shared/ipc/events';
-import type { BootstrapState, SessionRecord, SessionState, TerminalRecord } from '@shared/types';
+import type {
+    BootstrapState,
+    CommandId,
+    SessionRecord,
+    SessionState,
+    TerminalRecord,
+} from '@shared/types';
 
 import { caxri } from '../lib/caxri';
 import { mergeStructurally } from './structural-sharing';
@@ -316,53 +323,77 @@ export interface WorkbenchEventHandlers {
      * forwards whether the menu item fired from its keyboard accelerator rather than a mouse/touch
      * click, so the caller can apply the editable-focus shortcut policy only to the accelerator path.
      */
-    onCommand(command: string, viaAccelerator: boolean): void;
+    onCommand(command: CommandId, viaAccelerator: boolean): void;
     /** Applies an authenticated Host open request after Main redeemed its one-use target. */
     onDesktopOpen(sessionId: string, path?: string): void;
 }
 
 /**
  * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to
- * live inside App's mount effect dispatches into this store instead.
+ * live inside App's mount effect dispatches into this store instead. Unhandled events must be
+ * listed as explicit no-ops so a new Runtime event fails compile instead of disappearing.
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
-        if (event.event === 'state.changed') void applyStateChange(event.payload);
-        if (event.event === 'runtime.status') {
-            const payload = event.payload;
-            useWorkbenchStore.setState((current) =>
-                current.bootstrap
-                    ? { bootstrap: { ...current.bootstrap, runtime: payload } }
-                    : current,
-            );
-            if (payload.status === 'ready') {
-                useWorkbenchStore.setState((current) => ({ attachEpoch: current.attachEpoch + 1 }));
-                void refreshWorkbench();
-            }
-        }
-        if (
-            event.event === 'settings.changed' ||
-            event.event === 'keybindings.changed' ||
-            event.event === 'theme.changed'
-        ) {
-            if (event.payload.error) pushToast('error', event.payload.error);
-            else void refreshWorkbench();
-        }
-        if (event.event === 'command.execute')
-            handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
-        if (event.event === 'desktop.openRequested')
-            handlers.onDesktopOpen(event.payload.sessionId, event.payload.path);
-        if (event.event === 'workbench.candidate') showWorkbenchRootCandidate(event.payload);
-        if (event.event === 'workbench.changed') {
-            dismissWorkbenchRootCandidate(event.payload.sessionId);
-            if (event.payload.reason === 'fallback' && event.payload.returnedProjectTitle)
-                pushToast(
-                    'info',
-                    `The active worktree is no longer available. Returned to ${event.payload.returnedProjectTitle}.`,
-                    { persist: true },
+        switch (event.event) {
+            case 'state.changed':
+                void applyStateChange(event.payload);
+                return;
+            case 'runtime.status': {
+                const payload = event.payload;
+                useWorkbenchStore.setState((current) =>
+                    current.bootstrap
+                        ? { bootstrap: { ...current.bootstrap, runtime: payload } }
+                        : current,
                 );
+                if (payload.status === 'ready') {
+                    useWorkbenchStore.setState((current) => ({
+                        attachEpoch: current.attachEpoch + 1,
+                    }));
+                    void refreshWorkbench();
+                }
+                return;
+            }
+            case 'settings.changed':
+            case 'keybindings.changed':
+            case 'theme.changed':
+                if (event.payload.error) pushToast('error', event.payload.error);
+                else void refreshWorkbench();
+                return;
+            case 'command.execute':
+                handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
+                return;
+            case 'desktop.openRequested':
+                handlers.onDesktopOpen(event.payload.sessionId, event.payload.path);
+                return;
+            case 'workbench.candidate':
+                showWorkbenchRootCandidate(event.payload);
+                return;
+            case 'workbench.changed':
+                dismissWorkbenchRootCandidate(event.payload.sessionId);
+                if (event.payload.reason === 'fallback' && event.payload.returnedProjectTitle)
+                    pushToast(
+                        'info',
+                        `The active worktree is no longer available. Returned to ${event.payload.returnedProjectTitle}.`,
+                        { persist: true },
+                    );
+                return;
+            case 'window.fullScreen':
+                useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
+                return;
+            case 'agent.dispatch.changed':
+            case 'agent.message.held':
+            case 'agent.message.receipt':
+            case 'agent.messaging.changed':
+            case 'agentHooks.changed':
+            case 'files.changed':
+            case 'files.operationChanged':
+            case 'terminal.exit':
+            case 'terminal.output':
+            case 'updates.state':
+                return;
+            default:
+                return assertNever(event, 'Unhandled workbench Runtime event');
         }
-        if (event.event === 'window.fullScreen')
-            useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
     });
 }

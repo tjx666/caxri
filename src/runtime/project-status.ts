@@ -2,6 +2,9 @@ import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 
+import { z } from 'zod';
+
+import { CaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type {
@@ -67,36 +70,70 @@ class ProjectStatusCliError extends Error {
     }
 }
 
-interface GitHubCheck {
-    __typename?: string;
-    completedAt?: string | null;
-    conclusion?: string | null;
-    context?: string;
-    detailsUrl?: string;
-    name?: string;
-    startedAt?: string | null;
-    state?: string | null;
-    status?: string | null;
-    targetUrl?: string;
-    workflowName?: string;
-}
+const githubCheckSchema = z.object({
+    __typename: z.string().optional(),
+    completedAt: z.string().nullable().optional(),
+    conclusion: z.string().nullable().optional(),
+    context: z.string().optional(),
+    detailsUrl: z.string().optional(),
+    name: z.string().optional(),
+    startedAt: z.string().nullable().optional(),
+    state: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+    targetUrl: z.string().optional(),
+    workflowName: z.string().optional(),
+});
 
-interface GitHubPullRequest {
-    body?: string;
-    number?: number;
-    statusCheckRollup?: GitHubCheck[];
-    title?: string;
-    url?: string;
-}
+type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
-interface VercelDeployment {
-    created?: number;
-    name?: string;
-    readyState?: string;
-    state?: string;
-    target?: 'production' | 'preview' | null;
-    url?: string;
-}
+const githubPullRequestSchema = z.object({
+    body: z.string().optional(),
+    number: z.number().int().positive().optional(),
+    statusCheckRollup: z.array(githubCheckSchema).optional(),
+    title: z.string().min(1).optional(),
+    url: z.string().optional(),
+});
+
+const vercelDeploymentSchema = z.object({
+    created: z.number().optional(),
+    name: z.string().optional(),
+    readyState: z.string().optional(),
+    state: z.string().optional(),
+    target: z.enum(['production', 'preview']).nullable().optional(),
+    url: z.string().optional(),
+});
+
+type VercelDeployment = z.infer<typeof vercelDeploymentSchema>;
+
+const vercelDeploymentListSchema = z.union([
+    z.array(vercelDeploymentSchema),
+    z.object({ deployments: z.array(vercelDeploymentSchema).optional() }),
+]);
+
+const vercelTeamListSchema = z.union([
+    z.array(z.object({ slug: z.string().optional() })),
+    z.object({ teams: z.array(z.object({ slug: z.string().optional() })).optional() }),
+]);
+
+const linearIssueResponseSchema = z.object({
+    data: z
+        .object({
+            issue: z
+                .object({
+                    identifier: z.string().optional(),
+                    title: z.string().optional(),
+                    url: z.string().optional(),
+                    state: z
+                        .object({
+                            name: z.string().optional(),
+                            type: z.string().optional(),
+                        })
+                        .optional(),
+                })
+                .optional(),
+        })
+        .optional(),
+});
 
 export interface VercelLink {
     project: string;
@@ -114,6 +151,22 @@ interface RepositoryContext {
     head?: string;
     owner?: string;
     repo?: string;
+}
+
+const LINEAR_STATE_TYPES = new Set<ProjectStatusLinearIssue['stateType']>([
+    'backlog',
+    'canceled',
+    'completed',
+    'duplicate',
+    'started',
+    'triage',
+    'unstarted',
+]);
+
+function linearStateType(value: string | undefined): ProjectStatusLinearIssue['stateType'] {
+    return LINEAR_STATE_TYPES.has(value as ProjectStatusLinearIssue['stateType'])
+        ? (value as ProjectStatusLinearIssue['stateType'])
+        : undefined;
 }
 
 const SUCCESS_RESULTS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED', 'COMPLETED']);
@@ -143,12 +196,16 @@ const LINEAR_ISSUE_QUERY = `query IssueStatus($id:String!){
   issue(id:$id){identifier title url state{name type}}
 }`;
 
-function parseJson<T>(value: string, fallback: T): T {
+function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string): T {
+    let parsed: unknown;
     try {
-        return JSON.parse(value) as T;
+        parsed = JSON.parse(value);
     } catch {
-        return fallback;
+        throw new CaxriError('VALIDATION', `Invalid ${label} JSON`);
     }
+    const result = schema.safeParse(parsed);
+    if (!result.success) throw new CaxriError('VALIDATION', `Invalid ${label} payload`);
+    return result.data;
 }
 
 function classifyCliFailure(
@@ -285,7 +342,7 @@ export function parseGitHubPullRequest(value: string): {
     body: string;
     pullRequest?: ProjectStatusRepository['pullRequest'];
 } {
-    const raw = parseJson<GitHubPullRequest>(value, {});
+    const raw = parseExternalJson(value, githubPullRequestSchema, 'GitHub pull request');
     if (!raw.number || !raw.title || !raw.url) return { body: raw.body ?? '' };
     const checks = (raw.statusCheckRollup ?? []).map((check): ProjectStatusCheck => ({
         name: check.workflowName
@@ -360,7 +417,7 @@ export function rememberVercelLink(
 }
 
 function parseVercelList(value: string): VercelDeployment[] {
-    const parsed = parseJson<VercelDeployment[] | { deployments?: VercelDeployment[] }>(value, []);
+    const parsed = parseExternalJson(value, vercelDeploymentListSchema, 'Vercel deployment list');
     const deployments = Array.isArray(parsed) ? parsed : (parsed.deployments ?? []);
     return deployments.toSorted((a, b) => (b.created ?? 0) - (a.created ?? 0));
 }
@@ -413,7 +470,11 @@ export class ProjectStatusService {
                     ],
                     repository.rootPath,
                 );
-                const parsed = parseJson<GitHubPullRequest>(output, {});
+                const parsed = parseExternalJson(
+                    output,
+                    githubPullRequestSchema,
+                    'GitHub pull request',
+                );
                 if (parsed.number && parsed.title && parsed.url) {
                     pullRequest = {
                         number: parsed.number,
@@ -576,26 +637,18 @@ export class ProjectStatusService {
                         `id=${reference.identifier}`,
                     ];
                     if (reference.workspace) args.push('--workspace', reference.workspace);
-                    const raw = parseJson<{
-                        data?: {
-                            issue?: {
-                                identifier?: string;
-                                title?: string;
-                                url?: string;
-                                state?: {
-                                    name?: string;
-                                    type?: ProjectStatusLinearIssue['stateType'];
-                                };
-                            };
-                        };
-                    }>(await this.runner('linear', args, cwd), {});
+                    const raw = parseExternalJson(
+                        await this.runner('linear', args, cwd),
+                        linearIssueResponseSchema,
+                        'Linear issue',
+                    );
                     const issue = raw.data?.issue;
                     return {
                         identifier: issue?.identifier ?? reference.identifier,
                         title: issue?.title,
                         url: issue?.url,
                         state: issue?.state?.name,
-                        stateType: issue?.state?.type,
+                        stateType: linearStateType(issue?.state?.type),
                     };
                 } catch (error) {
                     const failure =
@@ -618,10 +671,7 @@ export class ProjectStatusService {
             return cached;
         }
         const teamsJson = await this.runner('vc', ['teams', 'ls', '--format', 'json'], homedir());
-        const parsed = parseJson<Array<{ slug?: string }> | { teams?: Array<{ slug?: string }> }>(
-            teamsJson,
-            [],
-        );
+        const parsed = parseExternalJson(teamsJson, vercelTeamListSchema, 'Vercel team list');
         const teams = (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
             team.slug ? [team.slug] : [],
         );

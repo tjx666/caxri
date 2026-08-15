@@ -13,6 +13,7 @@ import type {
     TerminalRecord,
     TerminalSnapshot,
 } from '../../shared/types';
+import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
 import {
     choosePrimaryAgentForNewTerminal,
@@ -102,7 +103,7 @@ export class CaxriDatabase {
             this.db.sessions.resetWorkbenchProject(projectId);
             if (!this.db.projects.remove(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
-            if (this.db.appState.get<string>('lastSelectedProjectId') !== projectId) return;
+            if (this.db.appState.get('lastSelectedProjectId') !== projectId) return;
             const fallbackProject = this.db.projects.list().at(0);
             const fallbackSession = fallbackProject
                 ? this.db.sessions
@@ -372,8 +373,8 @@ export class CaxriDatabase {
         this.db.transaction(() => {
             if (!this.db.sessions.remove(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            if (this.db.appState.get<string>('lastSelectedSessionId') !== sessionId) return;
-            const selectedProjectId = this.db.appState.get<string>('lastSelectedProjectId');
+            if (this.db.appState.get('lastSelectedSessionId') !== sessionId) return;
+            const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
             const candidateSessions = selectedProjectId
                 ? this.db.sessions.list(selectedProjectId)
                 : this.db.sessions.list();
@@ -397,7 +398,7 @@ export class CaxriDatabase {
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
             if (session.archivedAt === undefined && !this.db.sessions.setArchived(sessionId, now))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            if (this.db.appState.get<string>('lastSelectedSessionId') === sessionId) {
+            if (this.db.appState.get('lastSelectedSessionId') === sessionId) {
                 const fallback = this.db.sessions
                     .list(session.projectId)
                     .find(
@@ -578,11 +579,11 @@ export class CaxriDatabase {
         );
     }
 
-    getAppState<T>(key: string): T | undefined {
-        return this.db.appState.get<T>(key);
+    getAppState<K extends AppStateKey>(key: K): AppStateValue<K> | undefined {
+        return this.db.appState.get(key);
     }
 
-    setAppState(key: string, value: unknown): void {
+    setAppState<K extends AppStateKey>(key: K, value: AppStateValue<K>): void {
         this.db.appState.set(key, value);
     }
 

@@ -1,8 +1,11 @@
-import type { Keybinding } from './types';
+import { inspectorCommandId } from './ipc';
+import type { CommandId, Keybinding } from './types';
 import { inspectorModeRegistrations } from './inspector';
 
+export type { CommandId };
+
 export interface CommandDefinition {
-    id: string;
+    id: CommandId;
     title: string;
     category: string;
     description: string;
@@ -160,7 +163,7 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Save the active file',
     },
     ...inspectorModeRegistrations.map(({ commandDescription, commandId, commandTitle }) => ({
-        id: commandId,
+        id: inspectorCommandId(commandId),
         title: commandTitle,
         category: 'Inspector',
         description: commandDescription,
@@ -309,7 +312,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+s', command: 'editor.save' },
     ...inspectorModeRegistrations.map(({ commandId, defaultKeybinding }) => ({
         key: defaultKeybinding,
-        command: commandId,
+        command: inspectorCommandId(commandId),
     })),
     { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
     { key: 'cmd+[', command: 'sidebar.toggle' },
