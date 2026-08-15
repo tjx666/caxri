@@ -24,6 +24,7 @@ import { installProcessErrorMonitor } from '../shared/node/process-error-monitor
 import { themeImportExtensions } from '../shared/theme-import';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import { enableDevelopmentCdp } from './dev-cdp';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import {
     deleteProjectPrompt,
@@ -71,6 +72,7 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
+enableDevelopmentCdp(app, process.env);
 if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
 let mainWindow: BrowserWindow | undefined;
 let mainRenderer: WebContents | undefined;
