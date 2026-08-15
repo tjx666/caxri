@@ -1,0 +1,113 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { IPty } from 'node-pty';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { StructuredLogger } from '../../../shared/node/logger';
+import { CaxriDatabase } from '../../db/repository';
+import { TerminalManager } from '..';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+    await Promise.all(
+        temporaryDirectories
+            .splice(0)
+            .map((directory) =>
+                rm(directory, { recursive: true, force: true }).catch(() => undefined),
+            ),
+    );
+});
+
+/** Minimal PTY double exposing `write` as a standalone spy so assertions stay bound-method safe. */
+function createFakePty() {
+    let onData: ((data: string) => void) | undefined;
+    const write = vi.fn<(data: string) => void>();
+    const process = {
+        cols: 100,
+        rows: 30,
+        kill: vi.fn(),
+        resize: vi.fn(),
+        onData: (listener: (data: string) => void) => {
+            onData = listener;
+            return { dispose: vi.fn() };
+        },
+        onExit: () => ({ dispose: vi.fn() }),
+        write,
+    } as unknown as IPty;
+    return { emitData: (data: string) => onData?.(data), process, write };
+}
+
+describe('TerminalManager color-query replies', () => {
+    it('answers OSC 10/11 with theme colors and keeps the queries out of the stream', async () => {
+        vi.useFakeTimers();
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-color-query-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const fake = createFakePty();
+        let output = '';
+        const manager = new TerminalManager(
+            database,
+            (event) => {
+                if (event.event === 'terminal.output') output += event.payload.data;
+            },
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                resolveExecutable: () => Promise.resolve('/bin/codex'),
+                snapshotIntervalMs: 50,
+                spawn: () => fake.process,
+                terminalColors: () => ({ background: '#282a36', foreground: '#f8f8f2' }),
+            },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            await manager.attach(created.terminal.id);
+            /** The exact probe Codex sends at TUI startup (see codex-rs `terminal_probe.rs`). */
+            fake.emitData('boot\x1b]10;?\x1b\\\x1b]11;?\x1b\\ready');
+            await vi.advanceTimersByTimeAsync(50);
+
+            expect(fake.write).toHaveBeenCalledWith('\x1b]10;rgb:f8f8/f8f8/f2f2\x1b\\');
+            expect(fake.write).toHaveBeenCalledWith('\x1b]11;rgb:2828/2a2a/3636\x1b\\');
+            expect(output).toBe('bootready');
+            expect(database.getSnapshot(created.terminal.id)?.payload).toBe('bootready');
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+            vi.useRealTimers();
+        }
+    });
+
+    it('strips stale query bytes from a persisted snapshot instead of replaying them', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-color-query-snapshot-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        database.saveSnapshot({
+            byteCount: 22,
+            encodingVersion: 1,
+            lineCount: 1,
+            payload: 'before\x1b]11;?\x1b\\after',
+            terminalId: created.terminal.id,
+            updatedAt: Date.now(),
+        });
+        const fake = createFakePty();
+        const manager = new TerminalManager(
+            database,
+            () => undefined,
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
+        );
+
+        try {
+            await manager.start(created.terminal);
+            expect(database.getSnapshot(created.terminal.id)?.payload).toBe('beforeafter');
+        } finally {
+            manager.close(created.terminal.id);
+            database.close();
+        }
+    });
+});
