@@ -159,6 +159,38 @@ export function lintPipelineForFile(file: string): 'code' | 'format' | undefined
     return undefined;
 }
 
+export interface LintBuckets {
+    codeFiles: string[];
+    markdownFiles: string[];
+    otherFormatFiles: string[];
+}
+
+/**
+ * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool
+ * ownership split: markdownlint owns Markdown semantics, Prettier owns formatting for every
+ * `FORMAT_EXTENSIONS` file (including `.md`), and ESLint + Prettier own `CODE_EXTENSIONS`.
+ */
+export function lintBucketsForFiles(files: string[]): LintBuckets {
+    const codeFiles: string[] = [];
+    const markdownFiles: string[] = [];
+    const otherFormatFiles: string[] = [];
+
+    for (const file of files) {
+        const pipeline = lintPipelineForFile(file);
+        if (pipeline === 'code') {
+            codeFiles.push(file);
+        } else if (pipeline === 'format') {
+            if (extname(file).toLowerCase() === '.md') {
+                markdownFiles.push(file);
+            } else {
+                otherFormatFiles.push(file);
+            }
+        }
+    }
+
+    return { codeFiles, markdownFiles, otherFormatFiles };
+}
+
 export function testCandidatesForFile(file: string): string[] {
     const normalized = file.replaceAll('\\', '/');
     if (/\.test\.(?:cts|mts|ts|tsx)$/.test(normalized)) return [normalized];
@@ -363,21 +395,27 @@ async function runTool(root: string, executable: string, arguments_: string[]): 
 }
 
 async function runLint(root: string, files: string[]): Promise<number> {
-    const codeFiles = files.filter((file) => lintPipelineForFile(file) === 'code');
-    const formatFiles = files.filter((file) => lintPipelineForFile(file) === 'format');
+    const { codeFiles, markdownFiles, otherFormatFiles } = lintBucketsForFiles(files);
 
     if (codeFiles.length > 0) {
         await runTool(root, 'eslint', ['--fix', ...codeFiles]);
         await runTool(root, 'prettier', ['--write', ...codeFiles]);
     }
-    if (formatFiles.length > 0) {
+    if (markdownFiles.length > 0) {
+        // markdownlint owns Markdown semantics; run its autofix before Prettier reformats the
+        // same files, since a semantic fix (e.g. wrapping a bare URL) can change line width that
+        // Prettier still needs to reflow.
+        await runTool(root, 'markdownlint-cli2', ['--fix', ...markdownFiles]);
+    }
+    if (markdownFiles.length > 0 || otherFormatFiles.length > 0) {
         await runTool(root, 'prettier', [
             '--write',
             '--no-error-on-unmatched-pattern',
-            ...formatFiles,
+            ...markdownFiles,
+            ...otherFormatFiles,
         ]);
     }
-    return codeFiles.length + formatFiles.length;
+    return codeFiles.length + markdownFiles.length + otherFormatFiles.length;
 }
 
 export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {

@@ -96,6 +96,8 @@ describe('pnpm workspace contract', () => {
         expect(workspace.packages).toEqual(['packages/*']);
         expect(workspace.catalog).toEqual({
             '@yutengjing/eslint-config-typescript': '^4.0.0',
+            'markdownlint': '^0.41.1',
+            'markdownlint-cli2': '^0.23.2',
             'zod': '4.4.3',
         });
         expect(workspace.allowBuilds).toEqual({

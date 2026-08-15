@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
     directImportTestCandidates,
     hasDirectSourceImport,
+    lintBucketsForFiles,
     lintPipelineForFile,
     parseCheckArguments,
     playwrightArguments,
@@ -129,6 +130,27 @@ describe('lintPipelineForFile', () => {
         expect(lintPipelineForFile('src/main/index.ts')).toBe('code');
         expect(lintPipelineForFile('DESIGN.md')).toBe('format');
         expect(lintPipelineForFile('assets/font.woff2')).toBeUndefined();
+    });
+});
+
+describe('lintBucketsForFiles', () => {
+    it('separates Markdown into its own bucket so it can run markdownlint before Prettier', () => {
+        expect(
+            lintBucketsForFiles([
+                'src/main/index.ts',
+                'DESIGN.md',
+                'package.json',
+                'assets/font.woff2',
+            ]),
+        ).toEqual({
+            codeFiles: ['src/main/index.ts'],
+            markdownFiles: ['DESIGN.md'],
+            otherFormatFiles: ['package.json'],
+        });
+    });
+
+    it('matches Markdown extensions case-insensitively, same as lintPipelineForFile', () => {
+        expect(lintBucketsForFiles(['README.MD']).markdownFiles).toEqual(['README.MD']);
     });
 });
 

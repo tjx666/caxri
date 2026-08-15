@@ -1,5 +1,6 @@
 export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run lint',
+    'bun run lint:markdown',
     'bun run knip',
     'bun run doctor:changed',
     'bun run typecheck',
