@@ -285,20 +285,33 @@ export class GitService {
         return this.repositoryService.resolveRepository(sessionId, repositoryIdValue);
     }
 
-    private async listBranches(repository: GitRepositorySummary): Promise<string[]> {
+    private async listBranches(
+        repository: GitRepositorySummary,
+    ): Promise<Array<{ name: string; committedAt: number }>> {
+        // Most recently committed branches first (GitLens-style recency); the earlier
+        // `--sort=refname` is the tiebreaker — with multiple keys the last one is primary.
+        // `%00` keeps the name/date split unambiguous: branch names cannot contain NUL.
         const output = await this.git(repository.rootPath, [
             'for-each-ref',
             `--count=${MAX_LOCAL_BRANCHES}`,
-            '--format=%(refname:short)',
+            '--sort=refname',
+            '--sort=-committerdate',
+            '--format=%(refname:short)%00%(committerdate:unix)',
             'refs/heads',
         ]);
         return output
             .split('\n')
-            .map((branch) => branch.trim())
-            .filter(Boolean);
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+                const [name, committedAt] = line.split('\0');
+                return { name, committedAt: Number(committedAt) * 1_000 };
+            });
     }
 
-    async branches(params: RuntimeMethodParams<'git.branches'>): Promise<string[]> {
+    async branches(
+        params: RuntimeMethodParams<'git.branches'>,
+    ): Promise<Array<{ name: string; committedAt: number }>> {
         const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
         return this.listBranches(repository);
     }
@@ -306,7 +319,7 @@ export class GitService {
     async switchBranch(params: RuntimeMethodParams<'git.switchBranch'>): Promise<null> {
         const repository = await this.resolveRepository(params.sessionId, params.repositoryId);
         const branches = await this.listBranches(repository);
-        if (!branches.includes(params.branch))
+        if (!branches.some((candidate) => candidate.name === params.branch))
             throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
         if (repository.branch !== params.branch)
             await this.git(repository.rootPath, ['switch', '--', params.branch]);

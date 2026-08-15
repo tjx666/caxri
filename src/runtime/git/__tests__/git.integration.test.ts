@@ -138,6 +138,18 @@ describe('GitService', () => {
         await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
         await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: directory });
         await execFileAsync('git', ['branch', 'feature/local-picker'], { cwd: directory });
+        // A clearly newer commit on main proves the committerdate-first branch ordering;
+        // both branches otherwise share the initial commit's timestamp (a refname tie).
+        await writeFile(join(directory, 'tracked.txt'), 'newer\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
+        await execFileAsync('git', ['commit', '-m', 'newer'], {
+            cwd: directory,
+            env: {
+                ...process.env,
+                GIT_AUTHOR_DATE: '2099-01-01T00:00:00+00:00',
+                GIT_COMMITTER_DATE: '2099-01-01T00:00:00+00:00',
+            },
+        });
 
         const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
         const session = database.createSession(
@@ -150,9 +162,16 @@ describe('GitService', () => {
         );
         const repository = (await git.summary(session.id)).repositories[0];
 
-        await expect(
-            git.branches({ sessionId: session.id, repositoryId: repository.id }),
-        ).resolves.toEqual(['feature/local-picker', 'main']);
+        const branchList = await git.branches({
+            sessionId: session.id,
+            repositoryId: repository.id,
+        });
+        expect(branchList.map((candidate) => candidate.name)).toEqual([
+            'main',
+            'feature/local-picker',
+        ]);
+        expect(branchList[0].committedAt).toBe(Date.UTC(2099, 0, 1));
+        expect(branchList[1].committedAt).toBeTypeOf('number');
         await expect(
             git.switchBranch({
                 sessionId: session.id,
