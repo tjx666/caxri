@@ -169,6 +169,13 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.scripts?.['unlink:cli']).toBe('pnpm remove --global @caxri/cli');
     });
 
+    it('builds workspace distributions before Desktop development and production builds', () => {
+        expect(rootManifest.scripts?.dev).toBe('bun run build:workspaces && electron-vite dev');
+        expect(rootManifest.scripts?.build).toBe(
+            'bun run build:workspaces && bun run build:desktop',
+        );
+    });
+
     it('keeps the CLI production graph free of Desktop native modules', () => {
         expect(protocolManifest.name).toBe('@caxri/protocol');
         expect(cliManifest.name).toBe('@caxri/cli');
