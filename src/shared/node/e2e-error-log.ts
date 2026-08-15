@@ -69,6 +69,7 @@ export function readE2ELogSnapshots(userDataDirectory: string): E2ELogSnapshot[]
         const activePath = join(userDataDirectory, 'logs', `${source}.jsonl`);
         for (const path of [`${activePath}.1`, activePath]) {
             try {
+                // eslint-disable-next-line n/no-sync -- deliberate synchronous read; see the function doc comment above.
                 snapshots.push({ source, path, contents: readFileSync(path, 'utf8') });
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;

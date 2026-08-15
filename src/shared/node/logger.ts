@@ -59,11 +59,13 @@ export class StructuredLogger {
         private readonly processName: LogRecord['process'] = 'runtime',
         private readonly minimumLevel: LogRecord['level'] = 'debug',
     ) {
+        // eslint-disable-next-line n/no-sync -- deliberate: must exist before the first synchronous write() below.
         mkdirSync(logDirectory, { recursive: true });
         this.path = join(logDirectory, `${processName}.jsonl`);
         this.appVersion = process.env.CAXRI_APP_VERSION || undefined;
         this.commit = process.env.CAXRI_GIT_COMMIT || undefined;
         try {
+            // eslint-disable-next-line n/no-sync -- deliberate: this logger is synchronous by design, see class doc.
             this.bytesWritten = statSync(this.path).size;
         } catch {
             this.bytesWritten = 0;
@@ -90,14 +92,17 @@ export class StructuredLogger {
         const line = `${JSON.stringify(record)}\n`;
         if (this.bytesWritten + Buffer.byteLength(line, 'utf8') > MAX_LOG_BYTES) {
             const rotatedPath = `${this.path}.1`;
+            // eslint-disable-next-line n/no-sync -- deliberate: rotation must finish before the write() below.
             rmSync(rotatedPath, { force: true });
             try {
+                // eslint-disable-next-line n/no-sync -- deliberate: see the class doc comment above.
                 renameSync(this.path, rotatedPath);
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
             }
             this.bytesWritten = 0;
         }
+        // eslint-disable-next-line n/no-sync -- deliberate: synchronous by design, durable the instant this returns.
         appendFileSync(this.path, line, { encoding: 'utf8', mode: 0o600 });
         this.bytesWritten += Buffer.byteLength(line, 'utf8');
     }

@@ -17,6 +17,7 @@
         "packages/**/*.ts",
         ".agents/skills/**/scripts/**/*.ts",
         "scripts/**/*.ts",
+        "scripts/fixtures/eslint/**/*.tsx",
         "e2e/**/*.ts"
     ],
     "compilerOptions": {

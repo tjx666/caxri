@@ -4,8 +4,11 @@ import {
     typescriptConfig,
 } from '@yutengjing/eslint-config-typescript';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import n from 'eslint-plugin-n';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+
+import caxri from './scripts/eslint-rules/index';
 
 const typescriptFiles = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'];
 const javaScriptAndTypeScriptFiles = [
@@ -14,6 +17,21 @@ const javaScriptAndTypeScriptFiles = [
     '**/*.mjs',
     '**/*.cjs',
     ...typescriptFiles,
+];
+/**
+ * Directories whose production/tooling code may run child processes at all (the Renderer is out of scope: it already
+ * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
+ */
+const shellExecutionScopedDirectories = [
+    'src/main/**',
+    'src/host/**',
+    'src/preload/**',
+    'src/runtime/**',
+    'src/shared/**',
+    'scripts/**',
+    '.agents/**',
+    'e2e/**',
+    'packages/*/src/**',
 ];
 
 export default defineConfig(
@@ -216,6 +234,142 @@ export default defineConfig(
              * the shared-preset migration allows disabling.
              */
             'jsdoc/check-alignment': 'off',
+        },
+    },
+    {
+        files: ['src/host/**', 'src/main/**', 'src/preload/**', 'src/runtime/**', 'src/shared/**'],
+        rules: {
+            /**
+             * `@shared/*` and `@/*` aliases are declared only in `tsconfig.web.json` (the Renderer TypeScript project,
+             * per AGENTS.md "Architecture guardrails"); Main, Preload, Runtime, Host, and shared Node code must use
+             * relative imports so they keep resolving under the Node/Electron module loader. This also bans
+             * `child_process`'s shell-string `exec`/`execSync` (arbitrary command strings) everywhere they are imported
+             * from; structured argv `spawn`/`execFile` (see AGENTS.md "Forbidden") stays allowed.
+             */
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            group: ['@shared', '@shared/*', '@/*'],
+                            message:
+                                '@shared/* and @/* aliases exist only for the Renderer (tsconfig.web.json); use a relative import here.',
+                        },
+                    ],
+                    paths: [
+                        {
+                            name: 'child_process',
+                            importNames: ['exec', 'execSync'],
+                            message:
+                                'child_process exec/execSync run an arbitrary shell string; use structured argv spawn/execFile instead.',
+                        },
+                        {
+                            name: 'node:child_process',
+                            importNames: ['exec', 'execSync'],
+                            message:
+                                'child_process exec/execSync run an arbitrary shell string; use structured argv spawn/execFile instead.',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**', '.agents/**', 'e2e/**', 'packages/*/src/**'],
+        rules: {
+            /**
+             * Same shell-string ban as the Main/Preload/Runtime/Host/shared config above, scoped separately so this
+             * object's `no-restricted-imports` entry (a distinct, non-overlapping `files` set) does not need to repeat
+             * the alias-ban patterns that only make sense for Desktop source under `src/`.
+             */
+            'no-restricted-imports': [
+                'error',
+                {
+                    paths: [
+                        {
+                            name: 'child_process',
+                            importNames: ['exec', 'execSync'],
+                            message:
+                                'child_process exec/execSync run an arbitrary shell string; use structured argv spawn/execFile instead.',
+                        },
+                        {
+                            name: 'node:child_process',
+                            importNames: ['exec', 'execSync'],
+                            message:
+                                'child_process exec/execSync run an arbitrary shell string; use structured argv spawn/execFile instead.',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: shellExecutionScopedDirectories,
+        ignores: ['**/*.tsx'],
+        rules: {
+            /**
+             * Bans the `spawn`/`execFile` `shell: true` option, which turns a structured argv call back into
+             * shell-string execution. Scoped to non-`.tsx` files so this object's `no-restricted-syntax` entry never
+             * collides with the separate `src/**\/*.tsx` default-export-ban config object above (flat config replaces,
+             * rather than merges, a later matching object's same-named rule).
+             */
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector:
+                        ':matches(CallExpression[callee.name=/^(?:spawn|execFile)$/], CallExpression[callee.property.name=/^(?:spawn|execFile)$/]) > ObjectExpression > Property[key.name="shell"][value.value=true]',
+                    message:
+                        'spawn/execFile with shell: true runs an arbitrary shell string; pass argv as an array without shell: true instead.',
+                },
+            ],
+        },
+    },
+    {
+        files: [
+            'src/main/**/*.ts',
+            'src/runtime/**/*.ts',
+            'src/shared/node/**/*.ts',
+            'packages/cli/src/**/*.ts',
+            'scripts/**/*.ts',
+            '.agents/**/scripts/**/*.ts',
+        ],
+        ignores: ['**/*.test.ts', '**/__tests__/**'],
+        plugins: {
+            n,
+        },
+        rules: {
+            /**
+             * AGENTS.md "Code conventions": prefer asynchronous Node.js APIs over `*Sync` variants in Main, Runtime,
+             * and tooling code; test code is exempt. A deliberately synchronous production boundary needs a comment
+             * justifying it (`// eslint-disable-next-line n/no-sync -- <reason>`).
+             */
+            'n/no-sync': 'error',
+        },
+    },
+    {
+        files: ['src/**/*.tsx', 'scripts/fixtures/eslint/*-fixture.tsx'],
+        ignores: [
+            '**/main.tsx',
+            '**/process-explorer-main.tsx',
+            '**/index.tsx',
+            '**/*.test.tsx',
+            '**/*.stories.tsx',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/filename-export-mapping': 'error',
+        },
+    },
+    {
+        files: ['src/**/use-*.ts', 'scripts/fixtures/eslint/use-*-fixture.ts'],
+        ignores: ['**/*.test.ts', '**/__tests__/**'],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/filename-export-mapping': 'error',
         },
     },
 );

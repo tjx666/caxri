@@ -40,7 +40,7 @@ import {
     terminalSearchReducer,
 } from './terminal-search';
 import { TerminalSearchBar } from './terminal-search-bar';
-import { useTerminalPaneRuntime } from './use-terminal-pane';
+import { useTerminalPaneRuntime } from './use-terminal-pane-runtime';
 
 interface TerminalPaneProperties {
     active: boolean;

@@ -15,6 +15,8 @@ import {
 import { CommandTooltip, Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
+import type { EditRequest, FocusTarget } from './directory-entries';
+import { BUSY_DISABLED_REASON, DirectoryEntries } from './directory-entries';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
 import { FileConflictDialog } from './file-conflict-dialog';
@@ -26,8 +28,6 @@ import {
 } from './file-operation-state';
 import { closeFileSearch, useFileSearchStore } from './file-search-state';
 import { dragPath, hasDraggedPath } from './file-tree-drag';
-import type { EditRequest, FocusTarget } from './file-tree-row';
-import { BUSY_DISABLED_REASON, DirectoryEntries } from './file-tree-row';
 import { ProjectSearch } from './project-search';
 
 const captionActionClassName =
