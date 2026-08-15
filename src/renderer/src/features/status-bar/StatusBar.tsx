@@ -570,9 +570,11 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
                 )}
             >
                 <FolderGit2 size={13} />
-                <SelectValue>
-                    {current.displayTitle} · {current.branch}
-                </SelectValue>
+                {/** The trigger shows only the root's title: the adjacent BranchPicker already
+                 *  renders the same branch, so repeating it here made the status bar read
+                 *  "title · branch · branch". The dropdown items keep "title · branch" because
+                 *  the branch is what tells parallel worktree roots apart. */}
+                <SelectValue>{current.displayTitle}</SelectValue>
             </SelectTrigger>
             <SelectContent className="min-w-56 max-w-96">
                 {roots.map((root) => (
@@ -619,7 +621,10 @@ export function StatusBar() {
             data-runtime-status={runtimeStatus ?? 'starting'}
         >
             <div className="statusbar-context min-w-0 flex-1 flex items-center gap-0.5 overflow-hidden">
-                {workbenchProject ? (
+                {/** With a Session selected, the WorkbenchRootPicker below already names the same
+                 *  root (and its tooltip shows the same rootPath), so a separate project chip
+                 *  would print the title twice; the chip only covers the no-Session state. */}
+                {workbenchProject && !sessionId && (
                     <StatusItem
                         icon={Monitor}
                         ariaLabel={`Open project files: ${workbenchProject.displayTitle}`}
@@ -628,7 +633,8 @@ export function StatusBar() {
                     >
                         {workbenchProject.displayTitle}
                     </StatusItem>
-                ) : (
+                )}
+                {!workbenchProject && (
                     <span className="statusbar-empty overflow-hidden text-ellipsis whitespace-nowrap">
                         No Project selected
                     </span>
