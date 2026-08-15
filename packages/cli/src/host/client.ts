@@ -703,10 +703,10 @@ export async function ensureHost(
         } catch (error) {
             if (!(error instanceof CaxriError) || error.code !== 'NOT_FOUND') throw error;
         }
-        /** An incompatible live Host must reach Main's explicit migration prompt. If its recorded
-         * process is already gone, no PTY owner remains to protect and the stale discovery record
-         * must not permanently block launching the current Host. The profile lock arbitrates the
-         * replacement; this path never signals or removes another process. */
+        /** An incompatible live Host fails closed and requires the explicit pre-release reset tool.
+         * If its recorded process is already gone, no PTY owner remains to protect and the stale
+         * discovery record must not permanently block launching the current Host. The profile lock
+         * arbitrates the replacement; this path never signals or removes another process. */
         if (
             manifest &&
             manifest.protocolVersion !== CAXRI_PROTOCOL_VERSION &&

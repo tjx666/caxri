@@ -62,8 +62,7 @@ production imports that reach past another domain's root.
 
 - After a file enters a domain folder, drop the parent-name prefix: `command-catalog.ts` becomes
   `catalog.ts`, `host-client.ts` becomes `client.ts`.
-- Keep a prefix only when it distinguishes siblings in the same folder (`commands/skills.ts`,
-  `legacy-v1-host-control.ts`).
+- Keep a prefix only when it distinguishes siblings in the same folder (`commands/skills.ts`).
 - `index.ts` is a thin public barrel. Implementation stays in named files. Do not dump a
   multi-module domain into `index.ts`.
 - Generated sources use a `.generated.ts` suffix and no redundant parent prefix once they already

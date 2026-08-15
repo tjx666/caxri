@@ -39,7 +39,7 @@ import { createDesktopOperationHandler } from './desktop-operations';
 import { openExternalUrl } from './external-links';
 import { createMainEventRelay } from './event-relay';
 import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
-import { startHostWithNativeLegacyV1Recovery } from './host-upgrade-startup';
+import { startHostOrQuit } from './host-startup';
 import { resolveLogLevel } from './log-level';
 import { resolveLogDirectory } from './log-path';
 import { buildApplicationMenuTemplate } from './menu';
@@ -751,12 +751,11 @@ void app.whenReady().then(async () => {
     });
     supervisor.on('event', sendEvent);
     if (
-        !(await startHostWithNativeLegacyV1Recovery({
+        !(await startHostOrQuit({
             dialog,
             logger: mainLogger,
             quit: () => app.quit(),
             supervisor,
-            userDataPath,
         }))
     )
         return;
