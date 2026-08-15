@@ -16,10 +16,8 @@ export function createIntrospectionServices(database: CaxriDatabase, logger: Str
         logs: new LogQueryService(dirname(logger.path)),
         records: new RecordQueryService(
             {
-                currentProjectId: () =>
-                    database.getAppState<string | null>('lastSelectedProjectId') ?? undefined,
-                currentSessionId: () =>
-                    database.getAppState<string | null>('lastSelectedSessionId') ?? undefined,
+                currentProjectId: () => database.getAppState('lastSelectedProjectId') ?? undefined,
+                currentSessionId: () => database.getAppState('lastSelectedSessionId') ?? undefined,
                 projects: () => database.listProjects(),
                 sessions: () => database.listSessions(),
                 terminals: () => database.listTerminals(),

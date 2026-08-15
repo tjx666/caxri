@@ -1,7 +1,7 @@
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import type { ReactElement, ReactNode } from 'react';
 
-import { getCommandDefinition } from '@shared/commands';
+import { getCommandDefinition, type CommandId } from '@shared/commands';
 
 import { ShortcutBadge } from '../ShortcutBadge';
 import { useCommandShortcut } from '../../lib/keybindings';
@@ -73,7 +73,7 @@ export function CommandTooltip({
     commandId,
 }: {
     children: ReactElement;
-    commandId: string;
+    commandId: CommandId;
 }) {
     const shortcut = useCommandShortcut(commandId);
     const command = getCommandDefinition(commandId);

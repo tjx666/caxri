@@ -1,4 +1,4 @@
-import type { InspectorMode } from '@shared/types';
+import type { CommandId, InspectorMode } from '@shared/types';
 
 import type { SettingsView } from '../stores/dialogs';
 
@@ -38,7 +38,7 @@ export interface CommandContext {
 }
 
 export interface CommandDefinition {
-    id: string;
+    id: CommandId;
     title: string;
     category: string;
     /** Executes the command against the active {@link CommandContext}. */
@@ -59,12 +59,12 @@ export function defineCommand(definition: CommandDefinition): CommandDefinition 
     return definition;
 }
 
-const registry = new Map<string, CommandDefinition>();
+const registry = new Map<CommandId, CommandDefinition>();
 
 export function registerCommand(definition: CommandDefinition): void {
     registry.set(definition.id, definition);
 }
 
 export function getRegisteredCommand(id: string): CommandDefinition | undefined {
-    return registry.get(id);
+    return registry.get(id as CommandId);
 }

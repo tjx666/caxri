@@ -63,8 +63,8 @@ export type TerminalFailureReason = z.infer<typeof terminalFailureReasonSchema>;
 export type { InspectorMode } from './inspector.js';
 
 export const projectRecordSchema = z.object({
-    id: z.string(),
-    rootPath: z.string(),
+    id: identifierSchema,
+    rootPath: pathSchema,
     displayTitle: z.string(),
     orderIndex: z.number().int().nonnegative(),
     createdAt: z.number(),
@@ -72,19 +72,19 @@ export const projectRecordSchema = z.object({
 });
 
 export const sessionRecordSchema = z.object({
-    id: z.string(),
+    id: identifierSchema,
     /** Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization. */
-    projectId: z.string(),
+    projectId: identifierSchema,
     /** Independently authorized Project currently used by Files, Editor, and Git. */
-    workbenchProjectId: z.string(),
+    workbenchProjectId: identifierSchema,
     /** Workbench Project root projected onto the Session read model for path-scoped services. */
-    rootPath: z.string(),
+    rootPath: pathSchema,
     createdAt: z.number(),
     lastOpenedAt: z.number(),
     /** Archived Sessions stay durable and keep their Terminals; only active navigation hides them. */
     archivedAt: z.number().optional(),
     /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
-    primaryAgentTerminalId: z.string().optional(),
+    primaryAgentTerminalId: identifierSchema.optional(),
     lastActivityState: agentActivityStateSchema,
     /** Monotonic generation of reliable Primary Agent attention events. */
     attentionEpoch: z.number().int().nonnegative(),
@@ -100,11 +100,11 @@ export const sessionRecordSchema = z.object({
 });
 
 export const terminalRecordSchema = z.object({
-    id: z.string(),
-    sessionId: z.string(),
+    id: identifierSchema,
+    sessionId: identifierSchema,
     kind: terminalKindSchema,
     provider: agentProviderSchema.optional(),
-    cwd: z.string(),
+    cwd: pathSchema,
     title: z.string(),
     icon: z.string(),
     orderIndex: z.number(),
@@ -177,20 +177,23 @@ export const DEFAULT_FILES_EXCLUDE = {
     '**/Thumbs.db': true,
 } as const;
 
-const agentLaunchSettingsSchema: z.ZodType<AgentLaunchSettings> = z.object({
+const agentLaunchSettingsSchema = z.object({
     executable: z.string(),
     args: z.array(z.string()),
-});
+}) satisfies z.ZodType<AgentLaunchSettings>;
 
-const agentProviderSettingsSchema: z.ZodType<Record<AgentProvider, AgentProviderSettings>> =
-    z.record(
-        agentProviderSchema,
-        z.object({
-            hooks: z.object({ enabled: z.boolean() }),
-            launch: agentLaunchSettingsSchema,
-            messaging: z.object({ enabled: z.boolean() }),
-        }),
-    );
+const agentProviderSettingsEntrySchema = z.object({
+    hooks: z.object({ enabled: z.boolean() }),
+    launch: agentLaunchSettingsSchema,
+    messaging: z.object({ enabled: z.boolean() }),
+}) satisfies z.ZodType<AgentProviderSettings>;
+
+const agentProviderSettingsShape = {
+    claude: agentProviderSettingsEntrySchema,
+    codex: agentProviderSettingsEntrySchema,
+} satisfies Record<AgentProvider, typeof agentProviderSettingsEntrySchema>;
+
+const agentProviderSettingsSchema = z.object(agentProviderSettingsShape);
 
 const agentHookHealthKindSchema = z.enum([
     'unsupported',
@@ -250,6 +253,7 @@ export const persistedWindowStateSchema = z.object({
 
 export const keybindingSchema = z.object({
     key: z.string().min(1).max(100),
+    /** Catalog IDs are {@link CommandId}; unknown values stay visible as custom keybindings. */
     command: z.string().min(1).max(200),
 });
 
@@ -390,12 +394,12 @@ export const fileMutationOperationSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const fileChangeSchema = z.object({
-    path: z.string(),
+    path: pathSchema,
     kind: z.enum(['create', 'update', 'delete']),
 });
 
 export const fileDocumentSchema = z.object({
-    path: z.string(),
+    path: pathSchema,
     content: z.string(),
     mtimeMs: z.number(),
     size: z.number(),

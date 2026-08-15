@@ -3,13 +3,14 @@ import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } 
 import {
     getNativeMenuCommandGroups,
     type CommandDefinition,
+    type CommandId,
     type NativeMenuId,
 } from '../shared/commands';
 import type { Keybinding } from '../shared/types';
 
 export interface ApplicationMenuOptions {
     keybindings: Keybinding[];
-    dispatchCommand: (command: string, viaAccelerator: boolean) => void;
+    dispatchCommand: (command: CommandId, viaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
 }
 

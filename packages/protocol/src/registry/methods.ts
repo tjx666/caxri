@@ -727,6 +727,10 @@ type DesktopMethod = {
     [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'desktop'> extends never ? never : M;
 }[CaxriMethod];
 
+export type HostMethod = {
+    [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'host'> extends never ? never : M;
+}[CaxriMethod];
+
 type AllMethods = typeof methods & typeof internalMethods;
 
 /** Parameters as a handler receives them, after Zod applied defaults and coercion. */
@@ -754,6 +758,7 @@ export type CaxriRequest = {
 }[CaxriMethod];
 
 export type DesktopRequest = Extract<CaxriRequest, { method: DesktopMethod }>;
+export type HostRequest = Extract<CaxriRequest, { method: HostMethod }>;
 /** Compatibility name for the Electron Main adapter while ownership moves to the Host protocol. */
 export type MainRequest = DesktopRequest;
 
@@ -768,6 +773,11 @@ export function isCaxriMethod(value: string): value is CaxriMethod {
 /** Narrows a validated public request to the Main-owned portion of the method table. */
 export function isDesktopRequest(request: CaxriRequest): request is DesktopRequest {
     return methods[request.method].owner === 'desktop';
+}
+
+/** Narrows a validated public request to the Host-owned portion of the method table. */
+export function isHostRequest(request: CaxriRequest): request is HostRequest {
+    return methods[request.method].owner === 'host';
 }
 
 /** Compatibility guard used by the current Electron adapter. */
