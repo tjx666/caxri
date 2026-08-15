@@ -59,6 +59,11 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Focused changed-file validation:
   `bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e]`
 - Repository-wide local gates: `bun run lint`, `bun run typecheck`, and `bun run test`
+- Preview the pre-release local reset/uninstall plan: `bun run uninstall:caxri`; apply it only after
+  explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known Caxri
+  installation state, application paths, and managed development profiles beneath
+  the primary checkout's sibling `../caxri-uninstall-archives`, records every original path in
+  `manifest.json`, and never targets Project directories or user files.
 - Issue tracking lives in GitHub issues (`gh issue`); titles, bodies, and comments use Simplified
   Chinese while technical identifiers remain English. This project does not use Linear.
 
