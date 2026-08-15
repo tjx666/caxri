@@ -86,4 +86,70 @@ describe('shared ESLint preset toolchain contract', () => {
         await expect(eslint.isPathIgnored(resolve(root, 'out/main/index.js'))).resolves.toBe(true);
         await expect(eslint.isPathIgnored(resolve(root, 'release/caxri.dmg'))).resolves.toBe(true);
     });
+
+    it('bans the @shared/@ Renderer aliases outside the Renderer', async () => {
+        const config = await effectiveConfigFor('src/runtime/index.ts');
+        const noRestrictedImports = config.rules?.['no-restricted-imports'] as [
+            number,
+            { patterns?: Array<{ group?: string[] }> },
+        ];
+
+        expect(noRestrictedImports[0]).toBe(2);
+        expect(noRestrictedImports[1].patterns?.[0]?.group).toEqual([
+            '@shared',
+            '@shared/*',
+            '@/*',
+        ]);
+    });
+
+    it('bans child_process exec/execSync everywhere they are imported from', async () => {
+        const result = await lint('scripts/fixtures/eslint/child-process-exec-fixture.ts');
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).toContain('no-restricted-imports');
+    });
+
+    it('bans spawn/execFile with shell: true', async () => {
+        const result = await lint('scripts/fixtures/eslint/spawn-shell-true-fixture.ts');
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).toContain('no-restricted-syntax');
+    });
+
+    it('requires async Node APIs (n/no-sync) outside tests in Main/Runtime/shared-node/CLI/tooling', async () => {
+        const config = await effectiveConfigFor('src/runtime/index.ts');
+
+        expect(config.rules?.['n/no-sync']?.[0]).toBe(2);
+
+        const testConfig = await effectiveConfigFor('src/runtime/__tests__/structure.test.ts');
+        expect(testConfig.rules?.['n/no-sync']).toBeUndefined();
+    });
+
+    it('flags a component export that does not match its filename mapping', async () => {
+        const result = await lint('scripts/fixtures/eslint/bad-mapped-component-fixture.tsx');
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).toContain('caxri/filename-export-mapping');
+    });
+
+    it('stays silent when a component export matches its filename mapping', async () => {
+        const result = await lint('scripts/fixtures/eslint/good-mapped-component-fixture.tsx');
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).not.toContain('caxri/filename-export-mapping');
+    });
+
+    it('flags a use-*.ts hook export that does not match its filename mapping', async () => {
+        const result = await lint('scripts/fixtures/eslint/use-bad-mapped-hook-fixture.ts');
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).toContain('caxri/filename-export-mapping');
+    });
+
+    it('stays silent when a use-*.ts hook export matches its filename mapping', async () => {
+        const result = await lint('scripts/fixtures/eslint/use-good-mapped-hook-fixture.ts');
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).not.toContain('caxri/filename-export-mapping');
+    });
 });
