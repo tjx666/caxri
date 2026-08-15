@@ -36,7 +36,7 @@ describe('Git ignored file decorations', () => {
                 subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) }),
             },
         );
-        await watcher.watchSession('session');
+        await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
         await watcher.noteGitIgnoreRulePaths('session', [rulePath]);
         await writeFile(rulePath, 'after\n', 'utf8');
 

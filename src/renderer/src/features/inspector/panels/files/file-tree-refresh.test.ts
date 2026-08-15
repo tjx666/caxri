@@ -1,6 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { affectsGitIgnoreRules, parentDirectoryPath } from './file-tree-refresh';
+import type { RuntimeEvent } from '@shared/ipc';
+import type { BootstrapState } from '@shared/types';
+
+const mocks = vi.hoisted(() => {
+    const state: { handler?: (event: RuntimeEvent) => void } = {};
+    return {
+        state,
+        onEvent: vi.fn((handler: (event: RuntimeEvent) => void) => {
+            state.handler = handler;
+            return () => undefined;
+        }),
+    };
+});
+
+vi.mock('../../../../lib/caxri', () => ({ caxri: mocks }));
+
+import { useWorkbenchStore } from '../../../../stores/workbench';
+import {
+    affectsGitIgnoreRules,
+    parentDirectoryPath,
+    subscribeFileTreeInvalidation,
+} from './file-tree-refresh';
+
+afterEach(() => useWorkbenchStore.setState({ bootstrap: undefined }));
 
 describe('file tree refresh routing', () => {
     it('routes each changed path to the directory that directly owns it', () => {
@@ -16,5 +40,101 @@ describe('file tree refresh routing', () => {
         expect(affectsGitIgnoreRules('/project/.git/config')).toBe(true);
         expect(affectsGitIgnoreRules('/project/src/index.ts')).toBe(false);
         expect(affectsGitIgnoreRules('/project/local.ignore')).toBe(false);
+    });
+});
+
+describe('subscribeFileTreeInvalidation', () => {
+    it('invalidates the exact parent listing for every Session sharing the changed root', () => {
+        const queryClient = new QueryClient();
+        const parent = '/project/src';
+        queryClient.setQueryData(['files.list', { sessionId: 'session-a', directory: parent }], []);
+        queryClient.setQueryData(['files.list', { sessionId: 'session-b', directory: parent }], []);
+        queryClient.setQueryData(
+            ['files.list', { sessionId: 'session-other', directory: parent }],
+            [],
+        );
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-a',
+                sessions: [
+                    { id: 'session-a', workbenchProjectId: 'project-p' },
+                    { id: 'session-b', workbenchProjectId: 'project-p' },
+                    { id: 'session-other', workbenchProjectId: 'project-other' },
+                ],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeFileTreeInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-a',
+                workbenchProjectId: 'project-p',
+                overflow: false,
+                changes: [{ kind: 'update', path: '/project/src/index.ts' }],
+            },
+        });
+
+        expect(
+            queryClient.getQueryState(['files.list', { sessionId: 'session-a', directory: parent }])
+                ?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['files.list', { sessionId: 'session-b', directory: parent }])
+                ?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'files.list',
+                { sessionId: 'session-other', directory: parent },
+            ])?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
+
+    it('fans out overflow and Git ignore-rule changes only within the changed root', () => {
+        const queryClient = new QueryClient();
+        for (const sessionId of ['session-a', 'session-b', 'session-other'])
+            for (const directory of ['/project/src', '/project/packages'])
+                queryClient.setQueryData(['files.list', { sessionId, directory }], []);
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-a',
+                sessions: [
+                    { id: 'session-a', workbenchProjectId: 'project-p' },
+                    { id: 'session-b', workbenchProjectId: 'project-p' },
+                    { id: 'session-other', workbenchProjectId: 'project-other' },
+                ],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeFileTreeInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-a',
+                workbenchProjectId: 'project-p',
+                overflow: false,
+                changes: [{ kind: 'update', path: '/project/.gitignore' }],
+            },
+        });
+
+        for (const sessionId of ['session-a', 'session-b'])
+            for (const directory of ['/project/src', '/project/packages'])
+                expect(
+                    queryClient.getQueryState(['files.list', { sessionId, directory }])
+                        ?.isInvalidated,
+                ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'files.list',
+                { sessionId: 'session-other', directory: '/project/src' },
+            ])?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
     });
 });

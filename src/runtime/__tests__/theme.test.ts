@@ -1,6 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { constants } from 'node:fs';
+import { appendFile, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -8,12 +11,41 @@ import type { CaxriError } from '../../shared/ipc/errors';
 import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '../theme';
 
 const temporaryDirectories: string[] = [];
+const executeFile = promisify(execFile);
 
 afterEach(async () => {
     await Promise.all(
         temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
     );
 });
+
+function completeWithin<T>(promise: Promise<T>, timeoutMs = 750): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(
+            () => reject(new Error(`Theme import did not settle within ${timeoutMs}ms`)),
+            timeoutMs,
+        );
+        void promise.then(
+            (value) => {
+                clearTimeout(timeout);
+                resolve(value);
+            },
+            (error: unknown) => {
+                clearTimeout(timeout);
+                reject(error instanceof Error ? error : new Error(String(error)));
+            },
+        );
+    });
+}
+
+async function unblockFifoReader(path: string): Promise<void> {
+    try {
+        const writer = await open(path, constants.O_WRONLY | constants.O_NONBLOCK);
+        await writer.close();
+    } catch {
+        // The nonblocking reader has already rejected and closed the FIFO.
+    }
+}
 
 describe('theme import mapping', () => {
     it('maps supported VS Code tokens and preserves normalized fallbacks', async () => {
@@ -60,16 +92,93 @@ describe('theme import mapping', () => {
         expect(theme.editor).toEqual(draculaTheme.editor);
     });
 
-    it('rejects a theme file larger than the import size limit', async () => {
+    it('rejects an oversized theme file through a symlink before parsing', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-oversized-'));
         temporaryDirectories.push(directory);
-        const path = join(directory, 'huge.json');
+        const target = join(directory, 'huge.json');
+        const path = join(directory, 'linked-huge.json');
         const oversizedPayload = `{"padding":"${'a'.repeat(MAX_THEME_IMPORT_FILE_BYTES)}"}`;
-        await writeFile(path, oversizedPayload, 'utf8');
+        await writeFile(target, oversizedPayload, 'utf8');
+        await symlink(target, path);
 
         await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
             code: 'CAPACITY',
         } satisfies Partial<CaxriError>);
+    });
+
+    it('imports a normal theme file through a symlink', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-symlink-'));
+        temporaryDirectories.push(directory);
+        const target = join(directory, 'managed-theme.json');
+        const path = join(directory, 'theme.json');
+        await writeFile(
+            target,
+            JSON.stringify({ name: 'Linked Theme', colors: { 'editor.background': '#234567' } }),
+            'utf8',
+        );
+        await symlink(target, path);
+
+        await expect(importTheme(path, draculaTheme)).resolves.toMatchObject({
+            editor: { background: '#234567' },
+            source: 'vscode',
+        });
+    });
+
+    it('accepts a theme file exactly at the import size limit', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-at-limit-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'at-limit.json');
+        const prefix = '{"name":"At limit","padding":"';
+        const suffix = '"}';
+        await writeFile(
+            path,
+            `${prefix}${'a'.repeat(MAX_THEME_IMPORT_FILE_BYTES - prefix.length - suffix.length)}${suffix}`,
+            'utf8',
+        );
+
+        await expect(importTheme(path, draculaTheme)).resolves.toMatchObject({
+            source: 'vscode',
+        });
+    });
+
+    it('bounds an opened theme file when it grows before parsing', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-growth-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'theme.json');
+        await writeFile(path, '{"name":"Before growth"}', 'utf8');
+
+        await expect(
+            importTheme(path, draculaTheme, {
+                beforeRead: async () => {
+                    await appendFile(path, 'x'.repeat(MAX_THEME_IMPORT_FILE_BYTES), 'utf8');
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'CAPACITY' } satisfies Partial<CaxriError>);
+    });
+
+    it('rejects a non-regular theme import source', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-directory-'));
+        temporaryDirectories.push(directory);
+
+        await expect(importTheme(directory, draculaTheme)).rejects.toMatchObject({
+            code: 'IO',
+        } satisfies Partial<CaxriError>);
+    });
+
+    it('quickly rejects a FIFO without waiting for a writer', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-fifo-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'theme.fifo');
+        await executeFile('mkfifo', [path]);
+
+        const attempt = importTheme(path, draculaTheme);
+        try {
+            await expect(completeWithin(attempt)).rejects.toMatchObject({
+                code: 'IO',
+            } satisfies Partial<CaxriError>);
+        } finally {
+            await unblockFifoReader(path);
+        }
     });
 
     it('still imports a normal, small theme file', async () => {

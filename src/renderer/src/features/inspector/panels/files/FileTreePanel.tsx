@@ -29,7 +29,6 @@ import {
     type EditRequest,
     type FocusTarget,
 } from './file-tree-row';
-import { useFileTreeInvalidation } from './file-tree-refresh';
 import { ProjectSearch } from './ProjectSearch';
 import { closeFileSearch, useFileSearchStore } from './file-search-state';
 
@@ -111,7 +110,6 @@ export function FileTreePanel() {
         (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
     );
     const searchFocusRevision = useFileSearchStore((state) => state.focusRevision);
-    useFileTreeInvalidation(sessionId);
     if (!session)
         return (
             <div className="empty-panel py-4 px-3 text-muted text-center">

@@ -134,7 +134,7 @@ export function subscribeExternalDocumentSync(): () => void {
     const unsubscribeEvents = caxri.onEvent((event) => {
         if (event.event !== 'files.changed') return;
         const session = getSelectedSession();
-        if (!session || event.payload.sessionId !== session.id) return;
+        if (!session || event.payload.workbenchProjectId !== session.workbenchProjectId) return;
         const sessionId = session.id;
         const cached = getSessionDocuments(sessionId, session.workbenchProjectId) ?? {};
         const changedPaths: string[] = [];

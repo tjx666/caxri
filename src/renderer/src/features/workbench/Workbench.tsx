@@ -8,18 +8,31 @@ import { chooseProjectDirectory } from '../session/session-actions';
 import { createTerminal } from '../terminal/terminal-actions';
 import { TerminalLayoutView } from '../terminal/TerminalLayoutView';
 import { WorkTabStrip } from '../tabs/WorkTabStrip';
+import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 
-function WorkSurface() {
+function WorkSurface({ sessionId }: { sessionId: string }) {
     const activeWork = useActiveWork();
     const hasLayout = Boolean(useSessionState()?.layout.root);
+    const tabPanelProps = activeWork
+        ? {
+              'aria-labelledby': workTabId(sessionId, activeWork),
+              'id': workPanelId(sessionId, activeWork),
+              'role': 'tabpanel' as const,
+          }
+        : undefined;
+    /**
+     * One selected tab owns the work surface even when a Terminal layout splits that surface into
+     * multiple panes. The individual panes are not tabs, so only the active work item labels this
+     * panel; no panel is exposed before there is an active item.
+     */
     if (activeWork?.kind === 'editor')
         return (
-            <div className="work-surface relative min-h-0 flex-1">
+            <div className="work-surface relative min-h-0 flex-1" {...tabPanelProps}>
                 <EditorSurface path={activeWork.path} />
             </div>
         );
     return (
-        <div className="work-surface relative min-h-0 flex-1">
+        <div className="work-surface relative min-h-0 flex-1" {...tabPanelProps}>
             {hasLayout ? (
                 <TerminalLayoutView />
             ) : (
@@ -58,7 +71,7 @@ export function Workbench() {
             {session ? (
                 <>
                     <WorkTabStrip />
-                    <WorkSurface />
+                    <WorkSurface sessionId={session.id} />
                 </>
             ) : (
                 <Welcome />

@@ -409,6 +409,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         await deps.agentEndpoints?.close();
         await files.close();
         await configuration.close();
+        git.close();
         database.close();
     }
     const handlers: RuntimeHandlers = {
@@ -532,16 +533,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             );
         },
         'project.delete': ({ projectId }) => {
-            const affectedWorkbenchSessions = database
-                .listSessionsUsingWorkbenchProject(projectId)
-                .map((session) => session.id);
-            for (const session of database.listSessions(projectId)) {
+            const ownedSessions = database.listSessions(projectId);
+            const affectedWorkbenchSessions = database.listSessionsUsingWorkbenchProject(projectId);
+            const affectedSessionIds = [
+                ...new Set(
+                    [...ownedSessions, ...affectedWorkbenchSessions].map((session) => session.id),
+                ),
+            ];
+            for (const session of ownedSessions) {
                 terminalRestores.cancel(session.id);
                 coordinator.forgetSession(session.id);
                 terminals.terminateSession(session.id);
             }
+            git.evictPullRequestSessions(affectedSessionIds);
             database.deleteProject(projectId);
-            workbenchRoots.projectDeleted(affectedWorkbenchSessions);
+            workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
             void files.watchSession(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
@@ -623,6 +629,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminalRestores.cancel(sessionId);
             coordinator.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
+            git.evictPullRequestSessions([sessionId]);
             database.deleteSession(sessionId);
             void files.watchSession(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
@@ -726,7 +733,6 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'git.summary': ({ sessionId }) => git.summary(sessionId),
         'git.branches': (params) => git.branches(params),
         'git.switchBranch': (params) => git.switchBranch(params),
-        'git.diff': ({ sessionId, repositoryId, path }) => git.diff(sessionId, repositoryId, path),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
         'git.pullRequestChanges': (params) => git.pullRequestChanges(params),

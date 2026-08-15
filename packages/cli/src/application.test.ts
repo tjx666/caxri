@@ -403,7 +403,7 @@ describe('CLI application', () => {
             startedAt: 1,
             clientCount: 1,
             activePtyCount: 0,
-            protocolVersion: 1,
+            protocolVersion: 2,
             protocolCompatible: true,
             desktop: { state: 'offline' },
         });

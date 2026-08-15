@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import { caxri } from '../../../../lib/caxri';
 import { caxriQueryKey } from '../../../../queries/client';
+import { getWorkbenchProjectSessionIds } from '../../../../stores/selectors';
 
 /** Returns the directory whose listing directly owns a changed absolute path. */
 export function parentDirectoryPath(path: string): string {
@@ -27,35 +28,48 @@ export function affectsGitIgnoreRules(path: string): boolean {
  * Session — an ancestor rule can redecorate any expanded descendant. Other changes invalidate only
  * their direct parent, so an ordinary edit never re-fetches an unrelated sibling.
  */
-export function useFileTreeInvalidation(sessionId: string | undefined): void {
+export function useFileTreeQueryInvalidation(): void {
     const queryClient = useQueryClient();
-    useEffect(() => {
-        if (!sessionId) return;
-        return caxri.onEvent((event) => {
-            if (event.event !== 'files.changed' || event.payload.sessionId !== sessionId) return;
-            if (
-                event.payload.overflow ||
-                event.payload.gitIgnoreRulesChanged ||
-                event.payload.changes.some((change) => affectsGitIgnoreRules(change.path))
-            ) {
-                void queryClient.invalidateQueries({
-                    predicate: (query) => {
-                        const [method, params] = query.queryKey as [
-                            string,
-                            { sessionId?: string } | undefined,
-                        ];
-                        return method === 'files.list' && params?.sessionId === sessionId;
-                    },
-                });
-                return;
-            }
-            const directories = new Set(
-                event.payload.changes.map((change) => parentDirectoryPath(change.path)),
-            );
+    useEffect(() => subscribeFileTreeInvalidation(queryClient), [queryClient]);
+}
+
+/** Invalidates current Workbench Project tree queries, including inactive sibling Sessions. */
+export function subscribeFileTreeInvalidation(
+    queryClient: ReturnType<typeof useQueryClient>,
+): () => void {
+    return caxri.onEvent((event) => {
+        if (event.event !== 'files.changed') return;
+        const sessionIds = getWorkbenchProjectSessionIds(
+            event.payload.workbenchProjectId,
+            event.payload.sessionId,
+        );
+        if (
+            event.payload.overflow ||
+            event.payload.gitIgnoreRulesChanged ||
+            event.payload.changes.some((change) => affectsGitIgnoreRules(change.path))
+        ) {
+            void queryClient.invalidateQueries({
+                predicate: (query) => {
+                    const [method, params] = query.queryKey as [
+                        string,
+                        { sessionId?: string } | undefined,
+                    ];
+                    return (
+                        method === 'files.list' &&
+                        params?.sessionId !== undefined &&
+                        sessionIds.includes(params.sessionId)
+                    );
+                },
+            });
+            return;
+        }
+        const directories = new Set(
+            event.payload.changes.map((change) => parentDirectoryPath(change.path)),
+        );
+        for (const sessionId of sessionIds)
             for (const directory of directories)
                 void queryClient.invalidateQueries({
                     queryKey: caxriQueryKey('files.list', { sessionId, directory }),
                 });
-        });
-    }, [sessionId, queryClient]);
+    });
 }

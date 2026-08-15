@@ -1,7 +1,7 @@
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 import { X } from 'lucide-react';
-import type { DragEvent, ReactElement, ReactNode } from 'react';
+import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react';
 import { useState } from 'react';
 
 import type { ProcessState } from '@shared/types';
@@ -13,6 +13,7 @@ import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-men
 import { Tooltip } from '../../components/ui/tooltip';
 import { motionDurationMs, usePrefersReducedMotion } from '../../lib/motion';
 import { cn } from '../../lib/utils';
+import { processStateDescription } from './work-tab-accessibility';
 
 const processIndicatorClassName =
     'process-indicator w-1.5 h-1.5 flex-none m-0 rounded-full bg-muted';
@@ -28,11 +29,13 @@ interface WorkTabProps {
     motionIdentity?: string;
     preview?: boolean;
     status?: ProcessState;
+    tabId: string;
     terminalId?: string;
     contextMenu?: ReactNode;
     onClose: () => void;
     onDoubleClick?: () => void;
     onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
+    onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
     onSelect: () => void;
 }
 
@@ -50,11 +53,13 @@ export function WorkTab({
     motionIdentity,
     preview = false,
     status,
+    tabId,
     terminalId,
     contextMenu,
     onClose,
     onDoubleClick,
     onDragStart,
+    onKeyDown,
     onSelect,
 }: WorkTabProps) {
     const isPresent = useIsPresent();
@@ -70,6 +75,12 @@ export function WorkTab({
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
     const visuallyActive = active && isPresent;
+    const dirtyDescriptionId = `${tabId}-dirty`;
+    const statusDescriptionId = `${tabId}-status`;
+    const descriptions = [
+        ...(isPresent && dirty ? [dirtyDescriptionId] : []),
+        ...(isPresent && status ? [statusDescriptionId] : []),
+    ];
     const tab = (
         <m.div
             className={cn(
@@ -116,9 +127,15 @@ export function WorkTab({
             <button
                 type="button"
                 role="tab"
+                id={isPresent ? tabId : undefined}
+                aria-controls={visuallyActive ? `${tabId}-panel` : undefined}
+                aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
                 aria-selected={visuallyActive}
+                tabIndex={visuallyActive ? 0 : -1}
                 className="tab-select flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit cursor-pointer"
+                onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
                 onClick={onSelect}
+                onKeyDown={onKeyDown}
             >
                 {icon === 'file' ? (
                     <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
@@ -135,6 +152,16 @@ export function WorkTab({
                 </span>
                 {accessory}
             </button>
+            {isPresent && dirty && (
+                <span id={dirtyDescriptionId} className="sr-only">
+                    Unsaved changes.
+                </span>
+            )}
+            {isPresent && status && (
+                <span id={statusDescriptionId} className="sr-only">
+                    {processStateDescription(status)}
+                </span>
+            )}
             {/* DESIGN.md's tab-strip redline: "Dirty dot replaces the close button until
                 hover/focus" — one slot, not two. The dirty dot and the Terminal status dot both
                 live here (mutually exclusive: dirty only applies to editor tabs, status only to
@@ -150,6 +177,7 @@ export function WorkTab({
                 )}
                 {!dirty && status && (
                     <i
+                        aria-hidden="true"
                         className={cn(
                             processIndicatorClassName,
                             'absolute inset-0 m-auto',
@@ -168,6 +196,7 @@ export function WorkTab({
                         type="button"
                         className="tab-close absolute inset-0 m-auto grid w-5 h-5 place-items-center p-0 border-0 rounded text-inherit bg-transparent cursor-pointer opacity-0 pointer-events-none hover:bg-[var(--selection)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
                         aria-label={closeLabel}
+                        tabIndex={-1}
                         onClick={onClose}
                     >
                         <X size={12} />

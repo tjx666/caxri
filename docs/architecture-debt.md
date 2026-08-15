@@ -3,11 +3,12 @@
 Persistent record of architecture-debt audit findings for revalidation across runs.
 Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md`.
 
-| Field            | Value                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| **First audit**  | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                 |
-| **Last updated** | 2026-08-13 @ `8037720` (`main`)                                                                  |
-| **Scope**        | Repository-wide audit at `main@63a7ccc`, with affected-path delta revalidation through `8037720` |
+| Field            | Value                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| **First audit**  | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
+| **Last updated** | 2026-08-15 @ `e1c5948` (`fix/resolve-architecture-debt`)                                               |
+| **Scope**        | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
+| **Maintenance**  | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Statuses: `OPEN` · `RESOLVED` · `STALE`. Effort: S / M / L per the audit report format.
 Category labels match the audit skill: Confirmed defect, Architecture debt, Contract drift,
@@ -17,86 +18,118 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-### AD-lifecycle-mutation-remap-origin-delete — [OPEN · Confirmed defect · M]
+### AD-lifecycle-agent-endpoint-generation-map — [OPEN · Architecture debt · S]
 
-- **Summary:** Deleting the Session that started a completed rename/move before acknowledge can leave sibling same-Project tabs and dirty buffers on the old path, then drop the durable journal.
-- **Evidence:** `src/renderer/src/stores/selectors.ts:53-56` returns only `[originSessionId]` after the origin row is gone. `src/renderer/src/features/editor/document-actions.ts:279` treats a missing Session state as durable remap success. `src/renderer/src/features/inspector/panels/files/file-operation-reconciliation.ts:111-128` then acknowledges. `src/runtime/files/mutation-journal.ts:289-296` deletes the record unconditionally. `src/runtime/bootstrap.ts:578-585` `session.delete` does not remap remaining Sessions. `src/shared/ipc/domain.ts:324-368` stores `sessionId` only.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Persist `projectId` (or remaining session ids) on the journal; resolve siblings from Project identity; do not ack until remaining Sessions remap or the Project is gone. Acceptance: A and B open the same file; move it from A; delete A before ack; B's tab, dirty buffer, and later reload show the new path; the operation is not acked while B still needs the remap.
+- **Summary:** `AgentEndpointRegistry` retains one generation counter for every historical Terminal UUID even after that Terminal, its Session, or its Project is permanently deleted.
+- **Evidence:** `src/host/agent-endpoints/registry.ts:106-110` appends generation state. `retireTerminal`, `retireSession`, `retireProject`, and `clear` remove active endpoints through `remove`, but `src/host/agent-endpoints/registry.ts:363-374` never deletes generation entries. Terminal IDs are fresh UUIDs, so the long-lived Host grows with historical Agent Terminals.
+- **First seen / Last verified:** 2026-08-15 @ 43af4d6
+- **Remediation target / Acceptance:** Separate restart retirement from permanent forget. Preserve monotonic generation for a live Terminal restart, but reclaim Terminal/Session/Project generation state after permanent deletion. Tracked by [issue caxri#172](https://github.com/tjx666/caxri/issues/172).
 
-### AD-sec-packaged-renderer-url — [OPEN · Architecture debt · S]
+### AD-lifecycle-stale-desktop-sockets — [OPEN · Confirmed defect · S]
 
-- **Summary:** A packaged process still honors `ELECTRON_RENDERER_URL`, so an env-supplied origin can load into a window that keeps the workbench or Process Explorer preload bridge.
-- **Evidence:** `src/main/index.ts:364-365` branches only on env presence. `src/main/index.ts:739` and `src/main/process-explorer-window.ts:171-177` prefer the same env URL. `src/main/test-root.ts:27,41` already ignore `CAXRI_TEST_ROOT_PATH` when packaged. Sender checks at `src/main/index.ts:390-392` and `src/main/process-explorer-window.ts:188-191` trust the owning `WebContents`, so they do not reject the env-selected initial page.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Ignore `ELECTRON_RENDERER_URL` when `app.isPackaged`, matching test-root. Acceptance: focused Main test — packaged + the variable does not select `loadURL`; unpackaged still does.
+- **Summary:** Replacing the authenticated Desktop revokes its capability lease but leaves the old socket, decoder, and listeners alive until the peer disconnects or the Host exits.
+- **Evidence:** `src/host/local-server.ts:569-570` calls `revokeDesktop(old, false)`. `src/host/local-server.ts:225-234` clears authority and pending commands but does not destroy the socket; only the socket close handler or global `close()` removes it from `sockets`. Repeated abnormal replacements can therefore accumulate connection resources without restoring authority.
+- **First seen / Last verified:** 2026-08-15 @ 43af4d6
+- **Remediation target / Acceptance:** After rejecting pending commands and revoking authority, actively disconnect a replaced Desktop. Repeated replacements must keep socket/client accounting bounded while the new Desktop retains exclusive authority. Tracked by [issue caxri#173](https://github.com/tjx666/caxri/issues/173).
 
-### AD-sec-hook-config-size-cap — [OPEN · Architecture debt · S]
+### AD-perf-agent-inbox-duplicate-window — [OPEN · Architecture debt · S]
 
-- **Summary:** Agent lifecycle-hook reconcile reads and parses provider-owned config files with no pre-parse size cap, unlike settings, theme import, documents, and Claude metadata.
-- **Evidence:** `src/runtime/agents/hooks/manager.ts:169` `readTargets()` `readFile`s every target unbounded. `manager.ts:338,517,531,546` parse on reconcile, watcher, and poll. `src/runtime/agents/hooks/json-config.ts:35`, `src/runtime/agents/providers/claude/hooks.ts:24`, and `src/runtime/agents/providers/codex/hooks.ts:19` jsonc/regex-parse the full string. Adjacent caps: `src/runtime/configuration.ts:167` (256 KiB), theme import 1 MiB, Claude metadata 128 KiB. Hook-manager tests have no oversized-config case.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** One shared hook-config byte ceiling in `readTargets` before any adapter parse; oversize fails closed without rewriting the file. Acceptance: a provider config just over the ceiling leaves hooks uninstalled/unmodified and does not parse; a focused hook-manager test fails if the cap is removed.
+- **Summary:** Peer Inbox duplicate fingerprints expire after 30 seconds but have no entry cap, so authenticated traffic to distinct invalid targets can retain one record per message in that window.
+- **Evidence:** `src/host/agent-inbox/registry.ts:609-619` stores a duplicate record for every receipt. `src/host/agent-inbox/registry.ts:744-757` prunes only by TTL; `MAX_RECEIPTS` eviction bounds messages but does not remove their duplicate records. Invalid target resolution returns a terminal receipt before pair-traffic admission.
+- **First seen / Last verified:** 2026-08-15 @ 43af4d6
+- **Remediation target / Acceptance:** Add a fixed duplicate-window capacity while preserving in-window retry behavior. Distinct invalid targets above the limit must keep duplicate state bounded without changing authorization or delivery semantics. Tracked by [issue caxri#174](https://github.com/tjx666/caxri/issues/174).
 
-### AD-sec-theme-import-bounded-read — [OPEN · Confirmed defect · S]
+### Incremental audit coverage
 
-- **Summary:** Theme import checks the selected pathname's size before a separate unbounded read, so replacement or growth between those calls can send more than the 1 MiB ceiling into the plist, YAML, or JSONC parser.
-- **Evidence:** `src/runtime/theme.ts:295-310` calls `stat(path)` and then `readFile(path, 'utf8')` without an opened-handle or post-read byte bound. `src/runtime/configuration.ts:534-537` persists the parsed theme. `src/runtime/files/documents.ts:75-101` demonstrates the existing opened-handle validation pattern, while `src/runtime/__tests__/theme.test.ts:63-73` covers only a file that is already oversized before import.
-- **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Read at most `MAX_THEME_IMPORT_FILE_BYTES + 1` bytes through one `FileHandle` and reject overflow before format sniffing or parser entry. Acceptance: a deterministic replacement/growth interleaving returns `CAPACITY`, no parser receives more than 1 MiB, and normal supported imports still succeed.
-
-### AD-state-sibling-session-invalidation — [OPEN · Confirmed defect · M]
-
-- **Summary:** Project-shared filesystem and Git facts are cached per Session, but live disk events only invalidate the selected Session, so a sibling can reuse a still-fresh stale listing or `git.summary`.
-- **Evidence:** `src/runtime/files/watcher.ts:167-170,354-361` tags `files.changed` with the selected `sessionId` only. `src/renderer/src/queries/invalidation.ts:21-40` and `src/renderer/src/features/inspector/panels/files/file-tree-refresh.ts:30-58` filter on that id. `src/renderer/src/queries/client.ts:26-30` default `staleTime` is 10s. `src/renderer/src/features/inspector/panels/files/file-actions.ts:24-34` already fans Caxri-owned `files.list` invalidation by Project.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Fan out watcher invalidation of `files.list` and `git.*` to every Session of the changed Project, or include `projectId` on `files.changed`. Acceptance: two Sessions, one Project; write a file while A is selected; switch to B immediately; root listing and `git.summary` match disk.
-
-### AD-ui-inspector-show-reveal — [OPEN · Contract drift · S]
-
-- **Summary:** Catalogued Inspector "Show \*" commands persist a mode without revealing a hidden Inspector, while Search Files and the Status Bar do reveal it.
-- **Evidence:** `src/shared/inspector.ts:8-36` titles/descriptions say show that mode in the Inspector. `src/renderer/src/commands/execute.ts:92-105` — `searchFiles` calls `setInspectorVisible(true)`, `setMode` does not. `src/renderer/src/features/status-bar/StatusBar.tsx:454-456` uncollapses then runs the same show command. `src/renderer/src/commands/execute.test.ts:118-126` locks setMode-only.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** One `activateInspectorMode(mode)` used by show commands, Search Files, and Status Bar that sets visibility and mode. Acceptance: with the Inspector hidden, each show command and its default binding makes that panel visible.
-
-### AD-ext-e2e-provider-shims — [OPEN · Architecture debt · S]
-
-- **Summary:** A new managed Agent provider is exhaustive in production catalogs but not on the Caxri-owned E2E isolation boundary, so fake executables and blocked Shell shims stay hard-coded to claude and codex.
-- **Evidence:** `src/shared/node/e2e-agent-policy.ts:145-169` and `src/main/index.ts:93` encode/decode only the two env keys. `e2e/support/helpers.ts:143-154` writes shims named `claude` and `codex` only. Production `agentProviders` and icon assets remain `Record<AgentProvider, …>`.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Derive `CAXRI_E2E_FAKE_<PROVIDER>_EXECUTABLE` and isolated Shell shims from `agentProviderIds`. Acceptance: adding a third `AgentProvider` id without updating those files fails a focused unit test; with the helper, a fake executable and blocked shim exist for the new id.
-
-### AD-ext-public-git-diff — [OPEN · Architecture debt · S]
-
-- **Summary:** `git.diff` remains a public Renderer-reachable method with an unbounded string result after the UI moved to bounded `git.diffDocument`.
-- **Evidence:** `src/shared/ipc/methods.ts:470-477` registers public `z.string()`. `src/runtime/bootstrap.ts:679` still dispatches it. Production Renderer requests `git.diffDocument` only (`src/renderer/src/features/editor/GitDiffEditor.tsx:178,259`).
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Remove `git.diff` from the public method table (keep `GitService.diff` for tests if needed) or move it to `internalMethods` and bound the result. Acceptance: `methods.ts` no longer exposes `git.diff` to Renderer; `git.diffDocument` remains the only public single-file diff read.
-
-### AD-perf-pr-cache-unbounded — [OPEN · Architecture debt · S]
-
-- **Summary:** `GitPullRequestService` keeps every `sessionId:repositoryId` PR file list for process lifetime, including expired entries and deleted Sessions.
-- **Evidence:** `src/runtime/git/pull-request.ts:137-156,161-207` — `expiresAt` only skips reuse; nothing deletes stale keys. `src/runtime/bootstrap.ts:578-586` Session delete does not notify Git. Nearby Runtime caches document LRU eviction; this Map does not.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Bound or evict the PR cache (TTL sweep, max entries, or drop keys on session/project delete). Acceptance: a unit test fills more than the bound or deletes the Session and asserts cache size; no claim of a native leak required.
-
-### AD-test-hyphenated-sibling-discovery — [OPEN · Coverage or observability gap · S]
-
-- **Summary:** The documented default `check --test` command discovers only exact-stem tests, so hyphenated sibling suites such as `project-status-runner.test.ts` never run for the files they cover.
-- **Evidence:** `.agents/skills/quality-check/scripts/check.ts:141-176` generates stem candidates only. `src/runtime/__tests__/project-status-runner.test.ts` is the `runProjectStatusCommand` suite and is not a `project-status` stem. Excluding `runtime.integration.test.ts` from `src/runtime/*.ts` is an intentional tradeoff (`IT-runtime-integration-not-inferred`), not part of this entry.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Include same-directory hyphenated sibling tests in stem discovery. Do not map `bootstrap.ts` onto `runtime.integration.test.ts`. Acceptance: `check.test.ts` asserts `project-status.ts` candidates include `project-status-runner.test.ts`.
-
-### AD-ui-work-tab-tablist — [OPEN · Confirmed defect · M]
-
-- **Summary:** Open-work navigation claims `tablist`/`tab` but does not implement the ChromeTabs keyboard, roving-tabindex, or tabpanel contract; process status is a color-only dot.
-- **Evidence:** `src/renderer/src/features/tabs/WorkTabStrip.tsx:226-232` and `WorkTab.tsx:109-114,133-147` expose tab roles without arrows, `aria-controls`, or an aria twin for the process dot. `src/renderer/src/components/ChromeTabs.tsx:91-135,176-193` implements automatic activation for Inspector/Settings. `e2e/chrome-tabs.e2e.ts` covers those chrome tabs only. `DESIGN.md:224-225` requires keyboard reachability (already met via Tab) and a text/aria twin for color status.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-13 @ 8037720
-- **Remediation target / Acceptance:** Teach `WorkTabStrip` the ChromeTabs keyboard/association contract or stop claiming `tablist`/`tab`; give process/dirty status a text or aria twin. Acceptance: focused work tablist changes the active Terminal or file with arrows, or the role is no longer `tablist`; color-only process dots fail a focused a11y assertion.
+- Host authentication and lease replacement: capability fencing remains sound; the stale-socket lifecycle gap above is the only new finding.
+- Protocol: the `agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport` boundaries remain complete from the package root.
+- CLI: production dependencies remain limited to `@caxri/protocol` and `zod`, with protocol imports through the package root.
+- Agent Endpoint and Peer Inbox: endpoint generation and duplicate-window cleanup are tracked above; inbox bytes, messages, waiters, receipts, pair traffic, expiry, and close cleanup remain bounded.
+- A path-only CI parser was not added: ledger evidence includes symbols and shorthand whose semantic validity cannot be established by file existence alone. The maintenance cadence above requires semantic revalidation.
 
 ---
 
 ## RESOLVED
+
+### AD-lifecycle-mutation-remap-origin-delete — [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Deleting the Session that started a completed rename/move no longer lets the durable journal disappear before sibling same-Project state is remapped.
+- **Evidence:** `src/renderer/src/features/inspector/panels/files/file-operation-reconciliation.ts:116-225` resolves the operation by `workbenchProjectId`, durably remaps every surviving same-Project Session, and acknowledges only after apply succeeds. `src/renderer/src/stores/selectors.ts:74-83` discovers those Sessions by Project identity.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-14 @ 2b8da83.
+- **Remediation target / Acceptance:** A and B open the same file; move it from A; delete A before ack; B's tab, dirty buffer, and later reload show the new path; the operation is not acked while B still needs the remap.
+
+### AD-sec-packaged-renderer-url — [RESOLVED · Architecture debt · S]
+
+- **Summary:** Packaged workbench and Process Explorer windows cannot load an environment-supplied Renderer origin.
+- **Evidence:** `src/main/renderer-entry.ts:20-34` honors `ELECTRON_RENDERER_URL` only when unpackaged and otherwise resolves an application-bundle file URL. `src/main/__tests__/renderer-entry.test.ts:9-77` covers both windows and both modes.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-15 @ 3903e7e via [issue caxri#166](https://github.com/tjx666/caxri/issues/166).
+- **Remediation target / Acceptance:** Packaged mode ignores `ELECTRON_RENDERER_URL`; unpackaged development mode retains it.
+
+### AD-sec-hook-config-size-cap — [RESOLVED · Architecture debt · S]
+
+- **Summary:** Provider-owned Agent lifecycle-hook configuration is bounded before any adapter receives or parses it.
+- **Evidence:** `src/runtime/agents/hooks/manager.ts:175-184` reads provider targets through the shared bounded regular-file reader with a 1 MiB limit. `src/runtime/agents/hooks/__tests__/manager.integration.test.ts:440-486` proves an oversized file is neither parsed nor rewritten.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
+- **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
+- **Remediation target / Acceptance:** Oversized provider configuration fails closed without parsing or rewriting the file; supported bounded files continue to reconcile.
+
+### AD-sec-theme-import-bounded-read — [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Theme import now reads through one regular-file handle into a fixed-size buffer and rejects growth before format sniffing or parsing, while preserving final-symlink compatibility for user-owned theme and provider configuration files.
+- **Evidence:** `src/runtime/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `src/runtime/theme.ts:312-328` uses that boundary; `src/runtime/__tests__/theme.test.ts:95-180` covers final symlinks, post-open growth, and FIFO rejection.
+- **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-15 @ e1c5948
+- **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
+- **Remediation target / Acceptance:** No parser receives more than 1 MiB; post-open growth returns `CAPACITY`, pathname replacement cannot redirect the opened handle, and normal supported imports continue to succeed.
+
+### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
+- **Evidence:** `packages/protocol/src/registry/events.ts:81-87` gives `files.changed` immutable Project identity. `src/renderer/src/queries/invalidation.ts:103-115` and `src/renderer/src/features/inspector/panels/files/file-tree-refresh.ts:36-66` fan invalidation out by Project. `src/runtime/files/__tests__/watcher.scope.integration.test.ts:66-156` covers queued rebind and cross-Project fencing.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
+- **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.
+
+### AD-ui-inspector-show-reveal — [RESOLVED · Contract drift · S]
+
+- **Summary:** Catalogued Inspector Show commands and Search Files now reveal a hidden Inspector before selecting their target mode.
+- **Evidence:** `src/renderer/src/commands/execute.ts:49-57` owns the reveal-and-activate boundary; command registrations use it at `src/renderer/src/commands/execute.ts:135-147`. `src/renderer/src/commands/execute.test.ts` covers all registered Show commands and Search Files.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-15 @ b6826f5 via [issue caxri#169](https://github.com/tjx666/caxri/issues/169).
+- **Remediation target / Acceptance:** With the Inspector hidden, each Show command and its default binding makes the requested panel visible without rewriting an already-visible layout.
+
+### AD-ext-e2e-provider-shims — [RESOLVED · Architecture debt · S]
+
+- **Summary:** Caxri-owned E2E executable environment keys and blocked Shell shims derive from the managed Agent provider catalog.
+- **Evidence:** `src/shared/node/e2e-agent-policy.ts:36-41` derives provider environment keys, and `src/shared/node/e2e-agent-policy.ts:96-105` builds every provider shim from `agentProviderIds`. `src/shared/node/__tests__/e2e-agent-policy.test.ts` locks catalog coverage.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-14 @ 75ed0f4 as part of [PR caxri#138](https://github.com/tjx666/caxri/pull/138).
+- **Remediation target / Acceptance:** Adding a managed provider automatically yields its fake-executable environment key and blocked shim, with an exhaustive focused test.
+
+### AD-ext-public-git-diff — [RESOLVED · Architecture debt · S]
+
+- **Summary:** The obsolete raw-string `git.diff` operation is no longer part of the public protocol or Runtime handler table.
+- **Evidence:** `packages/protocol/src/registry/methods.ts:552-568` exposes only typed diff documents. `packages/protocol/src/__tests__/index.test.ts:227-253` proves Desktop negotiation omits `git.diff` and public request parsing rejects it.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-15 @ e7489de via [issue caxri#170](https://github.com/tjx666/caxri/issues/170).
+- **Remediation target / Acceptance:** `git.diffDocument` and `git.pullRequestDiffDocument` remain the bounded public diff reads; `git.diff` cannot negotiate or parse.
+
+### AD-perf-pr-cache-unbounded — [RESOLVED · Architecture debt · S]
+
+- **Summary:** Pull Request metadata caching now has TTL pruning, a fixed LRU capacity, deletion eviction, and shutdown cleanup.
+- **Evidence:** `src/runtime/git/pull-request.ts:161-188` implements Session eviction, clear, expiry pruning, and a 128-entry LRU. `src/runtime/bootstrap.ts:535-548,628-633` evicts Project and Session keys. `src/runtime/git/__tests__/pull-request.test.ts:73-202` covers expiry, capacity, deletion, collision, and in-flight invalidation.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
+- **Resolved:** 2026-08-15 @ e7489de via [issue caxri#170](https://github.com/tjx666/caxri/issues/170).
+- **Remediation target / Acceptance:** Historical Session/repository entries stay bounded, deleted Sessions cannot repopulate the cache, and unrelated identifiers cannot collide.
+
+### AD-ui-work-tab-tablist — [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Open Work now implements automatic keyboard activation, roving focus, an actual active tabpanel association, and text alternatives for dirty and process state.
+- **Evidence:** `src/renderer/src/features/tabs/WorkTabStrip.tsx:298-318` implements Arrow, Home, and End navigation. `src/renderer/src/features/tabs/WorkTab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
+- **Resolved:** 2026-08-15 @ 43af4d6 via [issue caxri#171](https://github.com/tjx666/caxri/issues/171).
+- **Remediation target / Acceptance:** Arrow/Home/End changes and focuses the active work target, one tab participates in sequential focus, the active surface is associated, and color-only state has a screen-reader description.
 
 ### AD-persist-non-atomic-document-save — [RESOLVED · Confirmed defect · M]
 
@@ -196,6 +229,17 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ---
 
+## STALE
+
+### AD-test-hyphenated-sibling-discovery — [STALE · Coverage or observability gap · S]
+
+- **Summary:** The original claim that `check --test` silently misses `project-status-runner.test.ts` is no longer true because static direct-import discovery includes that suite.
+- **Evidence:** `.agents/skills/quality-check/scripts/check.ts:240-280` adds static direct-import candidates across `src`; `src/runtime/__tests__/project-status-runner.test.ts:3` directly imports `../project-status`. Exact-stem candidate generation remains intentionally narrower.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified stale:** 2026-08-15 @ 43af4d6
+- **Disposition:** Do not add broad hyphenated-sibling inference. The distinct alias-import and `packages/cli` discovery gaps remain tracked by [issue caxri#159](https://github.com/tjx666/caxri/issues/159).
+
+---
+
 ## Intentional tradeoffs (not debt — do not "fix" without product change)
 
 Recorded so repeat audits do not reclassify them as findings.
@@ -218,11 +262,12 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ---
 
-## Current priority guide (OPEN at 2026-08-13)
+## Current priority guide (OPEN at 2026-08-15)
 
-**Top priorities:** `AD-sec-packaged-renderer-url` → `AD-lifecycle-mutation-remap-origin-delete` → `AD-state-sibling-session-invalidation` → `AD-ui-work-tab-tablist` → `AD-sec-hook-config-size-cap`.
+The prior OPEN set is resolved or stale. New incremental-audit findings are routed through dedicated
+follow-up issues so their lifecycle and acceptance evidence remain independently reviewable.
 
-**Quick wins (S):** packaged renderer URL · hook-config size cap · bounded theme import · Inspector show reveal · E2E provider shims · public `git.diff` · PR cache bound · hyphenated sibling discovery.
+**Current order:** `AD-lifecycle-agent-endpoint-generation-map` → `AD-perf-agent-inbox-duplicate-window` → `AD-lifecycle-stale-desktop-sockets`.
 
 ## Historical priority guide (all resolved)
 

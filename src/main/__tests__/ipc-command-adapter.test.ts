@@ -76,9 +76,9 @@ describe('Electron IPC command adapter', () => {
 
     it('negotiates an authenticated capability and command welcome', () => {
         const electron = createElectronIpcCommandAdapter({ host: handler() });
-        const welcome = electron.negotiate({ supportedVersions: [1] });
+        const welcome = electron.negotiate({ supportedVersions: [2] });
         expect(welcome).toMatchObject({
-            protocolVersion: 1,
+            protocolVersion: 2,
             principal: { kind: 'desktop', id: 'electron-main', generation: 1 },
             capabilities: ['desktop'],
         });

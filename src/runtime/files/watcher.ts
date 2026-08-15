@@ -77,6 +77,12 @@ export interface WatcherServiceOptions {
     subscribe?: typeof parcelWatcher.subscribe;
 }
 
+/** Immutable source captured for each coalesced watcher batch. */
+export interface WatchScope {
+    sessionId: string;
+    workbenchProjectId: string;
+}
+
 /**
  * Watches the selected Session's Project root for changes, with a signature-polling fallback when
  * the native watcher backend cannot be installed. Also owns the bounded, lazily-populated polled
@@ -84,9 +90,10 @@ export interface WatcherServiceOptions {
  */
 export class WatcherService {
     private watcher?: parcelWatcher.AsyncSubscription;
-    private watchedSessionId?: string;
+    private watchedScope?: WatchScope;
     private watchGeneration = 0;
     private watchSetup?: Promise<void>;
+    private pendingScope?: WatchScope;
     private pendingEvents = new Map<string, FileChange['kind']>();
     private droppedEvents = 0;
     private eventTimer?: NodeJS.Timeout;
@@ -120,7 +127,7 @@ export class WatcherService {
 
     /** Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick. */
     noteDirectoryListed(sessionId: string, path: string): void {
-        if (sessionId !== this.watchedSessionId) return;
+        if (sessionId !== this.watchedScope?.sessionId) return;
         if (this.watchedRoot) {
             const relativePath = relative(this.watchedRoot, path);
             if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath)) return;
@@ -140,7 +147,7 @@ export class WatcherService {
 
     /** Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree. */
     async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {
-        if (sessionId !== this.watchedSessionId) return;
+        if (sessionId !== this.watchedScope?.sessionId) return;
         const generation = this.watchGeneration;
         const maximum = this.maxPolledDirectories * 3;
         const additions = [...new Set(paths)]
@@ -156,49 +163,42 @@ export class WatcherService {
             MAX_CONCURRENT_POLL_DIRECTORIES,
             async (path) => [path, await this.readPathFingerprint(path)] as const,
         );
-        if (generation !== this.watchGeneration || sessionId !== this.watchedSessionId) return;
+        if (generation !== this.watchGeneration || sessionId !== this.watchedScope?.sessionId)
+            return;
         for (const [path, fingerprint] of fingerprints)
             this.gitIgnoreRuleFingerprints.set(path, fingerprint);
         if (this.gitIgnoreRuleFingerprints.size === 0 || this.gitIgnoreRulePollTimer) return;
-        this.gitIgnoreRulePollTimer = setInterval(
-            () => void this.pollGitIgnoreRuleFiles(sessionId, generation),
-            this.pollIntervalMs,
-        );
+        this.gitIgnoreRulePollTimer = setInterval(() => {
+            const scope = this.watchedScope;
+            if (scope) void this.pollGitIgnoreRuleFiles(scope, generation);
+        }, this.pollIntervalMs);
         this.gitIgnoreRulePollTimer.unref();
     }
 
-    watchSession(sessionId?: string, force = false): Promise<void> {
-        if (!force && sessionId === this.watchedSessionId)
+    watchSession(scope?: WatchScope, force = false): Promise<void> {
+        if (
+            !force &&
+            scope?.workbenchProjectId === this.watchedScope?.workbenchProjectId &&
+            scope
+        ) {
+            this.watchedScope = scope;
             return this.watchSetup ?? Promise.resolve();
+        }
+        this.flushPendingBatch();
         const generation = ++this.watchGeneration;
-        this.watchedSessionId = sessionId;
-        if (this.eventTimer) clearTimeout(this.eventTimer);
-        this.eventTimer = undefined;
-        this.pendingEvents.clear();
-        this.droppedEvents = 0;
-        this.gitIgnoreRulesChanged = false;
-        if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
-        this.gitIgnoreRulePollTimer = undefined;
-        this.gitIgnoreRulePollInFlight = false;
-        if (this.pollTimer) clearInterval(this.pollTimer);
-        this.pollTimer = undefined;
-        this.pollingActive = false;
-        this.listedDirectories.clear();
-        this.gitIgnoreRuleFingerprints.clear();
-        this.polledDirectories.clear();
-        this.recentChangeFingerprints.clear();
-        this.watchedRoot = undefined;
-        this.watchSetup = this.installWatcher(sessionId, generation);
+        this.watchedScope = scope;
+        this.resetWatchState();
+        this.watchSetup = this.installWatcher(scope, generation);
         return this.watchSetup;
     }
 
-    private installWatcher(sessionId: string | undefined, generation: number): Promise<void> {
-        const setup = this.replaceWatcher(sessionId, generation)
+    private installWatcher(scope: WatchScope | undefined, generation: number): Promise<void> {
+        const setup = this.replaceWatcher(scope, generation)
             .catch((error: unknown) => {
-                if (sessionId) this.onRootUnavailable?.(sessionId);
+                if (scope) this.onRootUnavailable?.(scope.sessionId);
                 this.logger.write('warn', 'watcher.setup_failed', {
                     fields: {
-                        sessionId: sessionId ?? 'none',
+                        sessionId: scope?.sessionId ?? 'none',
                         error: errorMessage(error, 'unknown watcher error'),
                     },
                 });
@@ -211,14 +211,14 @@ export class WatcherService {
         return setup;
     }
 
-    private async replaceWatcher(sessionId: string | undefined, generation: number): Promise<void> {
+    private async replaceWatcher(scope: WatchScope | undefined, generation: number): Promise<void> {
         const startedAt = performance.now();
         const previousWatcher = this.watcher;
         this.watcher = undefined;
         await previousWatcher?.unsubscribe();
         if (generation !== this.watchGeneration) return;
-        if (!sessionId) return;
-        const { root } = await this.resolveSessionPath(sessionId);
+        if (!scope) return;
+        const { root } = await this.resolveSessionPath(scope.sessionId);
         if (generation !== this.watchGeneration) return;
         this.watchedRoot = root;
         rememberPolledDirectory(
@@ -233,16 +233,18 @@ export class WatcherService {
                 root,
                 (error, events) => {
                     if (generation !== this.watchGeneration) return;
+                    const eventScope = this.watchedScope;
+                    if (!eventScope) return;
                     if (error) {
-                        this.onRootUnavailable?.(sessionId);
-                        void this.activatePollingFallback(sessionId, generation, error);
+                        this.onRootUnavailable?.(eventScope.sessionId);
+                        void this.activatePollingFallback(eventScope, generation, error);
                         return;
                     }
                     for (const event of events) {
                         const relativePath = relative(root, event.path);
                         if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath))
                             continue;
-                        void this.queueNativeEvent(sessionId, event.type, event.path, generation);
+                        void this.queueNativeEvent(eventScope, event.type, event.path, generation);
                     }
                 },
                 { backend: NATIVE_WATCHER_BACKEND, ignore: WATCHER_EXCLUDE_PATTERNS },
@@ -258,20 +260,20 @@ export class WatcherService {
             this.watcher = watcher;
             this.logger.write('info', 'watcher.ready', {
                 durationMs: performance.now() - startedAt,
-                fields: { sessionId, backend: NATIVE_WATCHER_BACKEND },
+                fields: { sessionId: scope.sessionId, backend: NATIVE_WATCHER_BACKEND },
             });
         } catch (error) {
             if (generation !== this.watchGeneration) return;
-            await this.activatePollingFallback(sessionId, generation, error);
+            await this.activatePollingFallback(scope, generation, error);
             this.logger.write('info', 'watcher.ready', {
                 durationMs: performance.now() - startedAt,
-                fields: { sessionId, backend: 'poll' },
+                fields: { sessionId: scope.sessionId, backend: 'poll' },
             });
         }
     }
 
     private async activatePollingFallback(
-        sessionId: string,
+        scope: WatchScope,
         generation: number,
         error: unknown,
     ): Promise<void> {
@@ -287,22 +289,22 @@ export class WatcherService {
                 (directory) => this.initializePolledDirectory(directory, generation),
             );
             if (generation !== this.watchGeneration) return;
-            this.pollTimer = setInterval(
-                () => void this.pollDirectories(sessionId, generation),
-                this.pollIntervalMs,
-            );
+            this.pollTimer = setInterval(() => {
+                const currentScope = this.watchedScope;
+                if (currentScope) void this.pollDirectories(currentScope, generation);
+            }, this.pollIntervalMs);
             this.pollTimer.unref();
         }
         this.logger.write('warn', 'watcher.fallback', {
             fields: {
-                sessionId,
+                sessionId: scope.sessionId,
                 error: errorMessage(error, 'unknown watcher error'),
             },
         });
     }
 
     private async queueNativeEvent(
-        sessionId: string,
+        scope: WatchScope,
         kind: FileChange['kind'],
         path: string,
         generation: number,
@@ -315,7 +317,7 @@ export class WatcherService {
         }
         if (generation !== this.watchGeneration) return;
         this.queueFingerprintedEvent(
-            sessionId,
+            scope,
             fingerprint === MISSING_PATH_FINGERPRINT ? 'delete' : kind,
             path,
             fingerprint,
@@ -323,7 +325,7 @@ export class WatcherService {
     }
 
     private queueFingerprintedEvent(
-        sessionId: string,
+        scope: WatchScope,
         kind: FileChange['kind'],
         path: string,
         fingerprint?: string,
@@ -338,47 +340,69 @@ export class WatcherService {
             )
         )
             return;
+        this.preparePendingBatch(scope);
         if (this.pendingEvents.has(path) || this.pendingEvents.size < MAX_PENDING_WATCH_EVENTS) {
             this.pendingEvents.set(path, kind);
         } else {
             this.droppedEvents += 1;
         }
-        this.scheduleEventBatch(sessionId);
+        this.scheduleEventBatch();
     }
 
-    private queueGitIgnoreRuleChange(sessionId: string): void {
+    private queueGitIgnoreRuleChange(scope: WatchScope): void {
+        this.preparePendingBatch(scope);
         this.gitIgnoreRulesChanged = true;
-        this.scheduleEventBatch(sessionId);
+        this.scheduleEventBatch();
     }
 
-    private scheduleEventBatch(sessionId: string): void {
-        this.eventTimer ??= setTimeout(() => {
-            const changes = [...this.pendingEvents].map(([eventPath, eventKind]) => ({
-                path: eventPath,
-                kind: eventKind,
-            }));
-            this.emit({
-                event: 'files.changed',
-                payload: {
-                    sessionId,
-                    changes,
-                    overflow: this.droppedEvents > 0,
-                    ...(this.gitIgnoreRulesChanged ? { gitIgnoreRulesChanged: true as const } : {}),
-                },
-            });
-            this.logger.write(this.droppedEvents > 0 ? 'warn' : 'debug', 'watcher.batch', {
-                fields: {
-                    sessionId,
-                    count: this.pendingEvents.size,
-                    droppedEvents: this.droppedEvents,
-                    gitIgnoreRulesChanged: this.gitIgnoreRulesChanged,
-                },
-            });
-            this.pendingEvents.clear();
-            this.droppedEvents = 0;
-            this.gitIgnoreRulesChanged = false;
-            this.eventTimer = undefined;
-        }, WATCH_BATCH_DELAY_MS);
+    /** Freezes a batch scope before any event, overflow, or Git-rule state can be written. */
+    private preparePendingBatch(scope: WatchScope): void {
+        if (
+            this.pendingScope &&
+            (this.pendingScope.sessionId !== scope.sessionId ||
+                this.pendingScope.workbenchProjectId !== scope.workbenchProjectId)
+        )
+            this.flushPendingBatch();
+        this.pendingScope ??= scope;
+    }
+
+    private scheduleEventBatch(): void {
+        this.eventTimer ??= setTimeout(() => this.flushPendingBatch(), WATCH_BATCH_DELAY_MS);
+    }
+
+    /** Emits the current immutable batch before a scope or watcher generation can be discarded. */
+    private flushPendingBatch(): void {
+        if (this.eventTimer) clearTimeout(this.eventTimer);
+        this.eventTimer = undefined;
+        const scope = this.pendingScope;
+        if (!scope) return;
+        const changes = [...this.pendingEvents].map(([eventPath, eventKind]) => ({
+            path: eventPath,
+            kind: eventKind,
+        }));
+        this.emit({
+            event: 'files.changed',
+            payload: {
+                sessionId: scope.sessionId,
+                workbenchProjectId: scope.workbenchProjectId,
+                changes,
+                overflow: this.droppedEvents > 0,
+                ...(this.gitIgnoreRulesChanged ? { gitIgnoreRulesChanged: true as const } : {}),
+            },
+        });
+        this.logger.write(this.droppedEvents > 0 ? 'warn' : 'debug', 'watcher.batch', {
+            fields: {
+                sessionId: scope.sessionId,
+                workbenchProjectId: scope.workbenchProjectId,
+                count: this.pendingEvents.size,
+                droppedEvents: this.droppedEvents,
+                gitIgnoreRulesChanged: this.gitIgnoreRulesChanged,
+            },
+        });
+        this.pendingEvents.clear();
+        this.droppedEvents = 0;
+        this.gitIgnoreRulesChanged = false;
+        this.pendingScope = undefined;
     }
 
     private async readPathFingerprint(path: string): Promise<string> {
@@ -389,7 +413,7 @@ export class WatcherService {
         }
     }
 
-    private async pollGitIgnoreRuleFiles(sessionId: string, generation: number): Promise<void> {
+    private async pollGitIgnoreRuleFiles(scope: WatchScope, generation: number): Promise<void> {
         if (this.gitIgnoreRulePollInFlight || generation !== this.watchGeneration) return;
         this.gitIgnoreRulePollInFlight = true;
         try {
@@ -409,7 +433,7 @@ export class WatcherService {
                 this.gitIgnoreRuleFingerprints.set(fingerprint.path, fingerprint.current);
                 changed = true;
             }
-            if (changed) this.queueGitIgnoreRuleChange(sessionId);
+            if (changed) this.queueGitIgnoreRuleChange(scope);
         } finally {
             if (generation === this.watchGeneration) this.gitIgnoreRulePollInFlight = false;
         }
@@ -456,7 +480,7 @@ export class WatcherService {
     }
 
     /** Poll only the root and directories the user expanded, bounding fallback work in large repositories. */
-    private async pollDirectories(sessionId: string, generation: number): Promise<void> {
+    private async pollDirectories(scope: WatchScope, generation: number): Promise<void> {
         if (this.pollInFlight || generation !== this.watchGeneration) return;
         this.pollInFlight = true;
         try {
@@ -468,14 +492,15 @@ export class WatcherService {
                     try {
                         current = await this.readDirectorySignatures(directory);
                     } catch {
-                        if (directory === this.watchedRoot) this.onRootUnavailable?.(sessionId);
+                        if (directory === this.watchedRoot)
+                            this.onRootUnavailable?.(scope.sessionId);
                         return;
                     }
                     if (generation !== this.watchGeneration) return;
                     for (const [path, signature] of current) {
                         if (previous.get(path) !== signature) {
                             this.queueFingerprintedEvent(
-                                sessionId,
+                                scope,
                                 previous.has(path) ? 'update' : 'create',
                                 path,
                                 signature,
@@ -485,7 +510,7 @@ export class WatcherService {
                     for (const path of previous.keys()) {
                         if (!current.has(path))
                             this.queueFingerprintedEvent(
-                                sessionId,
+                                scope,
                                 'delete',
                                 path,
                                 MISSING_PATH_FINGERPRINT,
@@ -509,15 +534,36 @@ export class WatcherService {
         );
     }
 
+    private resetWatchState(): void {
+        if (this.eventTimer) clearTimeout(this.eventTimer);
+        this.eventTimer = undefined;
+        this.pendingEvents.clear();
+        this.pendingScope = undefined;
+        this.droppedEvents = 0;
+        this.gitIgnoreRulesChanged = false;
+        if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
+        this.gitIgnoreRulePollTimer = undefined;
+        this.gitIgnoreRulePollInFlight = false;
+        if (this.pollTimer) clearInterval(this.pollTimer);
+        this.pollTimer = undefined;
+        this.pollingActive = false;
+        this.listedDirectories.clear();
+        this.gitIgnoreRuleFingerprints.clear();
+        this.polledDirectories.clear();
+        this.recentChangeFingerprints.clear();
+        this.watchedRoot = undefined;
+    }
+
     async close(): Promise<void> {
+        this.flushPendingBatch();
         this.watchGeneration += 1;
         this.pollingActive = false;
-        if (this.eventTimer) clearTimeout(this.eventTimer);
         if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
         if (this.pollTimer) clearInterval(this.pollTimer);
         const watcher = this.watcher;
         const setup = this.watchSetup;
         this.watcher = undefined;
+        this.pendingScope = undefined;
         this.listedDirectories.clear();
         this.gitIgnoreRuleFingerprints.clear();
         this.polledDirectories.clear();

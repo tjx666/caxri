@@ -7,6 +7,10 @@
 
 Use `electron-vite` for separate Main, Headless Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
+`ELECTRON_RENDERER_URL` is an unpackaged electron-vite development input only. Packaged Workbench
+and Process Explorer windows always resolve their renderer entry files from the application bundle,
+so an inherited development URL cannot redirect either privileged window.
+
 The root remains the private pnpm workspace owner and the only lockfile owner. `packages/protocol`
 owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
 may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop
@@ -34,11 +38,25 @@ The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Mai
 standalone workspace links out of the packaged application. This gives Main the authenticated Host
 client without making packaged startup depend on a pnpm workspace symlink.
 
+Packaged Main processes treat `ELECTRON_RENDERER_URL` as a development-only override: application
+logs always resolve beneath Electron `userData`, never relative to the packaged application bundle.
+
 The CLI build also emits one self-contained CommonJS artifact that imports only Node built-ins. The
 standalone distribution and `Contents/Resources/cli/caxri.cjs` are copied from that same file, while
 `Contents/Resources/bin/caxri` resolves symlinks and launches it through the packaged Caxri binary
 with `ELECTRON_RUN_AS_NODE=1`. Packaging must preserve executable bits, explicitly keep the
 `RunAsNode` fuse enabled, and prove byte identity between the standalone and embedded bundle.
+
+Protocol v2 retains one migration-only CLI control for an already-running v1 Host. Main may use
+that fixed v1 operator handshake only to read `host.status`, request `host.stop` after explicit user
+confirmation, and verify that the same Host identity released the profile before retrying v2. It is
+not protocol negotiation or a general v1 compatibility mode: Desktop, Runtime, event, and Project
+commands remain v2-only.
+
+If that legacy identity disappears before or during confirmation, Main returns to ordinary Host
+detection instead of treating absence as an unsafe upgrade. An incompatible discovery manifest is
+replaceable only when its recorded process is confirmed dead; the new Host's profile lock performs
+the stale takeover. Neither the CLI nor Main kills a PID or unlinks discovery data directly.
 
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 
