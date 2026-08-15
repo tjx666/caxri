@@ -117,7 +117,8 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
 
 errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Main error after usable UI',
-    async (_fixtures, testInfo) => {
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+    async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
             'Unexpected E2E errors: main/ipc.request_failed/VALIDATION x1',
@@ -126,14 +127,16 @@ errorGateSelfTest(
     },
 );
 
-test('issue-104-error-gate: consumes one exact Main error after usable UI', async (_fixtures, testInfo) => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+test('issue-104-error-gate: consumes one exact Main error after usable UI', async ({}, testInfo) => {
     allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 }]);
     await observeIpcFailure(testInfo, 'main-allowed', 'e2e.invalid', {}, 'VALIDATION');
 });
 
 errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Runtime error after usable UI',
-    async (_fixtures, testInfo) => {
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+    async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
             'Unexpected E2E errors: main/ipc.request_failed/NOT_FOUND x1, runtime/ipc.request_failed/NOT_FOUND x1',
@@ -149,7 +152,8 @@ errorGateSelfTest(
     },
 );
 
-test('issue-104-error-gate: consumes exact Main and Runtime errors after usable UI', async (_fixtures, testInfo) => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+test('issue-104-error-gate: consumes exact Main and Runtime errors after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
         { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
         { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },

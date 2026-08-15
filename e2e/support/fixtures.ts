@@ -19,13 +19,15 @@ interface E2EWorkerFixtures {
 
 export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
     e2eErrorGate: [
-        async (_fixtures, use, testInfo) => {
+        // eslint-disable-next-line no-empty-pattern -- Playwright requires the first fixture argument to be an object destructuring pattern
+        async ({}, use, testInfo) => {
             await runWithE2EErrorGate(testInfo, use);
         },
         { auto: true },
     ],
     e2eWorkerIsolation: [
-        async (_fixtures, runWorker) => {
+        // eslint-disable-next-line no-empty-pattern -- Playwright requires the first fixture argument to be an object destructuring pattern
+        async ({}, runWorker) => {
             const original = {
                 TEMP: process.env.TEMP,
                 TMP: process.env.TMP,
