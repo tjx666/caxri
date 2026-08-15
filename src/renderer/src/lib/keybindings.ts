@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { Keybinding } from '@shared/types';
+import type { CommandId, Keybinding } from '@shared/types';
 import { normalizeShortcut } from '@shared/shortcuts';
 
 import { useWorkbenchStore } from '../stores/workbench';
@@ -104,7 +104,7 @@ export function formatShortcut(key: string): string {
 }
 
 /** Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`. */
-export function useCommandShortcut(commandId: string): string | undefined {
+export function useCommandShortcut(commandId: CommandId): string | undefined {
     const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);
     return useMemo(() => {
         const binding = keybindings?.find((item) => item.command === commandId);

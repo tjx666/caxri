@@ -16,6 +16,7 @@
         "composite": true,
         "jsx": "react-jsx",
         "noEmit": true,
+        "noImplicitAny": true,
         "strict": true,
         "paths": {
             "@/*": ["./src/renderer/src/*"],

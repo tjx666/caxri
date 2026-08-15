@@ -13,6 +13,7 @@ export {
     type AgentProvider,
     type AgentSnapshot,
     type AppSettings,
+    type CommandId,
     type BootstrapState,
     type FileChange,
     type FileDocument,
@@ -59,7 +60,7 @@ export {
     type ThemeTokens,
     type UpdateState,
     type WorkbenchRootOption,
-} from './ipc/domain';
+} from './ipc';
 
 export type {
     AgentSkillHealth,

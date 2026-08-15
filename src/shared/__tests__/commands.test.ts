@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { commandIds } from '../ipc';
 import {
     commandDefinitions,
     defaultKeybindings,
@@ -15,7 +16,10 @@ describe('command registry', () => {
         expect(commandDefinitions.every((command) => command.description.trim().length > 0)).toBe(
             true,
         );
-        expect(defaultKeybindings.every((binding) => ids.includes(binding.command))).toBe(true);
+        expect(new Set(ids)).toEqual(new Set(commandIds));
+        expect(
+            defaultKeybindings.every((binding) => (ids as string[]).includes(binding.command)),
+        ).toBe(true);
         expect(defaultKeybindings).toEqual(
             expect.arrayContaining([
                 { key: 'cmd+k', command: 'terminal.clear' },

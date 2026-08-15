@@ -1,4 +1,4 @@
-import { commandDefinitions, defaultKeybindings } from '@shared/commands';
+import { commandDefinitions, defaultKeybindings, type CommandDefinition } from '@shared/commands';
 import type { Keybinding } from '@shared/types';
 
 import { formatShortcut } from '../../lib/keybindings';
@@ -15,8 +15,10 @@ export interface KeybindingRow {
     title: string;
 }
 
-const catalogById = new Map(commandDefinitions.map((command) => [command.id, command]));
-const defaultByCommand = new Map(
+const catalogById = new Map<string, CommandDefinition>(
+    commandDefinitions.map((command) => [command.id, command]),
+);
+const defaultByCommand = new Map<string, string>(
     defaultKeybindings.map((binding) => [binding.command, binding.key]),
 );
 

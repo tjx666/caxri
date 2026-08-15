@@ -21,7 +21,7 @@ export function agentSkillHealthReader(
             home: environment.homeDirectory,
         };
         const global = await inspectBundledSkillHealth(context, { scopes: ['global'] });
-        const projectId = database.getAppState<string | null>('lastSelectedProjectId') ?? undefined;
+        const projectId = database.getAppState('lastSelectedProjectId') ?? undefined;
         const project = projectId ? database.getProject(projectId) : undefined;
         if (!project) return global;
         try {

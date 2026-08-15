@@ -736,7 +736,7 @@ describe('recoverable event cursor', () => {
         });
         client.receive({
             event: 'command.execute',
-            payload: { command: 'session.select' },
+            payload: { command: 'session.selectNext' },
         });
         for (let index = 0; index <= MAX_EVENT_JOURNAL_EVENTS; index += 1) {
             client.receive(
@@ -754,7 +754,7 @@ describe('recoverable event cursor', () => {
             },
             {
                 event: 'command.execute',
-                payload: { command: 'session.select' },
+                payload: { command: 'session.selectNext' },
             },
             { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
         ]);

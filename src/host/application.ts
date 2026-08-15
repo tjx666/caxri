@@ -1,15 +1,22 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
+import { assertNever } from '../shared/ipc';
 import type { CommandAdapter } from '../shared/ipc/dispatcher';
 import { CaxriError } from '../shared/ipc/errors';
+import type { HostForwardedMethod } from './host-methods';
 import {
     createEventJournal,
     isTransientRuntimeEvent,
     projectObservableEventRecovery,
 } from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
-import { getMethodSpec, type RuntimeRequest } from '../shared/ipc/methods';
+import {
+    getMethodSpec,
+    isHostRequest,
+    type HostRequest,
+    type RuntimeRequest,
+} from '../shared/ipc/methods';
 import { hasRequiredCapabilities, type CommandExecutionContext } from '../shared/ipc/principal';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import { StructuredLogger } from '../shared/node/logger';
@@ -69,13 +76,18 @@ export async function startHostApplication(
     });
     const supervisor = new HostRuntimeSupervisor({
         agentEndpointControl: (request) => {
-            if (request.operation === 'agent-endpoint.begin')
-                return agentEndpoints.begin(request.params);
-            if (request.operation === 'agent-endpoint.activate')
-                return { activated: agentEndpoints.activate(request.params) };
-            if (request.operation === 'agent-endpoint.messaging')
-                return { updated: agentEndpoints.updateMessaging(request.params) };
-            return { retired: agentEndpoints.retire(request.params) };
+            switch (request.operation) {
+                case 'agent-endpoint.begin':
+                    return agentEndpoints.begin(request.params);
+                case 'agent-endpoint.activate':
+                    return { activated: agentEndpoints.activate(request.params) };
+                case 'agent-endpoint.messaging':
+                    return { updated: agentEndpoints.updateMessaging(request.params) };
+                case 'agent-endpoint.retire':
+                    return { retired: agentEndpoints.retire(request.params) };
+                default:
+                    return assertNever(request, 'Unhandled Agent Endpoint control operation');
+            }
         },
         agentHooksPath: options.agentHooksPath,
         appVersion: options.version,
@@ -201,289 +213,308 @@ export async function startHostApplication(
 
     const host: CommandAdapter = {
         async invoke(request, context, invocation) {
-            if (request.method === 'events.recover')
-                return journal.recover(request.params.afterCursor);
-            if (request.method === 'events.query')
-                return projectObservableEventRecovery(
-                    await journal.recover(request.params.afterCursor),
+            if (!isHostRequest(request))
+                throw new CaxriError(
+                    'INTERNAL',
+                    `Host received a desktop-owned method: ${request.method}`,
                 );
-            if (request.method === 'agent.context') return agentEndpoints.context(context);
-            if (request.method === 'agent.list') return { agents: agentEndpoints.list(context) };
-            if (request.method === 'agent.grants')
-                return { grants: agentEndpoints.grants(request.params.endpoint) };
-            if (request.method === 'agent.grant')
-                return agentEndpoints.grant(
-                    request.params.endpoint,
-                    request.params.policy,
-                    request.params.ttlMs,
-                );
-            if (request.method === 'agent.revoke')
-                return {
-                    revoked: agentEndpoints.revoke(request.params.endpoint, request.params.grantId),
-                };
-            if (request.method === 'agent.dispatch.start') {
-                assertProjectScope(context, request.params.projectId);
-                return forwardRuntime({
-                    method: 'agent.dispatch.startInternal',
-                    params: {
-                        dispatchId: dispatchIdFor(context, invocation.requestId),
-                        principal: context.principal,
-                        input: request.params,
-                    },
-                });
-            }
-            if (request.method === 'agent.dispatch.resume') {
-                assertProjectScope(context, request.params.projectId);
-                return forwardRuntime({
-                    method: 'agent.dispatch.resumeInternal',
-                    params: {
-                        dispatchId: dispatchIdFor(context, invocation.requestId),
-                        principal: context.principal,
-                        input: request.params,
-                    },
-                });
-            }
-            if (request.method === 'agent.dispatch.status')
-                return supervisor.request('agent.dispatch.statusInternal', {
-                    dispatchId: request.params.dispatchId,
-                    projectScope: projectScope(context),
-                });
-            if (request.method === 'agent.dispatch.wait') {
-                const key = principalRequestKey(context, invocation.requestId);
-                const waitId = randomUUID();
-                const waitIds = dispatchWaitIds.get(key) ?? new Set<string>();
-                waitIds.add(waitId);
-                dispatchWaitIds.set(key, waitIds);
-                try {
-                    return await supervisor.request('agent.dispatch.waitInternal', {
-                        afterRevision: request.params.afterRevision,
+            switch (request.method) {
+                case 'events.recover':
+                    return journal.recover(request.params.afterCursor);
+                case 'events.query':
+                    return projectObservableEventRecovery(
+                        await journal.recover(request.params.afterCursor),
+                    );
+                case 'agent.context':
+                    return agentEndpoints.context(context);
+                case 'agent.list':
+                    return { agents: agentEndpoints.list(context) };
+                case 'agent.grants':
+                    return { grants: agentEndpoints.grants(request.params.endpoint) };
+                case 'agent.grant':
+                    return agentEndpoints.grant(
+                        request.params.endpoint,
+                        request.params.policy,
+                        request.params.ttlMs,
+                    );
+                case 'agent.revoke':
+                    return {
+                        revoked: agentEndpoints.revoke(
+                            request.params.endpoint,
+                            request.params.grantId,
+                        ),
+                    };
+                case 'agent.dispatch.start': {
+                    assertProjectScope(context, request.params.projectId);
+                    return forwardRuntime({
+                        method: 'agent.dispatch.startInternal',
+                        params: {
+                            dispatchId: dispatchIdFor(context, invocation.requestId),
+                            principal: context.principal,
+                            input: request.params,
+                        },
+                    });
+                }
+                case 'agent.dispatch.resume': {
+                    assertProjectScope(context, request.params.projectId);
+                    return forwardRuntime({
+                        method: 'agent.dispatch.resumeInternal',
+                        params: {
+                            dispatchId: dispatchIdFor(context, invocation.requestId),
+                            principal: context.principal,
+                            input: request.params,
+                        },
+                    });
+                }
+                case 'agent.dispatch.status':
+                    return supervisor.request('agent.dispatch.statusInternal', {
                         dispatchId: request.params.dispatchId,
                         projectScope: projectScope(context),
-                        timeoutMs: request.params.timeoutMs,
-                        waitId,
                     });
-                } finally {
-                    waitIds.delete(waitId);
-                    if (waitIds.size === 0) dispatchWaitIds.delete(key);
-                }
-            }
-            if (
-                request.method === 'agent.control.interrupt' ||
-                request.method === 'agent.control.stop'
-            ) {
-                const endpoint = agentEndpoints.resolve(request.params.endpoint);
-                assertProjectScope(context, endpoint.projectId);
-                return forwardRuntime({
-                    method:
-                        request.method === 'agent.control.interrupt'
-                            ? 'agent.control.interruptInternal'
-                            : 'agent.control.stopInternal',
-                    params: request.params,
-                });
-            }
-            if (request.method === 'terminal.send') {
-                if (context.principal.kind !== 'human-cli' && context.principal.kind !== 'desktop')
-                    throw new CaxriError(
-                        'FORBIDDEN',
-                        'Terminal steer requires a human owner principal',
-                    );
-                const result = await forwardRuntime({
-                    method: 'terminal.sendInternal',
-                    params: request.params,
-                });
-                logger.write('info', 'terminal.human_steer', {
-                    fields: {
-                        terminalId: request.params.terminalId,
-                        byteLength: Buffer.byteLength(request.params.text, 'utf8'),
-                        enter: request.params.enter,
-                    },
-                });
-                return result;
-            }
-            if (request.method === 'agent.message.send') {
-                if (!request.params.wake)
-                    return agentInbox.send(context, request.params, invocation.requestId);
-                if (!hasRequiredCapabilities(context, ['agents.dispatch', 'agents.control']))
-                    throw new CaxriError(
-                        'FORBIDDEN',
-                        'Waking an Agent requires an agent:control grant',
-                    );
-                let targetIsActive = true;
-                try {
-                    agentEndpoints.resolve(request.params.to);
-                } catch {
-                    targetIsActive = false;
-                }
-                if (targetIsActive)
-                    return agentInbox.send(context, request.params, invocation.requestId);
-                /** Only an exact bounded tombstone can be promoted into a wake dispatch. */
-                const retired = agentEndpoints.resolveRetired(request.params.to);
-                assertProjectScope(context, retired.projectId);
-                if (mutationAdmissionClosed)
-                    throw new CaxriError('UNAVAILABLE', 'Host is stopping');
-                mutationsInFlight += 1;
-                try {
-                    const dispatch = await supervisor.request('agent.dispatch.wakeInternal', {
-                        dispatchId: dispatchIdFor(context, invocation.requestId),
-                        principal: context.principal,
-                        target: {
-                            projectId: retired.projectId,
-                            sessionId: retired.sessionId,
-                            terminalId: retired.terminalId,
-                        },
-                    });
-                    if (dispatch.status !== 'running' || !dispatch.endpoint)
-                        throw new CaxriError('UNAVAILABLE', 'Agent wake dispatch failed', {
-                            dispatchId: dispatch.dispatchId,
-                            status: dispatch.status,
+                case 'agent.dispatch.wait': {
+                    const key = principalRequestKey(context, invocation.requestId);
+                    const waitId = randomUUID();
+                    const waitIds = dispatchWaitIds.get(key) ?? new Set<string>();
+                    waitIds.add(waitId);
+                    dispatchWaitIds.set(key, waitIds);
+                    try {
+                        return await supervisor.request('agent.dispatch.waitInternal', {
+                            afterRevision: request.params.afterRevision,
+                            dispatchId: request.params.dispatchId,
+                            projectScope: projectScope(context),
+                            timeoutMs: request.params.timeoutMs,
+                            waitId,
                         });
-                    const current = agentEndpoints.resolveTerminal(retired.terminalId);
+                    } finally {
+                        waitIds.delete(waitId);
+                        if (waitIds.size === 0) dispatchWaitIds.delete(key);
+                    }
+                }
+                case 'agent.control.interrupt':
+                case 'agent.control.stop': {
+                    const endpoint = agentEndpoints.resolve(request.params.endpoint);
+                    assertProjectScope(context, endpoint.projectId);
+                    return forwardRuntime({
+                        method:
+                            request.method === 'agent.control.interrupt'
+                                ? 'agent.control.interruptInternal'
+                                : 'agent.control.stopInternal',
+                        params: request.params,
+                    });
+                }
+                case 'terminal.send': {
                     if (
-                        current.ref.endpointId !== dispatch.endpoint.endpointId ||
-                        current.ref.generation !== dispatch.endpoint.generation
+                        context.principal.kind !== 'human-cli' &&
+                        context.principal.kind !== 'desktop'
                     )
                         throw new CaxriError(
-                            'UNAVAILABLE',
-                            'Agent generation changed after wake dispatch',
-                            { dispatchId: dispatch.dispatchId },
+                            'FORBIDDEN',
+                            'Terminal steer requires a human owner principal',
                         );
-                    return agentInbox.send(
-                        context,
-                        {
-                            body: request.params.body,
-                            to: current.ref,
-                            ttlMs: request.params.ttlMs,
-                            ...(request.params.idempotencyKey
-                                ? { idempotencyKey: request.params.idempotencyKey }
-                                : {}),
+                    const result = await forwardRuntime({
+                        method: 'terminal.sendInternal',
+                        params: request.params,
+                    });
+                    logger.write('info', 'terminal.human_steer', {
+                        fields: {
+                            terminalId: request.params.terminalId,
+                            byteLength: Buffer.byteLength(request.params.text, 'utf8'),
+                            enter: request.params.enter,
                         },
-                        invocation.requestId,
-                        dispatch.dispatchId,
-                    );
-                } finally {
-                    finishMutation();
+                    });
+                    return result;
                 }
-            }
-            if (request.method === 'agent.message.reply') {
-                if (request.params.wake)
-                    throw new CaxriError(
-                        'VALIDATION',
-                        'Agent message replies cannot wake a target',
-                    );
-                return agentInbox.reply(context, request.params, invocation.requestId);
-            }
-            if (request.method === 'agent.message.wait')
-                return agentInbox.wait(context, request.params.timeoutMs, invocation.requestId);
-            if (request.method === 'agent.message.check')
-                return agentInbox.check(context, invocation.requestId);
-            if (request.method === 'agent.message.receipt')
-                return agentInbox.receipt(context, request.params.messageId);
-            if (request.method === 'agent.message.policy.get') return agentInbox.policy(context);
-            if (request.method === 'agent.message.policy.set')
-                return agentInbox.setPolicy(context, request.params);
-            if (request.method === 'agent.message.held') return { messages: agentInbox.listHeld() };
-            if (request.method === 'agent.message.held.get')
-                return agentInbox.heldDetail(request.params.messageId);
-            if (request.method === 'agent.message.approve')
-                return agentInbox.approve(request.params.messageId);
-            if (request.method === 'agent.message.deny')
-                return agentInbox.deny(request.params.messageId);
-            if (request.method === 'host.status') {
-                const health = await supervisor.request('app.health');
-                return {
-                    profileId: lease.manifest.profileId,
-                    version: options.version,
-                    pid: process.pid,
-                    ...(supervisor.processId() ? { runtimePid: supervisor.processId() } : {}),
-                    startedAt,
-                    clientCount: server?.clientCount() ?? 0,
-                    activePtyCount: health.activePtyCount,
-                    protocolVersion: CAXRI_PROTOCOL_VERSION,
-                    protocolCompatible: true,
-                    desktop: (await desktopRouter?.status()) ?? { state: 'offline' },
-                };
-            }
-            if (request.method === 'desktop.status')
-                return (await desktopRouter?.status()) ?? { state: 'offline' };
-            if (request.method === 'desktop.focus') {
-                if (!desktopRouter)
-                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                return desktopRouter.focus(request.params.launchIfNeeded);
-            }
-            if (request.method === 'desktop.openPath') {
-                if (!desktopRouter)
-                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                return desktopRouter.open('open', undefined, request.params);
-            }
-            if (request.method === 'desktop.openProject') {
-                if (!desktopRouter)
-                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                return desktopRouter.open('open', 'directory', request.params);
-            }
-            if (request.method === 'desktop.openFile') {
-                if (!desktopRouter)
-                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                return desktopRouter.open('open', 'file', request.params);
-            }
-            if (request.method === 'files.reveal') {
-                if (!desktopRouter)
-                    throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                return desktopRouter.open('reveal', undefined, request.params);
-            }
-            if (request.method === 'host.stop') {
-                if (mutationAdmissionClosed)
-                    throw new CaxriError('CONFLICT', 'Host stop is already in progress');
-                mutationAdmissionClosed = true;
-                let accepted = false;
-                try {
-                    await waitForMutations();
-                    const health = await supervisor.request('app.health');
-                    if (health.activePtyCount > 0 && !request.params.confirmLivePtys)
+                case 'agent.message.send': {
+                    if (!request.params.wake)
+                        return agentInbox.send(context, request.params, invocation.requestId);
+                    if (!hasRequiredCapabilities(context, ['agents.dispatch', 'agents.control']))
                         throw new CaxriError(
-                            'CONFLICT',
-                            'Host has live PTYs; retry with explicit confirmation',
+                            'FORBIDDEN',
+                            'Waking an Agent requires an agent:control grant',
                         );
-                    accepted = true;
-                    /** Stop even if the requesting client disconnects before its reply can flush. */
-                    commandStopFallback ??= setImmediate(() => void stop('command'));
-                    commandStopFallback.unref();
-                    return { stopping: true, activePtyCount: health.activePtyCount };
-                } finally {
-                    if (!accepted) mutationAdmissionClosed = false;
+                    let targetIsActive = true;
+                    try {
+                        agentEndpoints.resolve(request.params.to);
+                    } catch {
+                        targetIsActive = false;
+                    }
+                    if (targetIsActive)
+                        return agentInbox.send(context, request.params, invocation.requestId);
+                    /** Only an exact bounded tombstone can be promoted into a wake dispatch. */
+                    const retired = agentEndpoints.resolveRetired(request.params.to);
+                    assertProjectScope(context, retired.projectId);
+                    if (mutationAdmissionClosed)
+                        throw new CaxriError('UNAVAILABLE', 'Host is stopping');
+                    mutationsInFlight += 1;
+                    try {
+                        const dispatch = await supervisor.request('agent.dispatch.wakeInternal', {
+                            dispatchId: dispatchIdFor(context, invocation.requestId),
+                            principal: context.principal,
+                            target: {
+                                projectId: retired.projectId,
+                                sessionId: retired.sessionId,
+                                terminalId: retired.terminalId,
+                            },
+                        });
+                        if (dispatch.status !== 'running' || !dispatch.endpoint)
+                            throw new CaxriError('UNAVAILABLE', 'Agent wake dispatch failed', {
+                                dispatchId: dispatch.dispatchId,
+                                status: dispatch.status,
+                            });
+                        const current = agentEndpoints.resolveTerminal(retired.terminalId);
+                        if (
+                            current.ref.endpointId !== dispatch.endpoint.endpointId ||
+                            current.ref.generation !== dispatch.endpoint.generation
+                        )
+                            throw new CaxriError(
+                                'UNAVAILABLE',
+                                'Agent generation changed after wake dispatch',
+                                { dispatchId: dispatch.dispatchId },
+                            );
+                        return agentInbox.send(
+                            context,
+                            {
+                                body: request.params.body,
+                                to: current.ref,
+                                ttlMs: request.params.ttlMs,
+                                ...(request.params.idempotencyKey
+                                    ? { idempotencyKey: request.params.idempotencyKey }
+                                    : {}),
+                            },
+                            invocation.requestId,
+                            dispatch.dispatchId,
+                        );
+                    } finally {
+                        finishMutation();
+                    }
+                }
+                case 'agent.message.reply': {
+                    if (request.params.wake)
+                        throw new CaxriError(
+                            'VALIDATION',
+                            'Agent message replies cannot wake a target',
+                        );
+                    return agentInbox.reply(context, request.params, invocation.requestId);
+                }
+                case 'agent.message.wait':
+                    return agentInbox.wait(context, request.params.timeoutMs, invocation.requestId);
+                case 'agent.message.check':
+                    return agentInbox.check(context, invocation.requestId);
+                case 'agent.message.receipt':
+                    return agentInbox.receipt(context, request.params.messageId);
+                case 'agent.message.policy.get':
+                    return agentInbox.policy(context);
+                case 'agent.message.policy.set':
+                    return agentInbox.setPolicy(context, request.params);
+                case 'agent.message.held':
+                    return { messages: agentInbox.listHeld() };
+                case 'agent.message.held.get':
+                    return agentInbox.heldDetail(request.params.messageId);
+                case 'agent.message.approve':
+                    return agentInbox.approve(request.params.messageId);
+                case 'agent.message.deny':
+                    return agentInbox.deny(request.params.messageId);
+                case 'host.status': {
+                    const health = await supervisor.request('app.health');
+                    return {
+                        profileId: lease.manifest.profileId,
+                        version: options.version,
+                        pid: process.pid,
+                        ...(supervisor.processId() ? { runtimePid: supervisor.processId() } : {}),
+                        startedAt,
+                        clientCount: server?.clientCount() ?? 0,
+                        activePtyCount: health.activePtyCount,
+                        protocolVersion: CAXRI_PROTOCOL_VERSION,
+                        protocolCompatible: true,
+                        desktop: (await desktopRouter?.status()) ?? { state: 'offline' },
+                    };
+                }
+                case 'desktop.status':
+                    return (await desktopRouter?.status()) ?? { state: 'offline' };
+                case 'desktop.focus': {
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    return desktopRouter.focus(request.params.launchIfNeeded);
+                }
+                case 'desktop.openPath': {
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    return desktopRouter.open('open', undefined, request.params);
+                }
+                case 'desktop.openProject': {
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    return desktopRouter.open('open', 'directory', request.params);
+                }
+                case 'desktop.openFile': {
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    return desktopRouter.open('open', 'file', request.params);
+                }
+                case 'files.reveal': {
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    return desktopRouter.open('reveal', undefined, request.params);
+                }
+                case 'host.stop': {
+                    if (mutationAdmissionClosed)
+                        throw new CaxriError('CONFLICT', 'Host stop is already in progress');
+                    mutationAdmissionClosed = true;
+                    let accepted = false;
+                    try {
+                        await waitForMutations();
+                        const health = await supervisor.request('app.health');
+                        if (health.activePtyCount > 0 && !request.params.confirmLivePtys)
+                            throw new CaxriError(
+                                'CONFLICT',
+                                'Host has live PTYs; retry with explicit confirmation',
+                            );
+                        accepted = true;
+                        /** Stop even if the requesting client disconnects before its reply can flush. */
+                        commandStopFallback ??= setImmediate(() => void stop('command'));
+                        commandStopFallback.unref();
+                        return { stopping: true, activePtyCount: health.activePtyCount };
+                    } finally {
+                        if (!accepted) mutationAdmissionClosed = false;
+                    }
+                }
+                case 'project.query': {
+                    const endpoint =
+                        context.principal.kind === 'agent'
+                            ? agentEndpoints.context(context).endpoint
+                            : undefined;
+                    return supervisor.request('project.queryForPrincipal', {
+                        principal: context.principal,
+                        query:
+                            endpoint && request.params.mode === 'current'
+                                ? { mode: 'show', selector: endpoint.projectId }
+                                : request.params,
+                    });
+                }
+                case 'session.query': {
+                    const endpoint =
+                        context.principal.kind === 'agent'
+                            ? agentEndpoints.context(context).endpoint
+                            : undefined;
+                    return supervisor.request('session.queryForPrincipal', {
+                        principal: context.principal,
+                        query:
+                            endpoint && request.params.mode === 'current'
+                                ? { mode: 'show', selector: endpoint.sessionId }
+                                : request.params,
+                    });
+                }
+                case 'terminal.query':
+                    return supervisor.request('terminal.queryForPrincipal', {
+                        principal: context.principal,
+                        query: request.params,
+                    });
+                default: {
+                    const forwarded: Extract<HostRequest, { method: HostForwardedMethod }> =
+                        request;
+                    return forwardRuntime(forwarded);
                 }
             }
-            if (request.method === 'project.query') {
-                const endpoint =
-                    context.principal.kind === 'agent'
-                        ? agentEndpoints.context(context).endpoint
-                        : undefined;
-                return supervisor.request('project.queryForPrincipal', {
-                    principal: context.principal,
-                    query:
-                        endpoint && request.params.mode === 'current'
-                            ? { mode: 'show', selector: endpoint.projectId }
-                            : request.params,
-                });
-            }
-            if (request.method === 'session.query') {
-                const endpoint =
-                    context.principal.kind === 'agent'
-                        ? agentEndpoints.context(context).endpoint
-                        : undefined;
-                return supervisor.request('session.queryForPrincipal', {
-                    principal: context.principal,
-                    query:
-                        endpoint && request.params.mode === 'current'
-                            ? { mode: 'show', selector: endpoint.sessionId }
-                            : request.params,
-                });
-            }
-            if (request.method === 'terminal.query')
-                return supervisor.request('terminal.queryForPrincipal', {
-                    principal: context.principal,
-                    query: request.params,
-                });
-            return forwardRuntime(request);
         },
     };
 

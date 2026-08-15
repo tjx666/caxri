@@ -273,8 +273,8 @@ describe('CaxriDatabase', () => {
         expect(database.listSessions(firstProject.id).map((session) => session.id)).toEqual(
             sessionOrder,
         );
-        expect(database.getAppState<string>('lastSelectedProjectId')).toBe(firstProject.id);
-        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(firstSession.session.id);
+        expect(database.getAppState('lastSelectedProjectId')).toBe(firstProject.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(firstSession.session.id);
         database.close();
     });
 
@@ -341,12 +341,12 @@ describe('CaxriDatabase', () => {
         const second = database.createProject(join(directory, 'second'));
         await mkdir(second.rootPath);
         database.createSession(second.id, 'shell');
-        expect(database.getAppState<string>('lastSelectedProjectId')).toBe(second.id);
+        expect(database.getAppState('lastSelectedProjectId')).toBe(second.id);
 
         database.deleteProject(second.id);
 
-        expect(database.getAppState<string>('lastSelectedProjectId')).toBe(first.id);
-        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(firstSession.session.id);
+        expect(database.getAppState('lastSelectedProjectId')).toBe(first.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(firstSession.session.id);
         database.close();
     });
 
@@ -358,12 +358,12 @@ describe('CaxriDatabase', () => {
         const project = database.createProject(root);
         const first = database.createSession(project.id, 'shell');
         const second = database.createSession(project.id, 'codex');
-        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(second.session.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(second.session.id);
 
         database.deleteSession(second.session.id);
 
-        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(first.session.id);
-        expect(database.getAppState<string>('lastSelectedProjectId')).toBe(project.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(first.session.id);
+        expect(database.getAppState('lastSelectedProjectId')).toBe(project.id);
         database.close();
     });
 
@@ -385,12 +385,12 @@ describe('CaxriDatabase', () => {
             id: second.terminal.id,
             sessionId: second.session.id,
         });
-        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(first.session.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(first.session.id);
         expect(() => database.selectSession(second.session.id)).toThrow(/restore/i);
 
         expect(database.unarchiveSession(second.session.id).archivedAt).toBeUndefined();
         database.selectSession(second.session.id);
-        expect(database.getAppState<string>('lastSelectedSessionId')).toBe(second.session.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(second.session.id);
         database.close();
     });
 

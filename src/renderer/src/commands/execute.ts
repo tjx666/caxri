@@ -1,3 +1,5 @@
+import type { CommandId } from '@shared/commands';
+
 import { caxri } from '../lib/caxri';
 import { closeEditor, saveActiveEditor } from '../features/editor/document-actions';
 import {
@@ -187,7 +189,7 @@ export function isCommandAvailable(
  * of throwing, since it may be reached from a stale keybinding or menu entry.
  */
 export function executeCommand(
-    command: string,
+    command: CommandId,
     args?: unknown,
     context: CommandContext = commandContext,
 ): void {
@@ -219,7 +221,7 @@ export function executeCommand(
  * the editor has focus, which matches the least-surprising behaviour for a mouse-driven action.
  */
 export function runCommand(
-    command: string,
+    command: CommandId,
     args?: unknown,
     options?: { viaAccelerator?: boolean },
 ): void {

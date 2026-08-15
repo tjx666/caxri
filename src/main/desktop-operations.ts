@@ -1,3 +1,4 @@
+import { assertNever } from '../shared/ipc';
 import type { DesktopOperation, DesktopTargetPayload } from '../shared/ipc/local-transport';
 
 export interface DesktopOperationHandlers {
@@ -13,18 +14,26 @@ async function handleDesktopOperation(
     consumeTarget: () => Promise<DesktopTargetPayload>,
     handlers: DesktopOperationHandlers,
 ): Promise<unknown> {
-    if (operation.kind === 'status') return { state: handlers.status() };
-    if (operation.kind === 'focus') {
-        await handlers.focus();
-        return null;
+    switch (operation.kind) {
+        case 'status':
+            return { state: handlers.status() };
+        case 'focus':
+            await handlers.focus();
+            return null;
+        case 'reveal': {
+            const target = await consumeTarget();
+            handlers.reveal(target.path);
+            return null;
+        }
+        case 'open': {
+            const target = await consumeTarget();
+            await handlers.focus();
+            handlers.open(target);
+            return null;
+        }
+        default:
+            return assertNever(operation, 'Unhandled Desktop operation');
     }
-    const target = await consumeTarget();
-    if (operation.kind === 'reveal') handlers.reveal(target.path);
-    else {
-        await handlers.focus();
-        handlers.open(target);
-    }
-    return null;
 }
 
 export function createDesktopOperationHandler(handlers: DesktopOperationHandlers) {

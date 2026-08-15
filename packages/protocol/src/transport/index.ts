@@ -1,3 +1,4 @@
+export * from './assert-never.js';
 export * from './dispatcher.js';
 export * from './errors.js';
 export * from './event-client.js';

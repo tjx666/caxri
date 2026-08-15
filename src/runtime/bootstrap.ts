@@ -175,10 +175,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals: database
                 .listTerminals()
                 .map((terminal) => ({ ...terminal, processId: terminals.processId(terminal.id) })),
-            selectedProjectId:
-                database.getAppState<string | null>('lastSelectedProjectId') ?? undefined,
-            selectedSessionId:
-                database.getAppState<string | null>('lastSelectedSessionId') ?? undefined,
+            selectedProjectId: database.getAppState('lastSelectedProjectId') ?? undefined,
+            selectedSessionId: database.getAppState('lastSelectedSessionId') ?? undefined,
             sessionStates: database.listSessionStates(),
             settings: settings.value,
             keybindings: keybindings.value,
@@ -205,7 +203,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     }
 
     function selectedSessionId(): string | undefined {
-        return database.getAppState<string | null>('lastSelectedSessionId') ?? undefined;
+        return database.getAppState('lastSelectedSessionId') ?? undefined;
     }
 
     async function terminalWorkingDirectory(
@@ -454,12 +452,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'desktop.openProject': () => mainOwned('desktop.openProject'),
         'desktop.openFile': () => mainOwned('desktop.openFile'),
         'app.windowState.get': () => ({
-            bounds:
-                database.getAppState<PersistedWindowState['bounds']>('windowBounds') ??
-                DEFAULT_WINDOW_BOUNDS,
-            ...(database.getAppState<Pick<PersistedWindowState, 'isMaximized' | 'isFullScreen'>>(
-                'windowState',
-            ) ?? { isMaximized: false, isFullScreen: false }),
+            bounds: database.getAppState('windowBounds') ?? DEFAULT_WINDOW_BOUNDS,
+            ...(database.getAppState('windowState') ?? {
+                isMaximized: false,
+                isFullScreen: false,
+            }),
         }),
         'app.windowState.update': (state) => {
             database.setAppState('windowBounds', state.bounds);

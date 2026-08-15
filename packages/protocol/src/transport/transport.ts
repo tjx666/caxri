@@ -168,7 +168,7 @@ export function createCaxriClient(
     ): Promise<MethodResult<M>> {
         const reply = commandReplyEnvelopeSchema.parse(await bridge.request(method, ...args));
         if (!reply.ok) throw fromWireError(reply.error);
-        return reply.result as MethodResult<M>;
+        return parseCaxriResult(method, reply.result);
     }
     return {
         negotiate: () => bridge.negotiate(),

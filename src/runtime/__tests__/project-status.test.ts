@@ -307,6 +307,15 @@ describe('Project Status parsers', () => {
         expect(links.has(`owner/repo-${maximum + 49}`)).toBe(true);
     });
 
+    it('rejects malformed GitHub pull request JSON as VALIDATION', () => {
+        expect(() => parseGitHubPullRequest('{')).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }) as Error,
+        );
+        expect(() => parseGitHubPullRequest(JSON.stringify({ number: '11', title: 2 }))).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }) as Error,
+        );
+    });
+
     it('maps failed checks ahead of successful checks', () => {
         expect(
             parseGitHubPullRequest(

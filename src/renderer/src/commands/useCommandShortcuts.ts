@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import type { Keybinding } from '@shared/types';
+import type { CommandId, Keybinding } from '@shared/types';
 
 import { buildShortcutMap, isEditableEventTarget, keyboardEventShortcut } from '../lib/keybindings';
 import { useWorkbenchStore } from '../stores/workbench';
@@ -39,7 +39,7 @@ export function useCommandShortcuts(): void {
             /** The terminal and the editor are editable surfaces too; only opted-in commands reach through. */
             if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
             event.preventDefault();
-            runCommand(commandId);
+            runCommand(commandId as CommandId);
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
