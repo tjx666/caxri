@@ -47,6 +47,21 @@ exponential backoff and persisted terminals are exposed as `dead`, never as sile
 processes. A Runtime must remain ready for 30 seconds before its restart budget resets, so
 ready/crash flapping still fails closed after three restarts.
 
+The pre-release reset tool treats Host ownership as an operating-system fact, not a discovery-file
+claim: dry-run and apply both use `lsof` to bind a live PID to the selected profile's open lock or
+Unix endpoint, verify the fixed Host entrypoint, and recheck ownership immediately before signaling.
+It never signals a PID found only in stale or malformed JSON metadata. An explicitly selected
+profile may locate its verified orphaned Host endpoint after the profile directory itself has been
+removed, while an existing custom profile is still rejected inside a Git worktree or without Caxri
+markers. The same plan includes a user-owned stale profile endpoint, deduplicates case variants only
+after filesystem identity is known, and discovers only UUID-named managed development profiles
+beneath Git's canonical `caxri-worktree-state/profiles` root. Successful targets move into a
+timestamped persistent archive under the primary checkout's sibling
+`../caxri-uninstall-archives`; its incrementally updated `manifest.json` maps every original path to
+its archived path or final failure status. Deriving both locations from Git's canonical common
+directory keeps the archive stable when invoked from a linked worktree. Project roots and user
+files are never targets.
+
 The Process Explorer is a singleton Main-owned window with its own renderer entry and narrow preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Host process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Runtime or PTY lifecycle.
 
 ## IPC contract

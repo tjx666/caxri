@@ -38,6 +38,7 @@
         "build:cli": "bun run --cwd packages/cli build",
         "link:cli": "bun run build:cli && bun run packages/cli/scripts/link-global.ts",
         "unlink:cli": "pnpm remove --global @caxri/cli",
+        "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
         "build:desktop": "electron-vite build",
         "package": "bun run build && electron-builder --mac dir",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
