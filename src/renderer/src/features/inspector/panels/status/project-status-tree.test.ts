@@ -66,7 +66,19 @@ describe('buildProjectStatusNodes', () => {
             'deployment',
             'pullRequest',
         ]);
-        expect(nodes[2]).toMatchObject({ description: '1 on feature' });
+        // Uniform-environment lists count per environment and drop per-row descriptions: the
+        // state icon and the header already carry that information.
+        expect(nodes[2]).toMatchObject({
+            description: '1 on preview',
+            children: [expect.objectContaining({ label: 'preview.vercel.app' })],
+        });
+        expect(nodes[2]).not.toHaveProperty('url');
+        if (nodes[2].kind === 'deployments')
+            expect(nodes[2].children[0].description).toBeUndefined();
+        expect(nodes[3]).toMatchObject({
+            label: 'Production',
+            description: 'production.vercel.app',
+        });
         expect(nodes[4]).toMatchObject({
             children: [
                 expect.objectContaining({ description: '2m 5s', label: 'Test / App' }),
