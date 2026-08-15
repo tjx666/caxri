@@ -30,6 +30,7 @@ import {
     gitCommitDetailsSchema,
     gitBlameSchema,
     gitCommitPageSchema,
+    gitBranchSchema,
     gitPullRequestChangesSchema,
     gitSummarySchema,
     gitDiffDocumentSchema,
@@ -538,7 +539,7 @@ export const methods = {
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
         }),
-        result: z.array(z.string().min(1).max(1_024)).max(1_000),
+        result: z.array(gitBranchSchema).max(1_000),
     },
     'git.switchBranch': {
         ...hostWrite,

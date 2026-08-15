@@ -446,7 +446,13 @@ function BranchPicker({
         { enabled: open },
     );
     useToastOnQueryError(branchesQuery.isError, branchesQuery.error, 'Unable to list branches');
-    const branches = branchesQuery.data ?? [branch];
+    const loadedBranches = branchesQuery.data ?? [];
+    // The current branch is pinned first; the rest keep the Runtime's most-recent-commit order.
+    // Before the query resolves only the current branch is known, without a commit time.
+    const branches: Array<{ name: string; committedAt?: number }> = [
+        loadedBranches.find((candidate) => candidate.name === branch) ?? { name: branch },
+        ...loadedBranches.filter((candidate) => candidate.name !== branch),
+    ];
 
     const switchBranch = async (nextBranch: string | null): Promise<void> => {
         if (!nextBranch || nextBranch === branch || switching) return;
@@ -496,10 +502,19 @@ function BranchPicker({
                 <GitBranch size={13} />
                 <SelectValue>{branch}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="min-w-48 max-w-80">
-                {branches.map((name) => (
-                    <SelectItem key={name} value={name} className="max-w-80">
-                        {name}
+            <SelectContent className="min-w-48 max-w-96">
+                {branches.map(({ name, committedAt }) => (
+                    <SelectItem key={name} value={name} className="max-w-96">
+                        <span className="flex min-w-0 items-baseline gap-2">
+                            <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                                {name}
+                            </span>
+                            {committedAt !== undefined && (
+                                <span className="flex-none text-[11px] text-muted">
+                                    {relativeTime(committedAt)}
+                                </span>
+                            )}
+                        </span>
                     </SelectItem>
                 ))}
                 {branchesQuery.isLoading && (

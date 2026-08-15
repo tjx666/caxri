@@ -516,6 +516,12 @@ export const gitSummarySchema = z.object({
     error: z.string().optional(),
 });
 
+export const gitBranchSchema = z.object({
+    name: z.string().min(1).max(1_024),
+    /** Epoch milliseconds of the branch tip commit's committer date. */
+    committedAt: z.number().int().nonnegative(),
+});
+
 const projectStatusStateSchema = z.enum(['success', 'failure', 'pending', 'neutral', 'unknown']);
 
 const projectStatusCheckSchema = z.object({
