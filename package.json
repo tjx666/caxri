@@ -7,7 +7,7 @@
     "main": "./out/main/index.js",
     "type": "module",
     "scripts": {
-        "dev": "electron-vite dev",
+        "dev": "bun run build:workspaces && electron-vite dev",
         "format": "prettier --write .",
         "format:check": "prettier --check . --cache --cache-strategy content --cache-location .cache/prettier",
         "format:md": "prettier --write \"**/*.md\"",

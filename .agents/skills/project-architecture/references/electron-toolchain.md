@@ -20,12 +20,13 @@ development, CI provisions those versions explicitly, and the root intentionally
 `packageManager` and `devEngines.packageManager` so package-manager selection does not depend on
 Corepack-compatible manifest metadata.
 
-Workspace builds run before the Desktop build. electron-builder excludes the development workspace
-links from its broad `node_modules` input; a workspace artifact enters the app only through an
-explicit Desktop build or packaging entry. This prevents workspace-link traversal from accidentally
-shipping the standalone CLI. Local installs keep pnpm's isolated layout; electron-builder flattens
-the packaged dependency graph into its ASAR-facing `node_modules` layout so the existing ASAR
-unpack rules keep matching native modules.
+Workspace builds run before Desktop development startup and the production Desktop build. This
+keeps ignored `dist` artifacts synchronized before electron-vite resolves workspace runtime exports.
+electron-builder excludes the development workspace links from its broad `node_modules` input; a
+workspace artifact enters the app only through an explicit Desktop build or packaging entry. This
+prevents workspace-link traversal from accidentally shipping the standalone CLI. Local installs keep
+pnpm's isolated layout; electron-builder flattens the packaged dependency graph into its ASAR-facing
+`node_modules` layout so the existing ASAR unpack rules keep matching native modules.
 
 The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
 and the profile-scoped Headless Host execute the packaged Caxri binary with
