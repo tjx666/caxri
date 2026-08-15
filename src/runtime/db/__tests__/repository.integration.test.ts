@@ -45,10 +45,24 @@ describe('CaxriDatabase', () => {
                 displayTitle: 'Untitled',
                 titleMode: 'automatic',
             });
-            expect(created.terminal.title).toBe(terminalTitle);
+            expect(created.terminal!.title).toBe(terminalTitle);
             database.close();
         },
     );
+
+    it('creates a Terminal-less Session with an empty layout when kind is null', async () => {
+        const directory = await tempDir('caxri-db-no-terminal-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, null);
+
+        expect(created.terminal).toBeNull();
+        expect(created.session).toMatchObject({
+            displayTitle: 'Untitled',
+            primaryAgentTerminalId: undefined,
+        });
+        expect(database.getSessionState(created.session.id)).toMatchObject({ layout: {} });
+        database.close();
+    });
 
     it('persists manual Session title ownership across metadata resets and reopen', async () => {
         const directory = await tempDir('caxri-db-session-rename-');
@@ -60,7 +74,7 @@ describe('CaxriDatabase', () => {
             displayTitle: 'Manual name',
             titleMode: 'manual',
         });
-        database.resetAgentMetadataForStart(created.terminal.id);
+        database.resetAgentMetadataForStart(created.terminal!.id);
         expect(database.getSession(created.session.id)).toMatchObject({
             displayTitle: 'Manual name',
             titleMode: 'manual',
@@ -167,9 +181,9 @@ describe('CaxriDatabase', () => {
             workbenchProjectId: owner.id,
             rootPath: ownerRoot,
         });
-        expect(database.getTerminal(created.terminal.id)).toMatchObject({
+        expect(database.getTerminal(created.terminal!.id)).toMatchObject({
             cwd: ownerRoot,
-            id: created.terminal.id,
+            id: created.terminal!.id,
         });
         database.close();
     });
@@ -381,8 +395,8 @@ describe('CaxriDatabase', () => {
             archivedAt,
             id: second.session.id,
         });
-        expect(database.getTerminal(second.terminal.id)).toMatchObject({
-            id: second.terminal.id,
+        expect(database.getTerminal(second.terminal!.id)).toMatchObject({
+            id: second.terminal!.id,
             sessionId: second.session.id,
         });
         expect(database.getAppState('lastSelectedSessionId')).toBe(first.session.id);
@@ -402,7 +416,7 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(database.createProject(root).id, 'codex');
 
         expect(
-            database.updateAgentMetadata(created.terminal.id, {
+            database.updateAgentMetadata(created.terminal!.id, {
                 provider: 'codex',
                 available: true,
                 observedAt: Date.now(),
@@ -415,16 +429,16 @@ describe('CaxriDatabase', () => {
             displayTitle: 'Implement Agent metadata',
             lastActivityState: 'running',
         });
-        expect(database.getTerminal(created.terminal.id)).toMatchObject({
+        expect(database.getTerminal(created.terminal!.id)).toMatchObject({
             agentSessionId: 'agent-session-1',
         });
 
-        database.updateTerminalState(created.terminal.id, 'stopped');
+        database.updateTerminalState(created.terminal!.id, 'stopped');
         expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
 
         const restartedAt = Date.now() + 1;
-        database.resetAgentMetadataForStart(created.terminal.id, restartedAt);
-        expect(database.getTerminal(created.terminal.id)).toMatchObject({
+        database.resetAgentMetadataForStart(created.terminal!.id, restartedAt);
+        expect(database.getTerminal(created.terminal!.id)).toMatchObject({
             agentSessionId: undefined,
             updatedAt: restartedAt,
         });
@@ -446,13 +460,13 @@ describe('CaxriDatabase', () => {
             readAttentionEpoch: 0,
             hasUnread: false,
         });
-        database.updateAgentMetadata(created.terminal.id, {
+        database.updateAgentMetadata(created.terminal!.id, {
             provider: 'claude',
             available: true,
             observedAt: Date.now(),
             status: 'running',
         });
-        database.updateAgentMetadata(created.terminal.id, {
+        database.updateAgentMetadata(created.terminal!.id, {
             provider: 'claude',
             attentionKind: 'waiting',
             available: true,
@@ -467,7 +481,7 @@ describe('CaxriDatabase', () => {
             hasUnread: true,
         });
 
-        database.updateAgentMetadata(created.terminal.id, {
+        database.updateAgentMetadata(created.terminal!.id, {
             provider: 'claude',
             attentionKind: 'waiting',
             available: true,
@@ -481,13 +495,13 @@ describe('CaxriDatabase', () => {
             session: { hasUnread: false, readAttentionEpoch: 1 },
         });
 
-        database.updateAgentMetadata(created.terminal.id, {
+        database.updateAgentMetadata(created.terminal!.id, {
             provider: 'claude',
             available: true,
             observedAt: Date.now(),
             status: 'running',
         });
-        database.updateAgentMetadata(created.terminal.id, {
+        database.updateAgentMetadata(created.terminal!.id, {
             provider: 'claude',
             attentionKind: 'completed',
             available: true,
@@ -503,7 +517,7 @@ describe('CaxriDatabase', () => {
             session: { attentionEpoch: 2, hasUnread: false, readAttentionEpoch: 2 },
         });
 
-        database.updateTerminalState(created.terminal.id, 'running');
+        database.updateTerminalState(created.terminal!.id, 'running');
         database.markShutdown('orderly');
         expect(database.getSession(created.session.id)).toMatchObject({
             attentionEpoch: 2,
@@ -568,7 +582,7 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const claude = database.createTerminal(created.session.id, 'claude');
 
-        database.closeTerminal(created.terminal.id);
+        database.closeTerminal(created.terminal!.id);
 
         expect(database.getSession(created.session.id)).toMatchObject({
             displayTitle: 'Untitled',
@@ -582,11 +596,11 @@ describe('CaxriDatabase', () => {
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const created = database.createSession(database.createProject(directory).id, 'shell');
-        database.updateTerminalState(created.terminal.id, 'running');
+        database.updateTerminalState(created.terminal!.id, 'running');
         database.close();
 
         const recovered = new CaxriDatabase(databasePath);
-        expect(recovered.getTerminal(created.terminal.id)?.lastProcessState).toBe('interrupted');
+        expect(recovered.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
         recovered.close();
     });
 
@@ -595,7 +609,7 @@ describe('CaxriDatabase', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
 
-        database.closeTerminal(created.terminal.id);
+        database.closeTerminal(created.terminal!.id);
 
         expect(database.getSession(created.session.id)?.primaryAgentTerminalId).toBeUndefined();
         database.close();
@@ -615,7 +629,7 @@ describe('CaxriDatabase', () => {
         database.closeTerminal(second.id);
 
         expect(listLayoutTerminalIds(database.getSessionState(created.session.id).layout)).toEqual([
-            created.terminal.id,
+            created.terminal!.id,
         ]);
         database.close();
     });
@@ -626,7 +640,7 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const second = database.createTerminal(created.session.id, 'shell');
         const third = database.createTerminal(created.session.id, 'shell');
-        expect([created.terminal.orderIndex, second.orderIndex, third.orderIndex]).toEqual([
+        expect([created.terminal!.orderIndex, second.orderIndex, third.orderIndex]).toEqual([
             0, 1, 2,
         ]);
 

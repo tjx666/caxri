@@ -181,7 +181,7 @@ describe('WorkbenchRootService topology attribution', () => {
                 context.database.createProject(rootPath).id,
                 'shell',
             );
-            context.database.closeTerminal(created.terminal.id);
+            context.database.closeTerminal(created.terminal!.id);
         }
         context.worktreeTopology.mockClear();
         const internals = context.service as unknown as { queue: Promise<void> };
@@ -250,7 +250,7 @@ describe('WorkbenchRootService topology attribution', () => {
 
         expect(
             context.service.observeShellToolFinished(
-                shellFinished(context.sessions[0].terminal.id),
+                shellFinished(context.sessions[0].terminal!.id),
             ),
         ).toBe(true);
 
@@ -283,7 +283,7 @@ describe('WorkbenchRootService topology attribution', () => {
         ]);
 
         for (const created of context.sessions)
-            context.service.observeShellToolFinished(shellFinished(created.terminal.id));
+            context.service.observeShellToolFinished(shellFinished(created.terminal!.id));
 
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
@@ -301,7 +301,7 @@ describe('WorkbenchRootService topology attribution', () => {
             { branch: 'feature/two', rootPath: secondRoot },
         ]);
 
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal.id));
+        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
 
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
@@ -349,7 +349,7 @@ describe('WorkbenchRootService topology attribution', () => {
             { branch: 'feature/authorized', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal.id));
+        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
 
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
@@ -358,9 +358,9 @@ describe('WorkbenchRootService topology attribution', () => {
             }),
         );
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
-        expect(context.database.getTerminal(context.sessions[0].terminal.id)).toMatchObject({
+        expect(context.database.getTerminal(context.sessions[0].terminal!.id)).toMatchObject({
             cwd: context.ownerRoot,
-            id: context.sessions[0].terminal.id,
+            id: context.sessions[0].terminal!.id,
         });
         await context.service.close();
         context.database.close();
@@ -372,7 +372,7 @@ describe('WorkbenchRootService topology attribution', () => {
             { branch: 'main', rootPath: context.ownerRoot },
             { branch: 'feature/stale', rootPath: context.worktreeRoot },
         ]);
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal.id));
+        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
         await vi.waitFor(() =>
             expect(context.events.some((event) => event.event === 'workbench.candidate')).toBe(
                 true,
@@ -430,7 +430,7 @@ describe('WorkbenchRootService topology attribution', () => {
             { branch: 'feature/ignored', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal.id));
+        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
 
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);

@@ -93,7 +93,7 @@ describe('Runtime Agent hook integration', () => {
 
             const environment = spawn.mock.calls[0]?.[2].env;
             expect(environment).toMatchObject({
-                CAXRI_HOOK_TERMINAL_ID: background.terminal.id,
+                CAXRI_HOOK_TERMINAL_ID: background.terminal!.id,
             });
             const result = await execFileAsync(
                 join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge'),

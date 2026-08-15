@@ -311,35 +311,38 @@ export class CaxriDatabase {
         });
     }
 
+    /** A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed. */
     createSession(
         projectId: string,
-        kind: TerminalKind,
+        kind: TerminalKind | null,
         cwd?: string,
-    ): { session: SessionRecord; terminal: TerminalRecord } {
+    ): { session: SessionRecord; terminal: TerminalRecord | null } {
         return this.db.transaction(() => {
-            this.assertTerminalCapacity();
             const project = this.db.projects.get(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            const terminalTitle = defaultTerminalTitle(kind);
             const session = this.db.sessions.insert({
                 projectId,
                 displayTitle: DEFAULT_SESSION_TITLE,
             });
-            const terminal = this.db.terminals.insert({
-                sessionId: session.id,
-                kind,
-                cwd: cwd ?? project.rootPath,
-                title: terminalTitle,
-            });
-            const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-            if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
-            this.db.sessions.insertInitialState(session.id, terminal.id);
+            let terminal: TerminalRecord | null = null;
+            if (kind) {
+                this.assertTerminalCapacity();
+                terminal = this.db.terminals.insert({
+                    sessionId: session.id,
+                    kind,
+                    cwd: cwd ?? project.rootPath,
+                    title: defaultTerminalTitle(kind),
+                });
+                const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
+                if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
+            }
+            this.db.sessions.insertInitialState(session.id, terminal?.id);
             this.db.appState.set('lastSelectedSessionId', session.id);
             this.db.appState.set('lastSelectedProjectId', projectId);
             this.db.projects.touchLastOpened(projectId);
             return {
                 session: this.db.sessions.get(session.id)!,
-                terminal: this.db.terminals.get(terminal.id)!,
+                terminal: terminal ? this.db.terminals.get(terminal.id)! : null,
             };
         });
     }

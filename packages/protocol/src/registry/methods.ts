@@ -7,6 +7,7 @@ import {
 import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
+import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import {
@@ -30,8 +31,8 @@ import {
     gitCommitDetailsSchema,
     gitBlameSchema,
     gitCommitPageSchema,
-    gitBranchSchema,
     gitPullRequestChangesSchema,
+    gitBranchSchema,
     gitSummarySchema,
     gitDiffDocumentSchema,
     identifierSchema,
@@ -82,29 +83,6 @@ const desktopEventRead = commandPolicy('host', 'read');
  * makes `undefined` a valid input so callers may omit the argument entirely.
  */
 const noParams = z.object({}).default({});
-function containsReportControlCharacter(value: string): boolean {
-    for (const character of value) {
-        const code = character.codePointAt(0)!;
-        if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127) return true;
-    }
-    return false;
-}
-const bugReportText = z
-    .string()
-    .min(1)
-    .max(48 * 1024)
-    .refine(
-        (value) => !containsReportControlCharacter(value),
-        'Report contains control characters',
-    );
-const bugReportScreenshot = z.object({
-    dataUrl: z
-        .string()
-        .startsWith('data:image/jpeg;base64,')
-        .max(12 * 1024 * 1024),
-    height: z.number().int().positive().max(16_384),
-    width: z.number().int().positive().max(16_384),
-});
 
 /** Keeps path-browser IPC and rendering bounded while still allowing users to refine by name. */
 export const MAX_FILE_BROWSE_ENTRIES = 200;
@@ -294,8 +272,15 @@ export const methods = {
     },
     'session.create': {
         ...hostWrite,
-        params: z.object({ projectId: identifierSchema, defaultAgent: terminalKindSchema }),
-        result: z.object({ session: sessionRecordSchema, terminal: terminalRecordSchema }),
+        /** A `null` defaultAgent creates the Session without any Terminal. */
+        params: z.object({
+            projectId: identifierSchema,
+            defaultAgent: terminalKindSchema.nullable(),
+        }),
+        result: z.object({
+            session: sessionRecordSchema,
+            terminal: terminalRecordSchema.nullable(),
+        }),
     },
     'session.delete': {
         ...desktopWrite,

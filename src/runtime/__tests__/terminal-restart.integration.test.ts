@@ -79,18 +79,18 @@ describe('Agent Terminal restart', () => {
                 const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
                 direct.database
                     .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-                    .run(sessionId, created.terminal.id);
+                    .run(sessionId, created.terminal!.id);
                 direct.close();
 
                 await runtime.handlers['terminal.restart']({
-                    terminalId: created.terminal.id,
+                    terminalId: created.terminal!.id,
                     mode: 'resume',
                 });
 
                 expect(spawn.mock.calls[1]?.[1]).toEqual(resumeArguments);
                 const bootstrap = await runtime.handlers['app.bootstrap']({});
                 expect(
-                    bootstrap.terminals.find((terminal) => terminal.id === created.terminal.id)
+                    bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)
                         ?.agentSessionId,
                 ).toBe(sessionId);
             } finally {
@@ -126,18 +126,18 @@ describe('Agent Terminal restart', () => {
             const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
             direct.database
                 .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-                .run('codex-session-old', created.terminal.id);
+                .run('codex-session-old', created.terminal!.id);
             direct.close();
 
             await runtime.handlers['terminal.restart']({
-                terminalId: created.terminal.id,
+                terminalId: created.terminal!.id,
                 mode: 'fresh',
             });
 
             expect(spawn.mock.calls[1]?.[1]).toEqual([]);
             const bootstrap = await runtime.handlers['app.bootstrap']({});
             expect(
-                bootstrap.terminals.find((terminal) => terminal.id === created.terminal.id)
+                bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)
                     ?.agentSessionId,
             ).toBeUndefined();
         } finally {

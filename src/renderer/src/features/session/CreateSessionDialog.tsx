@@ -1,3 +1,5 @@
+import { SquareDashed } from 'lucide-react';
+
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
@@ -56,6 +58,15 @@ export function CreateSessionDialog() {
                     ))}
                     <Button variant="secondary" onClick={() => onCreate('shell')}>
                         <AgentIdentityIcon identity="shell" size={15} /> Shell
+                    </Button>
+                    {/** Deliberately quieter than the primary grid: skipping the Terminal is an
+                     *  escape hatch, not a peer of the three real choices. */}
+                    <Button
+                        variant="ghost"
+                        className="col-span-3 text-muted"
+                        onClick={() => onCreate(null)}
+                    >
+                        <SquareDashed size={15} /> Start without a Terminal
                     </Button>
                 </div>
             </DialogContent>

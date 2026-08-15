@@ -563,22 +563,24 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            const cwd = await terminalWorkingDirectory(project.rootPath);
-            const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
+            const cwd = defaultAgent ? await terminalWorkingDirectory(project.rootPath) : undefined;
             const created = database.createSession(projectId, defaultAgent, cwd);
-            coordinator.prepareTerminalStart(created.terminal.id);
-            try {
-                await terminals.start(created.terminal, { expectedWorkingDirectory });
-            } catch {
-                // The failed durable terminal remains visible and restartable; Session creation still succeeds.
+            if (created.terminal) {
+                const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd!);
+                coordinator.prepareTerminalStart(created.terminal.id);
+                try {
+                    await terminals.start(created.terminal, { expectedWorkingDirectory });
+                } catch {
+                    // The failed durable terminal remains visible and restartable; Session creation still succeeds.
+                }
             }
             database.selectSession(created.session.id);
             void files.watchSession(created.session.id);
-            if (created.terminal.provider) coordinator.probeTerminal(created.terminal.id);
+            if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } });
             return {
                 session: database.getSession(created.session.id)!,
-                terminal: database.getTerminal(created.terminal.id)!,
+                terminal: created.terminal ? database.getTerminal(created.terminal.id)! : null,
             };
         },
         'session.select': async ({ sessionId }) => {
