@@ -16,7 +16,7 @@ import {
     openFile,
 } from '../../../editor/document-actions';
 import { createTerminal } from '../../../terminal/terminal-actions';
-import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog';
+import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog-store';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
 import {

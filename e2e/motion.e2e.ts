@@ -87,7 +87,7 @@ test('Project disclosure timing derives from motion tokens, unmounts children on
         await expect(disclosure).toHaveAttribute('data-motion');
         expect(await transitionDurationMs(disclosure)).toBe(collapseMs);
         // Content stays mounted until the collapse transition settles, then releases — this is
-        // the presence cleanup DisclosureMotion.tsx documents (transitionend or the token-based
+        // the presence cleanup disclosure-motion.tsx documents (transitionend or the token-based
         // fallback), not an immediate unmount on click.
         await expect(content).toHaveCount(0, { timeout: collapseMs + 2_000 });
 

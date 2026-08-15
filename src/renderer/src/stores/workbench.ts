@@ -17,7 +17,7 @@ import { describeFailure, pushToast } from './toasts';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
-} from '../features/workbench/workbench-root-prompt';
+} from '../features/workbench/workbench-root-prompt-store';
 
 interface WorkbenchState {
     /** The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves. */

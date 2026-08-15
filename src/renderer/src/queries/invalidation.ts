@@ -76,7 +76,7 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
 
 /**
  * Wires `caxri.onEvent` runtime pushes to targeted query invalidation. Mounted once at the app root
- * (see `App.tsx`) alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project
+ * (see `app.tsx`) alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project
  * bootstrap state stays on that push-based Zustand path; this hook only owns the request/response
  * reads that moved to React Query.
  */

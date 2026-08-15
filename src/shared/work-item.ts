@@ -68,7 +68,7 @@ export function resolveActiveWork(params: {
 /**
  * The single write path for "activate this WorkItem": persists `activeTab` and, for a Terminal,
  * syncs the Terminal layout's active group/Terminal in the same update. Returns `state` unchanged
- * when activation is a no-op, so callers can skip persisting. App.tsx's `activateWork` wraps this
+ * when activation is a no-op, so callers can skip persisting. app.tsx's `activateWork` wraps this
  * with the local `activeWork` state setter.
  */
 export function activateWorkState(state: SessionState, item: WorkItem): SessionState {

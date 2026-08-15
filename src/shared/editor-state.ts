@@ -55,7 +55,7 @@ export function reconcileEditorTabDirtiness(
 
 /**
  * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is
- * `activeTab`, owned exclusively by `activateWork` in App.tsx — this function never touches it.
+ * `activeTab`, owned exclusively by `activateWork` in app.tsx — this function never touches it.
  */
 export function updateEditorTabState(
     state: SessionState,
