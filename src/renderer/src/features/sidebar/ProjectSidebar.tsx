@@ -47,16 +47,6 @@ export function ProjectSidebar() {
     const treeRef = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
 
-    /** Per-Project archived counts for the heading affix (item 5); the footer keeps the global total. */
-    const archivedCountByProject = useMemo(() => {
-        const counts = new Map<string, number>();
-        for (const session of sessions) {
-            if (session.archivedAt === undefined) continue;
-            counts.set(session.projectId, (counts.get(session.projectId) ?? 0) + 1);
-        }
-        return counts;
-    }, [sessions]);
-
     const isProjectExpanded = useCallback(
         (projectId: string) => !collapsedProjects.has(projectId),
         [collapsedProjects],
@@ -231,7 +221,6 @@ export function ProjectSidebar() {
                             key={project.id}
                             active={project.id === selectedProjectId}
                             activeSessions={activeSessions}
-                            archivedCount={archivedCountByProject.get(project.id) ?? 0}
                             animateProject={animatedProjectIds.has(project.id)}
                             dragged={projectOrder.draggedProjectId === project.id}
                             expanded={isProjectExpanded(project.id)}

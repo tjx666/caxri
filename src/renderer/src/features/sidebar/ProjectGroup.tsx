@@ -9,8 +9,6 @@ import { Input } from '../../components/ui/input';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
 import { cn } from '../../lib/utils';
-import { setArchivedSessionsOpen } from '../../stores/dialogs';
-import { requestArchivedSessionsForProject } from '../session/archived-sessions';
 import { archiveSession, selectSession } from '../session/session-actions';
 import { SessionActivityCard } from './SessionActivityCard';
 import {
@@ -231,8 +229,6 @@ function ActiveSessionRow({
 interface ProjectGroupProps {
     active: boolean;
     activeSessions: SessionRecord[];
-    /** Count of this Project's archived Sessions; 0 hides the heading affix entirely. */
-    archivedCount: number;
     animateProject: boolean;
     dragged: boolean;
     expanded: boolean;
@@ -264,7 +260,6 @@ interface ProjectGroupProps {
 export function ProjectGroup({
     active,
     activeSessions,
-    archivedCount,
     animateProject,
     dragged,
     expanded,
@@ -402,24 +397,6 @@ export function ProjectGroup({
                         <Plus size={13} />
                     </Button>
                 </CommandTooltip>
-                {archivedCount > 0 && (
-                    <Tooltip
-                        content={`${archivedCount} archived ${archivedCount === 1 ? 'Session' : 'Sessions'}`}
-                    >
-                        <button
-                            type="button"
-                            className="project-archived-count flex-none rounded-full border-0 bg-elevated px-1.5 text-[10px] tabular-nums text-muted cursor-pointer hover:text-foreground"
-                            aria-label={`${archivedCount} archived ${archivedCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
-                            tabIndex={-1}
-                            onClick={() => {
-                                requestArchivedSessionsForProject(project.id);
-                                setArchivedSessionsOpen(true);
-                            }}
-                        >
-                            {archivedCount}
-                        </button>
-                    </Tooltip>
-                )}
             </div>
             <div
                 aria-hidden="true"
