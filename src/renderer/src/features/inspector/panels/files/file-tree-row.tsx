@@ -5,12 +5,12 @@ import type { FileEntry } from '@shared/types';
 
 import { Input } from '../../../../components/ui/input';
 import { ContextMenu, ContextMenuTrigger } from '../../../../components/ui/context-menu';
-import { FileTypeIcon } from '../../../../icons/files/FileTypeIcon';
+import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 import { openFile } from '../../../editor/document-actions';
 import { createItem, rememberFile, renameFile } from './file-actions';
-import { FileTreeItemMenu } from './FileTreeItemMenu';
+import { FileTreeItemMenu } from './file-tree-item-menu';
 import { hasDraggedPath, FILE_TREE_DRAG_TYPE } from './file-tree-drag';
 import { BUSY_DISABLED_REASON, type EditRequest, type FocusTarget } from './file-tree-item-types';
 import type { PendingFileOperation } from './file-operation-state';

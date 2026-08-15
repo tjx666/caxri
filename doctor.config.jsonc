@@ -10,9 +10,9 @@
                 // forms), so the static monaco imports stay inside the lazily loaded chunk
                 // and never run at startup. The rule only inspects import syntax per file.
                 "files": [
-                    "src/renderer/src/features/editor/CodeEditor.tsx",
-                    "src/renderer/src/features/editor/GitDiffEditor.tsx",
-                    "src/renderer/src/features/settings/ConfigurationEditor.tsx",
+                    "src/renderer/src/features/editor/code-editor.tsx",
+                    "src/renderer/src/features/editor/git-diff-editor.tsx",
+                    "src/renderer/src/features/settings/configuration-editor.tsx",
                     "src/renderer/src/lib/monaco.ts",
                 ],
                 "rules": ["react-doctor/prefer-dynamic-import"],
@@ -21,7 +21,7 @@
                 // Keybinding rows have no stable identity: both the key and the command are
                 // editable in place and rows are addressed by index (onFieldChange(index, ...)),
                 // so an index-derived key is the correct choice here.
-                "files": ["src/renderer/src/features/settings/KeybindingsForm.tsx"],
+                "files": ["src/renderer/src/features/settings/keybindings-form.tsx"],
                 "rules": ["react-doctor/no-array-index-as-key"],
             },
             {

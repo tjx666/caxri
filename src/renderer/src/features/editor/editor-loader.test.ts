@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
     warmMonacoEditor: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('./CodeEditor', () => ({
+vi.mock('./code-editor', () => ({
     CodeEditor: function StubCodeEditor(): null {
         return null;
     },

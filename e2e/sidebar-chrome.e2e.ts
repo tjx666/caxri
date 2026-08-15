@@ -580,7 +580,7 @@ test('Session archive hides active navigation without stopping Terminals and can
             .toBe(runningBeforeArchive);
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
         // The sidebar footer entry is gone (the manager lives in Settings now); the per-Project
-        // heading affix (`ProjectGroup.tsx`) is the sidebar's only archived-count surface.
+        // heading affix (`project-group.tsx`) is the sidebar's only archived-count surface.
         const projectArchivedBadge = running.page.locator('.project-archived-count');
         await expect(projectArchivedBadge).toHaveText('1');
         // Derived from `root` rather than hardcoded: the badge scopes its accessible name with the

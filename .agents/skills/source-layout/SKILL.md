@@ -41,10 +41,10 @@ Do not put product UI in `components/ui/`. Do not invent a second hooks director
 `src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/` with its
 own entry.
 
-A component file is PascalCase `.tsx` whose named export matches the filename
-(`FileTreePanel.tsx` exports `FileTreePanel`). No default export. Extract state and commands into
-a sibling `.ts` module or hook; do not grow a `.tsx` into a logic dump. Styling follows `DESIGN.md`
-token utilities only.
+A component file is kebab-case `.tsx`; its primary named export is the PascalCase mapping of the
+filename (`file-tree-panel.tsx` exports `FileTreePanel`). No default export. Extract state and
+commands into a sibling `.ts` module or hook; do not grow a `.tsx` into a logic dump. Styling
+follows `DESIGN.md` token utilities only.
 
 ## 3. Scale before creating a folder
 
@@ -68,6 +68,19 @@ production imports that reach past another domain's root.
 - Generated sources use a `.generated.ts` suffix and no redundant parent prefix once they already
   live inside that domain.
 - Prefer named exports. React components under `src/` must not use default exports.
+- All JavaScript/TypeScript files use kebab-case basenames; there is no exception for React
+  components or hooks. The primary named export is the semantic-casing mapping of the filename:
+  `file-tree-panel.tsx` exports the component `FileTreePanel`; `use-command-shortcuts.ts` exports
+  the hook `useCommandShortcuts`; a compound-component file like `context-menu.tsx` exports the
+  primary component `ContextMenu`.
+- Role suffixes (`.test`, `.config`, `.generated`, `.e2e`, `.fixture`, `.integration.test`, etc.)
+  are preserved as dot segments after the kebab-case stem.
+- Composition entrypoints (`index.ts`, `main.tsx`, and similar) are not required to match a
+  primary export.
+- When a component and its sibling logic or store module would otherwise share a stem
+  (`file-conflict-dialog.tsx` next to `file-conflict-dialog.ts`), the module specifier becomes
+  ambiguous; give the sibling logic/store module a distinguishing suffix, e.g.
+  `file-conflict-dialog-store.ts`.
 
 Cross-domain production imports target the domain barrel, not a deep file. Package consumers use
 the package root; `packages/cli/src` composition-root files (`application`, `environment`,

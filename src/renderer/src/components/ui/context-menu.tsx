@@ -1,7 +1,7 @@
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 import { useId } from 'react';
 
-import { ShortcutBadge } from '@/components/ShortcutBadge';
+import { ShortcutBadge } from '@/components/shortcut-badge';
 import { cn } from '@/lib/utils';
 
 export function ContextMenu(props: ContextMenuPrimitive.Root.Props) {

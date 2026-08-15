@@ -1,4 +1,4 @@
-import type { CodeEditor } from './CodeEditor';
+import type { CodeEditor } from './code-editor';
 import type * as MonacoApi from '../../lib/monaco';
 
 const EDITOR_PRELOAD_MEASURE = 'caxri.editor.preload';
@@ -29,12 +29,13 @@ export function subscribeLoadedCodeEditor(listener: () => void): () => void {
 }
 
 function loadDependencies(): Promise<[CodeEditorModule, MonacoModule]> {
-    dependenciesPromise ??= Promise.all([import('./CodeEditor'), import('../../lib/monaco')]).catch(
-        (error: unknown) => {
-            dependenciesPromise = undefined;
-            throw error;
-        },
-    );
+    dependenciesPromise ??= Promise.all([
+        import('./code-editor'),
+        import('../../lib/monaco'),
+    ]).catch((error: unknown) => {
+        dependenciesPromise = undefined;
+        throw error;
+    });
     return dependenciesPromise;
 }
 

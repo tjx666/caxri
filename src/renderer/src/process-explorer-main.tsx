@@ -3,8 +3,8 @@ import './styles/process-explorer.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { ProcessExplorerRoot } from './features/process-explorer/ProcessExplorerRoot';
+import { ErrorBoundary } from './components/error-boundary';
+import { ProcessExplorerRoot } from './features/process-explorer/process-explorer-root';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 
 installRendererErrorReporter((kind) => window.processExplorer.reportError(kind));

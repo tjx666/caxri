@@ -11,7 +11,10 @@ import { caxriQueryKey, queryClient } from '../../../../queries/client';
 import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { useFileClipboardStore } from './file-clipboard';
-import { resolveFileConflictChoice, useFileConflictDialogStore } from './file-conflict-dialog';
+import {
+    resolveFileConflictChoice,
+    useFileConflictDialogStore,
+} from './file-conflict-dialog-store';
 import { duplicateFile, moveFile, pasteFile, renameFile, trashFile } from './file-actions';
 import {
     failureToastSuppressionSizeForTests,

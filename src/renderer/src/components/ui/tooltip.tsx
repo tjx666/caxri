@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { getCommandDefinition, type CommandId } from '@shared/commands';
 
-import { ShortcutBadge } from '../ShortcutBadge';
+import { ShortcutBadge } from '../shortcut-badge';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utils';
 

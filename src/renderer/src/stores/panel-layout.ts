@@ -17,7 +17,7 @@ export const INSPECTOR_MAX_WIDTH = 600;
 /** Matches the width `.app-shell` already shipped with in `styles.css` before this feature. */
 export const INSPECTOR_DEFAULT_WIDTH = 310;
 
-/** Width of each visible Sidebar/Inspector resize track in `App.tsx`. */
+/** Width of each visible Sidebar/Inspector resize track in `app.tsx`. */
 export const PANEL_DIVIDER_WIDTH = 6;
 
 /** The main pane must keep at least this much room; see `clampLayoutToViewport`. */
