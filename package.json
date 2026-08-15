@@ -48,7 +48,9 @@
         "rebuild": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "spike:native": "bun run scripts/native-spike.ts",
         "spike:pty": "bun run scripts/pty-spike.ts",
-        "spike:agents": "bun run scripts/agent-discovery-spike.ts"
+        "spike:agents": "bun run scripts/agent-discovery-spike.ts",
+        "spike:oxlint": "oxlint -c .oxlintrc.json .",
+        "spike:oxlint:type-aware": "oxlint -c .oxlintrc.json --type-aware ."
     },
     "lint-staged": {
         "*.{js,jsx,ts,tsx,mjs,cjs}": [
@@ -161,6 +163,8 @@
         "markdownlint-cli2": "catalog:",
         "monaco-editor": "0.56.0",
         "motion": "13.0.0",
+        "oxlint": "catalog:",
+        "oxlint-tsgolint": "catalog:",
         "playwright": "1.62.1",
         "prettier": "3.9.6",
         "prettier-plugin-tailwindcss": "catalog:",
