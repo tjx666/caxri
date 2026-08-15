@@ -47,11 +47,11 @@ export function isReusableGreenDeltaPath(path: string): boolean {
  */
 export function evaluateGreenReusePolicy(input: GreenReusePolicyInput): GreenReusePolicyDecision {
     const reject = (reason: string): GreenReusePolicyDecision => ({ eligible: false, reason });
-    const candidate = input.candidate;
 
     if (input.eventName !== 'pull_request') return reject('green reuse is pull-request only');
+    const candidate = input.candidate;
     if (
-        !Number.isInteger(candidate.id) ||
+        !Number.isSafeInteger(candidate.id) ||
         candidate.id <= 0 ||
         !/^[0-9a-f]{40}$/u.test(candidate.headSha)
     ) {

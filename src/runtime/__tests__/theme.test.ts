@@ -14,28 +14,24 @@ const temporaryDirectories: string[] = [];
 const executeFile = promisify(execFile);
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-function completeWithin<T>(promise: Promise<T>, timeoutMs = 750): Promise<T> {
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(
+async function completeWithin<T>(promise: Promise<T>, timeoutMs = 750): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
             () => reject(new Error(`Theme import did not settle within ${timeoutMs}ms`)),
             timeoutMs,
         );
-        void promise.then(
-            (value) => {
-                clearTimeout(timeout);
-                resolve(value);
-            },
-            (error: unknown) => {
-                clearTimeout(timeout);
-                reject(error instanceof Error ? error : new Error(String(error)));
-            },
-        );
     });
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        clearTimeout(timeout!);
+    }
 }
 
 async function unblockFifoReader(path: string): Promise<void> {
@@ -197,7 +193,9 @@ describe('theme import mapping', () => {
     });
 });
 
-/** WCAG 2.1 relative luminance of an `#rrggbb` color. */
+/**
+WCAG 2.1 relative luminance of an `#rrggbb` color.
+ */
 function relativeLuminance(hex: string): number {
     const channels = [1, 3, 5].map((offset) => {
         const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
@@ -207,9 +205,10 @@ function relativeLuminance(hex: string): number {
 }
 
 function contrastRatio(foreground: string, background: string): number {
-    const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)].sort(
-        (a, b) => b - a,
-    );
+    const [lighter, darker] = [
+        relativeLuminance(foreground),
+        relativeLuminance(background),
+    ].toSorted((a, b) => b - a);
     return (lighter + 0.05) / (darker + 0.05);
 }
 

@@ -1,34 +1,34 @@
+import { Buffer } from 'node:buffer';
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { assertNever } from '../shared/ipc';
 import type { CommandAdapter } from '../shared/ipc/dispatcher';
 import { CaxriError } from '../shared/ipc/errors';
-import type { HostForwardedMethod } from './host-methods';
 import {
     createEventJournal,
     isTransientRuntimeEvent,
     projectObservableEventRecovery,
 } from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
-import {
-    getMethodSpec,
-    isHostRequest,
-    type HostRequest,
-    type RuntimeRequest,
-} from '../shared/ipc/methods';
-import { hasRequiredCapabilities, type CommandExecutionContext } from '../shared/ipc/principal';
+import type { HostRequest, RuntimeRequest } from '../shared/ipc/methods';
+import { getMethodSpec, isHostRequest } from '../shared/ipc/methods';
+import type { CommandExecutionContext } from '../shared/ipc/principal';
+import { hasRequiredCapabilities } from '../shared/ipc/principal';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import { StructuredLogger } from '../shared/node/logger';
-import { LocalHostServer } from './local-server';
-import { HostDesktopRouter } from './desktop-router';
-import { acquireHostProfile, type HostProfileLease } from './profile';
-import { HostRuntimeSupervisor } from './runtime-supervisor';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
+import { HostDesktopRouter } from './desktop-router';
+import type { HostForwardedMethod } from './host-methods';
+import { LocalHostServer } from './local-server';
+import type { HostProfileLease } from './profile';
+import { acquireHostProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
+import { HostRuntimeSupervisor } from './runtime-supervisor';
 
-export interface HostApplicationOptions {
+export interface HostAppOptions {
     agentHooksPath?: string;
     cliPath?: string;
     commit: string;
@@ -41,15 +41,15 @@ export interface HostApplicationOptions {
     version: string;
 }
 
-export interface HostApplication {
+export interface HostApp {
     lease: HostProfileLease;
     stop(reason?: string): Promise<void>;
 }
 
-/** Starts the profile owner, authenticated local transport, and its sole Runtime child. */
-export async function startHostApplication(
-    options: HostApplicationOptions,
-): Promise<HostApplication> {
+/**
+Starts the profile owner, authenticated local transport, and its sole Runtime child.
+ */
+export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const startedAt = Date.now();
     const logDirectory = join(options.userDataPath, 'logs');
     const logger = new StructuredLogger(logDirectory, 'host', 'info');
@@ -103,7 +103,7 @@ export async function startHostApplication(
     let desktopRouter: HostDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
-    let mutationAdmissionClosed = false;
+    let isMutationAdmissionClosed = false;
     let mutationsInFlight = 0;
     const dispatchWaitIds = new Map<string, Set<string>>();
     const mutationDrainWaiters = new Set<() => void>();
@@ -139,7 +139,9 @@ export async function startHostApplication(
         return JSON.stringify([principal.kind, principal.id, generation, requestId]);
     };
 
-    /** Keeps public dispatch identity independent while preserving principal-scoped request retry. */
+    /**
+    Keeps public dispatch identity independent while preserving principal-scoped request retry.
+     */
     const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
         `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
 
@@ -147,18 +149,28 @@ export async function startHostApplication(
         const spec = getMethodSpec(request.method);
         if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
         if (spec.effect === 'read') return supervisor.forward(request.method, request.params);
-        if (mutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
-        if (request.method === 'terminal.close' || request.method === 'terminal.restart')
-            agentEndpoints.retireTerminal(request.params.terminalId);
-        else if (request.method === 'session.delete')
-            agentEndpoints.retireSession(request.params.sessionId);
-        else if (request.method === 'project.delete')
-            agentEndpoints.retireProject(request.params.projectId);
-        else if (
-            request.method === 'terminal.terminateAll' ||
-            request.method === 'runtime.shutdown'
-        )
-            agentEndpoints.clear();
+        if (isMutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
+        switch (request.method) {
+            case 'terminal.close':
+            case 'terminal.restart': {
+                agentEndpoints.retireTerminal(request.params.terminalId);
+                break;
+            }
+            case 'session.delete': {
+                agentEndpoints.retireSession(request.params.sessionId);
+                break;
+            }
+            case 'project.delete': {
+                agentEndpoints.retireProject(request.params.projectId);
+                break;
+            }
+            case 'terminal.terminateAll':
+            case 'runtime.shutdown': {
+                agentEndpoints.clear();
+                // No default
+                break;
+            }
+        }
         mutationsInFlight += 1;
         try {
             return await supervisor.forward(request.method, request.params);
@@ -185,7 +197,7 @@ export async function startHostApplication(
     const deliver = (event: RuntimeEvent): void => {
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
-        if (event.event === 'runtime.status')
+        else if (event.event === 'runtime.status')
             logger.write(event.payload.status === 'failed' ? 'error' : 'info', 'runtime.status', {
                 fields: {
                     status: event.payload.status,
@@ -194,11 +206,11 @@ export async function startHostApplication(
             });
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
-    supervisor.on('event', deliver);
-    supervisor.on('runtimeExit', () => agentEndpoints.clear());
+    supervisor.onEvent(deliver);
+    supervisor.onRuntimeExit(() => agentEndpoints.clear());
 
     const stop = (reason = 'requested'): Promise<void> => {
-        mutationAdmissionClosed = true;
+        isMutationAdmissionClosed = true;
         stopPromise ??= (async () => {
             logger.write('info', 'host.stopping', { fields: { reason } });
             await server?.close();
@@ -332,18 +344,20 @@ export async function startHostApplication(
                             'FORBIDDEN',
                             'Waking an Agent requires an agent:control grant',
                         );
-                    let targetIsActive = true;
+                    let isTargetIsActive = true;
                     try {
                         agentEndpoints.resolve(request.params.to);
                     } catch {
-                        targetIsActive = false;
+                        isTargetIsActive = false;
                     }
-                    if (targetIsActive)
+                    if (isTargetIsActive)
                         return agentInbox.send(context, request.params, invocation.requestId);
-                    /** Only an exact bounded tombstone can be promoted into a wake dispatch. */
+                    /**
+                    Only an exact bounded tombstone can be promoted into a wake dispatch.
+                     */
                     const retired = agentEndpoints.resolveRetired(request.params.to);
                     assertProjectScope(context, retired.projectId);
-                    if (mutationAdmissionClosed)
+                    if (isMutationAdmissionClosed)
                         throw new CaxriError('UNAVAILABLE', 'Host is stopping');
                     mutationsInFlight += 1;
                     try {
@@ -377,9 +391,9 @@ export async function startHostApplication(
                                 body: request.params.body,
                                 to: current.ref,
                                 ttlMs: request.params.ttlMs,
-                                ...(request.params.idempotencyKey
-                                    ? { idempotencyKey: request.params.idempotencyKey }
-                                    : {}),
+                                ...(request.params.idempotencyKey && {
+                                    idempotencyKey: request.params.idempotencyKey,
+                                }),
                             },
                             invocation.requestId,
                             dispatch.dispatchId,
@@ -420,7 +434,7 @@ export async function startHostApplication(
                         profileId: lease.manifest.profileId,
                         version: options.version,
                         pid: process.pid,
-                        ...(supervisor.processId() ? { runtimePid: supervisor.processId() } : {}),
+                        ...(supervisor.processId() && { runtimePid: supervisor.processId() }),
                         startedAt,
                         clientCount: server?.clientCount() ?? 0,
                         activePtyCount: health.activePtyCount,
@@ -457,10 +471,10 @@ export async function startHostApplication(
                     return desktopRouter.open('reveal', undefined, request.params);
                 }
                 case 'host.stop': {
-                    if (mutationAdmissionClosed)
+                    if (isMutationAdmissionClosed)
                         throw new CaxriError('CONFLICT', 'Host stop is already in progress');
-                    mutationAdmissionClosed = true;
-                    let accepted = false;
+                    isMutationAdmissionClosed = true;
+                    let isAccepted = false;
                     try {
                         await waitForMutations();
                         const health = await supervisor.request('app.health');
@@ -469,13 +483,26 @@ export async function startHostApplication(
                                 'CONFLICT',
                                 'Host has live PTYs; retry with explicit confirmation',
                             );
-                        accepted = true;
-                        /** Stop even if the requesting client disconnects before its reply can flush. */
-                        commandStopFallback ??= setImmediate(() => void stop('command'));
+                        isAccepted = true;
+                        /**
+                        Stop even if the requesting client disconnects before its reply can flush.
+                         */
+                        commandStopFallback ??= setImmediate(async () => {
+                            try {
+                                await stop('command');
+                            } catch (error) {
+                                logger.write('error', 'host.stop_failed', {
+                                    fields: {
+                                        message:
+                                            error instanceof Error ? error.message : String(error),
+                                    },
+                                });
+                            }
+                        });
                         commandStopFallback.unref();
                         return { stopping: true, activePtyCount: health.activePtyCount };
                     } finally {
-                        if (!accepted) mutationAdmissionClosed = false;
+                        if (!isAccepted) isMutationAdmissionClosed = false;
                     }
                 }
                 case 'project.query': {
@@ -533,10 +560,14 @@ export async function startHostApplication(
             manifest: lease.manifest,
             onClientCountChanged: (clientCount) =>
                 logger.write('info', 'host.client_count', { fields: { clientCount } }),
-            onDesktopUnavailable: () => {
-                void supervisor.request('terminal.detachAll').catch(() => undefined);
+            onDesktopUnavailable: async () => {
+                try {
+                    await supervisor.request('terminal.detachAll');
+                } catch {
+                    // Best-effort detach: Runtime is already reporting Desktop as unavailable.
+                }
             },
-            onReplyFlushed: (request, reply, context) => {
+            onReplyFlushed: async (request, reply, context) => {
                 if (
                     request.method === 'agent.message.wait' ||
                     request.method === 'agent.message.check'
@@ -547,16 +578,33 @@ export async function startHostApplication(
                 if (request.method === 'host.stop' && reply.ok) {
                     if (commandStopFallback) clearImmediate(commandStopFallback);
                     commandStopFallback = undefined;
-                    void stop('command');
+                    try {
+                        await stop('command');
+                    } catch (error) {
+                        logger.write('error', 'host.stop_failed', {
+                            fields: {
+                                message: error instanceof Error ? error.message : String(error),
+                            },
+                        });
+                    }
                 }
             },
-            onRequestDisconnected: (requestId, context) => {
+            onRequestDisconnected: async (requestId, context) => {
                 agentInbox.cancelWait(requestId);
-                const waitIds = dispatchWaitIds.get(principalRequestKey(context, requestId));
-                for (const waitId of waitIds ?? [])
-                    void supervisor
-                        .request('agent.dispatch.cancelWaitInternal', { waitId })
-                        .catch(() => undefined);
+                const waitIds =
+                    dispatchWaitIds.get(principalRequestKey(context, requestId)) ??
+                    new Set<string>();
+                await Promise.all(
+                    [...waitIds].map(async (waitId) => {
+                        try {
+                            await supervisor.request('agent.dispatch.cancelWaitInternal', {
+                                waitId,
+                            });
+                        } catch {
+                            // Best-effort cancel: the wait may have already resolved.
+                        }
+                    }),
+                );
             },
             refreshContext: (context) => agentEndpoints.refresh(context),
         });
@@ -565,7 +613,7 @@ export async function startHostApplication(
                 invoke: (operation, expectedGeneration) =>
                     server!.invokeDesktop(operation, expectedGeneration),
                 lease: () => server!.desktopLease(),
-                ...(options.launchDesktop ? { launch: options.launchDesktop } : {}),
+                ...(options.launchDesktop && { launch: options.launchDesktop }),
                 waitForLease: (timeoutMs) => server!.waitForDesktopLease(timeoutMs),
             },
             runtime: supervisor,
@@ -578,7 +626,11 @@ export async function startHostApplication(
         });
         return { lease, stop };
     } catch (error) {
-        await stop('startup-failed').catch(() => undefined);
+        try {
+            await stop('startup-failed');
+        } catch {
+            // Swallow: startup already failed, so report the original error, not the shutdown failure.
+        }
         throw error;
     }
 }

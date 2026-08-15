@@ -1,15 +1,10 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import {
-    expect,
-    test,
-    type ElectronApplication,
-    type Locator,
-    type Page,
-} from './support/fixtures.ts';
-
+import type { ElectronApplication as ElectronApp, Locator, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -45,7 +40,7 @@ async function createImageBase64(
     );
 }
 
-async function redPixelCount(app: ElectronApplication, surface: Locator): Promise<number> {
+async function redPixelCount(app: ElectronApp, surface: Locator): Promise<number> {
     const screenshot = await surface.screenshot();
     return app.evaluate(({ nativeImage }, screenshotBase64) => {
         const image = nativeImage.createFromBuffer(Buffer.from(screenshotBase64, 'base64'));
@@ -66,11 +61,11 @@ async function redPixelCount(app: ElectronApplication, surface: Locator): Promis
 }
 
 function iipImage(base64: string, width: number, height: number): string {
-    return `\x1b]1337;File=inline=1;width=${width}px;height=${height}px:${base64}\x07`;
+    return `\u{1B}]1337;File=inline=1;width=${width}px;height=${height}px:${base64}\u{7}`;
 }
 
 function sixelImage(): string {
-    return `\x1bPq"1;1;64;48#0;2;100;0;0${Array.from({ length: 8 }, () => '!64~').join('-')}\x1b\\`;
+    return `\u{1B}Pq"1;1;64;48#0;2;100;0;0${Array.from({ length: 8 }, () => '!64~').join('-')}\u{1B}\\`;
 }
 
 test('inline images render real pixels, enforce budgets, and restore as content-free placeholders', async () => {
@@ -98,7 +93,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             writeFile(cachePath, iipImage(cachePng, 512, 512)),
             writeFile(
                 oversizedPath,
-                `\x1b]1337;File=inline=1:${'A'.repeat(70 * 1024)}\x07AFTER_IMAGE_LIMIT\r\n`,
+                `\u{1B}]1337;File=inline=1:${'A'.repeat(70 * 1024)}\u{7}AFTER_IMAGE_LIMIT\r\n`,
             ),
             writeFile(
                 overPixelLimitPath,
@@ -129,7 +124,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             .poll(() => redPixelCount(running.app, surface))
             .toBeGreaterThan(baselineRedPixels + 1_000);
 
-        await typeTerminal(running.page, "printf '\\033c'");
+        await typeTerminal(running.page, String.raw`printf '\033c'`);
         const jpegBaselineRedPixels = await redPixelCount(running.app, surface);
         await typeTerminal(running.page, `cat '${jpegPath}'`);
         await expect(surface).toHaveAttribute('data-terminal-images-added', '2');
@@ -137,7 +132,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             .poll(() => redPixelCount(running.app, surface))
             .toBeGreaterThan(jpegBaselineRedPixels + 1_000);
 
-        await typeTerminal(running.page, "printf '\\033c'");
+        await typeTerminal(running.page, String.raw`printf '\033c'`);
         const sixelBaselineRedPixels = await redPixelCount(running.app, surface);
         await typeTerminal(running.page, `cat '${sixelPath}'`);
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
@@ -146,9 +141,11 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             .toBeGreaterThan(sixelBaselineRedPixels + 1_000);
 
         await typeTerminal(running.page, `cat '${oversizedPath}'`);
-        /** Caxri's own size policy now reports its own honest placeholder instead of folding the
+        /**
+         * Caxri's own size policy now reports its own honest placeholder instead of folding the
          *  drop into the generic PTY output-backpressure counter, which is reserved for genuine
-         *  queue-capacity refusals. */
+         *  queue-capacity refusals.
+         */
         await expect(running.page.locator('.xterm-rows')).toContainText(
             'Caxri dropped an inline image: it exceeds the size limit',
         );
@@ -162,11 +159,15 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_PIXEL_LIMIT');
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
 
-        /** Terminal input can outrun xterm's asynchronous image decode on loaded CI runners.
+        /**
+         * Terminal input can outrun xterm's asynchronous image decode on loaded CI runners.
          *  Observe each accepted image before sending the next one so this remains a cache-budget
-         *  test instead of accidentally becoming an unbounded decoder-pressure test. */
+         *  test instead of accidentally becoming an unbounded decoder-pressure test.
+         */
         for (let image = 0; image < 10; image += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each image must decode before the next is sent, see comment above.
             await typeTerminal(running.page, `cat '${cachePath}'`);
+            // eslint-disable-next-line no-await-in-loop -- each image must decode before the next is sent, see comment above.
             await expect(surface).toHaveAttribute('data-terminal-images-added', String(image + 4));
         }
         await expect
@@ -232,7 +233,11 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             })
             .toBe(false);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

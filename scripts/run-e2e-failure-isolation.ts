@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 
-import { resolve } from 'node:path';
+import type { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+import process from 'node:process';
 
 import {
     acquireDesktopLease,
@@ -16,6 +18,7 @@ const cascadePatterns = [
     /left a (?:active|stale) e2e-worker/u,
 ];
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-e2e-failure-isolation.test.ts
 export function validateFailureIsolationResult(
     exitCode: number,
     output: string,
@@ -69,9 +72,9 @@ async function main(): Promise<void> {
     child.stderr.on('data', capture);
     let exitCode: number;
     try {
-        exitCode = await new Promise<number>((resolveExit, reject) => {
+        exitCode = await new Promise<number>((resolve, reject) => {
             child.once('error', reject);
-            child.once('exit', (code, signal) => resolveExit(code ?? (signal ? 1 : 0)));
+            child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
         });
     } finally {
         await releaseDesktopLease(coordinator);

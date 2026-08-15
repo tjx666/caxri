@@ -2,43 +2,46 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import Database from 'better-sqlite3';
-
 import { createTerminalLayout } from '../../../shared/terminal-layout';
-import { CaxriDb } from '../index';
 import { CURRENT_SCHEMA_VERSION } from '../connection';
+import { CaxriDatabaseConnection as CaxriDatabase } from '../index';
 import { migrationManifest, PRESERVED_SCHEMA_VERSION } from '../migrations/manifest';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
-async function tempDir(prefix: string): Promise<string> {
+async function temporaryDirectory(prefix: string): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     temporaryDirectories.push(directory);
     return directory;
 }
 
-describe('CaxriDb', () => {
+describe('CaxriDatabaseConnection', () => {
     it('creates the current schema with Session archive and attention metadata', async () => {
-        const directory = await tempDir('caxri-db-schema-');
-        const db = new CaxriDb(join(directory, 'state.db'));
+        const directory = await temporaryDirectory('caxri-db-schema-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
 
-        expect(db.database.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
-        expect(db.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(database.database.pragma('user_version', { simple: true })).toBe(
+            CURRENT_SCHEMA_VERSION,
+        );
+        expect(database.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
         expect(
-            (db.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+            (database.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
                 (column) => column.name,
             ),
         ).toContain('archived_at');
         expect(
-            (db.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+            (database.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
                 (column) => column.name,
             ),
         ).toEqual(
@@ -49,77 +52,84 @@ describe('CaxriDb', () => {
             ]),
         );
         expect(
-            (db.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
+            (database.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
                 (column) => column.name,
             ),
         ).toContain('order_index');
         expect(
             (
-                db.database.pragma('table_info(agent_dispatch_receipts)') as Array<{ name: string }>
+                database.database.pragma('table_info(agent_dispatch_receipts)') as Array<{
+                    name: string;
+                }>
             ).map((column) => column.name),
         ).toContain('dispatch_id');
-        db.close();
+        database.close();
     });
 
     it('deduplicates Projects by root path', async () => {
-        const directory = await tempDir('caxri-db-project-dedup-');
+        const directory = await temporaryDirectory('caxri-db-project-dedup-');
         const root = join(directory, 'project');
         await mkdir(root);
-        const db = new CaxriDb(join(directory, 'state.db'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
 
-        const project = db.projects.create(root);
+        const project = database.projects.create(root);
 
-        expect(db.projects.create(root)).toMatchObject({ id: project.id, rootPath: root });
-        expect(db.projects.list()).toEqual([expect.objectContaining({ id: project.id })]);
-        db.close();
+        expect(database.projects.create(root)).toMatchObject({ id: project.id, rootPath: root });
+        expect(database.projects.list()).toEqual([expect.objectContaining({ id: project.id })]);
+        database.close();
     });
 
     it('assigns increasing Project order and rewrites a complete permutation', async () => {
-        const directory = await tempDir('caxri-db-project-order-');
-        const db = new CaxriDb(join(directory, 'state.db'));
-        const first = db.projects.create(join(directory, 'first'));
-        const second = db.projects.create(join(directory, 'second'));
-        const third = db.projects.create(join(directory, 'third'));
+        const directory = await temporaryDirectory('caxri-db-project-order-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const first = database.projects.create(join(directory, 'first'));
+        const second = database.projects.create(join(directory, 'second'));
+        const third = database.projects.create(join(directory, 'third'));
 
-        expect(db.projects.list().map((project) => project.orderIndex)).toEqual([0, 1, 2]);
+        expect(database.projects.list().map((project) => project.orderIndex)).toEqual([0, 1, 2]);
 
-        db.projects.reorder([third.id, first.id, second.id]);
+        database.projects.reorder([third.id, first.id, second.id]);
 
-        expect(db.projects.list().map((project) => project.id)).toEqual([
+        expect(database.projects.list().map((project) => project.id)).toEqual([
             third.id,
             first.id,
             second.id,
         ]);
-        expect(db.projects.list().map((project) => project.orderIndex)).toEqual([0, 1, 2]);
-        db.close();
+        expect(database.projects.list().map((project) => project.orderIndex)).toEqual([0, 1, 2]);
+        database.close();
     });
 
     it('cascades Project removal to Sessions and Terminals without touching the local directory', async () => {
-        const directory = await tempDir('caxri-db-project-delete-');
+        const directory = await temporaryDirectory('caxri-db-project-delete-');
         const root = join(directory, 'project');
         await writeFile(root, 'user-owned', 'utf8');
-        const db = new CaxriDb(join(directory, 'state.db'));
-        const project = db.projects.create(root);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        db.terminals.insert({ sessionId: session.id, kind: 'shell', cwd: root, title: 'Shell' });
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.projects.create(root);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        database.terminals.insert({
+            sessionId: session.id,
+            kind: 'shell',
+            cwd: root,
+            title: 'Shell',
+        });
 
-        expect(db.projects.remove(project.id)).toBe(true);
+        expect(database.projects.remove(project.id)).toBe(true);
 
         expect(await readFile(root, 'utf8')).toBe('user-owned');
-        expect(db.sessions.list()).toEqual([]);
-        expect(db.terminals.list()).toEqual([]);
-        db.close();
+        expect(database.sessions.list()).toEqual([]);
+        expect(database.terminals.list()).toEqual([]);
+        database.close();
     });
 
     it('assigns strictly increasing order_index after a middle Terminal is removed and a new one is created', async () => {
-        const directory = await tempDir('caxri-db-order-index-');
+        const directory = await temporaryDirectory('caxri-db-order-index-');
         const root = join(directory, 'project');
         await mkdir(root);
-        const db = new CaxriDb(join(directory, 'state.db'));
-        const project = db.projects.create(root);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.projects.create(root);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
         const insert = () =>
-            db.terminals.insert({
+            database.terminals.insert({
                 sessionId: session.id,
                 kind: 'shell',
                 cwd: root,
@@ -131,29 +141,31 @@ describe('CaxriDb', () => {
         const third = insert();
         expect([first.orderIndex, second.orderIndex, third.orderIndex]).toEqual([0, 1, 2]);
 
-        expect(db.terminals.remove(second.id)).toBe(true);
+        expect(database.terminals.remove(second.id)).toBe(true);
         const fourth = insert();
 
         expect(fourth.orderIndex).toBe(3);
         expect(fourth.orderIndex).not.toBe(third.orderIndex);
-        const remainingIndexes = db.terminals
+        const remainingIndexes = database.terminals
             .list(session.id)
             .map((terminal) => terminal.orderIndex);
-        expect(remainingIndexes).toEqual([...remainingIndexes].sort((a, b) => a - b));
+        expect(remainingIndexes).toEqual(remainingIndexes.toSorted((a, b) => a - b));
         expect(new Set(remainingIndexes).size).toBe(remainingIndexes.length);
-        db.close();
+        database.close();
     });
 
     it('breaks ties on id when legacy rows share the same order_index', async () => {
-        const directory = await tempDir('caxri-db-order-tiebreak-');
+        const directory = await temporaryDirectory('caxri-db-order-tiebreak-');
         const root = join(directory, 'project');
         await mkdir(root);
-        const db = new CaxriDb(join(directory, 'state.db'));
-        const project = db.projects.create(root);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        /** Simulate pre-fix legacy data where two Terminals collided on the same order_index. */
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.projects.create(root);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        /**
+        Simulate pre-fix legacy data where two Terminals collided on the same order_index.
+         */
         const now = Date.now();
-        db.database
+        database.database
             .prepare(
                 `INSERT INTO terminals
                  (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
@@ -161,7 +173,7 @@ describe('CaxriDb', () => {
                  VALUES ('terminal-b', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'layout-b', 'stopped', ?, ?)`,
             )
             .run(session.id, root, now, now);
-        db.database
+        database.database
             .prepare(
                 `INSERT INTO terminals
                  (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
@@ -170,35 +182,35 @@ describe('CaxriDb', () => {
             )
             .run(session.id, root, now, now);
 
-        expect(db.terminals.list(session.id).map((terminal) => terminal.id)).toEqual([
+        expect(database.terminals.list(session.id).map((terminal) => terminal.id)).toEqual([
             'terminal-a',
             'terminal-b',
         ]);
-        db.close();
+        database.close();
     });
 
     it('rejects databases created by a newer schema version', async () => {
-        const directory = await tempDir('caxri-db-future-schema-');
+        const directory = await temporaryDirectory('caxri-db-future-schema-');
         const databasePath = join(directory, 'state.db');
         const futureDatabase = new Database(databasePath);
         futureDatabase.pragma('user_version = 99');
         futureDatabase.close();
 
-        expect(() => new CaxriDb(databasePath)).toThrow(/newer schema version/i);
+        expect(() => new CaxriDatabase(databasePath)).toThrow(/newer schema version/i);
     });
 
     it('rebuilds pre-release metadata without touching Project files', async () => {
-        const directory = await tempDir('caxri-db-layout-schema-');
+        const directory = await temporaryDirectory('caxri-db-layout-schema-');
         const projectRoot = join(directory, 'project');
         await writeFile(projectRoot, 'user-owned', 'utf8');
         const databasePath = join(directory, 'state.db');
-        const previous = new CaxriDb(databasePath);
+        const previous = new CaxriDatabase(databasePath);
         const project = previous.projects.create(projectRoot);
         previous.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
         previous.database.pragma('user_version = 2');
         previous.close();
 
-        const rebuilt = new CaxriDb(databasePath);
+        const rebuilt = new CaxriDatabase(databasePath);
 
         expect(rebuilt.projects.list()).toEqual([]);
         expect(rebuilt.sessions.list()).toEqual([]);
@@ -207,7 +219,7 @@ describe('CaxriDb', () => {
     });
 
     it('migrates the preservation-floor schema without losing metadata', async () => {
-        const directory = await tempDir('caxri-db-preservation-floor-');
+        const directory = await temporaryDirectory('caxri-db-preservation-floor-');
         const databasePath = join(directory, 'state.db');
         const floorDatabase = new Database(databasePath);
         floorDatabase.pragma('foreign_keys = ON');
@@ -233,7 +245,7 @@ describe('CaxriDb', () => {
         floorDatabase.pragma(`user_version = ${PRESERVED_SCHEMA_VERSION}`);
         floorDatabase.close();
 
-        const upgraded = new CaxriDb(databasePath);
+        const upgraded = new CaxriDatabase(databasePath);
 
         expect(upgraded.projects.get('project-floor')).toMatchObject({
             displayTitle: 'Preserved Project',
@@ -251,11 +263,12 @@ describe('CaxriDb', () => {
     });
 
     it('migrates the previous preserved schema without losing metadata or snapshots', async () => {
-        const directory = await tempDir('caxri-db-preserved-upgrade-');
+        const directory = await temporaryDirectory('caxri-db-preserved-upgrade-');
         const databasePath = join(directory, 'state.db');
         const previous = new Database(databasePath);
         previous.pragma('foreign_keys = ON');
-        for (const migration of migrationManifest.slice(0, -1))
+        const migrationsWithoutLatest = migrationManifest.slice(0, -1);
+        for (const migration of migrationsWithoutLatest)
             previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
         const project = { id: 'project-current', rootPath: directory };
         const oldestProject = { id: 'project-oldest', rootPath: join(directory, 'oldest') };
@@ -307,7 +320,7 @@ describe('CaxriDb', () => {
         previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
-        const upgraded = new CaxriDb(databasePath);
+        const upgraded = new CaxriDatabase(databasePath);
 
         expect(upgraded.database.pragma('user_version', { simple: true })).toBe(
             CURRENT_SCHEMA_VERSION,
@@ -355,180 +368,180 @@ describe('CaxriDb', () => {
     });
 
     it('restricts the database and WAL sidecar files to the current user', async () => {
-        const directory = await tempDir('caxri-db-permissions-');
+        const directory = await temporaryDirectory('caxri-db-permissions-');
         const databasePath = join(directory, 'state.db');
-        const db = new CaxriDb(databasePath);
-        const project = db.projects.create(directory);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        db.terminals.insert({
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
             cwd: directory,
             title: 'Shell',
         });
 
-        for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
-            expect((await stat(path)).mode & 0o777).toBe(0o600);
-        }
-        db.close();
+        const paths = [databasePath, `${databasePath}-wal`, `${databasePath}-shm`];
+        const modes = await Promise.all(paths.map((path) => stat(path)));
+        for (const mode of modes) expect(mode.mode & 0o777).toBe(0o600);
+        database.close();
     });
 
     it('marks Terminals that claimed to be running as interrupted after reopening, so they can auto-restore', async () => {
-        const directory = await tempDir('caxri-db-recovery-');
+        const directory = await temporaryDirectory('caxri-db-recovery-');
         const databasePath = join(directory, 'state.db');
-        const db = new CaxriDb(databasePath);
-        const project = db.projects.create(directory);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = db.terminals.insert({
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
             cwd: directory,
             title: 'Shell',
         });
-        db.terminals.updateState(terminal.id, 'running');
-        db.close();
+        database.terminals.updateState(terminal.id, 'running');
+        database.close();
 
-        const reopened = new CaxriDb(databasePath);
+        const reopened = new CaxriDatabase(databasePath);
         expect(reopened.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
         reopened.close();
     });
 
     it('marks running Terminals as interrupted for an orderly shutdown, keeping the Session resumable', async () => {
-        const directory = await tempDir('caxri-db-shutdown-orderly-');
+        const directory = await temporaryDirectory('caxri-db-shutdown-orderly-');
         const databasePath = join(directory, 'state.db');
-        const db = new CaxriDb(databasePath);
-        const project = db.projects.create(directory);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = db.terminals.insert({
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
             cwd: directory,
             title: 'Shell',
         });
-        db.terminals.updateState(terminal.id, 'running');
+        database.terminals.updateState(terminal.id, 'running');
 
-        db.markShutdown('orderly');
+        database.markShutdown('orderly');
 
-        expect(db.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
-        db.close();
+        expect(database.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
+        database.close();
     });
 
     it('marks running Terminals as stopped for an explicit terminate shutdown', async () => {
-        const directory = await tempDir('caxri-db-shutdown-terminate-');
+        const directory = await temporaryDirectory('caxri-db-shutdown-terminate-');
         const databasePath = join(directory, 'state.db');
-        const db = new CaxriDb(databasePath);
-        const project = db.projects.create(directory);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = db.terminals.insert({
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
             cwd: directory,
             title: 'Shell',
         });
-        db.terminals.updateState(terminal.id, 'running');
+        database.terminals.updateState(terminal.id, 'running');
 
-        db.markShutdown('terminate');
+        database.markShutdown('terminate');
 
-        expect(db.terminals.get(terminal.id)?.lastProcessState).toBe('stopped');
-        db.close();
+        expect(database.terminals.get(terminal.id)?.lastProcessState).toBe('stopped');
+        database.close();
     });
 
     it('round-trips a valid structured active WorkItem', async () => {
-        const directory = await tempDir('caxri-db-active-tab-');
+        const directory = await temporaryDirectory('caxri-db-active-tab-');
         const databasePath = join(directory, 'state.db');
-        const db = new CaxriDb(databasePath);
-        const project = db.projects.create(directory);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = db.terminals.insert({
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
             cwd: directory,
             title: 'Shell',
         });
-        db.sessions.insertInitialState(session.id, terminal.id);
+        database.sessions.insertInitialState(session.id, terminal.id);
         const structuredActiveTab = { kind: 'editor', path: '/a.ts' } as const;
 
-        db.sessions.updateState({
-            ...db.sessions.getState(session.id),
+        database.sessions.updateState({
+            ...database.sessions.getState(session.id),
             activeTab: structuredActiveTab,
             editorRemapOperationId: 'operation-1',
         });
 
-        expect(db.sessions.getState(session.id).activeTab).toEqual(structuredActiveTab);
-        expect(db.sessions.getState(session.id).editorRemapOperationId).toBe('operation-1');
-        db.close();
+        expect(database.sessions.getState(session.id).activeTab).toEqual(structuredActiveTab);
+        expect(database.sessions.getState(session.id).editorRemapOperationId).toBe('operation-1');
+        database.close();
     });
 
     it('never persists dirty tabs without their Renderer-owned document bodies', async () => {
-        const directory = await tempDir('caxri-db-clean-tabs-');
-        const db = new CaxriDb(join(directory, 'state.db'));
-        const project = db.projects.create(directory);
-        const session = db.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = db.terminals.insert({
+        const directory = await temporaryDirectory('caxri-db-clean-tabs-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        const terminal = database.terminals.insert({
             sessionId: session.id,
             kind: 'shell',
             cwd: directory,
             title: 'Shell',
         });
-        db.sessions.insertInitialState(session.id, terminal.id);
+        database.sessions.insertInitialState(session.id, terminal.id);
 
-        db.sessions.updateState({
-            ...db.sessions.getState(session.id),
+        database.sessions.updateState({
+            ...database.sessions.getState(session.id),
             openTabs: [{ path: '/project/unsaved.ts', dirty: true }],
         });
 
-        expect(db.sessions.getState(session.id).openTabs).toEqual([
+        expect(database.sessions.getState(session.id).openTabs).toEqual([
             { path: '/project/unsaved.ts', dirty: false },
         ]);
         expect(
             JSON.parse(
                 (
-                    db.database
+                    database.database
                         .prepare('SELECT open_tabs_json FROM session_state WHERE session_id = ?')
                         .get(session.id) as { open_tabs_json: string }
                 ).open_tabs_json,
             ),
         ).toEqual([{ path: '/project/unsaved.ts', dirty: false }]);
 
-        db.database
+        database.database
             .prepare(
                 "UPDATE session_state SET open_tabs_json = ?, workbench_state_json = '{}' WHERE session_id = ?",
             )
             .run(JSON.stringify([{ path: '/project/legacy.ts', dirty: true }]), session.id);
-        expect(db.sessions.getState(session.id).openTabs).toEqual([
+        expect(database.sessions.getState(session.id).openTabs).toEqual([
             { path: '/project/legacy.ts', dirty: false },
         ]);
         expect(
             JSON.parse(
                 (
-                    db.database
+                    database.database
                         .prepare('SELECT open_tabs_json FROM session_state WHERE session_id = ?')
                         .get(session.id) as { open_tabs_json: string }
                 ).open_tabs_json,
             ),
         ).toEqual([{ path: '/project/legacy.ts', dirty: false }]);
-        db.close();
+        database.close();
     });
 
     it('loads all Session states in one ordered query', async () => {
-        const directory = await tempDir('caxri-db-session-states-');
-        const db = new CaxriDb(join(directory, 'state.db'));
-        const project = db.projects.create(directory);
-        const first = db.sessions.insert({ projectId: project.id, displayTitle: 'First' });
-        const second = db.sessions.insert({ projectId: project.id, displayTitle: 'Second' });
+        const directory = await temporaryDirectory('caxri-db-session-states-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.projects.create(directory);
+        const first = database.sessions.insert({ projectId: project.id, displayTitle: 'First' });
+        const second = database.sessions.insert({ projectId: project.id, displayTitle: 'Second' });
         const insertTerminal = (sessionId: string) =>
-            db.terminals.insert({
+            database.terminals.insert({
                 sessionId,
                 kind: 'shell',
                 cwd: directory,
                 title: 'Shell',
             });
-        db.sessions.insertInitialState(first.id, insertTerminal(first.id).id);
-        db.sessions.insertInitialState(second.id, insertTerminal(second.id).id);
+        database.sessions.insertInitialState(first.id, insertTerminal(first.id).id);
+        database.sessions.insertInitialState(second.id, insertTerminal(second.id).id);
 
-        expect(db.sessions.listStates().map((state) => state.sessionId)).toEqual(
-            db.sessions.list().map((session) => session.id),
+        expect(database.sessions.listStates().map((state) => state.sessionId)).toEqual(
+            database.sessions.list().map((session) => session.id),
         );
-        db.close();
+        database.close();
     });
 });

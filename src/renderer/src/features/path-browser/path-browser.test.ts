@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { FileEntry } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import {
     completePathQuery,

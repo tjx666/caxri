@@ -19,7 +19,7 @@ export function workItemKey(item: WorkItem | undefined): string {
     return `${item.kind}:${item.kind === 'terminal' ? item.terminalId : item.path}`;
 }
 
-export function workItemsEqual(a: WorkItem | undefined, b: WorkItem | undefined): boolean {
+export function areWorkItemsEqual(a: WorkItem | undefined, b: WorkItem | undefined): boolean {
     if (a === b) return true;
     if (!a || !b || a.kind !== b.kind) return false;
     return a.kind === 'terminal' && b.kind === 'terminal'
@@ -27,10 +27,10 @@ export function workItemsEqual(a: WorkItem | undefined, b: WorkItem | undefined)
         : a.kind === 'editor' && b.kind === 'editor' && a.path === b.path;
 }
 
-function workItemExists(
+function isWorkItemStillPresent(
     item: WorkItem | undefined,
-    sessionTerminals: readonly { id: string }[],
-    openTabs: readonly { path: string }[],
+    sessionTerminals: ReadonlyArray<{ id: string }>,
+    openTabs: ReadonlyArray<{ path: string }>,
 ): boolean {
     if (!item) return false;
     return item.kind === 'terminal'
@@ -46,15 +46,15 @@ function workItemExists(
  * layout, (4) the first Session Terminal if the layout has none, or (5) the first open editor. The
  * final editor fallback keeps exactly one Work tab active/focusable after every Terminal is removed.
  */
-export function resolveActiveWork(params: {
+export function resolveActiveWork(parameters: {
     activeWork?: WorkItem;
-    sessionTerminals: readonly { id: string }[];
+    sessionTerminals: ReadonlyArray<{ id: string }>;
     sessionState?: Pick<SessionState, 'activeTab' | 'openTabs' | 'layout'>;
 }): WorkItem | undefined {
-    const { activeWork, sessionTerminals, sessionState } = params;
+    const { activeWork, sessionTerminals, sessionState } = parameters;
     const openTabs = sessionState?.openTabs ?? [];
-    if (workItemExists(activeWork, sessionTerminals, openTabs)) return activeWork;
-    if (workItemExists(sessionState?.activeTab, sessionTerminals, openTabs))
+    if (isWorkItemStillPresent(activeWork, sessionTerminals, openTabs)) return activeWork;
+    if (isWorkItemStillPresent(sessionState?.activeTab, sessionTerminals, openTabs))
         return sessionState?.activeTab;
     const layoutTerminalId = sessionState && firstLayoutTerminalId(sessionState.layout);
     const fallbackTerminalId = sessionTerminals.some((terminal) => terminal.id === layoutTerminalId)
@@ -73,10 +73,10 @@ export function resolveActiveWork(params: {
  */
 export function activateWorkState(state: SessionState, item: WorkItem): SessionState {
     if (item.kind !== 'terminal') {
-        if (workItemsEqual(state.activeTab, item)) return state;
+        if (areWorkItemsEqual(state.activeTab, item)) return state;
         return { ...state, activeTab: item };
     }
-    const alreadyActive = activeLayoutTerminalId(state.layout) === item.terminalId;
-    if (alreadyActive && workItemsEqual(state.activeTab, item)) return state;
+    const isAlreadyActive = activeLayoutTerminalId(state.layout) === item.terminalId;
+    if (isAlreadyActive && areWorkItemsEqual(state.activeTab, item)) return state;
     return { ...state, activeTab: item, layout: selectTerminal(state.layout, item.terminalId) };
 }

@@ -16,7 +16,7 @@ export const desktopTargetResultSchema = z.object({
     sessionId: identifierSchema,
 });
 
-export const desktopOpenParamsSchema = z.object({
+export const desktopOpenParametersSchema = z.object({
     path: pathSchema,
     sessionId: identifierSchema.optional(),
     launchIfNeeded: z.boolean().default(true),
@@ -34,11 +34,17 @@ const hostDesktopControl = {
     requiredCapabilities: ['desktop.window'],
     idempotency: 'request',
 } as const;
-const noParams = z.object({}).default({});
+const noParameters = z.object({}).default({});
 
-/** Host-owned commands that route only bounded native-window operations to the current Desktop. */
+/**
+Host-owned commands that route only bounded native-window operations to the current Desktop.
+ */
 export const desktopHostMethods = {
-    'desktop.status': { ...hostDesktopRead, params: noParams, result: desktopStatusResultSchema },
+    'desktop.status': {
+        ...hostDesktopRead,
+        params: noParameters,
+        result: desktopStatusResultSchema,
+    },
     'desktop.focus': {
         ...hostDesktopControl,
         params: z.object({ launchIfNeeded: z.boolean().default(false) }).default({
@@ -48,23 +54,25 @@ export const desktopHostMethods = {
     },
     'desktop.openPath': {
         ...hostDesktopControl,
-        params: desktopOpenParamsSchema,
-        /** Main has redeemed and dispatched the target; Renderer editor work completes asynchronously. */
+        params: desktopOpenParametersSchema,
+        /**
+        Main has redeemed and dispatched the target; Renderer editor work completes asynchronously.
+         */
         result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'desktop.openProject': {
         ...hostDesktopControl,
-        params: desktopOpenParamsSchema,
+        params: desktopOpenParametersSchema,
         result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'desktop.openFile': {
         ...hostDesktopControl,
-        params: desktopOpenParamsSchema,
+        params: desktopOpenParametersSchema,
         result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'files.reveal': {
         ...hostDesktopControl,
-        params: desktopOpenParamsSchema.extend({ launchIfNeeded: z.boolean().default(false) }),
+        params: desktopOpenParametersSchema.extend({ launchIfNeeded: z.boolean().default(false) }),
         result: desktopTargetResultSchema.extend({ state: z.literal('revealed') }),
     },
 } as const;

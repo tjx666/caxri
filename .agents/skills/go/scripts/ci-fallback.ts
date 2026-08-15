@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
-import { assertReviewHeadFrozen, type ReviewGate, type ReviewPolicy } from './review-gate';
 import { PLATFORM_NEUTRAL_CI_COMMANDS } from './platform-neutral-gates';
+import type { ReviewGate, ReviewPolicy } from './review-gate';
+import { assertReviewHeadFrozen } from './review-gate';
 
 export { PLATFORM_NEUTRAL_CI_COMMANDS } from './platform-neutral-gates';
 
@@ -23,13 +24,13 @@ const validationSchema = z.object({
     completedAt: z.string(),
     result: ciFallbackResultSchema,
 });
-const fullElectronE2eRunSchema = z.object({
+const fullElectronEndToEndRunSchema = z.object({
     completedAt: z.string(),
     headSha: z.string().min(1),
     result: ciFallbackResultSchema,
 });
 export const validationBudgetSchema = z.object({
-    fullElectronE2eRuns: z.array(fullElectronE2eRunSchema).max(2),
+    fullElectronE2eRuns: z.array(fullElectronEndToEndRunSchema).max(2),
 });
 
 export const ciFallbackSchema = z.discriminatedUnion('status', [
@@ -130,8 +131,8 @@ export function admitCiFallback(
     if (state.validationBudget.fullElectronE2eRuns.length >= 2) {
         throw new Error('A Go run can execute at most two full Electron E2E suites');
     }
-    const previousE2e = state.validationBudget.fullElectronE2eRuns.at(-1);
-    if (previousE2e?.result === 'passed' && state.acceptance.status !== 'rejected') {
+    const previousEndToEndRun = state.validationBudget.fullElectronE2eRuns.at(-1);
+    if (previousEndToEndRun?.result === 'passed' && state.acceptance.status !== 'rejected') {
         throw new Error(
             'A passed full Electron E2E run cannot be repeated unless human Acceptance rejected the delivered head',
         );
@@ -196,7 +197,7 @@ export function recordCiFallbackResult(
         completedAt: recordedAt,
         result: input.platformResult,
     });
-    const electronE2e = validationSchema.parse({
+    const electronEndToEndRun = validationSchema.parse({
         commands: [input.electronE2eCommand],
         completedAt: recordedAt,
         result: input.electronE2eResult,
@@ -204,16 +205,16 @@ export function recordCiFallbackResult(
     state.validationBudget.fullElectronE2eRuns.push({
         completedAt: recordedAt,
         headSha: input.headSha,
-        result: electronE2e.result,
+        result: electronEndToEndRun.result,
     });
     state.ciFallback = {
         authorization: state.ciFallback.authorization,
-        electronE2e,
+        electronE2e: electronEndToEndRun,
         externalFailure: state.ciFallback.externalFailure,
         headSha: input.headSha,
         platformNeutral,
         status:
-            platformNeutral.result === 'passed' && electronE2e.result === 'passed'
+            platformNeutral.result === 'passed' && electronEndToEndRun.result === 'passed'
                 ? 'passed'
                 : 'failed',
     };

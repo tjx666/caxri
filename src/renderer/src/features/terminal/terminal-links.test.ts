@@ -1,12 +1,12 @@
 import type { ILink, ILinkProvider, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { TerminalLinkContext } from './terminal-links';
 import {
     findTerminalLinks,
     registerTerminalLinks,
     resolveTerminalFilePath,
     terminalLinkHintPosition,
-    type TerminalLinkContext,
 } from './terminal-links';
 
 describe('findTerminalLinks', () => {

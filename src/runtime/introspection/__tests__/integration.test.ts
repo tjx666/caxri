@@ -6,7 +6,8 @@ import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc';
-import { createCommandDispatcher, type CommandAdapter } from '../../../shared/ipc/dispatcher';
+import type { CommandAdapter } from '../../../shared/ipc/dispatcher';
+import { createCommandDispatcher } from '../../../shared/ipc/dispatcher';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { createRuntime } from '../../bootstrap';
 
@@ -24,9 +25,9 @@ function createFakePty(): IPty {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const paths = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime business introspection', () => {
@@ -39,7 +40,9 @@ describe('Runtime business introspection', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger,
-            send: (event) => events.push(event),
+            send: (event) => {
+                events.push(event);
+            },
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
@@ -80,7 +83,7 @@ describe('Runtime business introspection', () => {
             const adapter: CommandAdapter = {
                 invoke: (request) => {
                     const handler = runtime.handlers[request.method] as (
-                        params: unknown,
+                        parameters: unknown,
                     ) => unknown;
                     return handler(request.params);
                 },

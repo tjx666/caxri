@@ -1,44 +1,36 @@
+// eslint-disable-next-line unicorn/name-replacements -- `application.ts` is the CLI composition root's documented name (see AGENTS.md: "The package root remains the composition root (application, environment, output, selectors)"); renaming it would contradict that architecture contract.
 import { homedir } from 'node:os';
+import process from 'node:process';
 
-import {
-    CaxriError,
-    describeCaxriMethod,
-    methods,
-    type LogQueryResult,
-    type ObservableEventRecovery,
-    type AgentContextResult,
-    type AgentEndpointSummary,
-    type CaxriMethod,
-    type ProtocolWelcome,
+import type {
+    AgentContextResult,
+    AgentEndpointSummary,
+    CaxriMethod,
+    LogQueryResult,
+    ObservableEventRecovery,
+    ProtocolWelcome,
 } from '@caxri/protocol';
+import { CaxriError, describeCaxriMethod, methods } from '@caxri/protocol';
 
+import type { CliCommandDefinition, ParsedCliArguments, RemoteCommandDefinition } from './commands';
 import {
     CLI_COMMANDS,
     CLI_GROUPS,
     describeCliCommand,
     findCliCommand,
     parseCliArguments,
-    type CliCommandDefinition,
-    type ParsedCliArguments,
-    type RemoteCommandDefinition,
 } from './commands';
+import type { AgentEndpointCredential, CliAutomation } from './environment';
 import {
     detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
     resolvePackagedHostLaunch,
-    type AgentEndpointCredential,
-    type CliAutomation,
 } from './environment';
-import { connectToHost, ensureHost, type HostLaunchOptions } from './host';
-import {
-    exitCodeFor,
-    normalizeCliError,
-    quietLines,
-    renderHumanValue,
-    stableJson,
-    type CliOutputMode,
-} from './output';
+import type { HostLaunchOptions } from './host';
+import { connectToHost, ensureHost } from './host';
+import type { CliOutputMode } from './output';
+import { exitCodeFor, normalizeCliError, quietLines, renderHumanValue, stableJson } from './output';
 import { executeSkillCommand } from './skills';
 import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
 
@@ -52,8 +44,8 @@ export interface CliIo {
 
 export interface CliHostClient {
     close: () => void;
-    request: (method: CaxriMethod, params: unknown) => Promise<unknown>;
-    requestWithId: (id: string, method: CaxriMethod, params: unknown) => Promise<unknown>;
+    request: (method: CaxriMethod, parameters: unknown) => Promise<unknown>;
+    requestWithId: (id: string, method: CaxriMethod, parameters: unknown) => Promise<unknown>;
     welcome: ProtocolWelcome;
 }
 
@@ -83,7 +75,9 @@ export interface CliHostConnectorOptions {
     startHost?: (options: CliConnectOptions, launch: HostLaunchOptions) => Promise<CliHostClient>;
 }
 
-/** Keeps packaged Host startup exclusive to an interactive human/operator invocation. */
+/**
+Keeps packaged Host startup exclusive to an interactive human/operator invocation.
+ */
 export function createCliHostConnector(options: CliHostConnectorOptions) {
     const connectExisting =
         options.connectExisting ??
@@ -124,22 +118,22 @@ export function createCliHostConnector(options: CliHostConnectorOptions) {
 }
 
 const defaultIo: CliIo = {
-    stderrIsTTY: Boolean(process.stderr.isTTY),
-    stdinIsTTY: Boolean(process.stdin.isTTY),
-    stdoutIsTTY: Boolean(process.stdout.isTTY),
+    stderrIsTTY: process.stderr.isTTY,
+    stdinIsTTY: process.stdin.isTTY,
+    stdoutIsTTY: process.stdout.isTTY,
     writeStderr: (text) => process.stderr.write(text),
     writeStdout: (text) => process.stdout.write(text),
 };
 
 function outputMode(parsed: ParsedCliArguments, automation: CliAutomation): CliOutputMode {
     if (parsed.quiet) return 'quiet';
-    if (parsed.json || automation !== 'human') return 'json';
+    if (automation !== 'human' || parsed.json) return 'json';
     return 'human';
 }
 
 function fallbackOutputMode(argv: readonly string[], automation: CliAutomation): CliOutputMode {
     if (argv.includes('--quiet')) return 'quiet';
-    if (argv.includes('--json') || automation !== 'human') return 'json';
+    if (automation !== 'human' || argv.includes('--json')) return 'json';
     return 'human';
 }
 
@@ -176,7 +170,7 @@ function groupHelp(group: string) {
         commands.push({
             name: command.path.slice(1).join(' '),
             summary: command.summary,
-            ...('usage' in command && command.usage ? { usage: command.usage } : {}),
+            ...('usage' in command && command.usage && { usage: command.usage }),
         });
     }
     return {
@@ -217,8 +211,12 @@ function renderHelp(
         for (const option of value.options) lines.push(`  ${option}`);
     }
     if ('method' in value && value.method) {
-        lines.push('', `Method: ${value.method}`, `Effect: ${value.effect}`);
-        lines.push(`Capabilities: ${value.capabilities?.join(', ') ?? ''}`);
+        lines.push(
+            '',
+            `Method: ${value.method}`,
+            `Effect: ${value.effect}`,
+            `Capabilities: ${value.capabilities?.join(', ') ?? ''}`,
+        );
     }
     return `${lines.join('\n')}\n`;
 }
@@ -262,7 +260,7 @@ function defaultWait(milliseconds: number, signal?: AbortSignal): Promise<void> 
 
 async function streamRemote(
     command: RemoteCommandDefinition,
-    initialParams: unknown,
+    initialParameters: unknown,
     client: CliHostClient,
     mode: CliOutputMode,
     io: CliIo,
@@ -271,22 +269,23 @@ async function streamRemote(
     if (mode === 'quiet')
         throw new CaxriError('VALIDATION', 'Streaming commands do not support quiet output');
     const wait = options.wait ?? defaultWait;
-    let params = initialParams as Record<string, unknown>;
+    let parameters = initialParameters as Record<string, unknown>;
     let lastOutputAt = Date.now();
     let logPollDelayMs = 250;
     while (!options.signal?.aborted) {
-        const result = await client.request(command.method, params);
-        let logPageWasEmpty = false;
+        // eslint-disable-next-line no-await-in-loop -- each poll's next request depends on the previous response's cursor/pagination state; the loop is an intentional sequential stream.
+        const result = await client.request(command.method, parameters);
+        let isLogPageWasEmpty = false;
         if (command.stream === 'logs') {
             const page = result as LogQueryResult;
             for (const record of page.records) writeStreamValue(io, mode, record);
             if (page.gap) io.writeStderr('Warning: log cursor gap detected.\n');
-            logPageWasEmpty = page.records.length === 0;
-            if (!logPageWasEmpty) {
+            isLogPageWasEmpty = page.records.length === 0;
+            if (!isLogPageWasEmpty) {
                 lastOutputAt = Date.now();
                 logPollDelayMs = 250;
             }
-            if (page.nextCursor) params = { ...params, afterCursor: page.nextCursor };
+            if (page.nextCursor) parameters = { ...parameters, afterCursor: page.nextCursor };
         } else {
             const recovery = result as ObservableEventRecovery;
             if (recovery.kind === 'events') {
@@ -296,14 +295,15 @@ async function streamRemote(
                 writeStreamValue(io, mode, recovery);
                 lastOutputAt = Date.now();
             }
-            params = { afterCursor: recovery.cursor };
+            parameters = { afterCursor: recovery.cursor };
         }
         if (Date.now() - lastOutputAt >= 30_000) {
             io.writeStderr('keepalive\n');
             lastOutputAt = Date.now();
         }
+        // eslint-disable-next-line no-await-in-loop -- the poll delay must elapse before the next iteration requests again; the loop is an intentional sequential stream.
         await wait(command.stream === 'logs' ? logPollDelayMs : 250, options.signal);
-        if (command.stream === 'logs' && logPageWasEmpty)
+        if (isLogPageWasEmpty && command.stream === 'logs')
             logPollDelayMs = Math.min(logPollDelayMs * 2, 2_000);
     }
     return 130;
@@ -348,15 +348,17 @@ function localResult(
     };
 }
 
-function humanLocal(command: CliCommandDefinition, value: unknown): string {
-    if (
-        command.path[0] === 'skills' &&
-        command.path[1] === 'get' &&
+function isSkillContentValue(value: unknown): value is { content: string } {
+    return (
         typeof value === 'object' &&
         value !== null &&
         typeof Reflect.get(value, 'content') === 'string'
-    )
-        return `${String(Reflect.get(value, 'content')).trimEnd()}\n`;
+    );
+}
+
+function humanLocal(command: CliCommandDefinition, value: unknown): string {
+    if (command.path[0] === 'skills' && command.path[1] === 'get' && isSkillContentValue(value))
+        return `${value.content.trimEnd()}\n`;
     if (command.path[0] === 'agent-context' && isAgentContext(value))
         return humanAgentContext(value);
     if (command.path[0] !== 'capabilities') return `${renderHumanValue(value)}\n`;
@@ -378,14 +380,14 @@ const messagingActions: Record<AgentEndpointSummary['messaging']['nextAction'], 
     none: '',
 };
 
-function endpointRef(endpoint: AgentEndpointSummary): string {
+function endpointReference(endpoint: AgentEndpointSummary): string {
     return `${endpoint.ref.hostId}:${endpoint.ref.endpointId}:${endpoint.ref.generation}`;
 }
 
 function humanAgentEndpoint(endpoint: AgentEndpointSummary): string {
     const lines = [
         `${endpoint.name} (${endpoint.provider})`,
-        `Endpoint: ${endpointRef(endpoint)}`,
+        `Endpoint: ${endpointReference(endpoint)}`,
         `Project: ${endpoint.projectId}`,
         `Delivery: ${endpoint.messaging.deliveryMode}`,
         `Health: ${endpoint.messaging.health}`,
@@ -410,7 +412,7 @@ function humanAgentContext(value: AgentContextResult): string {
 }
 
 function humanRemote(command: RemoteCommandDefinition, value: unknown): string | undefined {
-    if (command.method !== 'agent.list' || typeof value !== 'object' || value === null)
+    if (value === null || typeof value !== 'object' || command.method !== 'agent.list')
         return undefined;
     const agents = (value as { agents?: unknown }).agents;
     if (!Array.isArray(agents)) return undefined;
@@ -443,7 +445,9 @@ async function confirmMutation(
         throw new CaxriError('FORBIDDEN', 'Command canceled');
 }
 
-/** Executes one bounded CLI invocation and returns a stable process exit code. */
+/**
+Executes one bounded CLI invocation and returns a stable process exit code.
+ */
 export async function runCli(
     argv: readonly string[],
     options: RunCliOptions = {},
@@ -505,15 +509,15 @@ export async function runCli(
             options.connect ??
             createCliHostConnector({
                 automation,
-                ...(hostLaunch ? { hostLaunch } : {}),
+                ...(hostLaunch && { hostLaunch }),
             });
         if (selected.kind === 'local') {
-            const params = selected.parseParams(parsed.tokens.slice(selected.path.length));
+            const parameters = selected.parseParams(parsed.tokens.slice(selected.path.length));
             if (selected.mutates) await confirmMutation(selected, parsed, automation, options, io);
             const home = options.home ?? environment.HOME ?? homedir();
             let value =
                 selected.path[0] === 'skills'
-                    ? await executeSkillCommand(selected.path[1] ?? '', params, {
+                    ? await executeSkillCommand(selected.path[1] ?? '', parameters, {
                           cwd: options.cwd ?? process.cwd(),
                           environment,
                           home,
@@ -535,14 +539,16 @@ export async function runCli(
                     timeoutMs: parsed.connectTimeoutMs,
                 });
                 if (selected.path[0] === 'status') {
+                    // `client.request` is untyped (`Promise<unknown>`); an explicit object-shaped
+                    // cast lets the conditional spread below narrow past `unknown`.
                     const host = client.welcome.commands.includes('host.status')
-                        ? await client.request('host.status', {})
+                        ? ((await client.request('host.status', {})) as Record<string, unknown>)
                         : undefined;
                     value = {
                         capabilities: client.welcome.capabilities,
                         cliVersion: CLI_VERSION,
                         commands: client.welcome.commands,
-                        ...(host ? { host } : {}),
+                        ...(host && { host }),
                         principal: client.welcome.principal,
                         protocolVersion: client.welcome.protocolVersion,
                         status: 'ready',
@@ -573,31 +579,33 @@ export async function runCli(
             return 0;
         }
         const command = remoteCommand(parsed.tokens);
-        let params = command.parseParams(parsed.tokens.slice(command.path.length));
-        /** Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split. */
-        if (command.method === 'agent.message.wait') params = { timeoutMs: parsed.timeoutMs };
-        if (command.method === 'agent.dispatch.wait')
-            params = { ...(params as object), timeoutMs: parsed.timeoutMs };
-        if (command.requiresAgentEndpoint && !endpointCredential)
+        let parameters = command.parseParams(parsed.tokens.slice(command.path.length));
+        /**
+        Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split.
+         */
+        if (command.method === 'agent.message.wait') parameters = { timeoutMs: parsed.timeoutMs };
+        else if (command.method === 'agent.dispatch.wait')
+            parameters = { ...(parameters as object), timeoutMs: parsed.timeoutMs };
+        if (!endpointCredential && command.requiresAgentEndpoint)
             throw new CaxriError(
                 'FORBIDDEN',
                 'This command requires a directly managed Caxri Agent Endpoint credential',
             );
-        if (command.requiresHumanOwner && endpointCredential)
+        if (endpointCredential && command.requiresHumanOwner)
             throw new CaxriError(
                 'FORBIDDEN',
                 'This command requires the authenticated human profile owner',
             );
-        const mutates =
-            methods[command.method].effect !== 'read' && (command.mutates?.(params) ?? true);
-        if (mutates && !parsed.profile && !endpointCredential)
+        const isMutates =
+            methods[command.method].effect !== 'read' && (command.mutates?.(parameters) ?? true);
+        if (isMutates && !endpointCredential && !parsed.profile)
             throw new CaxriError(
                 'VALIDATION',
                 'Mutation commands require an explicit --profile Host selector',
             );
-        if (mutates) await confirmMutation(command, parsed, automation, options, io);
+        if (isMutates) await confirmMutation(command, parsed, automation, options, io);
         client = await connect({
-            ...(endpointCredential ? { credential: endpointCredential } : {}),
+            ...(endpointCredential && { credential: endpointCredential }),
             profilePath: profile.path,
             signal: options.signal,
             timeoutMs: parsed.connectTimeoutMs,
@@ -608,10 +616,11 @@ export async function runCli(
                 'CONFLICT',
                 `The Caxri Host does not support command ${command.method}`,
             );
-        if (command.stream) return await streamRemote(command, params, client, mode, io, options);
+        if (command.stream)
+            return await streamRemote(command, parameters, client, mode, io, options);
         const result = parsed.requestId
-            ? await client.requestWithId(parsed.requestId, command.method, params)
-            : await client.request(command.method, params);
+            ? await client.requestWithId(parsed.requestId, command.method, parameters)
+            : await client.request(command.method, parameters);
         if (options.signal?.aborted) return 130;
         writeSuccess(
             io,

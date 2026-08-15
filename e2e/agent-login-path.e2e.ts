@@ -1,10 +1,10 @@
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
+import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-
-import { realCodexSmokeArgs } from './support/agent-fixture.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest } from './support/helpers.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
@@ -29,14 +29,14 @@ exec node "${join(bin, 'codex.js')}" "$@"
     );
     await writeFile(
         join(bin, 'codex.js'),
-        `const fs = require('node:fs');
+        String.raw`const fs = require('node:fs');
 const version = process.argv.includes('--version');
 fs.appendFileSync(${JSON.stringify(probeLog)}, JSON.stringify({
   caxriE2E: process.env.CAXRI_E2E,
   githubToken: process.env.GITHUB_TOKEN,
   path: process.env.PATH,
   version,
-}) + '\\n');
+}) + '\n');
 if (version) {
   console.log('codex-login-path 1.0');
 } else {
@@ -83,7 +83,7 @@ printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
                         hooks: { enabled: false },
                         launch: {
                             executable: 'codex',
-                            args: realCodexSmokeArgs(
+                            args: realCodexSmokeArguments(
                                 'Report that the synthetic login-path launcher is ready. Do not modify files.',
                             ),
                         },
@@ -127,7 +127,11 @@ printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
                 version: true,
             });
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

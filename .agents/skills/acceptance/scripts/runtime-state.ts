@@ -1,8 +1,10 @@
-import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
+import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join, relative, sep } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
+
 import { z } from 'zod';
 
 const execFileAsync = promisify(execFile);
@@ -38,19 +40,18 @@ interface PrepareUserDataOptions {
     reuseUserDataDir?: string;
 }
 
-function normalizeCaseId(caseId: string | undefined): string {
-    const value = caseId ?? 'unscoped';
-    if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u.test(value)) {
+function normalizeCaseId(caseId: string = 'unscoped'): string {
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u.test(caseId)) {
         throw new Error('Acceptance case id must use lowercase letters, digits, and hyphens');
     }
-    return value;
+    return caseId;
 }
 
 function profilePrefix(caseId: string): string {
     return `${ACCEPTANCE_USER_DATA_PREFIX}${caseId.length}-${caseId}-`;
 }
 
-async function resolveSafeAcceptanceUserDataDir(
+async function resolveSafeAcceptanceUserDataDirectory(
     path: string,
     expectedCaseId?: string,
 ): Promise<string> {
@@ -58,9 +59,9 @@ async function resolveSafeAcceptanceUserDataDir(
     const relativeCandidate = relative(temporaryRoot, candidate);
     const candidateStat = await stat(candidate);
     if (
-        !candidateStat.isDirectory() ||
         !relativeCandidate ||
         relativeCandidate === '..' ||
+        !candidateStat.isDirectory() ||
         relativeCandidate.startsWith(`..${sep}`) ||
         isAbsolute(relativeCandidate) ||
         !basename(candidate).startsWith(ACCEPTANCE_USER_DATA_PREFIX) ||
@@ -105,7 +106,7 @@ export async function prepareAcceptanceUserData({
     if (!caseId || normalizedCaseMode !== 'restart') {
         throw new Error('Reusable Acceptance user data requires a named restart case');
     }
-    const candidate = await resolveSafeAcceptanceUserDataDir(
+    const candidate = await resolveSafeAcceptanceUserDataDirectory(
         reuseUserDataDir,
         normalizeCaseId(profileId ?? normalizedCaseId),
     );
@@ -160,7 +161,9 @@ export async function isOwnedLauncher(
     return (await getProcessIdentity(runtime.launcherPid)) === runtime.launcherIdentity;
 }
 
-/** An isolated Acceptance instance remains owned while either supervised process is alive. */
+/**
+An isolated Acceptance instance remains owned while either supervised process is alive.
+ */
 export async function isOwnedRuntime(
     runtime: Pick<
         RuntimeState,
@@ -179,8 +182,11 @@ export async function removeOwnedUserData(
     runtime: Pick<RuntimeState, 'ownedUserData' | 'userDataDir'>,
 ): Promise<void> {
     if (!runtime.ownedUserData) return;
-    const safePath = await resolveSafeAcceptanceUserDataDir(runtime.userDataDir).catch(
-        () => undefined,
-    );
+    let safePath: string | undefined;
+    try {
+        safePath = await resolveSafeAcceptanceUserDataDirectory(runtime.userDataDir);
+    } catch {
+        // Not a safe, owned Acceptance profile directory; skip removal instead of throwing.
+    }
     if (safePath) await rm(safePath, { force: true, recursive: true });
 }

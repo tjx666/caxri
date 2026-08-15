@@ -1,16 +1,20 @@
-import { CaxriError } from './errors.js';
-import {
-    MAX_EVENT_JOURNAL_EVENTS,
-    type EventRecovery,
-    type ProtocolEventEnvelope,
-    type TransientRuntimeEvent,
-} from './event-journal.js';
 import type { RuntimeEvent } from '../registry/events.js';
+import { CaxriError } from './errors.js';
+import type {
+    EventRecovery,
+    ProtocolEventEnvelope,
+    TransientRuntimeEvent,
+} from './event-journal.js';
+import { MAX_EVENT_JOURNAL_EVENTS } from './event-journal.js';
 
 export interface RecoveringEventClient {
-    /** Requests the suffix (or bounded snapshot) needed by a newly attached client. */
+    /**
+    Requests the suffix (or bounded snapshot) needed by a newly attached client.
+     */
     start(): Promise<void>;
-    /** Accepts Host-pushed envelopes; terminal output remains on its non-durable direct path. */
+    /**
+    Accepts Host-pushed envelopes; terminal output remains on its non-durable direct path.
+     */
     receive(message: ProtocolEventEnvelope | TransientRuntimeEvent): void;
 }
 
@@ -26,14 +30,16 @@ export function createRecoveringEventClient(options: {
     let cursor = 0;
     let recovery: Promise<void> | undefined;
     const queued: ProtocolEventEnvelope[] = [];
-    let queuedOverflowed = false;
+    let isQueuedOverflowed = false;
 
-    /** A fresh journal recovery converges state when live delivery outpaces the bounded queue. */
+    /**
+    A fresh journal recovery converges state when live delivery outpaces the bounded queue.
+     */
     function queue(envelope: ProtocolEventEnvelope): void {
-        if (queuedOverflowed) return;
+        if (isQueuedOverflowed) return;
         if (queued.length >= MAX_EVENT_JOURNAL_EVENTS) {
             queued.length = 0;
-            queuedOverflowed = true;
+            isQueuedOverflowed = true;
             return;
         }
         queued.push(envelope);
@@ -49,7 +55,7 @@ export function createRecoveringEventClient(options: {
         }
     }
 
-    function acceptQueued(events: readonly ProtocolEventEnvelope[]): boolean {
+    function didAcceptQueued(events: readonly ProtocolEventEnvelope[]): boolean {
         for (const envelope of events) {
             if (envelope.cursor <= cursor) continue;
             if (envelope.cursor !== cursor + 1) return false;
@@ -59,12 +65,25 @@ export function createRecoveringEventClient(options: {
         return true;
     }
 
+    /**
+    Drains the live-event queue accumulated during recovery, applying each batch in order.
+     */
+    function didDrainQueue(): boolean {
+        while (!isQueuedOverflowed && queued.length > 0) {
+            const batch = queued.slice();
+            queued.length = 0;
+            if (!didAcceptQueued(batch)) return false;
+        }
+        return true;
+    }
+
     async function recoverUntilCaughtUp(): Promise<void> {
         while (true) {
+            // eslint-disable-next-line no-await-in-loop -- each retry depends on whether the previous recovery converged; the loop cannot be parallelized.
             const result = await options.recover(cursor);
-            if (queuedOverflowed) {
+            if (isQueuedOverflowed) {
                 queued.length = 0;
-                queuedOverflowed = false;
+                isQueuedOverflowed = false;
                 continue;
             }
             if (result.kind === 'snapshot') {
@@ -74,34 +93,36 @@ export function createRecoveringEventClient(options: {
                     payload: { kind: 'full', reason: 'unknown' },
                 });
             } else acceptSuffix(result.events);
-            let requiresRecovery = false;
-            while (queued.length > 0 && !queuedOverflowed) {
-                if (!acceptQueued(queued.splice(0))) {
-                    requiresRecovery = true;
-                    break;
-                }
-            }
-            if (!queuedOverflowed && !requiresRecovery) return;
+            const isDrained = didDrainQueue();
+            if (!isQueuedOverflowed && isDrained) return;
             queued.length = 0;
-            queuedOverflowed = false;
+            isQueuedOverflowed = false;
+        }
+    }
+
+    async function settleRecovery(): Promise<void> {
+        try {
+            await recoverUntilCaughtUp();
+        } catch (error) {
+            options.onError?.(error);
+        } finally {
+            recovery = undefined;
+            const pending = queued.slice();
+            queued.length = 0;
+            const isOverflowed = isQueuedOverflowed;
+            isQueuedOverflowed = false;
+            if (isOverflowed) {
+                // eslint-disable-next-line no-void -- fire-and-forget restart; the resulting promise self-handles its own errors via settleRecovery's try/catch, and this synchronous finally block cannot await it.
+                void scheduleRecovery();
+            } else {
+                for (const envelope of pending) acceptLive(envelope);
+            }
         }
     }
 
     function scheduleRecovery(): Promise<void> {
         if (recovery) return recovery;
-        recovery = recoverUntilCaughtUp()
-            .catch((error: unknown) => options.onError?.(error))
-            .finally(() => {
-                recovery = undefined;
-                const pending = queued.splice(0);
-                const overflowed = queuedOverflowed;
-                queuedOverflowed = false;
-                if (overflowed) {
-                    void scheduleRecovery();
-                    return;
-                }
-                for (const envelope of pending) acceptLive(envelope);
-            });
+        recovery = settleRecovery();
         return recovery;
     }
 
@@ -113,6 +134,7 @@ export function createRecoveringEventClient(options: {
         if (envelope.cursor <= cursor) return;
         if (envelope.cursor !== cursor + 1) {
             queue(envelope);
+            // eslint-disable-next-line no-void -- fire-and-forget restart; the resulting promise self-handles its own errors via settleRecovery's try/catch, and `acceptLive` is a synchronous event handler that cannot await it.
             void scheduleRecovery();
             return;
         }

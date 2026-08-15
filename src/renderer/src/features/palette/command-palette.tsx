@@ -1,6 +1,5 @@
-import { Command } from 'cmdk';
-
 import { commandDefinitions } from '@shared/commands';
+import { Command } from 'cmdk';
 
 import { executeCommand } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -8,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions } from '../../stores/selectors';
-import { selectProject, selectSession } from '../session/session-actions';
+import { didSelectSession, selectProject } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
 
@@ -55,14 +54,14 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
 }
 
 export function CommandPalette() {
-    const open = useDialogStore((state) => state.paletteOpen);
+    const isOpen = useDialogStore((state) => state.paletteOpen);
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
     const sessions = (useSessions() ?? NO_RECORDS).filter(
         (session) => session.archivedAt === undefined,
     );
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
             {/* The palette closes on Escape or on select; a close X would be dead weight in it. */}
             <DialogContent
                 className="top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden"
@@ -107,7 +106,8 @@ export function CommandPalette() {
                                         value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''}`}
                                         onSelect={() => {
                                             onOpenChange(false);
-                                            void selectSession(session.id);
+                                            // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
+                                            void didSelectSession(session.id);
                                         }}
                                     >
                                         <span>{session.displayTitle}</span>

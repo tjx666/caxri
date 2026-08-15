@@ -1,23 +1,24 @@
 import type Database from 'better-sqlite3';
 
 import type { ShutdownReason } from '../session-policy';
+import type { CaxriDrizzleDatabase } from './connection';
 import {
-    type CaxriDrizzleDatabase,
     CURRENT_SCHEMA_VERSION,
     markShutdown as markTerminalsShutdown,
     openDatabase,
 } from './connection';
-import { AppStateModel } from './models/app-state';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
+import { AppStateModel } from './models/app-state';
 import { ProjectsModel } from './models/projects';
-import { SessionsModel, type SessionStateRepair } from './models/sessions';
+import type { SessionStateRepair } from './models/sessions';
+import { SessionsModel } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
 import { TerminalsModel } from './models/terminals';
 
 export { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
 export { CaxriDatabase } from './repository';
 
-export interface CaxriDbOptions {
+export interface CaxriDatabaseConnectionOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
 }
 
@@ -26,11 +27,15 @@ export interface CaxriDbOptions {
  * decision-making lives here; see `../session-policy.ts` for primary-Agent succession, default
  * titles, deletion-fallback selection, and layout edits.
  */
-export class CaxriDb {
-    /** Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
-        `table_info`/`user_version` touch this directly. Every query goes through {@link db}. */
+export class CaxriDatabaseConnection {
+    /**
+         Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
+        `table_info`/`user_version` touch this directly. Every query goes through {@link CaxriDatabaseConnection.db}.
+     */
     readonly database: Database.Database;
-    /** Drizzle query-builder instance bound to `./schema`; used by every CRUD module below. */
+    /**
+    Drizzle query-builder instance bound to `./schema`; used by every CRUD module below.
+     */
     readonly db: CaxriDrizzleDatabase;
     readonly projects: ProjectsModel;
     readonly sessions: SessionsModel;
@@ -39,7 +44,7 @@ export class CaxriDb {
     readonly appState: AppStateModel;
     readonly agentDispatchReceipts: AgentDispatchReceiptsModel;
 
-    constructor(path: string, options: CaxriDbOptions = {}) {
+    constructor(path: string, options: CaxriDatabaseConnectionOptions = {}) {
         const opened = openDatabase(path);
         this.database = opened.database;
         this.db = opened.db;

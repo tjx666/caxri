@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator, type Page } from './support/fixtures.ts';
-
+import type { Locator, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -27,7 +27,7 @@ async function expectIndicatorAligned(tablist: Locator, tab: Locator): Promise<v
         .toBe(true);
 }
 
-async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean): Promise<void> {
+async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boolean): Promise<void> {
     const panelId = await tab.getAttribute('aria-controls');
     const tabId = await tab.getAttribute('id');
     expect(panelId).toBeTruthy();
@@ -37,7 +37,7 @@ async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean
     await expect(panel).toHaveCount(1);
     await expect(panel).toHaveAttribute('role', 'tabpanel');
     await expect(panel).toHaveAttribute('aria-labelledby', tabId);
-    if (visible) await expect(panel).toBeVisible();
+    if (isVisible) await expect(panel).toBeVisible();
     else await expect(panel).toBeHidden();
 }
 
@@ -48,7 +48,7 @@ async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean
  * two consecutive equal readings before pinning an absolute pixel baseline.
  */
 async function stableWidth(locator: Locator): Promise<number> {
-    let previous = Number.NaN;
+    let previous = NaN;
     await expect
         .poll(async () => {
             const width = await locator.evaluate(
@@ -57,9 +57,9 @@ async function stableWidth(locator: Locator): Promise<number> {
                         requestAnimationFrame(() => resolve(element.getBoundingClientRect().width)),
                     ),
             );
-            const stable = width === previous;
+            const isStable = width === previous;
             previous = width;
-            return stable;
+            return isStable;
         })
         .toBe(true);
     return previous;
@@ -98,8 +98,10 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
 
         await inspectorTabs.locator('[data-slot="chrome-tab-indicator"]').evaluate((indicator) => {
             const evidence = [] as string[];
-            (window as unknown as { chromeTabTransitions: string[] }).chromeTabTransitions =
-                evidence;
+            Object.defineProperty(globalThis, 'chromeTabTransitions', {
+                configurable: true,
+                value: evidence,
+            });
             indicator.addEventListener('transitionrun', (event) => {
                 evidence.push((event as TransitionEvent).propertyName);
             });
@@ -112,7 +114,7 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
             .poll(() =>
                 running.page.evaluate(
                     () =>
-                        (window as unknown as { chromeTabTransitions?: string[] })
+                        (globalThis as unknown as { chromeTabTransitions?: string[] })
                             .chromeTabTransitions ?? [],
                 ),
             )
@@ -215,7 +217,11 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         );
         await expectIndicatorAligned(settingsTabs, themeTab);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

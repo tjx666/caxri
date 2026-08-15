@@ -6,22 +6,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../shared/node/logger';
 import type { GitSummary } from '../../shared/types';
+import type { ProjectStatusRunner, VercelLink } from '../project-status';
 import {
     extractLinearReferences,
     parseGitHubPullRequest,
     parseGitHubRemote,
     ProjectStatusService,
     rememberVercelLink,
-    type ProjectStatusRunner,
-    type VercelLink,
 } from '../project-status';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 async function logger(): Promise<StructuredLogger> {
@@ -69,7 +68,7 @@ describe('ProjectStatusService', () => {
                 },
             ],
         };
-        const runner = vi.fn<ProjectStatusRunner>((command, args) => {
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
             if (command === 'git') return Promise.resolve('git@github.com:lobehub/project.git\n');
             if (command === 'gh') {
                 return Promise.resolve(
@@ -80,7 +79,9 @@ describe('ProjectStatusService', () => {
                     }),
                 );
             }
-            return Promise.reject(new Error(`Unexpected command: ${command} ${args.join(' ')}`));
+            return Promise.reject(
+                new Error(`Unexpected command: ${command} ${arguments_.join(' ')}`),
+            );
         });
         const service = new ProjectStatusService(
             { summary: () => Promise.resolve(summaryWithChanges) },
@@ -123,14 +124,14 @@ describe('ProjectStatusService', () => {
     });
 
     it('assembles GitHub, Linear, and Vercel status with structured CLI arguments', async () => {
-        const runner = vi.fn<ProjectStatusRunner>((command, args) => {
-            if (command === 'git' && args[0] === 'remote') {
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('git@github.com:lobehub/project.git\n');
             }
-            if (command === 'git' && args[0] === 'symbolic-ref') {
+            if (command === 'git' && arguments_[0] === 'symbolic-ref') {
                 return Promise.resolve('origin/main\n');
             }
-            if (command === 'git' && args[0] === 'rev-parse') {
+            if (command === 'git' && arguments_[0] === 'rev-parse') {
                 return Promise.resolve('1234567890abcdef\n');
             }
             if (command === 'gh') {
@@ -165,11 +166,11 @@ describe('ProjectStatusService', () => {
                     }),
                 );
             }
-            if (command === 'vc' && args[0] === 'teams') {
+            if (command === 'vc' && arguments_[0] === 'teams') {
                 return Promise.resolve(JSON.stringify({ teams: [{ slug: 'lobehub' }] }));
             }
-            if (command === 'vc' && args.includes('--environment')) {
-                const environment = args.at(args.indexOf('--environment') + 1);
+            if (command === 'vc' && arguments_.includes('--environment')) {
+                const environment = arguments_.at(arguments_.indexOf('--environment') + 1);
                 return Promise.resolve(
                     JSON.stringify([
                         {
@@ -181,7 +182,10 @@ describe('ProjectStatusService', () => {
                     ]),
                 );
             }
-            if (command === 'vc' && args.some((value) => value.includes('githubCommitRef='))) {
+            if (
+                command === 'vc' &&
+                arguments_.some((value) => value.includes('githubCommitRef='))
+            ) {
                 return Promise.resolve(
                     JSON.stringify([
                         {
@@ -198,7 +202,9 @@ describe('ProjectStatusService', () => {
                     JSON.stringify([{ name: 'project', url: 'discovery.vercel.app' }]),
                 );
             }
-            return Promise.reject(new Error(`Unexpected command: ${command} ${args.join(' ')}`));
+            return Promise.reject(
+                new Error(`Unexpected command: ${command} ${arguments_.join(' ')}`),
+            );
         });
         const service = new ProjectStatusService(
             { summary: () => Promise.resolve(gitSummary) },
@@ -212,8 +218,8 @@ describe('ProjectStatusService', () => {
         ]);
 
         expect(concurrent).toEqual(summary);
-        const repository = summary.repositories[0];
-        expect(repository).toMatchObject({
+        const repo = summary.repositories[0];
+        expect(repo).toMatchObject({
             name: 'project',
             branch: 'feature/status',
             defaultBranch: 'main',
@@ -232,9 +238,9 @@ describe('ProjectStatusService', () => {
             ],
             errors: [],
         });
-        expect(repository.deployments?.branchDeployments[0]).toMatchObject({ state: 'pending' });
-        expect(repository.deployments?.production).toMatchObject({ environment: 'production' });
-        expect(repository.deployments?.preview).toMatchObject({ environment: 'preview' });
+        expect(repo.deployments?.branchDeployments[0]).toMatchObject({ state: 'pending' });
+        expect(repo.deployments?.production).toMatchObject({ environment: 'production' });
+        expect(repo.deployments?.preview).toMatchObject({ environment: 'preview' });
         expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);
         expect(runner.mock.calls.find(([command]) => command === 'linear')?.[1]).toContain(
             'id=LOBE-42',
@@ -242,8 +248,8 @@ describe('ProjectStatusService', () => {
     });
 
     it('keeps repositories visible when integrations fail', async () => {
-        const runner: ProjectStatusRunner = (command, args) => {
-            if (command === 'git' && args[0] === 'remote') {
+        const runner: ProjectStatusRunner = (command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('https://github.com/lobehub/project.git');
             }
             if (command === 'git') return Promise.resolve('');

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
-import type { CommandId, Keybinding } from '@shared/types';
 import { normalizeShortcut } from '@shared/shortcuts';
+import type { CommandId, Keybinding } from '@shared/types';
 
 import { useWorkbenchStore } from '../stores/workbench';
 
@@ -69,7 +69,9 @@ const MODIFIER_SYMBOLS: Record<string, string> = {
     shift: '⇧',
 };
 
-/** macOS modifier display order: Control, Option, Shift, Command. */
+/**
+macOS modifier display order: Control, Option, Shift, Command.
+ */
 const MODIFIER_DISPLAY_ORDER = ['ctrl', 'alt', 'shift', 'cmd'];
 
 const KEY_SYMBOLS: Record<string, string> = {
@@ -85,25 +87,31 @@ const KEY_SYMBOLS: Record<string, string> = {
     tab: '⇥',
 };
 
-/** Formats one chord as keycap-sized parts in the shared macOS modifier order. */
+/**
+Formats one chord as keycap-sized parts in the shared macOS modifier order.
+ */
 export function formatShortcutParts(key: string): string[] {
     const parts = normalizeShortcut(key).split('+');
     const partSet = new Set(parts);
     const symbols = MODIFIER_DISPLAY_ORDER.filter((modifier) => partSet.has(modifier)).map(
         (modifier) => MODIFIER_SYMBOLS[modifier],
     );
-    const mainKey = parts.find((part) => !(part in MODIFIER_SYMBOLS)) ?? '';
+    const mainKey = parts.find((part) => !Object.hasOwn(MODIFIER_SYMBOLS, part)) ?? '';
     const displayKey =
         KEY_SYMBOLS[mainKey] ?? (mainKey.length === 1 ? mainKey.toUpperCase() : mainKey);
     return displayKey ? [...symbols, displayKey] : symbols;
 }
 
-/** Formats a keybinding chord for accessible text, e.g. `cmd+shift+p` -> `⇧⌘P`. */
+/**
+Formats a keybinding chord for accessible text, e.g. `cmd+shift+p` -> `⇧⌘P`.
+ */
 export function formatShortcut(key: string): string {
     return formatShortcutParts(key).join('');
 }
 
-/** Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`. */
+/**
+Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`.
+ */
 export function useCommandShortcut(commandId: CommandId): string | undefined {
     const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);
     return useMemo(() => {

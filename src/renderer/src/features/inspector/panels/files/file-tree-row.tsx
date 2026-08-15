@@ -1,31 +1,34 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import type { FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
-import { Input } from '../../../../components/ui/input';
 import { ContextMenu, ContextMenuTrigger } from '../../../../components/ui/context-menu';
+import { Input } from '../../../../components/ui/input';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 import { openFile } from '../../../editor/document-actions';
 import { createItem, rememberFile, renameFile } from './file-actions';
-import { FileTreeItemMenu } from './file-tree-item-menu';
-import { hasDraggedPath, FILE_TREE_DRAG_TYPE } from './file-tree-drag';
-import { BUSY_DISABLED_REASON, type EditRequest, type FocusTarget } from './file-tree-item-types';
 import type { PendingFileOperation } from './file-operation-state';
+import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from './file-tree-drag';
+import { FileTreeItemMenu } from './file-tree-item-menu';
+import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
-export { BUSY_DISABLED_REASON, type EditRequest, type FocusTarget };
+export { type EditRequest, type FocusTarget };
 
-export interface TreeProps {
+export interface TreeProperties {
     clearFocusPath: () => void;
     depth?: number;
     directory: string;
     editing?: EditRequest;
     expandedPaths: ReadonlySet<string>;
     focusPath?: string;
-    /** Only the operations for the current Project; each row scopes blocking to its own subtree. */
+    /**
+    Only the operations for the current Project; each row scopes blocking to its own subtree.
+     */
     operations: readonly PendingFileOperation[];
     projectId: string;
     projectRoot: string;
@@ -33,8 +36,21 @@ export interface TreeProps {
     sessionId: string;
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
-    setPathExpanded: (path: string, next: boolean | ((current: boolean) => boolean)) => void;
+    setPathExpanded: (
+        path: string,
+        isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
+    ) => void;
     setSelectedPath: (path?: string) => void;
+}
+
+/**
+ * Every caller below fires an already-tracked file action (via `tryCommand` or the row's own
+ * `try`/`catch`-and-`setError` handling) that reports its own failure, so these event handlers
+ * intentionally discard the returned promise instead of awaiting it.
+ */
+function discard(promise: Promise<unknown>): void {
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void promise;
 }
 
 const treeRowClassName =
@@ -53,13 +69,13 @@ function InlineFileName({
     onCancel: () => void;
     onSubmit: (value: string) => Promise<void>;
 }) {
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputReference = useRef<HTMLInputElement>(null);
     const [error, setError] = useState<string>();
     const [pending, setPending] = useState(false);
     const [value, setValue] = useState(initialValue);
     useEffect(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
+        inputReference.current?.focus();
+        inputReference.current?.select();
     }, []);
 
     const submit = async (event: FormEvent): Promise<void> => {
@@ -77,10 +93,10 @@ function InlineFileName({
     };
 
     return (
-        <form onSubmit={(event) => void submit(event)}>
+        <form onSubmit={(event) => discard(submit(event))}>
             <div className="flex h-7 items-center pr-2" style={{ paddingLeft: 23 + depth * 12 }}>
                 <Input
-                    ref={inputRef}
+                    ref={inputReference}
                     aria-invalid={Boolean(error)}
                     aria-label={label}
                     appearance="inline"
@@ -127,7 +143,7 @@ export function DirectoryEntries({
     setEditing,
     setPathExpanded,
     setSelectedPath,
-}: TreeProps) {
+}: TreeProperties) {
     const {
         data: entries = [],
         isError,
@@ -135,15 +151,15 @@ export function DirectoryEntries({
         error,
     } = useCaxriQuery('files.list', { sessionId, directory });
     useToastOnQueryError(isError, error, 'Unable to read directory');
-    const composingHere = editing?.kind === 'create' && editing.directory === directory;
-    const showEmptyState = !isPending && !isError && entries.length === 0 && !composingHere;
+    const isComposingHere = editing?.kind === 'create' && editing.directory === directory;
+    const isShowEmptyState = !isPending && !isError && entries.length === 0 && !isComposingHere;
 
     return (
         // Depth 0 is the root list, a direct child of the `role="tree"` container above it; only a
         // nested list (an expanded directory's children) needs `role="group"` to stay owned by its
         // parent treeitem in the accessibility tree.
         <div className="file-list" role={depth > 0 ? 'group' : undefined}>
-            {composingHere && (
+            {isComposingHere && (
                 <InlineFileName
                     depth={depth}
                     initialValue=""
@@ -191,7 +207,7 @@ export function DirectoryEntries({
                     setSelectedPath={setSelectedPath}
                 />
             ))}
-            {showEmptyState && (
+            {isShowEmptyState && (
                 <div
                     className="px-2 py-1 text-[11px] text-muted italic"
                     style={{ paddingLeft: 23 + depth * 12 }}
@@ -220,7 +236,7 @@ function FileTreeItem({
     setEditing,
     setPathExpanded,
     setSelectedPath,
-}: Omit<TreeProps, 'directory'> & { entry: FileEntry; index: number }) {
+}: Omit<TreeProperties, 'directory'> & { entry: FileEntry; index: number }) {
     const {
         clipboard,
         confirmTrash,
@@ -314,10 +330,10 @@ function FileTreeItem({
             onClick={() => {
                 setSelectedPath(entry.path);
                 if (entry.kind === 'directory') setExpanded((value) => !value);
-                else if (editable) void openFile(entry.path, { preview: true });
+                else if (editable) discard(openFile(entry.path, { preview: true }));
             }}
             onDoubleClick={() => {
-                if (entry.kind === 'file') void openFile(entry.path);
+                if (entry.kind === 'file') discard(openFile(entry.path));
             }}
             onFocus={() => {
                 if (focusPath && focusPath !== entry.path) clearFocusPath();
@@ -332,7 +348,7 @@ function FileTreeItem({
                 rememberFile(projectId, entry.path, 'cut');
             }}
             onDragEnter={(event) => {
-                if (entry.kind !== 'directory' || pasteBlocked || !hasDraggedPath(event)) return;
+                if (pasteBlocked || entry.kind !== 'directory' || !hasDraggedPath(event)) return;
                 setIsDropTarget(true);
             }}
             onDragLeave={(event) => {
@@ -352,7 +368,7 @@ function FileTreeItem({
             onDrop={dropIntoDirectory}
             onPaste={(event) => {
                 event.preventDefault();
-                if (!pasteBlocked) void pasteIntoEntry();
+                if (!pasteBlocked) discard(pasteIntoEntry());
             }}
             onKeyDown={handleKeyDown}
         >
@@ -417,3 +433,5 @@ function FileTreeItem({
         </div>
     );
 }
+
+export { BUSY_DISABLED_REASON } from './file-tree-item-types';

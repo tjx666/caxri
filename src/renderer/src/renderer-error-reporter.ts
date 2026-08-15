@@ -5,6 +5,6 @@ import type { RendererErrorKind } from '@shared/renderer-error';
  * stay in the Renderer because they may include source, prompts, responses, or workspace data.
  */
 export function installRendererErrorReporter(report: (kind: RendererErrorKind) => void): void {
-    window.addEventListener('error', () => report('page-exception'));
-    window.addEventListener('unhandledrejection', () => report('unhandled-rejection'));
+    addEventListener('error', () => report('page-exception'));
+    addEventListener('unhandledrejection', () => report('unhandled-rejection'));
 }

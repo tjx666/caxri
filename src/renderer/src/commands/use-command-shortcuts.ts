@@ -22,7 +22,9 @@ export function useCommandShortcuts(): void {
         let shortcutMap = new Map<string, string>();
 
         const onKeyDown = (event: KeyboardEvent): void => {
-            /** An IME composition keystroke (e.g. picking a Pinyin candidate) is not a shortcut. */
+            /**
+            An IME composition keystroke (e.g. picking a Pinyin candidate) is not a shortcut.
+             */
             if (event.isComposing) return;
             const bootstrap = useWorkbenchStore.getState().bootstrap;
             if (!bootstrap) return;
@@ -33,15 +35,19 @@ export function useCommandShortcuts(): void {
             const commandId = shortcutMap.get(keyboardEventShortcut(event));
             if (!commandId) return;
             const definition = getRegisteredCommand(commandId);
-            /** A contextual shortcut must fall through untouched so the owning editor can handle
-             *  the same chord (Terminal `Cmd+F` versus Monaco's native Find widget). */
+            /**
+             * A contextual shortcut must fall through untouched so the owning editor can handle
+             *  the same chord (Terminal `Cmd+F` versus Monaco's native Find widget).
+             */
             if (!isCommandAvailable(commandId)) return;
-            /** The terminal and the editor are editable surfaces too; only opted-in commands reach through. */
+            /**
+            The terminal and the editor are editable surfaces too; only opted-in commands reach through.
+             */
             if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
             event.preventDefault();
             runCommand(commandId as CommandId);
         };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
+        addEventListener('keydown', onKeyDown);
+        return () => removeEventListener('keydown', onKeyDown);
     }, []);
 }

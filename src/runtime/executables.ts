@@ -1,7 +1,9 @@
+import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
+import process from 'node:process';
 import { promisify, stripVTControlCharacters } from 'node:util';
 
 import { safeProcessEnvironment } from '../shared/node/process-environment';
@@ -14,7 +16,7 @@ const MAX_EXECUTABLE_CACHE_ENTRIES = 32;
 
 type RunFile = (
     executable: string,
-    args: string[],
+    arguments_: string[],
     options: {
         env: NodeJS.ProcessEnv;
         maxBuffer: number;
@@ -24,10 +26,10 @@ type RunFile = (
 
 async function runFile(
     executable: string,
-    args: string[],
+    arguments_: string[],
     options: Parameters<RunFile>[2],
 ): Promise<{ stderr: string; stdout: string }> {
-    return execFileAsync(executable, args, options);
+    return execFileAsync(executable, arguments_, options);
 }
 
 async function isExecutable(path: string): Promise<boolean> {
@@ -57,42 +59,6 @@ export class ExecutableResolver {
         private readonly run: RunFile = runFile,
     ) {}
 
-    clear(): void {
-        this.executableCache.clear();
-        this.loginPathRequest = undefined;
-    }
-
-    async resolve(requestedExecutable: string): Promise<string | undefined> {
-        const requested = requestedExecutable.trim();
-        if (!requested || requested.length > 4_096 || requested.includes('\0')) return undefined;
-        if (isAbsolute(requested)) return (await isExecutable(requested)) ? requested : undefined;
-        if (requested.includes('/')) return undefined;
-
-        const cached = this.executableCache.get(requested);
-        if (cached && (await isExecutable(cached))) return cached;
-        if (cached) {
-            this.executableCache.delete(requested);
-            /** Re-read PATH after a cached install moved or was replaced while Caxri was running. */
-            this.loginPathRequest = undefined;
-        }
-
-        const source = this.sourceEnvironment();
-        const direct = await this.findInPath(requested, source.PATH);
-        if (direct) return this.cache(requested, direct);
-        const login = await this.loginPath();
-        const discovered = await this.findInPath(requested, login);
-        return discovered ? this.cache(requested, discovered) : undefined;
-    }
-
-    async environment(): Promise<NodeJS.ProcessEnv> {
-        const source = this.sourceEnvironment();
-        const loginPath = await this.loginPath();
-        return {
-            ...safeProcessEnvironment(source),
-            ...(loginPath ? { PATH: loginPath } : {}),
-        };
-    }
-
     private cache(name: string, path: string): string {
         this.executableCache.delete(name);
         this.executableCache.set(name, path);
@@ -106,6 +72,9 @@ export class ExecutableResolver {
     private async findInPath(name: string, path: string | undefined): Promise<string | undefined> {
         for (const directory of pathDirectories(path)) {
             const candidate = join(directory, name);
+            // Directories are searched in PATH order and the first executable match wins, so this
+            // loop cannot be parallelized with Promise.all without changing which match is picked.
+            // eslint-disable-next-line no-await-in-loop -- ordered first-match search, see comment above
             if (await isExecutable(candidate)) return candidate;
         }
         return undefined;
@@ -122,7 +91,7 @@ export class ExecutableResolver {
         try {
             const { stdout } = await this.run(
                 shell,
-                ['-lic', `printf '\\n${LOGIN_PATH_MARKER}%s\\n' "$PATH"`],
+                ['-lic', String.raw`printf '\n${LOGIN_PATH_MARKER}%s\n' "$PATH"`],
                 {
                     env: safeProcessEnvironment(source),
                     timeout: LOGIN_SHELL_TIMEOUT_MS,
@@ -139,6 +108,44 @@ export class ExecutableResolver {
         } catch {
             return undefined;
         }
+    }
+
+    clear(): void {
+        this.executableCache.clear();
+        this.loginPathRequest = undefined;
+    }
+
+    async resolve(requestedExecutable: string): Promise<string | undefined> {
+        const requested = requestedExecutable.trim();
+        if (!requested || requested.length > 4_096 || requested.includes('\0')) return undefined;
+        if (isAbsolute(requested)) return (await isExecutable(requested)) ? requested : undefined;
+        if (requested.includes('/')) return undefined;
+
+        const cached = this.executableCache.get(requested);
+        if (cached && (await isExecutable(cached))) return cached;
+        if (cached) {
+            this.executableCache.delete(requested);
+            /**
+            Re-read PATH after a cached install moved or was replaced while Caxri was running.
+             */
+            this.loginPathRequest = undefined;
+        }
+
+        const source = this.sourceEnvironment();
+        const direct = await this.findInPath(requested, source.PATH);
+        if (direct) return this.cache(requested, direct);
+        const login = await this.loginPath();
+        const discovered = await this.findInPath(requested, login);
+        return discovered ? this.cache(requested, discovered) : undefined;
+    }
+
+    async environment(): Promise<NodeJS.ProcessEnv> {
+        const source = this.sourceEnvironment();
+        const loginPath = await this.loginPath();
+        return {
+            ...safeProcessEnvironment(source),
+            ...(loginPath && { PATH: loginPath }),
+        };
     }
 }
 

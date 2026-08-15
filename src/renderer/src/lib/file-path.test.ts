@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { pathIsAtOrBelow, projectRelativePath, remapPath } from './file-path';
+import { isPathAtOrBelow, projectRelativePath, remapPath } from './file-path';
 
 describe('file path mutation helpers', () => {
     it('matches exact and descendant paths without matching sibling prefixes', () => {
-        expect(pathIsAtOrBelow('/project/src', '/project/src')).toBe(true);
-        expect(pathIsAtOrBelow('/project/src/nested/a.ts', '/project/src')).toBe(true);
-        expect(pathIsAtOrBelow('/project/src-old/a.ts', '/project/src')).toBe(false);
+        expect(isPathAtOrBelow('/project/src', '/project/src')).toBe(true);
+        expect(isPathAtOrBelow('/project/src/nested/a.ts', '/project/src')).toBe(true);
+        expect(isPathAtOrBelow('/project/src-old/a.ts', '/project/src')).toBe(false);
     });
 
     it('preserves a descendant suffix when its parent moves', () => {

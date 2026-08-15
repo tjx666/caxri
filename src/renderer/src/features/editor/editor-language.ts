@@ -1,4 +1,6 @@
-/** Avoids lazy or extension-provided `dotenv` registrations replacing Caxri's tokenizer. */
+/**
+Avoids lazy or extension-provided `dotenv` registrations replacing Caxri's tokenizer.
+ */
 export const DOTENV_LANGUAGE_ID = 'caxri-dotenv';
 export const IGNORE_LANGUAGE_ID = 'ignore';
 export const RC_LANGUAGE_ID = 'rc';
@@ -63,7 +65,8 @@ export function resolveRegisteredEditorLanguage(
     let matchedLanguage: string | undefined;
     let matchedExtensionLength = -1;
     for (const registration of registrations) {
-        for (const extension of registration.extensions ?? []) {
+        const extensions = registration.extensions ?? [];
+        for (const extension of extensions) {
             const normalizedExtension = extension.toLowerCase();
             if (
                 filename.endsWith(normalizedExtension) &&

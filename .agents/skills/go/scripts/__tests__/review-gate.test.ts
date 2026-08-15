@@ -22,11 +22,11 @@ function reviewing(policy: 'full-once' | 'quick' | 'light' = 'full-once') {
     };
 }
 
-function fullBaseline(state: ReturnType<typeof reviewing>, freeze = false) {
+function fullBaseline(state: ReturnType<typeof reviewing>, shouldFreeze = false) {
     return recordReviewDecision(
         state,
         {
-            freeze,
+            freeze: shouldFreeze,
             headSha: 'baseline-head',
             mode: 'full',
             p0: 0,

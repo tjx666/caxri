@@ -32,7 +32,8 @@ function manifest(path: string): PackageManifest {
 
 function lockfiles(directory: string): string[] {
     const found: string[] = [];
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entries = readdirSync(directory, { withFileTypes: true });
+    for (const entry of entries) {
         if (
             ['.git', '.records', 'competitors', 'node_modules', 'out', 'release'].includes(
                 entry.name,
@@ -49,7 +50,8 @@ function lockfiles(directory: string): string[] {
 
 function productionTypeScriptFiles(directory: string): string[] {
     const found: string[] = [];
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entries = readdirSync(directory, { withFileTypes: true });
+    for (const entry of entries) {
         if (['dist', 'node_modules', '__tests__'].includes(entry.name)) continue;
         const path = join(directory, entry.name);
         if (entry.isDirectory()) found.push(...productionTypeScriptFiles(path));
@@ -61,7 +63,8 @@ function productionTypeScriptFiles(directory: string): string[] {
 
 function looseTestFiles(directory: string): string[] {
     const found: string[] = [];
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entries = readdirSync(directory, { withFileTypes: true });
+    for (const entry of entries) {
         if (['dist', 'node_modules', '__tests__'].includes(entry.name)) continue;
         const path = join(directory, entry.name);
         if (entry.isDirectory()) found.push(...looseTestFiles(path));
@@ -91,7 +94,10 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.devEngines?.packageManager).toBeUndefined();
         expect(rootManifest.workspaces).toBeUndefined();
         expect(workspace.packages).toEqual(['packages/*']);
-        expect(workspace.catalog).toEqual({ zod: '4.4.3' });
+        expect(workspace.catalog).toEqual({
+            '@yutengjing/eslint-config-typescript': '^4.0.0',
+            'zod': '4.4.3',
+        });
         expect(workspace.allowBuilds).toEqual({
             '@parcel/watcher': false,
             'better-sqlite3': true,
@@ -99,12 +105,13 @@ describe('pnpm workspace contract', () => {
             'electron-winstaller': false,
             'esbuild': true,
             'node-pty': true,
+            'unrs-resolver': true,
         });
         expect(workspace.overrides).toEqual({ dompurify: '3.4.13' });
         expect(
             lockfiles(root)
                 .map((path) => basename(path))
-                .sort(),
+                .toSorted((left, right) => left.localeCompare(right)),
         ).toEqual(['pnpm-lock.yaml']);
         expect(mise).toContain('node = "24.19.0"');
         expect(mise).toContain('pnpm = "12.0.0-rc.5"');
@@ -127,7 +134,7 @@ describe('pnpm workspace contract', () => {
         const protocolDomains = readdirSync(protocolRoot, { withFileTypes: true })
             .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
             .map((entry) => entry.name)
-            .sort();
+            .toSorted((left, right) => left.localeCompare(right));
 
         expect(scriptRootTests).toEqual([]);
         expect(e2eRootSupport).toEqual([]);
@@ -150,7 +157,7 @@ describe('pnpm workspace contract', () => {
         const cliDomains = readdirSync(cliRoot, { withFileTypes: true })
             .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
             .map((entry) => entry.name)
-            .sort();
+            .toSorted((left, right) => left.localeCompare(right));
         expect(cliDomains).toEqual(['commands', 'host', 'skills']);
         for (const domain of cliDomains) {
             expect(readdirSync(join(cliRoot, domain)), `${domain} CLI barrel`).toContain(
@@ -194,8 +201,8 @@ describe('pnpm workspace contract', () => {
     it('keeps protocol source browser-safe and emitted ESM imports resolvable by Node.js', () => {
         const sourceFiles = productionTypeScriptFiles(join(root, 'packages/protocol/src'));
         const forbiddenImport =
-            /(?:from\s+|import\s*\()\s*['"](?:node:|electron(?:\/|['"]|$)|node-pty(?:\/|['"]|$)|better-sqlite3(?:\/|['"]|$)|@parcel\/watcher(?:\/|['"]|$))/u;
-        const relativeImport = /(?:from\s+|import\s*\()\s*['"](\.{1,2}\/[^'"]+)['"]/gu;
+            /(?:from\s|import\s*\()\s*['"](?:node:|electron(?:[/'"]|$)|node-pty(?:[/'"]|$)|better-sqlite3(?:[/'"]|$)|@parcel\/watcher(?:[/'"]|$))/u;
+        const relativeImport = /(?:from\s|import\s*\()\s*['"](\.{1,2}\/[^'"]+)['"]/gu;
 
         for (const file of sourceFiles) {
             const source = readFileSync(file, 'utf8');

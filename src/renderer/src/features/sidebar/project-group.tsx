@@ -1,26 +1,23 @@
-import { Archive, Circle, FolderClosed, FolderOpen, Plus } from 'lucide-react';
 import type { DragEvent } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
+import { Archive, Circle, FolderClosed, FolderOpen, Plus } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { cn } from '../../lib/utils';
-import { archiveSession, selectSession } from '../session/session-actions';
-import { SessionActivityCard } from './session-activity-card';
+import { cn } from '../../lib/utilities';
+import { archiveSession, didSelectSession } from '../session/session-actions';
+import type { ProjectDropTarget } from './project-order';
+import { hasProjectDragType, resolveProjectHeadingClick } from './project-order';
 import {
     sessionActivityPresentation,
     sessionToneBackgroundClassName,
     sessionToneBorderClassName,
 } from './session-activity';
-import {
-    hasProjectDragType,
-    resolveProjectHeadingClick,
-    type ProjectDropTarget,
-} from './project-order';
+import { SessionActivityCard } from './session-activity-card';
 
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
@@ -67,7 +64,7 @@ function sessionTerminal(
     );
 }
 
-interface ActiveSessionRowProps {
+interface ActiveSessionRowProperties {
     focusRenameInput: (element: HTMLInputElement | null) => void;
     onBeginRename: () => void;
     onBlurRename: () => void;
@@ -78,7 +75,9 @@ interface ActiveSessionRowProps {
     renameError?: string;
     renameValue: string;
     renaming: boolean;
-    /** True when this Session row currently owns the tree's single roving Tab stop. */
+    /**
+    True when this Session row currently owns the tree's single roving Tab stop.
+     */
     roving: boolean;
     selected: boolean;
     session: SessionRecord;
@@ -100,7 +99,7 @@ function ActiveSessionRow({
     selected,
     session,
     terminal,
-}: ActiveSessionRowProps) {
+}: ActiveSessionRowProperties) {
     const activity = sessionActivityPresentation(session.lastActivityState);
     const renameErrorId = `session-rename-error-${session.id}`;
     const sessionCard = (
@@ -117,7 +116,9 @@ function ActiveSessionRow({
             role={renaming ? undefined : 'button'}
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onClick={() => {
-                if (!renaming && !selected) void selectSession(session.id);
+                // Fire-and-forget: `didSelectSession` funnels its own failures into a toast.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                if (!renaming && !selected) void didSelectSession(session.id);
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
@@ -126,7 +127,9 @@ function ActiveSessionRow({
                     onBeginRename();
                 } else if (!renaming && event.key === ' ') {
                     event.preventDefault();
-                    if (!selected) void selectSession(session.id);
+                    // Fire-and-forget: `didSelectSession` funnels its own failures into a toast.
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                    if (!selected) void didSelectSession(session.id);
                 }
             }}
         >
@@ -226,7 +229,7 @@ function ActiveSessionRow({
     );
 }
 
-interface ProjectGroupProps {
+interface ProjectGroupProperties {
     active: boolean;
     activeSessions: SessionRecord[];
     animateProject: boolean;
@@ -251,7 +254,9 @@ interface ProjectGroupProps {
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
-    /** Id of the row that currently owns the tree's single roving Tab stop. */
+    /**
+    Id of the row that currently owns the tree's single roving Tab stop.
+     */
     rovingRowId?: string;
     selectedSessionId?: string;
     terminals: TerminalRecord[];
@@ -285,7 +290,7 @@ export function ProjectGroup({
     rovingRowId,
     selectedSessionId,
     terminals,
-}: ProjectGroupProps) {
+}: ProjectGroupProperties) {
     const projectDisclosureId = `project-sessions-${project.id}`;
     return (
         <section

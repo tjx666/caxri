@@ -2,16 +2,18 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import type { AppSettings, BootstrapState, GitSummary } from '../src/shared/types.ts';
-import { expect, test, type Page } from './support/fixtures.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
-async function initializeRepository(root: string): Promise<void> {
+async function initializeRepo(root: string): Promise<void> {
     await mkdir(root, { recursive: true });
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
@@ -35,7 +37,7 @@ async function expectWorkbenchRoot(
         .toBe(rootPath);
     const summary = await pageRequest<GitSummary>(page, 'git.summary', { sessionId });
     expect(summary.isRepository).toBe(true);
-    expect(summary.repositories.find((repository) => repository.kind === 'primary')).toMatchObject({
+    expect(summary.repositories.find((repo) => repo.kind === 'primary')).toMatchObject({
         branch,
         rootPath,
     });
@@ -47,17 +49,17 @@ test('Agent worktree hook prompts, authorizes, and switches one Session atomical
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'owner');
     const worktree = join(testDirectory, 'worktree');
-    await initializeRepository(root);
+    await initializeRepo(root);
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
         providers: {
             codex: {
-                executableSource: `#!${process.execPath}
+                executableSource: String.raw`#!${process.execPath}
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 if (process.argv.includes('--version')) {
-  process.stdout.write('codex 0.147.0\\n');
+  process.stdout.write('codex 0.147.0\n');
   process.exit(0);
 }
 let step = 0;
@@ -66,12 +68,12 @@ process.stdin.on('data', () => {
   step += 1;
   if (step === 1) {
     childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/workbench', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
-    fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\\n');
+    fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\n');
   } else if (step === 2) {
     childProcess.execFileSync('git', ['worktree', 'remove', '--force', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
   } else if (step === 3) {
     childProcess.execFileSync('git', ['worktree', 'add', ${JSON.stringify(worktree)}, 'feature/workbench'], { cwd: ${JSON.stringify(root)} });
-    fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context restored\\n');
+    fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context restored\n');
   } else {
     return;
   }
@@ -81,10 +83,10 @@ process.stdin.on('data', () => {
     env: process.env,
     input: JSON.stringify({ tool_input: { command: 'content must not cross the bridge' } }),
   });
-  process.stdout.write('Worktree hook sent ' + step + '\\r\\n');
+  process.stdout.write('Worktree hook sent ' + step + '\r\n');
 });
 process.stdin.resume();
-process.stdout.write('Workbench Agent ready\\r\\n');
+process.stdout.write('Workbench Agent ready\r\n');
 `,
             },
         },
@@ -216,7 +218,11 @@ process.stdout.write('Workbench Agent ready\\r\\n');
         expect(terminalAfter?.agentSessionId).toBe(terminalBefore?.agentSessionId);
         expect(terminalAfter?.lastProcessState).toBe(terminalBefore?.lastProcessState);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(createdDirectory, { recursive: true, force: true });
     }
 });
@@ -227,7 +233,7 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'owner');
     const worktree = join(testDirectory, 'manual-worktree');
-    await initializeRepository(root);
+    await initializeRepo(root);
     await execFileAsync('git', ['worktree', 'add', '-b', 'feature/manual', worktree], {
         cwd: root,
     });
@@ -253,7 +259,11 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
             }),
         ).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(createdDirectory, { recursive: true, force: true });
     }
 });

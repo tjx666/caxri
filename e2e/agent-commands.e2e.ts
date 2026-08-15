@@ -2,11 +2,11 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 
-import { HostClient, discoverHostManifest } from '@caxri/cli';
+import { discoverHostManifest, HostClient } from '@caxri/cli';
 
 import { agentMessageReceiptSchema } from '../src/shared/ipc/agent-inbox-contract';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -51,20 +51,20 @@ async function jsonLines<T>(path: string): Promise<T[]> {
 }
 
 function runCli(
-    args: readonly string[],
+    arguments_: readonly string[],
     environment: NodeJS.ProcessEnv = {},
 ): Promise<{ code: number; stderr: string; stdout: string }> {
-    return new Promise((resolveRun) => {
+    return new Promise((resolve) => {
         execFile(
             process.execPath,
-            [cliPath, ...args],
+            [cliPath, ...arguments_],
             {
                 env: { ...process.env, ...environment },
                 maxBuffer: 1024 * 1024,
                 timeout: 10_000,
             },
             (error, stdout, stderr) => {
-                resolveRun({
+                resolve({
                     code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
                     stderr,
                     stdout,
@@ -85,12 +85,12 @@ test('Agent dispatch, exact control, wake, and human steer remain separate', asy
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: `#!${process.execPath}
+                executableSource: String.raw`#!${process.execPath}
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 if (process.argv.includes('--version')) {
-  process.stdout.write('claude-agent-commands-test 1.0\\n');
+  process.stdout.write('claude-agent-commands-test 1.0\n');
   process.exit(0);
 }
 const invocation = spawnSync(process.execPath, [${JSON.stringify(cliPath)}, 'agent-context', '--json'], {
@@ -124,17 +124,17 @@ fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({
     token: process.env.CAXRI_AGENT_ENDPOINT_TOKEN,
   },
   providerSessionId,
-}) + '\\n');
+}) + '\n');
 process.stdin.setRawMode?.(true);
 process.stdin.on('data', (chunk) => {
   fs.appendFileSync(${JSON.stringify(inputPath)}, JSON.stringify({
     endpointId,
     hex: chunk.toString('hex'),
     text: chunk.toString('utf8'),
-  }) + '\\n');
-  process.stdout.write('HUMAN-STEER:' + chunk.toString('utf8') + '\\r\\n');
+  }) + '\n');
+  process.stdout.write('HUMAN-STEER:' + chunk.toString('utf8') + '\r\n');
 });
-process.stdout.write('Command Agent ready ' + endpointId + '\\r\\n');
+process.stdout.write('Command Agent ready ' + endpointId + '\r\n');
 process.stdin.resume();
 `,
             },
@@ -360,7 +360,11 @@ process.stdin.resume();
     } finally {
         controller?.close();
         awakened?.close();
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

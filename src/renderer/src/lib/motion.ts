@@ -7,12 +7,12 @@ import { useEffect, useState } from 'react';
  * a reload. Never read `matchMedia` inline for this query: a non-reactive read freezes the
  * first value for the component's lifetime.
  */
-export function usePrefersReducedMotion(): boolean {
+export function useShouldReduceMotion(): boolean {
     const [reduced, setReduced] = useState(
-        () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        () => matchMedia('(prefers-reduced-motion: reduce)').matches,
     );
     useEffect(() => {
-        const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const media = matchMedia('(prefers-reduced-motion: reduce)');
         const update = (): void => setReduced(media.matches);
         media.addEventListener('change', update);
         return () => media.removeEventListener('change', update);

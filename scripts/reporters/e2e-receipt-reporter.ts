@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import process from 'node:process';
 
 import type { FullConfig, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
 
@@ -52,11 +53,11 @@ function specPath(location: string): string {
 
 function normalizeError(error: string): string {
     return error
-        .replaceAll(String.fromCharCode(27), '')
-        .replace(/\[[0-9;]*m/gu, '')
-        .replace(/\/var\/folders\/[^\s)]+/gu, '<tmp>')
-        .replace(/\/private\/tmp\/[^\s)]+/gu, '<tmp>')
-        .replace(/:\d+:\d+/gu, ':<line>:<column>')
+        .replaceAll(String.fromCodePoint(27), '')
+        .replaceAll(/\[[0-9;]*m/gu, '')
+        .replaceAll(/\/var\/folders\/[^\s)]+/gu, '<tmp>')
+        .replaceAll(/\/private\/tmp\/[^\s)]+/gu, '<tmp>')
+        .replaceAll(/:\d+:\d+/gu, ':<line>:<column>')
         .trim();
 }
 
@@ -69,7 +70,7 @@ export function summarizeE2ETests(tests: readonly E2ETestReceipt[]): string {
         .update(
             JSON.stringify(
                 [...tests]
-                    .sort((left, right) => left.id.localeCompare(right.id))
+                    .toSorted((left, right) => left.id.localeCompare(right.id))
                     .map(({ id, location, title }) => ({ id, location, title })),
             ),
         )
@@ -82,11 +83,13 @@ function summarizeSpecs(tests: readonly E2ETestReceipt[]): E2ESpecReceipt[] {
         const path = specPath(test.location);
         grouped.set(path, [...(grouped.get(path) ?? []), test]);
     }
-    return [...grouped.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
+    return [...grouped]
+        .toSorted(([left], [right]) => left.localeCompare(right))
         .map(([path, specTests]) => ({
             path,
-            testIds: specTests.map(({ id }) => id).sort(),
+            testIds: specTests
+                .map(({ id }) => id)
+                .toSorted((left, right) => left.localeCompare(right)),
             verdict: specTests.some(({ verdict }) => verdict === 'unknown')
                 ? 'unknown'
                 : specTests.some(({ verdict }) => verdict === 'timeout')
@@ -103,12 +106,12 @@ function summarizeFailureGroups(tests: readonly E2ETestReceipt[]): E2EFailureGro
         if (!test.errorIdentity) continue;
         grouped.set(test.errorIdentity, [...(grouped.get(test.errorIdentity) ?? []), test.id]);
     }
-    return [...grouped.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
+    return [...grouped]
+        .toSorted(([left], [right]) => left.localeCompare(right))
         .map(([identity, testIds]) => ({
             count: testIds.length,
             identity,
-            testIds: testIds.sort(),
+            testIds: testIds.toSorted((left, right) => left.localeCompare(right)),
         }));
 }
 
@@ -147,7 +150,9 @@ export function createE2EPoolReceipt(input: {
     return receipt;
 }
 
-/** Rejects truncated or internally inconsistent receipts before they can satisfy CI evidence. */
+/**
+Rejects truncated or internally inconsistent receipts before they can satisfy CI evidence.
+ */
 export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
     const counts = [
         receipt.failed,
@@ -192,7 +197,9 @@ export function assertE2EPoolCensusComplete(receipt: E2EPoolReceipt): void {
     }
 }
 
-/** Records one logical pool from the same invocation that executes its tests. */
+/**
+Records one logical pool from the same invocation that executes its tests.
+ */
 class E2EReceiptReporter implements Reporter {
     private planned = new Map<string, E2ETestReceipt>();
     private startedAt = '';
@@ -246,7 +253,7 @@ class E2EReceiptReporter implements Reporter {
             finishedAt: new Date().toISOString(),
             pool,
             startedAt: this.startedAt,
-            tests: [...this.planned.values()],
+            tests: this.planned.values().toArray(),
         });
         const output = resolve(destination);
         await mkdir(dirname(output), { recursive: true });

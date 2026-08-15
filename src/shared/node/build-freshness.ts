@@ -1,5 +1,5 @@
-import type { Dirent, Stats } from 'node:fs';
-import { watch, type FSWatcher } from 'node:fs';
+import type { Dirent, FSWatcher, Stats } from 'node:fs';
+import { watch } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 
@@ -13,11 +13,17 @@ export interface BuildFreshnessOptions {
 }
 
 export interface BuildFreshnessGuard {
-    /** Runs a full recursive scan only after creation or an observed filesystem change. */
+    /**
+    Runs a full recursive scan only after creation or an observed filesystem change.
+     */
     assertFresh(): Promise<void>;
-    /** Releases filesystem watchers when a long-lived test process shuts down. */
+    /**
+    Releases filesystem watchers when a long-lived test process shuts down.
+     */
     dispose(): void;
-    /** Exposes scan work for focused performance regressions without timing assertions. */
+    /**
+    Exposes scan work for focused performance regressions without timing assertions.
+     */
     readonly fullScanCount: number;
 }
 
@@ -38,14 +44,16 @@ interface InputSnapshotEntry {
 async function newestInputMtimeMs(
     path: string,
     watchedDirectoryExtensions: ReadonlySet<string>,
-    explicit: boolean,
+    isExplicit: boolean,
     io: AsyncSemaphore,
 ): Promise<number> {
     let entries: Dirent[];
     try {
         const metadata = await io.run(() => stat(path));
         if (metadata.isFile())
-            return explicit || watchedDirectoryExtensions.has(extname(path)) ? metadata.mtimeMs : 0;
+            return isExplicit || watchedDirectoryExtensions.has(extname(path))
+                ? metadata.mtimeMs
+                : 0;
         if (!metadata.isDirectory()) return 0;
         entries = await io.run(() => readdir(path, { withFileTypes: true }));
     } catch {
@@ -57,7 +65,7 @@ async function newestInputMtimeMs(
         if (entry.isDirectory())
             return newestInputMtimeMs(entryPath, watchedDirectoryExtensions, false, io);
         if (entry.isFile() && watchedDirectoryExtensions.has(extname(entry.name)))
-            return io.run(() => stat(entryPath)).then((metadata) => metadata.mtimeMs);
+            return (await io.run(() => stat(entryPath))).mtimeMs;
         return 0;
     });
     return Math.max(0, ...mtimes);
@@ -66,19 +74,19 @@ async function newestInputMtimeMs(
 async function collectInputSnapshot(
     path: string,
     watchedDirectoryExtensions: ReadonlySet<string>,
-    explicit: boolean,
+    isExplicit: boolean,
     io: AsyncSemaphore,
 ): Promise<InputSnapshotEntry[]> {
     let metadata: Stats;
     try {
         metadata = await io.run(() => stat(path));
     } catch (error) {
-        if (explicit || (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if (isExplicit || (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         return [];
     }
 
     if (metadata.isFile()) {
-        return explicit || watchedDirectoryExtensions.has(extname(path))
+        return isExplicit || watchedDirectoryExtensions.has(extname(path))
             ? [{ freshnessInput: true, mtimeMs: metadata.mtimeMs, path }]
             : [];
     }
@@ -111,7 +119,7 @@ async function outputSnapshot(paths: readonly string[]): Promise<InputSnapshotEn
     }
 }
 
-function snapshotsMatch(
+function areSnapshotsEqual(
     left: readonly InputSnapshotEntry[],
     right: readonly InputSnapshotEntry[],
 ): boolean {
@@ -133,8 +141,10 @@ export async function assertBuildOutputsFresh(options: BuildFreshnessOptions): P
     const io = new AsyncSemaphore(32);
     let outputMtimes: number[];
     try {
-        outputMtimes = await mapWithConcurrency(options.outputPaths, 32, (path) =>
-            io.run(() => stat(path)).then((metadata) => metadata.mtimeMs),
+        outputMtimes = await mapWithConcurrency(
+            options.outputPaths,
+            32,
+            async (path) => (await io.run(() => stat(path))).mtimeMs,
         );
     } catch {
         throw new Error(options.staleMessage);
@@ -161,8 +171,8 @@ export function createBuildFreshnessGuard(
     dependencies: BuildFreshnessGuardDependencies = {},
 ): BuildFreshnessGuard {
     let fullScanCount = 0;
-    let invalidated = true;
-    let watcherFailed = false;
+    let isInvalidated = true;
+    let isWatcherFailed = false;
     let inFlight: Promise<void> | undefined;
     let inputSnapshot: InputSnapshotEntry[] = [];
     let requiredOutputSnapshot: InputSnapshotEntry[] = [];
@@ -174,34 +184,37 @@ export function createBuildFreshnessGuard(
     };
 
     const invalidate = () => {
-        invalidated = true;
+        isInvalidated = true;
     };
 
     const handleWatcherError = () => {
-        watcherFailed = true;
+        isWatcherFailed = true;
         invalidate();
         dispose();
     };
 
-    const watchPath = (path: string, recursive: boolean) => {
+    const watchPath = (path: string, isRecursive: boolean) => {
         const createWatcher =
             dependencies.watch ??
             ((watchedPath, watchOptions, listener) => watch(watchedPath, watchOptions, listener));
-        const watcher = createWatcher(path, { persistent: false, recursive }, invalidate);
+        const watcher = createWatcher(
+            path,
+            { persistent: false, recursive: isRecursive },
+            invalidate,
+        );
         watcher.on('error', handleWatcherError);
         watchers.push(watcher);
     };
 
     const beginWatching = async () => {
-        watcherFailed = false;
+        isWatcherFailed = false;
         try {
             const inputMetadata = await Promise.all(options.inputPaths.map((path) => stat(path)));
             for (const [index, path] of options.inputPaths.entries()) {
                 watchPath(path, inputMetadata[index].isDirectory());
             }
-            for (const outputDirectory of new Set(
-                options.outputPaths.map((path) => dirname(path)),
-            )) {
+            const outputDirectories = new Set(options.outputPaths.map((path) => dirname(path)));
+            for (const outputDirectory of outputDirectories) {
                 watchPath(outputDirectory, false);
             }
         } catch {
@@ -221,11 +234,11 @@ export function createBuildFreshnessGuard(
         if (inFlight) return inFlight;
         inFlight = (async () => {
             const currentOutputs = await readRequiredOutputs();
-            if (!snapshotsMatch(requiredOutputSnapshot, currentOutputs)) invalidated = true;
-            if (!invalidated && !watcherFailed) return;
+            if (!areSnapshotsEqual(requiredOutputSnapshot, currentOutputs)) isInvalidated = true;
+            if (!isInvalidated && !isWatcherFailed) return;
 
             dispose();
-            invalidated = false;
+            isInvalidated = false;
             await beginWatching();
             fullScanCount += 1;
             const io = new AsyncSemaphore(32);
@@ -236,7 +249,7 @@ export function createBuildFreshnessGuard(
                     )
                 ).flat();
             } catch {
-                invalidated = true;
+                isInvalidated = true;
                 throw new Error(options.staleMessage);
             }
             requiredOutputSnapshot = await readRequiredOutputs();
@@ -249,12 +262,16 @@ export function createBuildFreshnessGuard(
                 ...requiredOutputSnapshot.map((entry) => entry.mtimeMs),
             );
             if (newestInputMtimeMs > oldestOutputMtimeMs) {
-                invalidated = true;
+                isInvalidated = true;
                 throw new Error(options.staleMessage);
             }
 
             // A watcher event during the scan is deliberately retained so the next launch scans
             // again instead of trusting a cache captured while source or output files changed.
+            // Intentionally not awaited: this IIFE result is cached in `inFlight` so concurrent
+            // `assertFresh()` callers share the same in-progress scan. Awaiting here would block
+            // returning the shared promise and defeat the deduplication this function exists for.
+            // eslint-disable-next-line unicorn/prefer-await
         })().finally(() => {
             inFlight = undefined;
         });

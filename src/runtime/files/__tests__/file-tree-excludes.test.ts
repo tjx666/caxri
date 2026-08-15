@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { matchesFileTreeExclude } from '../file-tree-excludes';
+import { isFileTreeExcludeMatch } from '../file-tree-excludes';
 
-describe('matchesFileTreeExclude', () => {
+describe('isFileTreeExcludeMatch', () => {
     it.each(['.git', 'nested/.git', 'packages/app/.DS_Store'])(
         'matches VS Code-style recursive patterns for %s',
         (path) => {
             expect(
-                matchesFileTreeExclude(path, {
+                isFileTreeExcludeMatch(path, {
                     '**/.git': true,
                     '**/.DS_Store': true,
                 }),
@@ -22,13 +22,13 @@ describe('matchesFileTreeExclude', () => {
             '**/fixtures/**': true,
         };
 
-        expect(matchesFileTreeExclude('src/client.generated', excludes)).toBe(true);
-        expect(matchesFileTreeExclude('packages/app/cache', excludes)).toBe(true);
-        expect(matchesFileTreeExclude('src/fixtures/nested/data.json', excludes)).toBe(true);
-        expect(matchesFileTreeExclude('packages/app/source.ts', excludes)).toBe(false);
+        expect(isFileTreeExcludeMatch('src/client.generated', excludes)).toBe(true);
+        expect(isFileTreeExcludeMatch('packages/app/cache', excludes)).toBe(true);
+        expect(isFileTreeExcludeMatch('src/fixtures/nested/data.json', excludes)).toBe(true);
+        expect(isFileTreeExcludeMatch('packages/app/source.ts', excludes)).toBe(false);
     });
 
     it('keeps disabled patterns visible', () => {
-        expect(matchesFileTreeExclude('.git', { '**/.git': false })).toBe(false);
+        expect(isFileTreeExcludeMatch('.git', { '**/.git': false })).toBe(false);
     });
 });

@@ -15,8 +15,10 @@ export function terminalSizeWithScrollbarGutter(
     return { cols: Math.max(2, proposed.cols - 1), rows: proposed.rows };
 }
 
-/** ResizeObserver can repeat unchanged layouts; only a new PTY grid size needs Runtime IPC. */
-export function terminalSizeChanged(
+/**
+ResizeObserver can repeat unchanged layouts; only a new PTY grid size needs Runtime IPC.
+ */
+export function didTerminalSizeChange(
     previous: TerminalSize | undefined,
     next: TerminalSize,
 ): boolean {

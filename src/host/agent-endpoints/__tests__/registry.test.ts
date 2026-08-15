@@ -211,7 +211,9 @@ describe('AgentEndpointRegistry', () => {
         const endpoint = begin(registry);
         activate(registry, endpoint);
         const changed: string[] = [];
-        registry.onMessagingChanged((summary) => changed.push(summary.messaging.reason));
+        registry.onMessagingChanged((summary) => {
+            changed.push(summary.messaging.reason);
+        });
         const messaging = {
             deliveryMode: 'pull' as const,
             health: 'ready' as const,

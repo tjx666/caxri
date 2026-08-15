@@ -48,7 +48,9 @@ export function assertCleanValidationStart(
     }
 }
 
-/** Measures the committed source delta between two durable issue boundaries. */
+/**
+Measures the committed source delta between two durable issue boundaries.
+ */
 export async function inspectWorktreeDelta(
     worktreePath: string,
     baseSha: string,

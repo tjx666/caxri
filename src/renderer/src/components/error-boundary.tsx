@@ -1,16 +1,25 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
+import { Component } from 'react';
 
 import { Button } from './ui/button';
 
-interface ErrorBoundaryProps {
+interface ErrorBoundaryProperties {
     children: ReactNode;
-    /** Message shown when this Renderer entry fails during React rendering. */
+    /**
+    Message shown when this Renderer entry fails during React rendering.
+     */
     description?: string;
-    /** Prefix used by Main's mirrored console log to identify the failed Renderer entry. */
+    /**
+    Prefix used by Main's mirrored console log to identify the failed Renderer entry.
+     */
     logScope?: string;
-    /** Label for the full-window reload action. */
+    /**
+    Label for the full-window reload action.
+     */
     reloadLabel?: string;
-    /** Heading shown when this Renderer entry fails during React rendering. */
+    /**
+    Heading shown when this Renderer entry fails during React rendering.
+     */
     title?: string;
 }
 
@@ -28,12 +37,16 @@ interface ErrorBoundaryState {
  * React 18/19 has no hook equivalent for `componentDidCatch`, so this stays a class component
  * rather than pulling in the `react-error-boundary` dependency for one boundary.
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    state: ErrorBoundaryState = { hasError: false };
-
+export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBoundaryState> {
     static getDerivedStateFromError(): ErrorBoundaryState {
         return { hasError: true };
     }
+
+    private handleReload = (): void => {
+        location.reload();
+    };
+
+    state: ErrorBoundaryState = { hasError: false };
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
         // Main mirrors renderer `console.error` calls into `logs/main.jsonl` (see
@@ -45,10 +58,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             errorInfo.componentStack,
         );
     }
-
-    private handleReload = (): void => {
-        window.location.reload();
-    };
 
     render(): ReactNode {
         if (!this.state.hasError) return this.props.children;

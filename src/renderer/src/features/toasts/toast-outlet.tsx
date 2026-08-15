@@ -1,11 +1,13 @@
-import { CircleCheck, CircleX, Info, X } from 'lucide-react';
-import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react';
-import * as m from 'motion/react-m';
 import { useState } from 'react';
 
-import { motionDurationMs, usePrefersReducedMotion } from '../../lib/motion';
-import { cn } from '../../lib/utils';
-import { dismissToast, useToastStore, type ToastKind } from '../../stores/toasts';
+import { CircleCheck, CircleX, Info, X } from 'lucide-react';
+import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
+import * as m from 'motion/react-m';
+
+import { motionDurationMs, useShouldReduceMotion } from '../../lib/motion';
+import { cn } from '../../lib/utilities';
+import type { ToastKind } from '../../stores/toasts';
+import { dismissToast, useToastStore } from '../../stores/toasts';
 
 const TOAST_ICONS: Record<ToastKind, typeof Info> = {
     error: CircleX,
@@ -21,7 +23,7 @@ const TOAST_ICONS: Record<ToastKind, typeof Info> = {
  */
 export function ToastOutlet() {
     const toasts = useToastStore((state) => state.toasts);
-    const reducedMotion = usePrefersReducedMotion();
+    const isReducedMotion = useShouldReduceMotion();
     // Token values need a live DOM (`getComputedStyle`), so a lazy `useState` initializer reads
     // them once instead of at module scope. Toasts are the closest DESIGN.md motion layer has to
     // an "overlay" notification (dialogs, popovers) rather than persistent chrome, so their
@@ -34,8 +36,8 @@ export function ToastOutlet() {
         enterS: motionDurationMs('--motion-overlay-enter') / 1000,
         exitS: motionDurationMs('--motion-overlay-exit') / 1000,
     }));
-    const enterDuration = reducedMotion ? 0 : durations.enterS;
-    const exitDuration = reducedMotion ? 0 : durations.exitS;
+    const enterDuration = isReducedMotion ? 0 : durations.enterS;
+    const exitDuration = isReducedMotion ? 0 : durations.exitS;
     return (
         <div
             className="fixed right-4 bottom-10 z-[80] flex flex-col items-end gap-2"

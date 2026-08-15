@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentEndpointBeginParams } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
+import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
 import { createRuntime } from '../../bootstrap';
@@ -40,13 +40,13 @@ function endpointLifecycle() {
     return new RuntimeAgentEndpointLifecycle(
         {
             activate: () => Promise.resolve(true),
-            begin: (params: AgentEndpointBeginParams) => {
-                const generation = (generations.get(params.terminalId) ?? 0) + 1;
-                generations.set(params.terminalId, generation);
+            begin: (parameters: AgentEndpointBeginParameters) => {
+                const generation = (generations.get(parameters.terminalId) ?? 0) + 1;
+                generations.set(parameters.terminalId, generation);
                 return Promise.resolve({
                     ref: {
                         hostId: 'host-1',
-                        endpointId: `${params.terminalId}-${generation}`,
+                        endpointId: `${parameters.terminalId}-${generation}`,
                         generation,
                     },
                     token: 'ab'.repeat(32),
@@ -61,7 +61,7 @@ function endpointLifecycle() {
 }
 
 function fakeAgentAdapters() {
-    const pending = new Promise<never>(() => undefined);
+    const pending = new Promise<never>(() => {});
     return {
         claude: { provider: 'claude' as const, snapshot: () => pending },
         codex: { provider: 'codex' as const, snapshot: () => pending },
@@ -69,9 +69,9 @@ function fakeAgentAdapters() {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const directories = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(directories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Agent dispatch Runtime integration', () => {
@@ -80,7 +80,7 @@ describe('Agent dispatch Runtime integration', () => {
         temporaryDirectories.push(directory);
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
-        const spawned: ReturnType<typeof fakePty>[] = [];
+        const spawned: Array<ReturnType<typeof fakePty>> = [];
         const spawn = vi.fn<typeof spawnPty>(() => {
             const fake = fakePty(4_000 + spawned.length);
             spawned.push(fake);
@@ -91,7 +91,9 @@ describe('Agent dispatch Runtime integration', () => {
             agentAdapters: fakeAgentAdapters(),
             agentEndpoints: endpointLifecycle(),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: (event) => events.push(event.event),
+            send: (event) => {
+                events.push(event.event);
+            },
             terminal: {
                 resolveExecutable: () => Promise.resolve('/fixture/agent'),
                 spawn,
@@ -160,12 +162,12 @@ describe('Agent dispatch Runtime integration', () => {
         temporaryDirectories.push(directory);
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
-        const spawned: ReturnType<typeof fakePty>[] = [];
+        const spawned: Array<ReturnType<typeof fakePty>> = [];
         const runtime = await createRuntime({
             agentAdapters: fakeAgentAdapters(),
             agentEndpoints: endpointLifecycle(),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/fixture/agent'),
                 spawn: () => {

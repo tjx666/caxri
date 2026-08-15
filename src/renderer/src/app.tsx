@@ -2,22 +2,23 @@ import { useEffect } from 'react';
 
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
-import { BugReportDialog } from './features/bug-report/bug-report-dialog';
+import { TooltipProvider } from './components/ui/tooltip';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
-import { useExternalDocumentSync } from './features/editor/external-sync';
+import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { openFileForSession } from './features/editor/document-actions';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
+import { useExternalDocumentSync } from './features/editor/external-sync';
 import { Inspector } from './features/inspector/inspector';
 import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
 import { useFileTreeQueryInvalidation } from './features/inspector/panels/files/file-tree-refresh';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
-import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
-import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
-import { selectSession } from './features/session/session-actions';
+import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
+import { didSelectSession } from './features/session/session-actions';
+import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { SettingsDialog } from './features/settings/settings-dialog';
 import { ProjectSidebar } from './features/sidebar/project-sidebar';
 import { StatusBar } from './features/status-bar/status-bar';
@@ -27,9 +28,8 @@ import { LoadingScreen } from './features/workbench/loading-screen';
 import { PanelDivider } from './features/workbench/panel-divider';
 import { Workbench } from './features/workbench/workbench';
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
-import { TooltipProvider } from './components/ui/tooltip';
 import { applyCssTheme } from './lib/theme-css';
-import { cn } from './lib/utils';
+import { cn } from './lib/utilities';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
 import {
     INSPECTOR_DEFAULT_WIDTH,
@@ -56,29 +56,35 @@ function useRuntimeAttachment(): void {
     useEffect(() => {
         const desktopOpenQueue = createDesktopOpenQueue({
             openFile: openFileForSession,
-            selectSession,
+            selectSession: didSelectSession,
         });
+        // Fire-and-forget: initializeWorkbench() catches its own Runtime request failures.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initializeWorkbench();
         return subscribeWorkbenchEvents({
-            onCommand: (command, viaAccelerator) =>
-                runCommand(command, undefined, { viaAccelerator }),
+            onCommand: (command, wasViaAccelerator) =>
+                runCommand(command, undefined, { viaAccelerator: wasViaAccelerator }),
             onDesktopOpen: (sessionId, path) => {
-                void desktopOpenQueue.enqueue({ sessionId, ...(path ? { path } : {}) });
+                // Fire-and-forget: a rejection here surfaces through the global
+                // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
+                // established pattern for one-shot Host-triggered opens.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                void desktopOpenQueue.enqueue({ sessionId, ...(path && { path }) });
             },
         });
     }, []);
 }
 
 export function App() {
-    const attached = useWorkbenchStore((state) => state.bootstrap !== undefined);
+    const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const theme = useTheme();
     const sidebarWidth = usePanelLayoutStore((state) => state.sidebarWidth);
     const inspectorWidth = usePanelLayoutStore((state) => state.inspectorWidth);
-    const sidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
-    const inspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
+    const isSidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
+    const isInspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
 
     useRuntimeAttachment();
-    useFileMutationReconciliation(attached);
+    useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
     useFileTreeQueryInvalidation();
     useCommandShortcuts();
@@ -89,9 +95,9 @@ export function App() {
         if (theme) applyCssTheme(theme);
     }, [theme]);
     useEffect(() => {
-        if (!attached) return;
+        if (!isAttached) return;
         return scheduleCodeEditorPreload();
-    }, [attached]);
+    }, [isAttached]);
     /**
      * Only the committed width reaches the DOM through React; a drag in progress writes the same
      * custom property directly (see `PanelDivider`), so this effect never fires mid-gesture.
@@ -103,7 +109,7 @@ export function App() {
         document.documentElement.style.setProperty('--inspector-width', `${inspectorWidth}px`);
     }, [inspectorWidth]);
 
-    if (!attached) return <LoadingScreen />;
+    if (!isAttached) return <LoadingScreen />;
 
     return (
         <TooltipProvider>
@@ -116,23 +122,23 @@ export function App() {
                      * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                      */
                     'app-shell grid w-screen h-screen bg-background grid-rows-[minmax(0,1fr)_24px]',
-                    sidebarVisible && inspectorVisible
+                    isSidebarVisible && isInspectorVisible
                         ? 'grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
-                        : sidebarVisible
+                        : isSidebarVisible
                           ? 'inspector-collapsed grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)]'
-                          : inspectorVisible
+                          : isInspectorVisible
                             ? 'sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
                             : 'sidebar-collapsed inspector-collapsed grid-cols-[minmax(320px,1fr)]',
                 )}
             >
-                {!sidebarVisible && (
+                {!isSidebarVisible && (
                     <div
                         aria-hidden="true"
                         className="collapsed-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"
                     />
                 )}
-                {sidebarVisible && <ProjectSidebar />}
-                {sidebarVisible && (
+                {isSidebarVisible && <ProjectSidebar />}
+                {isSidebarVisible && (
                     <PanelDivider
                         ariaLabel="Resize Sidebar"
                         width={sidebarWidth}
@@ -145,7 +151,7 @@ export function App() {
                     />
                 )}
                 <Workbench />
-                {inspectorVisible && (
+                {isInspectorVisible && (
                     <PanelDivider
                         ariaLabel="Resize Inspector"
                         width={inspectorWidth}
@@ -159,7 +165,7 @@ export function App() {
                         }
                     />
                 )}
-                {inspectorVisible && <Inspector />}
+                {isInspectorVisible && <Inspector />}
                 <StatusBar />
                 <CreateSessionDialog />
                 <ArchivedSessionsDialog />

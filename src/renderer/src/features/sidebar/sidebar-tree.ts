@@ -12,7 +12,9 @@ export interface SidebarProjectNode {
 export interface SidebarTreeRow {
     id: string;
     kind: 'project' | 'session';
-    /** The owning Project id; equals `id` itself for a Project row. */
+    /**
+    The owning Project id; equals `id` itself for a Project row.
+     */
     projectId: string;
 }
 
@@ -48,17 +50,21 @@ export function nextSidebarRowId(
 ): string | undefined {
     if (rows.length === 0) return undefined;
     if (key === 'Home') return rows[0]?.id;
-    if (key === 'End') return rows[rows.length - 1]?.id;
+    if (key === 'End') return rows.at(-1)?.id;
     const currentIndex = rows.findIndex((row) => row.id === activeRowId);
-    if (currentIndex < 0) return rows[0]?.id;
+    if (currentIndex === -1) return rows[0]?.id;
     const nextIndex = currentIndex + (key === 'ArrowDown' ? 1 : -1);
     return nextIndex >= 0 && nextIndex < rows.length ? rows[nextIndex]?.id : undefined;
 }
 
 export interface SidebarHorizontalIntent {
-    /** Present when Left/Right should flip a Project's expanded state. */
+    /**
+    Present when Left/Right should flip a Project's expanded state.
+     */
     expanded?: boolean;
-    /** Present when Left/Right should move roving focus to a different row. */
+    /**
+    Present when Left/Right should move roving focus to a different row.
+     */
     focusRowId?: string;
 }
 
@@ -69,12 +75,12 @@ export interface SidebarHorizontalIntent {
  */
 export function sidebarHorizontalIntent(
     row: SidebarTreeRow,
-    expanded: boolean,
+    isExpanded: boolean,
     key: 'ArrowLeft' | 'ArrowRight',
 ): SidebarHorizontalIntent {
     if (row.kind === 'session') return key === 'ArrowLeft' ? { focusRowId: row.projectId } : {};
-    if (key === 'ArrowRight') return expanded ? {} : { expanded: true };
-    return expanded ? { expanded: false } : {};
+    if (key === 'ArrowRight') return isExpanded ? {} : { expanded: true };
+    return isExpanded ? { expanded: false } : {};
 }
 
 /**

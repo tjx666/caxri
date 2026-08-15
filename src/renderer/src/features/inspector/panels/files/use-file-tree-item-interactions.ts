@@ -1,29 +1,22 @@
-import {
-    useEffect,
-    useId,
-    useRef,
-    useState,
-    type DragEvent,
-    type Dispatch,
-    type KeyboardEvent,
-    type RefObject,
-    type SetStateAction,
-} from 'react';
+import type { Dispatch, DragEvent, KeyboardEvent, RefObject, SetStateAction } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
 import { openFile } from '../../../editor/document-actions';
-import { duplicateFile, moveFile, pasteFile, rememberFile, trashFile } from './file-actions';
+import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
+import type { PendingFileOperation } from './file-operation-state';
+import { isPathBlockedByFileOperations } from './file-operation-state';
 import { dragPath } from './file-tree-drag';
-import { isPathBlockedByFileOperations, type PendingFileOperation } from './file-operation-state';
+import type { EditRequest } from './file-tree-item-types';
+import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 import {
     focusAdjacentTreeItem,
     focusParentTreeItem,
     focusTreeItemEdge,
 } from './file-tree-navigation';
-import { BUSY_DISABLED_REASON, type EditRequest } from './file-tree-item-types';
 import { parentDirectoryPath } from './file-tree-refresh';
 
 export interface UseFileTreeItemInteractionsOptions {
@@ -38,7 +31,7 @@ export interface UseFileTreeItemInteractionsOptions {
     projectId: string;
     selectedPath?: string;
     sessionId: string;
-    setExpanded: (next: boolean | ((current: boolean) => boolean)) => void;
+    setExpanded: (isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean)) => void;
     setEditing: (editing?: EditRequest) => void;
     setSelectedPath: (path?: string) => void;
 }
@@ -63,7 +56,7 @@ export interface UseFileTreeItemInteractionsResult {
     pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
     rowRef: RefObject<HTMLButtonElement | null>;
-    setExpanded: (next: boolean | ((current: boolean) => boolean)) => void;
+    setExpanded: (isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean)) => void;
     setIsDropTarget: Dispatch<SetStateAction<boolean>>;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
@@ -94,23 +87,27 @@ export function useFileTreeItemInteractions({
     setSelectedPath,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
     const [isDropTarget, setIsDropTarget] = useState(false);
-    const rowRef = useRef<HTMLButtonElement>(null);
+    const rowReference = useRef<HTMLButtonElement>(null);
     const symlinkReasonId = useId();
     const clipboard = useFileClipboardStore((state) => state.entry);
     const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
-    const editable = entry.kind !== 'symlink';
+    const isEditable = entry.kind !== 'symlink';
     const parentDirectory = parentDirectoryPath(entry.path);
     const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
-    const clipboardEmpty = !clipboard || clipboard.projectId !== projectId;
-    const pasteBlocked = isPathBlockedByFileOperations(operations, projectId, pasteDirectory);
-    const pasteDisabled = clipboardEmpty || pasteBlocked;
-    const pasteDisabledReason = clipboardEmpty
+    const isClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
+    const isPasteBlocked = isPathBlockedByFileOperations(operations, projectId, pasteDirectory);
+    const isPasteDisabled = isClipboardEmpty || isPasteBlocked;
+    const pasteDisabledReason = isClipboardEmpty
         ? 'Nothing to paste'
-        : pasteBlocked
+        : isPasteBlocked
           ? BUSY_DISABLED_REASON
           : undefined;
-    const duplicateBlocked = isPathBlockedByFileOperations(operations, projectId, parentDirectory);
-    const dragBlocked =
+    const isDuplicateBlocked = isPathBlockedByFileOperations(
+        operations,
+        projectId,
+        parentDirectory,
+    );
+    const isDragBlocked =
         isPathBlockedByFileOperations(operations, projectId, entry.path) ||
         isPathBlockedByFileOperations(operations, projectId, parentDirectory);
     /**
@@ -121,7 +118,7 @@ export function useFileTreeItemInteractions({
     const isRovingTabStop = selectedPath ? selectedPath === entry.path : depth === 0 && index === 0;
 
     const startRename = (): void => {
-        if (editable) setEditing({ kind: 'rename', entry });
+        if (isEditable) setEditing({ kind: 'rename', entry });
     };
     const startCreate = (itemKind: 'file' | 'directory'): void => {
         if (entry.kind !== 'directory') return;
@@ -135,6 +132,8 @@ export function useFileTreeItemInteractions({
     };
     const openEntry = (): void => {
         if (entry.kind === 'directory') setExpanded(true);
+        // openFile funnels its own failures into a toast via tryCommand, nothing to await here.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         else void openFile(entry.path);
     };
     const pasteIntoEntry = async (): Promise<void> => {
@@ -148,21 +147,22 @@ export function useFileTreeItemInteractions({
         if (copied) setSelectedPath(copied.path);
     };
     const confirmTrash = async (): Promise<void> => {
-        if (await trashFile(sessionId, entry.path)) {
-            setSelectedPath(undefined);
-            setEditing(undefined);
+        if (!(await didTrashFile(sessionId, entry.path))) {
+            return;
         }
+
+        setSelectedPath(undefined);
+        setEditing(undefined);
     };
-    const dropIntoDirectory = (event: DragEvent): void => {
+    const dropIntoDirectory = async (event: DragEvent): Promise<void> => {
         event.preventDefault();
         event.stopPropagation();
         setIsDropTarget(false);
+        if (isPasteBlocked) return;
         const source = dragPath(event);
-        if (pasteBlocked) return;
         if (!source || entry.kind !== 'directory') return;
-        void moveFile(sessionId, source, entry.path).then((moved) => {
-            if (moved) setSelectedPath(moved.path);
-        });
+        const moved = await moveFile(sessionId, source, entry.path);
+        if (moved) setSelectedPath(moved.path);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
         if (event.key === 'ArrowDown') {
@@ -196,41 +196,61 @@ export function useFileTreeItemInteractions({
         }
         if (event.key === 'ArrowLeft') {
             event.preventDefault();
-            if (entry.kind === 'directory' && expanded) setExpanded(false);
+            if (expanded && entry.kind === 'directory') setExpanded(false);
             else focusParentTreeItem(event.currentTarget);
             return;
         }
-        if (event.key === 'Enter' && editable) {
+        if (isEditable && event.key === 'Enter') {
             event.preventDefault();
             event.stopPropagation();
             startRename();
             return;
         }
-        if (!event.metaKey || !editable) return;
+        if (!isEditable || !event.metaKey) return;
         const key = event.key.toLowerCase();
         if (!['backspace', 'c', 'v', 'x'].includes(key)) return;
         event.preventDefault();
         event.stopPropagation();
-        if (key === 'backspace') void confirmTrash();
-        else if (key === 'c') rememberFile(projectId, entry.path, 'copy');
-        else if (key === 'x') rememberFile(projectId, entry.path, 'cut');
-        else if (!pasteBlocked) void pasteIntoEntry();
+        switch (key) {
+            case 'backspace': {
+                // confirmTrash funnels its own failures into a toast via didTrashFile, nothing to
+                // await here.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                void confirmTrash();
+                break;
+            }
+            case 'c': {
+                rememberFile(projectId, entry.path, 'copy');
+                break;
+            }
+            case 'x': {
+                rememberFile(projectId, entry.path, 'cut');
+                break;
+            }
+            default: {
+                // pasteIntoEntry funnels its own failures into a toast via pasteFile, nothing to
+                // await here.
+                if (!isPasteBlocked)
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                    void pasteIntoEntry();
+            }
+        }
     };
 
     useEffect(() => {
-        if (focusPath !== entry.path || isRenaming) return;
-        rowRef.current?.focus();
+        if (isRenaming || focusPath !== entry.path) return;
+        rowReference.current?.focus();
         clearFocusPath();
     }, [clearFocusPath, entry.path, focusPath, isRenaming]);
 
     return {
         clipboard,
         confirmTrash,
-        dragBlocked,
+        dragBlocked: isDragBlocked,
         dropIntoDirectory,
-        duplicateBlocked,
+        duplicateBlocked: isDuplicateBlocked,
         duplicateEntry,
-        editable,
+        editable: isEditable,
         expanded,
         handleKeyDown,
         isDropTarget,
@@ -238,11 +258,11 @@ export function useFileTreeItemInteractions({
         isRovingTabStop,
         openEntry,
         parentDirectory,
-        pasteBlocked,
-        pasteDisabled,
+        pasteBlocked: isPasteBlocked,
+        pasteDisabled: isPasteDisabled,
         pasteDisabledReason,
         pasteIntoEntry,
-        rowRef,
+        rowRef: rowReference,
         setExpanded,
         setIsDropTarget,
         startCreate,

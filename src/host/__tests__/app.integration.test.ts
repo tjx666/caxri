@@ -1,18 +1,21 @@
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { createConnection, type Socket } from 'node:net';
+import type { Socket } from 'node:net';
+import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { connectToHost, HostClient } from '../../../packages/cli/src/host';
+import type { HostManifest } from '../../../packages/protocol/src';
 import {
     CAXRI_PROTOCOL_VERSION,
     localServerEventSchema,
     localServerWelcomeSchema,
-    type HostManifest,
 } from '../../../packages/protocol/src';
-import { HostClient, connectToHost } from '../../../packages/cli/src/host';
-import { startHostApplication, type HostApplication } from '../application';
+import type { HostApp } from '../app';
+import { startHostApp } from '../app';
 
 const runtimeFixture = `
 const activePtyCount = 1;
@@ -271,17 +274,23 @@ process.send?.({
 });
 `;
 
-const applications: HostApplication[] = [];
+const apps: HostApp[] = [];
 const directories: string[] = [];
 const sockets: Socket[] = [];
 
 afterEach(async () => {
-    for (const socket of sockets.splice(0)) socket.destroy();
+    const socketsToClose = sockets.slice();
+    sockets.length = 0;
+    for (const socket of socketsToClose) socket.destroy();
+
+    const appsToStop = apps.slice();
+    apps.length = 0;
+    await Promise.all(appsToStop.map((app) => app.stop('test-cleanup')));
+
+    const directoriesToRemove = directories.slice();
+    directories.length = 0;
     await Promise.all(
-        applications.splice(0).map((application) => application.stop('test-cleanup')),
-    );
-    await Promise.all(
-        directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+        directoriesToRemove.map((directory) => rm(directory, { recursive: true, force: true })),
     );
 });
 
@@ -304,9 +313,10 @@ function lineReader(socket: Socket): () => Promise<unknown> {
     });
     return () => {
         const value = values.shift();
-        return value === undefined
-            ? new Promise<unknown>((resolve) => readers.push(resolve))
-            : Promise.resolve(value);
+        if (value !== undefined) return Promise.resolve(value);
+        return new Promise<unknown>((resolve) => {
+            readers.push(resolve);
+        });
     };
 }
 
@@ -340,10 +350,14 @@ async function connectDesktop(manifest: HostManifest, desktopToken: string) {
 async function waitForRemoval(path: string): Promise<void> {
     for (let attempt = 0; attempt < 100; attempt += 1) {
         try {
+            // Each attempt must observe the outcome of the previous poll before deciding
+            // whether to retry, so the polling cannot be parallelized.
+            // eslint-disable-next-line no-await-in-loop -- sequential polling by design
             await access(path);
         } catch {
             return;
         }
+        // eslint-disable-next-line no-await-in-loop -- sequential retry backoff by design
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error(`Timed out waiting for Host metadata removal: ${path}`);
@@ -352,9 +366,13 @@ async function waitForRemoval(path: string): Promise<void> {
 async function waitForFile(path: string): Promise<void> {
     for (let attempt = 0; attempt < 100; attempt += 1) {
         try {
+            // Each attempt must observe the outcome of the previous poll before deciding
+            // whether to retry, so the polling cannot be parallelized.
+            // eslint-disable-next-line no-await-in-loop -- sequential polling by design
             await access(path);
             return;
         } catch {
+            // eslint-disable-next-line no-await-in-loop -- sequential retry backoff by design
             await new Promise((resolve) => setTimeout(resolve, 10));
         }
     }
@@ -368,7 +386,7 @@ describe('Headless Host application', () => {
         const runtimePath = join(userDataPath, 'runtime-child.mjs');
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
         await writeFile(runtimePath, agentEndpointRuntimeFixture);
-        const application = await startHostApplication({
+        const app = await startHostApp({
             commit: 'test',
             executable: process.execPath,
             runtimeEnvironment: { CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath },
@@ -377,12 +395,12 @@ describe('Headless Host application', () => {
             userDataPath,
             version: '1.0.0',
         });
-        applications.push(application);
+        apps.push(app);
         const endpoint = JSON.parse(await readFile(endpointFixturePath, 'utf8')) as {
             ref: { hostId: string; endpointId: string; generation: number };
             token: string;
         };
-        const agent = await HostClient.connect(application.lease.manifest, 2_000, {
+        const agent = await HostClient.connect(app.lease.manifest, 2_000, {
             kind: 'agent',
             ...endpoint.ref,
             token: endpoint.token,
@@ -419,8 +437,8 @@ describe('Headless Host application', () => {
         });
 
         const desktop = await connectDesktop(
-            application.lease.manifest,
-            application.lease.desktopCredential.desktopToken,
+            app.lease.manifest,
+            app.lease.desktopCredential.desktopToken,
         );
         const operator = await connectToHost(userDataPath, 2_000);
         await operator.request('agent.grant', {
@@ -502,7 +520,7 @@ describe('Headless Host application', () => {
         const waitFixturePath = join(userDataPath, 'dispatch-wait.txt');
         const cancelFixturePath = join(userDataPath, 'dispatch-cancel.txt');
         await writeFile(runtimePath, agentEndpointRuntimeFixture);
-        const application = await startHostApplication({
+        const app = await startHostApp({
             commit: 'test',
             executable: process.execPath,
             runtimeEnvironment: {
@@ -515,15 +533,19 @@ describe('Headless Host application', () => {
             userDataPath,
             version: '1.0.0',
         });
-        applications.push(application);
+        apps.push(app);
         const operator = await connectToHost(userDataPath, 2_000);
+        // The dispatch-wait request is intentionally not awaited here: it must stay pending
+        // while the operator disconnects below, and is awaited later once cancellation is
+        // observed. `.catch()` prevents an unhandled rejection in that interim window.
         const waiting = operator
             .request('agent.dispatch.wait', {
                 dispatchId: 'dispatch-wait',
                 afterRevision: 2,
                 timeoutMs: 120_000,
             })
-            .catch(() => undefined);
+            // eslint-disable-next-line unicorn/prefer-await -- promise must be deferred, not awaited immediately
+            .catch(() => {});
         await waitForFile(waitFixturePath);
 
         operator.close();
@@ -540,7 +562,7 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const runtimePath = join(userDataPath, 'runtime-child.mjs');
         await writeFile(runtimePath, runtimeFixture);
-        const application = await startHostApplication({
+        const app = await startHostApp({
             commit: 'test',
             executable: process.execPath,
             runtimePath,
@@ -548,10 +570,10 @@ describe('Headless Host application', () => {
             userDataPath,
             version: '1.0.0',
         });
-        applications.push(application);
+        apps.push(app);
 
         await expect(
-            HostClient.connect({ ...application.lease.manifest, protocolVersion: 1 }),
+            HostClient.connect({ ...app.lease.manifest, protocolVersion: 1 }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
 
         const first = await connectToHost(userDataPath, 2_000);
@@ -570,18 +592,18 @@ describe('Headless Host application', () => {
             activePtyCount: 1,
             protocolCompatible: true,
         });
-        expect(JSON.stringify(status)).not.toContain(application.lease.manifest.operatorToken);
+        expect(JSON.stringify(status)).not.toContain(app.lease.manifest.operatorToken);
 
         await expect(second.request('host.stop', { confirmLivePtys: false })).rejects.toMatchObject(
             { code: 'CONFLICT' },
         );
-        await expect(access(application.lease.paths.manifest)).resolves.toBeUndefined();
+        await expect(access(app.lease.paths.manifest)).resolves.toBeUndefined();
 
         const confirmed = await second.request('host.stop', { confirmLivePtys: true });
         expect(confirmed).toMatchObject({ stopping: true, activePtyCount: 1 });
-        await waitForRemoval(application.lease.paths.manifest);
+        await waitForRemoval(app.lease.paths.manifest);
         expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
-            application.lease.manifest.operatorToken,
+            app.lease.manifest.operatorToken,
         );
     });
 
@@ -590,7 +612,7 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const runtimePath = join(userDataPath, 'runtime-child.mjs');
         await writeFile(runtimePath, mutationRaceRuntimeFixture);
-        const application = await startHostApplication({
+        const app = await startHostApp({
             commit: 'test',
             executable: process.execPath,
             runtimePath,
@@ -598,10 +620,10 @@ describe('Headless Host application', () => {
             userDataPath,
             version: '1.0.0',
         });
-        applications.push(application);
+        apps.push(app);
         const desktop = await connectDesktop(
-            application.lease.manifest,
-            application.lease.desktopCredential.desktopToken,
+            app.lease.manifest,
+            app.lease.desktopCredential.desktopToken,
         );
         const operator = await connectToHost(userDataPath, 2_000);
 
@@ -620,10 +642,10 @@ describe('Headless Host application', () => {
         await expect(
             operator.request('host.stop', { confirmLivePtys: false }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
-        await expect(access(application.lease.paths.manifest)).resolves.toBeUndefined();
+        await expect(access(app.lease.paths.manifest)).resolves.toBeUndefined();
 
         await operator.request('host.stop', { confirmLivePtys: true });
-        await waitForRemoval(application.lease.paths.manifest);
+        await waitForRemoval(app.lease.paths.manifest);
         operator.close();
     });
 
@@ -632,7 +654,7 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const runtimePath = join(userDataPath, 'runtime-child.mjs');
         await writeFile(runtimePath, runtimeFixture);
-        const application = await startHostApplication({
+        const app = await startHostApp({
             commit: 'test',
             executable: process.execPath,
             runtimePath,
@@ -640,10 +662,10 @@ describe('Headless Host application', () => {
             userDataPath,
             version: '1.0.0',
         });
-        applications.push(application);
+        apps.push(app);
         const desktop = await connectDesktop(
-            application.lease.manifest,
-            application.lease.desktopCredential.desktopToken,
+            app.lease.manifest,
+            app.lease.desktopCredential.desktopToken,
         );
         await new Promise<void>((resolve, reject) => {
             desktop.socket.write(
@@ -666,6 +688,6 @@ describe('Headless Host application', () => {
             );
         });
 
-        await waitForRemoval(application.lease.paths.manifest);
+        await waitForRemoval(app.lease.paths.manifest);
     });
 });

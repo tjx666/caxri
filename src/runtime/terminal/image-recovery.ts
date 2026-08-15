@@ -4,14 +4,14 @@ export const TERMINAL_IMAGE_RECOVERY_PLACEHOLDER =
     '\r\n[Caxri inline image unavailable after restore]\r\n';
 const MAX_TERMINAL_IMAGE_SEQUENCE_BYTES = 64 * 1024;
 
-const ESC = '\x1b';
+const ESC = '\u{1B}';
 const ST = `${ESC}\\`;
-const C1_ST = '\x9c';
+const C1_ST = '\u{9C}';
 const IIP_PREFIXES = ['File=', 'MultipartFile=', 'FilePart=', 'FileEnd='].flatMap((command) => [
     `${ESC}]1337;${command}`,
-    `\x9d1337;${command}`,
+    `\u{9D}1337;${command}`,
 ]);
-const KITTY_PREFIXES = [`${ESC}_G`, '\x9fG'];
+const KITTY_PREFIXES = [`${ESC}_G`, '\u{9F}G'];
 const MAX_IMAGE_HEADER_CHARACTERS = 64;
 
 type TerminatorKind = 'bel-or-st' | 'st';
@@ -34,16 +34,16 @@ interface ImageOutputDestination {
 
 function findNextImageControl(source: string, start: number): number {
     let next = -1;
-    for (const control of [ESC, '\x90', '\x9d', '\x9f']) {
+    for (const control of [ESC, '\u{90}', '\u{9D}', '\u{9F}']) {
         const index = source.indexOf(control, start);
-        if (index >= 0 && (next < 0 || index < next)) next = index;
+        if (index !== -1 && (next < 0 || index < next)) next = index;
     }
     return next;
 }
 
 function findDcsFinal(source: string, start: number): { end: number; final: string } | undefined {
     for (let index = start; index < source.length; index += 1) {
-        const code = source.charCodeAt(index);
+        const code = source.codePointAt(index) ?? -1;
         if ((code >= 0x30 && code <= 0x3f) || (code >= 0x20 && code <= 0x2f)) continue;
         if (code >= 0x40 && code <= 0x7e) return { end: index + 1, final: source[index] ?? '' };
         return { end: index + 1, final: '' };
@@ -72,7 +72,7 @@ function findImageStart(source: string): ImageSearch {
             return { incompleteIndex: index };
         const dcsPrefixLength = remainder.startsWith(`${ESC}P`)
             ? 2
-            : remainder.startsWith('\x90')
+            : remainder.startsWith('\u{90}')
               ? 1
               : 0;
         if (dcsPrefixLength) {
@@ -100,12 +100,12 @@ function findTerminator(
 ): { index: number; length: number } | undefined {
     const escapedSt = source.indexOf(ST);
     const c1St = source.indexOf(C1_ST);
-    const st = escapedSt < 0 ? c1St : c1St < 0 || escapedSt < c1St ? escapedSt : c1St;
+    const st = escapedSt === -1 ? c1St : c1St === -1 || escapedSt < c1St ? escapedSt : c1St;
     const stLength = st === escapedSt ? ST.length : C1_ST.length;
     if (kind === 'st') return st < 0 ? undefined : { index: st, length: stLength };
-    const bel = source.indexOf('\x07');
-    if (bel < 0 && st < 0) return undefined;
-    if (bel >= 0 && (st < 0 || bel < st)) return { index: bel, length: 1 };
+    const bel = source.indexOf('\u{7}');
+    if (bel === -1 && st < 0) return undefined;
+    if (bel !== -1 && (st < 0 || bel < st)) return { index: bel, length: 1 };
     return { index: st, length: stLength };
 }
 
@@ -120,7 +120,7 @@ export class TerminalImageRecoveryFilter {
     private discarding: TerminatorKind | undefined;
 
     constructor(private readonly maximumSequenceCharacters = MAX_TERMINAL_IMAGE_SEQUENCE_BYTES) {
-        if (!Number.isInteger(maximumSequenceCharacters) || maximumSequenceCharacters < 1)
+        if (!Number.isSafeInteger(maximumSequenceCharacters) || maximumSequenceCharacters < 1)
             throw new RangeError('Terminal image recovery limit must be a positive integer');
     }
 
@@ -207,7 +207,7 @@ export class TerminalImageOutputFilter {
     private discarding: TerminatorKind | undefined;
 
     constructor(private readonly maximumSequenceBytes = MAX_TERMINAL_IMAGE_SEQUENCE_BYTES) {
-        if (!Number.isInteger(maximumSequenceBytes) || maximumSequenceBytes < 1)
+        if (!Number.isSafeInteger(maximumSequenceBytes) || maximumSequenceBytes < 1)
             throw new RangeError('Terminal image output limit must be a positive integer');
     }
 

@@ -2,9 +2,9 @@ import type { CSSProperties } from 'react';
 
 import type { ThemeTokens } from '@shared/types';
 
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
 
-interface ThemePreviewProps {
+interface ThemePreviewProperties {
     theme: ThemeTokens;
 }
 
@@ -13,7 +13,7 @@ type PreviewStyle = CSSProperties & Record<`--preview-${string}`, string>;
 // Header and footer strips share the preview-surface fill and 8px row gap.
 const previewBarClassName = 'flex items-center gap-2 bg-[var(--preview-surface)] px-2 py-1';
 
-export function ThemePreview({ theme }: ThemePreviewProps) {
+export function ThemePreview({ theme }: ThemePreviewProperties) {
     const style: PreviewStyle = {
         '--preview-accent': theme.colors.accent,
         '--preview-background': theme.terminal.background,

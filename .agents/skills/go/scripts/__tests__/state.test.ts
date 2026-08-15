@@ -3,8 +3,8 @@ import {
     access,
     mkdir,
     mkdtemp,
-    readFile,
     readdir,
+    readFile,
     rename,
     rm,
     symlink,
@@ -12,12 +12,14 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import process from 'node:process';
+
 import { describe, expect, it } from 'vitest';
 
-import { createResumeCheckpoint } from '../resume';
 import { recordPublishedAcceptance } from '../acceptance-publication';
 import { assessExpectationDrift } from '../issue-drift';
 import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../platform-neutral-gates';
+import { createResumeCheckpoint } from '../resume';
 import { recordReviewDecision } from '../review-gate';
 import {
     addEvent,
@@ -29,15 +31,15 @@ import {
     transitionState,
     upsertIssue,
     validateState,
-} from '../state';
+} from '../state-model';
 import {
     prepareRunDirectory,
     readState,
     resolveStatePath,
     statePathForRunId,
+    withStateLock,
     writeInitialState,
     writeState,
-    withStateLock,
 } from '../state-storage';
 
 const REQUIRED_SECTIONS = [
@@ -161,7 +163,7 @@ describe('Go state ledger', () => {
         const runDirectory = dirname(statePath);
         try {
             await prepareRunDirectory(statePath);
-            expect((await readdir(runDirectory)).sort()).toEqual([
+            expect((await readdir(runDirectory)).toSorted((a, b) => a.localeCompare(b))).toEqual([
                 'acceptance',
                 'artifacts',
                 'ci-artifacts',

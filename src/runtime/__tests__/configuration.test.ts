@@ -1,23 +1,24 @@
+// eslint-disable-next-line unicorn/name-replacements -- referenced by name in vitest.config.ts and scripts/__tests__/vitest-config-contract.test.ts; renaming is outside this change's scope.
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import parcelWatcher from '@parcel/watcher';
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultKeybindings } from '../../shared/commands';
-import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/configuration-contract';
-import { findKeybindingConflicts } from '../../shared/configuration';
+import { findKeybindingConflicts } from '../../shared/config';
+import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/config-contract';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
-import { ConfigurationService, previousDefaultKeybindingSets } from '../configuration';
+import { ConfigService, previousDefaultKeybindingSets } from '../config';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('ConfigurationService', () => {
@@ -28,7 +29,7 @@ describe('ConfigurationService', () => {
         await mkdir(configDirectory);
         const original = '{"terminal.fontSize":15}';
         await writeFile(join(configDirectory, 'settings.jsonc'), original, 'utf8');
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
 
         await service.initialize();
 
@@ -56,7 +57,7 @@ describe('ConfigurationService', () => {
     it('accepts independent provider argv and retains the previous settings after invalid input', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-agent-launch-'));
         temporaryDirectories.push(directory);
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
         await service.initialize();
         const customized = {
             ...service.getSettings().value,
@@ -88,7 +89,7 @@ describe('ConfigurationService', () => {
     it('atomically adds a normalized trusted domain without discarding Settings comments', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-trusted-domains-'));
         temporaryDirectories.push(directory);
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
         await service.initialize();
         const source = `{
   // Keep this explanation when Main trusts an origin.
@@ -128,7 +129,7 @@ describe('ConfigurationService', () => {
     it('serializes concurrent trusted-domain writes so neither rule is lost', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-trusted-concurrency-'));
         temporaryDirectories.push(directory);
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
         await service.initialize();
 
         await Promise.all([
@@ -168,7 +169,7 @@ describe('ConfigurationService', () => {
             )}\n`,
             'utf8',
         );
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
 
         await service.initialize();
 
@@ -177,9 +178,11 @@ describe('ConfigurationService', () => {
             command: 'inspector.searchFiles',
             key: 'cmd+shift+f',
         });
-        expect(
-            JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
-        ).toEqual(defaultKeybindings);
+        const keybindingsContent = await readFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            'utf8',
+        );
+        expect(JSON.parse(keybindingsContent)).toEqual(defaultKeybindings);
         await service.close();
     });
 
@@ -210,15 +213,19 @@ describe('ConfigurationService', () => {
                 `${JSON.stringify(historical, null, 2)}\n`,
                 'utf8',
             );
-            const service = new ConfigurationService(directory, () => undefined);
+            const service = new ConfigService(directory, () => {});
 
             await service.initialize();
 
             expect(service.getKeybindings().value).toEqual(defaultKeybindings);
-            /** The upgrade is written back, not just held in memory. */
-            expect(
-                JSON.parse(await readFile(join(configDirectory, 'keybindings.jsonc'), 'utf8')),
-            ).toEqual(defaultKeybindings);
+            /**
+            The upgrade is written back, not just held in memory.
+             */
+            const keybindingsContent = await readFile(
+                join(configDirectory, 'keybindings.jsonc'),
+                'utf8',
+            );
+            expect(JSON.parse(keybindingsContent)).toEqual(defaultKeybindings);
             await service.close();
         },
     );
@@ -237,7 +244,7 @@ describe('ConfigurationService', () => {
             `${JSON.stringify(customized, null, 2)}\n`,
             'utf8',
         );
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
 
         await service.initialize();
 
@@ -248,7 +255,7 @@ describe('ConfigurationService', () => {
     it('retains last-known-good settings after a parse failure', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
         await service.initialize();
         const before = service.getSettings();
         await expect(service.updateSettings('{ broken')).rejects.toThrow(
@@ -265,7 +272,9 @@ describe('ConfigurationService', () => {
         await mkdir(configDirectory);
         await writeFile(join(configDirectory, 'settings.jsonc'), '{ broken', 'utf8');
         const events: RuntimeEvent[] = [];
-        const service = new ConfigurationService(directory, (event) => events.push(event));
+        const service = new ConfigService(directory, (event) => {
+            events.push(event);
+        });
 
         await expect(service.initialize()).resolves.toBeUndefined();
         expect(service.getSettings().value['terminal.fontSize']).toBe(13);
@@ -291,7 +300,9 @@ describe('ConfigurationService', () => {
             ),
         );
         const events: RuntimeEvent[] = [];
-        const service = new ConfigurationService(directory, (event) => events.push(event));
+        const service = new ConfigService(directory, (event) => {
+            events.push(event);
+        });
 
         await expect(service.initialize()).resolves.toBeUndefined();
 
@@ -317,7 +328,7 @@ describe('ConfigurationService', () => {
     it('merges file-tree exclusions with defaults without hiding dependency directories', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-files-exclude-'));
         temporaryDirectories.push(directory);
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
         await service.initialize();
 
         expect(service.getSettings().value['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
@@ -343,7 +354,7 @@ describe('ConfigurationService', () => {
     it('does not change in-memory settings when the atomic disk write fails', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-write-'));
         temporaryDirectories.push(directory);
-        const service = new ConfigurationService(directory, () => undefined);
+        const service = new ConfigService(directory, () => {});
         await service.initialize();
         const before = service.getSettings();
         const source = `${JSON.stringify({ ...before.value, 'terminal.fontSize': 17 }, null, 2)}\n`;
@@ -359,7 +370,9 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
         const events: RuntimeEvent[] = [];
-        const service = new ConfigurationService(directory, (event) => events.push(event));
+        const service = new ConfigService(directory, (event) => {
+            events.push(event);
+        });
         await service.initialize();
 
         try {
@@ -383,7 +396,9 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-reload-'));
         temporaryDirectories.push(directory);
         const events: RuntimeEvent[] = [];
-        const service = new ConfigurationService(directory, (event) => events.push(event));
+        const service = new ConfigService(directory, (event) => {
+            events.push(event);
+        });
         await service.initialize();
         const cases = [
             {
@@ -408,13 +423,16 @@ describe('ConfigurationService', () => {
                 events.length = 0;
                 const previousSource = testCase.getSource();
                 const temporaryPath = `${testCase.path}.external.tmp`;
+                // eslint-disable-next-line no-await-in-loop -- each case resets shared `events` state and mutates the same watched path; running cases concurrently would race.
                 await writeFile(
                     temporaryPath,
                     ' '.repeat(MAX_CONFIGURATION_SOURCE_BYTES + 1),
                     'utf8',
                 );
+                // eslint-disable-next-line no-await-in-loop -- rename must complete before polling for this case's event; cases share watched state and cannot run concurrently.
                 await rename(temporaryPath, testCase.path);
 
+                // eslint-disable-next-line no-await-in-loop -- polling this case's outcome must finish before resetting shared `events` state for the next case.
                 await expect
                     .poll(
                         () => {
@@ -443,9 +461,11 @@ describe('ConfigurationService', () => {
             .spyOn(parcelWatcher, 'subscribe')
             .mockRejectedValueOnce(new Error('watcher unavailable'));
         const fallbackPollIntervalMs = 25;
-        const service = new ConfigurationService(
+        const service = new ConfigService(
             directory,
-            (event) => events.push(event),
+            (event) => {
+                events.push(event);
+            },
             undefined,
             {
                 fallbackPollIntervalMs,
@@ -487,7 +507,9 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
         const events: RuntimeEvent[] = [];
-        const service = new ConfigurationService(directory, (event) => events.push(event));
+        const service = new ConfigService(directory, (event) => {
+            events.push(event);
+        });
         await service.initialize();
 
         try {

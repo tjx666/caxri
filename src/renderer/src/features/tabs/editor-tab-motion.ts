@@ -34,12 +34,14 @@ export function reconcileEditorTabMotion(
             : undefined;
         const motionId = exact?.motionId ?? replacedPreview?.motionId ?? nextMotionId++;
         claimed.add(motionId);
-        return { motionId, path: tab.path, ...(tab.preview ? { preview: true as const } : {}) };
+        return { motionId, path: tab.path, ...(tab.preview && { preview: true as const }) };
     });
     return { nextMotionId, tabs };
 }
 
-/** Discards transient identity state as soon as its owning Session no longer exists. */
+/**
+Discards transient identity state as soon as its owning Session no longer exists.
+ */
 export function pruneEditorTabMotionStates(
     states: Map<string, EditorTabMotionState>,
     liveSessionIds: readonly string[],

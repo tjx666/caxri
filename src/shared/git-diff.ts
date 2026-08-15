@@ -14,23 +14,20 @@ export type GitDiffTab =
 
 const GIT_DIFF_TAB_PREFIX = 'caxri-git-diff://';
 
-export function gitFileDiffTabPath(repositoryId: string, path: string): string {
-    return `${GIT_DIFF_TAB_PREFIX}file/${encodeURIComponent(repositoryId)}/${encodeURIComponent(path)}`;
+export function gitFileDiffTabPath(repoId: string, path: string): string {
+    return `${GIT_DIFF_TAB_PREFIX}file/${encodeURIComponent(repoId)}/${encodeURIComponent(path)}`;
 }
 
-export function gitChangesDiffTabPath(repositoryId: string, repositoryName: string): string {
-    return `${GIT_DIFF_TAB_PREFIX}changes/${encodeURIComponent(repositoryId)}/${encodeURIComponent(repositoryName)}`;
+export function gitChangesDiffTabPath(repoId: string, repoName: string): string {
+    return `${GIT_DIFF_TAB_PREFIX}changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
 }
 
-export function gitPullRequestFileDiffTabPath(repositoryId: string, path: string): string {
-    return `${GIT_DIFF_TAB_PREFIX}pr-file/${encodeURIComponent(repositoryId)}/${encodeURIComponent(path)}`;
+export function gitPullRequestFileDiffTabPath(repoId: string, path: string): string {
+    return `${GIT_DIFF_TAB_PREFIX}pr-file/${encodeURIComponent(repoId)}/${encodeURIComponent(path)}`;
 }
 
-export function gitPullRequestChangesDiffTabPath(
-    repositoryId: string,
-    repositoryName: string,
-): string {
-    return `${GIT_DIFF_TAB_PREFIX}pr-changes/${encodeURIComponent(repositoryId)}/${encodeURIComponent(repositoryName)}`;
+export function gitPullRequestChangesDiffTabPath(repoId: string, repoName: string): string {
+    return `${GIT_DIFF_TAB_PREFIX}pr-changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
 }
 
 export function parseGitDiffTab(path: string): GitDiffTab | undefined {
@@ -40,12 +37,12 @@ export function parseGitDiffTab(path: string): GitDiffTab | undefined {
     );
     if (!match) return undefined;
     try {
-        const repositoryId = decodeURIComponent(match[2]);
+        const repoId = decodeURIComponent(match[2]);
         const value = decodeURIComponent(match[3]);
         const source = match[1].startsWith('pr-') ? 'pull-request' : 'working';
         return match[1].endsWith('file')
-            ? { kind: 'file', path: value, repositoryId, source }
-            : { kind: 'changes', repositoryId, repositoryName: value, source };
+            ? { kind: 'file', path: value, repositoryId: repoId, source }
+            : { kind: 'changes', repositoryId: repoId, repositoryName: value, source };
     } catch {
         return undefined;
     }
@@ -58,16 +55,18 @@ export function isGitDiffTabPath(path: string): boolean {
 export function gitDiffTabLabel(tab: GitDiffTab): string {
     return tab.kind === 'changes'
         ? `${tab.source === 'pull-request' ? 'PR Changes' : 'Changes'}: ${tab.repositoryName}`
-        : (tab.path.split('/').filter(Boolean).at(-1) ?? tab.path);
+        : (tab.path.split('/').findLast(Boolean) ?? tab.path);
 }
 
-/** Gives both Monaco sides unique Session-scoped URIs while preserving file extensions. */
+/**
+Gives both Monaco sides unique Session-scoped URIs while preserving file extensions.
+ */
 export function gitDiffModelPath(
     sessionId: string,
-    repositoryId: string,
+    repoId: string,
     path: string,
     side: 'original' | 'modified',
 ): string {
     const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-    return `caxri://git-diff/${encodeURIComponent(sessionId)}/${encodeURIComponent(repositoryId)}/${side}/${encodedPath}`;
+    return `caxri://git-diff/${encodeURIComponent(sessionId)}/${encodeURIComponent(repoId)}/${side}/${encodedPath}`;
 }

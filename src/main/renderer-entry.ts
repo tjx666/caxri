@@ -26,17 +26,19 @@ export function resolveRendererEntryUrl({
     if (!isPackaged && rendererUrl) {
         if (page === 'index.html') return rendererUrl;
         const base = rendererUrl.endsWith('/') ? rendererUrl : `${rendererUrl}/`;
-        return new URL(page, base).toString();
+        return new URL(page, base).href;
     }
     return pathToFileURL(join(currentDirectory, '../renderer', page)).toString();
 }
 
-/** Loads a renderer entry through the same packaged-origin guard used by every window. */
+/**
+Loads a renderer entry through the same packaged-origin guard used by every window.
+ */
 export function loadRendererEntry(
     window: RendererEntryWindow,
     options: RendererEntryOptions,
 ): string {
     const rendererEntryUrl = resolveRendererEntryUrl(options);
-    void window.loadURL(rendererEntryUrl);
+    window.loadURL(rendererEntryUrl);
     return rendererEntryUrl;
 }

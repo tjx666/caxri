@@ -1,13 +1,15 @@
-import type { QueryClient } from '@tanstack/react-query';
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import type { CaxriMethod } from '@shared/ipc';
+import type { QueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../lib/caxri';
 import { getWorkbenchProjectSessionIds } from '../stores/selectors';
 
-/** Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass. */
+/**
+Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass.
+ */
 const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 
 /**
@@ -29,16 +31,19 @@ function invalidateFileDependentQueries(
         'git.diffDocument',
         'git.blame',
     ]);
+    // Fire-and-forget: the invalidated queries surface their own errors through React Query's
+    // per-query error state, so the caller never needs to await or handle this rejection.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method, params] = query.queryKey as [
+            const [method, parameters] = query.queryKey as [
                 CaxriMethod,
                 { sessionId?: string } | undefined,
             ];
             return (
                 sessionScoped.has(method) &&
-                params?.sessionId !== undefined &&
-                sessionIds.includes(params.sessionId)
+                parameters?.sessionId !== undefined &&
+                sessionIds.includes(parameters.sessionId)
             );
         },
     });
@@ -60,14 +65,23 @@ export function removeSessionQueries(
     const removedSessionIds = new Set(sessionIds);
     queryClient.removeQueries({
         predicate: (query) => {
-            const [, params] = query.queryKey as [CaxriMethod, { sessionId?: string } | undefined];
-            return params?.sessionId !== undefined && removedSessionIds.has(params.sessionId);
+            const [, parameters] = query.queryKey as [
+                CaxriMethod,
+                { sessionId?: string } | undefined,
+            ];
+            return (
+                parameters?.sessionId !== undefined && removedSessionIds.has(parameters.sessionId)
+            );
         },
     });
 }
 
-/** `files.exclude` is global, so any valid settings reload refreshes every visible tree listing. */
+/**
+`files.exclude` is global, so any valid settings reload refreshes every visible tree listing.
+ */
 function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient>): void {
+    // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) =>
             query.queryKey[0] === 'files.list' || query.queryKey[0] === 'files.browse',
@@ -103,10 +117,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         if (event.event !== 'files.changed') return;
         const { sessionId, workbenchProjectId } = event.payload;
         const existing = pendingTimers.get(workbenchProjectId);
-        if (existing !== undefined) globalThis.clearTimeout(existing);
+        if (existing !== undefined) clearTimeout(existing);
         pendingTimers.set(
             workbenchProjectId,
-            globalThis.setTimeout(() => {
+            setTimeout(() => {
                 pendingTimers.delete(workbenchProjectId);
                 invalidateFileDependentQueries(
                     queryClient,
@@ -117,6 +131,6 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     });
     return () => {
         unsubscribe();
-        for (const timer of pendingTimers.values()) globalThis.clearTimeout(timer);
+        for (const timer of pendingTimers.values()) clearTimeout(timer);
     };
 }

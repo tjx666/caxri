@@ -12,9 +12,9 @@ import { TerminalManager } from '..';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('TerminalManager process integration', () => {
@@ -107,7 +107,7 @@ describe('TerminalManager process integration', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const manager = new TerminalManager(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
         );
 

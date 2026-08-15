@@ -1,14 +1,13 @@
+import type { KeyboardEvent } from 'react';
+import { useEffect, useRef } from 'react';
+
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
-import { useEffect, useRef, type KeyboardEvent } from 'react';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
 import { keyboardEventShortcut } from '../../lib/keybindings';
-import {
-    terminalSearchResultLabel,
-    type TerminalSearchOptions,
-    type TerminalSearchResults,
-} from './terminal-search';
+import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
+import { terminalSearchResultLabel } from './terminal-search';
 
 /**
  * VS Code's Match Case/Whole Word/Regex chords, mapped to the toggle each fires. Resolved through
@@ -25,7 +24,7 @@ const SEARCH_TOGGLE_SHORTCUTS: Record<string, keyof TerminalSearchOptions> = {
 const searchActionClassName =
     'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted text-[11px] cursor-pointer hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground disabled:cursor-default disabled:opacity-45';
 
-interface TerminalSearchBarProps extends TerminalSearchOptions {
+interface TerminalSearchBarProperties extends TerminalSearchOptions {
     focusRevision: number;
     query: string;
     results: TerminalSearchResults;
@@ -46,16 +45,16 @@ export function TerminalSearchBar({
     onNavigate,
     onQueryChange,
     onToggle,
-}: TerminalSearchBarProps) {
-    const inputRef = useRef<HTMLInputElement>(null);
+}: TerminalSearchBarProperties) {
+    const inputReference = useRef<HTMLInputElement>(null);
     const resultLabel = terminalSearchResultLabel(query, results);
 
     useEffect(() => {
-        const frame = window.requestAnimationFrame(() => {
-            inputRef.current?.focus();
-            inputRef.current?.select();
+        const frame = requestAnimationFrame(() => {
+            inputReference.current?.focus();
+            inputReference.current?.select();
         });
-        return () => window.cancelAnimationFrame(frame);
+        return () => cancelAnimationFrame(frame);
     }, [focusRevision]);
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -69,8 +68,10 @@ export function TerminalSearchBar({
         onNavigate(event.shiftKey ? 'previous' : 'next');
     };
 
-    /** Listens at the search bar root (not just the input) so the chords work while a toggle button
-     *  or a navigation button owns focus too, not only while typing a query. */
+    /**
+     * Listens at the search bar root (not just the input) so the chords work while a toggle button
+     *  or a navigation button owns focus too, not only while typing a query.
+     */
     const handleSearchBarKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
         const option = SEARCH_TOGGLE_SHORTCUTS[keyboardEventShortcut(event.nativeEvent)];
         if (!option) return;
@@ -86,7 +87,7 @@ export function TerminalSearchBar({
         >
             <InputGroup appearance="workbench" className="w-56" size="dense">
                 <Input
-                    ref={inputRef}
+                    ref={inputReference}
                     appearance="embedded"
                     aria-invalid={Boolean(results.error)}
                     aria-label="Find in Terminal"

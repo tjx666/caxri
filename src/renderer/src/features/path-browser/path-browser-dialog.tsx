@@ -1,12 +1,13 @@
-import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
+import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Input, InputGroup } from '../../components/ui/input';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
@@ -36,19 +37,19 @@ function relativeDirectory(root: string, directory: string): string {
 function useDebouncedValue(value: string): string {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
-        const timer = window.setTimeout(() => setDebounced(value), PATH_BROWSER_QUERY_DEBOUNCE_MS);
-        return () => window.clearTimeout(timer);
+        const timer = setTimeout(() => setDebounced(value), PATH_BROWSER_QUERY_DEBOUNCE_MS);
+        return () => clearTimeout(timer);
     }, [value]);
     return debounced;
 }
 
 export function PathBrowserDialog() {
-    const open = useDialogStore((state) => state.pathBrowserOpen);
+    const isOpen = useDialogStore((state) => state.pathBrowserOpen);
     const project = useSelectedProject();
     const session = useSelectedSession();
     return (
-        <Dialog open={open} onOpenChange={setPathBrowserOpen}>
-            {open && project && session && (
+        <Dialog open={isOpen} onOpenChange={setPathBrowserOpen}>
+            {isOpen && project && session && (
                 <PathBrowserContent
                     key={`${session.id}:${project.rootPath}`}
                     projectTitle={project.displayTitle}
@@ -74,7 +75,7 @@ function PathBrowserContent({
     const [selectedIndex, setSelectedIndex] = useState(0);
     const debouncedQuery = useDebouncedValue(query);
     const directory = nestedDirectory ?? root;
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputReference = useRef<HTMLInputElement>(null);
     const listboxId = useId();
     const { data, error, isError, isFetching, isPending } = useCaxriQuery(
         'files.browse',
@@ -82,26 +83,28 @@ function PathBrowserContent({
         { staleTime: 0 },
     );
     const entries = data?.entries ?? EMPTY_ENTRIES;
-    const truncated = data?.truncated ?? false;
-    const settled = query === debouncedQuery && !isPending && !isFetching;
+    const isTruncated = data?.truncated ?? false;
+    const isSettled = query === debouncedQuery && !isPending && !isFetching;
     const matches = useMemo(() => filterPathEntries(entries, query), [entries, query]);
-    const emptyMessage = pathBrowserEmptyMessage(matches.length, truncated);
-    const exactMatchAvailable = !truncated && matches.length === 1 && matches[0].name === query;
-    const resultsReady = settled || exactMatchAvailable;
-    const listboxRendered = resultsReady && !isError;
+    const emptyMessage = pathBrowserEmptyMessage(matches.length, isTruncated);
+    const isExactMatchAvailable = !isTruncated && matches.length === 1 && matches[0].name === query;
+    const isResultsReady = isSettled || isExactMatchAvailable;
+    const isListboxRendered = isResultsReady && !isError;
     const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(matches.length - 1, 0));
-    const selected = resultsReady ? matches[effectiveSelectedIndex] : undefined;
+    const selected = isResultsReady ? matches[effectiveSelectedIndex] : undefined;
     const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
-    const createCandidate = useMemo(
-        () => pathBrowserCreateCandidate(query, matches.length, truncated),
-        [query, matches.length, truncated],
+    const candidateToCreate = useMemo(
+        () => pathBrowserCreateCandidate(query, matches.length, isTruncated),
+        [query, matches.length, isTruncated],
     );
 
     useEffect(() => {
         if (activeOptionId)
-            document.getElementById(activeOptionId)?.scrollIntoView({ block: 'nearest' });
+            document
+                .querySelector(`#${CSS.escape(activeOptionId)}`)
+                ?.scrollIntoView({ block: 'nearest' });
     }, [activeOptionId]);
-    useEffect(() => inputRef.current?.focus(), []);
+    useEffect(() => inputReference.current?.focus(), []);
 
     const updateQuery = (value: string): void => {
         setQuery(value);
@@ -123,6 +126,7 @@ function PathBrowserContent({
             return;
         }
         closePathBrowser();
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, openFile() reports its own errors
         void openFile(entry.path);
     };
     /**
@@ -132,15 +136,15 @@ function PathBrowserContent({
      * within root via `parentDirectoryWithinRoot`/listed entry paths).
      */
     const createFromQuery = async (): Promise<void> => {
-        if (!createCandidate) return;
+        if (!candidateToCreate) return;
         const created = await createItem(
             sessionId,
             directory,
-            createCandidate.name,
-            createCandidate.kind,
+            candidateToCreate.name,
+            candidateToCreate.kind,
         );
         if (!created) return;
-        if (createCandidate.kind === 'directory') {
+        if (candidateToCreate.kind === 'directory') {
             enterDirectory(created.path);
             return;
         }
@@ -158,7 +162,7 @@ function PathBrowserContent({
         }
         if (event.key === 'Tab') {
             event.preventDefault();
-            const completion = completePathQuery(entries, query, truncated);
+            const completion = completePathQuery(entries, query, isTruncated);
             if (completion) updateQuery(completion);
             return;
         }
@@ -170,7 +174,10 @@ function PathBrowserContent({
         if (event.key === 'Enter') {
             event.preventDefault();
             if (selected) choose(selected);
-            else if (createCandidate) void createFromQuery();
+            else if (candidateToCreate) {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, createFromQuery() reports its own errors
+                void createFromQuery();
+            }
             return;
         }
         if (
@@ -203,12 +210,12 @@ function PathBrowserContent({
                     {root ? relativeDirectory(root, directory) : ''}
                 </span>
                 <Input
-                    ref={inputRef}
+                    ref={inputReference}
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
-                    aria-busy={!resultsReady}
-                    aria-controls={listboxRendered ? listboxId : undefined}
-                    aria-expanded={listboxRendered}
+                    aria-busy={!isResultsReady}
+                    aria-controls={isListboxRendered ? listboxId : undefined}
+                    aria-expanded={isListboxRendered}
                     aria-label="File path"
                     appearance="embedded"
                     className="min-w-[80px] flex-1 px-1 text-foreground"
@@ -231,30 +238,33 @@ function PathBrowserContent({
                         {describeFailure(error, 'Unable to read directory')}
                     </p>
                 )}
-                {!isPending && !isError && !resultsReady && (
+                {!isPending && !isError && !isResultsReady && (
                     <p className="p-6 text-center text-muted">Searching…</p>
                 )}
-                {resultsReady && !isError && emptyMessage && !createCandidate && (
+                {isResultsReady && !isError && emptyMessage && !candidateToCreate && (
                     <p className="p-6 text-center text-muted">{emptyMessage}</p>
                 )}
-                {resultsReady && !isError && createCandidate && (
+                {isResultsReady && !isError && candidateToCreate && (
                     <button
                         type="button"
                         className="path-browser-create flex h-10 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated"
-                        onClick={() => void createFromQuery()}
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createFromQuery() reports its own errors
+                            void createFromQuery();
+                        }}
                     >
-                        {createCandidate.kind === 'directory' ? (
+                        {candidateToCreate.kind === 'directory' ? (
                             <FolderPlus aria-hidden="true" className="text-muted" size={14} />
                         ) : (
                             <FilePlus aria-hidden="true" className="text-muted" size={14} />
                         )}
                         <span className="min-w-0 flex-1 truncate">
-                            Create {createCandidate.kind === 'directory' ? 'folder' : 'file'} “
-                            {createCandidate.name}”
+                            Create {candidateToCreate.kind === 'directory' ? 'folder' : 'file'} “
+                            {candidateToCreate.name}”
                         </span>
                     </button>
                 )}
-                {listboxRendered && (
+                {isListboxRendered && (
                     <div aria-label="Files in current directory" id={listboxId} role="listbox">
                         {matches.map((entry, index) => (
                             <button
@@ -286,7 +296,7 @@ function PathBrowserContent({
                         ))}
                     </div>
                 )}
-                {listboxRendered && truncated && matches.length > 0 && (
+                {isListboxRendered && isTruncated && matches.length > 0 && (
                     <p className="px-2 py-1 text-[10px] text-muted" role="status">
                         Only part of this directory is shown. Refine or open a narrower folder.
                     </p>
@@ -295,7 +305,7 @@ function PathBrowserContent({
             <div className="flex h-8 items-center gap-3 border-t border-border px-3 text-[10px] text-muted">
                 <span>↑↓ Select</span>
                 <span>Tab Complete</span>
-                <span>{createCandidate ? 'Enter Create' : '→/Enter Open'}</span>
+                <span>{candidateToCreate ? 'Enter Create' : '→/Enter Open'}</span>
                 <span>← Parent</span>
                 <span>Esc Close</span>
             </div>

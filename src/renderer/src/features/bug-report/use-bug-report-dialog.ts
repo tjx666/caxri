@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useReducer } from 'react';
 
-import { errorMessage, type MethodResult } from '@shared/ipc';
+import type { MethodResult } from '@shared/ipc';
+import { errorMessage } from '@shared/ipc';
 
 import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';
-import { getResolvedActiveWork } from '../../stores/session-view';
 import { getBootstrap } from '../../stores/selectors';
+import { getResolvedActiveWork } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
+import type { BugReportContext, BugReportDraft } from './bug-report';
 import {
     bugReportImageFallback,
     buildBugReport,
     chooseBugReportTarget,
     runningAgentTargets,
-    type BugReportContext,
-    type BugReportDraft,
 } from './bug-report';
 
 type DiagnosticsContext = MethodResult<'bugReport.context'>;
@@ -29,7 +29,7 @@ interface ReportSource {
 const EMPTY_DRAFT: BugReportDraft = { actual: '', expected: '', steps: '' };
 
 function basename(path: string): string {
-    return path.split(/[\\/]/).filter(Boolean).at(-1) ?? 'file';
+    return path.split(/[\\/]/).findLast(Boolean) ?? 'file';
 }
 
 function visibleWorkContext(): BugReportContext['visibleWork'] {
@@ -146,20 +146,22 @@ export function useBugReportDialog() {
 
     useEffect(() => {
         if (!source) return;
-        let current = true;
-        void caxri
-            .request('bugReport.context')
-            .then((value) => {
-                if (current) updateState({ diagnostics: value });
-            })
-            .catch((error: unknown) => {
-                if (current)
+        let isCurrent = true;
+        async function loadContext(): Promise<void> {
+            try {
+                const value = await caxri.request('bugReport.context');
+                if (isCurrent) updateState({ diagnostics: value });
+            } catch (error: unknown) {
+                if (isCurrent)
                     updateState({
                         contextError: errorMessage(error, 'Unable to load Caxri context.'),
                     });
-            });
+            }
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadContext();
         return () => {
-            current = false;
+            isCurrent = false;
         };
     }, [source]);
 
@@ -169,7 +171,7 @@ export function useBugReportDialog() {
     );
     const target = targets.find((item) => item.id === selectedTargetId);
     const imageFallbackNotice = bugReportImageFallback(target?.provider);
-    const sessionChanged = Boolean(source && bootstrap?.selectedSessionId !== source.session.id);
+    const isSessionChanged = Boolean(source && bootstrap?.selectedSessionId !== source.session.id);
     const canPreview = Boolean(
         source && diagnostics && draft.actual.trim() && draft.expected.trim() && draft.steps.trim(),
     );
@@ -178,8 +180,8 @@ export function useBugReportDialog() {
         updateState((current) => ({ draft: { ...current.draft, [field]: value } }));
     };
 
-    const setIncludeScreenshot = (checked: boolean): void => {
-        updateState({ includeScreenshot: checked });
+    const setIncludeScreenshot = (isChecked: boolean): void => {
+        updateState({ includeScreenshot: isChecked });
     };
 
     const setSelectedTargetId = (value: string | undefined): void => {
@@ -284,7 +286,7 @@ export function useBugReportDialog() {
         selectedTargetId,
         send,
         sendError,
-        sessionChanged,
+        sessionChanged: isSessionChanged,
         setIncludeScreenshot,
         setSelectedTargetId,
         target,

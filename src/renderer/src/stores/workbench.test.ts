@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import type { RuntimeEvent } from '@shared/ipc/events';
 import type { BootstrapState, SessionState } from '@shared/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
     let listener: ((event: RuntimeEvent) => void) | undefined;
@@ -26,13 +25,13 @@ vi.mock('../lib/caxri', () => ({
     caxri: { onEvent: mocks.onEvent, request: mocks.request },
 }));
 
+import { useSessionViewStore } from './session-view';
 import {
     patchSessionState,
     refreshWorkbench,
     subscribeWorkbenchEvents,
     useWorkbenchStore,
 } from './workbench';
-import { useSessionViewStore } from './session-view';
 
 function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
@@ -323,7 +322,11 @@ describe('workbench Session state', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
 
         updateRequest.reject(new Error('rejected by Runtime'));
-        await updateRequest.promise.catch(() => undefined);
+        try {
+            await updateRequest.promise;
+        } catch {
+            // Expected: this test exercises the rejection path.
+        }
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
     });
@@ -431,7 +434,7 @@ describe('workbench Session state', () => {
         } as unknown as BootstrapState;
         useWorkbenchStore.setState({ bootstrap });
 
-        const updateRequests: ReturnType<typeof Promise.withResolvers<SessionState>>[] = [];
+        const updateRequests: Array<ReturnType<typeof Promise.withResolvers<SessionState>>> = [];
         mocks.request.mockImplementation((method: unknown) => {
             if (method === 'session.updateState') {
                 const deferred = Promise.withResolvers<SessionState>();
@@ -455,7 +458,11 @@ describe('workbench Session state', () => {
         // The older, now-superseded patch (`statusState`) fails afterwards; it must not roll
         // the Session back over the confirmed newer state.
         updateRequests[0].reject(new Error('stale failure'));
-        await updateRequests[0].promise.catch(() => undefined);
+        try {
+            await updateRequests[0].promise;
+        } catch {
+            // Expected: this test exercises the rejection path.
+        }
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
     });

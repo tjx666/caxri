@@ -49,7 +49,9 @@ export const commandIds = [
 
 export type CommandId = (typeof commandIds)[number];
 
-/** Keeps Inspector mode command IDs inside the catalog enum. */
+/**
+Keeps Inspector mode command IDs inside the catalog enum.
+ */
 export function inspectorCommandId(id: InspectorCommandId): CommandId {
     return id;
 }

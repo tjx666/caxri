@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-const BRIDGE_SCRIPT = String.raw`'use strict';
+const BRIDGE_SCRIPT = `'use strict';
 const net = require('node:net');
 const args = new Map();
 for (let index = 2; index < process.argv.length - 1; index += 2) {
@@ -72,7 +72,9 @@ async function writeIfChanged(path: string, source: string, mode: number): Promi
     await atomicWrite(path, source, mode);
 }
 
-/** Stages one version-independent executable path so ordinary Caxri upgrades do not churn hooks. */
+/**
+Stages one version-independent executable path so ordinary Caxri upgrades do not churn hooks.
+ */
 export async function stageAgentHookBridge(sharedPath: string): Promise<string> {
     const directory = join(sharedPath, 'bin');
     const bridgePath = join(directory, 'caxri-agent-hook-bridge');
@@ -81,7 +83,9 @@ export async function stageAgentHookBridge(sharedPath: string): Promise<string> 
         const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
             bridgeVersion?: unknown;
         };
-        /** A newer Caxri owns the shared bridge; older binaries must not downgrade it. */
+        /**
+        A newer Caxri owns the shared bridge; older binaries must not downgrade it.
+         */
         if (typeof manifest.bridgeVersion === 'number' && manifest.bridgeVersion > BRIDGE_VERSION)
             return bridgePath;
     } catch {

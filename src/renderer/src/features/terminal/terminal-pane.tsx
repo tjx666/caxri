@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+
+import type { ProcessState, TerminalFailureReason } from '@shared/types';
 import {
     CircleCheck,
     CircleX,
@@ -6,10 +9,8 @@ import {
     RotateCcw,
     TriangleAlert,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
-import type { ProcessState, TerminalFailureReason } from '@shared/types';
-
+import { Button } from '../../components/ui/button';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -17,32 +18,31 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from '../../components/ui/context-menu';
-import { Button } from '../../components/ui/button';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     activateTerminal,
-    activeTerminalHasSelection,
     clearActiveTerminal,
     copyActiveTerminalSelection,
     findInActiveTerminal,
+    hasActiveTerminalSelection,
     restartTerminal,
     startNewAgentSession,
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
-import { TerminalSearchBar } from './terminal-search-bar';
+import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
     registerTerminalSearchHandler,
     terminalSearchReducer,
-    type TerminalSearchOptions,
 } from './terminal-search';
+import { TerminalSearchBar } from './terminal-search-bar';
 import { useTerminalPaneRuntime } from './use-terminal-pane';
 
-interface TerminalPaneProps {
+interface TerminalPaneProperties {
     active: boolean;
     ariaLabel: string;
     terminalId: string;
@@ -70,9 +70,11 @@ function TerminalRecoveryBar({
     resumesAgentSession: boolean;
     terminalId: string;
 }) {
-    /** `terminal.restart` drives both labels below; only the visible word ("Resume" vs "Restart")
+    /**
+     * `terminal.restart` drives both labels below; only the visible word ("Resume" vs "Restart")
      *  changes, so the tooltip text is composed locally instead of reusing `CommandTooltip`'s fixed
-     *  catalog title, which used to show "Restart Terminal" while hovering a button labeled Resume. */
+     *  catalog title, which used to show "Restart Terminal" while hovering a button labeled Resume.
+     */
     const restartShortcut = useCommandShortcut('terminal.restart');
     const exitPresentation = getTerminalExitPresentation(processState, failureReason);
     if (!exitPresentation) return null;
@@ -84,10 +86,12 @@ function TerminalRecoveryBar({
               : exitPresentation.icon === 'pending'
                 ? LoaderCircle
                 : CircleX;
-    /** An automatic restore is already in flight for `interrupted`; racing it with a manual click
+    /**
+     * An automatic restore is already in flight for `interrupted`; racing it with a manual click
      *  can hand two restart requests to the same Terminal, so the actions stand down until it settles
-     *  into a state (`failed`/`dead`/`stopped`) that actually needs a user decision. */
-    const awaitingAutomaticRestore = processState === 'interrupted';
+     *  into a state (`failed`/`dead`/`stopped`) that actually needs a user decision.
+     */
+    const isAwaitingAutomaticRestore = processState === 'interrupted';
     return (
         <div
             aria-live="polite"
@@ -111,7 +115,7 @@ function TerminalRecoveryBar({
                 />
                 {exitPresentation.label}
             </span>
-            {!awaitingAutomaticRestore && (
+            {!isAwaitingAutomaticRestore && (
                 <Tooltip
                     content={resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'}
                     shortcut={restartShortcut}
@@ -129,7 +133,7 @@ function TerminalRecoveryBar({
                     </Button>
                 </Tooltip>
             )}
-            {!awaitingAutomaticRestore && resumesAgentSession && (
+            {!isAwaitingAutomaticRestore && resumesAgentSession && (
                 <CommandTooltip commandId="terminal.startNewAgentSession">
                     <Button
                         aria-label="Start New Agent Session"
@@ -150,7 +154,7 @@ function TerminalRecoveryBar({
  * Presents one Terminal while the runtime hook owns its imperative xterm lifecycle. Inputs are
  * selected from stores here so a snapshot refresh does not rerender every pane in a split layout.
  */
-export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProps) {
+export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProperties) {
     const terminal = useTerminal(terminalId);
     const session = useSelectedSession();
     const theme = useTheme();
@@ -158,9 +162,9 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
     const fontSize = settings?.['terminal.fontSize'] ?? 13;
     const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
-    const copyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
+    const isCopyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
     const gpuAcceleration = settings?.['terminal.gpuAcceleration'] ?? 'off';
-    const osc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
+    const isOsc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
     const processState = terminal?.lastProcessState ?? 'starting';
     const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
     const terminalTheme = theme?.terminal;
@@ -180,11 +184,11 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     } = useTerminalPaneRuntime({
         active,
         attachEpoch,
-        copyOnSelect,
+        copyOnSelect: isCopyOnSelect,
         fontSize,
         gpuAcceleration,
         isCodex,
-        osc52ClipboardWrite,
+        osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
         projectRoot: session?.rootPath ?? '',
         scrollback,
@@ -231,14 +235,14 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const closeSearch = useCallback((): void => {
         endSearch();
         dispatchSearch({ type: 'close' });
-        window.requestAnimationFrame(focusTerminal);
+        requestAnimationFrame(focusTerminal);
     }, [endSearch, focusTerminal]);
 
-    const resumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
+    const isResumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
     const isRunning = processState === 'running';
     /**
      * Recomputed only when the menu opens rather than tracked continuously: xterm selection changes
-     * do not otherwise trigger a `TerminalPane` rerender, so reading `activeTerminalHasSelection`
+     * do not otherwise trigger a `TerminalPane` rerender, so reading `hasActiveTerminalSelection`
      * straight in JSX would show whatever was true the last time some other prop changed.
      */
     const [contextMenuHasSelection, setContextMenuHasSelection] = useState(false);
@@ -254,7 +258,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         >
             <ContextMenu
                 onOpenChange={(open) => {
-                    if (open) setContextMenuHasSelection(activeTerminalHasSelection(terminalId));
+                    if (open) setContextMenuHasSelection(hasActiveTerminalSelection(terminalId));
                 }}
             >
                 <ContextMenuTrigger
@@ -312,7 +316,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             <TerminalRecoveryBar
                 failureReason={terminal?.failureReason}
                 processState={processState}
-                resumesAgentSession={resumesAgentSession}
+                resumesAgentSession={isResumesAgentSession}
                 terminalId={terminalId}
             />
         </div>

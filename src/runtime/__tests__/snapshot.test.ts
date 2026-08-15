@@ -21,6 +21,6 @@ describe('boundSnapshot', () => {
         const result = boundSnapshot(`x${'界'.repeat(MAX_SNAPSHOT_BYTES)}`);
 
         expect(result.byteCount).toBeLessThanOrEqual(MAX_SNAPSHOT_BYTES);
-        expect(result.payload).not.toContain('\uFFFD');
+        expect(result.payload).not.toContain('\u{FFFD}');
     });
 });

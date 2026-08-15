@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -175,7 +174,11 @@ test('Project search opens name results and reveals grouped content matches', as
             running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
         ).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

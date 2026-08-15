@@ -1,7 +1,9 @@
 import { mkdtemp, rm, stat } from 'node:fs/promises';
-import { createConnection, type Socket } from 'node:net';
+import type { Socket } from 'node:net';
+import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,15 +12,17 @@ import type { CommandAdapter } from '../../shared/ipc/dispatcher';
 import type { CaxriError } from '../../shared/ipc/errors';
 import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
-import { LocalHostServer } from '../local-server';
 import { AgentEndpointRegistry } from '../agent-endpoints';
 import { AgentInboxRegistry } from '../agent-inbox';
+import { LocalHostServer } from '../local-server';
 import { acquireHostProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
-    await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+    const cleanupsToRun = cleanups.slice();
+    cleanups.length = 0;
+    await Promise.all(cleanupsToRun.map((cleanup) => cleanup()));
 });
 
 async function profile() {
@@ -45,7 +49,10 @@ function lineReader(socket: Socket) {
             newline = source.indexOf('\n');
         }
     });
-    return () => new Promise<unknown>((resolve) => pending.push(resolve));
+    return () =>
+        new Promise<unknown>((resolve) => {
+            pending.push(resolve);
+        });
 }
 
 async function connect(path: string): Promise<Socket> {
@@ -133,7 +140,9 @@ describe('local Host transport', () => {
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             manifest: lease.manifest,
-            onClientCountChanged: (count) => counts.push(count),
+            onClientCountChanged: (count) => {
+                counts.push(count);
+            },
         });
         await server.start();
         await lease.publish();
@@ -409,9 +418,11 @@ describe('local Host transport', () => {
             ).resolves.toMatchObject({ status: 'delivered' });
         });
 
-        const waitStarted = new Promise<void>((resolve) => {
+        const waitStarted = (() => {
+            const { promise, resolve } = Promise.withResolvers<void>();
             waitStartedResolve = resolve;
-        });
+            return promise;
+        })();
         const abandoned = receiver.request('agent.message.wait', { timeoutMs: 2_000 });
         await waitStarted;
         receiver.close();
@@ -613,10 +624,7 @@ describe('local Host transport', () => {
 
     it('does not let a slow Desktop command block later terminal traffic on the same socket', async () => {
         const lease = await profile();
-        let releaseRead!: (value: unknown) => void;
-        const slowRead = new Promise<unknown>((resolve) => {
-            releaseRead = resolve;
-        });
+        const { promise: slowRead, resolve: releaseRead } = Promise.withResolvers<unknown>();
         const invoke = vi.fn((request: { method: string }) => {
             if (request.method === 'files.read') return slowRead;
             if (request.method === 'terminal.input' || request.method === 'terminal.resize')
@@ -682,10 +690,7 @@ describe('local Host transport', () => {
 
     it('bounds the Desktop terminal hot lane while preserving its reserved capacity', async () => {
         const lease = await profile();
-        let releaseInput!: (value: null) => void;
-        const slowInput = new Promise<null>((resolve) => {
-            releaseInput = resolve;
-        });
+        const { promise: slowInput, resolve: releaseInput } = Promise.withResolvers<null>();
         const invoke = vi.fn((request: { method: string }) => {
             if (request.method === 'terminal.input') return slowInput;
             if (request.method === 'terminal.resize') return null;

@@ -3,11 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createE2ELaunchFinalizer } from '../e2e-launch-finalizer';
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
-    let resolve!: () => void;
-    const promise = new Promise<void>((resolvePromise) => {
-        resolve = resolvePromise;
-    });
-    return { promise, resolve };
+    return Promise.withResolvers<void>();
 }
 
 describe('E2E launch finalizer', () => {
@@ -15,24 +11,24 @@ describe('E2E launch finalizer', () => {
         const cleanup = deferred();
         const cleanupTask = vi.fn(() => cleanup.promise);
         const finalizer = createE2ELaunchFinalizer(cleanupTask);
-        const close = vi.fn(() => {
-            void finalizer.begin();
-            return Promise.resolve();
+        const close = vi.fn(async () => {
+            await finalizer.begin();
         });
 
-        let finished = false;
-        const finishing = finalizer.finish(close).then(() => {
-            finished = true;
-        });
+        let isFinished = false;
+        const finishing = (async () => {
+            await finalizer.finish(close);
+            isFinished = true;
+        })();
         await Promise.resolve();
 
         expect(close).toHaveBeenCalledOnce();
         expect(cleanupTask).toHaveBeenCalledOnce();
-        expect(finished).toBe(false);
+        expect(isFinished).toBe(false);
 
         cleanup.resolve();
         await finishing;
-        expect(finished).toBe(true);
+        expect(isFinished).toBe(true);
     });
 
     it('does not close or release twice when the app already emitted close', async () => {

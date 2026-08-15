@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import process from 'node:process';
 
 import type { HostDesktopLaunch } from '../shared/ipc/desktop-launch';
 import { e2eFakeExecutableEnvironmentKeys } from '../shared/node/e2e-agent-policy';
@@ -15,7 +16,9 @@ const DESKTOP_E2E_ENVIRONMENT_KEYS = [
     ...e2eFakeExecutableEnvironmentKeys(),
 ] as const;
 
-/** Launches the application identity directly; no shell or caller-authored command is accepted. */
+/**
+Launches the application identity directly; no shell or caller-authored command is accepted.
+ */
 export function createDesktopLauncher(options: {
     launch: HostDesktopLaunch;
     sourceEnvironment?: NodeJS.ProcessEnv;

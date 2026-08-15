@@ -15,8 +15,10 @@ const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
@@ -53,15 +55,18 @@ describe('Git commit history', () => {
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         const logger = new StructuredLogger(join(directory, 'logs'));
         const git = new GitService(new ProjectRootResolver(database), logger);
-        const repository = (await git.summary(session.id)).repositories[0];
-        const params = {
+        const repo = (await git.summary(session.id)).repositories[0];
+        const parameters = {
             sessionId: session.id,
-            repositoryId: repository.id,
+            repositoryId: repo.id,
             offset: 0,
             pageSize: 2,
         } as const;
 
-        const [first, concurrent] = await Promise.all([git.commits(params), git.commits(params)]);
+        const [first, concurrent] = await Promise.all([
+            git.commits(parameters),
+            git.commits(parameters),
+        ]);
         expect(concurrent).toEqual(first);
         expect(first.commits).toHaveLength(2);
         expect(first.nextOffset).toBe(2);
@@ -76,17 +81,17 @@ describe('Git commit history', () => {
         expect(first.commits[0].decorations).toContain('HEAD -> main');
         expect(first.commits[0].authoredAt).toBeGreaterThan(0);
 
-        const second = await git.commits({ ...params, offset: first.nextOffset! });
+        const second = await git.commits({ ...parameters, offset: first.nextOffset! });
         expect(second.commits).toHaveLength(2);
         expect(second.nextOffset).toBe(4);
-        const final = await git.commits({ ...params, offset: second.nextOffset! });
+        const final = await git.commits({ ...parameters, offset: second.nextOffset! });
         expect(final.commits).toHaveLength(1);
         expect(final.nextOffset).toBeUndefined();
         expect(
             [...first.commits, ...second.commits, ...final.commits].map((item) => item.subject),
         ).toContain('功能提交');
 
-        const subtree = await git.commits({ ...params, pageSize: 10, path: 'src' });
+        const subtree = await git.commits({ ...parameters, pageSize: 10, path: 'src' });
         expect(subtree.commits.map((item) => item.subject)).not.toContain('docs only');
         expect(subtree.commits.map((item) => item.subject)).not.toContain('main docs');
         expect(subtree.commits.map((item) => item.subject)).toEqual(
@@ -95,19 +100,19 @@ describe('Git commit history', () => {
 
         const details = await git.commitDetails({
             sessionId: session.id,
-            repositoryId: repository.id,
+            repositoryId: repo.id,
             sha: first.commits[0].sha,
             path: 'src',
         });
         expect(details.commit.parents).toHaveLength(2);
         expect(details.files).toContainEqual({ path: 'src/feature.ts', status: 'added' });
         expect(details.filesTruncated).toBe(false);
-        await expect(git.commits({ ...params, path: directory })).rejects.toMatchObject({
+        await expect(git.commits({ ...parameters, path: directory })).rejects.toMatchObject({
             code: 'PATH_DENIED',
         });
         // A partial or nonexistent path is expected while the user types into the history filter;
         // it must surface as NOT_FOUND, not a generic INTERNAL failure from the raw ENOENT.
-        await expect(git.commits({ ...params, path: 'does-not-exist' })).rejects.toMatchObject({
+        await expect(git.commits({ ...parameters, path: 'does-not-exist' })).rejects.toMatchObject({
             code: 'NOT_FOUND',
         });
 

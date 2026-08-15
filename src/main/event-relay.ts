@@ -1,8 +1,5 @@
-import {
-    createEventJournal,
-    isTransientRuntimeEvent,
-    type EventRecovery,
-} from '../shared/ipc/event-journal';
+import type { EventRecovery } from '../shared/ipc/event-journal';
+import { createEventJournal, isTransientRuntimeEvent } from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { BootstrapState } from '../shared/types';
 
@@ -21,7 +18,9 @@ export interface MainEventRelayOptions {
     onKeybindingsChanged(): void;
 }
 
-/** Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host. */
+/**
+Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host.
+ */
 export function createMainEventRelay(options: MainEventRelayOptions) {
     const journal = createEventJournal({
         snapshot: async (cursor) => {
@@ -31,7 +30,9 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                 projectIds: state.projects.map(({ id }) => id),
                 sessionIds: state.sessions.map(({ id }) => id),
                 terminalIds: state.terminals.map(({ id }) => id),
-                /** These domains converge through principal-specific reads after snapshot recovery. */
+                /**
+                These domains converge through principal-specific reads after snapshot recovery.
+                 */
                 settingsRevision: cursor,
                 diagnosticsRevision: cursor,
                 agentRevision: cursor,

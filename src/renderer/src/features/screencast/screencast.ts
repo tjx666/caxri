@@ -1,7 +1,6 @@
-import { create } from 'zustand';
-
 import { commandDefinitions } from '@shared/commands';
 import type { Keybinding } from '@shared/types';
+import { create } from 'zustand';
 
 import { buildShortcutMap, keyboardEventShortcut } from '../../lib/keybindings';
 import { pushToast } from '../../stores/toasts';
@@ -79,15 +78,19 @@ interface ScreencastState {
     toggle(): void;
 }
 
-/** Window-local by design: this store has no persistence or Runtime synchronization. */
+/**
+Window-local by design: this store has no persistence or Runtime synchronization.
+ */
 export const useScreencastStore = create<ScreencastState>((set) => ({
     enabled: false,
     toggle: () => set((state) => ({ enabled: !state.enabled })),
 }));
 
-/** Pure so it stays testable without a DOM `window` (the toast store's timers require one). */
-export function screencastToggleToastMessage(enabled: boolean): string {
-    return enabled ? 'Screencast Mode on' : 'Screencast Mode off';
+/**
+Pure so it stays testable without a DOM `window` (the toast store's timers require one).
+ */
+export function screencastToggleToastMessage(isEnabled: boolean): string {
+    return isEnabled ? 'Screencast Mode on' : 'Screencast Mode off';
 }
 
 /**
@@ -98,6 +101,6 @@ export function screencastToggleToastMessage(enabled: boolean): string {
  */
 export function toggleScreencastMode(): void {
     useScreencastStore.getState().toggle();
-    const enabled = useScreencastStore.getState().enabled;
-    pushToast('info', screencastToggleToastMessage(enabled));
+    const isEnabled = useScreencastStore.getState().enabled;
+    pushToast('info', screencastToggleToastMessage(isEnabled));
 }

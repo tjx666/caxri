@@ -14,7 +14,7 @@ interface SnapshotChunk {
 function countNewlines(text: string): number {
     let count = 0;
     for (let index = 0; index < text.length; index += 1)
-        if (text.charCodeAt(index) === 10) count += 1;
+        if (text.codePointAt(index) === 10) count += 1;
     return count;
 }
 
@@ -42,43 +42,13 @@ export class TerminalSnapshotBuffer {
         initial: string,
         private readonly maximumBytes = MAX_SNAPSHOT_BYTES,
     ) {
-        if (!Number.isInteger(maximumBytes) || maximumBytes < 1)
+        if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1)
             throw new RangeError('Terminal snapshot byte limit must be a positive integer');
         const bounded = boundSnapshot(initial);
         this.chunks = bounded.payload ? [toChunk(bounded.payload)] : [];
         this.byteCount = bounded.byteCount;
         this.newlineCount = Math.max(0, bounded.lineCount - 1);
         this.trimBytes(true);
-    }
-
-    append(data: string): void {
-        if (!data) return;
-        const chunk = toChunk(data);
-        this.chunks.push(chunk);
-        this.byteCount += chunk.byteCount;
-        this.newlineCount += chunk.newlineCount;
-        this.revision += 1;
-        this.cached = undefined;
-        this.trimLines();
-        this.trimBytes();
-    }
-
-    read(): BoundedSnapshot {
-        this.trimBytes(true);
-        this.cached ??= {
-            payload: this.chunks.map((chunk) => chunk.text).join(''),
-            lineCount: Math.min(this.newlineCount + 1, MAX_SNAPSHOT_LINES),
-            byteCount: this.byteCount,
-        };
-        return this.cached;
-    }
-
-    hasUnpersistedChanges(): boolean {
-        return this.revision !== this.persistedRevision;
-    }
-
-    markPersisted(): void {
-        this.persistedRevision = this.revision;
     }
 
     private trimLines(): void {
@@ -98,9 +68,9 @@ export class TerminalSnapshotBuffer {
         }
     }
 
-    private trimBytes(force = false): void {
+    private trimBytes(isForced = false): void {
         let excess = this.byteCount - this.maximumBytes;
-        if (!force && excess < SNAPSHOT_TRIM_BATCH_BYTES) return;
+        if (!isForced && excess < SNAPSHOT_TRIM_BATCH_BYTES) return;
         while (excess > 0 && this.chunks.length > 0) {
             const first = this.chunks[0];
             if (first.byteCount <= excess) {
@@ -132,9 +102,41 @@ export class TerminalSnapshotBuffer {
         this.byteCount += replacement.byteCount;
         this.newlineCount += replacement.newlineCount;
     }
+
+    append(data: string): void {
+        if (!data) return;
+        const chunk = toChunk(data);
+        this.chunks.push(chunk);
+        this.byteCount += chunk.byteCount;
+        this.newlineCount += chunk.newlineCount;
+        this.revision += 1;
+        this.cached = undefined;
+        this.trimLines();
+        this.trimBytes();
+    }
+
+    read(): BoundedSnapshot {
+        this.trimBytes(true);
+        this.cached ??= {
+            payload: this.chunks.map((chunk) => chunk.text).join(''),
+            lineCount: Math.min(this.newlineCount + 1, MAX_SNAPSHOT_LINES),
+            byteCount: this.byteCount,
+        };
+        return this.cached;
+    }
+
+    hasUnpersistedChanges(): boolean {
+        return this.revision !== this.persistedRevision;
+    }
+
+    markPersisted(): void {
+        this.persistedRevision = this.revision;
+    }
 }
 
-/** Maintains a bounded Renderer delivery queue with constant-time byte accounting. */
+/**
+Maintains a bounded Renderer delivery queue with constant-time byte accounting.
+ */
 export class TerminalOutputQueue {
     private readonly chunks: string[] = [];
     byteCount = 0;
@@ -159,7 +161,9 @@ export class TerminalOutputQueue {
         return buffer.length - end;
     }
 
-    /** Appends one control sequence in full or drops it in full, never exposing a partial parser state. */
+    /**
+    Appends one control sequence in full or drops it in full, never exposing a partial parser state.
+     */
     appendAtomic(data: string): number {
         const byteCount = Buffer.byteLength(data, 'utf8');
         if (byteCount > this.maxBytes - this.byteCount) return byteCount;

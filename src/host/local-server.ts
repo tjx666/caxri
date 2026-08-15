@@ -1,22 +1,28 @@
 import { randomUUID } from 'node:crypto';
 import { chmod, lstat } from 'node:fs/promises';
-import { createServer, type Server, type Socket } from 'node:net';
+import type { Server, Socket } from 'node:net';
+import { createServer } from 'node:net';
 
-import {
-    createCommandDispatcher,
-    createProtocolWelcome,
-    type CommandDispatcher,
-} from '../shared/ipc/dispatcher';
+import type { AgentEndpointRef as AgentEndpointReference } from '../shared/ipc/agent-endpoint-contract';
+import type { CommandDispatcher } from '../shared/ipc/dispatcher';
+import { createCommandDispatcher, createProtocolWelcome } from '../shared/ipc/dispatcher';
 import { CaxriError, fromWireError, toWireError } from '../shared/ipc/errors';
 import type { ProtocolEventEnvelope, TransientRuntimeEvent } from '../shared/ipc/event-journal';
+import type {
+    DesktopLease,
+    DesktopOperation,
+    LocalClientCommand,
+} from '../shared/ipc/local-transport';
 import {
+    LOCAL_TRANSPORT_MAX_FRAME_BYTES,
     localClientCommandSchema,
-    localClientDesktopReplySchema,
     localClientDesktopReadySchema,
+    localClientDesktopReplySchema,
     localClientDesktopRuntimeCommandSchema,
     localClientDesktopTargetConsumeSchema,
     localClientHelloSchema,
     localClientLeaseRenewSchema,
+    LocalJsonLineDecoder,
     localServerDesktopCommandSchema,
     localServerDesktopRuntimeReplySchema,
     localServerDesktopTargetReplySchema,
@@ -24,35 +30,34 @@ import {
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
-    LOCAL_TRANSPORT_MAX_FRAME_BYTES,
-    LocalJsonLineDecoder,
-    type DesktopLease,
-    type DesktopOperation,
-    type LocalClientCommand,
 } from '../shared/ipc/local-transport';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
-import type { AgentEndpointRef } from '../shared/ipc/agent-endpoint-contract';
-import { parseRuntimeRequest, type CommandReplyEnvelope } from '../shared/ipc/transport';
+import type { CommandReplyEnvelope } from '../shared/ipc/transport';
+import { parseRuntimeRequest } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import type {
+    ClientState,
+    DesktopLeaseWaiter,
+    LocalHostServerOptions,
+    PendingDesktopCommand,
+} from './local-server-support';
 import {
     DESKTOP_COMMAND_TIMEOUT_MS,
     DESKTOP_LEASE_MS,
     executeReply,
     fileSystemCode,
     HANDSHAKE_TIMEOUT_MS,
+    isTokenMatch,
     MAX_IN_FLIGHT_REQUESTS,
     MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS,
     operatorContext,
-    tokenMatches,
-    type ClientState,
-    type DesktopLeaseWaiter,
-    type LocalHostServerOptions,
-    type PendingDesktopCommand,
 } from './local-server-support';
 
 export type { LocalHostServerOptions } from './local-server-support';
 
-/** Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients. */
+/**
+Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients.
+ */
 export class LocalHostServer {
     private readonly clients = new Map<Socket, ClientState>();
     private readonly sockets = new Set<Socket>();
@@ -65,68 +70,6 @@ export class LocalHostServer {
 
     constructor(private readonly options: LocalHostServerOptions) {
         this.dispatch = createCommandDispatcher(options.adapters);
-    }
-
-    clientCount(): number {
-        return this.clients.size;
-    }
-
-    desktopLease(): DesktopLease | undefined {
-        return this.currentDesktop?.desktopReady ? this.currentDesktop.desktopLease : undefined;
-    }
-
-    waitForDesktopLease(timeoutMs: number): Promise<DesktopLease> {
-        const lease = this.desktopLease();
-        if (lease) return Promise.resolve(lease);
-        if (this.desktopLeaseWaiters.size >= 32)
-            return Promise.reject(
-                new CaxriError('CAPACITY', 'Too many Desktop launches are pending'),
-            );
-        return new Promise((resolve, reject) => {
-            const waiter: DesktopLeaseWaiter = {
-                reject,
-                resolve,
-                timer: setTimeout(() => {
-                    this.desktopLeaseWaiters.delete(waiter);
-                    reject(
-                        new CaxriError('TIMEOUT', 'Desktop did not connect before the deadline'),
-                    );
-                }, timeoutMs),
-            };
-            this.desktopLeaseWaiters.add(waiter);
-        });
-    }
-
-    /** Routes one typed window operation to exactly the current Desktop generation. */
-    invokeDesktop(operation: DesktopOperation, expectedGeneration: number): Promise<unknown> {
-        const state = this.currentDesktop;
-        const lease = state?.desktopLease;
-        if (!state || !lease || !state.desktopReady)
-            return Promise.reject(new CaxriError('UNAVAILABLE', 'Desktop is unavailable'));
-        if (lease.generation !== expectedGeneration)
-            return Promise.reject(
-                new CaxriError('CONFLICT', 'Desktop capability lease changed before routing'),
-            );
-        const id = randomUUID();
-        return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pendingDesktopCommands.delete(id);
-                reject(new CaxriError('TIMEOUT', 'Desktop command timed out'));
-            }, DESKTOP_COMMAND_TIMEOUT_MS);
-            this.pendingDesktopCommands.set(id, { reject, resolve, state, timer });
-            this.write(
-                state.socket,
-                localServerDesktopCommandSchema.parse({
-                    type: 'desktop-command',
-                    lease,
-                    request: {
-                        protocolVersion: CAXRI_PROTOCOL_VERSION,
-                        id,
-                        operation,
-                    },
-                }),
-            );
-        });
     }
 
     private settleDesktopReply(state: ClientState, raw: unknown): boolean {
@@ -158,71 +101,7 @@ export class LocalHostServer {
         }
     }
 
-    async start(): Promise<void> {
-        if (this.server) return;
-        try {
-            const existing = await lstat(this.options.manifest.endpoint);
-            if (!existing.isSocket())
-                throw new CaxriError('PATH_DENIED', 'Host endpoint path is not a Unix socket');
-            throw new CaxriError('CONFLICT', 'Host endpoint is already in use');
-        } catch (error) {
-            if (fileSystemCode(error) !== 'ENOENT') throw error;
-        }
-        const server = createServer((socket) => this.accept(socket));
-        this.server = server;
-        try {
-            await new Promise<void>((resolve, reject) => {
-                const onError = (error: Error): void => {
-                    server.off('listening', onListening);
-                    reject(error);
-                };
-                const onListening = (): void => {
-                    server.off('error', onError);
-                    resolve();
-                };
-                server.once('error', onError);
-                server.once('listening', onListening);
-                server.listen(this.options.manifest.endpoint);
-            });
-            await chmod(this.options.manifest.endpoint, 0o600);
-        } catch (error) {
-            this.server = undefined;
-            if (server.listening)
-                await new Promise<void>((resolve) => server.close(() => resolve()));
-            if (error instanceof CaxriError) throw error;
-            if (fileSystemCode(error) === 'EADDRINUSE')
-                throw new CaxriError('CONFLICT', 'Host endpoint is already in use');
-            throw new CaxriError('IO', 'Host endpoint failed to listen');
-        }
-    }
-
-    broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
-        const message = localServerEventSchema.parse({ type: 'event', event });
-        /** Raw Runtime payloads are a Desktop-only transport; other principals use projections. */
-        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
-    }
-
-    /** Delivers a transient, body-free receipt only to the exact authenticated Agent generation. */
-    broadcastAgent(endpoint: AgentEndpointRef, event: TransientRuntimeEvent): void {
-        const message = localServerEventSchema.parse({ type: 'event', event });
-        for (const state of this.clients.values()) {
-            const principal = state.context.principal;
-            if (
-                principal.kind === 'agent' &&
-                principal.endpointId === endpoint.endpointId &&
-                principal.generation === endpoint.generation
-            )
-                this.write(state.socket, message);
-        }
-    }
-
-    /** Delivers a one-shot Host UI event without placing it in the recoverable Runtime journal. */
-    broadcastDesktop(event: TransientRuntimeEvent): void {
-        const message = localServerEventSchema.parse({ type: 'event', event });
-        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
-    }
-
-    private revokeDesktop(state: ClientState, notifyUnavailable = true): void {
+    private revokeDesktop(state: ClientState, shouldNotifyUnavailable = true): void {
         if (state.leaseTimer) clearTimeout(state.leaseTimer);
         state.leaseTimer = undefined;
         this.rejectDesktopCommands(state);
@@ -230,7 +109,7 @@ export class LocalHostServer {
         const wasCurrent = this.currentDesktop === state;
         if (wasCurrent) this.currentDesktop = undefined;
         this.options.onClientCountChanged?.(this.clients.size);
-        if (wasCurrent && notifyUnavailable) this.options.onDesktopUnavailable?.();
+        if (wasCurrent && shouldNotifyUnavailable) this.options.onDesktopUnavailable?.();
     }
 
     private renewDesktop(state: ClientState): DesktopLease {
@@ -250,22 +129,25 @@ export class LocalHostServer {
      * Limits one peer's concurrently executing work without reintroducing head-of-line blocking
      * between normal Desktop work and Terminal keystrokes/resizes.
      */
-    private reserveRequest(state: ClientState, terminalHotPath = false): (() => void) | undefined {
+    private reserveRequest(
+        state: ClientState,
+        isTerminalHotPath = false,
+    ): (() => void) | undefined {
         const nonTerminalRequests = state.inFlightRequests - state.inFlightTerminalRequests;
         if (
             state.inFlightRequests >= MAX_IN_FLIGHT_REQUESTS ||
-            (!terminalHotPath && nonTerminalRequests >= MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS)
+            (!isTerminalHotPath && nonTerminalRequests >= MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS)
         )
             return undefined;
         state.inFlightRequests += 1;
-        if (terminalHotPath) state.inFlightTerminalRequests += 1;
-        let released = false;
+        if (isTerminalHotPath) state.inFlightTerminalRequests += 1;
+        let isReleased = false;
         return () => {
-            if (released) return;
-            released = true;
+            if (isReleased) return;
+            isReleased = true;
             if (state.closed) return;
             state.inFlightRequests -= 1;
-            if (terminalHotPath) state.inFlightTerminalRequests -= 1;
+            if (isTerminalHotPath) state.inFlightTerminalRequests -= 1;
         };
     }
 
@@ -308,9 +190,9 @@ export class LocalHostServer {
         state: ClientState,
         request: LocalClientCommand['request'],
     ): Promise<void> {
-        const terminalHotPath =
+        const isTerminalHotPath =
             request.method === 'terminal.input' || request.method === 'terminal.resize';
-        const release = this.reserveRequest(state, terminalHotPath);
+        const release = this.reserveRequest(state, isTerminalHotPath);
         if (!release) {
             this.write(
                 socket,
@@ -442,7 +324,7 @@ export class LocalHostServer {
             }
         };
         socket.on('close', remove);
-        socket.on('error', () => undefined);
+        socket.on('error', () => {});
         socket.on('data', (chunk: string) => {
             let lines: string[];
             try {
@@ -459,18 +341,26 @@ export class LocalHostServer {
                     socket.destroy();
                     return;
                 }
-                /** Reverse replies must settle outside the ordered protocol-control queue to avoid a
-                 * Desktop request deadlocking while Host routes a nested window operation back. */
+                /**
+                 * Reverse replies must settle outside the ordered protocol-control queue to avoid a
+                 * Desktop request deadlocking while Host routes a nested window operation back.
+                 */
                 if (state && this.settleDesktopReply(state, raw)) continue;
                 const nestedTarget = state
                     ? localClientDesktopTargetConsumeSchema.safeParse(raw)
                     : undefined;
-                /** A Host-issued Desktop command redeems its opaque target before it can reply. The
+                /**
+                 * A Host-issued Desktop command redeems its opaque target before it can reply. The
                  *  redemption must bypass the command that is awaiting that reply or both sides
-                 *  deadlock; generation checks and the one-use target still bound this lane. */
+                 *  deadlock; generation checks and the one-use target still bound this lane.
+                 */
                 if (state?.context.principal.kind === 'desktop' && nestedTarget?.success) {
-                    void this.dispatchDesktopTargetConsume(socket, state, nestedTarget.data).catch(
-                        () => socket.destroy(),
+                    // This branch intentionally bypasses `queue` to avoid the nested-command
+                    // deadlock described above, and the enclosing 'data' handler is synchronous,
+                    // so the dispatch here must be fire-and-forget rather than awaited.
+                    // eslint-disable-next-line unicorn/prefer-await -- see comment above
+                    this.dispatchDesktopTargetConsume(socket, state, nestedTarget.data).catch(() =>
+                        socket.destroy(),
                     );
                     continue;
                 }
@@ -507,12 +397,21 @@ export class LocalHostServer {
                     (hotCommand.data.request.method === 'terminal.input' ||
                         hotCommand.data.request.method === 'terminal.resize')
                 ) {
-                    void this.dispatchCommand(socket, state, hotCommand.data.request).catch(() =>
+                    // This hot path intentionally bypasses `queue` for interactive Terminal
+                    // traffic, and the enclosing 'data' handler is synchronous, so the dispatch
+                    // here must be fire-and-forget rather than awaited.
+                    // eslint-disable-next-line unicorn/prefer-await -- see comment above
+                    this.dispatchCommand(socket, state, hotCommand.data.request).catch(() =>
                         socket.destroy(),
                     );
                     continue;
                 }
+                // `queue` serializes ordered protocol-control work across repeated invocations of
+                // this synchronous 'data' handler: each call appends onto the prior promise so
+                // handshake/command processing for one socket never interleaves out of order. That
+                // requires promise chaining across calls, which `await` cannot express here.
                 queue = queue
+                    // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
                     .then(async () => {
                         if (!state) {
                             const hello = localClientHelloSchema.parse(raw);
@@ -524,7 +423,7 @@ export class LocalHostServer {
                             let context: CommandExecutionContext;
                             let desktopLease: DesktopLease | undefined;
                             if (hello.credential.kind === 'operator') {
-                                if (!tokenMatches(hello.credential.token, manifest.operatorToken)) {
+                                if (!isTokenMatch(hello.credential.token, manifest.operatorToken)) {
                                     socket.destroy();
                                     return;
                                 }
@@ -545,7 +444,7 @@ export class LocalHostServer {
                                 if (
                                     credential.profileId !== manifest.profileId ||
                                     credential.processIdentity !== manifest.processIdentity ||
-                                    !tokenMatches(hello.credential.token, credential.desktopToken)
+                                    !isTokenMatch(hello.credential.token, credential.desktopToken)
                                 ) {
                                     socket.destroy();
                                     return;
@@ -592,7 +491,7 @@ export class LocalHostServer {
                                     type: 'welcome',
                                     profileId: manifest.profileId,
                                     processIdentity: manifest.processIdentity,
-                                    ...(desktopLease ? { desktopLease: state.desktopLease } : {}),
+                                    ...(desktopLease && { desktopLease: state.desktopLease }),
                                     ...createProtocolWelcome(
                                         this.options.adapters,
                                         hello,
@@ -608,9 +507,9 @@ export class LocalHostServer {
                             const principal = clientState.context.principal;
                             const desktopLease = clientState.desktopLease;
                             if (
+                                !desktopLease ||
                                 principal.kind !== 'desktop' ||
                                 this.currentDesktop !== clientState ||
-                                !desktopLease ||
                                 desktopLease.generation !== ready.data.generation
                             )
                                 throw new CaxriError(
@@ -647,6 +546,7 @@ export class LocalHostServer {
                         const command = localClientCommandSchema.parse(raw);
                         await this.dispatchCommand(socket, clientState, command.request);
                     })
+                    // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
                     .catch(() => {
                         socket.destroy();
                     });
@@ -660,6 +560,140 @@ export class LocalHostServer {
             return;
         }
         socket.write(`${JSON.stringify(message)}\n`, flushed);
+    }
+
+    clientCount(): number {
+        return this.clients.size;
+    }
+
+    desktopLease(): DesktopLease | undefined {
+        return this.currentDesktop?.desktopReady ? this.currentDesktop.desktopLease : undefined;
+    }
+
+    waitForDesktopLease(timeoutMs: number): Promise<DesktopLease> {
+        const lease = this.desktopLease();
+        if (lease) return Promise.resolve(lease);
+        if (this.desktopLeaseWaiters.size >= 32)
+            return Promise.reject(
+                new CaxriError('CAPACITY', 'Too many Desktop launches are pending'),
+            );
+        return new Promise((resolve, reject) => {
+            const waiter: DesktopLeaseWaiter = {
+                reject,
+                resolve,
+                timer: setTimeout(() => {
+                    this.desktopLeaseWaiters.delete(waiter);
+                    reject(
+                        new CaxriError('TIMEOUT', 'Desktop did not connect before the deadline'),
+                    );
+                }, timeoutMs),
+            };
+            this.desktopLeaseWaiters.add(waiter);
+        });
+    }
+
+    /**
+    Routes one typed window operation to exactly the current Desktop generation.
+     */
+    invokeDesktop(operation: DesktopOperation, expectedGeneration: number): Promise<unknown> {
+        const state = this.currentDesktop;
+        const lease = state?.desktopLease;
+        if (!state || !lease || !state.desktopReady)
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Desktop is unavailable'));
+        if (lease.generation !== expectedGeneration)
+            return Promise.reject(
+                new CaxriError('CONFLICT', 'Desktop capability lease changed before routing'),
+            );
+        const id = randomUUID();
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pendingDesktopCommands.delete(id);
+                reject(new CaxriError('TIMEOUT', 'Desktop command timed out'));
+            }, DESKTOP_COMMAND_TIMEOUT_MS);
+            this.pendingDesktopCommands.set(id, { reject, resolve, state, timer });
+            this.write(
+                state.socket,
+                localServerDesktopCommandSchema.parse({
+                    type: 'desktop-command',
+                    lease,
+                    request: {
+                        protocolVersion: CAXRI_PROTOCOL_VERSION,
+                        id,
+                        operation,
+                    },
+                }),
+            );
+        });
+    }
+
+    async start(): Promise<void> {
+        if (this.server) return;
+        try {
+            const existing = await lstat(this.options.manifest.endpoint);
+            if (!existing.isSocket())
+                throw new CaxriError('PATH_DENIED', 'Host endpoint path is not a Unix socket');
+            throw new CaxriError('CONFLICT', 'Host endpoint is already in use');
+        } catch (error) {
+            if (fileSystemCode(error) !== 'ENOENT') throw error;
+        }
+        const server = createServer((socket) => this.accept(socket));
+        this.server = server;
+        try {
+            await new Promise<void>((resolve, reject) => {
+                function onError(error: Error): void {
+                    server.off('listening', onListening);
+                    reject(error);
+                }
+                function onListening(): void {
+                    server.off('error', onError);
+                    resolve();
+                }
+                server.once('error', onError);
+                server.once('listening', onListening);
+                server.listen(this.options.manifest.endpoint);
+            });
+            await chmod(this.options.manifest.endpoint, 0o600);
+        } catch (error) {
+            this.server = undefined;
+            if (server.listening)
+                await new Promise<void>((resolve) => server.close(() => resolve()));
+            if (error instanceof CaxriError) throw error;
+            if (fileSystemCode(error) === 'EADDRINUSE')
+                throw new CaxriError('CONFLICT', 'Host endpoint is already in use');
+            throw new CaxriError('IO', 'Host endpoint failed to listen');
+        }
+    }
+
+    broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
+        const message = localServerEventSchema.parse({ type: 'event', event });
+        /**
+        Raw Runtime payloads are a Desktop-only transport; other principals use projections.
+         */
+        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
+    }
+
+    /**
+    Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
+     */
+    broadcastAgent(endpoint: AgentEndpointReference, event: TransientRuntimeEvent): void {
+        const message = localServerEventSchema.parse({ type: 'event', event });
+        for (const state of this.clients.values()) {
+            const principal = state.context.principal;
+            if (
+                principal.kind === 'agent' &&
+                principal.endpointId === endpoint.endpointId &&
+                principal.generation === endpoint.generation
+            )
+                this.write(state.socket, message);
+        }
+    }
+
+    /**
+    Delivers a one-shot Host UI event without placing it in the recoverable Runtime journal.
+     */
+    broadcastDesktop(event: TransientRuntimeEvent): void {
+        const message = localServerEventSchema.parse({ type: 'event', event });
+        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
     }
 
     async close(): Promise<void> {

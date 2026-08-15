@@ -1,7 +1,7 @@
-import { CaxriError } from '../../shared/ipc/errors';
 import { describe, expect, it, vi } from 'vitest';
 
-import { startHostOrQuit } from '../host-startup';
+import { CaxriError } from '../../shared/ipc/errors';
+import { shouldContinueStartup } from '../host-startup';
 
 describe('Host startup boundary', () => {
     it('attaches once without a legacy compatibility retry', async () => {
@@ -9,7 +9,9 @@ describe('Host startup boundary', () => {
         const dialog = { showErrorBox: vi.fn() };
         const quit = vi.fn();
 
-        await expect(startHostOrQuit({ dialog, quit, supervisor: { start } })).resolves.toBe(true);
+        await expect(shouldContinueStartup({ dialog, quit, supervisor: { start } })).resolves.toBe(
+            true,
+        );
 
         expect(start).toHaveBeenCalledOnce();
         expect(dialog.showErrorBox).not.toHaveBeenCalled();
@@ -25,7 +27,9 @@ describe('Host startup boundary', () => {
         const quit = vi.fn();
         const start = vi.fn(() => Promise.reject(error));
 
-        await expect(startHostOrQuit({ dialog, quit, supervisor: { start } })).resolves.toBe(false);
+        await expect(shouldContinueStartup({ dialog, quit, supervisor: { start } })).resolves.toBe(
+            false,
+        );
 
         expect(start).toHaveBeenCalledOnce();
         expect(dialog.showErrorBox).toHaveBeenCalledWith(
@@ -40,7 +44,9 @@ describe('Host startup boundary', () => {
         const quit = vi.fn();
         const start = vi.fn(() => Promise.reject(new Error('socket unavailable')));
 
-        await expect(startHostOrQuit({ dialog, quit, supervisor: { start } })).resolves.toBe(true);
+        await expect(shouldContinueStartup({ dialog, quit, supervisor: { start } })).resolves.toBe(
+            true,
+        );
 
         expect(dialog.showErrorBox).not.toHaveBeenCalled();
         expect(quit).not.toHaveBeenCalled();

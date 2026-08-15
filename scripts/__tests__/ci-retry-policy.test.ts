@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { RetryPolicyInput } from '../ci-retry-policy';
 import {
     evaluateRetryPolicy,
     extractBaseRunIdentity,
@@ -8,7 +9,6 @@ import {
     isProtectedRetryPath,
     parseRetryHint,
     summarizeE2EJobs,
-    type RetryPolicyInput,
 } from '../ci-retry-policy';
 
 const tree = 'a'.repeat(40);

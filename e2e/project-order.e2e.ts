@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { expect, test } from './support/fixtures.ts';
 import Database from 'better-sqlite3';
 
+import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, waitForRuntimeReady } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -19,6 +19,9 @@ const migrationNames = [
 async function seedProjects(databasePath: string, roots: string[]): Promise<void> {
     const database = new Database(databasePath);
     for (const migrationName of migrationNames) {
+        // Migrations must apply in their numbered order onto the same database connection, so this
+        // loop is intentionally sequential rather than parallelized.
+        // eslint-disable-next-line no-await-in-loop
         const source = await readFile(
             join(projectRoot, 'src/runtime/db/migrations', migrationName),
             'utf8',
@@ -68,8 +71,13 @@ test('Project drag ordering shows feedback and persists across reload', async ()
             if (!source || !target || !targetHeading)
                 throw new Error('Project drag fixtures not found');
             const transfer = new DataTransfer();
-            (window as unknown as { projectDragTransfer?: DataTransfer }).projectDragTransfer =
-                transfer;
+            // Assigning onto `globalThis` is the deliberate bridge that lets the later
+            // `page.evaluate` calls in this test recover the same DataTransfer instance.
+            Object.defineProperty(globalThis, 'projectDragTransfer', {
+                configurable: true,
+                value: transfer,
+                writable: true,
+            });
             source.dispatchEvent(
                 new DragEvent('dragstart', {
                     bubbles: true,
@@ -96,7 +104,7 @@ test('Project drag ordering shows feedback and persists across reload', async ()
             const targetHeading = document.querySelector<HTMLElement>(
                 '.project-heading[data-project-id="project-0"]',
             );
-            const transfer = (window as unknown as { projectDragTransfer?: DataTransfer })
+            const transfer = (globalThis as unknown as { projectDragTransfer?: DataTransfer })
                 .projectDragTransfer;
             if (!targetHeading || !transfer) throw new Error('Project drag target not found');
             const bounds = targetHeading.getBoundingClientRect();
@@ -122,7 +130,7 @@ test('Project drag ordering shows feedback and persists across reload', async ()
 
         await running.page.evaluate(() => {
             const session = document.querySelector<HTMLElement>('[data-session-id="session-0"]');
-            const transfer = (window as unknown as { projectDragTransfer?: DataTransfer })
+            const transfer = (globalThis as unknown as { projectDragTransfer?: DataTransfer })
                 .projectDragTransfer;
             if (!session || !transfer) throw new Error('Project Session drag fixture not found');
             const bounds = session.getBoundingClientRect();
@@ -142,7 +150,7 @@ test('Project drag ordering shows feedback and persists across reload', async ()
             const targetHeading = document.querySelector<HTMLElement>(
                 '.project-heading[data-project-id="project-0"]',
             );
-            const transfer = (window as unknown as { projectDragTransfer?: DataTransfer })
+            const transfer = (globalThis as unknown as { projectDragTransfer?: DataTransfer })
                 .projectDragTransfer;
             if (!targetHeading || !transfer) throw new Error('Project drop fixtures not found');
             const bounds = targetHeading.getBoundingClientRect();
@@ -179,7 +187,11 @@ test('Project drag ordering shows feedback and persists across reload', async ()
             'Moved gamma to position 2 of 3',
         );
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -208,7 +220,11 @@ test('rapid keyboard Project moves preserve every intended step', async () => {
             'Moved alpha to position 3 of 3',
         );
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

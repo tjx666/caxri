@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,8 +16,8 @@ const record = (
 
 describe('E2E structured log collection', () => {
     it('collects rotated and active Main and Runtime logs in chronological order', async () => {
-        const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-e2e-error-log-'));
-        const logDirectory = join(userDataDir, 'logs');
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-error-log-'));
+        const logDirectory = join(userDataDirectory, 'logs');
         await mkdir(logDirectory);
         await Promise.all([
             writeFile(
@@ -33,7 +33,7 @@ describe('E2E structured log collection', () => {
         ]);
 
         try {
-            const snapshots = readE2ELogSnapshots(userDataDir);
+            const snapshots = readE2ELogSnapshots(userDataDirectory);
 
             expect(snapshots.map(({ path }) => path.slice(logDirectory.length + 1))).toEqual([
                 'host.jsonl',
@@ -58,22 +58,22 @@ describe('E2E structured log collection', () => {
                 'Unexpected E2E errors: main/main.early_failure/MAIN_EARLY_FAILURE x1, runtime/runtime.late_failure/RUNTIME_LATE_FAILURE x1',
             );
         } finally {
-            await rm(userDataDir, { recursive: true, force: true });
+            await rm(userDataDirectory, { recursive: true, force: true });
         }
     });
 
     it('classifies malformed Runtime JSONL as an exact Runtime gate error', async () => {
-        const userDataDir = await mkdtemp(join(tmpdir(), 'caxri-e2e-error-log-'));
-        const logDirectory = join(userDataDir, 'logs');
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-error-log-'));
+        const logDirectory = join(userDataDirectory, 'logs');
         await mkdir(logDirectory);
         await writeFile(join(logDirectory, 'runtime.jsonl'), '{not-json}\n');
 
         try {
-            expect(parseE2ELogErrors(readE2ELogSnapshots(userDataDir))).toEqual([
+            expect(parseE2ELogErrors(readE2ELogSnapshots(userDataDirectory))).toEqual([
                 { source: 'runtime', event: 'e2e.log_invalid', code: 'INVALID_JSONL' },
             ]);
         } finally {
-            await rm(userDataDir, { recursive: true, force: true });
+            await rm(userDataDirectory, { recursive: true, force: true });
         }
     });
 });

@@ -1,17 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { CommandError, getProcessIdentity, isProcessIdentityAlive } from './process';
 import {
     ensureProfile,
     errorCode,
-    repositoryContext,
+    repoContext,
     unlinkIfExists,
-    withRepositoryLock,
+    withRepoLock,
     worktreeIdentity,
     writeJsonAtomic,
-} from './repository';
+} from './repo';
 
 interface DesktopLease {
     acquiredAt: string;
@@ -30,16 +31,24 @@ export interface DesktopLeaseHandle extends DesktopLease {
 }
 
 export interface DesktopLeaseOptions {
-    /** Test seam for holding the repository lock across a competing acquisition. */
+    /**
+    Test seam for holding the repository lock across a competing acquisition.
+     */
     afterLockAcquired?: () => Promise<void>;
-    /** Proves a worker namespace is subordinate to the active repository-wide coordinator. */
+    /**
+    Proves a worker namespace is subordinate to the active repository-wide coordinator.
+     */
     coordinatorToken?: string;
-    /** Explicit sub-lease used only while a repository-wide coordinator owns the desktop. */
+    /**
+    Explicit sub-lease used only while a repository-wide coordinator owns the desktop.
+     */
     namespace?: string;
 }
 
 export interface DesktopLeaseReleaseOptions {
-    /** Test seam for proving a competing acquisition waits for release cleanup. */
+    /**
+    Test seam for proving a competing acquisition waits for release cleanup.
+     */
     afterLockAcquired?: () => Promise<void>;
 }
 
@@ -71,7 +80,7 @@ function parseLease(value: string, path: string): DesktopLease {
 }
 
 function validateLeaseOwner(owner: string): string {
-    if (!/^[A-Za-z0-9._:-]{1,128}$/u.test(owner)) {
+    if (!/^[\w.:-]{1,128}$/u.test(owner)) {
         throw new CommandError('Desktop lease owner must use a bounded portable identifier');
     }
     return owner;
@@ -113,24 +122,36 @@ async function cleanWorkerLeases(stateDirectory: string): Promise<void> {
         if (errorCode(error) === 'ENOENT') return;
         throw error;
     }
-    for (const name of names.filter((value) => /^desktop-lease-[a-z0-9-]+\.json$/u.test(value))) {
-        const path = join(stateDirectory, name);
-        const worker = await readLease(path);
-        if (!worker) continue;
-        if (worker.handoffPending || (await isProcessIdentityAlive(worker.pid, worker.identity))) {
-            throw new CommandError(
-                `Desktop worker ${worker.label} is still active; inspect ${path} before releasing its coordinator`,
+    const workerNames = names.filter((value) => /^desktop-lease-[a-z0-9-]+\.json$/u.test(value));
+    const workerPaths = workerNames.map((name) => join(stateDirectory, name));
+    const workers = await Promise.all(workerPaths.map((path) => readLease(path)));
+    // Check every worker for activity before unlinking any of them, so a lease found active
+    // partway through leaves no workers deleted (fail-closed rather than partially cleaned).
+    const activeFlags = await Promise.all(
+        workers.map(async (worker) => {
+            if (!worker) return false;
+            return (
+                worker.handoffPending || (await isProcessIdentityAlive(worker.pid, worker.identity))
             );
-        }
-        await unlinkIfExists(path);
+        }),
+    );
+    const activeIndex = activeFlags.indexOf(true);
+    if (activeIndex !== -1) {
+        const worker = workers[activeIndex]!;
+        const path = workerPaths[activeIndex];
+        throw new CommandError(
+            `Desktop worker ${worker.label} is still active; inspect ${path} before releasing its coordinator`,
+        );
     }
+    const livingWorkerPaths = workerPaths.filter((_path, index) => workers[index]);
+    await Promise.all(livingWorkerPaths.map((path) => unlinkIfExists(path)));
 }
 
 export async function inspectDesktopLease(
     cwd: string,
     options: Pick<DesktopLeaseOptions, 'namespace'> = {},
 ): Promise<DesktopLeaseStatus> {
-    const context = await repositoryContext(cwd);
+    const context = await repoContext(cwd);
     const lease = await readLease(leasePath(context.stateDir, options.namespace));
     if (!lease) return { state: 'free' };
     return {
@@ -142,14 +163,16 @@ export async function inspectDesktopLease(
     };
 }
 
-/** Acquire the repository-wide macOS desktop surface before starting Electron. */
+/**
+Acquire the repository-wide macOS desktop surface before starting Electron.
+ */
 export async function acquireDesktopLease(
     cwd: string,
     label: string,
     ownerPid = process.pid,
     options: DesktopLeaseOptions = {},
 ): Promise<DesktopLeaseHandle> {
-    const context = await repositoryContext(cwd);
+    const context = await repoContext(cwd);
     const worktreeId = await worktreeIdentity(context.root, true);
     const identity = await getProcessIdentity(ownerPid);
     if (!worktreeId || !identity)
@@ -161,16 +184,16 @@ export async function acquireDesktopLease(
         acquiredAt: new Date().toISOString(),
         identity,
         label,
-        ...(process.env.CAXRI_DESKTOP_LEASE_OWNER
-            ? { owner: validateLeaseOwner(process.env.CAXRI_DESKTOP_LEASE_OWNER) }
-            : {}),
+        ...(process.env.CAXRI_DESKTOP_LEASE_OWNER && {
+            owner: validateLeaseOwner(process.env.CAXRI_DESKTOP_LEASE_OWNER),
+        }),
         pid: ownerPid,
         token: randomUUID(),
         worktreeId,
         worktreePath: context.root,
     };
 
-    return await withRepositoryLock(context, async () => {
+    return await withRepoLock(context, async () => {
         await options.afterLockAcquired?.();
         if (options.namespace) {
             const coordinator = await readLease(leasePath(context.stateDir));
@@ -185,10 +208,15 @@ export async function acquireDesktopLease(
             }
         }
         if (!options.namespace && !(await readLease(path))) {
-            /** A crashed coordinator may leave only worker leases. Reclaim verified-dead workers,
-             *  but never let a new desktop owner overlap a surviving Electron child. */
+            /**
+             * A crashed coordinator may leave only worker leases. Reclaim verified-dead workers,
+             *  but never let a new desktop owner overlap a surviving Electron child.
+             */
             await cleanWorkerLeases(context.stateDir);
         }
+        // Each retry attempt depends on the outcome of the previous one (open, then inspect and
+        // possibly clear a stale lease before retrying), so the awaits below cannot run in parallel.
+        /* eslint-disable no-await-in-loop -- sequential retry: each attempt depends on the prior one */
         for (let attempt = 0; attempt < 2; attempt += 1) {
             try {
                 const handle = await open(path, 'wx');
@@ -213,11 +241,14 @@ export async function acquireDesktopLease(
                         `Desktop handoff from ${current.label} did not complete; inspect ${path} before continuing`,
                     );
                 if (!options.namespace) await cleanWorkerLeases(context.stateDir);
-                /** The repository lock keeps another contender from replacing this stale path
-                 *  between the identity check and unlink. */
+                /**
+                 * The repository lock keeps another contender from replacing this stale path
+                 *  between the identity check and unlink.
+                 */
                 await unlinkIfExists(path);
             }
         }
+        /* eslint-enable no-await-in-loop */
         throw new CommandError('Could not acquire the repository desktop lease');
     });
 }
@@ -228,52 +259,72 @@ export async function acquireDesktopLease(
  */
 export async function reclaimDesktopLeasesByOwner(cwd: string, owner: string): Promise<number> {
     const validatedOwner = validateLeaseOwner(owner);
-    const context = await repositoryContext(cwd);
-    return await withRepositoryLock(context, async () => {
-        const owned: Array<{ lease: DesktopLease; path: string }> = [];
-        for (const name of await leaseFileNames(context.stateDir)) {
-            const path = join(context.stateDir, name);
-            const lease = await readLease(path);
-            if (lease?.owner === validatedOwner) owned.push({ lease, path });
+    const context = await repoContext(cwd);
+    return await withRepoLock(context, async () => {
+        const names = await leaseFileNames(context.stateDir);
+        const candidates = await Promise.all(
+            names.map(async (name) => {
+                const path = join(context.stateDir, name);
+                return { lease: await readLease(path), path };
+            }),
+        );
+        const owned = candidates.filter(
+            (candidate): candidate is { lease: DesktopLease; path: string } =>
+                candidate.lease?.owner === validatedOwner,
+        );
+        const liveFlags = await Promise.all(
+            owned.map(({ lease }) => isProcessIdentityAlive(lease.pid, lease.identity)),
+        );
+        const liveIndex = liveFlags.indexOf(true);
+        if (liveIndex !== -1) {
+            throw new CommandError(
+                `Refusing to reclaim live desktop lease ${owned[liveIndex].lease.label} owned by ${validatedOwner}`,
+            );
         }
-        for (const { lease } of owned) {
-            if (await isProcessIdentityAlive(lease.pid, lease.identity)) {
-                throw new CommandError(
-                    `Refusing to reclaim live desktop lease ${lease.label} owned by ${validatedOwner}`,
-                );
-            }
-        }
-        /** Worker leases must disappear before their repository-wide coordinator. */
+        /**
+        Worker leases must disappear before their repository-wide coordinator.
+         */
         owned.sort(({ path: left }, { path: right }) => right.length - left.length);
+        // Unlink order matters here: workers (sorted first) must be removed before the
+        // repository-wide coordinator, so this cannot be parallelized with Promise.all.
+        // eslint-disable-next-line no-await-in-loop -- ordered unlink: workers before coordinator
         for (const { path } of owned) await unlinkIfExists(path);
         return owned.length;
     });
 }
 
-/** Fails when any repository desktop lease survives a runner preflight or teardown boundary. */
+/**
+Fails when any repository desktop lease survives a runner preflight or teardown boundary.
+ */
 export async function assertDesktopLeasesReleased(cwd: string): Promise<void> {
-    const context = await repositoryContext(cwd);
-    await withRepositoryLock(context, async () => {
-        for (const name of await leaseFileNames(context.stateDir)) {
-            const path = join(context.stateDir, name);
-            const lease = await readLease(path);
-            if (!lease) continue;
-            const state = (await isProcessIdentityAlive(lease.pid, lease.identity))
-                ? 'active'
-                : 'stale';
-            throw new CommandError(
-                `Desktop lease ${lease.label} is ${state}; inspect ${path} before continuing`,
-            );
-        }
+    const context = await repoContext(cwd);
+    await withRepoLock(context, async () => {
+        const names = await leaseFileNames(context.stateDir);
+        const candidates = await Promise.all(
+            names.map(async (name) => {
+                const path = join(context.stateDir, name);
+                return { lease: await readLease(path), path };
+            }),
+        );
+        const found = candidates.find((candidate) => candidate.lease);
+        if (!found?.lease) return;
+        const state = (await isProcessIdentityAlive(found.lease.pid, found.lease.identity))
+            ? 'active'
+            : 'stale';
+        throw new CommandError(
+            `Desktop lease ${found.lease.label} is ${state}; inspect ${found.path} before continuing`,
+        );
     });
 }
 
-/** Mark the lease fail-closed before spawning a child that will take ownership. */
+/**
+Mark the lease fail-closed before spawning a child that will take ownership.
+ */
 export async function beginDesktopLeaseHandoff(
     handle: DesktopLeaseHandle,
 ): Promise<DesktopLeaseHandle> {
-    const context = await repositoryContext(handle.worktreePath);
-    return await withRepositoryLock(context, async () => {
+    const context = await repoContext(handle.worktreePath);
+    return await withRepoLock(context, async () => {
         const current = await readLease(handle.leasePath);
         if (!current || current.token !== handle.token)
             throw new CommandError('Desktop lease ownership changed before handoff');
@@ -283,15 +334,17 @@ export async function beginDesktopLeaseHandoff(
     });
 }
 
-/** Transfer ownership after Electron starts so a surviving app keeps the lease fail-closed. */
+/**
+Transfer ownership after Electron starts so a surviving app keeps the lease fail-closed.
+ */
 export async function transferDesktopLease(
     handle: DesktopLeaseHandle,
     ownerPid: number,
 ): Promise<DesktopLeaseHandle> {
     const identity = await getProcessIdentity(ownerPid);
     if (!identity) throw new CommandError(`Could not establish Electron PID ${ownerPid} identity`);
-    const context = await repositoryContext(handle.worktreePath);
-    return await withRepositoryLock(context, async () => {
+    const context = await repoContext(handle.worktreePath);
+    return await withRepoLock(context, async () => {
         const current = await readLease(handle.leasePath);
         if (!current || current.token !== handle.token)
             throw new CommandError('Desktop lease ownership changed before transfer');
@@ -305,8 +358,8 @@ export async function releaseDesktopLease(
     handle: DesktopLeaseHandle,
     options: DesktopLeaseReleaseOptions = {},
 ): Promise<void> {
-    const context = await repositoryContext(handle.worktreePath);
-    await withRepositoryLock(context, async () => {
+    const context = await repoContext(handle.worktreePath);
+    await withRepoLock(context, async () => {
         await options.afterLockAcquired?.();
         const current = await readLease(handle.leasePath);
         if (!current) return;
@@ -314,7 +367,9 @@ export async function releaseDesktopLease(
             throw new CommandError('Refusing to release a desktop lease owned by another process');
         }
         if (handle.leasePath === leasePath(context.stateDir)) {
-            /** The coordinator remains fail-closed until every worker child is gone. */
+            /**
+            The coordinator remains fail-closed until every worker child is gone.
+             */
             await cleanWorkerLeases(context.stateDir);
         }
         await unlinkIfExists(handle.leasePath);

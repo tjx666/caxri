@@ -5,10 +5,10 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../../../components/ui/context-menu';
-import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 import { copyFilePath, openFileInTerminal, rememberFile, revealFile } from './file-actions';
+import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 
-export interface FileTreeItemMenuProps {
+export interface FileTreeItemMenuProperties {
     confirmTrash: () => Promise<void>;
     duplicateBlocked: boolean;
     duplicateEntry: () => Promise<void>;
@@ -23,6 +23,17 @@ export interface FileTreeItemMenuProps {
     sessionId: string;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
+}
+
+/**
+ * Every menu item below fires an already-tracked file/terminal action whose own `tryCommand`
+ * wrapper (or, for `confirmTrash`/`duplicateEntry`/`pasteIntoEntry`, an inner action that itself
+ * funnels through `tryCommand`) reports failures via a toast, so these `onClick` handlers
+ * intentionally discard the returned promise instead of awaiting it.
+ */
+function discard(promise: Promise<unknown>): void {
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void promise;
 }
 
 /**
@@ -45,17 +56,19 @@ export function FileTreeItemMenu({
     sessionId,
     startCreate,
     startRename,
-}: FileTreeItemMenuProps) {
+}: FileTreeItemMenuProperties) {
     return (
         <ContextMenuContent>
             <ContextMenuItem onClick={openEntry}>Open</ContextMenuItem>
-            <ContextMenuItem onClick={() => void revealFile(sessionId, entry.path)}>
+            <ContextMenuItem onClick={() => discard(revealFile(sessionId, entry.path))}>
                 Reveal in Finder
             </ContextMenuItem>
             <ContextMenuItem
                 onClick={() =>
-                    void openFileInTerminal(
-                        entry.kind === 'directory' ? entry.path : parentDirectory,
+                    discard(
+                        openFileInTerminal(
+                            entry.kind === 'directory' ? entry.path : parentDirectory,
+                        ),
                     )
                 }
             >
@@ -80,21 +93,21 @@ export function FileTreeItemMenu({
                 disabled={pasteDisabled}
                 disabledReason={pasteDisabledReason}
                 hint={pasteDisabled ? undefined : 'cmd+v'}
-                onClick={() => void pasteIntoEntry()}
+                onClick={() => discard(pasteIntoEntry())}
             >
                 Paste
             </ContextMenuItem>
             <ContextMenuItem
                 disabled={duplicateBlocked}
                 disabledReason={duplicateBlocked ? BUSY_DISABLED_REASON : undefined}
-                onClick={() => void duplicateEntry()}
+                onClick={() => discard(duplicateEntry())}
             >
                 Duplicate
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => void copyFilePath(entry.path)}>
+            <ContextMenuItem onClick={() => discard(copyFilePath(entry.path))}>
                 Copy Path
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => void copyFilePath(entry.path, projectRoot)}>
+            <ContextMenuItem onClick={() => discard(copyFilePath(entry.path, projectRoot))}>
                 Copy Relative Path
             </ContextMenuItem>
             <ContextMenuSeparator />
@@ -110,7 +123,7 @@ export function FileTreeItemMenu({
                 Rename
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem hint="cmd+backspace" onClick={() => void confirmTrash()}>
+            <ContextMenuItem hint="cmd+backspace" onClick={() => discard(confirmTrash())}>
                 Move to Trash
             </ContextMenuItem>
         </ContextMenuContent>

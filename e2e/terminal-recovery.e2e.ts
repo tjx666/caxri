@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { allowE2EErrors, expect, test, type Page } from './support/fixtures.ts';
+import process from 'node:process';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import type { Page } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
@@ -15,17 +16,26 @@ async function typeTerminal(page: Page, command: string): Promise<void> {
 }
 
 async function latestAgentGrid(path: string, generation: number): Promise<string | undefined> {
-    const text = await readFile(path, 'utf8').catch(() => '');
+    let text = '';
+    try {
+        text = await readFile(path, 'utf8');
+    } catch {
+        // The recording file may not exist yet.
+    }
     return text
         .trim()
         .split('\n')
-        .filter((line) => line.startsWith(`${generation}:`))
-        .at(-1)
+        .findLast((line) => line.startsWith(`${generation}:`))
         ?.slice(`${generation}:`.length);
 }
 
 async function firstAgentGrid(path: string, generation: number): Promise<string | undefined> {
-    const text = await readFile(path, 'utf8').catch(() => '');
+    let text = '';
+    try {
+        text = await readFile(path, 'utf8');
+    } catch {
+        // The recording file may not exist yet.
+    }
     return text
         .trim()
         .split('\n')
@@ -45,8 +55,8 @@ async function hasExpectedAgentScreen(
     return (
         renderedRows.length === rows &&
         renderedRows[0] === `┌${horizontal}┐` &&
-        renderedRows[1]?.startsWith(`│GEN ${generation} GRID ${grid} 中`) === true &&
-        renderedRows[1]?.endsWith('│') === true &&
+        renderedRows[1]?.startsWith(`│GEN ${generation} GRID ${grid} 中`) &&
+        renderedRows[1]?.endsWith('│') &&
         renderedRows.at(-1) === `└${horizontal}┘`
     );
 }
@@ -69,14 +79,14 @@ async function waitForStableAgentGrid(
             ) {
                 candidate = undefined;
                 matchingSamples = 0;
-                return undefined;
+                return;
             }
             if (latest === candidate) matchingSamples += 1;
             else {
                 candidate = latest;
                 matchingSamples = 1;
             }
-            if (matchingSamples < 3) return undefined;
+            if (matchingSamples < 3) return;
             stableGrid = latest;
             return latest;
         })
@@ -98,7 +108,7 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         if (!terminalId) throw new Error('Terminal identity was not rendered');
         const tabCount = await running.page.locator('.work-tab[data-terminal-id]').count();
 
-        await typeTerminal(running.page, "printf 'FINAL_OUTPUT_IS_VISIBLE\\n'; exit");
+        await typeTerminal(running.page, String.raw`printf 'FINAL_OUTPUT_IS_VISIBLE\n'; exit`);
         const stopped = running.page.locator('[data-terminal-exit-state="stopped"]');
         await expect(stopped).toContainText('Process exited normally');
         await expect(stopped).toHaveClass(/terminal-recovery-neutral/);
@@ -130,7 +140,11 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         await expect(running.page.locator('.process-running')).toBeVisible();
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -169,7 +183,11 @@ test('startup failure uses a compact danger status without covering output', asy
         if (!surfaceBox || !recoveryBox) throw new Error('Terminal failure layout is missing');
         expect(surfaceBox.y + surfaceBox.height).toBeLessThanOrEqual(recoveryBox.y + 1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -189,7 +207,7 @@ for (const agent of [
             userDataDir: userData,
             providers: {
                 [agent.kind]: {
-                    executableSource: `#!${process.execPath}
+                    executableSource: String.raw`#!${process.execPath}
 const fs = require('node:fs');
 if (process.argv.includes('--version')) {
   console.log(${JSON.stringify(`${agent.kind}-grid-test 1.0`)});
@@ -201,13 +219,13 @@ const generation = fs.existsSync(generationPath)
   ? Number(fs.readFileSync(generationPath, 'utf8')) + 1
   : 1;
 fs.writeFileSync(generationPath, String(generation));
-const escape = '\\x1b';
+const escape = '\x1b';
 let redrawTimer;
 function render() {
   const cols = process.stdout.columns || 100;
   const rows = process.stdout.rows || 30;
   const grid = cols + 'x' + rows;
-  fs.appendFileSync(gridLog, generation + ':' + grid + '\\n');
+  fs.appendFileSync(gridLog, generation + ':' + grid + '\n');
   const label = 'GEN ' + generation + ' GRID ' + grid + ' ';
   const horizontal = '─'.repeat(Math.max(0, cols - 2));
   const contentPadding = ' '.repeat(Math.max(0, cols - 2 - label.length - 2));
@@ -256,7 +274,11 @@ render();
             await expect.poll(() => firstAgentGrid(gridLog, 2)).toBe(expectedGrid);
             expect(await waitForStableAgentGrid(running.page, gridLog, 2)).toBe(expectedGrid);
         } finally {
-            await running.app.close().catch(() => undefined);
+            try {
+                await running.app.close();
+            } catch {
+                // Ignore close failures during cleanup.
+            }
             await rm(testDirectory, { recursive: true, force: true });
         }
     });

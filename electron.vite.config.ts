@@ -6,11 +6,14 @@ import { promisify } from 'node:util';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
-import { defineConfig, type UserConfig } from 'electron-vite';
+import type { UserConfig } from 'electron-vite';
+import { defineConfig } from 'electron-vite';
 
 const execFileAsync = promisify(execFile);
 
-/** Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'. */
+/**
+Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'.
+ */
 async function resolveGitCommit(): Promise<string> {
     try {
         const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
@@ -96,7 +99,7 @@ export default defineConfig(async ({ command }) => {
                     transformIndexHtml(html: string) {
                         const connectSource =
                             command === 'serve' ? "'self' ws://localhost:*" : "'self'";
-                        return html.replace('__CAXRI_CONNECT_SRC__', connectSource);
+                        return html.replace('__CAXRI_CONNECT_SRC__', () => connectSource);
                     },
                 },
             ],

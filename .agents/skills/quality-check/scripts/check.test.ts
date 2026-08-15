@@ -1,51 +1,53 @@
+import process from 'node:process';
+
 import { describe, expect, it } from 'vitest';
 
 import {
     directImportTestCandidates,
+    hasDirectSourceImport,
     lintPipelineForFile,
-    parseCheckArgs,
+    parseCheckArguments,
     playwrightArguments,
     selectE2ESpecs,
     selectedTestCandidates,
     testCandidatesForFile,
-    testDirectlyImportsSource,
 } from './check';
 
-describe('parseCheckArgs', () => {
+describe('parseCheckArguments', () => {
     it('defaults to lint and related tests', () => {
-        expect(parseCheckArgs(['src/main/index.ts'])).toEqual({
+        expect(parseCheckArguments(['src/main/index.ts'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
             files: ['src/main/index.ts'],
+            isStaged: false,
             knip: false,
             lint: true,
-            staged: false,
             test: true,
             type: false,
         });
     });
 
     it('uses explicit selectors without adding defaults', () => {
-        expect(parseCheckArgs(['--staged', '--type'])).toEqual({
+        expect(parseCheckArguments(['--staged', '--type'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
             files: [],
+            isStaged: true,
             knip: false,
             lint: false,
-            staged: true,
             test: false,
             type: true,
         });
     });
 
     it('treats --knip as an explicit selector that suppresses defaults', () => {
-        expect(parseCheckArgs(['--knip'])).toEqual({
+        expect(parseCheckArguments(['--knip'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
             files: [],
+            isStaged: false,
             knip: true,
             lint: false,
-            staged: false,
             test: false,
             type: false,
         });
@@ -53,21 +55,26 @@ describe('parseCheckArgs', () => {
 
     it('selects focused Playwright coverage without adding default checks', () => {
         expect(
-            parseCheckArgs(['e2e/smoke.e2e.ts', '--e2e', '--e2e-grep', 'launches the workbench']),
+            parseCheckArguments([
+                'e2e/smoke.e2e.ts',
+                '--e2e',
+                '--e2e-grep',
+                'launches the workbench',
+            ]),
         ).toEqual({
             e2e: true,
             e2eGrep: 'launches the workbench',
             files: ['e2e/smoke.e2e.ts'],
+            isStaged: false,
             knip: false,
             lint: false,
-            staged: false,
             test: false,
             type: false,
         });
     });
 
     it('rejects an e2e grep without the e2e selector', () => {
-        expect(() => parseCheckArgs(['--e2e-grep', 'launches'])).toThrow(
+        expect(() => parseCheckArguments(['--e2e-grep', 'launches'])).toThrow(
             '--e2e-grep requires --e2e',
         );
     });
@@ -184,21 +191,21 @@ describe('testCandidatesForFile', () => {
 describe('direct import test selection', () => {
     it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {
         expect(
-            testDirectlyImportsSource(
+            hasDirectSourceImport(
                 'src/runtime/files/__tests__/service.test.ts',
                 `import { FileService } from '../service';\nexport type { FileServiceOptions } from '../service';`,
                 'src/runtime/files/service.ts',
             ),
         ).toBe(true);
         expect(
-            testDirectlyImportsSource(
+            hasDirectSourceImport(
                 'src/runtime/files/__tests__/service.test.ts',
                 `await import('../service');`,
                 'src/runtime/files/service.ts',
             ),
         ).toBe(false);
         expect(
-            testDirectlyImportsSource(
+            hasDirectSourceImport(
                 'src/runtime/files/__tests__/other.test.ts',
                 `import './other';\nconst note = "import '../service'";`,
                 'src/runtime/files/service.ts',
@@ -213,6 +220,7 @@ describe('direct import test selection', () => {
 
         expect(direct).toEqual([
             'src/runtime/files/__tests__/files.integration.test.ts',
+            'src/runtime/files/__tests__/files.watching.integration.test.ts',
             'src/runtime/files/__tests__/git-ignore.integration.test.ts',
             'src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
             'src/runtime/files/__tests__/mutations.integration.test.ts',
@@ -222,6 +230,7 @@ describe('direct import test selection', () => {
         ]);
         expect(selected).toEqual([
             'src/runtime/files/__tests__/files.integration.test.ts',
+            'src/runtime/files/__tests__/files.watching.integration.test.ts',
             'src/runtime/files/__tests__/git-ignore.integration.test.ts',
             'src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
             'src/runtime/files/__tests__/mutations.integration.test.ts',

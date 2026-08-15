@@ -6,14 +6,16 @@ describe('Main event relay', () => {
     it('publishes durable cursors without replaying PTY output or one-shot commands', async () => {
         const delivered: unknown[] = [];
         const relay = createMainEventRelay({
-            deliver: (message) => delivered.push(message),
+            deliver: (message) => {
+                delivered.push(message);
+            },
             loadState: () =>
                 Promise.resolve({
                     projects: [{ id: 'project-1' }],
                     sessions: [{ id: 'session-1' }],
                     terminals: [{ id: 'terminal-1' }],
                 } as never),
-            logger: () => undefined,
+            logger: () => {},
             onKeybindingsChanged: vi.fn(),
         });
 

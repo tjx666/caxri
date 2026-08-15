@@ -5,7 +5,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utilities';
 import { setBugReportOpen, useDialogStore } from '../../stores/dialogs';
 import { BugReportForm } from './bug-report-form';
 import { BugReportPreview } from './bug-report-preview';
@@ -60,7 +60,10 @@ function BugReportDialogContent() {
                     imageFallbackNotice={imageFallbackNotice}
                     includeScreenshot={includeScreenshot}
                     onIncludeScreenshotChange={setIncludeScreenshot}
-                    onPreview={() => void preview()}
+                    onPreview={() => {
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, preview() reports its own errors
+                        void preview();
+                    }}
                     updateDraft={updateDraft}
                 />
             ) : (
@@ -68,9 +71,15 @@ function BugReportDialogContent() {
                     busy={busy}
                     imageFallbackNotice={imageFallbackNotice}
                     onBack={backToForm}
-                    onCopyReport={() => void copyReport()}
+                    onCopyReport={() => {
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, copyReport() reports its own errors
+                        void copyReport();
+                    }}
                     onSelectedTargetChange={setSelectedTargetId}
-                    onSend={() => void send()}
+                    onSend={() => {
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, send() reports its own errors
+                        void send();
+                    }}
                     report={report}
                     screenshot={screenshot}
                     screenshotError={screenshotError}
@@ -86,11 +95,11 @@ function BugReportDialogContent() {
 }
 
 export function BugReportDialog() {
-    const open = useDialogStore((state) => state.bugReportOpen);
+    const isOpen = useDialogStore((state) => state.bugReportOpen);
     const requestId = useDialogStore((state) => state.bugReportRequestId);
     return (
-        <Dialog open={open} onOpenChange={setBugReportOpen}>
-            {open && <BugReportDialogContent key={requestId} />}
+        <Dialog open={isOpen} onOpenChange={setBugReportOpen}>
+            {isOpen && <BugReportDialogContent key={requestId} />}
         </Dialog>
     );
 }

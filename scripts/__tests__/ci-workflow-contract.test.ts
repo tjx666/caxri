@@ -1,8 +1,8 @@
 import { execFile as execFileCallback } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { mkdir, mkdtemp, readlink, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
@@ -109,7 +109,7 @@ describe('CI workflow contract', () => {
         const toolCache = join(root, 'tool-cache');
         const pnpmStore = join(toolCache, 'caxri', 'pnpm-store');
         const persistentCache = join(toolCache, 'caxri', 'prettier');
-        const githubEnv = join(root, 'github-env');
+        const githubEnvironment = join(root, 'github-env');
         const githubSummary = join(root, 'github-summary');
 
         try {
@@ -119,7 +119,7 @@ describe('CI workflow contract', () => {
             await mkdir(pnpmStore, { recursive: true });
             await writeFile(join(pnpmStore, 'cache-entry'), 'warm');
             await writeFile(persistentCache, '');
-            await writeFile(githubEnv, '');
+            await writeFile(githubEnvironment, '');
             await writeFile(githubSummary, '');
 
             const { stdout } = await execFile(
@@ -129,7 +129,7 @@ describe('CI workflow contract', () => {
                     cwd: workspace,
                     env: {
                         ...process.env,
-                        GITHUB_ENV: githubEnv,
+                        GITHUB_ENV: githubEnvironment,
                         GITHUB_STEP_SUMMARY: githubSummary,
                         RUNNER_TOOL_CACHE: toolCache,
                     },
@@ -145,7 +145,7 @@ describe('CI workflow contract', () => {
                 pnpm: 'warm',
                 quality: 'warm',
             });
-            expect(await readFile(githubEnv, 'utf8')).toContain(
+            expect(await readFile(githubEnvironment, 'utf8')).toContain(
                 `PNPM_CONFIG_STORE_DIR=${pnpmStore}`,
             );
             await writeFile(join(workspace, 'fixture.js'), 'const value = 1;\n');

@@ -1,4 +1,5 @@
-import { commandDefinitions, defaultKeybindings, type CommandDefinition } from '@shared/commands';
+import type { CommandDefinition } from '@shared/commands';
+import { commandDefinitions, defaultKeybindings } from '@shared/commands';
 import type { Keybinding } from '@shared/types';
 
 import { formatShortcut } from '../../lib/keybindings';
@@ -24,7 +25,9 @@ const defaultByCommand = new Map<string, string>(
 
 const modifierKeyNames = new Set(['Alt', 'Control', 'Meta', 'Shift']);
 
-/** A lone modifier key press only arms further recording; it never forms a shortcut by itself. */
+/**
+A lone modifier key press only arms further recording; it never forms a shortcut by itself.
+ */
 export function isModifierKey(key: string): boolean {
     return modifierKeyNames.has(key);
 }
@@ -38,7 +41,9 @@ export function isFocusNavigationKey(key: string): boolean {
     return key === 'Tab';
 }
 
-/** Builds lossless source-order rows, followed by catalog commands that have no binding. */
+/**
+Builds lossless source-order rows, followed by catalog commands that have no binding.
+ */
 export function buildKeybindingRows(keybindings: readonly Keybinding[]): KeybindingRow[] {
     const occurrences = new Map<string, number>();
     const boundCommands = new Set<string>();
@@ -105,32 +110,42 @@ export function appendKeybindingSource(
     return applyFormEdit(source, [bindingCount], binding);
 }
 
-/** In-progress shortcut capture for one row: armed but not yet holding a captured chord, or
- * holding the last-captured (but not yet committed) chord. */
+/**
+ * In-progress shortcut capture for one row: armed but not yet holding a captured chord, or
+ * holding the last-captured (but not yet committed) chord.
+ */
 export interface RecordingState {
     pending?: string;
     rowId: string;
 }
 
-/** Outcome of a recording state transition: the next state to render, and the chord to persist
- * when the transition is a commit. */
+/**
+ * Outcome of a recording state transition: the next state to render, and the chord to persist
+ * when the transition is a commit.
+ */
 export interface RecordingResolution {
     next: RecordingState | undefined;
     commit?: string;
 }
 
-/** Arms recording for a row with no chord captured yet. */
+/**
+Arms recording for a row with no chord captured yet.
+ */
 export function startRecording(rowId: string): RecordingState {
     return { rowId };
 }
 
-/** Records the latest captured chord; a further key press overwrites it, matching how a user
- * expects to be able to retry a shortcut before committing it. */
+/**
+ * Records the latest captured chord; a further key press overwrites it, matching how a user
+ * expects to be able to retry a shortcut before committing it.
+ */
 export function captureRecordingKey(state: RecordingState, key: string): RecordingState {
     return { ...state, pending: key };
 }
 
-/** Escape, Tab, and a blur with nothing captured yet all discard recording the same way. */
+/**
+Escape, Tab, and a blur with nothing captured yet all discard recording the same way.
+ */
 export function cancelRecording(): RecordingResolution {
     return { next: undefined };
 }

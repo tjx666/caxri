@@ -1,7 +1,8 @@
-import { agentProviderCatalog, type AgentProvider } from '@shared/agents';
+import type { AgentProvider } from '@shared/agents';
+import { agentProviderCatalog } from '@shared/agents';
+import { redactSecretText } from '@shared/redaction';
 import type { TerminalRecord } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
-import { redactSecretText } from '@shared/redaction';
 
 export interface BugReportDraft {
     actual: string;
@@ -27,7 +28,7 @@ function safeText(value: string): string {
     const withoutControls = [...value]
         .filter((character) => {
             const code = character.codePointAt(0)!;
-            return !((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127);
+            return !(code === 127 || (code !== 9 && code !== 10 && code !== 13 && code < 32));
         })
         .join('');
     return redactSecretText(withoutControls.replaceAll('\r\n', '\n').replaceAll('\r', '\n')).trim();
@@ -69,7 +70,9 @@ export function buildBugReport(draft: BugReportDraft, context: BugReportContext)
     ].join('\n');
 }
 
-/** Live candidates only; the Runtime repeats these checks atomically when the user sends. */
+/**
+Live candidates only; the Runtime repeats these checks atomically when the user sends.
+ */
 export function runningAgentTargets(
     terminals: readonly TerminalRecord[],
     sessionId: string,

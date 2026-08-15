@@ -3,15 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@shared/types';
 
-import { reorderProject } from '../session/session-actions';
+import { didReorderProject } from '../session/session-actions';
+import type { ProjectDropTarget } from './project-order';
 import {
     adjacentProjectOrder,
+    areProjectDropTargetsEqual,
     createLatestProjectOrderQueue,
     createProjectOrderIntentTracker,
     PROJECT_DRAG_TYPE,
-    projectDropTargetsEqual,
     projectOrderAfterDrop,
-    type ProjectDropTarget,
 } from './project-order';
 
 interface ProjectOrderController {
@@ -30,31 +30,31 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
     const [draggedProjectId, setDraggedProjectId] = useState<string>();
     const [projectDropTarget, setProjectDropTarget] = useState<ProjectDropTarget>();
     const [projectOrderAnnouncement, setProjectOrderAnnouncement] = useState('');
-    const intentTrackerRef = useRef<ReturnType<typeof createProjectOrderIntentTracker> | undefined>(
-        undefined,
-    );
-    intentTrackerRef.current ??= createProjectOrderIntentTracker();
-    const queueRef = useRef<ReturnType<typeof createLatestProjectOrderQueue> | undefined>(
+    const intentTrackerReference = useRef<
+        ReturnType<typeof createProjectOrderIntentTracker> | undefined
+    >(undefined);
+    intentTrackerReference.current ??= createProjectOrderIntentTracker();
+    const queueReference = useRef<ReturnType<typeof createLatestProjectOrderQueue> | undefined>(
         undefined,
     );
 
     useEffect(() => {
-        queueRef.current = createLatestProjectOrderQueue(async (projectIds) => {
-            const intent = intentTrackerRef.current?.get();
+        queueReference.current = createLatestProjectOrderQueue(async (projectIds) => {
+            const intent = intentTrackerReference.current?.get();
             if (intent?.projectIds !== projectIds) return;
-            const reordered = await reorderProject(
+            const isReordered = await didReorderProject(
                 intent.movedProjectId,
                 projectIds.indexOf(intent.movedProjectId),
             );
-            intentTrackerRef.current?.settle(reordered);
+            intentTrackerReference.current?.settle(isReordered);
         });
         return () => {
-            queueRef.current = undefined;
+            queueReference.current = undefined;
         };
     }, []);
 
     useEffect(() => {
-        const confirmed = intentTrackerRef.current?.reconcile(
+        const confirmed = intentTrackerReference.current?.reconcile(
             projects.map((project) => project.id),
         );
         if (!confirmed) return;
@@ -64,12 +64,15 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
     }, [projects]);
 
     const enqueue = (projectIds: string[], movedProjectId: string, displayTitle: string): void => {
-        intentTrackerRef.current?.set({ displayTitle, movedProjectId, projectIds });
-        void queueRef.current?.enqueue(projectIds);
+        intentTrackerReference.current?.set({ displayTitle, movedProjectId, projectIds });
+        // Fire-and-forget: the queue's async worker persists this order and settles the intent
+        // tracker internally; this handler has no UI result to await here.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void queueReference.current?.enqueue(projectIds);
     };
 
     const currentProjectIds = (): string[] =>
-        intentTrackerRef.current?.get()?.projectIds ?? projects.map((project) => project.id);
+        intentTrackerReference.current?.get()?.projectIds ?? projects.map((project) => project.id);
 
     const commit = (projectIds: string[], movedProjectId: string, displayTitle: string): void => {
         const currentIds = currentProjectIds();
@@ -128,7 +131,7 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
             event.dataTransfer.dropEffect = 'move';
             const target = dropEdge(event, projectId);
             setProjectDropTarget((current) =>
-                projectDropTargetsEqual(current, target) ? current : target,
+                areProjectDropTargetsEqual(current, target) ? current : target,
             );
         },
         drop(event, targetProjectId) {

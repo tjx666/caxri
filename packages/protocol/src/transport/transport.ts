@@ -1,23 +1,23 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
-import { CaxriError, fromWireError, toErrorCode, type WireError } from './errors.js';
-import { runtimeEventSchema, type RuntimeEvent } from '../registry/events.js';
+import type { RuntimeEvent } from '../registry/events.js';
+import { runtimeEventSchema } from '../registry/events.js';
+import type {
+    CaxriMethod,
+    CaxriRequest,
+    MethodResult,
+    ParamsArg as ParametersArgument,
+    RuntimeMethod,
+    RuntimeMethodResult,
+    RuntimeRequest,
+} from '../registry/methods.js';
+import { getMethodSpec, isCaxriMethod, methods } from '../registry/methods.js';
+import type { WireError } from './errors.js';
+import { CaxriError, fromWireError, toErrorCode } from './errors.js';
 import type { RendererErrorKind } from './renderer-error.js';
 import type { CAXRI_PROTOCOL_VERSION, ProtocolWelcome } from './version.js';
 import { protocolVersionSchema } from './version.js';
-import {
-    getMethodSpec,
-    isCaxriMethod,
-    methods,
-    type CaxriMethod,
-    type CaxriRequest,
-    type MethodResult,
-    type ParamsArg,
-    type RuntimeMethod,
-    type RuntimeMethodResult,
-    type RuntimeRequest,
-} from '../registry/methods.js';
 
 export const requestEnvelopeSchema = z.object({
     protocolVersion: protocolVersionSchema,
@@ -33,15 +33,17 @@ export type CommandRequestEnvelope = z.infer<typeof requestEnvelopeSchema>;
  * both together. The assertion is the single correlation point: `methods[method]` is resolved from a
  * value, which TypeScript cannot relate back to the method literal on its own.
  */
-export function parseCaxriRequest(method: CaxriMethod, params: unknown): CaxriRequest {
-    return { method, params: methods[method].params.parse(params) } as CaxriRequest;
+export function parseCaxriRequest(method: CaxriMethod, parameters: unknown): CaxriRequest {
+    return { method, params: methods[method].params.parse(parameters) } as CaxriRequest;
 }
 
-/** Runtime-side equivalent that also accepts the internal Main-to-Runtime methods. */
-export function parseRuntimeRequest(method: string, params: unknown): RuntimeRequest {
+/**
+Runtime-side equivalent that also accepts the internal Main-to-Runtime methods.
+ */
+export function parseRuntimeRequest(method: string, parameters: unknown): RuntimeRequest {
     const spec = getMethodSpec(method);
     if (!spec) throw new CaxriError('VALIDATION', `Unknown Runtime method: ${method}`);
-    return { method, params: spec.params.parse(params) } as RuntimeRequest;
+    return { method, params: spec.params.parse(parameters) } as RuntimeRequest;
 }
 
 function invalidResult(method: string, issues: z.core.$ZodIssue[]): CaxriError {
@@ -53,7 +55,9 @@ function invalidResult(method: string, issues: z.core.$ZodIssue[]): CaxriError {
     });
 }
 
-/** Validates a Main or Runtime result before it crosses the Renderer IPC boundary. */
+/**
+Validates a Main or Runtime result before it crosses the Renderer IPC boundary.
+ */
 export function parseCaxriResult<M extends CaxriMethod>(
     method: M,
     result: unknown,
@@ -63,7 +67,9 @@ export function parseCaxriResult<M extends CaxriMethod>(
     return parsed.data as MethodResult<M>;
 }
 
-/** Validates a Runtime result, including internal Main-to-Runtime methods. */
+/**
+Validates a Runtime result, including internal Main-to-Runtime methods.
+ */
 export function parseRuntimeResult<M extends RuntimeMethod>(
     method: M,
     result: unknown,
@@ -84,7 +90,7 @@ export const wireErrorSchema = z
     .transform(({ code, message, details }): WireError => ({
         code: toErrorCode(code),
         message,
-        ...(details ? { details } : {}),
+        ...(details && { details }),
     }));
 
 const runtimeResponseSchema = z.discriminatedUnion('ok', [
@@ -96,14 +102,18 @@ export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
 
 export type RuntimeMessage = RuntimeResponse | RuntimeEvent;
 
-/** Parses an untrusted utility-process message as either a response or a declared Runtime event. */
+/**
+Parses an untrusted utility-process message as either a response or a declared Runtime event.
+ */
 export function parseRuntimeMessage(message: unknown): RuntimeMessage {
     const event = runtimeEventSchema.safeParse(message);
     if (event.success) return event.data;
     return runtimeResponseSchema.parse(message);
 }
 
-/** Main answers `caxri:request` with this envelope so the error code survives the Electron hop. */
+/**
+Main answers `caxri:request` with this envelope so the error code survives the Electron hop.
+ */
 export type CaxriReply = CommandReplyEnvelope;
 
 export const commandReplyEnvelopeSchema = z.discriminatedUnion('ok', [
@@ -123,7 +133,9 @@ export const commandReplyEnvelopeSchema = z.discriminatedUnion('ok', [
 
 export type CommandReplyEnvelope = z.infer<typeof commandReplyEnvelopeSchema>;
 
-/** The same envelope once the method table has resolved the result shape. */
+/**
+The same envelope once the method table has resolved the result shape.
+ */
 export type MethodReply<M extends CaxriMethod> =
     | {
           protocolVersion: typeof CAXRI_PROTOCOL_VERSION;
@@ -146,16 +158,26 @@ export type MethodReply<M extends CaxriMethod> =
  */
 export interface CaxriBridge {
     negotiate(): Promise<ProtocolWelcome>;
-    request<M extends CaxriMethod>(method: M, ...args: ParamsArg<M>): Promise<MethodReply<M>>;
+    request<M extends CaxriMethod>(
+        method: M,
+        ...arguments_: ParametersArgument<M>
+    ): Promise<MethodReply<M>>;
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
-    /** Reports only a fault class; private exception values never cross the preload boundary. */
+    /**
+    Reports only a fault class; private exception values never cross the preload boundary.
+     */
     reportError(kind: RendererErrorKind): void;
 }
 
-/** Renderer-facing view of the bridge: results are unwrapped and failures reject with `CaxriError`. */
+/**
+Renderer-facing view of the bridge: results are unwrapped and failures reject with `CaxriError`.
+ */
 export interface CaxriClient {
     negotiate(): Promise<ProtocolWelcome>;
-    request<M extends CaxriMethod>(method: M, ...args: ParamsArg<M>): Promise<MethodResult<M>>;
+    request<M extends CaxriMethod>(
+        method: M,
+        ...arguments_: ParametersArgument<M>
+    ): Promise<MethodResult<M>>;
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
 }
 
@@ -164,9 +186,9 @@ export function createCaxriClient(
 ): CaxriClient {
     async function request<M extends CaxriMethod>(
         method: M,
-        ...args: ParamsArg<M>
+        ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>> {
-        const reply = commandReplyEnvelopeSchema.parse(await bridge.request(method, ...args));
+        const reply = commandReplyEnvelopeSchema.parse(await bridge.request(method, ...arguments_));
         if (!reply.ok) throw fromWireError(reply.error);
         return parseCaxriResult(method, reply.result);
     }

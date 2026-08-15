@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -12,7 +13,7 @@ import {
 
 const directories: string[] = [];
 
-async function repository(): Promise<string> {
+async function repo(): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-go-integrity-'));
     directories.push(directory);
     execFileSync('git', ['init', '-q'], { cwd: directory });
@@ -26,14 +27,14 @@ async function repository(): Promise<string> {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        directories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })),
-    );
+    const paths = [...directories];
+    directories.length = 0;
+    await Promise.all(paths.map((directory) => rm(directory, { force: true, recursive: true })));
 });
 
 describe('Go validation worktree integrity', () => {
     it('derives HEAD from Git and rejects a forged expected SHA', async () => {
-        const directory = await repository();
+        const directory = await repo();
         const integrity = await inspectWorktreeIntegrity(directory);
 
         expect(integrity.clean).toBe(true);
@@ -44,7 +45,7 @@ describe('Go validation worktree integrity', () => {
     });
 
     it('ignores ignored artifacts but detects tracked and non-ignored source changes', async () => {
-        const directory = await repository();
+        const directory = await repo();
         await mkdir(join(directory, 'ignored'));
         await writeFile(join(directory, 'ignored', 'build.log'), 'generated\n', 'utf8');
         expect((await inspectWorktreeIntegrity(directory)).clean).toBe(true);
@@ -54,7 +55,7 @@ describe('Go validation worktree integrity', () => {
     });
 
     it('measures the committed file delta between issue boundaries', async () => {
-        const directory = await repository();
+        const directory = await repo();
         const baseSha = execFileSync('git', ['rev-parse', 'HEAD'], {
             cwd: directory,
             encoding: 'utf8',

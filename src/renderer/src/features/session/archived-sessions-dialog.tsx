@@ -1,6 +1,8 @@
-import { Archive, ArchiveRestore, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { Archive, ArchiveRestore, Search, Trash2 } from 'lucide-react';
+
+import { Button } from '../../components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -16,13 +18,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
-import { Button } from '../../components/ui/button';
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
+import type { ArchivedSessionFilters } from './archived-sessions';
+import { deriveArchivedSessionView } from './archived-sessions';
 import { deleteSession, unarchiveSession } from './session-actions';
-import { deriveArchivedSessionView, type ArchivedSessionFilters } from './archived-sessions';
 
 const NO_RECORDS: never[] = [];
 const archivedTimestampFormatter = new Intl.DateTimeFormat(undefined, {
@@ -35,7 +37,7 @@ function archivedTimestamp(value: number): string {
 }
 
 export function ArchivedSessionsDialog() {
-    const open = useDialogStore((state) => state.archivedSessionsOpen);
+    const isOpen = useDialogStore((state) => state.archivedSessionsOpen);
     const projects = useProjects() ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
@@ -53,13 +55,13 @@ export function ArchivedSessionsDialog() {
         setProjectId('all');
         setAgent('all');
     };
-    const setOpen = (nextOpen: boolean): void => {
-        if (!nextOpen) clearFilters();
-        setArchivedSessionsOpen(nextOpen);
+    const setOpen = (isNextOpen: boolean): void => {
+        if (!isNextOpen) clearFilters();
+        setArchivedSessionsOpen(isNextOpen);
     };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent className="grid h-[min(760px,calc(100vh-48px))] w-[min(980px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Archived Sessions</DialogTitle>

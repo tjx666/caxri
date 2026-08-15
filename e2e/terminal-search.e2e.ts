@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -46,8 +45,10 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         const decorations = running.page.locator(
             '.terminal-group.active .xterm-decoration-container .xterm-decoration:not(.terminal-command-decoration)',
         );
-        /** SearchAddon renders one decoration per match plus a top-layer active-match overlay;
-         *  shell-integration status decorations share xterm's container and are excluded here. */
+        /**
+         * SearchAddon renders one decoration per match plus a top-layer active-match overlay;
+         *  shell-integration status decorations share xterm's container and are excluded here.
+         */
         await expect(decorations).toHaveCount(5);
         const decorationEvidence = await decorations.evaluateAll((elements) =>
             elements.map((element) => ({
@@ -77,8 +78,10 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await expect(wholeWord).toHaveAttribute('aria-pressed', 'true');
         await expect(search).toContainText('1/2');
 
-        /** The VS Code Match Case/Whole Word/Regex chords fire from anywhere inside the search bar,
-         *  not only while the query input is focused, so this toggles both off from the input. */
+        /**
+         * The VS Code Match Case/Whole Word/Regex chords fire from anywhere inside the search bar,
+         *  not only while the query input is focused, so this toggles both off from the input.
+         */
         await searchInput.press('Alt+C');
         await expect(matchCase).toHaveAttribute('aria-pressed', 'false');
         await searchInput.press('Alt+W');
@@ -117,7 +120,11 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await expect(editor.locator('.find-widget')).toBeVisible();
         await expect(running.page.locator('.terminal-search')).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

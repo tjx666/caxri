@@ -44,16 +44,20 @@ interface ProcessExplorerSamplerOptions {
     runtimePid: () => number | undefined;
 }
 
-/** Converts kilobytes to megabytes, rounded to one decimal place for display. */
+/**
+Converts kilobytes to megabytes, rounded to one decimal place for display.
+ */
 export function kilobytesToMegabytes(kilobytes: number): number {
     return Math.round((kilobytes / 1024) * 10) / 10;
 }
 
-/** Hides common credential flag values without removing the useful executable and argv context. */
+/**
+Hides common credential flag values without removing the useful executable and argv context.
+ */
 export function redactProcessName(command: string): string {
     return command
-        .replace(
-            /(--?[\w-]*(?:api[-_]?key|authorization|password|secret|token)[\w-]*)(?:=|\s+)(?:"[^"]*"|'[^']*'|\S+)/giu,
+        .replaceAll(
+            /(-[\w-]*(?:api[-_]?key|authorization|password|secret|token)[\w-]*)(?:=|\s+)(?:"[^"]*"|'[^']*'|\S+)/giu,
             '$1=<redacted>',
         )
         .slice(0, MAX_PROCESS_NAME_LENGTH);
@@ -61,18 +65,22 @@ export function redactProcessName(command: string): string {
 
 export function parseProcessList(output: string): ProcessExplorerEntry[] {
     const processes: ProcessExplorerEntry[] = [];
-    for (const line of output.split('\n')) {
-        const match = /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
-        if (!match) continue;
-        const pid = Number(match[1]);
-        const parentPid = Number(match[2]);
-        const cpuPercent = Number(match[3]);
-        const rssKb = Number(match[4]);
+    for (const rawLine of output.split('\n')) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        // Split on whitespace instead of a single regex with adjacent unbounded `\s+`/`.+?`
+        // quantifiers, which is vulnerable to super-linear backtracking on crafted input.
+        const [pidText, parentPidText, cpuText, rssText, ...commandParts] = line.split(/\s+/);
+        if (commandParts.length === 0) continue;
+        const pid = Number(pidText);
+        const parentPid = Number(parentPidText);
+        const cpuPercent = Number(cpuText);
+        const rssKb = Number(rssText);
         if (![pid, parentPid, cpuPercent, rssKb].every(Number.isFinite) || pid <= 0) continue;
         processes.push({
             pid,
             parentPid,
-            name: redactProcessName(match[5]),
+            name: redactProcessName(commandParts.join(' ')),
             cpuPercent,
             memoryMb: kilobytesToMegabytes(rssKb),
         });
@@ -100,9 +108,10 @@ export function selectProcessTree(
         visited.add(pid);
         const process = processesByPid.get(pid);
         if (process) selected.push(process);
-        for (const child of children.get(pid) ?? []) pending.push(child.pid);
+        const childProcesses = children.get(pid) ?? [];
+        for (const child of childProcesses) pending.push(child.pid);
     }
-    return selected.sort((left, right) => left.pid - right.pid);
+    return selected.toSorted((left, right) => left.pid - right.pid);
 }
 
 function electronProcessName(sample: ElectronProcessSample, rendererRole?: string): string {
@@ -114,7 +123,7 @@ function electronProcessName(sample: ElectronProcessSample, rendererRole?: strin
         return `utility-${detail
             .toLowerCase()
             .replaceAll(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '')}`;
+            .replaceAll(/^-|-$/g, '')}`;
     }
     return `${sample.type.toLowerCase().replaceAll(' ', '-')}${sample.name ? ` (${sample.name})` : ''}`;
 }
@@ -128,32 +137,28 @@ async function runProcessList(): Promise<string> {
     return result.stdout;
 }
 
-/** Coalesces overlapping refreshes so a manual refresh cannot duplicate the periodic OS sample. */
+/**
+Coalesces overlapping refreshes so a manual refresh cannot duplicate the periodic OS sample.
+ */
 export class ProcessExplorerSampler {
     private inFlight?: Promise<ProcessExplorerSnapshot>;
 
     constructor(private readonly options: ProcessExplorerSamplerOptions) {}
-
-    snapshot(): Promise<ProcessExplorerSnapshot> {
-        this.inFlight ??= this.load().finally(() => {
-            this.inFlight = undefined;
-        });
-        return this.inFlight;
-    }
 
     private async load(): Promise<ProcessExplorerSnapshot> {
         const raw = parseProcessList(await (this.options.processList ?? runProcessList)()).filter(
             (process) => !process.name.includes('/bin/ps -axo'),
         );
         const hostPid = this.options.hostPid?.();
-        const selected = [
-            ...new Map(
-                [
-                    ...selectProcessTree(raw, this.options.rootPid),
-                    ...(hostPid ? selectProcessTree(raw, hostPid) : []),
-                ].map((process) => [process.pid, process]),
-            ).values(),
-        ].sort((left, right) => left.pid - right.pid);
+        const selected = new Map(
+            [
+                ...selectProcessTree(raw, this.options.rootPid),
+                ...(hostPid ? selectProcessTree(raw, hostPid) : []),
+            ].map((process) => [process.pid, process]),
+        )
+            .values()
+            .toArray()
+            .toSorted((left, right) => left.pid - right.pid);
         const electron = new Map(
             this.options.electronProcesses().map((sample) => [sample.pid, sample] as const),
         );
@@ -174,5 +179,18 @@ export class ProcessExplorerSampler {
             }),
             sampledAt: Date.now(),
         };
+    }
+
+    /**
+     * `this.inFlight` coalesces overlapping refreshes: every concurrent caller shares and awaits
+     * the same in-flight promise, so this method returns it directly rather than awaiting it
+     * itself before returning.
+     */
+    snapshot(): Promise<ProcessExplorerSnapshot> {
+        // eslint-disable-next-line unicorn/prefer-await -- see JSDoc above, coalescing requires the shared promise itself
+        this.inFlight ??= this.load().finally(() => {
+            this.inFlight = undefined;
+        });
+        return this.inFlight;
     }
 }

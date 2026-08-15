@@ -1,11 +1,13 @@
 #!/usr/bin/env bun
 
+import { spawn } from 'node:child_process';
 import { appendFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { spawn } from 'node:child_process';
+import process from 'node:process';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-parity.test.ts
 export const ciParityCases = [
     {
         id: 'late-raw-mode',
@@ -33,6 +35,7 @@ export const ciParityCases = [
     },
 ] as const;
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-parity.test.ts
 export function ciParityEnvironment(id: string): NodeJS.ProcessEnv {
     return {
         ...process.env,
@@ -41,15 +44,19 @@ export function ciParityEnvironment(id: string): NodeJS.ProcessEnv {
     };
 }
 
-function run(command: string, args: string[], environment: NodeJS.ProcessEnv): Promise<number> {
-    const child = spawn(command, args, {
+function run(
+    command: string,
+    arguments_: string[],
+    environment: NodeJS.ProcessEnv,
+): Promise<number> {
+    const child = spawn(command, arguments_, {
         cwd: projectRoot,
         env: environment,
         stdio: 'inherit',
     });
-    return new Promise<number>((resolveExit, reject) => {
+    return new Promise<number>((resolve, reject) => {
         child.once('error', reject);
-        child.once('exit', (code, signal) => resolveExit(code ?? (signal ? 1 : 0)));
+        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });
 }
 
@@ -71,6 +78,9 @@ async function main(): Promise<void> {
         );
     }
     for (const parityCase of ciParityCases) {
+        // CI-parity cases run sequentially with a shared single Playwright worker and fail fast on
+        // the first regression, so concurrent execution would break both properties.
+        // eslint-disable-next-line no-await-in-loop -- sequential fail-fast CI-parity matrix
         const exitCode = await run(
             'bunx',
             [

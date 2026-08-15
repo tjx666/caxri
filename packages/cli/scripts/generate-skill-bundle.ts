@@ -6,7 +6,7 @@ interface FileSystemError extends Error {
     code?: string;
 }
 
-export async function writeFileIfChanged(path: URL | string, source: string): Promise<boolean> {
+export async function didWriteFileIfChanged(path: URL | string, source: string): Promise<boolean> {
     try {
         if ((await readFile(path, 'utf8')) === source) return false;
     } catch (error) {
@@ -30,10 +30,10 @@ async function generateSkillBundle(): Promise<void> {
     const source = `/** Generated from skills/caxri-cli. Do not edit directly. */
 export const CAXRI_SKILL_FILES = ${JSON.stringify(files, null, 4)} as const;
 `;
-    const configuration = (await resolveConfig(outputUrl.pathname)) ?? {};
-    await writeFileIfChanged(
+    const config = (await resolveConfig(outputUrl.pathname)) ?? {};
+    await didWriteFileIfChanged(
         outputUrl,
-        await format(source, { ...configuration, filepath: outputUrl.pathname }),
+        await format(source, { ...config, filepath: outputUrl.pathname }),
     );
 }
 

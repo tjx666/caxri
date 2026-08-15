@@ -1,26 +1,16 @@
 import { z } from 'zod';
 
-import {
-    agentProviderIds,
-    defaultAgentProviderSettings,
-    type AgentProvider,
-    type AgentProviderSettings,
-} from './agents';
-import { MAX_KEYBINDINGS } from './configuration-contract';
-import {
-    DEFAULT_FILES_EXCLUDE,
-    keybindingSchema,
-    SETTINGS_BOUNDS,
-    type AppSettings,
-    type Keybinding,
-    type KeybindingConflict,
-} from './types';
+import type { AgentProvider, AgentProviderSettings } from './agents';
+import { agentProviderIds, defaultAgentProviderSettings } from './agents';
+import { MAX_KEYBINDINGS } from './config-contract';
 import { normalizeShortcut } from './shortcuts';
 import {
-    MAX_TRUSTED_DOMAINS,
     MAX_TRUSTED_DOMAIN_LENGTH,
+    MAX_TRUSTED_DOMAINS,
     normalizeTrustedDomainRule,
 } from './trusted-domains';
+import type { AppSettings, Keybinding, KeybindingConflict } from './types';
+import { DEFAULT_FILES_EXCLUDE, keybindingSchema, SETTINGS_BOUNDS } from './types';
 
 const MAX_FILES_EXCLUDE_PATTERNS = 100;
 
@@ -37,13 +27,20 @@ const agentLaunchSettingsSchema = z.object({
     args: z.array(z.string().max(4_096)).max(64),
 });
 
+const agentHooksSettingsSchema = z
+    .object({ enabled: z.boolean().default(false) })
+    .default({ enabled: false });
+const agentMessagingSettingsSchema = z
+    .object({ enabled: z.boolean().default(true) })
+    .default({ enabled: true });
+
 const agentProviderSettingsSchema = z
     .partialRecord(
         z.enum(agentProviderIds),
         z.object({
-            hooks: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
+            hooks: agentHooksSettingsSchema,
             launch: agentLaunchSettingsSchema,
-            messaging: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
+            messaging: agentMessagingSettingsSchema,
         }),
     )
     .default({})
@@ -82,7 +79,9 @@ const trustedDomainsSchema = z
         return normalized;
     });
 
-/** Browser-safe single source of truth for Settings-file defaults and bounds. */
+/**
+Browser-safe single source of truth for Settings-file defaults and bounds.
+ */
 export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
     'session.defaultAgent': z
         .enum([...agentProviderIds, 'shell'])
@@ -130,7 +129,9 @@ export const settingsFileSchema: z.ZodType<AppSettings, unknown> = z.object({
 
 export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 
-/** Finds normalized chords assigned to more than one distinct command. */
+/**
+Finds normalized chords assigned to more than one distinct command.
+ */
 export function findKeybindingConflicts(keybindings: readonly Keybinding[]): KeybindingConflict[] {
     const byKey = new Map<string, Set<string>>();
     for (const binding of keybindings) {

@@ -1,12 +1,8 @@
+import type { BootstrapState, FileMutationOperation } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BootstrapState, FileMutationOperation } from '@shared/types';
-
 const mocks = vi.hoisted(() => ({
-    request: vi.fn((method?: unknown): Promise<unknown> => {
-        void method;
-        return Promise.resolve(null);
-    }),
+    request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(() => Promise.resolve(null)),
 }));
 
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
@@ -201,8 +197,12 @@ describe('file mutation reconciliation', () => {
                 mocks.request.mock.calls.filter(([method]) => method === 'session.updateState'),
             ).toHaveLength(2);
         });
+        const awaitReconciliation = async (): Promise<'reconciled'> => {
+            await reconciliation;
+            return 'reconciled';
+        };
         const beforeSessionStateSave = await Promise.race([
-            reconciliation.then(() => 'reconciled' as const),
+            awaitReconciliation(),
             new Promise<'waiting'>((resolve) => setTimeout(() => resolve('waiting'), 0)),
         ]);
         expect(beforeSessionStateSave).toBe('waiting');

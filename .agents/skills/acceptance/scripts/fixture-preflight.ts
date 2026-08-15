@@ -1,8 +1,8 @@
-#!/usr/bin/env bun
-
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+
 import stringWidth from 'string-width';
 import { z } from 'zod';
 
@@ -31,15 +31,22 @@ export interface FixturePreflightResult {
     status: 'fixture_blocked' | 'ready';
 }
 
+const preflightErrorSchema = z.object({ code: z.string(), detail: z.string() });
+const preflightLineSchema = z.object({
+    index: z.number().int().nonnegative(),
+    width: z.number(),
+});
+const preflightResultSchema = z.object({
+    errors: z.array(preflightErrorSchema),
+    lines: z.array(preflightLineSchema),
+    status: z.enum(['fixture_blocked', 'ready']),
+});
+
 export const terminalFixturePreflightReceiptSchema = z.object({
     caseId: z.string().min(1),
     fixture: terminalFixtureSchema,
     kind: z.literal('terminal-fixture-preflight'),
-    result: z.object({
-        errors: z.array(z.object({ code: z.string(), detail: z.string() })),
-        lines: z.array(z.object({ index: z.number().int().nonnegative(), width: z.number() })),
-        status: z.enum(['fixture_blocked', 'ready']),
-    }),
+    result: preflightResultSchema,
     schemaVersion: z.literal(1),
 });
 
@@ -93,7 +100,7 @@ export function preflightTerminalFixture(input: TerminalFixture): FixturePreflig
         }
     }
 
-    return { errors, lines: measurements, status: errors.length ? 'fixture_blocked' : 'ready' };
+    return { errors, lines: measurements, status: errors.length > 0 ? 'fixture_blocked' : 'ready' };
 }
 
 function help(): string {
@@ -122,14 +129,14 @@ async function main(argv: string[]): Promise<void> {
         return;
     }
     const inputIndex = argv.indexOf('--input');
-    const input = inputIndex >= 0 ? argv[inputIndex + 1] : undefined;
+    const input = inputIndex !== -1 ? argv[inputIndex + 1] : undefined;
     if (!input || input.startsWith('--')) throw new Error('Missing --input');
     const caseIdIndex = argv.indexOf('--case-id');
-    const caseId = caseIdIndex >= 0 ? argv[caseIdIndex + 1] : undefined;
+    const caseId = caseIdIndex !== -1 ? argv[caseIdIndex + 1] : undefined;
     if (!caseId || caseId.startsWith('--')) throw new Error('Missing --case-id');
     const outputIndex = argv.indexOf('--output');
-    const output = outputIndex >= 0 ? argv[outputIndex + 1] : undefined;
-    if (outputIndex >= 0 && (!output || output.startsWith('--'))) {
+    const output = outputIndex !== -1 ? argv[outputIndex + 1] : undefined;
+    if (outputIndex !== -1 && (!output || output.startsWith('--'))) {
         throw new Error('Missing --output value');
     }
     const path = isAbsolute(input) ? input : resolve(input);
@@ -148,8 +155,10 @@ async function main(argv: string[]): Promise<void> {
 const invokedPath =
     process.argv[1] && (isAbsolute(process.argv[1]) ? process.argv[1] : resolve(process.argv[1]));
 if (invokedPath === SCRIPT_PATH) {
-    void main(process.argv.slice(2)).catch((error: unknown) => {
+    try {
+        await main(process.argv.slice(2));
+    } catch (error: unknown) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    });
+    }
 }

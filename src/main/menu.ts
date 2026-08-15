@@ -1,16 +1,12 @@
 import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } from 'electron';
 
-import {
-    getNativeMenuCommandGroups,
-    type CommandDefinition,
-    type CommandId,
-    type NativeMenuId,
-} from '../shared/commands';
+import type { CommandDefinition, CommandId, NativeMenuId } from '../shared/commands';
+import { getNativeMenuCommandGroups } from '../shared/commands';
 import type { Keybinding } from '../shared/types';
 
-export interface ApplicationMenuOptions {
+export interface AppMenuOptions {
     keybindings: Keybinding[];
-    dispatchCommand: (command: CommandId, viaAccelerator: boolean) => void;
+    dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
 }
 
@@ -36,11 +32,11 @@ function electronAccelerator(key: string | undefined): string | undefined {
  * while every command-backed item inherits its placement, label, and configured accelerator from
  * the same catalog/keybinding sources as the Renderer.
  */
-export function buildApplicationMenuTemplate({
+export function buildAppMenuTemplate({
     keybindings,
     dispatchCommand,
     openProcessExplorer,
-}: ApplicationMenuOptions): MenuItemConstructorOptions[] {
+}: AppMenuOptions): MenuItemConstructorOptions[] {
     const accelerator = (id: string): string | undefined =>
         electronAccelerator(keybindings.find((binding) => binding.command === id)?.key);
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
@@ -54,7 +50,9 @@ export function buildApplicationMenuTemplate({
          * (a deliberate user action that must keep working even while a Terminal/editor has focus).
          */
         click: (_menuItem: MenuItem, _window: BaseWindow | undefined, event: KeyboardEvent) => {
-            /** The Process Explorer menu must work while its diagnostic window is focused. */
+            /**
+            The Process Explorer menu must work while its diagnostic window is focused.
+             */
             if (definition.id === 'processExplorer.open') return openProcessExplorer();
             dispatchCommand(definition.id, event.triggeredByAccelerator === true);
         },

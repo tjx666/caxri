@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+
 import { create } from 'zustand';
 
 /**
@@ -9,21 +10,31 @@ import { create } from 'zustand';
 
 export const SIDEBAR_MIN_WIDTH = 180;
 export const SIDEBAR_MAX_WIDTH = 480;
-/** Matches the width `.app-shell` already shipped with in `styles.css` before this feature. */
+/**
+Matches the width `.app-shell` already shipped with in `styles.css` before this feature.
+ */
 export const SIDEBAR_DEFAULT_WIDTH = 230;
 
 export const INSPECTOR_MIN_WIDTH = 240;
 export const INSPECTOR_MAX_WIDTH = 600;
-/** Matches the width `.app-shell` already shipped with in `styles.css` before this feature. */
+/**
+Matches the width `.app-shell` already shipped with in `styles.css` before this feature.
+ */
 export const INSPECTOR_DEFAULT_WIDTH = 310;
 
-/** Width of each visible Sidebar/Inspector resize track in `app.tsx`. */
+/**
+Width of each visible Sidebar/Inspector resize track in `app.tsx`.
+ */
 export const PANEL_DIVIDER_WIDTH = 6;
 
-/** The main pane must keep at least this much room; see `clampLayoutToViewport`. */
+/**
+The main pane must keep at least this much room; see `clampLayoutToViewport`.
+ */
 export const MIN_MAIN_WIDTH = 320;
 
-/** Arrow-key resize step in pixels, per the divider's keyboard interaction contract. */
+/**
+Arrow-key resize step in pixels, per the divider's keyboard interaction contract.
+ */
 export const PANEL_RESIZE_STEP = 16;
 
 const STORAGE_KEY = 'caxri.panel-layout';
@@ -84,14 +95,16 @@ export function clampLayoutToViewport(layout: PanelLayout, viewportWidth: number
 }
 
 function isBrowser(): boolean {
-    return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+    return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
 }
 
-/** Falls back to defaults for a missing/corrupt entry instead of throwing during module load. */
+/**
+Falls back to defaults for a missing/corrupt entry instead of throwing during module load.
+ */
 function readPersistedLayout(): PanelLayout {
     if (!isBrowser()) return DEFAULT_PANEL_LAYOUT;
     try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return DEFAULT_PANEL_LAYOUT;
         const parsed = JSON.parse(raw) as Partial<PanelLayout>;
         return {
@@ -122,13 +135,15 @@ function readPersistedLayout(): PanelLayout {
 function writePersistedLayout(layout: PanelLayout): void {
     if (!isBrowser()) return;
     try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
     } catch {
         // Storage full or disabled (private mode); the layout still works for this session.
     }
 }
 
-/** Revalidates a visibility change immediately instead of waiting for the next window resize. */
+/**
+Revalidates a visibility change immediately instead of waiting for the next window resize.
+ */
 function fitCurrentViewport(layout: PanelLayout): PanelLayout {
     return isBrowser() ? clampLayoutToViewport(layout, window.innerWidth) : layout;
 }
@@ -140,9 +155,11 @@ interface PanelLayoutState extends PanelLayout {
     resetInspectorWidth(): void;
     toggleSidebar(): void;
     toggleInspector(): void;
-    setSidebarVisible(visible: boolean): void;
-    setInspectorVisible(visible: boolean): void;
-    /** Re-clamps the persisted layout against a new viewport width; see {@link clampLayoutToViewport}. */
+    setSidebarVisible(isVisible: boolean): void;
+    setInspectorVisible(isVisible: boolean): void;
+    /**
+    Re-clamps the persisted layout against a new viewport width; see {@link clampLayoutToViewport}.
+     */
     clampToViewport(viewportWidth: number): void;
 }
 
@@ -176,24 +193,30 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => ({
         set({ inspectorWidth: INSPECTOR_DEFAULT_WIDTH });
     },
     toggleSidebar() {
-        const sidebarVisible = !get().sidebarVisible;
-        const layout = fitCurrentViewport({ ...pickLayout(get()), sidebarVisible });
+        const isSidebarVisible = !get().sidebarVisible;
+        const layout = fitCurrentViewport({
+            ...pickLayout(get()),
+            sidebarVisible: isSidebarVisible,
+        });
         writePersistedLayout(layout);
         set(layout);
     },
     toggleInspector() {
-        const inspectorVisible = !get().inspectorVisible;
-        const layout = fitCurrentViewport({ ...pickLayout(get()), inspectorVisible });
+        const isInspectorVisible = !get().inspectorVisible;
+        const layout = fitCurrentViewport({
+            ...pickLayout(get()),
+            inspectorVisible: isInspectorVisible,
+        });
         writePersistedLayout(layout);
         set(layout);
     },
-    setSidebarVisible(visible) {
-        const layout = fitCurrentViewport({ ...pickLayout(get()), sidebarVisible: visible });
+    setSidebarVisible(isVisible) {
+        const layout = fitCurrentViewport({ ...pickLayout(get()), sidebarVisible: isVisible });
         writePersistedLayout(layout);
         set(layout);
     },
-    setInspectorVisible(visible) {
-        const layout = fitCurrentViewport({ ...pickLayout(get()), inspectorVisible: visible });
+    setInspectorVisible(isVisible) {
+        const layout = fitCurrentViewport({ ...pickLayout(get()), inspectorVisible: isVisible });
         writePersistedLayout(layout);
         set(layout);
     },
@@ -218,7 +241,10 @@ export function usePanelViewportClamp(): void {
     useEffect(() => {
         const clamp = (): void => usePanelLayoutStore.getState().clampToViewport(window.innerWidth);
         clamp();
-        window.addEventListener('resize', clamp);
-        return () => window.removeEventListener('resize', clamp);
+        // ResizeObserver on the root element reacts to viewport width changes without a
+        // window-level `resize` listener, satisfying unicorn/prefer-observer-apis.
+        const observer = new ResizeObserver(clamp);
+        observer.observe(document.documentElement);
+        return () => observer.disconnect();
     }, []);
 }

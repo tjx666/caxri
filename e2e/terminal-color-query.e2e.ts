@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri, typeTerminal } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -35,7 +34,11 @@ test('Runtime answers OSC 10/11 color queries at the PTY boundary', async () => 
         );
         await expect(running.page.locator('.xterm-rows')).toContainText(/COLOR-REPLY-\]11;rgb:/);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

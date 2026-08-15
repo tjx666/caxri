@@ -1,5 +1,6 @@
-import { Bot, TerminalSquare } from 'lucide-react';
 import type { CSSProperties } from 'react';
+
+import { Bot, TerminalSquare } from 'lucide-react';
 
 import { resolveAgentIcon } from './agent-icon-registry';
 

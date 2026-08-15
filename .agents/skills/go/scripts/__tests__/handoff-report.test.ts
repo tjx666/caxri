@@ -1,12 +1,13 @@
 import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
     generateFinalization,
     recordFinalizationDelivery,
-    verifyFinalizationArtifact,
+    wasFinalizationArtifactRecovered,
 } from '../finalization';
 import {
     generateHandoffReport,
@@ -17,7 +18,7 @@ import { assessExpectationDrift } from '../issue-drift';
 import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../platform-neutral-gates';
 import { recordReviewDecision } from '../review-gate';
 import { recordCostCheckpoint } from '../run-budget';
-import { createInitialState, upsertIssue } from '../state';
+import { createInitialState, upsertIssue } from '../state-model';
 
 function reportState(runId: string) {
     const state = createInitialState({ objective: 'Persist report', runId });
@@ -196,10 +197,9 @@ describe('Go persisted handoff artifacts', () => {
         });
         await recordFinalizationDelivery(state, directory, '2026-08-12T02:00:00.000Z');
 
-        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBe(false);
-        expect(
-            JSON.parse(await readFile(join(directory, 'finalization.json'), 'utf8')),
-        ).toMatchObject({
+        await expect(wasFinalizationArtifactRecovered(state, directory)).resolves.toBe(false);
+        const persistedSource = await readFile(join(directory, 'finalization.json'), 'utf8');
+        expect(JSON.parse(persistedSource)).toMatchObject({
             deliveredAt: '2026-08-12T02:00:00.000Z',
             mergeSha: 'merge-1',
         });
@@ -316,7 +316,7 @@ describe('Go persisted handoff artifacts', () => {
         await rm(receiptPath);
         await symlink(otherPath, receiptPath);
 
-        await expect(verifyFinalizationArtifact(state, directory)).rejects.toThrow(
+        await expect(wasFinalizationArtifactRecovered(state, directory)).rejects.toThrow(
             'must be a direct regular file',
         );
     });
@@ -342,8 +342,8 @@ describe('Go persisted handoff artifacts', () => {
         await recordFinalizationDelivery(state, directory, '2026-08-12T03:00:00.000Z');
         state.finalization = pendingLedgerReceipt;
 
-        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBe(true);
+        await expect(wasFinalizationArtifactRecovered(state, directory)).resolves.toBe(true);
         expect(state.finalization?.deliveredAt).toBe('2026-08-12T03:00:00.000Z');
-        await expect(verifyFinalizationArtifact(state, directory)).resolves.toBe(false);
+        await expect(wasFinalizationArtifactRecovered(state, directory)).resolves.toBe(false);
     });
 });

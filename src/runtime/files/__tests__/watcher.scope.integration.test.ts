@@ -13,9 +13,9 @@ import { FileService } from '../service';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const paths = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 function pendingScope(service: FileService) {
@@ -52,7 +52,9 @@ describe('File watcher scopes', () => {
         };
         const service = new FileService(
             database,
-            (event) => events.push(event),
+            (event) => {
+                events.push(event);
+            },
             new StructuredLogger(join(directory, 'logs')),
             () => 1024,
             { subscribe },
@@ -114,14 +116,16 @@ describe('File watcher scopes', () => {
         const first = database.createSession(firstProject.id, 'shell').session;
         const second = database.createSession(secondProject.id, 'codex').session;
         const events: RuntimeEvent[] = [];
-        const callbacks: Parameters<typeof parcelWatcher.subscribe>[1][] = [];
+        const callbacks: Array<Parameters<typeof parcelWatcher.subscribe>[1]> = [];
         const subscribe: typeof parcelWatcher.subscribe = (_root, onEvents) => {
             callbacks.push(onEvents);
             return Promise.resolve({ unsubscribe: () => Promise.resolve() });
         };
         const service = new FileService(
             database,
-            (event) => events.push(event),
+            (event) => {
+                events.push(event);
+            },
             new StructuredLogger(join(directory, 'logs')),
             () => 1024,
             { subscribe },

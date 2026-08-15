@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -15,8 +16,10 @@ const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
@@ -160,11 +163,11 @@ describe('GitService', () => {
             new ProjectRootResolver(database),
             new StructuredLogger(join(directory, '.logs')),
         );
-        const repository = (await git.summary(session.id)).repositories[0];
+        const repo = (await git.summary(session.id)).repositories[0];
 
         const branchList = await git.branches({
             sessionId: session.id,
-            repositoryId: repository.id,
+            repositoryId: repo.id,
         });
         expect(branchList.map((candidate) => candidate.name)).toEqual([
             'main',
@@ -175,7 +178,7 @@ describe('GitService', () => {
         await expect(
             git.switchBranch({
                 sessionId: session.id,
-                repositoryId: repository.id,
+                repositoryId: repo.id,
                 branch: 'feature/local-picker',
             }),
         ).resolves.toBeNull();
@@ -185,7 +188,7 @@ describe('GitService', () => {
         await expect(
             git.switchBranch({
                 sessionId: session.id,
-                repositoryId: repository.id,
+                repositoryId: repo.id,
                 branch: '--discard-changes',
             }),
         ).rejects.toMatchObject({ code: 'NOT_FOUND' });
@@ -195,38 +198,38 @@ describe('GitService', () => {
     it('loads current pull request changes from committed base and head objects only', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-git-pull-request-'));
         temporaryDirectories.push(directory);
-        const repositoryRoot = join(directory, 'project');
+        const repoRoot = join(directory, 'project');
         const bin = join(directory, 'bin');
-        await execFileAsync('mkdir', ['-p', repositoryRoot, bin]);
-        await execFileAsync('git', ['init', '-b', 'main'], { cwd: repositoryRoot });
+        await execFileAsync('mkdir', ['-p', repoRoot, bin]);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: repoRoot });
         await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
-            cwd: repositoryRoot,
+            cwd: repoRoot,
         });
         await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
-            cwd: repositoryRoot,
+            cwd: repoRoot,
         });
-        await writeFile(join(repositoryRoot, 'tracked.txt'), 'before\n', 'utf8');
-        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repositoryRoot });
-        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repositoryRoot });
+        await writeFile(join(repoRoot, 'tracked.txt'), 'before\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repoRoot });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repoRoot });
         const baseOid = (
-            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot })
+            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot })
         ).stdout.trim();
         await execFileAsync('git', ['switch', '-c', 'feature/pull-request'], {
-            cwd: repositoryRoot,
+            cwd: repoRoot,
         });
-        await writeFile(join(repositoryRoot, 'tracked.txt'), 'after\n', 'utf8');
-        await writeFile(join(repositoryRoot, 'pr-only.txt'), 'pull request\n', 'utf8');
+        await writeFile(join(repoRoot, 'tracked.txt'), 'after\n', 'utf8');
+        await writeFile(join(repoRoot, 'pr-only.txt'), 'pull request\n', 'utf8');
         await execFileAsync('git', ['add', 'tracked.txt', 'pr-only.txt'], {
-            cwd: repositoryRoot,
+            cwd: repoRoot,
         });
         await execFileAsync('git', ['commit', '-m', 'pull request changes'], {
-            cwd: repositoryRoot,
+            cwd: repoRoot,
         });
         const headOid = (
-            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot })
+            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot })
         ).stdout.trim();
-        await writeFile(join(repositoryRoot, 'tracked.txt'), 'local only\n', 'utf8');
-        await writeFile(join(repositoryRoot, 'untracked-local.txt'), 'local only\n', 'utf8');
+        await writeFile(join(repoRoot, 'tracked.txt'), 'local only\n', 'utf8');
+        await writeFile(join(repoRoot, 'untracked-local.txt'), 'local only\n', 'utf8');
         const gh = join(bin, 'gh');
         await writeFile(
             gh,
@@ -245,20 +248,20 @@ describe('GitService', () => {
 
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(
-            database.createProject(repositoryRoot).id,
+            database.createProject(repoRoot).id,
             'shell',
         ).session;
         const git = new GitService(
             new ProjectRootResolver(database),
             new StructuredLogger(join(directory, 'logs')),
         );
-        const repository = (await git.summary(session.id)).repositories[0];
+        const repo = (await git.summary(session.id)).repositories[0];
         const previousPath = process.env.PATH;
         process.env.PATH = `${bin}:${previousPath ?? ''}`;
         try {
             const pullRequest = await git.pullRequestChanges({
                 sessionId: session.id,
-                repositoryId: repository.id,
+                repositoryId: repo.id,
                 refresh: 0,
             });
 
@@ -269,14 +272,13 @@ describe('GitService', () => {
                 headOid,
                 number: 42,
             });
-            expect(pullRequest?.files.map((file) => file.path).sort()).toEqual([
-                'pr-only.txt',
-                'tracked.txt',
-            ]);
+            expect(
+                pullRequest?.files.map((file) => file.path).toSorted((a, b) => a.localeCompare(b)),
+            ).toEqual(['pr-only.txt', 'tracked.txt']);
             await expect(
                 git.pullRequestDiffDocument({
                     sessionId: session.id,
-                    repositoryId: repository.id,
+                    repositoryId: repo.id,
                     path: 'tracked.txt',
                 }),
             ).resolves.toMatchObject({
@@ -287,15 +289,15 @@ describe('GitService', () => {
             });
 
             await execFileAsync('git', ['switch', '-c', 'feature/next-pull-request'], {
-                cwd: repositoryRoot,
+                cwd: repoRoot,
             });
-            await writeFile(join(repositoryRoot, 'next-pr.txt'), 'next pull request\n', 'utf8');
-            await execFileAsync('git', ['add', 'next-pr.txt'], { cwd: repositoryRoot });
+            await writeFile(join(repoRoot, 'next-pr.txt'), 'next pull request\n', 'utf8');
+            await execFileAsync('git', ['add', 'next-pr.txt'], { cwd: repoRoot });
             await execFileAsync('git', ['commit', '-m', 'next pull request changes'], {
-                cwd: repositoryRoot,
+                cwd: repoRoot,
             });
             const nextHeadOid = (
-                await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot })
+                await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot })
             ).stdout.trim();
             await writeFile(
                 gh,
@@ -314,7 +316,7 @@ describe('GitService', () => {
             await expect(
                 git.pullRequestChanges({
                     sessionId: session.id,
-                    repositoryId: repository.id,
+                    repositoryId: repo.id,
                     refresh: 0,
                 }),
             ).resolves.toMatchObject({ headOid: nextHeadOid, number: 43 });
@@ -352,15 +354,17 @@ describe('GitService', () => {
         const root = join(directory, 'primary');
         const submoduleSource = join(directory, 'submodule-source');
         await execFileAsync('mkdir', ['-p', root, submoduleSource]);
-        for (const repository of [root, submoduleSource]) {
-            await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
-            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
-                cwd: repository,
-            });
-            await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
-                cwd: repository,
-            });
-        }
+        await Promise.all(
+            [root, submoduleSource].map(async (repo) => {
+                await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
+                await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                    cwd: repo,
+                });
+                await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
+                    cwd: repo,
+                });
+            }),
+        );
         await writeFile(join(root, 'old.txt'), 'before\n', 'utf8');
         await execFileAsync('git', ['add', 'old.txt'], { cwd: root });
         await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
@@ -393,9 +397,9 @@ describe('GitService', () => {
             new ProjectRootResolver(database),
             new StructuredLogger(join(directory, 'logs')),
         );
-        const repository = (await git.summary(session.id)).repositories[0];
+        const repo = (await git.summary(session.id)).repositories[0];
 
-        expect(repository.files).toEqual(
+        expect(repo.files).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     kind: 'renamed',
@@ -406,17 +410,15 @@ describe('GitService', () => {
                 expect.objectContaining({ index: 'M', path: 'vendor/sub' }),
             ]),
         );
-        await expect(
-            git.diffDocument(session.id, repository.id, 'renamed.txt'),
-        ).resolves.toMatchObject({
+        await expect(git.diffDocument(session.id, repo.id, 'renamed.txt')).resolves.toMatchObject({
             original: 'before\n',
             originalPath: 'old.txt',
             modified: 'before\n',
         });
         await expect(
-            git.diffDocument(session.id, repository.id, 'generated/new.txt'),
+            git.diffDocument(session.id, repo.id, 'generated/new.txt'),
         ).resolves.toMatchObject({ original: '', modified: 'new\n' });
-        const submoduleDocument = await git.diffDocument(session.id, repository.id, 'vendor/sub');
+        const submoduleDocument = await git.diffDocument(session.id, repo.id, 'vendor/sub');
         expect(submoduleDocument.format).toBe('patch');
         expect(submoduleDocument.modified).toContain('Subproject commit');
         database.close();
@@ -430,15 +432,17 @@ describe('GitService', () => {
         const submoduleSource = join(directory, 'submodule-source');
         await execFileAsync('mkdir', ['-p', root, submoduleSource]);
 
-        for (const repository of [root, submoduleSource]) {
-            await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
-            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
-                cwd: repository,
-            });
-            await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
-                cwd: repository,
-            });
-        }
+        await Promise.all(
+            [root, submoduleSource].map(async (repo) => {
+                await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
+                await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                    cwd: repo,
+                });
+                await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
+                    cwd: repo,
+                });
+            }),
+        );
         await writeFile(join(root, 'root.txt'), 'before\n', 'utf8');
         await execFileAsync('git', ['add', 'root.txt'], { cwd: root });
         await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
@@ -488,33 +492,35 @@ describe('GitService', () => {
         const repositories = summary.repositories;
 
         expect(performance.now() - startedAt).toBeLessThan(3_000);
-        expect(repositories.map((repository) => repository.kind).sort()).toEqual([
-            'nested',
-            'primary',
-            'submodule',
-            'worktree',
-        ]);
-        const primary = repositories.find((repository) => repository.kind === 'primary')!;
-        expect(primary.files.map((file) => file.path).sort()).toEqual(['root.txt', 'vendor/sub']);
+        expect(
+            repositories.map((repo) => repo.kind).toSorted((a, b) => a.localeCompare(b)),
+        ).toEqual(['nested', 'primary', 'submodule', 'worktree']);
+        const primary = repositories.find((repo) => repo.kind === 'primary')!;
+        expect(
+            primary.files.map((file) => file.path).toSorted((a, b) => a.localeCompare(b)),
+        ).toEqual(['root.txt', 'vendor/sub']);
         expect(primary.files.find((file) => file.path === 'vendor/sub')).toMatchObject({
             kind: 'modified',
             workingTree: 'M',
         });
         expect(primary.files.some((file) => file.path.startsWith('nested'))).toBe(false);
-        for (const repository of repositories.filter((item) => item.kind !== 'primary')) {
-            expect(repository.files).toHaveLength(1);
-            await expect(
-                git.commits({
-                    sessionId: session.id,
-                    repositoryId: repository.id,
-                    offset: 0,
-                    pageSize: 5,
-                }),
-            ).resolves.toMatchObject({ commits: [expect.any(Object)] });
-            await expect(
-                git.diffDocument(session.id, repository.id, repository.files[0].path),
-            ).resolves.toMatchObject({ path: repository.files[0].path });
-        }
+        const secondaryRepositories = repositories.filter((item) => item.kind !== 'primary');
+        await Promise.all(
+            secondaryRepositories.map(async (repo) => {
+                expect(repo.files).toHaveLength(1);
+                await expect(
+                    git.commits({
+                        sessionId: session.id,
+                        repositoryId: repo.id,
+                        offset: 0,
+                        pageSize: 5,
+                    }),
+                ).resolves.toMatchObject({ commits: [expect.any(Object)] });
+                await expect(
+                    git.diffDocument(session.id, repo.id, repo.files[0].path),
+                ).resolves.toMatchObject({ path: repo.files[0].path });
+            }),
+        );
         await expect(git.diffDocument(session.id, primary.id, 'root.txt')).resolves.toMatchObject({
             path: 'root.txt',
         });
@@ -533,16 +539,15 @@ describe('GitService', () => {
 
 describe('describeGitFailure', () => {
     it('distinguishes missing Git and timeout failures from non-repositories', () => {
-        expect(
-            describeGitFailure(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })),
-        ).toBe('Git is not installed or is unavailable on PATH.');
-        expect(describeGitFailure(Object.assign(new Error('timed out'), { killed: true }))).toBe(
-            'The Git operation timed out.',
+        const missingGitError = Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' });
+        expect(describeGitFailure(missingGitError)).toBe(
+            'Git is not installed or is unavailable on PATH.',
         );
-        expect(
-            describeGitFailure(
-                Object.assign(new Error('exit 128'), { stderr: 'fatal: not a git repository' }),
-            ),
-        ).toBe('The Project root is not a Git repository.');
+        const timedOutError = Object.assign(new Error('timed out'), { killed: true });
+        expect(describeGitFailure(timedOutError)).toBe('The Git operation timed out.');
+        const notARepoError = Object.assign(new Error('exit 128'), {
+            stderr: 'fatal: not a git repository',
+        });
+        expect(describeGitFailure(notARepoError)).toBe('The Project root is not a Git repository.');
     });
 });

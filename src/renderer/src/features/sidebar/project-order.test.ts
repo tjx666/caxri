@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
     adjacentProjectOrder,
+    areProjectDropTargetsEqual,
     createLatestProjectOrderQueue,
     createProjectOrderIntentTracker,
     hasProjectDragType,
     PROJECT_DRAG_TYPE,
-    projectDropTargetsEqual,
     projectOrderAfterDrop,
     resolveProjectHeadingClick,
 } from './project-order';
@@ -31,18 +31,18 @@ describe('Project ordering', () => {
 
     it('treats repeated dragover positions as the same target', () => {
         expect(
-            projectDropTargetsEqual(
+            areProjectDropTargetsEqual(
                 { edge: 'before', projectId: 'a' },
                 { edge: 'before', projectId: 'a' },
             ),
         ).toBe(true);
         expect(
-            projectDropTargetsEqual(
+            areProjectDropTargetsEqual(
                 { edge: 'before', projectId: 'a' },
                 { edge: 'after', projectId: 'a' },
             ),
         ).toBe(false);
-        expect(projectDropTargetsEqual(undefined, undefined)).toBe(true);
+        expect(areProjectDropTargetsEqual(undefined, undefined)).toBe(true);
     });
 
     it('selects and auto-expands an inactive collapsed Project without collapsing an inactive expanded one', () => {
@@ -87,10 +87,7 @@ describe('Project ordering', () => {
     });
 
     it('coalesces queued Project permutations to the latest intent', async () => {
-        let releaseFirst!: () => void;
-        const firstPending = new Promise<void>((resolve) => {
-            releaseFirst = resolve;
-        });
+        const { promise: firstPending, resolve: releaseFirst } = Promise.withResolvers<void>();
         const persisted: string[][] = [];
         const queue = createLatestProjectOrderQueue(async (projectIds) => {
             persisted.push([...projectIds]);
@@ -98,7 +95,11 @@ describe('Project ordering', () => {
         });
 
         const settled = queue.enqueue(['a', 'b', 'c']);
+        // Fire-and-forget: only the final queued permutation's returned promise is awaited below —
+        // the queue's "latest wins" contract makes these intermediate results irrelevant.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(['b', 'a', 'c']);
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(['b', 'c', 'a']);
         expect(persisted).toEqual([['a', 'b', 'c']]);
 
@@ -111,10 +112,7 @@ describe('Project ordering', () => {
     });
 
     it('abandons queued optimistic orders when an earlier persistence attempt fails', async () => {
-        let releaseFirst!: () => void;
-        const firstPending = new Promise<void>((resolve) => {
-            releaseFirst = resolve;
-        });
+        const { promise: firstPending, resolve: releaseFirst } = Promise.withResolvers<void>();
         const firstProjectIds = ['b', 'c', 'a'];
         const secondProjectIds = ['c', 'b', 'a'];
         const tracker = createProjectOrderIntentTracker();
@@ -138,6 +136,9 @@ describe('Project ordering', () => {
             movedProjectId: 'b',
             projectIds: secondProjectIds,
         });
+        // Fire-and-forget: this test only asserts on the first `settled` promise and the tracker's
+        // final state, not on this superseding enqueue's own returned promise.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(secondProjectIds);
 
         releaseFirst();

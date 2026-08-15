@@ -15,13 +15,15 @@ const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
-async function git(cwd: string, args: string[]): Promise<void> {
-    await execFileAsync('git', args, { cwd });
+async function git(cwd: string, arguments_: string[]): Promise<void> {
+    await execFileAsync('git', arguments_, { cwd });
 }
 
 describe('Git ignored entry batches', () => {

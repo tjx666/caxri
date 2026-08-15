@@ -1,9 +1,10 @@
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { expect, test, type Locator, type Page } from './support/fixtures.ts';
-
+import type { Locator, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
 
 /**
@@ -38,7 +39,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     const pageErrors: string[] = [];
-    running.page.on('pageerror', (error) => pageErrors.push(error.message));
+    running.page.on('pageerror', (error) => {
+        pageErrors.push(error.message);
+    });
     try {
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
@@ -66,17 +69,21 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(defaultAgent).toContainText('Ask each time');
         await expect(defaultAgent.locator('[data-agent-icon="unknown"]')).toBeVisible();
         await defaultAgent.click();
-        for (const [name, icon] of [
-            ['Claude Code', 'claude'],
-            ['Codex', 'codex'],
-            ['Shell', 'shell'],
-        ] as const) {
-            await expect(
-                running.page
-                    .getByRole('option', { name, exact: true })
-                    .locator(`[data-agent-icon="${icon}"]`),
-            ).toBeVisible();
-        }
+        await Promise.all(
+            (
+                [
+                    ['Claude Code', 'claude'],
+                    ['Codex', 'codex'],
+                    ['Shell', 'shell'],
+                ] as const
+            ).map(([name, icon]) =>
+                expect(
+                    running.page
+                        .getByRole('option', { name, exact: true })
+                        .locator(`[data-agent-icon="${icon}"]`),
+                ).toBeVisible(),
+            ),
+        );
         await running.page.keyboard.press('Escape');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
         await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
@@ -89,13 +96,15 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         ).toHaveText('Disabled');
         await expect(dialog.getByLabel('New Terminal working directory')).toHaveValue('');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
-        for (const provider of ['claude', 'codex']) {
-            await expect(
-                dialog.locator(
-                    `[data-agent-provider="${provider}"] [data-agent-icon="${provider}"]`,
-                ),
-            ).toBeVisible();
-        }
+        await Promise.all(
+            ['claude', 'codex'].map((provider) =>
+                expect(
+                    dialog.locator(
+                        `[data-agent-provider="${provider}"] [data-agent-icon="${provider}"]`,
+                    ),
+                ).toBeVisible(),
+            ),
+        );
         await expect(dialog.locator('input[type="number"]').first()).toHaveCSS(
             'appearance',
             'none',
@@ -184,7 +193,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(dialog.getByRole('button', { name: 'Open Config File' })).toBeVisible();
         expect(pageErrors).toEqual([]);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -200,7 +209,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         const initial = await pageRequest<{ source: string }>(running.page, 'settings.get');
         const legalSource = initial.source
             .replace(/"terminal\.fontSize":\s*\d+/, '"terminal.fontSize": 17')
-            .replace(/\n}\s*$/, '\n  // keep-source-comment\n}\n');
+            .replace(/\n\}\s*$/, '\n  // keep-source-comment\n}\n');
 
         await running.page.keyboard.press('Meta+,');
         let dialog = running.page.getByRole('dialog');
@@ -330,7 +339,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             })
             .toBe('cmd+]');
     } finally {
-        await running.app.close().catch(() => undefined);
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -350,7 +359,7 @@ test('application menu registers the native macOS Command+H Hide command', async
         });
         expect(hideItem).toEqual({ accelerator: 'Command+H', role: 'hide' });
     } finally {
-        await running.app.close().catch(() => undefined);
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

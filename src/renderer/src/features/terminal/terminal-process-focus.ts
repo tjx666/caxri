@@ -30,7 +30,7 @@ export function shouldAutoFocusTerminal({
     if (!active || !isRunning || isModalOpen) return false;
     return !(
         focusedElement?.dataset.preserveTerminalFocus === 'true' &&
-        focusedElement.closest('.work-tab')?.getAttribute('data-terminal-id') === terminalId
+        focusedElement.closest<HTMLElement>('.work-tab')?.dataset.terminalId === terminalId
     );
 }
 

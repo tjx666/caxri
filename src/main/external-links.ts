@@ -18,7 +18,9 @@ export interface ExternalOpenOptions {
     allowTrust: boolean;
 }
 
-/** Validates and opens a Renderer-submitted URL without giving the Renderer native authority. */
+/**
+Validates and opens a Renderer-submitted URL without giving the Renderer native authority.
+ */
 export async function openExternalUrl(
     input: string,
     dependencies: ExternalUrlDependencies,

@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
+
 import { z } from 'zod';
 
-import { assertIssueExpectationDriftReady, type IssueExpectationDrift } from './issue-drift';
+import type { IssueExpectationDrift } from './issue-drift';
+import { assertIssueExpectationDriftReady } from './issue-drift';
 
 const REQUIRED_HANDOFF_SECTIONS = [
     'delivery',
@@ -134,7 +137,7 @@ function buildHandoffEvidence(state: ReportContext, headSha: string) {
     if (!baseline) throw new Error('Handoff report requires an aggregate review baseline');
     const expectedBaselineMode =
         state.reviewPolicy.mode === 'full-once' ? 'full' : state.reviewPolicy.mode;
-    const lineageComplete = state.reviewGate.rounds.every((decision, index, rounds) => {
+    const isLineageComplete = state.reviewGate.rounds.every((decision, index, rounds) => {
         if (index === 0) {
             return (
                 decision.id === baseline.id &&
@@ -153,11 +156,12 @@ function buildHandoffEvidence(state: ReportContext, headSha: string) {
             decision.reviewedRange === `${parent.headSha}..${decision.headSha}`
         );
     });
-    if (!lineageComplete) throw new Error('Handoff report requires complete review lineage');
+    if (!isLineageComplete) throw new Error('Handoff report requires complete review lineage');
     if (state.runBudget.checkpoints.length === 0) {
         throw new Error('Handoff report requires at least one cost checkpoint');
     }
-    for (const issue of state.issues.filter(({ status }) => status !== 'deferred')) {
+    for (const issue of state.issues) {
+        if (issue.status === 'deferred') continue;
         assertIssueExpectationDriftReady(issue, headSha);
     }
     const commitFileMetrics = state.runBudget.checkpoints.some(
@@ -341,19 +345,19 @@ export function recordHandoffDelivery(
 export function assertHandoffReady(
     state: ReportContext,
     headSha: string,
-    requireDelivered = true,
+    shouldRequireDelivered = true,
 ): void {
     const report = state.handoffReport;
     if (!report) throw new Error('A generated handoff report is required');
     if (report.headSha !== headSha) throw new Error('Handoff report does not match the exact head');
     if (
         report.sections.length !== REQUIRED_HANDOFF_SECTIONS.length ||
-        !REQUIRED_HANDOFF_SECTIONS.every((section) => report.sections.includes(section))
+        REQUIRED_HANDOFF_SECTIONS.some((section) => !report.sections.includes(section))
     ) {
         throw new Error('Handoff report is missing required sections');
     }
     handoffEvidenceSchema.parse(report.evidence);
-    if (requireDelivered && !report.deliveredAt) {
+    if (shouldRequireDelivered && !report.deliveredAt) {
         throw new Error('Handoff report has not been delivered to the user');
     }
 }
@@ -364,9 +368,12 @@ export async function verifyHandoffReportArtifact(
 ): Promise<void> {
     if (!state.handoffReport) return;
     const path = join(runDirectory, state.handoffReport.path);
-    const metadata = await lstat(path).catch(() => {
+    let metadata: Awaited<ReturnType<typeof lstat>>;
+    try {
+        metadata = await lstat(path);
+    } catch {
         throw new Error('Persisted handoff report is missing');
-    });
+    }
     if (metadata.isSymbolicLink() || !metadata.isFile()) {
         throw new Error('Persisted handoff report must be a direct regular file');
     }

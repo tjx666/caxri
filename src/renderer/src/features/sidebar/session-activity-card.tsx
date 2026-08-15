@@ -1,20 +1,23 @@
+import type { ReactElement } from 'react';
+import { useEffect, useId, useState } from 'react';
+
 import { PreviewCard } from '@base-ui/react/preview-card';
-import { Circle } from 'lucide-react';
-import { useEffect, useId, useState, type ReactElement } from 'react';
-
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
+import { Circle } from 'lucide-react';
 
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
-import { cn } from '../../lib/utils';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { cn } from '../../lib/utilities';
+import type { SessionActivityPresentation } from './session-activity';
 import {
     formatSessionRelativeTime,
     sessionActivityPresentation,
     sessionToneCalloutClassName,
-    type SessionActivityPresentation,
 } from './session-activity';
 
-/** Reuses the same tone table as the activity dot and the Sidebar ring, per the single source of truth. */
+/**
+Reuses the same tone table as the activity dot and the Sidebar ring, per the single source of truth.
+ */
 function unreadAttentionPresentation(
     session: SessionRecord,
 ): SessionActivityPresentation | undefined {
@@ -53,15 +56,17 @@ export function SessionActivityCard({
 
     useEffect(() => {
         if (!open) return;
-        /** xterm consumes Escape before React's popup handler sees it, so capture it at Window. */
+        /**
+        xterm consumes Escape before React's popup handler sees it, so capture it at Window.
+         */
         const closeOnEscape = (event: KeyboardEvent): void => {
             if (event.key !== 'Escape') return;
             event.preventDefault();
             event.stopPropagation();
             setOpen(false);
         };
-        window.addEventListener('keydown', closeOnEscape, { capture: true });
-        return () => window.removeEventListener('keydown', closeOnEscape, { capture: true });
+        addEventListener('keydown', closeOnEscape, { capture: true });
+        return () => removeEventListener('keydown', closeOnEscape, { capture: true });
     }, [open]);
 
     return (

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertE2EErrorPolicy, type E2EErrorEvent } from '../e2e-error-policy';
+import type { E2EErrorEvent } from '../e2e-error-policy';
+import { assertE2EErrorPolicy } from '../e2e-error-policy';
 
 const rendererPageError = {
     source: 'renderer',

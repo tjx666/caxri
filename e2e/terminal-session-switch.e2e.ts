@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -28,20 +27,20 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
     await writeFile(
         join(root, 'terminal-screen-fixture.zsh'),
         [
-            "printf '\\033[?1049h\\033[2J\\033[H'",
+            String.raw`printf '\033[?1049h\033[2J\033[H'`,
             'cols=$(tput cols)',
             'rows=$(tput lines)',
-            "printf '\\033[1;1HSESSION_SWITCH_TOP_界_é_'",
-            "printf '\\033[4;1H'",
+            String.raw`printf '\033[1;1HSESSION_SWITCH_TOP_界_é_'`,
+            String.raw`printf '\033[4;1H'`,
             "printf '%*s' \"$cols\" '' | tr ' ' '-'",
-            "printf '\\033[4;3HSESSION_SWITCH_RULE_界'",
-            "printf '\\033[8;5HSESSION_SWITCH_MIDDLE_界'",
-            "printf '\\033[10;1H'",
-            "printf '%*s🤦X\\rZ' \"$((cols - 2))\" ''",
-            'printf \'\\033[%d;%dHSESSION_SWITCH_EDGE_界\' "$((rows - 2))" "$((cols - 22))"',
+            String.raw`printf '\033[4;3HSESSION_SWITCH_RULE_界'`,
+            String.raw`printf '\033[8;5HSESSION_SWITCH_MIDDLE_界'`,
+            String.raw`printf '\033[10;1H'`,
+            String.raw`printf '%*s🤦X\rZ' "$((cols - 2))" ''`,
+            String.raw`printf '\033[%d;%dHSESSION_SWITCH_EDGE_界' "$((rows - 2))" "$((cols - 22))"`,
             `while [ ! -f '${backgroundTrigger}' ]; do sleep 0.05; done`,
-            `awk 'BEGIN { for (i = 0; i < 120000; i += 1) printf "\\033[2;1Hbackground-%06d", i }'`,
-            "printf '\\033[12;5HSESSION_SWITCH_BACKGROUND_界'",
+            String.raw`awk 'BEGIN { for (i = 0; i < 120000; i += 1) printf "\033[2;1Hbackground-%06d", i }'`,
+            String.raw`printf '\033[12;5HSESSION_SWITCH_BACKGROUND_界'`,
             'sleep 1',
             `printf complete > '${backgroundComplete}'`,
             'sleep 60',
@@ -70,7 +69,13 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
 
         await writeFile(backgroundTrigger, 'go', 'utf8');
         await expect
-            .poll(() => readFile(backgroundComplete, 'utf8').catch(() => ''))
+            .poll(async () => {
+                try {
+                    return await readFile(backgroundComplete, 'utf8');
+                } catch {
+                    return '';
+                }
+            })
             .toBe('complete');
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
@@ -83,23 +88,35 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
         const expectedScreen = await screen.textContent();
 
         for (let attempt = 0; attempt < 5; attempt += 1) {
+            // Session switches must be exercised sequentially, attempt-by-attempt, to prove the
+            // Terminal screen is stably restored on each repeated switch rather than only once.
+            // eslint-disable-next-line no-await-in-loop
             await secondSession.click();
+            // eslint-disable-next-line no-await-in-loop
             await expect(secondSession).toHaveClass(/active/);
+            // eslint-disable-next-line no-await-in-loop
             await firstSession.click();
+            // eslint-disable-next-line no-await-in-loop
             await expect(firstSession).toHaveClass(/active/);
+            // eslint-disable-next-line no-await-in-loop
             await expect(screen).toContainText('SESSION_SWITCH_EDGE_界');
+            // eslint-disable-next-line no-await-in-loop
             await expect.poll(() => screen.textContent()).toBe(expectedScreen);
         }
 
         const input = running.page.locator('.xterm-helper-textarea').last();
         await input.focus();
         await input.press('Control+C');
-        await input.pressSequentially("printf 'SESSION_SWITCH_INTERACTIVE\\n'");
+        await input.pressSequentially(String.raw`printf 'SESSION_SWITCH_INTERACTIVE\n'`);
         await input.press('Enter');
         await expect(screen).toContainText('SESSION_SWITCH_INTERACTIVE');
         await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(2);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

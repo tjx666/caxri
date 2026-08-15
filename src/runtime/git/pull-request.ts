@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
 import { CaxriError } from '../../shared/ipc/errors';
-import type { RuntimeMethodParams } from '../../shared/ipc/methods';
+import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import type {
     GitDiffDocument,
     GitFileStatus,
     GitPullRequestChanges,
-    GitRepositorySummary,
+    GitRepositorySummary as GitRepoSummary,
 } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 
@@ -36,14 +36,14 @@ const githubPullRequestViewSchema = z.object({
 
 type GitHubPullRequestView = z.infer<typeof githubPullRequestViewSchema>;
 
-interface GitPullRequestServiceDeps {
+interface GitPullRequestServiceDependencies {
     git(
         cwd: string,
-        args: string[],
+        arguments_: string[],
         options?: { allowFailure?: boolean; maxBufferBytes?: number },
     ): Promise<string>;
     ghPullRequestView(cwd: string): Promise<string>;
-    resolveRepository(sessionId: string, repositoryId: string): Promise<GitRepositorySummary>;
+    resolveRepository(sessionId: string, repoId: string): Promise<GitRepoSummary>;
 }
 
 interface GitPullRequestServiceOptions {
@@ -142,31 +142,17 @@ export class GitPullRequestService {
     private readonly requests = new SingleFlight<string, GitPullRequestChanges | null>();
     private readonly maximumCacheEntries: number;
     private readonly now: () => number;
-    /** Invalidates cache writes that began before a Session deletion or Runtime shutdown. */
+    /**
+    Invalidates cache writes that began before a Session deletion or Runtime shutdown.
+     */
     private cacheGeneration = 0;
 
     constructor(
-        private readonly deps: GitPullRequestServiceDeps,
+        private readonly dependencies: GitPullRequestServiceDependencies,
         options: GitPullRequestServiceOptions = {},
     ) {
         this.maximumCacheEntries = options.maximumCacheEntries ?? MAX_PULL_REQUEST_CACHE_ENTRIES;
         this.now = options.now ?? Date.now;
-    }
-
-    /** Removes file-list cache entries for Sessions whose backing records were deleted. */
-    evictSessions(sessionIds: readonly string[]): void {
-        if (sessionIds.length === 0) return;
-        const removed = new Set(sessionIds);
-        for (const [cacheKey, entry] of this.cache) {
-            if (removed.has(entry.sessionId)) this.cache.delete(cacheKey);
-        }
-        this.cacheGeneration += 1;
-    }
-
-    /** Releases every retained Pull Request file list when the Runtime shuts down. */
-    clear(): void {
-        this.cache.clear();
-        this.cacheGeneration += 1;
     }
 
     private pruneCache(now: number): void {
@@ -186,20 +172,43 @@ export class GitPullRequestService {
         }
     }
 
+    /**
+    Removes file-list cache entries for Sessions whose backing records were deleted.
+     */
+    evictSessions(sessionIds: readonly string[]): void {
+        if (sessionIds.length === 0) return;
+        const removed = new Set(sessionIds);
+        for (const [cacheKey, entry] of this.cache) {
+            if (removed.has(entry.sessionId)) this.cache.delete(cacheKey);
+        }
+        this.cacheGeneration += 1;
+    }
+
+    /**
+    Releases every retained Pull Request file list when the Runtime shuts down.
+     */
+    clear(): void {
+        this.cache.clear();
+        this.cacheGeneration += 1;
+    }
+
     async changes(
-        params: RuntimeMethodParams<'git.pullRequestChanges'>,
+        parameters: RuntimeMethodParameters<'git.pullRequestChanges'>,
     ): Promise<GitPullRequestChanges | null> {
         const cacheGeneration = this.cacheGeneration;
-        const cacheKey = JSON.stringify([params.sessionId, params.repositoryId]);
-        const repository = await this.deps.resolveRepository(params.sessionId, params.repositoryId);
+        const cacheKey = JSON.stringify([parameters.sessionId, parameters.repositoryId]);
+        const repo = await this.dependencies.resolveRepository(
+            parameters.sessionId,
+            parameters.repositoryId,
+        );
         const now = this.now();
         this.pruneCache(now);
         const cached = this.cache.get(cacheKey);
         if (
-            params.refresh === 0 &&
             cached &&
-            cached.branch === repository.branch &&
-            cached.head === repository.head &&
+            parameters.refresh === 0 &&
+            cached.branch === repo.branch &&
+            cached.head === repo.head &&
             cached.expiresAt > now
         ) {
             this.cache.delete(cacheKey);
@@ -207,22 +216,22 @@ export class GitPullRequestService {
             return cached.value;
         }
         const requestKey = JSON.stringify([
-            params.sessionId,
-            params.repositoryId,
-            repository.branch,
-            repository.head ?? null,
-            params.refresh,
+            parameters.sessionId,
+            parameters.repositoryId,
+            repo.branch,
+            repo.head ?? null,
+            parameters.refresh,
         ]);
         return this.requests.run(requestKey, async () => {
-            const output = await this.deps.ghPullRequestView(repository.rootPath);
+            const output = await this.dependencies.ghPullRequestView(repo.rootPath);
             if (!output) {
                 if (cacheGeneration === this.cacheGeneration)
                     this.storeCache(cacheKey, {
-                        branch: repository.branch,
+                        branch: repo.branch,
                         expiresAt: this.now() + PULL_REQUEST_CACHE_MS,
-                        head: repository.head,
-                        repositoryId: params.repositoryId,
-                        sessionId: params.sessionId,
+                        head: repo.head,
+                        repositoryId: parameters.repositoryId,
+                        sessionId: parameters.sessionId,
                         value: null,
                     });
                 return null;
@@ -230,7 +239,7 @@ export class GitPullRequestService {
             const view = parsePullRequestView(output);
             const range = `${view.baseRefOid}...${view.headRefOid}`;
             const [filesOutput, lineStatsOutput] = await Promise.all([
-                this.deps.git(repository.rootPath, [
+                this.dependencies.git(repo.rootPath, [
                     'diff',
                     '--name-status',
                     '-z',
@@ -238,7 +247,7 @@ export class GitPullRequestService {
                     range,
                     '--',
                 ]),
-                this.deps.git(repository.rootPath, [
+                this.dependencies.git(repo.rootPath, [
                     'diff',
                     '--numstat',
                     '--no-renames',
@@ -247,7 +256,7 @@ export class GitPullRequestService {
                 ]),
             ]);
             const result: GitPullRequestChanges = {
-                repositoryId: repository.id,
+                repositoryId: repo.id,
                 number: view.number,
                 title: view.title.slice(0, 4_096),
                 url: view.url,
@@ -262,11 +271,11 @@ export class GitPullRequestService {
             };
             if (cacheGeneration === this.cacheGeneration)
                 this.storeCache(cacheKey, {
-                    branch: repository.branch,
+                    branch: repo.branch,
                     expiresAt: this.now() + PULL_REQUEST_CACHE_MS,
-                    head: repository.head,
-                    repositoryId: params.repositoryId,
-                    sessionId: params.sessionId,
+                    head: repo.head,
+                    repositoryId: parameters.repositoryId,
+                    sessionId: parameters.sessionId,
                     value: result,
                 });
             return result;
@@ -274,25 +283,25 @@ export class GitPullRequestService {
     }
 
     async diffDocument(
-        params: RuntimeMethodParams<'git.pullRequestDiffDocument'>,
+        parameters: RuntimeMethodParameters<'git.pullRequestDiffDocument'>,
     ): Promise<GitDiffDocument> {
-        const [repository, pullRequest] = await Promise.all([
-            this.deps.resolveRepository(params.sessionId, params.repositoryId),
+        const [repo, pullRequest] = await Promise.all([
+            this.dependencies.resolveRepository(parameters.sessionId, parameters.repositoryId),
             this.changes({
-                sessionId: params.sessionId,
-                repositoryId: params.repositoryId,
+                sessionId: parameters.sessionId,
+                repositoryId: parameters.repositoryId,
                 refresh: 0,
             }),
         ]);
         if (!pullRequest) throw new CaxriError('NOT_FOUND', 'No pull request for this branch');
-        const file = pullRequest.files.find((candidate) => candidate.path === params.path);
+        const file = pullRequest.files.find((candidate) => candidate.path === parameters.path);
         if (!file) throw new CaxriError('NOT_FOUND', 'Pull request change no longer exists');
         const originalPath = file.originalPath ?? file.path;
         const [original, modified] = await Promise.all([
             file.kind === 'added'
                 ? Promise.resolve('')
-                : this.deps.git(
-                      repository.rootPath,
+                : this.dependencies.git(
+                      repo.rootPath,
                       ['show', `${pullRequest.baseOid}:${originalPath}`],
                       {
                           allowFailure: true,
@@ -301,8 +310,8 @@ export class GitPullRequestService {
                   ),
             file.kind === 'deleted'
                 ? Promise.resolve('')
-                : this.deps.git(
-                      repository.rootPath,
+                : this.dependencies.git(
+                      repo.rootPath,
                       ['show', `${pullRequest.headOid}:${file.path}`],
                       {
                           allowFailure: true,
@@ -311,8 +320,8 @@ export class GitPullRequestService {
                   ),
         ]);
         if (original.includes('\0') || modified.includes('\0') || (!original && !modified)) {
-            const patch = await this.deps.git(
-                repository.rootPath,
+            const patch = await this.dependencies.git(
+                repo.rootPath,
                 [
                     'diff',
                     '--no-ext-diff',

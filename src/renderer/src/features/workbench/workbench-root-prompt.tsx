@@ -1,5 +1,6 @@
-import { FolderGit2 } from 'lucide-react';
 import { useState } from 'react';
+
+import { FolderGit2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { caxri } from '../../lib/caxri';
@@ -11,7 +12,9 @@ import {
     useWorkbenchRootPromptStore,
 } from './workbench-root-prompt-store';
 
-/** Non-modal prompt: Terminal and Editor interaction remain available while the user decides. */
+/**
+Non-modal prompt: Terminal and Editor interaction remain available while the user decides.
+ */
 export function WorkbenchRootPrompt() {
     const sessionId = useSelectedSession()?.id;
     const candidate = useWorkbenchRootPromptStore((state) =>
@@ -43,7 +46,9 @@ export function WorkbenchRootPrompt() {
         } catch (error) {
             pushToast('error', describeFailure(error, 'Unable to dismiss worktree suggestion'));
         } finally {
-            /** An expired candidate is already inert in Runtime and must not strand the prompt. */
+            /**
+            An expired candidate is already inert in Runtime and must not strand the prompt.
+             */
             dismissWorkbenchRootCandidate(sessionId);
             setPending(false);
         }
@@ -59,10 +64,25 @@ export function WorkbenchRootPrompt() {
             <span className="min-w-0 flex-1 text-[12px] text-foreground">
                 A new Git worktree was created for this Session.
             </span>
-            <Button disabled={pending} size="sm" variant="ghost" onClick={() => void dismiss()}>
+            <Button
+                disabled={pending}
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, dismiss() reports its own errors
+                    void dismiss();
+                }}
+            >
                 Not Now
             </Button>
-            <Button disabled={pending} size="sm" onClick={() => void continueInWorktree()}>
+            <Button
+                disabled={pending}
+                size="sm"
+                onClick={() => {
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, continueInWorktree() reports its own errors
+                    void continueInWorktree();
+                }}
+            >
                 Continue Session in Worktree
             </Button>
         </aside>

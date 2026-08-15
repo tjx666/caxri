@@ -1,30 +1,23 @@
 import { z } from 'zod';
 
+import type { CaxriRequest } from '../registry/methods.js';
+import { methods } from '../registry/methods.js';
 import { CaxriError, toWireError } from './errors.js';
-import {
-    methods,
-    type CaxriRequest,
-    type CommandOwner,
-    type MethodSpec,
-} from '../registry/methods.js';
-import {
-    capabilitySchema,
-    hasRequiredCapabilities,
-    principalSchema,
-    type CommandExecutionContext,
-} from './principal.js';
+import type { CommandOwner, MethodSpec } from './method-spec.js';
+import type { CommandExecutionContext } from './principal.js';
+import { capabilitySchema, hasRequiredCapabilities, principalSchema } from './principal.js';
+import type { CommandReplyEnvelope } from './transport.js';
 import {
     commandReplyEnvelopeSchema,
     parseCaxriResult,
     requestEnvelopeSchema,
-    type CommandReplyEnvelope,
 } from './transport.js';
+import type { ProtocolWelcome } from './version.js';
 import {
     CAXRI_PROTOCOL_VERSION,
     negotiateProtocolVersion,
     protocolHelloSchema,
     protocolWelcomeSchema,
-    type ProtocolWelcome,
 } from './version.js';
 
 export interface CommandAdapter {
@@ -78,12 +71,14 @@ function adapterFor(owner: CommandOwner, options: CommandDispatcherOptions): Com
     return adapter;
 }
 
-function adapterAvailable(owner: CommandOwner, options: CommandDispatcherOptions): boolean {
+function isAdapterAvailable(owner: CommandOwner, options: CommandDispatcherOptions): boolean {
     const adapter = owner === 'host' ? options.host : options.desktop;
     return Boolean(adapter && adapter.isAvailable?.() !== false);
 }
 
-/** Produces the authenticated, capability-filtered welcome shared by every transport adapter. */
+/**
+Produces the authenticated, capability-filtered welcome shared by every transport adapter.
+ */
 export function createProtocolWelcome(
     options: CommandDispatcherOptions,
     rawHello: unknown,
@@ -94,7 +89,7 @@ export function createProtocolWelcome(
     const commands = (Object.keys(methods) as Array<keyof typeof methods>).filter((method) => {
         const spec = methods[method];
         return (
-            adapterAvailable(spec.owner, options) &&
+            isAdapterAvailable(spec.owner, options) &&
             hasRequiredCapabilities(context, spec.requiredCapabilities)
         );
     });
@@ -106,13 +101,15 @@ export function createProtocolWelcome(
     });
 }
 
-async function requestFingerprint(method: string, params: unknown): Promise<string> {
-    const source = new TextEncoder().encode(JSON.stringify([method, params]));
+async function requestFingerprint(method: string, parameters: unknown): Promise<string> {
+    const source = new TextEncoder().encode(JSON.stringify([method, parameters]));
     const digest = await crypto.subtle.digest('SHA-256', source);
     return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Echoes a valid request ID even when another envelope field fails validation. */
+/**
+Echoes a valid request ID even when another envelope field fails validation.
+ */
 export function requestIdFromEnvelope(envelope: unknown): string | null {
     const parsed = z.object({ id: requestEnvelopeSchema.shape.id }).safeParse(envelope);
     return parsed.success ? parsed.data.id : null;
@@ -143,7 +140,7 @@ function errorReply(id: string | null, error: unknown): CommandReplyEnvelope {
  */
 export function createCommandDispatcher(options: CommandDispatcherOptions): CommandDispatcher {
     const maximumReceipts = options.maximumReceipts ?? 1_024;
-    if (!Number.isInteger(maximumReceipts) || maximumReceipts < 1 || maximumReceipts > 4_096)
+    if (!Number.isSafeInteger(maximumReceipts) || maximumReceipts < 1 || maximumReceipts > 4_096)
         throw new CaxriError('VALIDATION', 'Receipt capacity must be between 1 and 4096');
     const receipts = new Map<string, Receipt>();
 
@@ -197,16 +194,21 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
             }
 
             admitReceipt();
+            const settleReply = async (): Promise<CommandReplyEnvelope> => {
+                try {
+                    return await execute(envelope.id, request, context);
+                } catch (error) {
+                    return errorReply(envelope.id, error);
+                } finally {
+                    const current = receipts.get(key);
+                    if (current) current.settled = true;
+                }
+            };
             const receipt: Receipt = {
                 fingerprint,
                 method: request.method,
                 settled: false,
-                reply: execute(envelope.id, request, context)
-                    .catch((error: unknown) => errorReply(envelope.id, error))
-                    .finally(() => {
-                        const current = receipts.get(key);
-                        if (current) current.settled = true;
-                    }),
+                reply: settleReply(),
             };
             receipts.set(key, receipt);
             return await receipt.reply;

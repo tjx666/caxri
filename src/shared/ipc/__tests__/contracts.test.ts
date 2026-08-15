@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_CONFIGURATION_SOURCE_BYTES, MAX_KEYBINDINGS } from '../../configuration-contract';
-
+import { MAX_CONFIGURATION_SOURCE_BYTES, MAX_KEYBINDINGS } from '../../config-contract';
+import type { CaxriBridge, CaxriMethod } from '..';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
@@ -20,8 +20,6 @@ import {
     runtimeEventSchema,
     terminalLayoutSchema,
     toWireError,
-    type CaxriBridge,
-    type CaxriMethod,
 } from '..';
 
 describe('method table', () => {
@@ -230,7 +228,9 @@ describe('Renderer client', () => {
      * `stack`. The client is what turns the reply envelope back into a `CaxriError`.
      */
     it('unwraps results and rejects failed replies as typed errors', async () => {
-        /** A stub cannot satisfy the per-method result union, so the shape is asserted once here. */
+        /**
+        A stub cannot satisfy the per-method result union, so the shape is asserted once here.
+         */
         const client = createCaxriClient({
             request: (method: CaxriMethod) =>
                 Promise.resolve(
@@ -248,7 +248,7 @@ describe('Renderer client', () => {
                               error: { code: 'PATH_DENIED', message: 'outside root' },
                           },
                 ),
-            onEvent: () => () => undefined,
+            onEvent: () => () => {},
         } as unknown as CaxriBridge);
 
         await expect(client.request('terminal.runningCount')).resolves.toBe(2);
@@ -268,7 +268,7 @@ describe('Renderer client', () => {
                     ok: true,
                     result: '2',
                 }),
-            onEvent: () => () => undefined,
+            onEvent: () => () => {},
         } as unknown as CaxriBridge);
 
         await expect(client.request('terminal.runningCount')).rejects.toThrow(
@@ -452,7 +452,7 @@ describe('file mutation contracts', () => {
         expect(methods['files.operation.list'].params.safeParse(undefined).success).toBe(true);
     });
 
-    it.each(['', '.', '..', '../escape', 'nested/file', 'nested\\file', 'null\0byte'])(
+    it.each(['', '.', '..', '../escape', 'nested/file', String.raw`nested\file`, 'null\0byte'])(
         'rejects invalid item name %j',
         (name) => {
             expect(methods['files.rename'].params.safeParse({ ...base, name }).success).toBe(false);
@@ -597,24 +597,24 @@ describe('Terminal layout contract', () => {
     });
 
     it('keeps every invariant the imperative validator enforced', () => {
-        const accepts = (layout: unknown): boolean =>
+        const isAccepted = (layout: unknown): boolean =>
             terminalLayoutSchema.safeParse(layout).success;
 
-        expect(accepts({})).toBe(true);
-        expect(accepts({ activeGroupId: 'group-1' })).toBe(true);
-        expect(accepts({ activeGroupId: '', root: group })).toBe(false);
-        expect(accepts({ root: group, activeGroupId: 'group-1' })).toBe(true);
-        expect(accepts({ root: group, activeGroupId: 'missing-group' })).toBe(false);
-        expect(accepts({ root: { ...group, terminalIds: [] } })).toBe(false);
-        expect(accepts({ root: { ...group, activeTerminalId: 'terminal-9' } })).toBe(false);
-        expect(accepts({ root: split({ id: 'group-1' }) })).toBe(false);
-        expect(accepts({ root: split({ direction: 'diagonal' }) })).toBe(false);
-        expect(accepts({ root: split({ ratio: 0.05 }) })).toBe(false);
-        expect(accepts({ root: split({ ratio: 0.95 }) })).toBe(false);
-        expect(accepts({ root: split({ ratio: '0.5' }) })).toBe(false);
-        expect(accepts({ root: split({ second: undefined }) })).toBe(false);
-        expect(accepts({ root: { type: 'unknown', id: 'node-1' } })).toBe(false);
-        expect(accepts({ root: null })).toBe(false);
+        expect(isAccepted({})).toBe(true);
+        expect(isAccepted({ activeGroupId: 'group-1' })).toBe(true);
+        expect(isAccepted({ activeGroupId: '', root: group })).toBe(false);
+        expect(isAccepted({ root: group, activeGroupId: 'group-1' })).toBe(true);
+        expect(isAccepted({ root: group, activeGroupId: 'missing-group' })).toBe(false);
+        expect(isAccepted({ root: { ...group, terminalIds: [] } })).toBe(false);
+        expect(isAccepted({ root: { ...group, activeTerminalId: 'terminal-9' } })).toBe(false);
+        expect(isAccepted({ root: split({ id: 'group-1' }) })).toBe(false);
+        expect(isAccepted({ root: split({ direction: 'diagonal' }) })).toBe(false);
+        expect(isAccepted({ root: split({ ratio: 0.05 }) })).toBe(false);
+        expect(isAccepted({ root: split({ ratio: 0.95 }) })).toBe(false);
+        expect(isAccepted({ root: split({ ratio: '0.5' }) })).toBe(false);
+        expect(isAccepted({ root: split({ second: undefined }) })).toBe(false);
+        expect(isAccepted({ root: { type: 'unknown', id: 'node-1' } })).toBe(false);
+        expect(isAccepted({ root: null })).toBe(false);
     });
 
     it('rejects layouts beyond the node and Terminal ceilings', () => {

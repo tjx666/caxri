@@ -9,19 +9,21 @@ import type { MessageBoxOptions } from 'electron';
  * Every prompt here follows the macOS convention that Escape maps to the non-destructive choice.
  */
 
-/** Buttons are indexed, so the mapping back to a decision belongs next to the copy that defines it. */
+/**
+Buttons are indexed, so the mapping back to a decision belongs next to the copy that defines it.
+ */
 export type ExternalLinkChoice = 'open_once' | 'trust' | 'cancel';
 
-export function externalLinkPrompt(target: URL, allowTrust: boolean): MessageBoxOptions {
+export function externalLinkPrompt(target: URL, canTrust: boolean): MessageBoxOptions {
     /**
      * The full URL — not just the host — is what makes consent meaningful: a plausible host can
      * still carry a hostile path or query, and this dialog is the last point where the user can
      * see it.
      */
-    const detail = allowTrust
+    const detail = canTrust
         ? `${target.href}\n\nYou can open this link once or trust this exact origin for future links. Trusted origins can be reviewed or removed in Settings.`
         : `${target.href}\n\nYou can open this link once.`;
-    const buttons = allowTrust
+    const buttons = canTrust
         ? ['Open Once', 'Trust Domain and Open', 'Cancel']
         : ['Open Once', 'Cancel'];
     return {
@@ -35,9 +37,9 @@ export function externalLinkPrompt(target: URL, allowTrust: boolean): MessageBox
     };
 }
 
-export function externalLinkChoice(response: number, allowTrust: boolean): ExternalLinkChoice {
+export function externalLinkChoice(response: number, canTrust: boolean): ExternalLinkChoice {
     if (response === 0) return 'open_once';
-    return allowTrust && response === 1 ? 'trust' : 'cancel';
+    return canTrust && response === 1 ? 'trust' : 'cancel';
 }
 
 export function trashPrompt(item: {
@@ -104,7 +106,9 @@ export function unsavedChangesPrompt(name: string): MessageBoxOptions {
         message: `Do you want to save the changes you made to '${name}'?`,
         detail: "Your changes will be lost if you don't save them.",
         buttons: ['Save', "Don't Save", 'Cancel'],
-        /** macOS convention: Enter saves, Escape cancels — never the destructive choice. */
+        /**
+        macOS convention: Enter saves, Escape cancels — never the destructive choice.
+         */
         defaultId: 0,
         cancelId: 2,
     };

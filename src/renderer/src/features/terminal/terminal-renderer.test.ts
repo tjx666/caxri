@@ -1,16 +1,13 @@
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    resolveTerminalRendererTarget,
-    TerminalRendererController,
-    type TerminalRendererStatus,
-} from './terminal-renderer';
+import type { TerminalRendererStatus } from './terminal-renderer';
+import { resolveTerminalRendererTarget, TerminalRendererController } from './terminal-renderer';
 
 class FakeWebglAddon implements ITerminalAddon {
+    private listener: (() => void) | undefined;
     readonly clearTextureAtlas = vi.fn();
     readonly dispose = vi.fn();
-    private listener: (() => void) | undefined;
 
     activate(): void {}
 
@@ -41,7 +38,9 @@ function createHarness(options: { supported?: boolean; loadError?: Error } = {})
     const controller = new TerminalRendererController(
         host,
         redraw,
-        (status) => statuses.push(status),
+        (status) => {
+            statuses.push(status);
+        },
         () => options.supported ?? true,
         () => addon,
     );

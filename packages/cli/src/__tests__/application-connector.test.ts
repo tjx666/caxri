@@ -1,8 +1,10 @@
+// eslint-disable-next-line unicorn/name-replacements -- this file tests `application.ts`, the CLI composition root's documented name (see AGENTS.md); renaming it would contradict that architecture contract.
+import type { ProtocolWelcome } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CaxriError, CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
-
-import { createCliHostConnector, type CliHostClient } from '../application';
+import type { CliHostClient } from '../application';
+import { createCliHostConnector } from '../application';
 
 function host(): CliHostClient {
     return {

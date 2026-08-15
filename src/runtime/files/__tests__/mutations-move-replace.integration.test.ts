@@ -33,7 +33,7 @@ async function createFixture(prefix: string): Promise<Fixture> {
     const session = database.createSession(database.createProject(root).id, 'shell').session;
     const service = new FileService(
         database,
-        () => undefined,
+        () => {},
         new StructuredLogger(join(directory, 'logs')),
         () => 1024,
     );
@@ -43,8 +43,10 @@ async function createFixture(prefix: string): Promise<Fixture> {
 }
 
 afterEach(async () => {
+    const pending = fixtures.slice();
+    fixtures.length = 0;
     await Promise.all(
-        fixtures.splice(0).map(async ({ database, directory, service }) => {
+        pending.map(async ({ database, directory, service }) => {
             await service.close();
             database.close();
             await rm(directory, { recursive: true, force: true });

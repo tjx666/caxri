@@ -1,5 +1,8 @@
-import { execFile, spawn, type SpawnOptions } from 'node:child_process';
+import type { Buffer } from 'node:buffer';
+import type { SpawnOptions } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -20,9 +23,13 @@ export class CommandError extends Error {
     }
 }
 
-export async function runCapture(command: string, args: string[], cwd: string): Promise<string> {
+export async function runCapture(
+    command: string,
+    arguments_: string[],
+    cwd: string,
+): Promise<string> {
     try {
-        const { stdout } = await execFileAsync(command, args, {
+        const { stdout } = await execFileAsync(command, arguments_, {
             cwd,
             encoding: 'utf8',
             maxBuffer: MAX_OUTPUT_BYTES,
@@ -40,27 +47,29 @@ export async function runCapture(command: string, args: string[], cwd: string): 
 
 export async function runInherited(
     command: string,
-    args: string[],
+    arguments_: string[],
     options: SpawnOptions & { cwd: string; stdoutToStderr?: boolean },
 ): Promise<number> {
     const { stdoutToStderr = false, ...spawnOptions } = options;
-    const child = spawn(command, args, {
+    const child = spawn(command, arguments_, {
         ...spawnOptions,
         stdio: stdoutToStderr ? ['inherit', 'pipe', 'inherit'] : 'inherit',
     });
     if (stdoutToStderr) child.stdout?.pipe(process.stderr);
-    return await new Promise<number>((resolveExit, rejectExit) => {
-        child.once('error', rejectExit);
+    return await new Promise<number>((resolve, reject) => {
+        child.once('error', reject);
         child.once('exit', (code, signal) => {
-            if (signal) rejectExit(new CommandError(`${command} exited with ${signal}`));
-            else resolveExit(code ?? 1);
+            if (signal) reject(new CommandError(`${command} exited with ${signal}`));
+            else resolve(code ?? 1);
         });
     });
 }
 
-/** Hash start time plus command so PID reuse is detectable without persisting command arguments. */
+/**
+Hash start time plus command so PID reuse is detectable without persisting command arguments.
+ */
 export async function getProcessIdentity(pid: number): Promise<string | undefined> {
-    if (!Number.isInteger(pid) || pid <= 0) return undefined;
+    if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
     try {
         const output = await runCapture(
             'ps',

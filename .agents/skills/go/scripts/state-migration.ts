@@ -1,13 +1,13 @@
-import { createEmptyCiFallback, createEmptyValidationBudget } from './ci-fallback';
 import { createEmptyAcceptancePublication } from './acceptance-publication';
-import { createEmptyReviewGate, createReviewPolicy } from './review-gate';
+import { createEmptyCiFallback, createEmptyValidationBudget } from './ci-fallback';
 import {
     createEmptyIssueExpectationDrift,
     createImportedIssueExpectationDrift,
 } from './issue-drift';
-import { createRunBudget } from './run-budget';
 import { createEmptyLedgerRetention } from './ledger-retention';
 import { sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
+import { createEmptyReviewGate, createReviewPolicy } from './review-gate';
+import { createRunBudget } from './run-budget';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -27,7 +27,7 @@ function migrateReviewDecisionPhases(state: Record<string, unknown>): Record<str
                 targetPhase === 'deep_review' || targetPhase === 'delivery'
                     ? targetPhase
                     : undefined;
-        } else if (event.type === 'review' && activeReviewPhase) {
+        } else if (activeReviewPhase && event.type === 'review') {
             const headSha = / review for ([^:]+):/u.exec(event.detail)?.[1];
             if (headSha) reviewPhaseByHead.set(headSha, activeReviewPhase);
         }
@@ -44,8 +44,8 @@ function migrateReviewDecisionPhases(state: Record<string, unknown>): Record<str
 function migrateV5(state: Record<string, unknown>): Record<string, unknown> {
     const legacyGate = isRecord(state.reviewGate) ? state.reviewGate : {};
     const legacyRounds = Array.isArray(legacyGate.rounds) ? legacyGate.rounds.filter(isRecord) : [];
-    const reviewRounds: Record<string, unknown>[] = [];
-    const validations: Record<string, unknown>[] = [];
+    const reviewRounds: Array<Record<string, unknown>> = [];
+    const validations: Array<Record<string, unknown>> = [];
     let baseline: Record<string, unknown> | undefined;
     let parent: Record<string, unknown> | undefined;
     for (const decision of legacyRounds) {
@@ -72,15 +72,15 @@ function migrateV5(state: Record<string, unknown>): Record<string, unknown> {
             continue;
         }
         const id = `review-${String(reviewRounds.length + 1).padStart(3, '0')}`;
-        const importedAdditionalFull = Boolean(baseline) && mode === 'full';
+        const isImportedAdditionalFull = Boolean(baseline) && mode === 'full';
         const migrated = {
             baselineHeadSha: baseline ? baseline.headSha : null,
             baselineReviewId: baseline ? baseline.id : null,
             completedAt,
             headSha,
             id,
-            legacyMode: mode === 'targeted' ? 'targeted' : importedAdditionalFull ? 'full' : null,
-            mode: mode === 'targeted' || importedAdditionalFull ? 'light' : 'full',
+            legacyMode: mode === 'targeted' ? 'targeted' : isImportedAdditionalFull ? 'full' : null,
+            mode: mode === 'targeted' || isImportedAdditionalFull ? 'light' : 'full',
             parentReviewId: parent ? parent.id : null,
             phase:
                 decision.phase === 'deep_review' || decision.phase === 'delivery'
@@ -144,15 +144,16 @@ function migrateV6(state: Record<string, unknown>): Record<string, unknown> {
             : issue,
     );
     const handoffReport = isRecord(state.handoffReport) ? state.handoffReport : null;
-    const reportNeedsRegeneration = handoffReport !== null && !('evidence' in handoffReport);
+    const isReportNeedsRegeneration = handoffReport !== null && !('evidence' in handoffReport);
     const legacyPhase = typeof state.phase === 'string' ? state.phase : 'intake';
     return {
         ...state,
-        handoffReport: reportNeedsRegeneration ? null : state.handoffReport,
+        handoffReport: isReportNeedsRegeneration ? null : state.handoffReport,
         issues,
-        phase: reportNeedsRegeneration && legacyPhase === 'complete' ? 'finalization' : legacyPhase,
+        phase:
+            isReportNeedsRegeneration && legacyPhase === 'complete' ? 'finalization' : legacyPhase,
         schemaVersion: 7,
-        status: reportNeedsRegeneration && legacyPhase === 'complete' ? 'active' : state.status,
+        status: isReportNeedsRegeneration && legacyPhase === 'complete' ? 'active' : state.status,
     };
 }
 
@@ -229,7 +230,7 @@ function migrateV9(state: Record<string, unknown>): Record<string, unknown> {
     const currentBudget = createRunBudget();
     const createdAt = typeof state.createdAt === 'string' ? Date.parse(state.createdAt) : 0;
     const validationAttemptCount = Array.isArray(state.validations) ? state.validations.length : 0;
-    const checkpoints: Record<string, unknown>[] = (
+    const checkpoints: Array<Record<string, unknown>> = (
         Array.isArray(legacyBudget.checkpoints) ? legacyBudget.checkpoints.filter(isRecord) : []
     ).map((checkpoint) => {
         const recordedAt =
@@ -300,7 +301,7 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
     }
     if (migrated.schemaVersion === 3) {
         const phase = typeof migrated.phase === 'string' ? migrated.phase : '';
-        const beyondDelivery = ![
+        const isBeyondDelivery = ![
             'intake',
             'planning',
             'issue_execution',
@@ -311,12 +312,12 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
         const headSha = typeof pullRequest.headSha === 'string' ? pullRequest.headSha : null;
         migrated = {
             ...migrated,
-            ciFallback: beyondDelivery ? migrated.ciFallback : createEmptyCiFallback(),
+            ciFallback: isBeyondDelivery ? migrated.ciFallback : createEmptyCiFallback(),
             reviewGate: {
                 ...createEmptyReviewGate(),
-                frozenHeadSha: beyondDelivery ? headSha : null,
+                frozenHeadSha: isBeyondDelivery ? headSha : null,
                 rounds:
-                    headSha && (phase === 'delivery' || beyondDelivery)
+                    headSha && (phase === 'delivery' || isBeyondDelivery)
                         ? [
                               {
                                   completedAt:

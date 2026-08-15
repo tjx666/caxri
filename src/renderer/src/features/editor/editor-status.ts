@@ -24,7 +24,7 @@ export const useEditorStatusStore = create<EditorStatusState>((set) => ({
     },
     clearStatus(key) {
         set((state) => {
-            if (!state.statuses[key]) return state;
+            if (!Object.hasOwn(state.statuses, key)) return state;
             const statuses = { ...state.statuses };
             delete statuses[key];
             return { statuses };

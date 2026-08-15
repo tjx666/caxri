@@ -8,7 +8,7 @@ import type {
 
 export type LayoutIdFactory = () => string;
 
-const createId: LayoutIdFactory = () => globalThis.crypto.randomUUID();
+const createId: LayoutIdFactory = () => crypto.randomUUID();
 
 function group(terminalId: string, id: LayoutIdFactory): TerminalGroupNode {
     return {
@@ -108,7 +108,9 @@ export function firstLayoutTerminalId(layout: TerminalLayout): string | undefine
     return firstGroup(layout.root)?.activeTerminalId ?? firstGroup(layout.root)?.terminalIds[0];
 }
 
-/** The Terminal shown by the layout's currently active group, if any. */
+/**
+The Terminal shown by the layout's currently active group, if any.
+ */
 export function activeLayoutTerminalId(layout: TerminalLayout): string | undefined {
     const group = layout.activeGroupId
         ? findGroup(layout.root, layout.activeGroupId)

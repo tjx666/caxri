@@ -1,8 +1,7 @@
-import { QueryClient } from '@tanstack/react-query';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import type { RuntimeEvent } from '@shared/ipc';
 import type { BootstrapState } from '@shared/types';
+import { QueryClient } from '@tanstack/react-query';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
     const state: { handler?: (event: RuntimeEvent) => void } = {};
@@ -10,7 +9,7 @@ const mocks = vi.hoisted(() => {
         state,
         onEvent: vi.fn((handler: (event: RuntimeEvent) => void) => {
             state.handler = handler;
-            return () => undefined;
+            return () => {};
         }),
     };
 });
@@ -19,7 +18,7 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: mocks }));
 
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import {
-    affectsGitIgnoreRules,
+    isGitIgnoreRulesPath,
     parentDirectoryPath,
     subscribeFileTreeInvalidation,
 } from './file-tree-refresh';
@@ -34,12 +33,12 @@ describe('file tree refresh routing', () => {
     });
 
     it('recognizes changes that can redecorate every expanded descendant', () => {
-        expect(affectsGitIgnoreRules('/project/.gitignore')).toBe(true);
-        expect(affectsGitIgnoreRules('/project/packages/app/.gitignore')).toBe(true);
-        expect(affectsGitIgnoreRules('/project/.git/info/exclude')).toBe(true);
-        expect(affectsGitIgnoreRules('/project/.git/config')).toBe(true);
-        expect(affectsGitIgnoreRules('/project/src/index.ts')).toBe(false);
-        expect(affectsGitIgnoreRules('/project/local.ignore')).toBe(false);
+        expect(isGitIgnoreRulesPath('/project/.gitignore')).toBe(true);
+        expect(isGitIgnoreRulesPath('/project/packages/app/.gitignore')).toBe(true);
+        expect(isGitIgnoreRulesPath('/project/.git/info/exclude')).toBe(true);
+        expect(isGitIgnoreRulesPath('/project/.git/config')).toBe(true);
+        expect(isGitIgnoreRulesPath('/project/src/index.ts')).toBe(false);
+        expect(isGitIgnoreRulesPath('/project/local.ignore')).toBe(false);
     });
 });
 

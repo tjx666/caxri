@@ -6,7 +6,9 @@ export interface EditorRevealTarget {
     line: number;
     column: number;
     matchLength: number;
-    /** Search results select their match; navigation-only reveals leave a caret at the location. */
+    /**
+    Search results select their match; navigation-only reveals leave a caret at the location.
+     */
     select?: boolean;
 }
 
@@ -26,7 +28,9 @@ function applyReveal(editor: MonacoEditor, target: EditorRevealTarget): void {
     editor.focus();
 }
 
-/** Registers the live editor for one model and consumes any search reveal queued before mount. */
+/**
+Registers the live editor for one model and consumes any search reveal queued before mount.
+ */
 export function registerEditorRevealTarget(path: string, editor: MonacoEditor): () => void {
     editors.set(path, editor);
     const target = pending.get(path);
@@ -39,14 +43,18 @@ export function registerEditorRevealTarget(path: string, editor: MonacoEditor): 
     };
 }
 
-/** Reveals immediately when the model is mounted, otherwise queues one latest intent for mount. */
+/**
+Reveals immediately when the model is mounted, otherwise queues one latest intent for mount.
+ */
 export function revealEditorMatch(path: string, target: EditorRevealTarget): void {
     const editor = editors.get(path);
     if (editor) applyReveal(editor, target);
     else pending.set(path, target);
 }
 
-/** Navigates to a source location without selecting the character after the requested column. */
+/**
+Navigates to a source location without selecting the character after the requested column.
+ */
 export function revealEditorLocation(
     path: string,
     target: Pick<EditorRevealTarget, 'column' | 'line'>,

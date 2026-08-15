@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
@@ -8,48 +9,39 @@ import { applyEdits, modify } from 'jsonc-parser';
 import { defaultAgentProviderSettings } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
 import {
-    configurationSourceSchema,
-    MAX_CONFIGURATION_SOURCE_BYTES,
-} from '../shared/configuration-contract';
-import {
     findKeybindingConflicts,
     keybindingsFileSchema,
     settingsFileSchema,
-} from '../shared/configuration';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
+} from '../shared/config';
 import {
-    inspectableSettingsSchema,
-    type SettingsPatchChange,
-    type SettingsPatchResult,
-} from '../shared/ipc/business-contract';
+    configurationSourceSchema as configSourceSchema,
+    MAX_CONFIGURATION_SOURCE_BYTES,
+} from '../shared/config-contract';
+import type { SettingsPatchChange, SettingsPatchResult } from '../shared/ipc/business-contract';
+import { inspectableSettingsSchema } from '../shared/ipc/business-contract';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue } from '../shared/node/redaction';
-import {
-    DEFAULT_FILES_EXCLUDE,
-    SETTINGS_BOUNDS,
-    type AppSettings,
-    type Keybinding,
-    type KeybindingConflict,
-    type ThemeTokens,
-} from '../shared/types';
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
+import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
+import { DEFAULT_FILES_EXCLUDE, SETTINGS_BOUNDS } from '../shared/types';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
 
-type ConfigurationKind = 'settings' | 'keybindings' | 'theme';
+type ConfigKind = 'settings' | 'keybindings' | 'theme';
 
 interface WatcherSubscription {
     unsubscribe(): Promise<void>;
 }
 
-interface PreparedConfiguration {
+interface PreparedConfig {
     apply(): void;
     source: string;
 }
 
-class ConfigurationSourceReadError extends Error {
+class ConfigSourceReadError extends Error {
     constructor(
         message: string,
         readonly revision: string,
@@ -125,12 +117,16 @@ export const previousDefaultKeybindingSets = [
     ),
 ];
 
-interface ConfigurationServiceOptions {
-    /** Overrides the fallback watcher cadence for deterministic integration tests. */
+interface ConfigServiceOptions {
+    /**
+    Overrides the fallback watcher cadence for deterministic integration tests.
+     */
     fallbackPollIntervalMs?: number;
 }
 
-/** Upgrades known untouched historical defaults while preserving every customized keybinding file. */
+/**
+Upgrades known untouched historical defaults while preserving every customized keybinding file.
+ */
 function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[] {
     const source = JSON.stringify(keybindings);
     return previousDefaultKeybindingSets.some((defaults) => source === JSON.stringify(defaults))
@@ -177,7 +173,7 @@ async function atomicWrite(path: string, source: string): Promise<void> {
     }
 }
 
-async function readBoundedConfigurationSource(path: string): Promise<string> {
+async function readBoundedConfigSource(path: string): Promise<string> {
     const file = await open(path, 'r');
     try {
         const metadata = await file.stat();
@@ -189,28 +185,30 @@ async function readBoundedConfigurationSource(path: string): Promise<string> {
             metadata.ctimeMs,
         ].join(':');
         if (!metadata.isFile()) {
-            throw new ConfigurationSourceReadError(
-                'Configuration source is not a regular file',
-                revision,
-            );
+            throw new ConfigSourceReadError('Configuration source is not a regular file', revision);
         }
         if (metadata.size > MAX_CONFIGURATION_SOURCE_BYTES) {
-            throw new ConfigurationSourceReadError(
+            throw new ConfigSourceReadError(
                 `Configuration source exceeds the ${MAX_CONFIGURATION_SOURCE_BYTES} byte configuration source limit`,
                 revision,
             );
         }
 
-        /** The extra byte detects growth between stat and read without loading the full file. */
+        /**
+        The extra byte detects growth between stat and read without loading the full file.
+         */
         const buffer = Buffer.allocUnsafe(MAX_CONFIGURATION_SOURCE_BYTES + 1);
         let bytesRead = 0;
         while (bytesRead < buffer.length) {
+            // Each read's offset depends on the byte count already read, so the reads are
+            // inherently sequential and cannot be batched with Promise.all.
+            // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
             const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
             if (result.bytesRead === 0) break;
             bytesRead += result.bytesRead;
         }
         if (bytesRead > MAX_CONFIGURATION_SOURCE_BYTES) {
-            throw new ConfigurationSourceReadError(
+            throw new ConfigSourceReadError(
                 `Configuration source exceeds the ${MAX_CONFIGURATION_SOURCE_BYTES} byte configuration source limit`,
                 revision,
             );
@@ -221,10 +219,7 @@ async function readBoundedConfigurationSource(path: string): Promise<string> {
     }
 }
 
-export class ConfigurationService {
-    readonly settingsPath: string;
-    readonly keybindingsPath: string;
-    readonly themePath: string;
+export class ConfigService {
     private readonly configDirectory: string;
     private settings = defaultSettings;
     private settingsSource = `${JSON.stringify(defaultSettings, null, 2)}\n`;
@@ -236,17 +231,20 @@ export class ConfigurationService {
     private readonly watchTimers = new Map<string, NodeJS.Timeout>();
     private readonly observedSources = new Map<string, string>();
     private readonly rejectedSourceRevisions = new Map<string, string>();
-    private readonly errors = new Map<ConfigurationKind, string>();
+    private readonly errors = new Map<ConfigKind, string>();
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private settingsMutationTail: Promise<void> = Promise.resolve();
     private closed = false;
     private readonly fallbackPollIntervalMs: number;
+    readonly settingsPath: string;
+    readonly keybindingsPath: string;
+    readonly themePath: string;
 
     constructor(
         userDataPath: string,
         private readonly emit: (event: RuntimeEvent) => void,
         private readonly logger?: StructuredLogger,
-        options: ConfigurationServiceOptions = {},
+        options: ConfigServiceOptions = {},
     ) {
         this.fallbackPollIntervalMs = options.fallbackPollIntervalMs ?? FALLBACK_POLL_INTERVAL_MS;
         this.configDirectory = join(userDataPath, 'config');
@@ -255,61 +253,11 @@ export class ConfigurationService {
         this.themePath = join(this.configDirectory, 'theme.json');
     }
 
-    async initialize(): Promise<void> {
-        await mkdir(dirname(this.settingsPath), { recursive: true });
-        await this.loadOrCreate('settings');
-        await this.loadOrCreate('keybindings');
-        await this.loadOrCreate('theme');
-        const watchedDirectory = await realpath(this.configDirectory);
-        const onEvents: parcelWatcher.SubscribeCallback = (error, events) => {
-            if (this.closed) return;
-            if (error) {
-                this.emitWatcherError(error);
-                return;
-            }
-            for (const event of events) {
-                const path = this.pathForWatcherEvent(watchedDirectory, event.path);
-                if (path) this.scheduleExternalChange(path);
-            }
-        };
-        const startedAt = performance.now();
-        const backend = NATIVE_WATCHER_BACKEND;
-        let selectedBackend: string = backend;
-        try {
-            this.watcher = await parcelWatcher.subscribe(watchedDirectory, onEvents, { backend });
-        } catch (error) {
-            /** Polling three known files avoids consuming another OS watcher when global FSEvents capacity is exhausted. */
-            const timer = setInterval(() => {
-                for (const path of [this.settingsPath, this.keybindingsPath, this.themePath]) {
-                    void this.onExternalChange(path);
-                }
-            }, this.fallbackPollIntervalMs);
-            timer.unref();
-            this.watcher = {
-                unsubscribe: () => {
-                    clearInterval(timer);
-                    return Promise.resolve();
-                },
-            };
-            selectedBackend = 'poll';
-            this.logger?.write('warn', 'configuration.watcher.fallback', {
-                fields: {
-                    backend,
-                    error: errorMessage(error, 'unknown watcher error'),
-                },
-            });
-        }
-        this.logger?.write('info', 'configuration.watcher.ready', {
-            durationMs: performance.now() - startedAt,
-            fields: { backend: selectedBackend },
-        });
-    }
-
-    private async loadOrCreate(kind: ConfigurationKind): Promise<void> {
+    private async loadOrCreate(kind: ConfigKind): Promise<void> {
         const path = this.pathFor(kind);
         let source: string;
         try {
-            source = await readBoundedConfigurationSource(path);
+            source = await readBoundedConfigSource(path);
             this.rejectedSourceRevisions.delete(path);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -332,7 +280,7 @@ export class ConfigurationService {
         }
     }
 
-    private recordConfigurationError(kind: ConfigurationKind, error: unknown): void {
+    private recordConfigurationError(kind: ConfigKind, error: unknown): void {
         const fileName = basename(this.pathFor(kind));
         const detail = errorMessage(error, 'Configuration load failed');
         const message = detail.startsWith(`${fileName}:`) ? detail : `${fileName}: ${detail}`;
@@ -343,21 +291,23 @@ export class ConfigurationService {
         this.emitChange(kind, this.sourceFor(kind), message);
     }
 
-    /** Suppresses repeated polling errors without retaining any rejected source bytes. */
+    /**
+    Suppresses repeated polling errors without retaining any rejected source bytes.
+     */
     private rememberRejectedSource(path: string, error: unknown): boolean {
-        if (!(error instanceof ConfigurationSourceReadError)) {
+        if (!(error instanceof ConfigSourceReadError)) {
             this.rejectedSourceRevisions.delete(path);
             return false;
         }
-        const repeated = this.rejectedSourceRevisions.get(path) === error.revision;
+        const isRepeated = this.rejectedSourceRevisions.get(path) === error.revision;
         this.rejectedSourceRevisions.set(path, error.revision);
-        return repeated;
+        return isRepeated;
     }
 
-    private prepare(kind: ConfigurationKind, source: string): PreparedConfiguration {
+    private prepare(kind: ConfigKind, source: string): PreparedConfig {
         const path = this.pathFor(kind);
         try {
-            configurationSourceSchema.parse(source);
+            configSourceSchema.parse(source);
             if (kind === 'settings') {
                 const settings = settingsFileSchema.parse(parseJsonc(source));
                 return {
@@ -399,7 +349,7 @@ export class ConfigurationService {
         }
     }
 
-    private pathFor(kind: ConfigurationKind): string {
+    private pathFor(kind: ConfigKind): string {
         return kind === 'settings'
             ? this.settingsPath
             : kind === 'keybindings'
@@ -407,7 +357,7 @@ export class ConfigurationService {
               : this.themePath;
     }
 
-    private kindForPath(path: string): ConfigurationKind | undefined {
+    private kindForPath(path: string): ConfigKind | undefined {
         if (path === this.settingsPath) return 'settings';
         if (path === this.keybindingsPath) return 'keybindings';
         if (path === this.themePath) return 'theme';
@@ -422,7 +372,7 @@ export class ConfigurationService {
         return undefined;
     }
 
-    private sourceFor(kind: ConfigurationKind): string {
+    private sourceFor(kind: ConfigKind): string {
         return kind === 'settings'
             ? this.settingsSource
             : kind === 'keybindings'
@@ -430,7 +380,7 @@ export class ConfigurationService {
               : this.themeSource;
     }
 
-    private emitChange(kind: ConfigurationKind, source: string, error?: string): void {
+    private emitChange(kind: ConfigKind, source: string, error?: string): void {
         const payload = error ? { source, error } : { source };
         if (kind === 'settings') this.emit({ event: 'settings.changed', payload });
         else if (kind === 'keybindings') this.emit({ event: 'keybindings.changed', payload });
@@ -444,7 +394,14 @@ export class ConfigurationService {
             path,
             setTimeout(() => {
                 this.watchTimers.delete(path);
-                void this.onExternalChange(path);
+                // `setTimeout`'s callback is synchronous, so this cannot become `await`; see the
+                // fallback-poll callback above for why `.catch()` is used instead.
+                // eslint-disable-next-line unicorn/prefer-await -- sync timer callback, see comment above
+                this.onExternalChange(path).catch((error: unknown) =>
+                    this.logger?.write('error', 'configuration.watch_change_failed', {
+                        fields: { path, error: errorMessage(error, 'unknown') },
+                    }),
+                );
             }, WATCH_SETTLE_DELAY_MS),
         );
     }
@@ -453,7 +410,7 @@ export class ConfigurationService {
         const kind = this.kindForPath(path);
         if (!kind) return;
         try {
-            const source = await readBoundedConfigurationSource(path);
+            const source = await readBoundedConfigSource(path);
             this.rejectedSourceRevisions.delete(path);
             if (source === this.observedSources.get(path)) return;
             this.observedSources.set(path, source);
@@ -478,12 +435,12 @@ export class ConfigurationService {
         this.logger?.write('warn', 'configuration.watcher.error', {
             fields: { error: error.message },
         });
-        for (const kind of ['settings', 'keybindings', 'theme'] satisfies ConfigurationKind[]) {
+        for (const kind of ['settings', 'keybindings', 'theme'] satisfies ConfigKind[]) {
             this.emitChange(kind, this.sourceFor(kind), message);
         }
     }
 
-    private async update(kind: ConfigurationKind, source: string): Promise<void> {
+    private async update(kind: ConfigKind, source: string): Promise<void> {
         const prepared = this.prepare(kind, source);
         const path = this.pathFor(kind);
         await atomicWrite(path, prepared.source);
@@ -495,14 +452,6 @@ export class ConfigurationService {
         if (kind === 'settings') this.notifySettings();
     }
 
-    getErrors(): string[] {
-        return [...this.errors.values()];
-    }
-
-    getSettings(): { value: AppSettings; source: string } {
-        return { value: this.settings, source: this.settingsSource };
-    }
-
     private settingsInspection(source: string, value: AppSettings) {
         return {
             value: inspectableSettingsSchema.parse(value),
@@ -511,14 +460,106 @@ export class ConfigurationService {
         };
     }
 
+    private notifySettings(): void {
+        for (const listener of this.settingsListeners) listener(this.settings);
+    }
+
+    /**
+    Serializes read-modify-write Settings operations so concurrent trust prompts cannot lose rules.
+     */
+    private mutateSettings<T>(operation: () => Promise<T>): Promise<T> {
+        const previousTail = this.settingsMutationTail;
+        const result = (async () => {
+            await previousTail;
+            return operation();
+        })();
+        this.settingsMutationTail = (async () => {
+            try {
+                await result;
+            } catch {
+                // Swallow so a failed mutation still lets queued mutations run.
+            }
+        })();
+        return result;
+    }
+
+    async initialize(): Promise<void> {
+        await mkdir(dirname(this.settingsPath), { recursive: true });
+        await this.loadOrCreate('settings');
+        await this.loadOrCreate('keybindings');
+        await this.loadOrCreate('theme');
+        const watchedDirectory = await realpath(this.configDirectory);
+        const onEvents: parcelWatcher.SubscribeCallback = (error, events) => {
+            if (this.closed) return;
+            if (error) {
+                this.emitWatcherError(error);
+                return;
+            }
+            for (const event of events) {
+                const path = this.pathForWatcherEvent(watchedDirectory, event.path);
+                if (path) this.scheduleExternalChange(path);
+            }
+        };
+        const startedAt = performance.now();
+        const backend = NATIVE_WATCHER_BACKEND;
+        let selectedBackend: string = backend;
+        try {
+            this.watcher = await parcelWatcher.subscribe(watchedDirectory, onEvents, { backend });
+        } catch (error) {
+            /**
+            Polling three known files avoids consuming another OS watcher when global FSEvents capacity is exhausted.
+             */
+            const timer = setInterval(() => {
+                for (const path of [this.settingsPath, this.keybindingsPath, this.themePath]) {
+                    // `setInterval`'s callback is synchronous, so this cannot become `await`;
+                    // `onExternalChange` already logs its own failures via `recordConfigurationError`.
+                    // eslint-disable-next-line unicorn/prefer-await -- sync timer callback, see comment above
+                    this.onExternalChange(path).catch((error: unknown) =>
+                        this.logger?.write('error', 'configuration.poll_change_failed', {
+                            fields: { path, error: errorMessage(error, 'unknown') },
+                        }),
+                    );
+                }
+            }, this.fallbackPollIntervalMs);
+            timer.unref();
+            this.watcher = {
+                unsubscribe: () => {
+                    clearInterval(timer);
+                    return Promise.resolve();
+                },
+            };
+            selectedBackend = 'poll';
+            this.logger?.write('warn', 'configuration.watcher.fallback', {
+                fields: {
+                    backend,
+                    error: errorMessage(error, 'unknown watcher error'),
+                },
+            });
+        }
+        this.logger?.write('info', 'configuration.watcher.ready', {
+            durationMs: performance.now() - startedAt,
+            fields: { backend: selectedBackend },
+        });
+    }
+
+    getErrors(): string[] {
+        return this.errors.values().toArray();
+    }
+
+    getSettings(): { value: AppSettings; source: string } {
+        return { value: this.settings, source: this.settingsSource };
+    }
+
     inspectSettings() {
         return this.settingsInspection(this.settingsSource, this.settings);
     }
 
-    /** Applies a field-bounded patch through the same schema and atomic update path as Desktop. */
+    /**
+    Applies a field-bounded patch through the same schema and atomic update path as Desktop.
+     */
     patchSettings(
         changes: readonly SettingsPatchChange[],
-        dryRun: boolean,
+        isDryRun: boolean,
     ): Promise<SettingsPatchResult> {
         return this.mutateSettings(async () => {
             const candidate = { ...this.settings } as Record<string, unknown>;
@@ -536,21 +577,17 @@ export class ConfigurationService {
                     }),
                 );
             this.prepare('settings', source);
-            if (!dryRun && changedKeys.length > 0) await this.update('settings', source);
-            const inspection = dryRun
+            if (!isDryRun && changedKeys.length > 0) await this.update('settings', source);
+            const inspection = isDryRun
                 ? this.settingsInspection(source, value)
                 : this.inspectSettings();
-            return { ...inspection, dryRun, changedKeys };
+            return { ...inspection, dryRun: isDryRun, changedKeys };
         });
     }
 
     subscribeSettings(listener: (settings: AppSettings) => void): () => void {
         this.settingsListeners.add(listener);
         return () => this.settingsListeners.delete(listener);
-    }
-
-    private notifySettings(): void {
-        for (const listener of this.settingsListeners) listener(this.settings);
     }
 
     getKeybindings(): { value: Keybinding[]; source: string; conflicts: KeybindingConflict[] } {
@@ -563,16 +600,6 @@ export class ConfigurationService {
 
     getTheme(): { value: ThemeTokens; source: string } {
         return { value: this.theme, source: this.themeSource };
-    }
-
-    /** Serializes read-modify-write Settings operations so concurrent trust prompts cannot lose rules. */
-    private mutateSettings<T>(operation: () => Promise<T>): Promise<T> {
-        const result = this.settingsMutationTail.then(operation);
-        this.settingsMutationTail = result.then(
-            () => undefined,
-            () => undefined,
-        );
-        return result;
     }
 
     updateSettings(source: string): Promise<void> {

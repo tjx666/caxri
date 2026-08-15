@@ -1,5 +1,7 @@
+import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
-import { constants, type Stats } from 'node:fs';
+import type { Stats } from 'node:fs';
+import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
@@ -17,7 +19,9 @@ export type OpenFile = (path: string, flags: number, mode?: number) => ReturnTyp
 export type ReplaceFile = typeof rename;
 
 export interface DocumentServiceOptions {
-    /** Integration-test seam for replacing the target after the new bytes are durable. */
+    /**
+    Integration-test seam for replacing the target after the new bytes are durable.
+     */
     beforeReplaceValidation?: () => Promise<void>;
     openFile?: OpenFile;
     replaceFile?: ReplaceFile;
@@ -55,7 +59,9 @@ async function removeTrustedTemporaryFile(
     }
 }
 
-/** Reads and writes text documents under a Session's Project root with TOCTOU-safe file handles. */
+/**
+Reads and writes text documents under a Session's Project root with TOCTOU-safe file handles.
+ */
 export class DocumentService {
     private readonly beforeReplaceValidation?: () => Promise<void>;
     private readonly openFile: OpenFile;

@@ -1,11 +1,12 @@
-import { create } from 'zustand';
-
 import type { FileEntry } from '@shared/types';
+import { create } from 'zustand';
 
 export type FileConflictChoice = 'cancel' | 'keep-both' | 'replace';
 
 export interface FileConflictRequest {
-    /** The colliding name, shown in the dialog title and body. */
+    /**
+    The colliding name, shown in the dialog title and body.
+     */
     name: string;
     /**
      * True when either side of the collision is a folder. `files.move`'s `replace` mode can only
@@ -43,7 +44,9 @@ export function requestFileConflictChoice(
     });
 }
 
-/** Resolves the pending prompt and closes the dialog; a no-op once already resolved. */
+/**
+Resolves the pending prompt and closes the dialog; a no-op once already resolved.
+ */
 export function resolveFileConflictChoice(choice: FileConflictChoice): void {
     const { resolve } = useFileConflictDialogStore.getState();
     if (!resolve) return;

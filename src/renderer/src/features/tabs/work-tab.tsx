@@ -1,24 +1,24 @@
-import { useIsPresent } from 'motion/react';
-import * as m from 'motion/react-m';
-import { X } from 'lucide-react';
 import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react';
 import { useState } from 'react';
 
 import type { ProcessState } from '@shared/types';
+import { X } from 'lucide-react';
+import { useIsPresent } from 'motion/react';
+import * as m from 'motion/react-m';
 
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
-import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
-import { motionDurationMs, usePrefersReducedMotion } from '../../lib/motion';
-import { cn } from '../../lib/utils';
+import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import { motionDurationMs, useShouldReduceMotion } from '../../lib/motion';
+import { cn } from '../../lib/utilities';
 import { processStateDescription } from './work-tab-accessibility';
 
 const processIndicatorClassName =
     'process-indicator w-1.5 h-1.5 flex-none m-0 rounded-full bg-muted';
 
-interface WorkTabProps {
+interface WorkTabProperties {
     active: boolean;
     accessory?: ReactNode;
     closeLabel: string;
@@ -39,7 +39,9 @@ interface WorkTabProps {
     onSelect: () => void;
 }
 
-/** Target width the tab grows to/from during its enter/exit width animation. */
+/**
+Target width the tab grows to/from during its enter/exit width animation.
+ */
 const TAB_MAX_WIDTH = 180;
 
 export function WorkTab({
@@ -61,20 +63,20 @@ export function WorkTab({
     onDragStart,
     onKeyDown,
     onSelect,
-}: WorkTabProps) {
+}: WorkTabProperties) {
     const isPresent = useIsPresent();
-    const reducedMotion = usePrefersReducedMotion();
+    const isReducedMotion = useShouldReduceMotion();
     // Token values need a live DOM (`getComputedStyle`), so they can't be read at module scope;
     // a lazy `useState` initializer reads them once per mount instead of on every render.
     const [durations] = useState(() => ({
         enterS: motionDurationMs('--motion-tab-enter') / 1000,
         exitS: motionDurationMs('--motion-tab-exit') / 1000,
     }));
-    const enterDuration = reducedMotion ? 0 : durations.enterS;
-    const exitDuration = reducedMotion ? 0 : durations.exitS;
+    const enterDuration = isReducedMotion ? 0 : durations.enterS;
+    const exitDuration = isReducedMotion ? 0 : durations.exitS;
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
-    const visuallyActive = active && isPresent;
+    const isVisuallyActive = active && isPresent;
     const dirtyDescriptionId = `${tabId}-dirty`;
     const statusDescriptionId = `${tabId}-status`;
     const descriptions = [
@@ -86,13 +88,13 @@ export function WorkTab({
             className={cn(
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted hover:bg-elevated hover:text-foreground [-webkit-app-region:no-drag]',
                 !isPresent && 'pointer-events-none',
-                visuallyActive &&
+                isVisuallyActive &&
                     "active bg-background text-foreground after:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background",
             )}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
             data-preview={preview || undefined}
-            data-tab-active={visuallyActive || undefined}
+            data-tab-active={isVisuallyActive || undefined}
             aria-hidden={!isPresent || undefined}
             inert={!isPresent ? true : undefined}
             draggable={Boolean(onDragStart)}
@@ -128,10 +130,10 @@ export function WorkTab({
                 type="button"
                 role="tab"
                 id={isPresent ? tabId : undefined}
-                aria-controls={visuallyActive ? `${tabId}-panel` : undefined}
+                aria-controls={isVisuallyActive ? `${tabId}-panel` : undefined}
                 aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
-                aria-selected={visuallyActive}
-                tabIndex={visuallyActive ? 0 : -1}
+                aria-selected={isVisuallyActive}
+                tabIndex={isVisuallyActive ? 0 : -1}
                 className="tab-select flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit cursor-pointer"
                 onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
                 onClick={onSelect}
@@ -184,10 +186,7 @@ export function WorkTab({
                             'group-hover:opacity-0 group-focus-within:opacity-0',
                             `process-${status}`,
                             (status === 'running' && 'bg-success') ||
-                                ((status === 'failed' ||
-                                    status === 'dead' ||
-                                    status === 'interrupted') &&
-                                    'bg-danger'),
+                                (['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger'),
                         )}
                     />
                 )}

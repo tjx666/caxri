@@ -1,4 +1,4 @@
-import type { GoState } from './state';
+import type { GoState } from './state-model';
 
 const MAX_HANDOFF_WORKFLOW_OBSERVATIONS = 3;
 const MAX_REPORT_AUDIT_NOTES = 20;
@@ -124,8 +124,8 @@ export function createResumeCheckpoint(state: GoState) {
     ].includes(state.phase)
         ? state.notes.workflow.slice(-MAX_HANDOFF_WORKFLOW_OBSERVATIONS).map(({ text }) => text)
         : [];
-    const reportingPhase = ['acceptance_handoff', 'finalization'].includes(state.phase);
-    const auditNotes = reportingPhase
+    const isReportingPhase = ['acceptance_handoff', 'finalization'].includes(state.phase);
+    const auditNotes = isReportingPhase
         ? {
               tokenWaste: state.notes.token_waste
                   .slice(-MAX_REPORT_AUDIT_NOTES)
@@ -241,12 +241,14 @@ export function formatResumeCheckpoint(
         );
     }
     if (checkpoint.workflowObservations.length > 0) {
-        lines.push('workflow observations:');
-        lines.push(...checkpoint.workflowObservations.map((observation) => `- ${observation}`));
+        lines.push(
+            'workflow observations:',
+            ...checkpoint.workflowObservations.map((observation) => `- ${observation}`),
+        );
     }
     if (checkpoint.auditNotes) {
-        lines.push('report audit notes:');
         lines.push(
+            'report audit notes:',
             ...checkpoint.auditNotes.tokenWaste.map(
                 (observation) => `- token_waste: ${observation}`,
             ),

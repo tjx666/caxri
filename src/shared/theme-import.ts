@@ -11,13 +11,17 @@ export const themeImportFormats = [
     {
         id: 'iterm2',
         extensions: ['itermcolors'],
-        /** iTerm2 is terminal-only; app and editor colors inherit from the active theme. */
+        /**
+        iTerm2 is terminal-only; app and editor colors inherit from the active theme.
+         */
         terminalOnly: true,
     },
     {
         id: 'warp',
         extensions: ['yaml', 'yml'],
-        /** Warp is terminal-only; app and editor colors inherit from the active theme. */
+        /**
+        Warp is terminal-only; app and editor colors inherit from the active theme.
+         */
         terminalOnly: true,
     },
     {
@@ -27,5 +31,7 @@ export const themeImportFormats = [
     },
 ] as const;
 
-/** Flat, de-duplicated list of every extension across `themeImportFormats`, for dialog filters. */
+/**
+Flat, de-duplicated list of every extension across `themeImportFormats`, for dialog filters.
+ */
 export const themeImportExtensions = themeImportFormats.flatMap((format) => format.extensions);

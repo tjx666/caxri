@@ -1,9 +1,8 @@
 import type { MenuItem, MenuItemConstructorOptions } from 'electron';
-
 import { describe, expect, it, vi } from 'vitest';
 
 import { commandDefinitions } from '../../shared/commands';
-import { buildApplicationMenuTemplate } from '../menu';
+import { buildAppMenuTemplate } from '../menu';
 
 function submenu(
     template: MenuItemConstructorOptions[],
@@ -16,7 +15,7 @@ function submenu(
 
 describe('application menu', () => {
     it('derives every command-backed item and label from the shared catalog', () => {
-        const template = buildApplicationMenuTemplate({
+        const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand: vi.fn(),
             openProcessExplorer: vi.fn(),
@@ -40,7 +39,7 @@ describe('application menu', () => {
 
     it('uses configured accelerators and preserves accelerator-aware dispatch', () => {
         const dispatchCommand = vi.fn();
-        const template = buildApplicationMenuTemplate({
+        const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.new', key: 'cmd+shift+t' }],
             dispatchCommand,
             openProcessExplorer: vi.fn(),
@@ -57,7 +56,7 @@ describe('application menu', () => {
     it('keeps Process Explorer opening in Main for its diagnostic window', () => {
         const dispatchCommand = vi.fn();
         const openProcessExplorer = vi.fn();
-        const template = buildApplicationMenuTemplate({
+        const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand,
             openProcessExplorer,

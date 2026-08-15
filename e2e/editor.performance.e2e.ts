@@ -1,9 +1,10 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import process from 'node:process';
 
-import { expect, test, type Page } from './support/fixtures.ts';
-
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     launchCaxri,
@@ -31,37 +32,50 @@ type BenchmarkWindow = typeof window & {
     caxriReleaseIdleCallbacks?: () => void;
 };
 
-/** Keeps the benchmark on the real cold path until the first editor has visibly highlighted. */
+/**
+Keeps the benchmark on the real cold path until the first editor has visibly highlighted.
+ */
 async function holdIdleCallbacks(page: Page): Promise<void> {
     await page.evaluate(() => {
         const callbacks = new Map<number, IdleRequestCallback>();
         let nextCallbackId = 0;
-        window.requestIdleCallback = (callback) => {
-            nextCallbackId += 1;
-            callbacks.set(nextCallbackId, callback);
-            return nextCallbackId;
-        };
-        window.cancelIdleCallback = (callbackId) => callbacks.delete(callbackId);
-        (window as BenchmarkWindow).caxriReleaseIdleCallbacks = () => {
-            for (const callback of callbacks.values()) {
-                callback({ didTimeout: false, timeRemaining: () => 50 });
-            }
-            callbacks.clear();
-        };
+        Object.defineProperties(globalThis, {
+            requestIdleCallback: {
+                configurable: true,
+                value: (callback: IdleRequestCallback) => {
+                    nextCallbackId += 1;
+                    callbacks.set(nextCallbackId, callback);
+                    return nextCallbackId;
+                },
+            },
+            cancelIdleCallback: {
+                configurable: true,
+                value: (callbackId: number) => callbacks.delete(callbackId),
+            },
+            caxriReleaseIdleCallbacks: {
+                configurable: true,
+                value: () => {
+                    for (const callback of callbacks.values()) {
+                        callback({ didTimeout: false, timeRemaining: () => 50 });
+                    }
+                    callbacks.clear();
+                },
+            },
+        });
     });
 }
 
 async function installHighlightObserver(page: Page, expectedText: string): Promise<void> {
     await page.evaluate((text) => {
         const previousOpen = performance.getEntriesByName('caxri.editor.open-start').at(-1);
-        const benchmarkWindow = window as BenchmarkWindow;
+        const benchmarkWindow = globalThis as BenchmarkWindow;
         benchmarkWindow.caxriFirstEditorHighlight = new Promise((resolve) => {
             const check = (): void => {
                 const openedAt = performance.getEntriesByName('caxri.editor.open-start').at(-1);
                 const line = [...document.querySelectorAll('.monaco-editor .view-line')].find(
                     (element) => element.textContent?.includes(text),
                 );
-                const tokens = line ? [...line.querySelectorAll('span span')] : [];
+                const tokens = line ? [...line.querySelectorAll(':scope span span')] : [];
                 const colors = new Set(tokens.map((token) => getComputedStyle(token).color));
                 if (
                     openedAt &&
@@ -89,20 +103,17 @@ async function measureFirstOpen(
     await installHighlightObserver(page, expectedText);
     await file.click();
 
-    const documentReadyMs = await expect
+    await expect
         .poll(() =>
             page.evaluate(
                 () =>
                     performance.getEntriesByName('caxri.editor.open-to-document').at(-1)?.duration,
             ),
         )
-        .not.toBeUndefined()
-        .then(() =>
-            page.evaluate(
-                () =>
-                    performance.getEntriesByName('caxri.editor.open-to-document').at(-1)!.duration,
-            ),
-        );
+        .not.toBeUndefined();
+    const documentReadyMs = await page.evaluate(
+        () => performance.getEntriesByName('caxri.editor.open-to-document').at(-1)!.duration,
+    );
     await page.waitForFunction(
         () => performance.getEntriesByName('caxri.editor.open-to-mount').length === 1,
     );
@@ -112,7 +123,7 @@ async function measureFirstOpen(
         editorReadyMs: performance.getEntriesByName('caxri.editor.open-to-mount')[0].duration,
     }));
     const firstHighlightMs = await page.evaluate(async () => {
-        const observer = (window as BenchmarkWindow).caxriFirstEditorHighlight;
+        const observer = (globalThis as BenchmarkWindow).caxriFirstEditorHighlight;
         if (!observer) throw new Error('Editor highlight observer was not installed');
         return observer;
     });
@@ -135,7 +146,7 @@ async function measureRepeatOpen(
     await installHighlightObserver(page, expectedText);
     await page.getByRole('treeitem', { name: fileName, exact: true }).click();
     return page.evaluate(async () => {
-        const observer = (window as BenchmarkWindow).caxriFirstEditorHighlight;
+        const observer = (globalThis as BenchmarkWindow).caxriFirstEditorHighlight;
         if (!observer) throw new Error('Editor highlight observer was not installed');
         return observer;
     });
@@ -180,7 +191,7 @@ async function measureScenario(options: {
         const firstOpen = await measureFirstOpen(running.page, fileName, expectedText);
         if (holdPreload) {
             await running.page.evaluate(() =>
-                (window as BenchmarkWindow).caxriReleaseIdleCallbacks?.(),
+                (globalThis as BenchmarkWindow).caxriReleaseIdleCallbacks?.(),
             );
         }
         const repeatHighlightMs = await measureRepeatOpen(
@@ -191,14 +202,18 @@ async function measureScenario(options: {
         );
         return { ...firstOpen, preloadMs, repeatHighlightMs };
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(userData, { recursive: true, force: true });
     }
 }
 
 function roundTiming(timing: EditorScenarioTiming): EditorScenarioTiming {
     return {
-        ...(timing.preloadMs === undefined ? {} : { preloadMs: Math.round(timing.preloadMs) }),
+        ...(timing.preloadMs !== undefined && { preloadMs: Math.round(timing.preloadMs) }),
         documentReadyMs: Math.round(timing.documentReadyMs * 100) / 100,
         beforeMountMs: Math.round(timing.beforeMountMs),
         editorReadyMs: Math.round(timing.editorReadyMs),

@@ -33,27 +33,27 @@ function mergeArray(previous: readonly unknown[], next: readonly unknown[]): unk
         const key = elementKey(value);
         if (key !== undefined && !byKey.has(key)) byKey.set(key, value);
     }
-    let identical = previous.length === next.length;
+    let isIdentical = previous.length === next.length;
     const merged = next.map((value, index) => {
         const key = elementKey(value);
         const candidate = key !== undefined ? (byKey.get(key) ?? previous[index]) : previous[index];
         const result = mergeStructurally(candidate, value);
-        if (result !== previous[index]) identical = false;
+        if (result !== previous[index]) isIdentical = false;
         return result;
     });
-    return identical ? (previous as unknown[]) : merged;
+    return isIdentical ? (previous as unknown[]) : merged;
 }
 
 function mergeObject(previous: PlainObject, next: PlainObject): PlainObject {
     const nextKeys = Object.keys(next);
-    let identical = nextKeys.length === Object.keys(previous).length;
+    let isIdentical = nextKeys.length === Object.keys(previous).length;
     const merged: PlainObject = {};
     for (const key of nextKeys) {
         const value = mergeStructurally(previous[key], next[key]);
         merged[key] = value;
-        if (!(value === previous[key] && Object.hasOwn(previous, key))) identical = false;
+        if (!(value === previous[key] && Object.hasOwn(previous, key))) isIdentical = false;
     }
-    return identical ? previous : merged;
+    return isIdentical ? previous : merged;
 }
 
 /**

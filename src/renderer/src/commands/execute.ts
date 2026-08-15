@@ -1,11 +1,13 @@
+import './definitions';
+
 import type { CommandId } from '@shared/commands';
 
-import { caxri } from '../lib/caxri';
 import { closeEditor, saveActiveEditor } from '../features/editor/document-actions';
 import {
     closeFileSearch,
     requestFileSearchFocus,
 } from '../features/inspector/panels/files/file-search-state';
+import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     beginSessionCreation,
     chooseProjectDirectory,
@@ -13,28 +15,28 @@ import {
     deleteSelectedSession,
     selectAdjacentSession,
 } from '../features/session/session-actions';
-import { toggleScreencastMode } from '../features/screencast/screencast';
 import { cycleActiveWork } from '../features/tabs/tab-navigation';
 import {
-    activeTerminalHasSelection,
     clearActiveTerminal,
     closeTerminal,
     copyActiveTerminalSelection,
     createTerminal,
     findInActiveTerminal,
+    hasActiveTerminalSelection,
     navigateActiveTerminalCommand,
     restartActiveTerminal,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
+import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { useDialogStore } from '../stores/dialogs';
 import { usePanelLayoutStore } from '../stores/panel-layout';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
-import './definitions';
-import { getRegisteredCommand, type CommandContext } from './registry';
+import type { CommandContext } from './registry';
+import { getRegisteredCommand } from './registry';
 
 export type { CommandContext } from './registry';
 
@@ -67,13 +69,18 @@ function activateInspectorMode(
  * hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually sit inside
  * the terminal keeps the chord falling through to the native copy everywhere else.
  */
-function terminalSurfaceHasFocus(): boolean {
+function isTerminalSurfaceFocused(): boolean {
     const focused = document.activeElement;
     return focused instanceof Element && focused.closest('.xterm') !== null;
 }
 
+// Command handlers below are fire-and-forget by design: each async action already funnels its
+// own failures into a toast via `tryCommand` (or an equivalent internal try/catch), and the
+// registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
+// these can be awaited by their caller anyway.
 const commandContext: CommandContext = {
     project: {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void chooseProjectDirectory(),
         removeSelected: deleteSelectedProject,
     },
@@ -81,12 +88,14 @@ const commandContext: CommandContext = {
         create: () => {
             const project = selectSelectedProject(getBootstrap());
             if (project) beginSessionCreation(project.id);
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else void chooseProjectDirectory();
         },
         deleteSelected: deleteSelectedSession,
         selectAdjacent: selectAdjacentSession,
     },
     terminal: {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void createTerminal('shell'),
         clearActive: () => {
             const terminalId = activeTerminalId();
@@ -103,8 +112,8 @@ const commandContext: CommandContext = {
         hasActive: () => Boolean(activeTerminalId()),
         hasSelection: () => {
             const terminalId = activeTerminalId();
-            if (!terminalId || !terminalSurfaceHasFocus()) return false;
-            return activeTerminalHasSelection(terminalId);
+            if (!terminalId || !isTerminalSurfaceFocused()) return false;
+            return hasActiveTerminalSelection(terminalId);
         },
         navigateCommand: (direction) => {
             const terminalId = activeTerminalId();
@@ -128,10 +137,12 @@ const commandContext: CommandContext = {
         closeActiveTab: () => {
             const active = getResolvedActiveWork();
             if (active?.kind === 'terminal') closeTerminal(active.terminalId);
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else if (active?.kind === 'editor') void closeEditor(active.path);
         },
         cycleTab: cycleActiveWork,
     },
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     editor: { saveActive: () => void saveActiveEditor() },
     inspector: {
         searchFiles: () => {
@@ -155,6 +166,7 @@ const commandContext: CommandContext = {
     },
     windows: {
         openProcessExplorer: () => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand('Unable to open Process Explorer', () =>
                 caxri.request('processExplorer.open'),
             );
@@ -166,6 +178,7 @@ const commandContext: CommandContext = {
     },
     diagnostics: {
         export: () => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand('Diagnostics export failed', async () => {
                 const result = await caxri.request('diagnostics.export');
                 if (result) pushToast('success', `Diagnostics exported to ${result.path}`);
@@ -190,7 +203,7 @@ export function isCommandAvailable(
  */
 export function executeCommand(
     command: CommandId,
-    args?: unknown,
+    arguments_?: unknown,
     context: CommandContext = commandContext,
 ): void {
     const definition = getRegisteredCommand(command);
@@ -199,7 +212,7 @@ export function executeCommand(
         return;
     }
     if (!isCommandAvailable(command, context)) return;
-    definition.run(context, args);
+    definition.run(context, arguments_);
 }
 
 /**
@@ -222,7 +235,7 @@ export function executeCommand(
  */
 export function runCommand(
     command: CommandId,
-    args?: unknown,
+    arguments_?: unknown,
     options?: { viaAccelerator?: boolean },
 ): void {
     if (useDialogStore.getState().isModalOpen()) return;
@@ -230,5 +243,5 @@ export function runCommand(
         const definition = getRegisteredCommand(command);
         if (isEditableEventTarget(document.activeElement) && !definition?.allowInEditable) return;
     }
-    executeCommand(command, args);
+    executeCommand(command, arguments_);
 }

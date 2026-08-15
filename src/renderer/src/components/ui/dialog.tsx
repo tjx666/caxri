@@ -1,9 +1,10 @@
+import type { ComponentProps, Ref } from 'react';
+import { useEffect, useId } from 'react';
+
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
-import { useEffect, useId } from 'react';
-import type { ComponentProps, Ref } from 'react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utilities';
 import { useDialogStore } from '@/stores/dialogs';
 
 /**
@@ -23,16 +24,16 @@ function useModalRegistration(open: boolean | undefined): void {
     }, [open, id]);
 }
 
-export function Dialog({ open, ...props }: DialogPrimitive.Root.Props) {
+export function Dialog({ open, ...properties }: DialogPrimitive.Root.Props) {
     useModalRegistration(open);
-    return <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />;
+    return <DialogPrimitive.Root data-slot="dialog" open={open} {...properties} />;
 }
 
-function DialogPortal(props: DialogPrimitive.Portal.Props) {
-    return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+function DialogPortal(properties: DialogPrimitive.Portal.Props) {
+    return <DialogPrimitive.Portal data-slot="dialog-portal" {...properties} />;
 }
 
-function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+function DialogOverlay({ className, ...properties }: DialogPrimitive.Backdrop.Props) {
     return (
         <DialogPrimitive.Backdrop
             data-slot="dialog-overlay"
@@ -54,7 +55,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
                 // `useAnimationsFinished` unmounts on close without waiting a frame.
                 className,
             )}
-            {...props}
+            {...properties}
         />
     );
 }
@@ -64,7 +65,7 @@ export function DialogContent({
     className,
     children,
     showCloseButton = true,
-    ...props
+    ...properties
 }: DialogPrimitive.Popup.Props & {
     backdropClassName?: string;
     ref?: Ref<HTMLDivElement>;
@@ -88,7 +89,7 @@ export function DialogContent({
                     'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
                     className,
                 )}
-                {...props}
+                {...properties}
             >
                 {children}
                 {showCloseButton && (
@@ -105,32 +106,32 @@ export function DialogContent({
     );
 }
 
-export function DialogHeader({ className, ...props }: ComponentProps<'div'>) {
+export function DialogHeader({ className, ...properties }: ComponentProps<'div'>) {
     return (
         <div
             data-slot="dialog-header"
             className={cn('border-b border-border pt-4 pr-12 pb-3 pl-4', className)}
-            {...props}
+            {...properties}
         />
     );
 }
 
-export function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
+export function DialogTitle({ className, ...properties }: DialogPrimitive.Title.Props) {
     return (
         <DialogPrimitive.Title
             data-slot="dialog-title"
             className={cn('m-0 text-[15px] font-semibold', className)}
-            {...props}
+            {...properties}
         />
     );
 }
 
-export function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
+export function DialogDescription({ className, ...properties }: DialogPrimitive.Description.Props) {
     return (
         <DialogPrimitive.Description
             data-slot="dialog-description"
             className={cn('mt-1 mb-0 text-[11px] leading-[1.45] text-muted', className)}
-            {...props}
+            {...properties}
         />
     );
 }

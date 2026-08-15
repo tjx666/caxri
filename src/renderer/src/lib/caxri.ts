@@ -1,4 +1,5 @@
-import { createCaxriClient, type CaxriMethod, type ParamsArg } from '@shared/ipc';
+import type { CaxriMethod, ParamsArg } from '@shared/ipc';
+import { createCaxriClient } from '@shared/ipc';
 
 /**
  * Single Renderer entry point for IPC. The preload bridge resolves with reply envelopes because
@@ -9,8 +10,8 @@ import { createCaxriClient, type CaxriMethod, type ParamsArg } from '@shared/ipc
  * preload having run, which keeps Renderer unit tests importable without an Electron window.
  */
 export const caxri = createCaxriClient({
-    negotiate: () => window.caxri.negotiate(),
-    request: <M extends CaxriMethod>(method: M, ...args: ParamsArg<M>) =>
-        window.caxri.request(method, ...args),
-    onEvent: (listener) => window.caxri.onEvent(listener),
+    negotiate: () => globalThis.caxri.negotiate(),
+    request: <M extends CaxriMethod>(method: M, ...arguments_: ParamsArg<M>) =>
+        globalThis.caxri.request(method, ...arguments_),
+    onEvent: (listener) => globalThis.caxri.onEvent(listener),
 });

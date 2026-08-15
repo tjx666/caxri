@@ -21,31 +21,33 @@ export interface ProjectOrderIntentTracker {
     get(): ProjectOrderIntent | undefined;
     reconcile(projectIds: readonly string[]): ProjectOrderIntent | undefined;
     set(intent: ProjectOrderIntent): void;
-    settle(succeeded: boolean): void;
+    settle(didSucceed: boolean): void;
 }
 
 export function hasProjectDragType(types: readonly string[]): boolean {
     return types.includes(PROJECT_DRAG_TYPE);
 }
 
-/** Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent. */
+/**
+Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent.
+ */
 export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
     let current: ProjectOrderIntent | undefined;
 
     return {
         get: () => current,
         reconcile(projectIds) {
-            if (!current) return undefined;
+            if (!current) return;
             const projectIdSet = new Set(projectIds);
-            const membershipMatches =
+            const isMembershipMatches =
                 current.projectIds.length === projectIds.length &&
                 current.projectIds.every((projectId) => projectIdSet.has(projectId));
-            if (!membershipMatches) {
+            if (!isMembershipMatches) {
                 current = undefined;
-                return undefined;
+                return;
             }
             if (current.projectIds.some((projectId, index) => projectId !== projectIds[index]))
-                return undefined;
+                return;
             const confirmed = current;
             current = undefined;
             return confirmed;
@@ -58,13 +60,15 @@ export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
          * discarded along with the rejected request instead of being persisted against stale
          * Runtime state.
          */
-        settle(succeeded) {
-            if (!succeeded) current = undefined;
+        settle(didSucceed) {
+            if (!didSucceed) current = undefined;
         },
     };
 }
 
-/** Persists one in-flight order and replaces queued intermediate orders with the latest intent. */
+/**
+Persists one in-flight order and replaces queued intermediate orders with the latest intent.
+ */
 export function createLatestProjectOrderQueue(
     persist: (projectIds: string[]) => Promise<void>,
 ): LatestProjectOrderQueue {
@@ -75,30 +79,42 @@ export function createLatestProjectOrderQueue(
         while (latest) {
             const projectIds = latest;
             latest = undefined;
+            // Intentionally sequential: each persisted order must land before the next queued
+            // (possibly superseding) order is sent.
+            // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
             await persist(projectIds);
+        }
+    };
+    const runWorker = async (): Promise<void> => {
+        try {
+            await drain();
+        } finally {
+            worker = undefined;
         }
     };
 
     return {
         enqueue(projectIds) {
             latest = projectIds;
-            worker ??= drain().finally(() => {
-                worker = undefined;
-            });
+            worker ??= runWorker();
             return worker;
         },
     };
 }
 
-/** Lets high-frequency dragover events retain React state when the visible insertion point is unchanged. */
-export function projectDropTargetsEqual(
+/**
+Lets high-frequency dragover events retain React state when the visible insertion point is unchanged.
+ */
+export function areProjectDropTargetsEqual(
     first: ProjectDropTarget | undefined,
     second: ProjectDropTarget | undefined,
 ): boolean {
     return first?.edge === second?.edge && first?.projectId === second?.projectId;
 }
 
-/** Returns the complete Project permutation produced by one before/after insertion. */
+/**
+Returns the complete Project permutation produced by one before/after insertion.
+ */
 export function projectOrderAfterDrop(
     projectIds: readonly string[],
     draggedProjectId: string,
@@ -108,7 +124,7 @@ export function projectOrderAfterDrop(
     if (draggedProjectId === targetProjectId) return [...projectIds];
     const reordered = projectIds.filter((projectId) => projectId !== draggedProjectId);
     const targetIndex = reordered.indexOf(targetProjectId);
-    if (targetIndex < 0 || !projectIds.includes(draggedProjectId)) return [...projectIds];
+    if (targetIndex === -1 || !projectIds.includes(draggedProjectId)) return [...projectIds];
     reordered.splice(targetIndex + (edge === 'after' ? 1 : 0), 0, draggedProjectId);
     return reordered;
 }
@@ -124,12 +140,12 @@ export interface ProjectHeadingClickEffect {
  * disclosure change instead of attempting a no-op selection.
  */
 export function resolveProjectHeadingClick(
-    active: boolean,
-    expanded: boolean,
+    isActive: boolean,
+    isExpanded: boolean,
     hasSelectableSession: boolean,
 ): ProjectHeadingClickEffect {
     if (!hasSelectableSession) return { select: false, toggle: true };
-    if (!active) return { select: true, toggle: !expanded };
+    if (!isActive) return { select: true, toggle: !isExpanded };
     return { select: false, toggle: true };
 }
 
@@ -140,8 +156,10 @@ export function adjacentProjectOrder(
 ): string[] | undefined {
     const index = projectIds.indexOf(projectId);
     const targetIndex = index + delta;
-    if (index < 0 || targetIndex < 0 || targetIndex >= projectIds.length) return undefined;
+    if (index === -1 || targetIndex < 0 || targetIndex >= projectIds.length) return undefined;
     const reordered = [...projectIds];
-    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    const movedProjectId = reordered[index];
+    reordered[index] = reordered[targetIndex];
+    reordered[targetIndex] = movedProjectId;
     return reordered;
 }

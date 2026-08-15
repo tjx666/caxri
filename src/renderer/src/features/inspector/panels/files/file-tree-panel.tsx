@@ -1,6 +1,9 @@
-import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import type { DragEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
+
+import { executeCommand } from '../../../../commands/execute';
 import { Button } from '../../../../components/ui/button';
 import {
     ContextMenu,
@@ -10,27 +13,22 @@ import {
     ContextMenuTrigger,
 } from '../../../../components/ui/context-menu';
 import { CommandTooltip, Tooltip } from '../../../../components/ui/tooltip';
-import { executeCommand } from '../../../../commands/execute';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
 import { FileConflictDialog } from './file-conflict-dialog';
+import type { PendingFileOperation } from './file-operation-state';
 import {
     CANCEL_REVEAL_THRESHOLD_MS,
     isPathBlockedByFileOperations,
     useFileOperationStore,
-    type PendingFileOperation,
 } from './file-operation-state';
-import { dragPath, hasDraggedPath } from './file-tree-drag';
-import {
-    BUSY_DISABLED_REASON,
-    DirectoryEntries,
-    type EditRequest,
-    type FocusTarget,
-} from './file-tree-row';
-import { ProjectSearch } from './project-search';
 import { closeFileSearch, useFileSearchStore } from './file-search-state';
+import { dragPath, hasDraggedPath } from './file-tree-drag';
+import type { EditRequest, FocusTarget } from './file-tree-row';
+import { BUSY_DISABLED_REASON, DirectoryEntries } from './file-tree-row';
+import { ProjectSearch } from './project-search';
 
 const captionActionClassName =
     'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
@@ -43,20 +41,30 @@ const captionActionClassName =
  * already elapsed) instead of a synchronous `setState` call in the effect body. This mirrors
  * `useDebouncedValue` in `status-bar.tsx`, which defers its own correction the same way.
  */
-function useCancelRevealed(operation: PendingFileOperation | undefined): boolean {
-    const [revealed, setRevealed] = useState(false);
-    const cancelable = operation?.cancelable ?? false;
+function useIsCancelRevealed(operation: PendingFileOperation | undefined): boolean {
+    const [isRevealed, setIsRevealed] = useState(false);
+    const isCancelable = operation?.cancelable ?? false;
     const startedAt = operation?.startedAt;
     useEffect(() => {
-        if (!cancelable || startedAt === undefined) {
-            const timer = setTimeout(() => setRevealed(false), 0);
+        if (!isCancelable || startedAt === undefined) {
+            const timer = setTimeout(() => setIsRevealed(false), 0);
             return () => clearTimeout(timer);
         }
         const remaining = startedAt + CANCEL_REVEAL_THRESHOLD_MS - Date.now();
-        const timer = setTimeout(() => setRevealed(true), Math.max(remaining, 0));
+        const timer = setTimeout(() => setIsRevealed(true), Math.max(remaining, 0));
         return () => clearTimeout(timer);
-    }, [cancelable, startedAt]);
-    return revealed;
+    }, [isCancelable, startedAt]);
+    return isRevealed;
+}
+
+/**
+ * Every caller below fires an already-tracked file action whose own `tryCommand`-backed path
+ * reports failures via a toast, so these event handlers intentionally discard the returned
+ * promise instead of awaiting it.
+ */
+function discard(promise: Promise<unknown>): void {
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void promise;
 }
 
 export function FileTreePanel() {
@@ -71,8 +79,8 @@ export function FileTreePanel() {
         (operation) => operation.projectId === selectedProjectId,
     );
     const pendingOperation = projectOperations[0];
-    const cancelRevealed = useCancelRevealed(pendingOperation);
-    const fileCaptionRef = useRef<HTMLDivElement>(null);
+    const isCancelRevealed = useIsCancelRevealed(pendingOperation);
+    const fileCaptionReference = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
     const [expandedByScope, setExpandedByScope] = useState<Record<string, string[]>>({});
     const [editingState, setEditingState] = useState<{
@@ -102,11 +110,11 @@ export function FileTreePanel() {
         }
         clearFocusPath();
         const label = target.itemKind === 'file' ? 'New File' : 'New Folder';
-        fileCaptionRef.current
-            ?.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+        fileCaptionReference.current
+            ?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`)
             ?.focus();
     };
-    const searchVisible = useFileSearchStore(
+    const isSearchVisible = useFileSearchStore(
         (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
     );
     const searchFocusRevision = useFileSearchStore((state) => state.focusRevision);
@@ -120,24 +128,27 @@ export function FileTreePanel() {
     const expandedPaths = new Set(scopeId ? (expandedByScope[scopeId] ?? []) : []);
     const setPathExpanded = (
         path: string,
-        next: boolean | ((current: boolean) => boolean),
+        isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
     ): void => {
         if (!scopeId) return;
         setExpandedByScope((current) => {
-            const paths = new Set(current[scopeId] ?? []);
-            const expanded = typeof next === 'function' ? next(paths.has(path)) : next;
-            if (expanded) paths.add(path);
+            const paths = new Set(current[scopeId]);
+            const isExpanded =
+                typeof isNextExpanded === 'function'
+                    ? isNextExpanded(paths.has(path))
+                    : isNextExpanded;
+            if (isExpanded) paths.add(path);
             else paths.delete(path);
             return { ...current, [scopeId]: [...paths] };
         });
     };
-    const rootClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
-    const rootPasteBlocked = isPathBlockedByFileOperations(
+    const isRootClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
+    const isRootPasteBlocked = isPathBlockedByFileOperations(
         projectOperations,
         projectId,
         session.rootPath,
     );
-    const rootPasteDisabled = rootClipboardEmpty || rootPasteBlocked;
+    const isRootPasteDisabled = isRootClipboardEmpty || isRootPasteBlocked;
     const pasteIntoProjectRoot = async (): Promise<void> => {
         const currentClipboard = useFileClipboardStore.getState().entry;
         if (!currentClipboard) return;
@@ -146,7 +157,7 @@ export function FileTreePanel() {
     };
     const dropIntoProjectRoot = async (event: DragEvent): Promise<void> => {
         event.preventDefault();
-        if (rootPasteBlocked) return;
+        if (isRootPasteBlocked) return;
         const source = dragPath(event);
         if (!source) return;
         const moved = await moveFile(session.id, source, session.rootPath);
@@ -159,9 +170,9 @@ export function FileTreePanel() {
             aria-label="Files"
             className="min-h-0 flex-1 overflow-auto"
             onDragOver={(event) => {
-                if (!rootPasteBlocked && hasDraggedPath(event)) event.preventDefault();
+                if (!isRootPasteBlocked && hasDraggedPath(event)) event.preventDefault();
             }}
-            onDrop={(event) => void dropIntoProjectRoot(event)}
+            onDrop={(event) => discard(dropIntoProjectRoot(event))}
         >
             <DirectoryEntries
                 clearFocusPath={clearFocusPath}
@@ -190,13 +201,11 @@ export function FileTreePanel() {
             className="inspector-content flex min-h-0 flex-1 flex-col overflow-hidden"
         >
             <div
-                ref={fileCaptionRef}
+                ref={fileCaptionReference}
                 className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 pt-[3px] pr-1 pb-[3px] pl-2 border-b border-border text-muted text-[11px]"
             >
                 <span className="truncate" title={session.rootPath}>
-                    {project?.displayTitle ??
-                        session.rootPath.split('/').filter(Boolean).at(-1) ??
-                        ''}
+                    {project?.displayTitle ?? session.rootPath.split('/').findLast(Boolean) ?? ''}
                 </span>
                 <span className="flex items-center gap-0.5">
                     <Tooltip content="New File">
@@ -238,16 +247,16 @@ export function FileTreePanel() {
                     <CommandTooltip commandId="inspector.searchFiles">
                         <Button
                             className={cn(
-                                searchVisible
+                                isSearchVisible
                                     ? 'shrink-0 pointer-events-auto bg-elevated opacity-100 text-foreground'
                                     : captionActionClassName,
                             )}
                             size="icon"
                             variant="ghost"
                             aria-label="Search Files"
-                            aria-pressed={searchVisible}
+                            aria-pressed={isSearchVisible}
                             onClick={() => {
-                                if (searchVisible) closeFileSearch(session.id);
+                                if (isSearchVisible) closeFileSearch(session.id);
                                 else executeCommand('inspector.searchFiles');
                             }}
                         >
@@ -281,18 +290,18 @@ export function FileTreePanel() {
                     className="flex items-center justify-between gap-2 border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
                 >
                     <span className="truncate">{pendingOperation.label}</span>
-                    {cancelRevealed && (
+                    {isCancelRevealed && (
                         <button
                             className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
                             type="button"
-                            onClick={() => void cancelFileOperation(pendingOperation.id)}
+                            onClick={() => discard(cancelFileOperation(pendingOperation.id))}
                         >
                             Cancel
                         </button>
                     )}
                 </div>
             )}
-            {searchVisible ? (
+            {isSearchVisible ? (
                 <ProjectSearch
                     key={scopeId}
                     focusRevision={searchFocusRevision}
@@ -328,16 +337,16 @@ export function FileTreePanel() {
                         </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem
-                            disabled={rootPasteDisabled}
+                            disabled={isRootPasteDisabled}
                             disabledReason={
-                                rootClipboardEmpty
+                                isRootClipboardEmpty
                                     ? 'Nothing to paste'
-                                    : rootPasteBlocked
+                                    : isRootPasteBlocked
                                       ? BUSY_DISABLED_REASON
                                       : undefined
                             }
-                            hint={rootPasteDisabled ? undefined : 'cmd+v'}
-                            onClick={() => void pasteIntoProjectRoot()}
+                            hint={isRootPasteDisabled ? undefined : 'cmd+v'}
+                            onClick={() => discard(pasteIntoProjectRoot())}
                         >
                             Paste
                         </ContextMenuItem>

@@ -1,13 +1,8 @@
+import type { BootstrapState, SessionState } from '@shared/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BootstrapState, SessionState } from '@shared/types';
-
 const mocks = vi.hoisted(() => ({
-    request: vi.fn((method: unknown, params?: unknown): Promise<unknown> => {
-        void method;
-        void params;
-        return Promise.resolve(null);
-    }),
+    request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(() => Promise.resolve(null)),
 }));
 
 vi.mock('../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
@@ -111,10 +106,7 @@ function installEmptySession(): void {
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
-    let resolve!: (value: T) => void;
-    const promise = new Promise<T>((complete) => {
-        resolve = complete;
-    });
+    const { promise, resolve } = Promise.withResolvers<T>();
     return { promise, resolve };
 }
 
@@ -254,7 +246,11 @@ describe('session-scoped file mutation completion', () => {
             .setActiveWork('session-1', { kind: 'editor', path: '/worktree/keep.ts' }, 'project-2');
 
         updateRequest.reject(new Error('stale Workbench Root'));
-        await updateRequest.promise.catch(() => undefined);
+        try {
+            await updateRequest.promise;
+        } catch {
+            // expected: the assertions below verify the rejection was handled gracefully.
+        }
         await Promise.resolve();
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([worktreeState]);

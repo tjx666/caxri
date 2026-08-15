@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import process from 'node:process';
 import { createInterface } from 'node:readline/promises';
 
 import { runCli } from './application.js';
@@ -25,4 +26,9 @@ async function main(): Promise<void> {
     process.exitCode = exitCode;
 }
 
-void main();
+try {
+    await main();
+} catch (error: unknown) {
+    console.error(error);
+    process.exitCode = 1;
+}

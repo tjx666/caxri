@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
+import { describe, expect, it } from 'vitest';
 
 import { agentIconRegistry, resolveAgentIcon } from './agent-icon-registry';
 

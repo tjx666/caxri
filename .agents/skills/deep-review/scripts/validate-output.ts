@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import process from 'node:process';
 
 import { z } from 'zod';
 
@@ -17,7 +18,7 @@ const dimensionPrefixes = {
 const DimensionSchema = z.enum(
     Object.keys(dimensionPrefixes) as [
         keyof typeof dimensionPrefixes,
-        ...(keyof typeof dimensionPrefixes)[],
+        ...Array<keyof typeof dimensionPrefixes>,
     ],
 );
 
@@ -70,21 +71,19 @@ const ReviewIssueSchema = z
         }
     });
 
+const ReleaseCheckSchema = z
+    .object({
+        blocks_release: z.boolean(),
+        item: z.string().min(1),
+        why: z.string().min(1),
+    })
+    .strict();
+
 const ReviewOutputSchema = z
     .object({
         issues: z.array(ReviewIssueSchema),
         missing_sources: z.array(z.string().min(1)).optional(),
-        release_checks: z
-            .array(
-                z
-                    .object({
-                        blocks_release: z.boolean(),
-                        item: z.string().min(1),
-                        why: z.string().min(1),
-                    })
-                    .strict(),
-            )
-            .optional(),
+        release_checks: z.array(ReleaseCheckSchema).optional(),
     })
     .strict()
     .superRefine(({ issues }, context) => {
@@ -109,27 +108,31 @@ const ConfirmedVerificationSchema = z
     })
     .strict();
 
+const FalsePositiveVerificationSchema = z
+    .object({
+        id: z.string().min(1),
+        reason: z.string().min(1),
+        verdict: z.literal('false_positive'),
+    })
+    .strict();
+
+const NeedMoreContextVerificationSchema = z
+    .object({
+        id: z.string().min(1),
+        missing: z.string().min(1),
+        verdict: z.literal('need_more_context'),
+    })
+    .strict();
+
+const VerificationSchema = z.discriminatedUnion('verdict', [
+    ConfirmedVerificationSchema,
+    FalsePositiveVerificationSchema,
+    NeedMoreContextVerificationSchema,
+]);
+
 const VerificationOutputSchema = z
     .object({
-        verifications: z.array(
-            z.discriminatedUnion('verdict', [
-                ConfirmedVerificationSchema,
-                z
-                    .object({
-                        id: z.string().min(1),
-                        reason: z.string().min(1),
-                        verdict: z.literal('false_positive'),
-                    })
-                    .strict(),
-                z
-                    .object({
-                        id: z.string().min(1),
-                        missing: z.string().min(1),
-                        verdict: z.literal('need_more_context'),
-                    })
-                    .strict(),
-            ]),
-        ),
+        verifications: z.array(VerificationSchema),
     })
     .strict()
     .superRefine(({ verifications }, context) => {
@@ -139,16 +142,16 @@ const VerificationOutputSchema = z
         }
     });
 
+const SameRootEntrySchema = z
+    .object({
+        id: z.string().min(1),
+        same_root_as: z.string().min(1),
+    })
+    .strict();
+
 const ConsolidationOutputSchema = z
     .object({
-        same_root: z.array(
-            z
-                .object({
-                    id: z.string().min(1),
-                    same_root_as: z.string().min(1),
-                })
-                .strict(),
-        ),
+        same_root: z.array(SameRootEntrySchema),
     })
     .strict()
     .superRefine(({ same_root }, context) => {
@@ -195,12 +198,12 @@ const readStdin = async () => {
 
 const run = async () => {
     const kind = process.argv[2] as OutputKind | undefined;
-    const inputPath = process.argv[3];
 
-    if (!kind || !(kind in schemas)) {
+    if (!kind || !Object.hasOwn(schemas, kind)) {
         throw new Error('Usage: validate-output.ts <review|verify|consolidate> [input-file]');
     }
 
+    const inputPath = process.argv[3];
     const raw = inputPath ? await readFile(inputPath, 'utf8') : await readStdin();
     const value = JSON.parse(extractJsonPayload(raw)) as unknown;
     validateOutput(kind, value);
@@ -208,12 +211,14 @@ const run = async () => {
 };
 
 if (import.meta.main) {
-    await run().catch((error) => {
+    try {
+        await run();
+    } catch (error) {
         if (error instanceof z.ZodError) {
             console.error(JSON.stringify(error.issues, null, 2));
         } else {
             console.error(error instanceof Error ? error.message : String(error));
         }
         process.exitCode = 1;
-    });
+    }
 }

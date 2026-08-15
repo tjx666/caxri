@@ -8,9 +8,17 @@ allowBuilds:
   electron-winstaller: false
   esbuild: true
   node-pty: true
+  unrs-resolver: true
 
 catalog:
+  '@yutengjing/eslint-config-typescript': ^4.0.0
   zod: 4.4.3
+
+minimumReleaseAgeExclude:
+  - '@yutengjing/eslint-config-basic@4.0.0'
+  - '@yutengjing/eslint-config-typescript@4.0.0'
+  - '@yutengjing/eslint-plugin@4.0.0'
+  - eslint-plugin-jsdoc@64.2.0
 
 overrides:
   dompurify: 3.4.13

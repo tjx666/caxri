@@ -4,13 +4,13 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ConfigurationService } from '../../configuration';
+import { ConfigService } from '../../config';
 
 describe('CLI settings patch application handler', () => {
     it('validates dry runs through the real schema without writing or emitting', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-dry-run-'));
         const emit = vi.fn();
-        const service = new ConfigurationService(directory, emit);
+        const service = new ConfigService(directory, emit);
         await service.initialize();
         const before = await readFile(service.settingsPath, 'utf8');
         emit.mockClear();
@@ -27,7 +27,7 @@ describe('CLI settings patch application handler', () => {
     it('atomically applies valid changes and preserves prior state after invalid input', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-patch-'));
         const emit = vi.fn();
-        const service = new ConfigurationService(directory, emit);
+        const service = new ConfigService(directory, emit);
         await service.initialize();
         emit.mockClear();
 

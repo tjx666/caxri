@@ -23,47 +23,51 @@ export class TerminalRestoreSupervisor {
         this.restores = new AsyncSemaphore(maximum);
     }
 
-    restore(
+    async restore(
         sessionId: string,
         operations: readonly TerminalRestoreOperation[],
     ): Promise<boolean[]> {
-        if (this.closed) return Promise.resolve([]);
+        if (this.closed) return [];
         if (
             this.activeSessionId === sessionId &&
             this.activeAbortController &&
             !this.activeAbortController.signal.aborted
         )
-            return Promise.resolve([]);
+            return [];
         this.activeAbortController?.abort();
         const abortController = new AbortController();
         this.activeAbortController = abortController;
         this.activeSessionId = sessionId;
         const generation = (this.generations.get(sessionId) ?? 0) + 1;
         this.generations.set(sessionId, generation);
+
+        if (operations.length === 0) {
+            this.activeAbortController = undefined;
+            this.activeSessionId = undefined;
+            return [];
+        }
+
         const isCurrent = (): boolean =>
             !this.closed &&
             !abortController.signal.aborted &&
             this.activeSessionId === sessionId &&
             this.generations.get(sessionId) === generation;
 
-        if (operations.length === 0) {
-            this.activeAbortController = undefined;
-            this.activeSessionId = undefined;
-            return Promise.resolve([]);
+        try {
+            return await Promise.all(
+                operations.map((operation) =>
+                    this.restores.run(async () => {
+                        if (!isCurrent()) return false;
+                        return operation(isCurrent, abortController.signal);
+                    }),
+                ),
+            );
+        } finally {
+            if (this.activeAbortController === abortController) {
+                this.activeAbortController = undefined;
+                this.activeSessionId = undefined;
+            }
         }
-
-        return Promise.all(
-            operations.map((operation) =>
-                this.restores.run(async () => {
-                    if (!isCurrent()) return false;
-                    return operation(isCurrent, abortController.signal);
-                }),
-            ),
-        ).finally(() => {
-            if (this.activeAbortController !== abortController) return;
-            this.activeAbortController = undefined;
-            this.activeSessionId = undefined;
-        });
     }
 
     cancel(sessionId: string): void {

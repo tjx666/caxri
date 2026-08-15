@@ -1,11 +1,12 @@
-import { Plus } from 'lucide-react';
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { Plus } from 'lucide-react';
+
 import caxriLogoUrl from '../../assets/caxri-logo.png';
+import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { CommandTooltip } from '../../components/ui/tooltip';
-import { executeCommand } from '../../commands/execute';
 import {
     useIsFullScreen,
     useProjects,
@@ -15,8 +16,9 @@ import {
     useTerminals,
 } from '../../stores/selectors';
 import { archiveSession, beginSessionCreation, selectProject } from '../session/session-actions';
-import { hasProjectDragType } from './project-order';
 import { ProjectGroup } from './project-group';
+import { hasProjectDragType } from './project-order';
+import type { SidebarVerticalKey } from './sidebar-tree';
 import {
     flattenSidebarRows,
     nextSidebarRowId,
@@ -24,11 +26,24 @@ import {
     sidebarArchiveIntent,
     sidebarHorizontalIntent,
 } from './sidebar-tree';
+
+const SIDEBAR_VERTICAL_KEYS: readonly SidebarVerticalKey[] = [
+    'ArrowDown',
+    'ArrowUp',
+    'Home',
+    'End',
+];
+
+function isSidebarVerticalKey(key: string): key is SidebarVerticalKey {
+    return (SIDEBAR_VERTICAL_KEYS as readonly string[]).includes(key);
+}
 import { useProjectOrder } from './use-project-order';
 import { useSessionRename } from './use-session-rename';
 
 const NO_RECORDS: never[] = [];
-/** Vite serves this repo-only asset in development without bundling it into production. */
+/**
+Vite serves this repo-only asset in development without bundling it into production.
+ */
 const sidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
 const onAddProject = (): void => executeCommand('project.create');
 
@@ -42,9 +57,11 @@ export function ProjectSidebar() {
     const projectOrder = useProjectOrder(projects);
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    /** The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution. */
+    /**
+    The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution.
+     */
     const [focusedRowId, setFocusedRowId] = useState<string>();
-    const treeRef = useRef<HTMLDivElement>(null);
+    const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
 
     const isProjectExpanded = useCallback(
@@ -52,7 +69,9 @@ export function ProjectSidebar() {
         [collapsedProjects],
     );
 
-    /** Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes. */
+    /**
+    Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
+     */
     const treeRows = useMemo(() => {
         const projectNodes = projects.map((project) => {
             // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
@@ -95,7 +114,7 @@ export function ProjectSidebar() {
     };
 
     const focusRow = (rowId: string): void => {
-        treeRef.current
+        treeReference.current
             ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
             ?.focus();
     };
@@ -119,12 +138,7 @@ export function ProjectSidebar() {
         const rowElement = target.closest<HTMLElement>('[data-row-id]');
         const rowId = rowElement?.dataset.rowId;
         if (!rowId) return;
-        if (
-            event.key === 'ArrowDown' ||
-            event.key === 'ArrowUp' ||
-            event.key === 'Home' ||
-            event.key === 'End'
-        ) {
+        if (isSidebarVerticalKey(event.key)) {
             const nextRowId = nextSidebarRowId(treeRows, rowId, event.key);
             if (!nextRowId) return;
             event.preventDefault();
@@ -198,7 +212,7 @@ export function ProjectSidebar() {
                 </CommandTooltip>
             </div>
             <div
-                ref={treeRef}
+                ref={treeReference}
                 aria-label="Sidebar"
                 className="project-list min-h-0 flex-1 overflow-auto p-2"
                 role="tree"

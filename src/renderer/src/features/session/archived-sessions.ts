@@ -2,7 +2,9 @@ import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from 
 
 export interface ArchivedSessionFilters {
     agent: TerminalKind | 'all';
-    /** Project id or the UI sentinel `all`. */
+    /**
+    Project id or the UI sentinel `all`.
+     */
     projectId: string;
     query: string;
 }
@@ -28,10 +30,14 @@ interface ArchivedSessionView {
     totalCount: number;
 }
 
-/** Stable display order for Agent filter options; only kinds actually present in the archive show. */
+/**
+Stable display order for Agent filter options; only kinds actually present in the archive show.
+ */
 const AGENT_ORDER: TerminalKind[] = ['shell', 'claude', 'codex'];
 
-/** Builds the archived management read model from the existing bootstrap snapshot. */
+/**
+Builds the archived management read model from the existing bootstrap snapshot.
+ */
 export function deriveArchivedSessionView(
     projects: readonly ProjectRecord[],
     sessions: readonly SessionRecord[],
@@ -40,9 +46,10 @@ export function deriveArchivedSessionView(
 ): ArchivedSessionView {
     const terminalById = new Map(terminals.map((terminal) => [terminal.id, terminal]));
     const firstTerminalBySession = new Map<string, TerminalRecord>();
-    for (const terminal of terminals.toSorted(
+    const orderedTerminals = terminals.toSorted(
         (first, second) => first.orderIndex - second.orderIndex,
-    ))
+    );
+    for (const terminal of orderedTerminals)
         if (!firstTerminalBySession.has(terminal.sessionId))
             firstTerminalBySession.set(terminal.sessionId, terminal);
 
@@ -112,9 +119,8 @@ export function deriveArchivedSessionView(
         matchingCount: groups.reduce((count, group) => count + group.sessions.length, 0),
         projectId,
         projectOptions,
-        totalCount: [...sessionsByProject.values()].reduce(
-            (count, projectSessions) => count + projectSessions.length,
-            0,
-        ),
+        totalCount: sessionsByProject
+            .values()
+            .reduce((count, projectSessions) => count + projectSessions.length, 0),
     };
 }

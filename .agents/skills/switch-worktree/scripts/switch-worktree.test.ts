@@ -13,32 +13,33 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { DesktopLeaseHandle } from './desktop-lease';
 import {
     acquireDesktopLease,
     beginDesktopLeaseHandoff,
     releaseDesktopLease,
     transferDesktopLease,
-    type DesktopLeaseHandle,
 } from './desktop-lease';
 import { getProcessIdentity, runCapture } from './process';
 import {
-    pathExists,
-    repositoryContext,
-    withRepositoryLock,
+    isPathPresent,
+    repoContext,
+    withRepoLock,
     worktreeDirectory,
     writeJsonAtomic,
-} from './repository';
+} from './repo';
 import { runCli } from './switch-worktree';
 import {
     createWorktree,
-    devWorktree,
+    developmentWorktree,
     doctorWorktree,
     installWorktreeDependencies,
     listWorktreeStatus,
-    prepareDevWorktree,
+    prepareDevelopmentWorktree,
     removeWorktree,
     switchWorktree,
 } from './worktree';
@@ -52,8 +53,8 @@ interface Fixture {
 const temporaryDirectories: string[] = [];
 const activeLeases: DesktopLeaseHandle[] = [];
 
-async function git(cwd: string, ...args: string[]): Promise<string> {
-    return await runCapture('git', args, cwd);
+async function git(cwd: string, ...arguments_: string[]): Promise<string> {
+    return await runCapture('git', arguments_, cwd);
 }
 
 async function createFixture(): Promise<Fixture> {
@@ -81,11 +82,14 @@ async function fakeInstall(path: string): Promise<void> {
 }
 
 afterEach(async () => {
-    await Promise.all(activeLeases.splice(0).map((lease) => releaseDesktopLease(lease)));
+    const leasesToRelease = activeLeases.slice();
+    activeLeases.length = 0;
+    await Promise.all(leasesToRelease.map((lease) => releaseDesktopLease(lease)));
+
+    const directoriesToRemove = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories
-            .splice(0)
-            .map((directory) => rm(directory, { recursive: true, force: true })),
+        directoriesToRemove.map((directory) => rm(directory, { recursive: true, force: true })),
     );
 });
 
@@ -115,7 +119,7 @@ describe('switch-worktree creation and diagnostics', () => {
             },
         });
 
-        const context = await repositoryContext(fixture.root);
+        const context = await repoContext(fixture.root);
         expect(created.path).toBe(worktreeDirectory(context, 'feat/example'));
         expect(basename(created.path)).toMatch(/^feat-example-[a-f0-9]{8}$/);
         expect(created.path).not.toContain('%');
@@ -168,12 +172,16 @@ describe('switch-worktree creation and diagnostics', () => {
 
     it('materializes existing branches under portable worktree directory names', async () => {
         const fixture = await createFixture();
+        // Each iteration mutates the shared fixture repository, so the branches must be
+        // created and switched to sequentially rather than concurrently.
+        /* eslint-disable no-await-in-loop -- sequential mutation of one shared git repository */
         for (const branch of ['feat/foo%2Fbar', 'feat/windows<bad>|"name"']) {
             await git(fixture.root, 'branch', branch, 'origin/main');
             const switched = await switchWorktree(fixture.root, branch, fakeInstall);
-            expect(basename(switched.path)).toMatch(/^[A-Za-z0-9._-]+$/);
+            expect(basename(switched.path)).toMatch(/^[\w.-]+$/);
             expect(basename(switched.path).toLowerCase()).not.toContain('%2f');
         }
+        /* eslint-enable no-await-in-loop */
     });
 
     it('repairs a managed checkout when its first dependency installation fails', async () => {
@@ -233,7 +241,7 @@ describe('switch-worktree creation and diagnostics', () => {
             dirty: true,
             managed: true,
         });
-        expect(Object.keys(status!).sort()).toEqual([
+        expect(Object.keys(status!).toSorted((left, right) => left.localeCompare(right))).toEqual([
             'ahead',
             'behind',
             'branch',
@@ -263,7 +271,7 @@ describe('switch-worktree creation and diagnostics', () => {
             'utf8',
         );
         await chmod(niPath, 0o755);
-        const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+        const output = vi.spyOn(console, 'log').mockImplementation(() => {});
         try {
             process.chdir(fixture.root);
             process.env.PATH = `${binaryDirectory}:${previousPath}`;
@@ -322,7 +330,7 @@ describe('switch-worktree creation and diagnostics', () => {
         );
         expect((await lstat(join(temporary, 'pnpm-lock.yaml'))).isSymbolicLink()).toBe(false);
         expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
-        expect(await pathExists(join(temporary, 'node_modules'))).toBe(true);
+        expect(await isPathPresent(join(temporary, 'node_modules'))).toBe(true);
     });
 
     it('refuses pre-existing manifest symlinks before launching ni', async () => {
@@ -352,63 +360,57 @@ describe('switch-worktree creation and diagnostics', () => {
 
         expect((await lstat(join(temporary, 'pnpm-lock.yaml'))).isSymbolicLink()).toBe(true);
         expect(await readFile(externalTarget, 'utf8')).toBe('preserve external target\n');
-        expect(await pathExists(niMarker)).toBe(false);
+        expect(await isPathPresent(niMarker)).toBe(false);
     });
 });
 
 describe('switch-worktree shared ownership', () => {
     it('waits for repository lock owner metadata to become visible', async () => {
         const fixture = await createFixture();
-        const context = await repositoryContext(fixture.root);
+        const context = await repoContext(fixture.root);
         const lockPath = join(context.stateDir, 'operation.lock');
         await mkdir(lockPath, { recursive: true });
-        let entered = false;
-        const operation = withRepositoryLock(context, () => {
-            entered = true;
+        let isEntered = false;
+        const operation = withRepoLock(context, () => {
+            isEntered = true;
             return Promise.resolve();
         });
 
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
-        expect(entered).toBe(false);
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        expect(isEntered).toBe(false);
         await rm(lockPath, { recursive: true });
         await expect(operation).resolves.toBeUndefined();
-        expect(entered).toBe(true);
+        expect(isEntered).toBe(true);
     });
 
     it('serializes repository mutations with a process identity lock', async () => {
         const fixture = await createFixture();
-        const context = await repositoryContext(fixture.root);
-        let release!: () => void;
-        const held = new Promise<void>((resolveHeld) => {
-            release = resolveHeld;
+        const context = await repoContext(fixture.root);
+        const held = Promise.withResolvers<void>();
+        const enteredSignal = Promise.withResolvers<void>();
+        const first = withRepoLock(context, async () => {
+            enteredSignal.resolve();
+            await held.promise;
         });
-        let entered!: () => void;
-        const didEnter = new Promise<void>((resolveEntered) => {
-            entered = resolveEntered;
-        });
-        const first = withRepositoryLock(context, async () => {
-            entered();
-            await held;
-        });
-        await didEnter;
+        await enteredSignal.promise;
 
-        let secondEntered = false;
-        const second = withRepositoryLock(context, () => {
-            secondEntered = true;
+        let isSecondEntered = false;
+        const second = withRepoLock(context, () => {
+            isSecondEntered = true;
             return Promise.resolve();
         });
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
-        expect(secondEntered).toBe(false);
-        release();
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        expect(isSecondEntered).toBe(false);
+        held.resolve();
         await first;
         await second;
-        expect(secondEntered).toBe(true);
+        expect(isSecondEntered).toBe(true);
 
         const collision = Object.assign(new Error('task collision'), { code: 'EEXIST' });
-        await expect(withRepositoryLock(context, () => Promise.reject(collision))).rejects.toThrow(
+        await expect(withRepoLock(context, () => Promise.reject(collision))).rejects.toThrow(
             'task collision',
         );
-        await expect(withRepositoryLock(context, () => Promise.resolve('recovered'))).resolves.toBe(
+        await expect(withRepoLock(context, () => Promise.resolve('recovered'))).resolves.toBe(
             'recovered',
         );
     });
@@ -425,15 +427,15 @@ describe('switch-worktree shared ownership', () => {
             cwd: fixture.root,
             install: fakeInstall,
         });
-        const firstDev = await prepareDevWorktree(first.path);
-        const secondDev = await prepareDevWorktree(second.path);
-        expect(firstDev.profile).not.toBe(secondDev.profile);
-        expect(firstDev.worktreeId).not.toBe(secondDev.worktreeId);
+        const firstDevelopment = await prepareDevelopmentWorktree(first.path);
+        const secondDevelopment = await prepareDevelopmentWorktree(second.path);
+        expect(firstDevelopment.profile).not.toBe(secondDevelopment.profile);
+        expect(firstDevelopment.worktreeId).not.toBe(secondDevelopment.worktreeId);
 
         const oldIdentity = first.worktreeId!;
         const oldProfile = first.profile!;
         await removeWorktree({ cleanProfile: false, cwd: fixture.root, target: first.path });
-        expect(await pathExists(oldProfile)).toBe(true);
+        expect(await isPathPresent(oldProfile)).toBe(true);
         const recreated = await createWorktree({
             branch: 'feat/recreate',
             cwd: fixture.root,
@@ -462,11 +464,11 @@ describe('switch-worktree shared ownership', () => {
             "require('node:fs').writeFileSync(process.argv[1], process.env.CAXRI_USER_DATA_DIR); setTimeout(() => {}, 100)";
 
         await Promise.all([
-            devWorktree(first.path, {
+            developmentWorktree(first.path, {
                 args: ['-e', program, firstOutput],
                 command: process.execPath,
             }),
-            devWorktree(second.path, {
+            developmentWorktree(second.path, {
                 args: ['-e', program, secondOutput],
                 command: process.execPath,
             }),
@@ -491,16 +493,19 @@ describe('switch-worktree shared ownership', () => {
         const startedPath = join(fixture.temporary, 'dev-started.txt');
         const program =
             "require('node:fs').writeFileSync(process.argv[1], 'started'); setTimeout(() => {}, 200)";
-        const first = devWorktree(created.path, {
+        const first = developmentWorktree(created.path, {
             args: ['-e', program, startedPath],
             command: process.execPath,
         });
-        while (!(await pathExists(startedPath))) {
-            await new Promise<void>((resolveWait) => setTimeout(resolveWait, 10));
+        // Polls until the child process's fixture file appears; inherently sequential.
+        /* eslint-disable no-await-in-loop -- sequential poll for an external side effect */
+        while (!(await isPathPresent(startedPath))) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 10));
         }
+        /* eslint-enable no-await-in-loop */
 
         await expect(
-            devWorktree(created.path, {
+            developmentWorktree(created.path, {
                 args: ['-e', '', join(fixture.temporary, 'should-not-run.txt')],
                 command: process.execPath,
             }),
@@ -548,7 +553,7 @@ describe('switch-worktree shared ownership', () => {
         await writeJsonAtomic(stale.leasePath, { ...stored, identity: 'stale-process-identity' });
         const firstEntered = Promise.withResolvers<void>();
         const releaseFirst = Promise.withResolvers<void>();
-        let secondEntered = false;
+        let isSecondEntered = false;
 
         const first = acquireDesktopLease(fixture.root, 'first contender', process.pid, {
             afterLockAcquired: async () => {
@@ -559,18 +564,18 @@ describe('switch-worktree shared ownership', () => {
         await firstEntered.promise;
         const second = acquireDesktopLease(fixture.root, 'second contender', process.pid, {
             afterLockAcquired: () => {
-                secondEntered = true;
+                isSecondEntered = true;
                 return Promise.resolve();
             },
         });
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
-        expect(secondEntered).toBe(false);
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        expect(isSecondEntered).toBe(false);
 
         releaseFirst.resolve();
         const acquired = await first;
         activeLeases.push(acquired);
         await expect(second).rejects.toThrow('Desktop is in use by first contender in');
-        expect(secondEntered).toBe(true);
+        expect(isSecondEntered).toBe(true);
         const persisted = JSON.parse(
             await readFile(acquired.leasePath, 'utf8'),
         ) as DesktopLeaseHandle;
@@ -590,20 +595,20 @@ describe('switch-worktree shared ownership', () => {
         });
         await releaseEntered.promise;
 
-        let contenderEntered = false;
+        let isContenderEntered = false;
         const contender = acquireDesktopLease(
             fixture.root,
             'reclaimed Electron owner',
             process.pid,
             {
                 afterLockAcquired: () => {
-                    contenderEntered = true;
+                    isContenderEntered = true;
                     return Promise.resolve();
                 },
             },
         );
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
-        expect(contenderEntered).toBe(false);
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        expect(isContenderEntered).toBe(false);
 
         releaseCleanup.resolve();
         await release;
@@ -678,7 +683,7 @@ describe('switch-worktree safe removal', () => {
         ).rejects.toThrow('unpushed commits');
         await git(created.path, 'push', '-u', 'origin', 'chore/remove-guards');
 
-        const context = await repositoryContext(fixture.root);
+        const context = await repoContext(fixture.root);
         const identity = await getProcessIdentity(process.pid);
         await writeJsonAtomic(join(context.stateDir, 'processes', `${created.worktreeId}.json`), {
             identity,
@@ -708,7 +713,7 @@ describe('switch-worktree safe removal', () => {
             install: fakeInstall,
         });
         const profile = created.profile!;
-        const context = await repositoryContext(fixture.root);
+        const context = await repoContext(fixture.root);
         await writeJsonAtomic(join(context.stateDir, 'processes', `${created.worktreeId}.json`), {
             identity: 'stale-reused-pid',
             pid: process.pid,
@@ -725,7 +730,7 @@ describe('switch-worktree safe removal', () => {
         });
 
         expect(result).toEqual({ path: created.path, profileKept: false });
-        expect(await pathExists(profile)).toBe(false);
+        expect(await isPathPresent(profile)).toBe(false);
         expect(
             (
                 await git(fixture.root, 'show-ref', '--verify', 'refs/heads/chore/clean-profile')
@@ -743,7 +748,7 @@ describe('switch-worktree safe removal', () => {
         const identityPath = (
             await git(created.path, 'rev-parse', '--git-path', 'caxri-worktree-id')
         ).trim();
-        const context = await repositoryContext(fixture.root);
+        const context = await repoContext(fixture.root);
         const sentinel = join(context.stateDir, 'profiles', '../../must-survive.txt');
         await writeFile(sentinel, 'safe\n', 'utf8');
         await writeFile(identityPath, '../../must-survive.txt\n', 'utf8');
