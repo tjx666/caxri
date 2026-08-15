@@ -1,13 +1,30 @@
 ---
 name: deep-review
-description: Multi-dimensional, evidence-first review of Caxri pull requests, branches, commits, diffs, and uncommitted changes. Use ordinary review requests in light mode, "quick deep review" or "快速 deep-review" requests in quick mode, and only explicit `$deep-review`, "full deep review", or "full multi-agent review" requests in deep mode. Covers Electron process ownership, typed IPC, local-file and PTY security, persisted state and recovery, performance, packaged-runtime compatibility, UX, tests, and GitHub readiness. Do not use for explain-only questions about what a change does.
+description: Multi-dimensional, evidence-first review and repair of Caxri pull requests, branches, commits, diffs, and uncommitted changes. Use ordinary review requests in light mode, "quick deep review" or "快速 deep-review" requests in quick mode, and only explicit `$deep-review`, "full deep review", or "full multi-agent review" requests in deep mode. Covers Electron process ownership, typed IPC, local-file and PTY security, persisted state and recovery, performance, packaged-runtime compatibility, UX, tests, and GitHub readiness. Automatically repair validated, unambiguous local P0/P1 findings unless the user requests report-only review. Do not use for explain-only questions about what a change does.
 ---
 
 # Deep Review
 
 Review Caxri changes against the behavior users will observe and the process that owns the truth.
-Keep every review read-only: do not edit files, post comments, change issues, merge, or push unless
-the user separately authorizes that action after the report.
+Keep delegated reviewer and verifier discovery read-only. The primary agent owns any repairs and
+must not post comments, change issues, commit, merge, or push unless separately authorized.
+
+## Repair policy
+
+A review request authorizes the primary agent to repair validated P0/P1 findings when all of these
+are true:
+
+- the reviewed change introduced or directly exposed the problem;
+- the current checkout contains the reviewed work and the repair stays inside its local scope;
+- one fix is clearly consistent with existing product and architecture contracts;
+- the repair is non-destructive and requires no remote mutation.
+
+Apply those repairs before the final response, add regression coverage, rerun affected validation,
+and report the findings as resolved. Keep P2 findings as review output unless they are necessary to
+make a P0/P1 repair complete. Stop and ask when product behavior has multiple reasonable answers,
+the fix expands scope, or new destructive/remote authority is required. An explicit read-only or
+report-only request overrides automatic repair. For `dianjiang`, subagent, or other delegated
+reviews, keep the delegate read-only and apply this policy only in the primary agent.
 
 ## Core principles
 
@@ -86,6 +103,7 @@ contracts, not docs-only changes.
 5. For a PR, separately report code correctness, CI/authorization, conflicts, unresolved review
    threads, and operational release readiness. Give a direct merge recommendation when asked.
 6. Report no findings when the evidence is clean. Do not invent suggestions to fill dimensions.
+7. Apply the repair policy to validated findings, then recheck the repaired diff before reporting.
 
 When this session implemented the change under review, do not run the checklist inline over your
 own implementation context: dispatch one clean-context subagent with the light-mode instructions
@@ -97,7 +115,8 @@ and is not an escalation to deep mode.
 1. Follow light-mode scoping and pruning.
 2. Dispatch exactly one clean-context reviewer with the exact scope and every applicable dimension
    quick checklist. The reviewer returns only evidence-backed findings and missing context.
-3. Validate each candidate against the current source and tests, then synthesize the concise report.
+3. Validate each candidate against the current source and tests, apply the repair policy, then
+   synthesize the concise report with resolved and remaining findings separated.
 4. Do not add independent verifiers or a consolidation agent. Escalate to deep mode only when the
    user explicitly requests the full workflow.
 

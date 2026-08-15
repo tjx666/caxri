@@ -1,7 +1,8 @@
 # Deep Review workflow
 
 Run this workflow only for explicit full deep mode. A quick deep review uses the single-reviewer
-workflow in `SKILL.md`. Review stays read-only throughout.
+workflow in `SKILL.md`. Delegated discovery and verification stay read-only throughout; the primary
+agent applies the repair policy only after findings are independently confirmed and consolidated.
 
 ## Runtime contract
 
@@ -98,7 +99,14 @@ In PR mode, refresh checks, mergeability, review decision, unresolved threads, a
 head changed, follow the stale-review rule in `scoping.md`. External state belongs in readiness, not
 in code-finding counts.
 
-## Step 6: Render
+## Step 6: Repair and revalidate
+
+Apply the `SKILL.md` repair policy to consolidated P0/P1 findings. Keep every delegated agent
+read-only: the primary agent makes local edits, adds regression coverage, and runs the affected
+validation. Recheck each repaired root against the current diff. If a repair changes the reviewed
+behavior materially, rerun the affected dimension review before rendering.
+
+## Step 7: Render
 
 Use [report-template.md](report-template.md). The report must:
 
@@ -109,4 +117,6 @@ Use [report-template.md](report-template.md). The report must:
 - keep release checks and missing context separate from defects;
 - state exact commands/evidence already run without claiming unrun gates passed.
 
-Do not fix findings or mutate GitHub state. End by letting the user choose any follow-up action.
+Separate resolved findings from remaining findings. Never mutate GitHub state without separate
+authorization. End with a direct readiness verdict; request user direction only for findings that
+the repair policy cannot resolve autonomously.
