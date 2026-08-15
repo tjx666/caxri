@@ -45,10 +45,10 @@ import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
 
 /**
- * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager,
- * File service, Agent coordinator, Diagnostics) needs no changes. `./index` (`CaxriDatabaseConnection`) owns
- * connection lifecycle and pure SQL; `../session-policy` owns the domain decisions; this class
- * composes the two per operation, each inside one transaction.
+ * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager, File service, Agent
+ * coordinator, Diagnostics) needs no changes. `./index` (`CaxriDatabaseConnection`) owns connection lifecycle and pure
+ * SQL; `../session-policy` owns the domain decisions; this class composes the two per operation, each inside one
+ * transaction.
  */
 export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
@@ -92,7 +92,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly.
+     * Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly.
      */
     get database(): Database.Database {
         return this.db.database;
@@ -115,7 +115,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Moves one current Project atomically so Renderer input stays scalar and cannot omit rows.
+     * Moves one current Project atomically so Renderer input stays scalar and cannot omit rows.
      */
     reorderProject(projectId: string, targetIndex: number): ProjectRecord[] {
         return this.db.transaction(() => {
@@ -141,8 +141,8 @@ export class CaxriDatabase {
     deleteProject(projectId: string): void {
         this.db.transaction(() => {
             /**
-             * The generated SQLite ALTER migration cannot attach ON DELETE SET NULL, so explicit
-             *  fallback is part of the same transaction that removes the authorized Project.
+             * The generated SQLite ALTER migration cannot attach ON DELETE SET NULL, so explicit fallback is part of
+             * the same transaction that removes the authorized Project.
              */
             this.db.sessions.resetWorkbenchProject(projectId);
             if (!this.db.projects.remove(projectId))
@@ -235,7 +235,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Applies a validated hook signal without touching Terminal-owned Agent session identity.
+     * Applies a validated hook signal without touching Terminal-owned Agent session identity.
      */
     updateAgentLifecycle(signal: AgentLifecycleSignal): boolean {
         return this.db.transaction(() => {
@@ -261,10 +261,9 @@ export class CaxriDatabase {
     }
 
     /**
-     * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider.
-     * Optional metadata is committed in the same transaction when it already exists; otherwise the
-     * Agent coordinator can publish the correct Terminal identity before the first provider session
-     * record is written.
+     * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider. Optional metadata
+     * is committed in the same transaction when it already exists; otherwise the Agent coordinator can publish the
+     * correct Terminal identity before the first provider session record is written.
      */
     promoteShellToAgent(
         terminalId: string,
@@ -315,7 +314,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Agent session IDs are provider-owned identities and may belong to only one Terminal.
+     * Agent session IDs are provider-owned identities and may belong to only one Terminal.
      */
     claimedAgentSessionIds(terminalId: string): string[] {
         const terminal = this.db.terminals.get(terminalId);
@@ -343,7 +342,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Clears the previous process binding so a restarted Agent cannot inherit its old session.
+     * Clears the previous process binding so a restarted Agent cannot inherit its old session.
      */
     resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {
         this.db.transaction(() => {
@@ -362,7 +361,7 @@ export class CaxriDatabase {
     }
 
     /**
-    A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed.
+     * A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed.
      */
     createSession(
         projectId: string,
@@ -443,9 +442,9 @@ export class CaxriDatabase {
     }
 
     /**
-     * Archives a Session without touching its Terminal records or PTYs. If it was selected, active
-     * navigation moves to another non-archived Session in the same Project, or leaves that Project
-     * selected with no Session when none remain.
+     * Archives a Session without touching its Terminal records or PTYs. If it was selected, active navigation moves to
+     * another non-archived Session in the same Project, or leaves that Project selected with no Session when none
+     * remain.
      */
     archiveSession(sessionId: string, now = Date.now()): SessionRecord {
         return this.db.transaction(() => {
@@ -469,7 +468,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Restores an archived Session to active navigation without selecting or restarting it.
+     * Restores an archived Session to active navigation without selecting or restarting it.
      */
     unarchiveSession(sessionId: string): SessionRecord {
         return this.db.transaction(() => {
@@ -494,7 +493,7 @@ export class CaxriDatabase {
     }
 
     /**
-    Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn.
+     * Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn.
      */
     createAgentDispatchWithTerminal(
         input: NewAgentDispatchReceipt,

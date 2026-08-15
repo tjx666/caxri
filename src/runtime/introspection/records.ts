@@ -66,7 +66,7 @@ function principalView(principal: Principal): Principal['kind'] {
 }
 
 /**
-Builds path-safe, principal-scoped business records before they cross the Host boundary.
+ * Builds path-safe, principal-scoped business records before they cross the Host boundary.
  */
 export class RecordQueryService {
     constructor(
@@ -75,8 +75,8 @@ export class RecordQueryService {
     ) {}
 
     /**
-     * Human CLI output may identify a Project root without disclosing a path outside the user's
-     * HOME. The opaque Project ID still lets callers correlate `list`, `show`, and `current`.
+     * Human CLI output may identify a Project root without disclosing a path outside the user's HOME. The opaque
+     * Project ID still lets callers correlate `list`, `show`, and `current`.
      */
     private projectRootIdentity(path: string, projectId: string): string {
         if (path === this.homePath) return '$HOME';

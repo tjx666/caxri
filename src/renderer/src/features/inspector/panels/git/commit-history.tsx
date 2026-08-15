@@ -66,7 +66,7 @@ function CommitDetails({
         );
     return (
         <div className="commit-details border-y border-border bg-background py-1">
-            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+            <div className="px-3 py-1 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
                 Changed files · {details.data.files.length}
             </div>
             {details.data.files.length === 0 ? (
@@ -106,7 +106,7 @@ function CommitRow({
         <button
             type="button"
             className={cn(
-                'commit-row flex w-full flex-col gap-0.5 border-0 bg-surface px-3 py-1.5 text-left cursor-pointer hover:bg-elevated',
+                'commit-row flex w-full cursor-pointer flex-col gap-0.5 border-0 bg-surface px-3 py-1.5 text-left hover:bg-elevated',
                 selected && 'bg-elevated',
             )}
             aria-label={`Commit ${commit.subject}`}
@@ -214,7 +214,7 @@ export function CommitHistory({
         <section className="commit-history border-t border-border">
             <button
                 type="button"
-                className="flex h-7 w-full items-center gap-1.5 border-0 bg-surface px-2 text-left text-[10px] font-bold uppercase tracking-[0.06em] text-muted cursor-pointer hover:bg-elevated"
+                className="flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:bg-elevated"
                 aria-expanded={expanded}
                 onClick={() => setExpanded((value) => !value)}
             >

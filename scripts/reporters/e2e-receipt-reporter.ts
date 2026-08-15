@@ -151,7 +151,7 @@ export function createE2EPoolReceipt(input: {
 }
 
 /**
-Rejects truncated or internally inconsistent receipts before they can satisfy CI evidence.
+ * Rejects truncated or internally inconsistent receipts before they can satisfy CI evidence.
  */
 export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
     const counts = [
@@ -198,7 +198,7 @@ export function assertE2EPoolCensusComplete(receipt: E2EPoolReceipt): void {
 }
 
 /**
-Records one logical pool from the same invocation that executes its tests.
+ * Records one logical pool from the same invocation that executes its tests.
  */
 class E2EReceiptReporter implements Reporter {
     private planned = new Map<string, E2ETestReceipt>();

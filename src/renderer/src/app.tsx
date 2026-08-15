@@ -49,8 +49,8 @@ import {
 } from './stores/workbench';
 
 /**
- * Attaches to the Runtime and keeps the snapshot current. `initialize` is single-flight, so React
- * StrictMode's double mount issues one `app.bootstrap` request rather than two.
+ * Attaches to the Runtime and keeps the snapshot current. `initialize` is single-flight, so React StrictMode's double
+ * mount issues one `app.bootstrap` request rather than two.
  */
 function useRuntimeAttachment(): void {
     useEffect(() => {
@@ -99,8 +99,8 @@ export function App() {
         return scheduleCodeEditorPreload();
     }, [isAttached]);
     /**
-     * Only the committed width reaches the DOM through React; a drag in progress writes the same
-     * custom property directly (see `PanelDivider`), so this effect never fires mid-gesture.
+     * Only the committed width reaches the DOM through React; a drag in progress writes the same custom property
+     * directly (see `PanelDivider`), so this effect never fires mid-gesture.
      */
     useEffect(() => {
         document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
@@ -121,7 +121,7 @@ export function App() {
                      * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
                      * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                      */
-                    'app-shell grid w-screen h-screen bg-background grid-rows-[minmax(0,1fr)_24px]',
+                    'app-shell grid h-screen w-screen grid-rows-[minmax(0,1fr)_24px] bg-background',
                     isSidebarVisible && isInspectorVisible
                         ? 'grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
                         : isSidebarVisible

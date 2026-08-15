@@ -148,7 +148,7 @@ async function removeStaleRuntime(): Promise<void> {
     }
 
     /**
-    Preserve a verified live owner; only stale identity can release its state.
+     * Preserve a verified live owner; only stale identity can release its state.
      */
     if (await isOwnedRuntime(current)) {
         throw new Error('Acceptance instance already running with a live owned process');

@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 /**
-Relaunch a TypeScript probe under Electron while keeping Bun as the public script entry point.
+ * Relaunch a TypeScript probe under Electron while keeping Bun as the public script entry point.
  */
 export async function didRelaunchInElectron(scriptUrl: string): Promise<boolean> {
     if (process.versions.electron) return false;

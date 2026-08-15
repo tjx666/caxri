@@ -35,8 +35,8 @@ function safeText(value: string): string {
 }
 
 /**
- * Produces the complete payload from an allowlisted context model. There is deliberately no input
- * for editor buffers, Terminal output, Agent state, environment variables, or diagnostics fields.
+ * Produces the complete payload from an allowlisted context model. There is deliberately no input for editor buffers,
+ * Terminal output, Agent state, environment variables, or diagnostics fields.
  */
 export function buildBugReport(draft: BugReportDraft, context: BugReportContext): string {
     const errorIds = context.recentErrorIds.map((id) => `  - \`${safeText(id)}\``);
@@ -71,7 +71,7 @@ export function buildBugReport(draft: BugReportDraft, context: BugReportContext)
 }
 
 /**
-Live candidates only; the Runtime repeats these checks atomically when the user sends.
+ * Live candidates only; the Runtime repeats these checks atomically when the user sends.
  */
 export function runningAgentTargets(
     terminals: readonly TerminalRecord[],

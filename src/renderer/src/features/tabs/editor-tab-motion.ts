@@ -14,9 +14,9 @@ export interface EditorTabMotionState {
 }
 
 /**
- * Reconciles transient animation identity without changing persisted SessionState. A clean preview
- * is one replaceable UI slot, so its next path inherits the same identity; pinning matches by path,
- * while a genuinely new or reopened tab receives a new identity.
+ * Reconciles transient animation identity without changing persisted SessionState. A clean preview is one replaceable
+ * UI slot, so its next path inherits the same identity; pinning matches by path, while a genuinely new or reopened tab
+ * receives a new identity.
  */
 export function reconcileEditorTabMotion(
     previous: EditorTabMotionState | undefined,
@@ -40,7 +40,7 @@ export function reconcileEditorTabMotion(
 }
 
 /**
-Discards transient identity state as soon as its owning Session no longer exists.
+ * Discards transient identity state as soon as its owning Session no longer exists.
  */
 export function pruneEditorTabMotionStates(
     states: Map<string, EditorTabMotionState>,

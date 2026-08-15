@@ -63,8 +63,8 @@ async function main(): Promise<void> {
     let code = await runFocused(paths, 1);
     if (code === 0 && pool === 'parallel-safe') {
         /**
-         * The serial repetitions prove deterministic behavior; this second focused phase
-         *  recreates the failed hosted pool's namespaced two-worker pressure.
+         * The serial repetitions prove deterministic behavior; this second focused phase recreates the failed hosted
+         * pool's namespaced two-worker pressure.
          */
         const coordinator = await acquireDesktopLease(
             process.cwd(),

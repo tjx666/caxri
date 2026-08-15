@@ -22,8 +22,8 @@ function formatCounts(counts: ReadonlyMap<string, number>): string {
 }
 
 /**
- * Enforces the E2E error contract with exact tuples and counts. Missing allowances fail as well as
- * unexpected errors so a stale exception suppression cannot silently remain after a repair.
+ * Enforces the E2E error contract with exact tuples and counts. Missing allowances fail as well as unexpected errors so
+ * a stale exception suppression cannot silently remain after a repair.
  */
 export function assertE2EErrorPolicy(
     actual: readonly E2EErrorEvent[],

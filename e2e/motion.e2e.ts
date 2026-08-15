@@ -17,11 +17,10 @@ import {
 const execFileAsync = promisify(execFile);
 
 /**
- * Mirrors `lib/motion.ts`'s `motionDurationMs` parsing so a `--motion-*` token and a computed
- * CSS duration (which the browser normalizes to a different unit/precision, e.g. `130ms` vs
- * `0.13s`) compare as numbers instead of as strings. Every expected timing in this spec is
- * derived from a token through this helper — never a hardcoded millisecond literal, per the
- * DESIGN.md "Motion" contract this suite verifies.
+ * Mirrors `lib/motion.ts`'s `motionDurationMs` parsing so a `--motion-*` token and a computed CSS duration (which the
+ * browser normalizes to a different unit/precision, e.g. `130ms` vs `0.13s`) compare as numbers instead of as strings.
+ * Every expected timing in this spec is derived from a token through this helper — never a hardcoded millisecond
+ * literal, per the DESIGN.md "Motion" contract this suite verifies.
  */
 function parseDurationMs(raw: string): number {
     const match = /^(?<value>[\d.]+)(?<unit>m?s)$/.exec(raw.trim());
@@ -53,7 +52,7 @@ async function animationNameOf(locator: Locator): Promise<string> {
 }
 
 /**
-Lets a live `prefers-reduced-motion` toggle propagate through React before the next assertion.
+ * Lets a live `prefers-reduced-motion` toggle propagate through React before the next assertion.
  */
 async function settleMediaPreference(page: Page): Promise<void> {
     await page.evaluate(
@@ -238,7 +237,7 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
     try {
         await createProjectSession(running.page);
         /**
-        The default-Terminal dialog retains its closed overlay until the exit animation ends.
+         * The default-Terminal dialog retains its closed overlay until the exit animation ends.
          */
         await expect(running.page.getByRole('dialog')).toHaveCount(0);
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
@@ -280,12 +279,12 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
 
 /**
  * KNOWN FAILING — implementation bug, not a test bug (see the final report for full diagnosis).
- * `motion-reduce:animate-none` (`.motion-reduce\:animate-none { animation: none }`, specificity
- * 0-1-0 inside `@media (prefers-reduced-motion: reduce)`) never wins the cascade against
- * `data-open:animate-in[data-open]` / `data-closed:animate-out[data-closed]` (specificity 0-2-0,
- * from the extra attribute selector), so every `components/ui/*` overlay (dialog, select,
- * context-menu, tooltip) keeps animating at full `--motion-overlay-enter`/`-exit` duration under
- * `prefers-reduced-motion: reduce`, contradicting DESIGN.md's Motion contract.
+ * `motion-reduce:animate-none` (`.motion-reduce\:animate-none { animation: none }`, specificity 0-1-0 inside `@media
+ * (prefers-reduced-motion: reduce)`) never wins the cascade against `data-open:animate-in[data-open]` /
+ * `data-closed:animate-out[data-closed]` (specificity 0-2-0, from the extra attribute selector), so every
+ * `components/ui/*` overlay (dialog, select, context-menu, tooltip) keeps animating at full
+ * `--motion-overlay-enter`/`-exit` duration under `prefers-reduced-motion: reduce`, contradicting DESIGN.md's Motion
+ * contract.
  */
 test('prefers-reduced-motion disables the overlay keyframe animation', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-motion-reduced-overlay-e2e-'));

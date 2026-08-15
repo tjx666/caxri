@@ -16,7 +16,7 @@ export interface CaxriMethodDescription {
 }
 
 /**
-Serializes public registry metadata for offline CLI and future remote capability browsers.
+ * Serializes public registry metadata for offline CLI and future remote capability browsers.
  */
 export function describeCaxriMethod(method: CaxriMethod): CaxriMethodDescription {
     const spec = methods[method];

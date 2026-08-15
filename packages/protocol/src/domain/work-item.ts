@@ -9,6 +9,6 @@ export const workItemSchema = z.discriminatedUnion('kind', [
 ]);
 
 /**
-Browser-safe center-pane identity shared by persistence and every transport adapter.
+ * Browser-safe center-pane identity shared by persistence and every transport adapter.
  */
 export type WorkItem = z.infer<typeof workItemSchema>;

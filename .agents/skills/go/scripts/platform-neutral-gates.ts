@@ -14,7 +14,7 @@ interface PlatformNeutralGateContext {
 }
 
 /**
-Requires every canonical CI command to have a passed receipt on the review's exact head.
+ * Requires every canonical CI command to have a passed receipt on the review's exact head.
  */
 export function assertCanonicalPlatformNeutralGate(
     state: PlatformNeutralGateContext,

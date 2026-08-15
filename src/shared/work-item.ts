@@ -3,16 +3,15 @@ import { activeLayoutTerminalId, firstLayoutTerminalId, selectTerminal } from '.
 import type { SessionState } from './types';
 
 /**
- * The single model for "what is focused in the center pane": either a Terminal (by id) or an open
- * editor tab (by file path). Replaces the historical `terminal:<id>` / `editor:<path>` string-prefix
- * encoding that was parsed with `startsWith`/`slice` across the Renderer.
+ * The single model for "what is focused in the center pane": either a Terminal (by id) or an open editor tab (by file
+ * path). Replaces the historical `terminal:<id>` / `editor:<path>` string-prefix encoding that was parsed with
+ * `startsWith`/`slice` across the Renderer.
  */
 export type { WorkItem } from '../../packages/protocol/src/domain/work-item';
 
 /**
- * Stable string key for React list/map identity. It is not a persistence format; the canonical
- * protocol schema validates durable values. Built from the discriminant field itself so no `kind`
- * literal needs to be hardcoded.
+ * Stable string key for React list/map identity. It is not a persistence format; the canonical protocol schema
+ * validates durable values. Built from the discriminant field itself so no `kind` literal needs to be hardcoded.
  */
 export function workItemKey(item: WorkItem | undefined): string {
     if (!item) return 'none';
@@ -39,12 +38,11 @@ function isWorkItemStillPresent(
 }
 
 /**
- * The only place fallback logic for the active work item lives. Preference order: (1) the locally
- * tracked `activeWork` if its target still exists in this Session, (2) the persisted
- * `sessionState.activeTab` if its target still exists (it can go stale when its Terminal is closed or
- * removed without an explicit `activateWork` call), (3) the first still-present Terminal in the
- * layout, (4) the first Session Terminal if the layout has none, or (5) the first open editor. The
- * final editor fallback keeps exactly one Work tab active/focusable after every Terminal is removed.
+ * The only place fallback logic for the active work item lives. Preference order: (1) the locally tracked `activeWork`
+ * if its target still exists in this Session, (2) the persisted `sessionState.activeTab` if its target still exists (it
+ * can go stale when its Terminal is closed or removed without an explicit `activateWork` call), (3) the first
+ * still-present Terminal in the layout, (4) the first Session Terminal if the layout has none, or (5) the first open
+ * editor. The final editor fallback keeps exactly one Work tab active/focusable after every Terminal is removed.
  */
 export function resolveActiveWork(parameters: {
     activeWork?: WorkItem;
@@ -66,10 +64,9 @@ export function resolveActiveWork(parameters: {
 }
 
 /**
- * The single write path for "activate this WorkItem": persists `activeTab` and, for a Terminal,
- * syncs the Terminal layout's active group/Terminal in the same update. Returns `state` unchanged
- * when activation is a no-op, so callers can skip persisting. app.tsx's `activateWork` wraps this
- * with the local `activeWork` state setter.
+ * The single write path for "activate this WorkItem": persists `activeTab` and, for a Terminal, syncs the Terminal
+ * layout's active group/Terminal in the same update. Returns `state` unchanged when activation is a no-op, so callers
+ * can skip persisting. app.tsx's `activateWork` wraps this with the local `activeWork` state setter.
  */
 export function activateWorkState(state: SessionState, item: WorkItem): SessionState {
     if (item.kind !== 'terminal') {

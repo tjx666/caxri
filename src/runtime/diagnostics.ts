@@ -48,7 +48,7 @@ interface ErrorIdentifierRecord {
 }
 
 /**
-Selects identifiers only; error messages, stacks, and structured fields never leave the logs.
+ * Selects identifiers only; error messages, stacks, and structured fields never leave the logs.
  */
 export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
     const records: ErrorIdentifierRecord[] = [];
@@ -123,7 +123,7 @@ function accumulatePerformanceLogLines(
 }
 
 /**
-Builds a content-free timing summary from already structured operation logs.
+ * Builds a content-free timing summary from already structured operation logs.
  */
 export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
     const aggregates = new Map<string, PerformanceAggregate>();
@@ -171,7 +171,7 @@ export class DiagnosticsService {
     }
 
     /**
-    Returns only bounded counters and identifiers; paths, messages, and log fields stay local.
+     * Returns only bounded counters and identifiers; paths, messages, and log fields stay local.
      */
     async snapshot() {
         const logs = await this.readLogs();

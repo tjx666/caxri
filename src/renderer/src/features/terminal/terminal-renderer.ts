@@ -35,8 +35,8 @@ export function resolveTerminalRendererTarget(
 }
 
 /**
- * Owns the replaceable xterm renderer only. Falling back disposes WebGL and asks xterm to redraw;
- * it never touches the Runtime, PTY, buffer, or Agent lifecycle.
+ * Owns the replaceable xterm renderer only. Falling back disposes WebGL and asks xterm to redraw; it never touches the
+ * Runtime, PTY, buffer, or Agent lifecycle.
  */
 export class TerminalRendererController {
     private contextLossCount = 0;
@@ -132,7 +132,7 @@ export class TerminalRendererController {
     }
 
     /**
-    Clears stale atlas pixels after window restore, Space changes, or document visibility restore.
+     * Clears stale atlas pixels after window restore, Space changes, or document visibility restore.
      */
     restoreVisible(): void {
         if (this.preference === 'off' || !this.status || this.status.reason === 'unsupported')

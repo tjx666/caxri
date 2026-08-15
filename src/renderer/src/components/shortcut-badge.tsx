@@ -9,7 +9,7 @@ interface ShortcutBadgeProperties {
 }
 
 /**
-Shared macOS keycap presentation for live and draft shortcuts.
+ * Shared macOS keycap presentation for live and draft shortcuts.
  */
 export function ShortcutBadge({
     className,

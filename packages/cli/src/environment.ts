@@ -48,7 +48,7 @@ export interface PackagedHostLaunch {
 }
 
 /**
-Derives launch authority only from the currently executing packaged Caxri application layout.
+ * Derives launch authority only from the currently executing packaged Caxri application layout.
  */
 export function resolvePackagedHostLaunch(input: {
     executable: string;
@@ -69,7 +69,7 @@ export function resolvePackagedHostLaunch(input: {
 }
 
 /**
-Requires the complete generation credential; partial inherited state is never authoritative.
+ * Requires the complete generation credential; partial inherited state is never authoritative.
  */
 export function resolveAgentEndpointCredential(
     environment: NodeJS.ProcessEnv,

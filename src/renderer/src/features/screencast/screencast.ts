@@ -41,9 +41,9 @@ const modifierKeys = new Set([
 ]);
 
 /**
- * Converts only privacy-safe key events into overlay copy. Printable text never receives a generic
- * fallback: it is visible only when it resolves to a registered Caxri command, so Terminal, form,
- * password, and IME input cannot leak through Screencast Mode.
+ * Converts only privacy-safe key events into overlay copy. Printable text never receives a generic fallback: it is
+ * visible only when it resolves to a registered Caxri command, so Terminal, form, password, and IME input cannot leak
+ * through Screencast Mode.
  */
 export function describeScreencastKey(
     event: ScreencastKeyboardInput,
@@ -79,7 +79,7 @@ interface ScreencastState {
 }
 
 /**
-Window-local by design: this store has no persistence or Runtime synchronization.
+ * Window-local by design: this store has no persistence or Runtime synchronization.
  */
 export const useScreencastStore = create<ScreencastState>((set) => ({
     enabled: false,
@@ -87,17 +87,16 @@ export const useScreencastStore = create<ScreencastState>((set) => ({
 }));
 
 /**
-Pure so it stays testable without a DOM `window` (the toast store's timers require one).
+ * Pure so it stays testable without a DOM `window` (the toast store's timers require one).
  */
 export function screencastToggleToastMessage(isEnabled: boolean): string {
     return isEnabled ? 'Screencast Mode on' : 'Screencast Mode off';
 }
 
 /**
- * The overlay's ripples are the only in-context feedback while Screencast Mode is active, and they
- * only appear after a click or keystroke — the toggle itself was previously silent. A toast confirms
- * the transition immediately; the persistent status-bar chip (see `status-bar.tsx`) covers the rest
- * of the active session.
+ * The overlay's ripples are the only in-context feedback while Screencast Mode is active, and they only appear after a
+ * click or keystroke — the toggle itself was previously silent. A toast confirms the transition immediately; the
+ * persistent status-bar chip (see `status-bar.tsx`) covers the rest of the active session.
  */
 export function toggleScreencastMode(): void {
     useScreencastStore.getState().toggle();

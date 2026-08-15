@@ -10,9 +10,9 @@ export interface E2EPoolPlan {
 }
 
 /**
- * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents.
- * Everything else remains `@desktop-exclusive` by default, especially native focus, clipboard,
- * Process Explorer, Screencast, performance, updater, and real-Agent coverage.
+ * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents. Everything else
+ * remains `@desktop-exclusive` by default, especially native focus, clipboard, Process Explorer, Screencast,
+ * performance, updater, and real-Agent coverage.
  */
 export const parallelSafeSpecs = [
     'e2e/agent-icons.e2e.ts',

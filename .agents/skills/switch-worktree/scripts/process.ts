@@ -66,7 +66,7 @@ export async function runInherited(
 }
 
 /**
-Hash start time plus command so PID reuse is detectable without persisting command arguments.
+ * Hash start time plus command so PID reuse is detectable without persisting command arguments.
  */
 export async function getProcessIdentity(pid: number): Promise<string | undefined> {
     if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;

@@ -25,10 +25,9 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 }
 
 /**
- * Facade-level coverage for `CaxriDatabase`: proves that `../index` (pure SQL) and
- * `../../session-policy` (pure decisions) are wired together correctly inside one transaction per
- * operation. Pure-SQL/schema behavior lives in `./database.integration.test.ts`;
- * pure-decision behavior lives in `../../session-policy.test.ts`.
+ * Facade-level coverage for `CaxriDatabase`: proves that `../index` (pure SQL) and `../../session-policy` (pure
+ * decisions) are wired together correctly inside one transaction per operation. Pure-SQL/schema behavior lives in
+ * `./database.integration.test.ts`; pure-decision behavior lives in `../../session-policy.test.ts`.
  */
 describe('CaxriDatabase', () => {
     it.each([

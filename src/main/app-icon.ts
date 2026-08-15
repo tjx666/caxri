@@ -8,7 +8,7 @@ interface DevelopmentDockIconPathOptions {
 }
 
 /**
-Packaged apps get their Dock icon from the bundle; development launches need an explicit icon.
+ * Packaged apps get their Dock icon from the bundle; development launches need an explicit icon.
  */
 export function resolveDevelopmentDockIconPath({
     currentDirectory,

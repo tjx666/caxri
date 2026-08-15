@@ -104,7 +104,7 @@ async function main(): Promise<void> {
         return;
     }
     /**
-    Skill-only PRs still run every repository-skill regression, including unchanged routers.
+     * Skill-only PRs still run every repository-skill regression, including unchanged routers.
      */
     process.exitCode = await run('bunx', [
         'vitest',

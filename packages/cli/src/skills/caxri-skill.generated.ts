@@ -1,5 +1,5 @@
 /**
-Generated from skills/caxri-cli. Do not edit directly.
+ * Generated from skills/caxri-cli. Do not edit directly.
  */
 export const CAXRI_SKILL_FILES = {
     'SKILL.md':

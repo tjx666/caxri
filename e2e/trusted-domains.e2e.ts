@@ -25,7 +25,7 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         /**
-        Project creation is not under test here, so avoid the animated Agent picker surface.
+         * Project creation is not under test here, so avoid the animated Agent picker surface.
          */
         await createFocusedShell(running.page);
         await running.app.evaluate(({ dialog, shell }) => {

@@ -72,9 +72,9 @@ const e2eAgentEnvironmentKeys = [
 ] as const;
 
 /**
- * Guards against testing stale build output. The standard focused entrypoint
- * (`bun run --silent check e2e/foo.e2e.ts --e2e`) builds first, while direct Playwright invocations may
- * skip that step and otherwise silently launch a previously built `out/main/index.js`.
+ * Guards against testing stale build output. The standard focused entrypoint (`bun run --silent check e2e/foo.e2e.ts
+ * --e2e`) builds first, while direct Playwright invocations may skip that step and otherwise silently launch a
+ * previously built `out/main/index.js`.
  */
 const buildFreshnessGuard = createBuildFreshnessGuard({
     inputPaths: buildInputPaths,
@@ -89,37 +89,36 @@ async function assertBuildIsFresh(): Promise<void> {
 
 export interface LaunchCaxriOptions {
     /**
-    Electron `userData` directory; callers create this with `mkdtemp`.
+     * Electron `userData` directory; callers create this with `mkdtemp`.
      */
     userDataDir: string;
     /**
-    Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`.
+     * Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`.
      */
     testRootPath: string;
     /**
-     * Extra environment variables layered over `process.env` and the Caxri
-     * E2E defaults below. Agent executables and provider state belong in
-     * `agentMode`; use this only for a scenario-specific shell or tool environment.
+     * Extra environment variables layered over `process.env` and the Caxri E2E defaults below. Agent executables and
+     * provider state belong in `agentMode`; use this only for a scenario-specific shell or tool environment.
      */
     env?: NodeJS.ProcessEnv;
     /**
-    Launches a packaged build instead of `.` (used by the startup benchmark).
+     * Launches a packaged build instead of `.` (used by the startup benchmark).
      */
     executablePath?: string;
     /**
-    Hidden by default; use visible only for native focus, pointer, or desktop behavior.
+     * Hidden by default; use visible only for native focus, pointer, or desktop behavior.
      */
     windowMode?: 'hidden' | 'visible';
     /**
-    Keeps deterministic software rendering by default; WebGL renderer specs opt into GPU.
+     * Keeps deterministic software rendering by default; WebGL renderer specs opt into GPU.
      */
     gpuMode?: 'disabled' | 'enabled';
     /**
-    Blocks host Agents by default; fake and real modes require an explicit per-spec choice.
+     * Blocks host Agents by default; fake and real modes require an explicit per-spec choice.
      */
     agentMode?: E2EAgentMode;
     /**
-    Restart workflows let the next launch inherit the same live Host; the final launch cleans it.
+     * Restart workflows let the next launch inherit the same live Host; the final launch cleans it.
      */
     preserveHostOnClose?: boolean;
 }
@@ -244,7 +243,7 @@ async function stopE2EHost(userDataDirectory: string): Promise<void> {
 }
 
 /**
-Waits for the asynchronous New Terminal action to become observable through Runtime state.
+ * Waits for the asynchronous New Terminal action to become observable through Runtime state.
  */
 export async function waitForNewTerminalId(
     page: Page,
@@ -267,10 +266,9 @@ export async function waitForNewTerminalId(
 }
 
 /**
- * Launches the Caxri Electron app for e2e tests without waiting for the
- * Runtime to become ready. Most specs should use {@link launchCaxri} instead;
- * this lower-level entry point exists for specs (eg. the startup benchmark)
- * that need to measure the readiness wait themselves.
+ * Launches the Caxri Electron app for e2e tests without waiting for the Runtime to become ready. Most specs should use
+ * {@link launchCaxri} instead; this lower-level entry point exists for specs (eg. the startup benchmark) that need to
+ * measure the readiness wait themselves.
  */
 export async function launchCaxriApp(
     options: LaunchCaxriOptions,
@@ -301,7 +299,7 @@ export async function launchCaxriApp(
         }),
     };
     /**
-    Prevent ambient internal test switches from adding an undeclared fake provider.
+     * Prevent ambient internal test switches from adding an undeclared fake provider.
      */
     for (const key of e2eAgentEnvironmentKeys) {
         if (!Object.hasOwn(agentEnvironment, key)) delete launchEnvironmentSource[key];
@@ -380,8 +378,8 @@ export async function launchCaxriApp(
 /**
  * Waits for the Runtime-ready signal that every spec relies on for readiness.
  *
- * The status bar only renders a *visible* state chip while Caxri is degraded, so readiness is
- * published as a data attribute that exists in every visual state instead of as display copy.
+ * The status bar only renders a _visible_ state chip while Caxri is degraded, so readiness is published as a data
+ * attribute that exists in every visual state instead of as display copy.
  */
 export function runtimeStatus(page: Page) {
     return page.locator('.statusbar');
@@ -392,7 +390,7 @@ export async function waitForRuntimeReady(page: Page): Promise<void> {
 }
 
 /**
-Launches Caxri and waits for the Runtime to report ready.
+ * Launches Caxri and waits for the Runtime to report ready.
  */
 export async function launchCaxri(
     options: LaunchCaxriOptions,
@@ -403,9 +401,9 @@ export async function launchCaxri(
 }
 
 /**
- * Waits until Project creation has converged across Runtime state and the visible workbench.
- * A dialog closing or a Session card rendering alone is insufficient: hosted runners can expose
- * either before the selected Session and its first durable Terminal are available together.
+ * Waits until Project creation has converged across Runtime state and the visible workbench. A dialog closing or a
+ * Session card rendering alone is insufficient: hosted runners can expose either before the selected Session and its
+ * first durable Terminal are available together.
  */
 export async function waitForCreatedSession(
     page: Page,
@@ -438,9 +436,9 @@ export async function waitForCreatedSession(
 }
 
 /**
- * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after
- * the new Session satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell
- * surface should use {@link createShellSession} instead.
+ * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after the new Session
+ * satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell surface should use
+ * {@link createShellSession} instead.
  */
 export async function createProjectSession(
     page: Page,
@@ -460,7 +458,7 @@ export async function createProjectSession(
 }
 
 /**
-Reveals the quiet titlebar action before activating it, matching pointer use at rest.
+ * Reveals the quiet titlebar action before activating it, matching pointer use at rest.
  */
 export async function openAddProjectDialog(page: Page): Promise<void> {
     const titlebar = page.locator('.sidebar-title');
@@ -473,7 +471,7 @@ export async function createShellSession(page: Page): Promise<void> {
     const terminalInput = page.locator('.xterm-helper-textarea');
     await expect(terminalInput).toBeVisible();
     /**
-    The initial Terminal focus effect is part of creation completing, not caller setup.
+     * The initial Terminal focus effect is part of creation completing, not caller setup.
      */
     await expect(terminalInput).toBeFocused();
 }
@@ -512,7 +510,7 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
 async function terminalTextBounds(page: Page, text: string) {
     return page.locator('.xterm-rows').evaluate((rows, target) => {
         /**
-        Finds the text-node offsets spanning `[targetStart, targetStart + target.length)` within `row`.
+         * Finds the text-node offsets spanning `[targetStart, targetStart + target.length)` within `row`.
          */
         function findTextNodeRange(
             row: Element,
@@ -554,8 +552,8 @@ async function terminalTextBounds(page: Page, text: string) {
 }
 
 /**
- * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches
- * an empty provider result when output replaces a blank row beneath a stationary pointer.
+ * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches an empty provider result
+ * when output replaces a blank row beneath a stationary pointer.
  */
 export async function clickTerminalLink(page: Page, text: string): Promise<void> {
     await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
@@ -588,10 +586,9 @@ export type PageReply<T> =
     { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
 
 /**
- * Calls the preload bridge from inside the page and returns the raw reply envelope. `window.caxri`
- * resolves instead of rejecting because `contextBridge` copies only `message` and `stack` off a
- * thrown error, so the Caxri error code has to travel as data. Use this when a spec asserts a
- * failure; use {@link pageRequest} when it only needs the result.
+ * Calls the preload bridge from inside the page and returns the raw reply envelope. `window.caxri` resolves instead of
+ * rejecting because `contextBridge` copies only `message` and `stack` off a thrown error, so the Caxri error code has
+ * to travel as data. Use this when a spec asserts a failure; use {@link pageRequest} when it only needs the result.
  */
 export function pageReply<T>(
     page: Page,
@@ -626,7 +623,7 @@ export function sessionCard(page: Page, sessionId: string) {
 }
 
 /**
-Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user.
+ * Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user.
  */
 export async function splitTerminalToRight(page: Page, terminalId: string): Promise<void> {
     await expect(page.locator(`.work-tab[data-terminal-id="${terminalId}"]`)).toBeAttached();

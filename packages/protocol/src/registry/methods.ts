@@ -60,8 +60,8 @@ const hostRead = commandPolicy('host', 'read');
 const hostWrite = commandPolicy('host', 'write');
 const hostControl = commandPolicy('host', 'control');
 /**
- * PTY traffic must enter adapters in transport submission order. Request fingerprints are
- * asynchronous and can reorder overlapping input before either Main or Host reaches the adapter.
+ * PTY traffic must enter adapters in transport submission order. Request fingerprints are asynchronous and can reorder
+ * overlapping input before either Main or Host reaches the adapter.
  */
 const terminalStreamControl = { ...hostControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
@@ -72,13 +72,13 @@ const hostStopControl = commandPolicy('host', 'control', ['host.stop']);
 const desktopEventRead = commandPolicy('host', 'read');
 
 /**
- * Methods without required parameters still accept the preload's `{}` placeholder, and the default
- * makes `undefined` a valid input so callers may omit the argument entirely.
+ * Methods without required parameters still accept the preload's `{}` placeholder, and the default makes `undefined` a
+ * valid input so callers may omit the argument entirely.
  */
 const noParameters = z.object({}).default({});
 
 /**
-Keeps path-browser IPC and rendering bounded while still allowing users to refine by name.
+ * Keeps path-browser IPC and rendering bounded while still allowing users to refine by name.
  */
 export const MAX_FILE_BROWSE_ENTRIES = 200;
 
@@ -105,7 +105,7 @@ const fileName = z
         'File name must not contain path separators',
     );
 /**
-Main returns this instead of a Runtime result when the user dismisses a confirmation dialog.
+ * Main returns this instead of a Runtime result when the user dismisses a confirmation dialog.
  */
 const canceled = z.object({ canceled: z.literal(true) });
 const externalOpenResult = z.discriminatedUnion('status', [
@@ -118,9 +118,9 @@ const externalOpenResult = z.discriminatedUnion('status', [
 ]);
 
 /**
- * The single source of truth for every public command. Each entry declares its Host/Desktop owner,
- * effect, capability boundary, idempotency policy, and Zod input/output shape. Transport adapters
- * may route an entry but must never copy its application handler.
+ * The single source of truth for every public command. Each entry declares its Host/Desktop owner, effect, capability
+ * boundary, idempotency policy, and Zod input/output shape. Transport adapters may route an entry but must never copy
+ * its application handler.
  */
 export const methods = {
     ...agentDispatchMethods,
@@ -193,9 +193,9 @@ export const methods = {
         result: externalOpenResult,
     },
     /**
-     * Native "save before closing" prompt for an Editor tab with unsaved changes. It lives in Main
-     * because the choice must be a modal, focus-stealing native sheet: silently discarding an
-     * unsaved buffer is the one destructive Editor action the user cannot undo.
+     * Native "save before closing" prompt for an Editor tab with unsaved changes. It lives in Main because the choice
+     * must be a modal, focus-stealing native sheet: silently discarding an unsaved buffer is the one destructive Editor
+     * action the user cannot undo.
      */
     'editor.confirmDiscard': {
         ...desktopControl,
@@ -270,7 +270,7 @@ export const methods = {
     'session.create': {
         ...hostWrite,
         /**
-        A `null` defaultAgent creates the Session without any Terminal.
+         * A `null` defaultAgent creates the Session without any Terminal.
          */
         params: z.object({
             projectId: identifierSchema,
@@ -328,7 +328,7 @@ export const methods = {
             sessionId: identifierSchema,
             kind: terminalKindSchema,
             /**
-            Files may request a bounded Project-local cwd; ordinary creation keeps settings.
+             * Files may request a bounded Project-local cwd; ordinary creation keeps settings.
              */
             cwd: pathSchema.optional(),
         }),
@@ -478,9 +478,8 @@ export const methods = {
             sessionId: identifierSchema,
             path: pathSchema,
             /**
-             * Set when an open Editor tab holds unsaved changes for this path. The Trash can only
-             * restore the last bytes written to disk, so the confirmation must stop promising that
-             * the item is fully recoverable.
+             * Set when an open Editor tab holds unsaved changes for this path. The Trash can only restore the last
+             * bytes written to disk, so the confirmation must stop promising that the item is fully recoverable.
              */
             hasUnsavedChanges: z.boolean().optional(),
         }),
@@ -627,7 +626,7 @@ export const methods = {
 } as const satisfies Record<string, MethodSpec>;
 
 /**
-Main-to-Runtime methods that are never reachable from the Renderer request allowlist.
+ * Main-to-Runtime methods that are never reachable from the Renderer request allowlist.
  */
 export const internalMethods = {
     ...agentDispatchInternalMethods,

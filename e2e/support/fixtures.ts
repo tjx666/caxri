@@ -69,7 +69,7 @@ export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
 });
 
 /**
-Unguarded only so `error-gate.e2e.ts` can assert the shared gate's own teardown failures.
+ * Unguarded only so `error-gate.e2e.ts` can assert the shared gate's own teardown failures.
  */
 export const errorGateSelfTest = base;
 

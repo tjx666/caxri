@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { buildShortcutMap, formatShortcut, keyboardEventShortcut } from './keybindings';
 
 /**
- * `keyboardEventShortcut` only reads `key`, `code`, and the four modifier flags, so a plain object
- * is a faithful stand-in and keeps the test free of a DOM environment.
+ * `keyboardEventShortcut` only reads `key`, `code`, and the four modifier flags, so a plain object is a faithful
+ * stand-in and keeps the test free of a DOM environment.
  */
 function keyEvent(init: {
     key: string;
@@ -32,8 +32,8 @@ describe('keyboardEventShortcut', () => {
     });
 
     /**
-     * Regression for the dead Option chords: macOS composes Option+P into `π`, so a chord built from
-     * `event.key` alone produced `alt+π` and could never match a stored `alt+p`.
+     * Regression for the dead Option chords: macOS composes Option+P into `π`, so a chord built from `event.key` alone
+     * produced `alt+π` and could never match a stored `alt+p`.
      */
     it('resolves an Option+letter chord from the physical key, not the composed character', () => {
         expect(keyboardEventShortcut(keyEvent({ key: 'π', code: 'KeyP', altKey: true }))).toBe(
@@ -56,8 +56,8 @@ describe('keyboardEventShortcut', () => {
     });
 
     /**
-     * A non-letter Option chord has no `Key*`/`Digit*` code to fall back to, so it must keep using
-     * `event.key` rather than silently dropping the main key.
+     * A non-letter Option chord has no `Key*`/`Digit*` code to fall back to, so it must keep using `event.key` rather
+     * than silently dropping the main key.
      */
     it('falls back to the reported key for a non-alphanumeric Option chord', () => {
         expect(

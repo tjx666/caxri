@@ -1,9 +1,9 @@
 /**
- * This suite deliberately exercises `http://` inputs (protocol-mismatch normalization, exact-origin
- * and wildcard-origin rules rejecting a Loopback default) to prove `parseExternalHttpUrl` and
- * `isExternalUrlTrusted` treat HTTP and HTTPS as distinct origins. `unicorn/prefer-https` correctly
- * flags string literals that look like a real URL to visit, but every literal below is test fixture
- * data whose HTTP scheme is the exact behavior under test, not a URL Caxri would navigate to.
+ * This suite deliberately exercises `http://` inputs (protocol-mismatch normalization, exact-origin and wildcard-origin
+ * rules rejecting a Loopback default) to prove `parseExternalHttpUrl` and `isExternalUrlTrusted` treat HTTP and HTTPS
+ * as distinct origins. `unicorn/prefer-https` correctly flags string literals that look like a real URL to visit, but
+ * every literal below is test fixture data whose HTTP scheme is the exact behavior under test, not a URL Caxri would
+ * navigate to.
  */
 /* eslint-disable unicorn/prefer-https */
 import { describe, expect, it } from 'vitest';

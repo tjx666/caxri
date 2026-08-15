@@ -1,5 +1,5 @@
 /**
-Maps in input order while allowing at most `maximum` asynchronous operations to run at once.
+ * Maps in input order while allowing at most `maximum` asynchronous operations to run at once.
  */
 export async function mapWithConcurrency<Input, Output>(
     inputs: readonly Input[],
@@ -20,7 +20,7 @@ export async function mapWithConcurrency<Input, Output>(
             results[index] = await map(inputs[index], index);
         } catch (error) {
             /**
-            Stop claiming queued work, but drain already-started workers before rejecting.
+             * Stop claiming queued work, but drain already-started workers before rejecting.
              */
             if (!isFailed) {
                 isFailed = true;
@@ -37,7 +37,7 @@ export async function mapWithConcurrency<Input, Output>(
 }
 
 /**
-FIFO semaphore for native subprocess and file-descriptor budgets shared by concurrent requests.
+ * FIFO semaphore for native subprocess and file-descriptor budgets shared by concurrent requests.
  */
 export class AsyncSemaphore {
     private active = 0;

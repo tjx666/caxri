@@ -2,8 +2,8 @@ import type { ParseError } from 'jsonc-parser';
 import { parse, printParseErrorCode } from 'jsonc-parser';
 
 /**
- * Parses JSONC and throws a `line`/`column`-formatted error on the first parse
- * failure, used by both settings/keybindings and theme configuration files.
+ * Parses JSONC and throws a `line`/`column`-formatted error on the first parse failure, used by both
+ * settings/keybindings and theme configuration files.
  */
 export function parseJsonc(source: string): unknown {
     const errors: ParseError[] = [];

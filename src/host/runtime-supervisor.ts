@@ -55,7 +55,7 @@ function requestTimeout(method: RuntimeMethod): number | undefined {
 }
 
 /**
-Host-owned Runtime lifecycle. The child is Electron's Node mode, preserving native ABI parity.
+ * Host-owned Runtime lifecycle. The child is Electron's Node mode, preserving native ABI parity.
  */
 export class HostRuntimeSupervisor extends EventTarget {
     private child?: ChildProcess;
@@ -331,7 +331,7 @@ export class HostRuntimeSupervisor extends EventTarget {
     }
 
     /**
-    Subscribes to Runtime protocol events; returns an unsubscribe function.
+     * Subscribes to Runtime protocol events; returns an unsubscribe function.
      */
     onEvent(listener: (event: RuntimeEvent) => void): () => void {
         const handler = (event: Event): void =>
@@ -341,7 +341,7 @@ export class HostRuntimeSupervisor extends EventTarget {
     }
 
     /**
-    Subscribes to Runtime child-process exit; returns an unsubscribe function.
+     * Subscribes to Runtime child-process exit; returns an unsubscribe function.
      */
     onRuntimeExit(listener: () => void): () => void {
         this.addEventListener('runtimeExit', listener);

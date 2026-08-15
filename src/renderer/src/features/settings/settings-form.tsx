@@ -40,7 +40,7 @@ const NEW_WORKTREE_BEHAVIOR_LABELS: Record<AppSettings['workbench.newWorktreeBeh
 };
 
 /**
-Full-width structured editor for `settings.jsonc`.
+ * Full-width structured editor for `settings.jsonc`.
  */
 export function SettingsForm({
     agentHookHealth,
@@ -154,8 +154,8 @@ export function SettingsForm({
                         variant="secondary"
                         onClick={() => {
                             /**
-                             * The manager is its own dialog; closing Settings first keeps a
-                             *  single modal layer instead of stacking two dismiss targets.
+                             * The manager is its own dialog; closing Settings first keeps a single modal layer instead
+                             * of stacking two dismiss targets.
                              */
                             setSettingsOpen(false);
                             setArchivedSessionsOpen(true);

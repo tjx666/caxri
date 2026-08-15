@@ -127,8 +127,8 @@ describe('TerminalImageOutputFilter', () => {
         const secondBackpressure = filter.push('_SECRET\u{1B}\\after', output);
 
         /**
-         * The oversized image itself never counts as backpressure: only genuine `destination`
-         *  capacity refusals would, and this queue has plenty of room for the small placeholder.
+         * The oversized image itself never counts as backpressure: only genuine `destination` capacity refusals would,
+         * and this queue has plenty of room for the small placeholder.
          */
         expect(firstBackpressure).toBe(0);
         expect(secondBackpressure).toBe(0);

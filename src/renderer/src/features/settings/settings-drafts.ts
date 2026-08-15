@@ -36,9 +36,9 @@ export type ConfigAction =
     | { type: 'settings/sourceParsed'; value: AppSettings }
     | { type: 'settings/applied'; value: AppSettings; source: string }
     /**
-     * The Runtime reports `settings.jsonc` changed on disk (an external editor, or our own write
-     * echoing back). `value` is omitted when the new text fails to parse, so a foreign edit that
-     * breaks the file surfaces its error without discarding the last-known-good structured value.
+     * The Runtime reports `settings.jsonc` changed on disk (an external editor, or our own write echoing back). `value`
+     * is omitted when the new text fails to parse, so a foreign edit that breaks the file surfaces its error without
+     * discarding the last-known-good structured value.
      */
     | { type: 'settings/externalChanged'; source: string; value?: AppSettings }
     | { type: 'keybindings/changed'; value: Keybinding[]; source: string }
@@ -202,7 +202,7 @@ function parseJsonc(source: string): { ok: true; value: unknown } | { ok: false;
 }
 
 /**
-Parses one in-memory draft without rewriting its comments or formatting.
+ * Parses one in-memory draft without rewriting its comments or formatting.
  */
 export function parseConfigSource<Kind extends ConfigKind>(
     kind: Kind,

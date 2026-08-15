@@ -75,9 +75,9 @@ async function resolveSafeAcceptanceUserDataDirectory(
 }
 
 /**
- * Creates the default disposable profile or validates a caller-owned profile used across a
- * bounded restart check. Reusable profiles must already exist beneath the OS temp directory and
- * keep the Acceptance prefix so an arbitrary developer profile can never enter the cleanup path.
+ * Creates the default disposable profile or validates a caller-owned profile used across a bounded restart check.
+ * Reusable profiles must already exist beneath the OS temp directory and keep the Acceptance prefix so an arbitrary
+ * developer profile can never enter the cleanup path.
  */
 export async function prepareAcceptanceUserData({
     caseId,
@@ -135,8 +135,8 @@ export function isAlive(pid: number | null | undefined): boolean {
 }
 
 /**
- * Combines immutable process start time and command text so a recycled PID
- * cannot be mistaken for the Acceptance launcher that wrote runtime.json.
+ * Combines immutable process start time and command text so a recycled PID cannot be mistaken for the Acceptance
+ * launcher that wrote runtime.json.
  */
 export async function getProcessIdentity(pid: number): Promise<string | null> {
     try {
@@ -162,7 +162,7 @@ export async function isOwnedLauncher(
 }
 
 /**
-An isolated Acceptance instance remains owned while either supervised process is alive.
+ * An isolated Acceptance instance remains owned while either supervised process is alive.
  */
 export async function isOwnedRuntime(
     runtime: Pick<

@@ -24,8 +24,8 @@ function upsert(messages: AgentHeldMessage[], incoming: AgentHeldMessage): Agent
 }
 
 /**
- * Presents Host-held peer text as inert plain text. Approve moves only this message into the
- * receiver Inbox; neither action grants authority, writes terminal input, or changes policy.
+ * Presents Host-held peer text as inert plain text. Approve moves only this message into the receiver Inbox; neither
+ * action grants authority, writes terminal input, or changes policy.
  */
 export function AgentMessageApprovalDialog() {
     const [messages, setMessages] = useState<AgentHeldMessage[]>([]);
@@ -153,7 +153,7 @@ export function AgentMessageApprovalDialog() {
                         </dl>
                         <pre
                             data-testid="agent-message-body"
-                            className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-background p-3 font-mono text-[11px] leading-5 text-foreground"
+                            className="m-0 max-h-48 overflow-auto rounded border border-border bg-background p-3 font-mono text-[11px] leading-5 break-words whitespace-pre-wrap text-foreground"
                         >
                             {detail?.body ??
                                 (detailFailed

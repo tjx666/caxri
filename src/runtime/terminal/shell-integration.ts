@@ -113,8 +113,8 @@ unset CAXRI_SHELL_INTEGRATION_DIR CAXRI_USER_ZDOTDIR
 `;
 
 /**
- * Replaces only regular files beneath the private integration directory without following a
- *  user-controlled leaf symlink left behind by an older or interrupted launch.
+ * Replaces only regular files beneath the private integration directory without following a user-controlled leaf
+ * symlink left behind by an older or interrupted launch.
  */
 async function writeOwnedScript(path: string, source: string): Promise<void> {
     const handle = await open(
@@ -131,7 +131,7 @@ async function writeOwnedScript(path: string, source: string): Promise<void> {
 }
 
 /**
-Writes Caxri-owned startup scripts and maps only allowlisted shell executables to them.
+ * Writes Caxri-owned startup scripts and maps only allowlisted shell executables to them.
  */
 export class ShellIntegrationService {
     static async create(userDataPath: string): Promise<ShellIntegrationService> {

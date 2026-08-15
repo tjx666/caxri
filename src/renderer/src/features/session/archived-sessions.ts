@@ -3,7 +3,7 @@ import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from 
 export interface ArchivedSessionFilters {
     agent: TerminalKind | 'all';
     /**
-    Project id or the UI sentinel `all`.
+     * Project id or the UI sentinel `all`.
      */
     projectId: string;
     query: string;
@@ -31,12 +31,12 @@ interface ArchivedSessionView {
 }
 
 /**
-Stable display order for Agent filter options; only kinds actually present in the archive show.
+ * Stable display order for Agent filter options; only kinds actually present in the archive show.
  */
 const AGENT_ORDER: TerminalKind[] = ['shell', 'claude', 'codex'];
 
 /**
-Builds the archived management read model from the existing bootstrap snapshot.
+ * Builds the archived management read model from the existing bootstrap snapshot.
  */
 export function deriveArchivedSessionView(
     projects: readonly ProjectRecord[],
@@ -79,8 +79,8 @@ export function deriveArchivedSessionView(
     );
     const projectOptions = orderedProjects.filter((project) => sessionsByProject.has(project.id));
     /**
-     * Restore/delete can remove the selected Project's last archived Session. Normalize that stale
-     * filter immediately so the control and results both return to the complete archive.
+     * Restore/delete can remove the selected Project's last archived Session. Normalize that stale filter immediately
+     * so the control and results both return to the complete archive.
      */
     const projectId =
         filters.projectId === 'all' ||
@@ -110,9 +110,9 @@ export function deriveArchivedSessionView(
 
     return {
         /**
-         * Derived from what is actually archived, not the fixed catalog: an Agent kind with zero
-         * archived Sessions would otherwise be selectable and immediately dead-end into "no
-         * results" instead of not appearing as an option at all.
+         * Derived from what is actually archived, not the fixed catalog: an Agent kind with zero archived Sessions
+         * would otherwise be selectable and immediately dead-end into "no results" instead of not appearing as an
+         * option at all.
          */
         agentOptions: AGENT_ORDER.filter((kind) => usedAgentKinds.has(kind)),
         groups,

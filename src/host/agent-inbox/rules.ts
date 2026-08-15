@@ -91,7 +91,7 @@ export function resolvePullReceiver(
 }
 
 /**
-The complete auto-policy matrix is intentionally small enough to exhaustively regression test.
+ * The complete auto-policy matrix is intentionally small enough to exhaustively regression test.
  */
 export function decideInboundStatus(
     policy: AgentInboundPolicy,

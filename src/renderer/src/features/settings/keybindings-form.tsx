@@ -26,8 +26,8 @@ import {
 
 interface KeybindingsFormProperties {
     /**
-     * Bumped by the `settings.openKeybindings` command to focus the search field on open,
-     * mirroring `TrustedDomainsForm`'s `focusRequestId`.
+     * Bumped by the `settings.openKeybindings` command to focus the search field on open, mirroring
+     * `TrustedDomainsForm`'s `focusRequestId`.
      */
     focusRequestId?: number;
     keybindings: Keybinding[];
@@ -41,13 +41,13 @@ const titleByCommand = new Map<string, string>(
 );
 
 /**
-Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`.
+ * Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`.
  */
 const clearSearchButtonClassName =
     'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:bg-elevated hover:text-foreground';
 
 /**
-Searchable, keyboard-operable command list backed by the lossless JSONC draft.
+ * Searchable, keyboard-operable command list backed by the lossless JSONC draft.
  */
 export function KeybindingsForm({
     focusRequestId,
@@ -194,7 +194,7 @@ export function KeybindingsForm({
                         <li
                             key={row.id}
                             aria-describedby={conflictId}
-                            className="group mb-1 grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded border border-transparent px-3 py-2 hover:border-border hover:bg-elevated focus-within:border-border focus-within:bg-elevated"
+                            className="group mb-1 grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded border border-transparent px-3 py-2 focus-within:border-border focus-within:bg-elevated hover:border-border hover:bg-elevated"
                         >
                             <div className="min-w-0">
                                 <div className="flex min-w-0 items-baseline gap-2">
@@ -263,7 +263,7 @@ export function KeybindingsForm({
                                     </>
                                 )}
                             </Button>
-                            <div className="flex min-w-16 justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                            <div className="flex min-w-16 justify-end gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                                 {row.bindingIndex !== undefined && (
                                     <Button
                                         aria-label={`Remove shortcut for ${row.title}`}

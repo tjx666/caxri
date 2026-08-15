@@ -28,7 +28,7 @@ export const agentEndpointBeginResultSchema = z.object({
 });
 
 /**
-Publishes a prepared credential only after Runtime has a live PTY for this exact launch.
+ * Publishes a prepared credential only after Runtime has a live PTY for this exact launch.
  */
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointActivateParamsSchema = z.object({

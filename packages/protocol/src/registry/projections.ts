@@ -46,7 +46,7 @@ const terminalSummarySchema = terminalRecordSchema.pick({
 });
 
 /**
-Minimal schemas are exported even before a command exposes the corresponding domain.
+ * Minimal schemas are exported even before a command exposes the corresponding domain.
  */
 export const principalProjectionSchemas = {
     project: scopedProjectSchema,
@@ -83,7 +83,7 @@ function projectScope(principal: Principal): ReadonlySet<string> | undefined {
 }
 
 /**
-Removes path and unrelated-Project data before a project list leaves the application handler.
+ * Removes path and unrelated-Project data before a project list leaves the application handler.
  */
 export function projectListForPrincipal(value: unknown, principal: Principal): ProjectListResult {
     const parsed = projectListResultSchema.parse(value);

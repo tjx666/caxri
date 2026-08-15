@@ -32,22 +32,22 @@ export interface DesktopLeaseHandle extends DesktopLease {
 
 export interface DesktopLeaseOptions {
     /**
-    Test seam for holding the repository lock across a competing acquisition.
+     * Test seam for holding the repository lock across a competing acquisition.
      */
     afterLockAcquired?: () => Promise<void>;
     /**
-    Proves a worker namespace is subordinate to the active repository-wide coordinator.
+     * Proves a worker namespace is subordinate to the active repository-wide coordinator.
      */
     coordinatorToken?: string;
     /**
-    Explicit sub-lease used only while a repository-wide coordinator owns the desktop.
+     * Explicit sub-lease used only while a repository-wide coordinator owns the desktop.
      */
     namespace?: string;
 }
 
 export interface DesktopLeaseReleaseOptions {
     /**
-    Test seam for proving a competing acquisition waits for release cleanup.
+     * Test seam for proving a competing acquisition waits for release cleanup.
      */
     afterLockAcquired?: () => Promise<void>;
 }
@@ -164,7 +164,7 @@ export async function inspectDesktopLease(
 }
 
 /**
-Acquire the repository-wide macOS desktop surface before starting Electron.
+ * Acquire the repository-wide macOS desktop surface before starting Electron.
  */
 export async function acquireDesktopLease(
     cwd: string,
@@ -209,8 +209,8 @@ export async function acquireDesktopLease(
         }
         if (!options.namespace && !(await readLease(path))) {
             /**
-             * A crashed coordinator may leave only worker leases. Reclaim verified-dead workers,
-             *  but never let a new desktop owner overlap a surviving Electron child.
+             * A crashed coordinator may leave only worker leases. Reclaim verified-dead workers, but never let a new
+             * desktop owner overlap a surviving Electron child.
              */
             await cleanWorkerLeases(context.stateDir);
         }
@@ -242,8 +242,8 @@ export async function acquireDesktopLease(
                     );
                 if (!options.namespace) await cleanWorkerLeases(context.stateDir);
                 /**
-                 * The repository lock keeps another contender from replacing this stale path
-                 *  between the identity check and unlink.
+                 * The repository lock keeps another contender from replacing this stale path between the identity check
+                 * and unlink.
                  */
                 await unlinkIfExists(path);
             }
@@ -254,8 +254,8 @@ export async function acquireDesktopLease(
 }
 
 /**
- * Reclaims only leases carrying the current CI run owner after their process identity is dead.
- * A live process or lease from another owner remains fail-closed for manual inspection.
+ * Reclaims only leases carrying the current CI run owner after their process identity is dead. A live process or lease
+ * from another owner remains fail-closed for manual inspection.
  */
 export async function reclaimDesktopLeasesByOwner(cwd: string, owner: string): Promise<number> {
     const validatedOwner = validateLeaseOwner(owner);
@@ -282,7 +282,7 @@ export async function reclaimDesktopLeasesByOwner(cwd: string, owner: string): P
             );
         }
         /**
-        Worker leases must disappear before their repository-wide coordinator.
+         * Worker leases must disappear before their repository-wide coordinator.
          */
         owned.sort(({ path: left }, { path: right }) => right.length - left.length);
         // Unlink order matters here: workers (sorted first) must be removed before the
@@ -294,7 +294,7 @@ export async function reclaimDesktopLeasesByOwner(cwd: string, owner: string): P
 }
 
 /**
-Fails when any repository desktop lease survives a runner preflight or teardown boundary.
+ * Fails when any repository desktop lease survives a runner preflight or teardown boundary.
  */
 export async function assertDesktopLeasesReleased(cwd: string): Promise<void> {
     const context = await repoContext(cwd);
@@ -318,7 +318,7 @@ export async function assertDesktopLeasesReleased(cwd: string): Promise<void> {
 }
 
 /**
-Mark the lease fail-closed before spawning a child that will take ownership.
+ * Mark the lease fail-closed before spawning a child that will take ownership.
  */
 export async function beginDesktopLeaseHandoff(
     handle: DesktopLeaseHandle,
@@ -335,7 +335,7 @@ export async function beginDesktopLeaseHandoff(
 }
 
 /**
-Transfer ownership after Electron starts so a surviving app keeps the lease fail-closed.
+ * Transfer ownership after Electron starts so a surviving app keeps the lease fail-closed.
  */
 export async function transferDesktopLease(
     handle: DesktopLeaseHandle,
@@ -368,7 +368,7 @@ export async function releaseDesktopLease(
         }
         if (handle.leasePath === leasePath(context.stateDir)) {
             /**
-            The coordinator remains fail-closed until every worker child is gone.
+             * The coordinator remains fail-closed until every worker child is gone.
              */
             await cleanWorkerLeases(context.stateDir);
         }

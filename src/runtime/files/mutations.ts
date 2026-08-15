@@ -49,15 +49,15 @@ interface ResolvedMutableEntry extends MutableEntry, FileIdentity {
 
 export interface FileMutationServiceOptions {
     /**
-    Test seam for replacing a source or parent after the durable stage write.
+     * Test seam for replacing a source or parent after the durable stage write.
      */
     afterMutationStage?: () => Promise<void>;
     /**
-    Test seam for observing bounded validation after a recursive copy.
+     * Test seam for observing bounded validation after a recursive copy.
      */
     beforeCopyTargetValidation?: () => Promise<void>;
     /**
-    Test seam for replacing a destination after source preflight but before identity revalidation.
+     * Test seam for replacing a destination after source preflight but before identity revalidation.
      */
     beforeCopyValidation?: () => Promise<void>;
     copyFile?: CopyFile;
@@ -120,9 +120,9 @@ function mutationError(error: unknown, action: string): CaxriError {
 }
 
 /**
- * Owns VS Code-style path-based Node file mutations under a Session's canonical Project root.
- * Identities are revalidated immediately before each call because Node has no directory-relative
- * `openat`/no-replace rename API; Main applies the same last-moment check before Electron Trash.
+ * Owns VS Code-style path-based Node file mutations under a Session's canonical Project root. Identities are
+ * revalidated immediately before each call because Node has no directory-relative `openat`/no-replace rename API; Main
+ * applies the same last-moment check before Electron Trash.
  */
 export class FileMutationService {
     private readonly afterMutationStage?: () => Promise<void>;
@@ -183,11 +183,10 @@ export class FileMutationService {
                 };
 
             /**
-             * This loop retries sequential candidate names until one is reserved and moved, then
-             * returns. Each iteration depends on the previous one's reservation/existence outcome
-             * and the loop early-exits via `return`/`continue`/`break`, so its awaits cannot be
-             * parallelized across iterations without racing target reservations and the final
-             * `rename`.
+             * This loop retries sequential candidate names until one is reserved and moved, then returns. Each
+             * iteration depends on the previous one's reservation/existence outcome and the loop early-exits via
+             * `return`/`continue`/`break`, so its awaits cannot be parallelized across iterations without racing target
+             * reservations and the final `rename`.
              */
             for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
                 if (!isRenameOnConflict && sequence > 0) break;
@@ -241,14 +240,13 @@ export class FileMutationService {
                         this.assertIdentity(directory),
                     ]);
                     /**
-                     * Node's rename matches VS Code's local provider. The reservation prevents
-                     * conflicting Caxri requests, and the final check normally avoids knowingly
-                     * replacing a target that already exists — except in `replace` mode, where the
-                     * caller already showed the user an interactive Finder-style prompt and captured
-                     * an explicit Replace confirmation, and `assertReplaceableMove` just verified
-                     * neither side of the move is a folder. Runtime has no Trash API for a safer
-                     * overwrite (that lives in Main), so the sanctioned replace path is POSIX
-                     * `rename(2)` atomically overwriting a plain file target.
+                     * Node's rename matches VS Code's local provider. The reservation prevents conflicting Caxri
+                     * requests, and the final check normally avoids knowingly replacing a target that already exists —
+                     * except in `replace` mode, where the caller already showed the user an interactive Finder-style
+                     * prompt and captured an explicit Replace confirmation, and `assertReplaceableMove` just verified
+                     * neither side of the move is a folder. Runtime has no Trash API for a safer overwrite (that lives
+                     * in Main), so the sanctioned replace path is POSIX `rename(2)` atomically overwriting a plain file
+                     * target.
                      */
                     // eslint-disable-next-line no-await-in-loop -- see comment above the loop
                     await rename(source.path, targetPath);
@@ -277,12 +275,11 @@ export class FileMutationService {
     }
 
     /**
-     * `replace` mode intentionally skips the CONFLICT-on-existing-target checks the other modes
-     * use: the caller already showed the user a Finder-style prompt and captured an explicit
-     * Replace confirmation. The only remaining safety rail is this directory check. Returns
-     * whether an existing file target was actually present (and is about to be overwritten), so
-     * the caller can log it; a target that vanished between the user's choice and this retry
-     * (ENOENT) is treated the same as no target — the plain rename below just succeeds.
+     * `replace` mode intentionally skips the CONFLICT-on-existing-target checks the other modes use: the caller already
+     * showed the user a Finder-style prompt and captured an explicit Replace confirmation. The only remaining safety
+     * rail is this directory check. Returns whether an existing file target was actually present (and is about to be
+     * overwritten), so the caller can log it; a target that vanished between the user's choice and this retry (ENOENT)
+     * is treated the same as no target — the plain rename below just succeeds.
      */
     private async assertReplaceableMove(
         source: FileIdentity,
@@ -471,12 +468,11 @@ export class FileMutationService {
                 totalBytes = manifest.totalBytes;
                 await this.beforeCopyValidation?.();
                 /**
-                 * This loop retries sequential candidate names (`file copy`, `file copy 2`, ...)
-                 * until one is free, then performs the actual transfer and returns. Each iteration
-                 * depends on the previous one's outcome (name taken vs. free, transfer succeeded vs.
-                 * conflicted) and the loop early-exits via `return`/`continue`, so the awaits below
-                 * cannot be parallelized across iterations without racing target reservations and
-                 * risking multiple concurrent transfers into the same candidate name.
+                 * This loop retries sequential candidate names (`file copy`, `file copy 2`, ...) until one is free,
+                 * then performs the actual transfer and returns. Each iteration depends on the previous one's outcome
+                 * (name taken vs. free, transfer succeeded vs. conflicted) and the loop early-exits via
+                 * `return`/`continue`, so the awaits below cannot be parallelized across iterations without racing
+                 * target reservations and risking multiple concurrent transfers into the same candidate name.
                  */
                 for (let sequence = 0; sequence < MAX_UNIQUE_NAME_ATTEMPTS; sequence += 1) {
                     this.copyTree.assertCopyDeadline(startedAt, controller.signal);

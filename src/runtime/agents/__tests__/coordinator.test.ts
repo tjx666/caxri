@@ -182,7 +182,7 @@ describe('AgentCoordinator', () => {
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
         /**
-        Fake only Date so the probe-interval clock advances without touching real timers.
+         * Fake only Date so the probe-interval clock advances without touching real timers.
          */
         vi.useFakeTimers({ toFake: ['Date'] });
 
@@ -418,7 +418,7 @@ describe('AgentCoordinator', () => {
             coordinator.observeOutput(created.terminal!.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
             /**
-            The first Agent Terminal owns the Session title, so its metadata reaches the Renderer.
+             * The first Agent Terminal owns the Session title, so its metadata reaches the Renderer.
              */
             expect(events).toEqual([
                 {

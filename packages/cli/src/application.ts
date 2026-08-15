@@ -76,7 +76,7 @@ export interface CliHostConnectorOptions {
 }
 
 /**
-Keeps packaged Host startup exclusive to an interactive human/operator invocation.
+ * Keeps packaged Host startup exclusive to an interactive human/operator invocation.
  */
 export function createCliHostConnector(options: CliHostConnectorOptions) {
     const connectExisting =
@@ -446,7 +446,7 @@ async function confirmMutation(
 }
 
 /**
-Executes one bounded CLI invocation and returns a stable process exit code.
+ * Executes one bounded CLI invocation and returns a stable process exit code.
  */
 export async function runCli(
     argv: readonly string[],
@@ -581,7 +581,7 @@ export async function runCli(
         const command = remoteCommand(parsed.tokens);
         let parameters = command.parseParams(parsed.tokens.slice(command.path.length));
         /**
-        Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split.
+         * Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split.
          */
         if (command.method === 'agent.message.wait') parameters = { timeoutMs: parsed.timeoutMs };
         else if (command.method === 'agent.dispatch.wait')

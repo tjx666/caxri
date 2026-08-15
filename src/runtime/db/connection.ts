@@ -42,7 +42,7 @@ function installCurrentSchema(database: Database.Database): void {
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
 
 /**
-Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes.
+ * Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes.
  */
 function backfillProjectOrder(database: Database.Database): void {
     const legacyProjects = database
@@ -69,7 +69,7 @@ function initializeSchema(database: Database.Database): void {
     database.transaction(() => {
         if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
             /**
-            Pre-release metadata can be rebuilt; Project directories and user files are never touched.
+             * Pre-release metadata can be rebuilt; Project directories and user files are never touched.
              */
             database.exec(`
                 DROP TABLE IF EXISTS agent_dispatch_receipts;
@@ -89,11 +89,11 @@ function initializeSchema(database: Database.Database): void {
 }
 
 /**
- * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the
- * resulting Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}.
- * This module owns only the query/update mechanics; which states apply is a domain decision.
- * Exported as `markShutdown` for both the recovery path at {@link openDatabase} (always `unclean`)
- * and `./index.ts`'s `CaxriDatabaseConnection.markShutdown` (orderly/terminate, chosen by the caller).
+ * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the resulting
+ * Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}. This module owns only the
+ * query/update mechanics; which states apply is a domain decision. Exported as `markShutdown` for both the recovery
+ * path at {@link openDatabase} (always `unclean`) and `./index.ts`'s `CaxriDatabaseConnection.markShutdown`
+ * (orderly/terminate, chosen by the caller).
  */
 export function markShutdown(
     database: CaxriDrizzleDatabase,
@@ -125,26 +125,25 @@ export function markShutdown(
 
 export interface OpenedDatabase {
     /**
-         Raw better-sqlite3 handle; still needed for pragmas and integration tests that inspect
-        `table_info`/`user_version` directly.
+     * Raw better-sqlite3 handle; still needed for pragmas and integration tests that inspect
+     * `table_info`/`user_version` directly.
      */
     database: Database.Database;
     /**
-    Drizzle query-builder instance bound to the same connection and to `./schema`.
+     * Drizzle query-builder instance bound to the same connection and to `./schema`.
      */
     db: CaxriDrizzleDatabase;
 }
 
 /**
- * Opens (creating if needed) the Caxri SQLite database: restricts the owning directory and file to
- * the current user, enables WAL/foreign-keys/busy-timeout, runs schema initialization, and recovers
- * from any unclean previous shutdown.
+ * Opens (creating if needed) the Caxri SQLite database: restricts the owning directory and file to the current user,
+ * enables WAL/foreign-keys/busy-timeout, runs schema initialization, and recovers from any unclean previous shutdown.
  */
 export function openDatabase(path: string): OpenedDatabase {
     if (path !== ':memory:') {
         mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
         /**
-        Electron owns this userData directory, so restricting it also protects adjacent Caxri configuration and logs.
+         * Electron owns this userData directory, so restricting it also protects adjacent Caxri configuration and logs.
          */
         restrictPath(dirname(path), 0o700);
     }

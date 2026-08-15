@@ -32,7 +32,7 @@ export interface E2EManifestSummary {
 }
 
 /**
-Verifies the union of actual pool executions, rather than collecting a separate test list.
+ * Verifies the union of actual pool executions, rather than collecting a separate test list.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/report-e2e-manifest.test.ts
 export function summarizeE2EReceipts(receipts: readonly E2EPoolReceipt[]): E2EManifestSummary {

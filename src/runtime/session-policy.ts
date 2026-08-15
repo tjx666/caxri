@@ -13,13 +13,13 @@ import type {
 import type { AgentLifecyclePhase } from './agents';
 
 /**
- * Domain policy for the persisted Project/Session/Terminal model: decisions take plain records as
- * input and return plain patches or facts, with no SQL and no side effects. `./db/repository.ts`
- * composes these with `./db/models/*` (pure SQL) inside its own transactions.
+ * Domain policy for the persisted Project/Session/Terminal model: decisions take plain records as input and return
+ * plain patches or facts, with no SQL and no side effects. `./db/repository.ts` composes these with `./db/models/*`
+ * (pure SQL) inside its own transactions.
  */
 
 /**
-Neutral automatic title used until a new Session gains useful Agent metadata or a manual name.
+ * Neutral automatic title used until a new Session gains useful Agent metadata or a manual name.
  */
 export const DEFAULT_SESSION_TITLE = 'Untitled';
 
@@ -28,7 +28,7 @@ export function defaultTerminalTitle(kind: TerminalKind): string {
 }
 
 /**
-Maps a Terminal process lifecycle state onto the coarser Agent activity state shown in the UI.
+ * Maps a Terminal process lifecycle state onto the coarser Agent activity state shown in the UI.
  */
 export function processActivityState(state: ProcessState): AgentActivityState {
     if (state === 'running' || state === 'starting') return 'running';
@@ -37,29 +37,28 @@ export function processActivityState(state: ProcessState): AgentActivityState {
 }
 
 /**
- * Why a Runtime is bulk-marking every still-alive Terminal at connection-open/close time. `unclean`
- * covers a previous process crash/kill discovered on the next `openDatabase` call; `orderly` covers
- * a graceful Runtime shutdown (app quit, Session reload). Both leave still-alive Terminals
- * `interrupted` so the next Runtime start can auto-resume them (with their Agent conversation
- * intact, per GitHub issue #18) — only their primary Agent Session outcome differs: `failed` for an
- * unclean shutdown versus `completed` for an orderly one, since nothing actually failed there.
- * `terminate` covers the explicit user-initiated "Terminate and Close" action
- * (`terminal.terminateAll`): Terminals are marked `stopped`, the same terminal state as a normal
- * exit, so the next Runtime start treats them as finished and does not auto-restore them.
+ * Why a Runtime is bulk-marking every still-alive Terminal at connection-open/close time. `unclean` covers a previous
+ * process crash/kill discovered on the next `openDatabase` call; `orderly` covers a graceful Runtime shutdown (app
+ * quit, Session reload). Both leave still-alive Terminals `interrupted` so the next Runtime start can auto-resume them
+ * (with their Agent conversation intact, per GitHub issue #18) — only their primary Agent Session outcome differs:
+ * `failed` for an unclean shutdown versus `completed` for an orderly one, since nothing actually failed there.
+ * `terminate` covers the explicit user-initiated "Terminate and Close" action (`terminal.terminateAll`): Terminals are
+ * marked `stopped`, the same terminal state as a normal exit, so the next Runtime start treats them as finished and
+ * does not auto-restore them.
  */
 export type ShutdownReason = 'unclean' | 'orderly' | 'terminate';
 
 export interface ShutdownOutcome {
     /**
-    Terminal process states treated as "still alive" and eligible for bulk-marking.
+     * Terminal process states treated as "still alive" and eligible for bulk-marking.
      */
     liveProcessStates: ProcessState[];
     /**
-    Process state written to every previously-alive Terminal.
+     * Process state written to every previously-alive Terminal.
      */
     terminalProcessState: ProcessState;
     /**
-    Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`.
+     * Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`.
      */
     primaryAgentSessionState: AgentActivityState;
 }
@@ -83,7 +82,7 @@ const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
 };
 
 /**
-Decides the bulk Terminal/Session state transition for a given shutdown `reason`.
+ * Decides the bulk Terminal/Session state transition for a given shutdown `reason`.
  */
 export function shutdownOutcome(reason: ShutdownReason): ShutdownOutcome {
     return SHUTDOWN_OUTCOMES[reason];
@@ -96,10 +95,10 @@ export interface PrimaryAgentAssignment {
 }
 
 /**
- * Decides whether a freshly created Terminal becomes its Session's primary Agent. Only an Agent
- * Terminal (never a shell) can become primary, and only when the Session does not already have one.
- * A brand-new Session (no `primaryAgentTerminalId` yet) and an existing Session gaining its first
- * Agent Terminal both flow through this same rule.
+ * Decides whether a freshly created Terminal becomes its Session's primary Agent. Only an Agent Terminal (never a
+ * shell) can become primary, and only when the Session does not already have one. A brand-new Session (no
+ * `primaryAgentTerminalId` yet) and an existing Session gaining its first Agent Terminal both flow through this same
+ * rule.
  */
 export function choosePrimaryAgentForNewTerminal(
     session: Pick<SessionRecord, 'displayTitle' | 'primaryAgentTerminalId' | 'titleMode'>,
@@ -120,9 +119,8 @@ export interface PrimaryAgentSuccession {
 }
 
 /**
- * Picks the next primary Agent Terminal after the current one closes. The visible title stays
- * stable until useful metadata from the successor arrives; when only Shell Terminals remain, the
- * last generated Agent title stays visible.
+ * Picks the next primary Agent Terminal after the current one closes. The visible title stays stable until useful
+ * metadata from the successor arrives; when only Shell Terminals remain, the last generated Agent title stays visible.
  */
 export function choosePrimaryAgentSuccessor(
     remainingTerminals: TerminalRecord[],
@@ -137,7 +135,7 @@ export function choosePrimaryAgentSuccessor(
 }
 
 /**
-Removes attachment-only prefixes that Codex includes in a thread title but users cannot act on.
+ * Removes attachment-only prefixes that Codex includes in a thread title but users cannot act on.
  */
 function agentDisplayTitle(title: string | undefined, fallback: string): string {
     const meaningfulTitle = title
@@ -149,11 +147,11 @@ function agentDisplayTitle(title: string | undefined, fallback: string): string 
 
 export interface AgentMetadataDecision {
     /**
-    New value to persist on the Terminal row (`undefined` clears the column).
+     * New value to persist on the Terminal row (`undefined` clears the column).
      */
     agentSessionId: string | undefined;
     /**
-    Present only when this Terminal is the Session's primary Agent and its title/status changed.
+     * Present only when this Terminal is the Session's primary Agent and its title/status changed.
      */
     sessionPatch?: {
         attentionKind?: SessionAttentionKind;
@@ -163,7 +161,7 @@ export interface AgentMetadataDecision {
 }
 
 /**
-Emits one attention generation per reliable state transition, never for process fallbacks.
+ * Emits one attention generation per reliable state transition, never for process fallbacks.
  */
 function reliableAttentionTransition(
     session: Pick<SessionRecord, 'lastActivityState' | 'lastAttentionKind'>,
@@ -181,8 +179,8 @@ export interface AgentLifecycleDecision {
 }
 
 /**
- * Converts one validated provider lifecycle signal into a Session-only patch. The result cannot
- * carry `agentSessionId`, so a hook event can never clear a Terminal's resume binding.
+ * Converts one validated provider lifecycle signal into a Session-only patch. The result cannot carry `agentSessionId`,
+ * so a hook event can never clear a Terminal's resume binding.
  */
 export function decideAgentLifecycleUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider'>,
@@ -221,9 +219,8 @@ export function decideAgentLifecycleUpdate(
 }
 
 /**
- * Decides how an Agent CLI probe result should update persisted state, or returns `undefined` when
- * nothing changed (a provider mismatch, or an identical no-op snapshot) so the caller can skip the
- * write entirely.
+ * Decides how an Agent CLI probe result should update persisted state, or returns `undefined` when nothing changed (a
+ * provider mismatch, or an identical no-op snapshot) so the caller can skip the write entirely.
  */
 export function decideAgentMetadataUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider' | 'agentSessionId'>,
@@ -272,10 +269,10 @@ export interface FallbackSelection {
 }
 
 /**
- * Picks the next Project/Session pair to select after the currently selected target is deleted.
- * Both Project deletion and Session deletion feed their already-scoped fallback candidate through
- * this one rule instead of maintaining two near-identical selection algorithms: a candidate Session
- * (already ordered/scoped by the caller) wins outright; otherwise fall back to `fallbackProjectId`.
+ * Picks the next Project/Session pair to select after the currently selected target is deleted. Both Project deletion
+ * and Session deletion feed their already-scoped fallback candidate through this one rule instead of maintaining two
+ * near-identical selection algorithms: a candidate Session (already ordered/scoped by the caller) wins outright;
+ * otherwise fall back to `fallbackProjectId`.
  */
 export function selectFallbackAfterDeletion(
     fallbackSession: SessionRecord | undefined,
@@ -289,8 +286,8 @@ export function selectFallbackAfterDeletion(
 
 /**
  * Removes a closed Terminal from the persisted split layout. Composes the pure layout helpers in
- * `../shared/terminal-layout.ts` instead of letting the persistence layer perform its own JSON
- * surgery on UI layout state.
+ * `../shared/terminal-layout.ts` instead of letting the persistence layer perform its own JSON surgery on UI layout
+ * state.
  */
 export function withTerminalRemovedFromLayout(
     state: SessionState,

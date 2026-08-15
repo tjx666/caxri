@@ -64,11 +64,10 @@ export interface UseFileTreeItemInteractionsResult {
 }
 
 /**
- * Owns every non-render concern for a single file-tree row: clipboard/drag-and-drop handlers,
- * rename/create entry points, roving-tabindex bookkeeping, and the keyboard shortcut map. Split
- * out of `FileTreeItem` purely to keep that component's JSX readable — every return here is
- * consumed directly by the row's DOM attributes/handlers, so this hook does not change any
- * rendered output or handler semantics.
+ * Owns every non-render concern for a single file-tree row: clipboard/drag-and-drop handlers, rename/create entry
+ * points, roving-tabindex bookkeeping, and the keyboard shortcut map. Split out of `FileTreeItem` purely to keep that
+ * component's JSX readable — every return here is consumed directly by the row's DOM attributes/handlers, so this hook
+ * does not change any rendered output or handler semantics.
  */
 export function useFileTreeItemInteractions({
     clearFocusPath,
@@ -111,9 +110,8 @@ export function useFileTreeItemInteractions({
         isPathBlockedByFileOperations(operations, projectId, entry.path) ||
         isPathBlockedByFileOperations(operations, projectId, parentDirectory);
     /**
-     * Roving tabindex: exactly one row in the whole tree is a Tab stop. The selected row owns it;
-     * with no selection, the very first root-level row is the fallback so Tab always lands
-     * somewhere sensible instead of nowhere.
+     * Roving tabindex: exactly one row in the whole tree is a Tab stop. The selected row owns it; with no selection,
+     * the very first root-level row is the fallback so Tab always lands somewhere sensible instead of nowhere.
      */
     const isRovingTabStop = selectedPath ? selectedPath === entry.path : depth === 0 && index === 0;
 

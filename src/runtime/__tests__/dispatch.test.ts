@@ -24,7 +24,7 @@ const runtimeMethodNames = [...Object.keys(methods), ...Object.keys(internalMeth
 ) as RuntimeMethod[];
 
 /**
-Handlers whose only job is to observe dispatch behaviour, independent of real Runtime services.
+ * Handlers whose only job is to observe dispatch behaviour, independent of real Runtime services.
  */
 function stubHandlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): RuntimeHandlers {
     const table = Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null]));

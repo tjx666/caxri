@@ -45,19 +45,19 @@ function ProcessRow({
                 >
                     <button
                         type="button"
-                        className="process-name flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden border-0 bg-transparent p-0 text-left cursor-pointer disabled:cursor-default disabled:text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
+                        className="process-name flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 overflow-hidden border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground disabled:cursor-default disabled:text-inherit"
                         title={node.name}
                         disabled={!isExpandable}
                         onClick={() => toggle(node.pid)}
                     >
                         {isExpandable ? (
                             isExpanded ? (
-                                <ChevronDown className="shrink-0 w-3.5" size={14} />
+                                <ChevronDown className="w-3.5 shrink-0" size={14} />
                             ) : (
-                                <ChevronRight className="shrink-0 w-3.5" size={14} />
+                                <ChevronRight className="w-3.5 shrink-0" size={14} />
                             )
                         ) : (
-                            <span className="process-indent shrink-0 w-3.5" />
+                            <span className="process-indent w-3.5 shrink-0" />
                         )}
                         <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                             {node.name}
@@ -145,7 +145,7 @@ export function ProcessExplorerApp() {
                 </strong>
                 <button
                     type="button"
-                    className="absolute right-3 grid size-[26px] place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground disabled:cursor-default disabled:opacity-55"
+                    className="absolute right-3 grid size-[26px] cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground disabled:cursor-default disabled:opacity-55"
                     aria-label="Refresh processes"
                     title="Refresh processes"
                     disabled={refreshing}

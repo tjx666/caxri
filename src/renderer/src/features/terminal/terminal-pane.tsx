@@ -71,9 +71,9 @@ function TerminalRecoveryBar({
     terminalId: string;
 }) {
     /**
-     * `terminal.restart` drives both labels below; only the visible word ("Resume" vs "Restart")
-     *  changes, so the tooltip text is composed locally instead of reusing `CommandTooltip`'s fixed
-     *  catalog title, which used to show "Restart Terminal" while hovering a button labeled Resume.
+     * `terminal.restart` drives both labels below; only the visible word ("Resume" vs "Restart") changes, so the
+     * tooltip text is composed locally instead of reusing `CommandTooltip`'s fixed catalog title, which used to show
+     * "Restart Terminal" while hovering a button labeled Resume.
      */
     const restartShortcut = useCommandShortcut('terminal.restart');
     const exitPresentation = getTerminalExitPresentation(processState, failureReason);
@@ -87,9 +87,9 @@ function TerminalRecoveryBar({
                 ? LoaderCircle
                 : CircleX;
     /**
-     * An automatic restore is already in flight for `interrupted`; racing it with a manual click
-     *  can hand two restart requests to the same Terminal, so the actions stand down until it settles
-     *  into a state (`failed`/`dead`/`stopped`) that actually needs a user decision.
+     * An automatic restore is already in flight for `interrupted`; racing it with a manual click can hand two restart
+     * requests to the same Terminal, so the actions stand down until it settles into a state
+     * (`failed`/`dead`/`stopped`) that actually needs a user decision.
      */
     const isAwaitingAutomaticRestore = processState === 'interrupted';
     return (
@@ -97,7 +97,7 @@ function TerminalRecoveryBar({
             aria-live="polite"
             className={cn(
                 `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
-                'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 -ml-2 pt-0 pr-1 pb-0 pl-2 border-t border-border text-[11px]',
+                '-ml-2 flex min-w-0 flex-none basis-7 items-center justify-between gap-3 border-t border-border pt-0 pr-1 pb-0 pl-2 text-[11px]',
                 'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
                 terminalRecoveryToneClassName[exitPresentation.tone],
             )}
@@ -124,7 +124,7 @@ function TerminalRecoveryBar({
                         aria-label={
                             resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'
                         }
-                        className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                        className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
                         onClick={() => restartTerminal(terminalId)}
@@ -137,7 +137,7 @@ function TerminalRecoveryBar({
                 <CommandTooltip commandId="terminal.startNewAgentSession">
                     <Button
                         aria-label="Start New Agent Session"
-                        className="terminal-recovery-action flex-none min-h-6 px-2 text-inherit"
+                        className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
                         onClick={() => startNewAgentSession(terminalId)}
@@ -151,8 +151,8 @@ function TerminalRecoveryBar({
 }
 
 /**
- * Presents one Terminal while the runtime hook owns its imperative xterm lifecycle. Inputs are
- * selected from stores here so a snapshot refresh does not rerender every pane in a split layout.
+ * Presents one Terminal while the runtime hook owns its imperative xterm lifecycle. Inputs are selected from stores
+ * here so a snapshot refresh does not rerender every pane in a split layout.
  */
 export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProperties) {
     const terminal = useTerminal(terminalId);
@@ -241,9 +241,9 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const isResumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
     const isRunning = processState === 'running';
     /**
-     * Recomputed only when the menu opens rather than tracked continuously: xterm selection changes
-     * do not otherwise trigger a `TerminalPane` rerender, so reading `hasActiveTerminalSelection`
-     * straight in JSX would show whatever was true the last time some other prop changed.
+     * Recomputed only when the menu opens rather than tracked continuously: xterm selection changes do not otherwise
+     * trigger a `TerminalPane` rerender, so reading `hasActiveTerminalSelection` straight in JSX would show whatever
+     * was true the last time some other prop changed.
      */
     const [contextMenuHasSelection, setContextMenuHasSelection] = useState(false);
 

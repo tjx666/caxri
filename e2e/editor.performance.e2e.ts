@@ -33,7 +33,7 @@ type BenchmarkWindow = typeof window & {
 };
 
 /**
-Keeps the benchmark on the real cold path until the first editor has visibly highlighted.
+ * Keeps the benchmark on the real cold path until the first editor has visibly highlighted.
  */
 async function holdIdleCallbacks(page: Page): Promise<void> {
     await page.evaluate(() => {

@@ -7,7 +7,7 @@ import type { RuntimeHandlers } from './dispatch';
 import type { TerminalManagerOptions } from './terminal';
 
 /**
-Environment-owned seams supplied to the Runtime composition root.
+ * Environment-owned seams supplied to the Runtime composition root.
  */
 export interface RuntimeDependencies {
     userDataPath: string;
@@ -28,7 +28,7 @@ export interface RuntimeDependencies {
 export interface Runtime {
     handlers: RuntimeHandlers;
     /**
-    Releases every owned resource: schedulers, PTYs, watchers, and the database.
+     * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */
     close(): Promise<void>;
 }

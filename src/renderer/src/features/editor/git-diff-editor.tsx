@@ -62,8 +62,8 @@ function DiffSurface({
     useLayoutEffect(
         () => () => {
             /**
-             * Detach both models before the wrapper disposes them. Monaco otherwise observes a
-             * disposed model from a still-mounted diff widget when many editors unmount together.
+             * Detach both models before the wrapper disposes them. Monaco otherwise observes a disposed model from a
+             * still-mounted diff widget when many editors unmount together.
              */
             editorReference.current?.setModel(null);
             editorReference.current = null;
@@ -81,7 +81,7 @@ function DiffSurface({
     if (document.format === 'patch')
         return (
             <Editor
-                className="git-patch-editor w-full h-full"
+                className="git-patch-editor h-full w-full"
                 language="diff"
                 path={`${gitDiffModelPath(sessionId, modelRepoId, document.path, 'modified')}.diff`}
                 value={document.modified}
@@ -316,7 +316,7 @@ function GitChangesDiffItem({
     return (
         <section ref={containerRef} className="git-multi-diff-item border-b border-border">
             <div
-                className="git-multi-diff-heading h-9 overflow-hidden border-b border-border bg-surface px-3 text-[11px] font-semibold text-ellipsis whitespace-nowrap text-foreground leading-9"
+                className="git-multi-diff-heading h-9 overflow-hidden border-b border-border bg-surface px-3 text-[11px] leading-9 font-semibold text-ellipsis whitespace-nowrap text-foreground"
                 title={label}
             >
                 {label}

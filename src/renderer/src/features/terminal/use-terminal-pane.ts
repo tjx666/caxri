@@ -73,7 +73,7 @@ interface TerminalPaneRuntimeOptions {
 }
 
 /**
-Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
+ * Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
  */
 export function useTerminalPaneRuntime({
     active,
@@ -94,8 +94,8 @@ export function useTerminalPaneRuntime({
     const containerReference = useRef<HTMLDivElement>(null);
     const xtermReference = useRef<Terminal | undefined>(undefined);
     /**
-     * Set by the mount effect below; the context menu's Paste action reads through this instead of
-     *  capturing the imperative xterm instance directly, since the effect (re)runs per attach epoch.
+     * Set by the mount effect below; the context menu's Paste action reads through this instead of capturing the
+     * imperative xterm instance directly, since the effect (re)runs per attach epoch.
      */
     const pasteReference = useRef<(() => Promise<void>) | undefined>(undefined);
     const searchReference = useRef<SearchAddon | undefined>(undefined);
@@ -161,7 +161,7 @@ export function useTerminalPaneRuntime({
                 onError(errorMessage(error, 'Bundled terminal fonts failed to load'));
             } finally {
                 /**
-                A corrupt font must degrade to the system monospace stack instead of blocking the PTY.
+                 * A corrupt font must degrade to the system monospace stack instead of blocking the PTY.
                  */
                 if (!isCanceled) setFontsReady(true);
             }
@@ -191,8 +191,8 @@ export function useTerminalPaneRuntime({
         });
         const fit = new FitAddon();
         /**
-         * One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing
-         *  Terminal text outside xterm's Unicode- and wrap-aware search engine.
+         * One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing Terminal text outside
+         * xterm's Unicode- and wrap-aware search engine.
          */
         const search = new SearchAddon({ highlightLimit: TERMINAL_SEARCH_HIGHLIGHT_LIMIT + 1 });
         const unicode11 = new Unicode11Addon();
@@ -261,8 +261,8 @@ export function useTerminalPaneRuntime({
             });
         } catch {
             /**
-             * Inline images are optional output decoration; addon activation must not make the
-             *  Terminal or its underlying PTY unavailable.
+             * Inline images are optional output decoration; addon activation must not make the Terminal or its
+             * underlying PTY unavailable.
              */
             images.dispose();
             container.dataset.terminalImageStatus = 'unavailable';
@@ -274,8 +274,8 @@ export function useTerminalPaneRuntime({
         );
         const progressDisposable = progress.onChange((update) => {
             /**
-             * A stopped Terminal can replay historical OSC bytes during recovery; those bytes must
-             *  not resurrect progress after the process lifecycle already cleared it.
+             * A stopped Terminal can replay historical OSC bytes during recovery; those bytes must not resurrect
+             * progress after the process lifecycle already cleared it.
              */
             if (latestReference.current.processState !== 'running') {
                 clearTerminalProgress(terminalId);
@@ -333,7 +333,7 @@ export function useTerminalPaneRuntime({
             )
                 return;
             /**
-            Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding.
+             * Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding.
              */
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -368,7 +368,7 @@ export function useTerminalPaneRuntime({
                 await caxri.request('terminal.resize', { terminalId, ...size });
             } catch {
                 /**
-                Runtime restarts can reject a resize; allow the next layout observation to retry it.
+                 * Runtime restarts can reject a resize; allow the next layout observation to retry it.
                  */
                 if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows)
                     lastSentSize = undefined;
@@ -397,8 +397,8 @@ export function useTerminalPaneRuntime({
             container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
             container.dataset.terminalRendererRedraws = String(status.redrawCount);
             /**
-             * A dropped GPU context can recur many times; only the first fallback for this pane's
-             *  lifetime is worth a toast; repeats would just be noise about the same known state.
+             * A dropped GPU context can recur many times; only the first fallback for this pane's lifetime is worth a
+             * toast; repeats would just be noise about the same known state.
              */
             const message = RENDERER_FALLBACK_MESSAGES[status.reason];
             if (message && !isRendererFallbackNotified) {
@@ -447,8 +447,8 @@ export function useTerminalPaneRuntime({
         );
         const selectionDisposable = xterm.onSelectionChange(() => {
             /**
-             * SearchAddon represents the active match as a selection; it must not overwrite the
-             *  system clipboard when the user's copy-on-select preference is enabled.
+             * SearchAddon represents the active match as a selection; it must not overwrite the system clipboard when
+             * the user's copy-on-select preference is enabled.
              */
             if (searchActiveReference.current) return;
             if (!latestReference.current.copyOnSelect) return;
@@ -480,10 +480,9 @@ export function useTerminalPaneRuntime({
                 return;
             replay.push(event.payload.data);
             /**
-             * Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an
-             *  inline `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of
-             *  folding them into this counter, so a nonzero value here is genuine output-queue
-             *  backpressure only.
+             * Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an inline
+             * `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of folding them into this
+             * counter, so a nonzero value here is genuine output-queue backpressure only.
              */
             if (event.payload.droppedBytes)
                 replay.push(
@@ -511,7 +510,7 @@ export function useTerminalPaneRuntime({
         document.addEventListener('keydown', trackExplicitInteraction, { capture: true });
         document.addEventListener('pointerdown', trackExplicitInteraction, { capture: true });
         /**
-        Restore into the final visible grid instead of xterm's default 80x24 viewport.
+         * Restore into the final visible grid instead of xterm's default 80x24 viewport.
          */
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
@@ -531,7 +530,7 @@ export function useTerminalPaneRuntime({
             await replay.restoreInitial(payload);
             if (isDisposed) return;
             /**
-            Resize only after xterm has parsed the snapshot and every output event buffered behind it.
+             * Resize only after xterm has parsed the snapshot and every output event buffered behind it.
              */
             fitAndResize();
             observer.observe(container);
@@ -542,11 +541,10 @@ export function useTerminalPaneRuntime({
                 document.removeEventListener('pointerdown', trackExplicitInteraction, true);
                 if (isDisposed) return;
                 /**
-                 * Dialog teardown may restore focus before xterm ever receives it, which is not a
-                 *  newer user choice. After Terminal focus or an explicit pointer/key action,
-                 *  asynchronous attach completion must not reclaim focus from another control.
-                 *  A modal can also open before xterm ever receives focus, so its registry is the
-                 *  authoritative keyboard owner even when no prior Terminal focus was observed.
+                 * Dialog teardown may restore focus before xterm ever receives it, which is not a newer user choice.
+                 * After Terminal focus or an explicit pointer/key action, asynchronous attach completion must not
+                 * reclaim focus from another control. A modal can also open before xterm ever receives focus, so its
+                 * registry is the authoritative keyboard owner even when no prior Terminal focus was observed.
                  */
                 if (
                     !isAttachFocusSuperseded &&
@@ -590,8 +588,8 @@ export function useTerminalPaneRuntime({
             unregisterTerminalImages();
             renderer.dispose();
             /**
-             * Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore
-             *  reconciles against durable Terminal records instead of treating pane disposal as close.
+             * Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore reconciles against durable
+             * Terminal records instead of treating pane disposal as close.
              */
             xterm.dispose();
             xtermReference.current = undefined;
@@ -622,7 +620,7 @@ export function useTerminalPaneRuntime({
         const xterm = xtermReference.current;
         if (!replay || !xterm) return;
         /**
-        Runtime-owned attachment state is lost with the utility process even though this pane remains mounted.
+         * Runtime-owned attachment state is lost with the utility process even though this pane remains mounted.
          */
         const reattach = async (): Promise<void> => {
             try {
@@ -664,9 +662,9 @@ export function useTerminalPaneRuntime({
         });
         if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
         /**
-         * The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY.
-         *  Reattach once at the measured grid so Runtime resizes its parsed screen behind an ordering
-         *  barrier, then replace any stale persisted snapshot ahead of later live output.
+         * The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY. Reattach once at the
+         * measured grid so Runtime resizes its parsed screen behind an ordering barrier, then replace any stale
+         * persisted snapshot ahead of later live output.
          */
         const reattach = async (): Promise<void> => {
             try {
@@ -741,10 +739,10 @@ export function useTerminalPaneRuntime({
             try {
                 const signature = JSON.stringify([query, options, theme]);
                 /**
-                 * addon-search beta updates its cached options before checking whether options
-                 *  changed, so toggling Match Case/Whole Word/Regex for the same query would retain
-                 *  stale decorations and counts. Clear only on an incremental signature change;
-                 *  explicit next/previous navigation must preserve the current result.
+                 * Addon-search beta updates its cached options before checking whether options changed, so toggling
+                 * Match Case/Whole Word/Regex for the same query would retain stale decorations and counts. Clear only
+                 * on an incremental signature change; explicit next/previous navigation must preserve the current
+                 * result.
                  */
                 if (isIncremental && signature !== searchSignatureReference.current)
                     search.clearDecorations();

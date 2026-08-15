@@ -88,14 +88,14 @@ export interface PreparedSkillParent {
 }
 
 /**
- * Serializes concurrent `withSkillMutationLock` calls within this process. Kept as a mutable
- * property on a module-level object (rather than a reassigned top-level `let`) so queuing the next
- * waiter is a property write, not a top-level binding reassignment from inside a function.
+ * Serializes concurrent `withSkillMutationLock` calls within this process. Kept as a mutable property on a module-level
+ * object (rather than a reassigned top-level `let`) so queuing the next waiter is a property write, not a top-level
+ * binding reassignment from inside a function.
  */
 const skillMutationQueueState: { queue: Promise<void> } = { queue: Promise.resolve() };
 
 /**
-Inspects a Provider-visible skill symlink and its bounded immutable Caxri release.
+ * Inspects a Provider-visible skill symlink and its bounded immutable Caxri release.
  */
 export async function inspectManagedSkill(
     target: string,
@@ -208,7 +208,7 @@ async function createRelease(target: string, bundle: ManagedSkillBundle): Promis
 }
 
 /**
-Publishes a complete release with one exclusive symlink creation; foreign targets are never replaced.
+ * Publishes a complete release with one exclusive symlink creation; foreign targets are never replaced.
  */
 export async function installManagedSkill(
     target: string,
@@ -230,7 +230,7 @@ export async function installManagedSkill(
 }
 
 /**
-Atomically switches the Provider-visible directory symlink; a crash sees either complete release.
+ * Atomically switches the Provider-visible directory symlink; a crash sees either complete release.
  */
 export async function updateManagedSkill(
     layout: ManagedSkillLayout,
@@ -467,7 +467,7 @@ async function acquireLock(location: PreparedSkillParent): Promise<() => Promise
 }
 
 /**
-Anchors mutations to the verified directory inode so a later lexical symlink cannot redirect writes.
+ * Anchors mutations to the verified directory inode so a later lexical symlink cannot redirect writes.
  */
 export async function withSkillMutationLock<T>(
     location: PreparedSkillParent,
@@ -505,7 +505,7 @@ async function ensureRealDirectory(path: string): Promise<void> {
 }
 
 /**
-Resolves local installs against the physical Project root and rejects Provider-parent symlinks.
+ * Resolves local installs against the physical Project root and rejects Provider-parent symlinks.
  */
 export async function prepareSkillParent(
     target: string,
@@ -558,7 +558,7 @@ export async function prepareSkillParent(
 }
 
 /**
-Checks local Provider parents without creating them or following a project-owned symlink.
+ * Checks local Provider parents without creating them or following a project-owned symlink.
  */
 export async function assertSafeLocalTarget(projectRoot: string, target: string): Promise<void> {
     if (!isAbsolute(target)) return;

@@ -15,8 +15,8 @@ interface ParsedArguments {
 }
 
 /**
- * Applies one CLI argument to `options` and returns the argv index the loop should resume from.
- * Isolated from the loop body so the switch's `break` statements are not nested inside a loop.
+ * Applies one CLI argument to `options` and returns the argv index the loop should resume from. Isolated from the loop
+ * body so the switch's `break` statements are not nested inside a loop.
  */
 function applyArgument(
     argument: string,

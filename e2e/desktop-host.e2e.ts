@@ -232,7 +232,7 @@ test('queues concurrent Host open requests by their exact Session targets', asyn
         ]);
 
         /**
-        The Host has routed the request; Renderer work remains asynchronous and ordered below.
+         * The Host has routed the request; Renderer work remains asynchronous and ordered below.
          */
         expect(first).toMatchObject({ state: 'requested', sessionId: firstSessionId });
         expect(secondOpen).toMatchObject({ state: 'requested', sessionId: second.session.id });

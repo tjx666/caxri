@@ -31,9 +31,9 @@ function fileSignature(stats: Awaited<ReturnType<typeof lstat>>): string {
 }
 
 /**
- * Finds the oldest evictable key (Map iteration order's first key other than `protectedRoot`).
- * Kept as its own function (rather than nested inside `rememberPolledDirectory`'s `while` loop) so
- * its `continue`/`break` control flow stays scoped to a single loop.
+ * Finds the oldest evictable key (Map iteration order's first key other than `protectedRoot`). Kept as its own function
+ * (rather than nested inside `rememberPolledDirectory`'s `while` loop) so its `continue`/`break` control flow stays
+ * scoped to a single loop.
  */
 function oldestEvictableKey<T>(
     directories: ReadonlyMap<string, T>,
@@ -47,7 +47,7 @@ function oldestEvictableKey<T>(
 }
 
 /**
- @internal
+ * @internal
  */
 export function rememberPolledDirectory<T>(
     directories: Map<string, T>,
@@ -66,7 +66,7 @@ export function rememberPolledDirectory<T>(
 }
 
 /**
- @internal
+ * @internal
  */
 export function didFingerprintChange(
     fingerprints: Map<string, string>,
@@ -93,7 +93,7 @@ export interface WatcherServiceOptions {
 }
 
 /**
-Immutable source captured for each coalesced watcher batch.
+ * Immutable source captured for each coalesced watcher batch.
  */
 export interface WatchScope {
     sessionId: string;
@@ -101,9 +101,9 @@ export interface WatchScope {
 }
 
 /**
- * Watches the selected Session's Project root for changes, with a signature-polling fallback when
- * the native watcher backend cannot be installed. Also owns the bounded, lazily-populated polled
- * directory signatures that `ListingService` primes via `noteDirectoryListed`.
+ * Watches the selected Session's Project root for changes, with a signature-polling fallback when the native watcher
+ * backend cannot be installed. Also owns the bounded, lazily-populated polled directory signatures that
+ * `ListingService` primes via `noteDirectoryListed`.
  */
 export class WatcherService {
     private watcher?: parcelWatcher.AsyncSubscription;
@@ -143,9 +143,9 @@ export class WatcherService {
     }
 
     /**
-     * Builds `this.watchSetup` and assigns it synchronously (not via `async`/`await`) so that
-     * `watchSession` observes the in-flight setup Promise on the same instance field it just wrote,
-     * before any awaited step of `replaceWatcher` has a chance to run.
+     * Builds `this.watchSetup` and assigns it synchronously (not via `async`/`await`) so that `watchSession` observes
+     * the in-flight setup Promise on the same instance field it just wrote, before any awaited step of `replaceWatcher`
+     * has a chance to run.
      */
     private installWatcher(scope: WatchScope | undefined, generation: number): Promise<void> {
         const attempt = this.replaceWatcher(scope, generation);
@@ -246,9 +246,8 @@ export class WatcherService {
             await watcher?.unsubscribe();
         } catch {
             /**
-             * The native watcher already errored before this fallback runs; a failing
-             * unsubscribe must never prevent the polling fallback below from starting,
-             * or the directory would silently stop being watched entirely.
+             * The native watcher already errored before this fallback runs; a failing unsubscribe must never prevent
+             * the polling fallback below from starting, or the directory would silently stop being watched entirely.
              */
         }
         if (!this.pollingActive) {
@@ -274,10 +273,10 @@ export class WatcherService {
     }
 
     /**
-     * `setInterval`'s callback is synchronous, so each poll tick cannot await the async
-     * `pollDirectories`; ticks are deliberately fire-and-forget, and any failure is logged rather
-     * than left as an unhandled rejection. Kept as its own method (rather than a promise chain
-     * inline in the `setInterval` callback above) to isolate the fire-and-forget promise handling.
+     * `setInterval`'s callback is synchronous, so each poll tick cannot await the async `pollDirectories`; ticks are
+     * deliberately fire-and-forget, and any failure is logged rather than left as an unhandled rejection. Kept as its
+     * own method (rather than a promise chain inline in the `setInterval` callback above) to isolate the
+     * fire-and-forget promise handling.
      */
     private pollDirectoriesInBackground(scope: WatchScope, generation: number): void {
         // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
@@ -289,10 +288,10 @@ export class WatcherService {
     }
 
     /**
-     * The native watcher's event callback is synchronous, so a fallback activation triggered from
-     * it cannot be awaited; it is deliberately fire-and-forget, and any failure is logged rather
-     * than left as an unhandled rejection. Kept as its own method (rather than a promise chain
-     * inline in the watcher's event callback) to isolate the fire-and-forget promise handling.
+     * The native watcher's event callback is synchronous, so a fallback activation triggered from it cannot be awaited;
+     * it is deliberately fire-and-forget, and any failure is logged rather than left as an unhandled rejection. Kept as
+     * its own method (rather than a promise chain inline in the watcher's event callback) to isolate the
+     * fire-and-forget promise handling.
      */
     private activatePollingFallbackInBackground(
         scope: WatchScope,
@@ -308,11 +307,10 @@ export class WatcherService {
     }
 
     /**
-     * The native watcher's event callback is synchronous, so each raw event cannot be awaited
-     * before fingerprinting it; queueing is deliberately fire-and-forget. `queueNativeEvent`
-     * already handles every failure internally (a missing path falls back to a stable
-     * fingerprint). Kept as its own method (rather than a promise chain inline in the watcher's
-     * event callback) to isolate the fire-and-forget promise handling.
+     * The native watcher's event callback is synchronous, so each raw event cannot be awaited before fingerprinting it;
+     * queueing is deliberately fire-and-forget. `queueNativeEvent` already handles every failure internally (a missing
+     * path falls back to a stable fingerprint). Kept as its own method (rather than a promise chain inline in the
+     * watcher's event callback) to isolate the fire-and-forget promise handling.
      */
     private queueNativeEventInBackground(
         scope: WatchScope,
@@ -335,7 +333,7 @@ export class WatcherService {
             fingerprint = fileSignature(await lstat(path));
         } catch {
             /**
-            Missing paths share a stable fingerprint so native and polling delete events coalesce.
+             * Missing paths share a stable fingerprint so native and polling delete events coalesce.
              */
         }
         if (generation !== this.watchGeneration) return;
@@ -379,7 +377,7 @@ export class WatcherService {
     }
 
     /**
-    Freezes a batch scope before any event, overflow, or Git-rule state can be written.
+     * Freezes a batch scope before any event, overflow, or Git-rule state can be written.
      */
     private preparePendingBatch(scope: WatchScope): void {
         if (
@@ -396,7 +394,7 @@ export class WatcherService {
     }
 
     /**
-    Emits the current immutable batch before a scope or watcher generation can be discarded.
+     * Emits the current immutable batch before a scope or watcher generation can be discarded.
      */
     private flushPendingBatch(): void {
         if (this.eventTimer) clearTimeout(this.eventTimer);
@@ -467,9 +465,9 @@ export class WatcherService {
     }
 
     /**
-     * Reads directory-entry signatures for the polling fallback, tolerating entries that vanish
-     * between `readdir` and `lstat` the same way `ListingService` does: a single missing or
-     * unreadable entry is skipped rather than failing the whole signature scan.
+     * Reads directory-entry signatures for the polling fallback, tolerating entries that vanish between `readdir` and
+     * `lstat` the same way `ListingService` does: a single missing or unreadable entry is skipped rather than failing
+     * the whole signature scan.
      */
     private async readDirectorySignatures(directory: string): Promise<Map<string, string>> {
         const entries = await readdir(directory, { withFileTypes: true });
@@ -507,7 +505,7 @@ export class WatcherService {
     }
 
     /**
-    Poll only the root and directories the user expanded, bounding fallback work in large repositories.
+     * Poll only the root and directories the user expanded, bounding fallback work in large repositories.
      */
     private async pollDirectories(scope: WatchScope, generation: number): Promise<void> {
         if (this.pollInFlight || generation !== this.watchGeneration) return;
@@ -584,7 +582,7 @@ export class WatcherService {
     }
 
     /**
-    Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick.
+     * Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick.
      */
     noteDirectoryListed(sessionId: string, path: string): void {
         if (sessionId !== this.watchedScope?.sessionId) return;
@@ -603,17 +601,16 @@ export class WatcherService {
         const existing = this.polledDirectories.get(path);
         if (existing) this.rememberPolledDirectory(path, existing);
         /**
-         * `noteDirectoryListed` is a synchronous notification hook called from `ListingService`
-         * mid-listing; it cannot await the directory's initial signature scan without blocking the
-         * caller, so priming a newly listed directory is deliberately fire-and-forget.
-         * `initializePolledDirectory` already handles every failure internally.
+         * `noteDirectoryListed` is a synchronous notification hook called from `ListingService` mid-listing; it cannot
+         * await the directory's initial signature scan without blocking the caller, so priming a newly listed directory
+         * is deliberately fire-and-forget. `initializePolledDirectory` already handles every failure internally.
          */
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         else this.initializePolledDirectory(path, this.watchGeneration).catch(() => {});
     }
 
     /**
-    Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree.
+     * Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree.
      */
     async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {
         if (sessionId !== this.watchedScope?.sessionId) return;
@@ -641,8 +638,8 @@ export class WatcherService {
             const scope = this.watchedScope;
             /**
              * `setInterval`'s callback is synchronous, so each poll tick cannot await the async
-             * `pollGitIgnoreRuleFiles`; ticks are deliberately fire-and-forget, and any failure is
-             * logged rather than left as an unhandled rejection.
+             * `pollGitIgnoreRuleFiles`; ticks are deliberately fire-and-forget, and any failure is logged rather than
+             * left as an unhandled rejection.
              */
             if (scope)
                 // eslint-disable-next-line unicorn/prefer-await -- see comment above

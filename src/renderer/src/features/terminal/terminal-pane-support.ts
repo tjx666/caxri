@@ -5,15 +5,15 @@ import type { TerminalRendererReason } from './terminal-renderer';
 import type { TerminalSearchResults } from './terminal-search';
 
 /**
- * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers,
- * and the one Runtime call whose failure is intentionally unobserved. Kept in its own module so the
- * hook file stays under the repository's per-file line budget.
+ * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers, and the one Runtime
+ * call whose failure is intentionally unobserved. Kept in its own module so the hook file stays under the repository's
+ * per-file line budget.
  */
 export const onError = (message: string): void => pushToast('error', message);
 
 /**
- * A blocked OSC 52 write is expected policy enforcement, not a failure — it uses `info` (which
- * auto-dismisses) rather than the persistent `error` styling reserved for `onWriteFailure` below.
+ * A blocked OSC 52 write is expected policy enforcement, not a failure — it uses `info` (which auto-dismisses) rather
+ * than the persistent `error` styling reserved for `onWriteFailure` below.
  */
 export const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
     'disabled':
@@ -27,8 +27,8 @@ export const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
 export const emptySearchResults: TerminalSearchResults = { resultCount: 0, resultIndex: -1 };
 
 /**
- * Only the reasons the user did not choose are worth a toast: `disabled` reflects their own GPU
- * acceleration setting, `active`/`disposed` are healthy or teardown states, so neither needs one.
+ * Only the reasons the user did not choose are worth a toast: `disabled` reflects their own GPU acceleration setting,
+ * `active`/`disposed` are healthy or teardown states, so neither needs one.
  */
 export const RENDERER_FALLBACK_MESSAGES: Partial<Record<TerminalRendererReason, string>> = {
     'context-loss':
@@ -40,15 +40,15 @@ export const RENDERER_FALLBACK_MESSAGES: Partial<Record<TerminalRendererReason, 
 };
 
 /**
-SearchAddon requires opaque `#RRGGBB`; imported semantic tokens may include an alpha byte.
+ * SearchAddon requires opaque `#RRGGBB`; imported semantic tokens may include an alpha byte.
  */
 export function opaqueSearchColor(color: string): string {
     return color.slice(0, 7);
 }
 
 /**
- * A Runtime restart can race a pane teardown, leaving no live view to notify; the failure is
- * intentionally unobserved instead of surfaced through `onError`.
+ * A Runtime restart can race a pane teardown, leaving no live view to notify; the failure is intentionally unobserved
+ * instead of surfaced through `onError`.
  */
 export async function detachTerminalQuietly(terminalId: string): Promise<void> {
     try {

@@ -29,7 +29,7 @@ export function hasProjectDragType(types: readonly string[]): boolean {
 }
 
 /**
-Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent.
+ * Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent.
  */
 export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
     let current: ProjectOrderIntent | undefined;
@@ -56,9 +56,8 @@ export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
             current = intent;
         },
         /**
-         * A newer queued intent still depends on the failed optimistic order, so it must be
-         * discarded along with the rejected request instead of being persisted against stale
-         * Runtime state.
+         * A newer queued intent still depends on the failed optimistic order, so it must be discarded along with the
+         * rejected request instead of being persisted against stale Runtime state.
          */
         settle(didSucceed) {
             if (!didSucceed) current = undefined;
@@ -67,7 +66,7 @@ export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
 }
 
 /**
-Persists one in-flight order and replaces queued intermediate orders with the latest intent.
+ * Persists one in-flight order and replaces queued intermediate orders with the latest intent.
  */
 export function createLatestProjectOrderQueue(
     persist: (projectIds: string[]) => Promise<void>,
@@ -103,7 +102,7 @@ export function createLatestProjectOrderQueue(
 }
 
 /**
-Lets high-frequency dragover events retain React state when the visible insertion point is unchanged.
+ * Lets high-frequency dragover events retain React state when the visible insertion point is unchanged.
  */
 export function areProjectDropTargetsEqual(
     first: ProjectDropTarget | undefined,
@@ -113,7 +112,7 @@ export function areProjectDropTargetsEqual(
 }
 
 /**
-Returns the complete Project permutation produced by one before/after insertion.
+ * Returns the complete Project permutation produced by one before/after insertion.
  */
 export function projectOrderAfterDrop(
     projectIds: readonly string[],
@@ -135,9 +134,9 @@ export interface ProjectHeadingClickEffect {
 }
 
 /**
- * Decouples selecting a Project from expanding/collapsing it. An inactive Project with a selectable
- * Session preserves navigation-first behavior, while an empty Project must still produce a visible
- * disclosure change instead of attempting a no-op selection.
+ * Decouples selecting a Project from expanding/collapsing it. An inactive Project with a selectable Session preserves
+ * navigation-first behavior, while an empty Project must still produce a visible disclosure change instead of
+ * attempting a no-op selection.
  */
 export function resolveProjectHeadingClick(
     isActive: boolean,

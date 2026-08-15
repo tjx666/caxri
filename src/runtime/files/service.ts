@@ -41,9 +41,9 @@ export interface FileServiceOptions extends WatcherServiceOptions {
 }
 
 /**
- * Composes Session-root resolution, document read/write, directory listing, and watching into the
- * Runtime's file surface. Each concern lives in its own module under `files/`; this class only
- * wires them together and preserves the public API bootstrap.ts and tests depend on.
+ * Composes Session-root resolution, document read/write, directory listing, and watching into the Runtime's file
+ * surface. Each concern lives in its own module under `files/`; this class only wires them together and preserves the
+ * public API bootstrap.ts and tests depend on.
  */
 export class FileService {
     private readonly projectRoots: ProjectRootResolver;
@@ -64,9 +64,8 @@ export class FileService {
     ) {
         this.projectRoots = new ProjectRootResolver(database);
         /**
-         * Sub-services call back through `this.resolveSessionPath` (a real prototype method) rather
-         * than `projectRoots` directly, so a test spying on `service.resolveSessionPath` still
-         * observes every internal call.
+         * Sub-services call back through `this.resolveSessionPath` (a real prototype method) rather than `projectRoots`
+         * directly, so a test spying on `service.resolveSessionPath` still observes every internal call.
          */
         const resolveSessionPath = (sessionId: string, input?: string) =>
             this.resolveSessionPath(sessionId, input);
@@ -107,7 +106,7 @@ export class FileService {
     }
 
     /**
-    Returns durable Project roots that the user explicitly granted to Caxri.
+     * Returns durable Project roots that the user explicitly granted to Caxri.
      */
     listApprovedProjectRoots(): string[] {
         return this.projectRoots.listApprovedProjectRoots();
@@ -317,7 +316,7 @@ export class FileService {
     }
 
     /**
-    Reinstalls the selected watcher after its Session atomically changes Workbench Root.
+     * Reinstalls the selected watcher after its Session atomically changes Workbench Root.
      */
     refreshWatchSession(sessionId: string): Promise<void> {
         return this.watcher.watchSession(

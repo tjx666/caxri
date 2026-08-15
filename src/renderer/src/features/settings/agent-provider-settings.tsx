@@ -45,10 +45,9 @@ function skillScopeSummary(
 }
 
 /**
- * Plain-language health caption for a provider's lifecycle-hook adapter. DESIGN.md principle 3
- * forbids implementation vocabulary like "drifted" or "awaiting first trusted event". Every state
- * the user cannot resolve just by waiting pairs with the concrete next step described above the
- * checkbox: restart the provider's Agent Terminals.
+ * Plain-language health caption for a provider's lifecycle-hook adapter. DESIGN.md principle 3 forbids implementation
+ * vocabulary like "drifted" or "awaiting first trusted event". Every state the user cannot resolve just by waiting
+ * pairs with the concrete next step described above the checkbox: restart the provider's Agent Terminals.
  */
 function hookHealthLabel(
     isEnabled: boolean,
@@ -82,7 +81,7 @@ function hookHealthLabel(
 }
 
 /**
-Provider-specific lifecycle, messaging, skill-health, and launch controls.
+ * Provider-specific lifecycle, messaging, skill-health, and launch controls.
  */
 export function AgentProviderSettings({
     agentHookHealth,

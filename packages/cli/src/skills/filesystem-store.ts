@@ -30,8 +30,8 @@ export function isErrno(error: unknown, code: string): boolean {
 }
 
 /**
- * Awaits a best-effort cleanup operation and silently discards its rejection. Used instead of
- * `.catch(() => {})` chaining so cleanup call sites stay `await`-based per `unicorn/prefer-await`.
+ * Awaits a best-effort cleanup operation and silently discards its rejection. Used instead of `.catch(() => {})`
+ * chaining so cleanup call sites stay `await`-based per `unicorn/prefer-await`.
  */
 export async function ignoreRejection(operation: Promise<unknown>): Promise<void> {
     try {

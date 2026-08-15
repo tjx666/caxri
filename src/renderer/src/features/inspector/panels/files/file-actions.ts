@@ -30,14 +30,14 @@ import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
 
 /**
-Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`).
+ * Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`).
  */
 function pathBasename(path: string): string {
     return path.slice(path.lastIndexOf('/') + 1);
 }
 
 /**
-Looks up one entry's kind from its directory listing; undefined when not found or unreadable.
+ * Looks up one entry's kind from its directory listing; undefined when not found or unreadable.
  */
 async function entryKind(
     sessionId: string,
@@ -253,10 +253,10 @@ export async function renameFile(
 }
 
 /**
- * Runs one `files.move` attempt. `operationId` defaults to a fresh id, but the propagating first
- * attempt in `moveFile` below passes its own id in so it can register/clear failure-toast
- * suppression around the call (see `suppressFailureToast` in `file-operation-reconciliation.ts`) —
- * `attemptMove` itself owns none of that handshake, only the request/tracking plumbing.
+ * Runs one `files.move` attempt. `operationId` defaults to a fresh id, but the propagating first attempt in `moveFile`
+ * below passes its own id in so it can register/clear failure-toast suppression around the call (see
+ * `suppressFailureToast` in `file-operation-reconciliation.ts`) — `attemptMove` itself owns none of that handshake,
+ * only the request/tracking plumbing.
  */
 function attemptMove(
     sessionId: string,
@@ -286,36 +286,33 @@ function attemptMove(
 }
 
 /**
- * Every move call site (drag-and-drop in the file tree, drop on the panel root, cut-paste on a
- * row, cut-paste on the root) funnels through this single interactive orchestrator instead of each
- * one choosing its own conflict policy.
+ * Every move call site (drag-and-drop in the file tree, drop on the panel root, cut-paste on a row, cut-paste on the
+ * root) funnels through this single interactive orchestrator instead of each one choosing its own conflict policy.
  *
- * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining
- * whatever that attempt fails with. It generates that attempt's operation id itself, registers it
- * with `suppressFailureToast` before calling `attemptMove` (`shouldPropagateFailure: true` makes the
- * rejection reach this `catch` instead of `runDurableFileMutation`'s own error-toast path), and
- * always clears the registration in `finally` via `clearFailureToastSuppression` — on success, on a
- * `CONFLICT`, on any other failure, and even if the failed operation never makes it back through
- * `reconcileFileMutation` at all, so the registry entry can never outlive this call.
+ * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining whatever that
+ * attempt fails with. It generates that attempt's operation id itself, registers it with `suppressFailureToast` before
+ * calling `attemptMove` (`shouldPropagateFailure: true` makes the rejection reach this `catch` instead of
+ * `runDurableFileMutation`'s own error-toast path), and always clears the registration in `finally` via
+ * `clearFailureToastSuppression` — on success, on a `CONFLICT`, on any other failure, and even if the failed operation
+ * never makes it back through `reconcileFileMutation` at all, so the registry entry can never outlive this call.
  *
- * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`)
- * instead of a toast. Availability of Replace is gated on both sides of the collision actually
- * being plain files, fetched fresh via `files.list` (Runtime can only atomically overwrite a file
- * target, never a folder; see `assertReplaceableMove` in `mutations.ts`). Replace retries with
- * `conflict: 'replace'`; Keep Both retries with `conflict: 'rename'` (the existing auto-suffix
- * "name copy" behavior); Cancel resolves with no retry and no toast, leaving a cut clipboard entry
- * armed for another attempt elsewhere. Every retry is a fresh, unregistered operation id on the
- * normal (non-propagating) toast path, so its own success or failure explains itself the same way
- * any other file mutation does.
+ * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`) instead of a toast.
+ * Availability of Replace is gated on both sides of the collision actually being plain files, fetched fresh via
+ * `files.list` (Runtime can only atomically overwrite a file target, never a folder; see `assertReplaceableMove` in
+ * `mutations.ts`). Replace retries with `conflict: 'replace'`; Keep Both retries with `conflict: 'rename'` (the
+ * existing auto-suffix "name copy" behavior); Cancel resolves with no retry and no toast, leaving a cut clipboard entry
+ * armed for another attempt elsewhere. Every retry is a fresh, unregistered operation id on the normal
+ * (non-propagating) toast path, so its own success or failure explains itself the same way any other file mutation
+ * does.
  *
- * Any non-`CONFLICT` failure from the first attempt is not retried or dialoged: reconciliation
- * stays silent for the registered id (see `file-operation-reconciliation.ts`), and this function
- * toasts it exactly once itself before returning `undefined` — preserving the pre-existing
- * single-toast behavior for every other error instead of doubling it up.
+ * Any non-`CONFLICT` failure from the first attempt is not retried or dialoged: reconciliation stays silent for the
+ * registered id (see `file-operation-reconciliation.ts`), and this function toasts it exactly once itself before
+ * returning `undefined` — preserving the pre-existing single-toast behavior for every other error instead of doubling
+ * it up.
  *
- * In-place rename (`renameFile` below) deliberately keeps its non-interactive inline CONFLICT
- * error instead of this prompt: it edits a single row in place, and a modal dialog over one text
- * field would be disproportionate chrome for a collision the user can just retype.
+ * In-place rename (`renameFile` below) deliberately keeps its non-interactive inline CONFLICT error instead of this
+ * prompt: it edits a single row in place, and a modal dialog over one text field would be disproportionate chrome for a
+ * collision the user can just retype.
  */
 export async function moveFile(
     sessionId: string,
@@ -354,10 +351,10 @@ export async function moveFile(
 }
 
 /**
- * User-triggered Cancel for a long-running durable mutation (create/rename/move). Mirrors the
- * internal timeout-driven cancel path in `runDurableFileMutation` above: Runtime's `staged` phase
- * cannot be rolled back safely (the file-system change already started), so a cancel that lands
- * after staging still reconciles to whatever Runtime finished with instead of pretending it stopped.
+ * User-triggered Cancel for a long-running durable mutation (create/rename/move). Mirrors the internal timeout-driven
+ * cancel path in `runDurableFileMutation` above: Runtime's `staged` phase cannot be rolled back safely (the file-system
+ * change already started), so a cancel that lands after staging still reconciles to whatever Runtime finished with
+ * instead of pretending it stopped.
  */
 export async function cancelFileOperation(operationId: string): Promise<void> {
     let operation: MethodResult<'files.operation.cancel'> | null;
@@ -428,9 +425,8 @@ export function copyFilePath(path: string, projectRoot?: string): Promise<void |
 
 export async function didTrashFile(sessionId: string, path: string): Promise<boolean> {
     /**
-     * Checked before the request so Main's confirmation copy can stop promising full
-     * recoverability: Trash can only restore the last bytes written to disk, never an unsaved
-     * buffer.
+     * Checked before the request so Main's confirmation copy can stop promising full recoverability: Trash can only
+     * restore the last bytes written to disk, never an unsaved buffer.
      */
     const hasUnsavedChanges = hasUnsavedChangesUnderPath(sessionId, path);
     const result = await tryCommand('Unable to move item to Trash', () =>
@@ -441,10 +437,10 @@ export async function didTrashFile(sessionId: string, path: string): Promise<boo
     await invalidateDirectory(sessionId, parentDirectoryPath(result.path));
     pushToast('success', `Moved '${result.name}' to Trash`);
     /**
-     * The user already confirmed this destructive action knowing changes were unsaved (the
-     * `hasUnsavedChanges` copy above), but `closeOpenEditorsUnderPath` still discards those dirty
-     * buffers without a trace. A persisted notice — like the external-write notice in
-     * `external-sync.ts` — keeps that loss visible instead of vanishing with the success toast.
+     * The user already confirmed this destructive action knowing changes were unsaved (the `hasUnsavedChanges` copy
+     * above), but `closeOpenEditorsUnderPath` still discards those dirty buffers without a trace. A persisted notice —
+     * like the external-write notice in `external-sync.ts` — keeps that loss visible instead of vanishing with the
+     * success toast.
      */
     if (hasUnsavedChanges)
         pushToast(

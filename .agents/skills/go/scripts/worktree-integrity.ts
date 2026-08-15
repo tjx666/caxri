@@ -15,8 +15,8 @@ export interface WorktreeDelta {
 }
 
 /**
- * Fingerprints only Git-visible source state. Ignored build, log, and `.records/` artifacts are
- * excluded by Git itself, while tracked edits and non-ignored untracked files remain observable.
+ * Fingerprints only Git-visible source state. Ignored build, log, and `.records/` artifacts are excluded by Git itself,
+ * while tracked edits and non-ignored untracked files remain observable.
  */
 export async function inspectWorktreeIntegrity(worktreePath: string): Promise<WorktreeIntegrity> {
     const [headSha, status] = await Promise.all([
@@ -49,7 +49,7 @@ export function assertCleanValidationStart(
 }
 
 /**
-Measures the committed source delta between two durable issue boundaries.
+ * Measures the committed source delta between two durable issue boundaries.
  */
 export async function inspectWorktreeDelta(
     worktreePath: string,

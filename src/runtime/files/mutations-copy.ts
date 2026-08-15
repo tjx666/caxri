@@ -124,9 +124,9 @@ async function chmodCreatedDirectory(identity: FileIdentity, mode: number): Prom
 }
 
 /**
- * Walks and transfers a recursive copy source tree under the same identity-revalidation
- * discipline as the rest of `FileMutationService`, isolated here because the tree inspection and
- * transfer phases are a large, self-contained unit of logic.
+ * Walks and transfers a recursive copy source tree under the same identity-revalidation discipline as the rest of
+ * `FileMutationService`, isolated here because the tree inspection and transfer phases are a large, self-contained unit
+ * of logic.
  */
 export class CopyTreeExecutor {
     constructor(
@@ -175,10 +175,9 @@ export class CopyTreeExecutor {
         const pending = [source];
         const entries: CopyEntry[] = [];
         /**
-         * `budget` (entry count and byte total) is a shared accumulator that `inspectCopyEntry`
-         * checks and updates on every iteration to bail out as soon as a safety limit is crossed;
-         * parallelizing the tree walk would let an oversized tree keep expanding concurrently past
-         * the limit before any single check could observe it.
+         * `budget` (entry count and byte total) is a shared accumulator that `inspectCopyEntry` checks and updates on
+         * every iteration to bail out as soon as a safety limit is crossed; parallelizing the tree walk would let an
+         * oversized tree keep expanding concurrently past the limit before any single check could observe it.
          */
         while (pending.length > 0) {
             const candidate = pending.pop();
@@ -212,10 +211,9 @@ export class CopyTreeExecutor {
     ): Promise<void> {
         const targetDirectories = new Map<string, FileIdentity>();
         /**
-         * `entries` is ordered parent-before-descendant (by construction in `inspectCopyTree`), and
-         * this loop relies on that order plus the incrementally built `targetDirectories` map to
-         * create each parent directory before copying into it; parallelizing iterations would try
-         * to copy into directories that do not exist yet.
+         * `entries` is ordered parent-before-descendant (by construction in `inspectCopyTree`), and this loop relies on
+         * that order plus the incrementally built `targetDirectories` map to create each parent directory before
+         * copying into it; parallelizing iterations would try to copy into directories that do not exist yet.
          */
         for (const entry of entries) {
             this.assertCopyDeadline(startedAt, signal);
@@ -268,10 +266,9 @@ export class CopyTreeExecutor {
             }
         }
         /**
-         * Descendants must retain traversal permission until their modes are restored, so this
-         * loop walks `entries` bottom-up (reverse of parent-before-descendant order) and must stay
-         * sequential to avoid narrowing a parent's permissions while a descendant is still being
-         * chmod'd through it.
+         * Descendants must retain traversal permission until their modes are restored, so this loop walks `entries`
+         * bottom-up (reverse of parent-before-descendant order) and must stay sequential to avoid narrowing a parent's
+         * permissions while a descendant is still being chmod'd through it.
          */
         for (const entry of entries.toReversed()) {
             this.assertCopyDeadline(startedAt, signal);

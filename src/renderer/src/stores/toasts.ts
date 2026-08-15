@@ -10,38 +10,38 @@ interface Toast {
     kind: ToastKind;
     message: string;
     /**
-    Stays on screen until dismissed, like an error, without claiming the failure styling.
+     * Stays on screen until dismissed, like an error, without claiming the failure styling.
      */
     persist: boolean;
 }
 
 export interface ToastOptions {
     /**
-     * Keeps a non-error notification on screen until the user dismisses it. Reserved for events
-     * that already cost the user something irreversible — an external write replacing an unsaved
-     * buffer — where a 4-second auto-dismiss can silently take the only record of it away.
+     * Keeps a non-error notification on screen until the user dismisses it. Reserved for events that already cost the
+     * user something irreversible — an external write replacing an unsaved buffer — where a 4-second auto-dismiss can
+     * silently take the only record of it away.
      */
     persist?: boolean;
 }
 
 /**
-Matches the previous inline `showMessage` timeout so notification timing is unchanged.
+ * Matches the previous inline `showMessage` timeout so notification timing is unchanged.
  */
 const AUTO_DISMISS_MS = 4_000;
 /**
- * The stack sits above the status bar in the bottom-right corner; more than three at once turns a
- * notification into a wall, so the oldest is dropped to make room.
+ * The stack sits above the status bar in the bottom-right corner; more than three at once turns a notification into a
+ * wall, so the oldest is dropped to make room.
  */
 const MAX_VISIBLE_TOASTS = 3;
 
 interface ToastState {
     /**
-    Oldest first, so the newest notification renders closest to the status bar.
+     * Oldest first, so the newest notification renders closest to the status bar.
      */
     toasts: Toast[];
     push(kind: ToastKind, message: string, options?: ToastOptions): void;
     /**
-    Dismisses one notification by id, or every notification when the id is omitted.
+     * Dismisses one notification by id, or every notification when the id is omitted.
      */
     dismiss(id?: number): void;
 }
@@ -62,9 +62,9 @@ export const useToastStore = create<ToastState>((set, get) => ({
     push(kind, message, options) {
         const isPersist = kind === 'error' || options?.persist === true;
         /**
-         * A single user-visible event can arrive twice — a file watcher reports a write and the
-         * follow-up metadata change, for instance. Replacing one toast with the next used to hide
-         * that; a stack would show the same sentence twice, so a repeat re-arms the live one.
+         * A single user-visible event can arrive twice — a file watcher reports a write and the follow-up metadata
+         * change, for instance. Replacing one toast with the next used to hide that; a stack would show the same
+         * sentence twice, so a repeat re-arms the live one.
          */
         const newest = get().toasts.at(-1);
         if (newest && newest.kind === kind && newest.message === message) {
@@ -85,7 +85,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
             return { toasts: next };
         });
         /**
-        Failures and opted-in notices stay until dismissed; progress notifications self-expire.
+         * Failures and opted-in notices stay until dismissed; progress notifications self-expire.
          */
         if (!isPersist)
             dismissTimers.set(
@@ -113,8 +113,8 @@ export function dismissToast(id?: number): void {
 }
 
 /**
- * Renders any rejection as one sentence. `CaxriError` messages are already user-facing, so the code
- * is only consulted for the classifications whose message alone does not explain what to do next.
+ * Renders any rejection as one sentence. `CaxriError` messages are already user-facing, so the code is only consulted
+ * for the classifications whose message alone does not explain what to do next.
  */
 export function describeFailure(error: unknown, label: string): string {
     if (isCaxriError(error)) {
@@ -127,16 +127,15 @@ export function describeFailure(error: unknown, label: string): string {
 
 export interface TryCommandOptions {
     /**
-    Re-reads the Runtime snapshot after the operation succeeds.
+     * Re-reads the Runtime snapshot after the operation succeeds.
      */
     refresh?: boolean;
 }
 
 /**
- * The single failure funnel for Renderer-initiated Runtime work: awaits `run`, optionally refreshes
- * the workbench snapshot, and turns any rejection into exactly one error toast. Replaces the
- * `.catch(error => showMessage(error instanceof Error ? error.message : '…'))` chain that used to be
- * copy-pasted at every call site.
+ * The single failure funnel for Renderer-initiated Runtime work: awaits `run`, optionally refreshes the workbench
+ * snapshot, and turns any rejection into exactly one error toast. Replaces the `.catch(error => showMessage(error
+ * instanceof Error ? error.message : '…'))` chain that used to be copy-pasted at every call site.
  */
 export async function tryCommand<T>(
     label: string,

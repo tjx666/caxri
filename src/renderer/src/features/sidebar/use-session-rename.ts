@@ -17,10 +17,9 @@ export interface SessionRenameController {
 }
 
 /**
- * Session-rename state machine extracted from `ProjectSidebar` (react-doctor's giant-component
- * threshold) so the roving-tabindex tree layout stays the only concern left in that component.
- * Owns the renaming Session id, the draft value/error, and the focus-restore behavior after
- * rename ends.
+ * Session-rename state machine extracted from `ProjectSidebar` (react-doctor's giant-component threshold) so the
+ * roving-tabindex tree layout stays the only concern left in that component. Owns the renaming Session id, the draft
+ * value/error, and the focus-restore behavior after rename ends.
  */
 export function useSessionRename(sessions: SessionRecord[]): SessionRenameController {
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
@@ -52,8 +51,8 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
     };
 
     /**
-     * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately
-     * skips focus restoration so the control the user clicked keeps focus.
+     * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately skips focus
+     * restoration so the control the user clicked keeps focus.
      */
     const finishRename = (sessionId: string, shouldRestoreFocus: boolean): void => {
         if (renamingSessionIdReference.current !== sessionId) return;

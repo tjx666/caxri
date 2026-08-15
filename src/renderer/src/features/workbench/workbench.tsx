@@ -21,9 +21,9 @@ function WorkSurface({ sessionId }: { sessionId: string }) {
           }
         : undefined;
     /**
-     * One selected tab owns the work surface even when a Terminal layout splits that surface into
-     * multiple panes. The individual panes are not tabs, so only the active work item labels this
-     * panel; no panel is exposed before there is an active item.
+     * One selected tab owns the work surface even when a Terminal layout splits that surface into multiple panes. The
+     * individual panes are not tabs, so only the active work item labels this panel; no panel is exposed before there
+     * is an active item.
      */
     if (activeWork?.kind === 'editor')
         return (
@@ -55,9 +55,9 @@ function WorkSurface({ sessionId }: { sessionId: string }) {
 
 function Welcome() {
     return (
-        <div className="welcome flex h-full max-w-[540px] flex-col items-center justify-center gap-3 mx-auto p-6 text-center text-muted">
+        <div className="welcome mx-auto flex h-full max-w-[540px] flex-col items-center justify-center gap-3 p-6 text-center text-muted">
             <Code2 size={38} />
-            <h1 className="mt-1 mx-0 mb-0 text-foreground text-[15px]">
+            <h1 className="mx-0 mt-1 mb-0 text-[15px] text-foreground">
                 Project-first development.
             </h1>
             <p className="m-0 leading-relaxed">
@@ -79,7 +79,7 @@ function Welcome() {
 export function Workbench() {
     const session = useSelectedSession();
     return (
-        <section className="workbench flex min-w-0 min-h-0 flex-col bg-background">
+        <section className="workbench flex min-h-0 min-w-0 flex-col bg-background">
             {session ? (
                 <>
                     <WorkTabStrip />

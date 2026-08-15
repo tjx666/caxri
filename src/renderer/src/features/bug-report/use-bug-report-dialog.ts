@@ -118,9 +118,9 @@ function bugReportDialogReducer(
 }
 
 /**
- * Owns the Bug Report dialog's reducer state, diagnostics fetch, and preview/send flow so the
- * rendering component can stay focused on layout. Behavior — redaction, screenshot capture, and
- * Session/Agent liveness checks on send — is unchanged from the previous single-component version.
+ * Owns the Bug Report dialog's reducer state, diagnostics fetch, and preview/send flow so the rendering component can
+ * stay focused on layout. Behavior — redaction, screenshot capture, and Session/Agent liveness checks on send — is
+ * unchanged from the previous single-component version.
  */
 export function useBugReportDialog() {
     const [state, updateState] = useReducer(

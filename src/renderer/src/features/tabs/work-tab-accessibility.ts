@@ -5,8 +5,8 @@ import { areWorkItemsEqual } from '@shared/work-item';
 export type WorkTabNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home';
 
 /**
- * Produces a short DOM-safe suffix without putting a user-controlled path or identifier into the
- * DOM. Two independent 32-bit hashes keep practical collision risk low while bounding every ID.
+ * Produces a short DOM-safe suffix without putting a user-controlled path or identifier into the DOM. Two independent
+ * 32-bit hashes keep practical collision risk low while bounding every ID.
  */
 function idHash(value: string, seed: number): string {
     let hash = seed;
@@ -22,7 +22,7 @@ function workItemIdentity(sessionId: string, item: WorkItem): string {
 }
 
 /**
-Returns the paired tab ID for the currently selected Session and work item.
+ * Returns the paired tab ID for the currently selected Session and work item.
  */
 export function workTabId(sessionId: string, item: WorkItem): string {
     const identity = workItemIdentity(sessionId, item);
@@ -30,14 +30,14 @@ export function workTabId(sessionId: string, item: WorkItem): string {
 }
 
 /**
-Returns the ID of the active work surface labelled by {@link workTabId}.
+ * Returns the ID of the active work surface labelled by {@link workTabId}.
  */
 export function workPanelId(sessionId: string, item: WorkItem): string {
     return `${workTabId(sessionId, item)}-panel`;
 }
 
 /**
-Calculates the roving-focus target with automatic activation for the tab composite.
+ * Calculates the roving-focus target with automatic activation for the tab composite.
  */
 export function workTabNavigationTarget(
     items: readonly WorkItem[],
@@ -55,7 +55,7 @@ export function workTabNavigationTarget(
 }
 
 /**
-Human-readable state exposed beside the visual terminal dot for screen readers.
+ * Human-readable state exposed beside the visual terminal dot for screen readers.
  */
 export function processStateDescription(state: ProcessState): string {
     switch (state) {

@@ -117,8 +117,8 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(terminalSurface(running.page, firstTerminalId)).toBeVisible();
         /**
-         * A parsed attach snapshot cannot prove historical OSC boundaries. The remounted tracker
-         *  must start empty instead of fabricating or duplicating status from visible text.
+         * A parsed attach snapshot cannot prove historical OSC boundaries. The remounted tracker must start empty
+         * instead of fabricating or duplicating status from visible text.
          */
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
             commandCount: 0,

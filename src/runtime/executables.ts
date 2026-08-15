@@ -47,8 +47,8 @@ function pathDirectories(path: string | undefined): string[] {
 }
 
 /**
- * Resolves a fixed executable allowlist against the GUI environment plus a bounded login-shell PATH.
- * The shell prints only PATH behind a marker; Caxri never imports the rest of its environment.
+ * Resolves a fixed executable allowlist against the GUI environment plus a bounded login-shell PATH. The shell prints
+ * only PATH behind a marker; Caxri never imports the rest of its environment.
  */
 export class ExecutableResolver {
     private readonly executableCache = new Map<string, string>();
@@ -126,7 +126,7 @@ export class ExecutableResolver {
         if (cached) {
             this.executableCache.delete(requested);
             /**
-            Re-read PATH after a cached install moved or was replaced while Caxri was running.
+             * Re-read PATH after a cached install moved or was replaced while Caxri was running.
              */
             this.loginPathRequest = undefined;
         }

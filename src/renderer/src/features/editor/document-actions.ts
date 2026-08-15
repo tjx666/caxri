@@ -43,8 +43,8 @@ interface PendingDocumentOperation {
 }
 
 /**
- * Reads and writes can finish after a rename, move, or Trash request. Tracking only active work
- * lets file mutations remap or invalidate it without retaining an unbounded path history.
+ * Reads and writes can finish after a rename, move, or Trash request. Tracking only active work lets file mutations
+ * remap or invalidate it without retaining an unbounded path history.
  */
 const pendingDocumentOperations = new Set<PendingDocumentOperation>();
 
@@ -81,7 +81,7 @@ function discardPendingDocumentOperations(sessionId: string, path: string): void
 }
 
 /**
-Updates dirtiness and pins a preview as soon as it contains an edit.
+ * Updates dirtiness and pins a preview as soon as it contains an edit.
  */
 function updateOpenTab(
     sessionId: string,
@@ -102,7 +102,7 @@ function updateOpenTab(
 }
 
 /**
-Opens a Renderer-owned editor surface whose content has already been loaded or is virtual.
+ * Opens a Renderer-owned editor surface whose content has already been loaded or is virtual.
  */
 function openEditorTabForSession(
     sessionId: string,
@@ -131,7 +131,7 @@ function openEditorTabForSession(
     view.setActiveWork(session.id, item, workbenchProjectId);
     const next = activateWorkState(opened.state, item);
     /**
-    Session persistence rollback must also undo the Renderer-owned half of preview replacement.
+     * Session persistence rollback must also undo the Renderer-owned half of preview replacement.
      */
     if (next !== current)
         patchSessionState(next, undefined, () => {
@@ -144,7 +144,7 @@ function openEditorTabForSession(
 }
 
 /**
-Opens an editor tab in the currently selected Session.
+ * Opens an editor tab in the currently selected Session.
  */
 export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
     const session = getSelectedSession();
@@ -153,7 +153,7 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
 }
 
 /**
-Reads a file into the Session document cache without changing the focused WorkItem.
+ * Reads a file into the Session document cache without changing the focused WorkItem.
  */
 export async function cacheDocument(sessionId: string, path: string): Promise<void> {
     const operation = trackDocumentOperation(sessionId, path);
@@ -186,7 +186,7 @@ export async function openFile(
 }
 
 /**
-Opens a Host-routed target against its exact Session rather than the transient selected Session.
+ * Opens a Host-routed target against its exact Session rather than the transient selected Session.
  */
 export async function openFileForSession(
     sessionId: string,
@@ -231,7 +231,7 @@ export async function openFileForSession(
 }
 
 /**
-Selecting an already open tab reuses the cached buffer; an evicted one is read again.
+ * Selecting an already open tab reuses the cached buffer; an evicted one is read again.
  */
 export function selectEditorTab(path: string): void {
     const session = getSelectedSession();
@@ -262,7 +262,7 @@ export function pinEditorTab(path: string): void {
 }
 
 /**
-Writes one document's current content to disk; returns false only when the write itself failed.
+ * Writes one document's current content to disk; returns false only when the write itself failed.
  */
 async function didSaveDocumentAt(sessionId: string, path: string): Promise<boolean> {
     const document = getSessionDocuments(sessionId)?.[path];
@@ -318,10 +318,9 @@ export async function saveActiveEditor(): Promise<void> {
 }
 
 /**
- * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to
- * save…" sheet at a time (macOS only ever shows one modal sheet). Choosing Cancel on any of them
- * aborts the whole close — a bulk Close Others/Close All must never end up half applied, silently
- * dropping some dirty buffers while leaving others open.
+ * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to save…" sheet at a
+ * time (macOS only ever shows one modal sheet). Choosing Cancel on any of them aborts the whole close — a bulk Close
+ * Others/Close All must never end up half applied, silently dropping some dirty buffers while leaving others open.
  */
 async function didConfirmDirtyEditorCloses(
     sessionId: string,
@@ -369,8 +368,8 @@ function applyEditorTabClose(
           : undefined;
     useSessionViewStore.getState().setActiveWork(session.id, nextItem);
     /**
-     * Reuses `activateWorkState` rather than `activateWork` so the openTabs removal and the fallback
-     * selection persist atomically instead of as two IPC round trips.
+     * Reuses `activateWorkState` rather than `activateWork` so the openTabs removal and the fallback selection persist
+     * atomically instead of as two IPC round trips.
      */
     patchSessionState(
         nextItem
@@ -380,9 +379,9 @@ function applyEditorTabClose(
 }
 
 /**
- * Closing a dirty tab must never silently destroy work: every dirty path about to close is
- * confirmed (Save/Don't Save/Cancel) before anything is evicted. The tab list is re-read after the
- * confirmation round trip in case a concurrent operation (rename, Trash) changed it meanwhile.
+ * Closing a dirty tab must never silently destroy work: every dirty path about to close is confirmed (Save/Don't
+ * Save/Cancel) before anything is evicted. The tab list is re-read after the confirmation round trip in case a
+ * concurrent operation (rename, Trash) changed it meanwhile.
  */
 async function closeEditors(targetPath: string, mode: EditorTabCloseMode): Promise<void> {
     const session = getSelectedSession();
@@ -481,7 +480,7 @@ function remapOpenEditorsInSession(
 }
 
 /**
-Keeps every same-Project Session's normal tabs and dirty buffers attached after a move.
+ * Keeps every same-Project Session's normal tabs and dirty buffers attached after a move.
  */
 export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
     const workbenchProjectId = getSessionProjectId(sessionId);
@@ -499,7 +498,7 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
 }
 
 /**
-Remaps transient state for the originating root; Runtime acknowledgement owns inactive storage.
+ * Remaps transient state for the originating root; Runtime acknowledgement owns inactive storage.
  */
 export async function remapOpenEditorsDurably(
     sessionId: string,
@@ -568,7 +567,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
 }
 
 /**
-Closes matching normal editors in every same-Project Session after Main confirms Trash.
+ * Closes matching normal editors in every same-Project Session after Main confirms Trash.
  */
 export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
     for (const projectSessionId of getProjectSessionIds(sessionId))
@@ -576,9 +575,8 @@ export function closeOpenEditorsUnderPath(sessionId: string, path: string): void
 }
 
 /**
- * True when a file at or below `path` is open with unsaved edits in any same-Project Session. Lets
- * a Trash confirmation stop promising full recoverability when it would actually discard a dirty
- * buffer that was never written to disk.
+ * True when a file at or below `path` is open with unsaved edits in any same-Project Session. Lets a Trash confirmation
+ * stop promising full recoverability when it would actually discard a dirty buffer that was never written to disk.
  */
 export function hasUnsavedChangesUnderPath(sessionId: string, path: string): boolean {
     const bootstrap = useWorkbenchStore.getState().bootstrap;

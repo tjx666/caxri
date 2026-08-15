@@ -162,7 +162,7 @@ describe('CaxriDatabaseConnection', () => {
         const project = database.projects.create(root);
         const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
         /**
-        Simulate pre-fix legacy data where two Terminals collided on the same order_index.
+         * Simulate pre-fix legacy data where two Terminals collided on the same order_index.
          */
         const now = Date.now();
         database.database

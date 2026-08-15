@@ -37,7 +37,7 @@ const hostDesktopControl = {
 const noParameters = z.object({}).default({});
 
 /**
-Host-owned commands that route only bounded native-window operations to the current Desktop.
+ * Host-owned commands that route only bounded native-window operations to the current Desktop.
  */
 export const desktopHostMethods = {
     'desktop.status': {
@@ -56,7 +56,7 @@ export const desktopHostMethods = {
         ...hostDesktopControl,
         params: desktopOpenParametersSchema,
         /**
-        Main has redeemed and dispatched the target; Renderer editor work completes asynchronously.
+         * Main has redeemed and dispatched the target; Renderer editor work completes asynchronously.
          */
         result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },

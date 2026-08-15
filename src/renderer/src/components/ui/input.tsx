@@ -7,7 +7,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utilities';
 
 const inputVariants = cva(
-    'block w-full min-w-0 appearance-none border text-inherit outline-none transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] aria-invalid:border-danger aria-invalid:focus-visible:border-danger disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+    'block w-full min-w-0 appearance-none border text-inherit transition-[border-color,box-shadow,background-color] duration-150 ease-out outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger aria-invalid:focus-visible:border-danger [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
     {
         variants: {
             appearance: {
@@ -53,7 +53,7 @@ export interface InputProperties
     extends Omit<ComponentProps<'input'>, 'size'>, VariantProps<typeof inputVariants> {}
 
 /**
-Shared field primitive with the explicit density and appearance tiers from DESIGN.md.
+ * Shared field primitive with the explicit density and appearance tiers from DESIGN.md.
  */
 export function Input({ appearance, className, size, type, ...properties }: InputProperties) {
     return (
@@ -70,7 +70,7 @@ export interface InputGroupProperties
     extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof inputGroupVariants> {}
 
 /**
-Owns shared field chrome when an Input needs leading or trailing adornments.
+ * Owns shared field chrome when an Input needs leading or trailing adornments.
  */
 export function InputGroup({ appearance, className, size, ...properties }: InputGroupProperties) {
     return (

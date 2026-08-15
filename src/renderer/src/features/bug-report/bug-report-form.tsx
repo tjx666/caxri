@@ -16,7 +16,7 @@ interface BugReportFormProperties {
 }
 
 /**
-The draft-entry step of the Bug Report dialog, shown before a report has been previewed.
+ * The draft-entry step of the Bug Report dialog, shown before a report has been previewed.
  */
 export function BugReportForm({
     busy,
@@ -84,11 +84,10 @@ export function BugReportForm({
                 </label>
                 {includeScreenshot && (
                     /**
-                     * AGENTS.md requires diagnostics to exclude source contents and Terminal
-                     * output; the text report above honors that (see `bug-report.ts`'s doc
-                     * comment), but a screenshot is captured pixel-for-pixel and cannot be
-                     * redacted the same way. This warning makes that gap explicit instead of
-                     * leaving it as a silently unexplained full-window capture.
+                     * AGENTS.md requires diagnostics to exclude source contents and Terminal output; the text report
+                     * above honors that (see `bug-report.ts`'s doc comment), but a screenshot is captured
+                     * pixel-for-pixel and cannot be redacted the same way. This warning makes that gap explicit instead
+                     * of leaving it as a silently unexplained full-window capture.
                      */
                     <p className="m-0 pl-6 text-[11px] text-warning">
                         Unlike the text report, this screenshot is not redacted: it shows everything

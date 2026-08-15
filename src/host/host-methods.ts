@@ -1,9 +1,9 @@
 import type { HostMethod } from '../shared/ipc/methods';
 
 /**
- * Host-owned methods the Host adapter may forward to Runtime. A new `owner: 'host'` method is
- * `HostHandledMethod` until it is added here, so forgetting a Host-local handler fails compile
- * instead of falling through to Runtime `mainOwned()`.
+ * Host-owned methods the Host adapter may forward to Runtime. A new `owner: 'host'` method is `HostHandledMethod` until
+ * it is added here, so forgetting a Host-local handler fails compile instead of falling through to Runtime
+ * `mainOwned()`.
  */
 export const hostForwardedMethods = [
     'agentHooks.get',

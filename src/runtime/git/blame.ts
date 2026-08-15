@@ -53,8 +53,8 @@ export class GitBlameService {
                 ));
             } catch (error) {
                 /**
-                 * A file move can rekey the active editor after this optional blame request starts;
-                 * a now-missing target is stale metadata, not an IPC failure.
+                 * A file move can rekey the active editor after this optional blame request starts; a now-missing
+                 * target is stale metadata, not an IPC failure.
                  */
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
                 throw error;

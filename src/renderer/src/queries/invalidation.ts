@@ -8,18 +8,17 @@ import { caxri } from '../lib/caxri';
 import { getWorkbenchProjectSessionIds } from '../stores/selectors';
 
 /**
-Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass.
+ * Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass.
  */
 const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 
 /**
- * Invalidates the Session-scoped read queries that a `files.changed` event cheaply reflects: Git
- * status, diffs, and current-line blame. `files.list` is deliberately excluded — the separate
- * Project-scoped file-tree subscription tracks which directories a change actually touched and
- * invalidates only those, which this broad query pass would otherwise blur. `projectStatus.summary` and
- * `projectStatus.overview` are excluded too: unlike `git.summary`, a Project Status read may shell
- * out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running
- * on every file write.
+ * Invalidates the Session-scoped read queries that a `files.changed` event cheaply reflects: Git status, diffs, and
+ * current-line blame. `files.list` is deliberately excluded — the separate Project-scoped file-tree subscription tracks
+ * which directories a change actually touched and invalidates only those, which this broad query pass would otherwise
+ * blur. `projectStatus.summary` and `projectStatus.overview` are excluded too: unlike `git.summary`, a Project Status
+ * read may shell out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running on
+ * every file write.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
@@ -50,12 +49,11 @@ function invalidateFileDependentQueries(
 }
 
 /**
- * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a
- * Session (or, with every Session of a Project, a Project) is deleted — otherwise the cached reads
- * (Git status, diffs, blame, file listings, ...) linger under the removed sessionId until the
- * default garbage collector reclaims them, even though the Session can never be selected again.
- * Unlike {@link invalidateFileDependentQueries}, this matches any method: a deleted Session's data
- * should never resurface, not just the file-dependent subset.
+ * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a Session (or, with
+ * every Session of a Project, a Project) is deleted — otherwise the cached reads (Git status, diffs, blame, file
+ * listings, ...) linger under the removed sessionId until the default garbage collector reclaims them, even though the
+ * Session can never be selected again. Unlike {@link invalidateFileDependentQueries}, this matches any method: a deleted
+ * Session's data should never resurface, not just the file-dependent subset.
  */
 export function removeSessionQueries(
     queryClient: QueryClient,
@@ -77,7 +75,7 @@ export function removeSessionQueries(
 }
 
 /**
-`files.exclude` is global, so any valid settings reload refreshes every visible tree listing.
+ * `files.exclude` is global, so any valid settings reload refreshes every visible tree listing.
  */
 function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient>): void {
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
@@ -89,10 +87,9 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
 }
 
 /**
- * Wires `caxri.onEvent` runtime pushes to targeted query invalidation. Mounted once at the app root
- * (see `app.tsx`) alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project
- * bootstrap state stays on that push-based Zustand path; this hook only owns the request/response
- * reads that moved to React Query.
+ * Wires `caxri.onEvent` runtime pushes to targeted query invalidation. Mounted once at the app root (see `app.tsx`)
+ * alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project bootstrap state stays on that
+ * push-based Zustand path; this hook only owns the request/response reads that moved to React Query.
  */
 export function useRuntimeQueryInvalidation(): void {
     const queryClient = useQueryClient();
@@ -100,8 +97,8 @@ export function useRuntimeQueryInvalidation(): void {
 }
 
 /**
- * Subscribes the query cache to Runtime events. The debounce is keyed by Workbench Project rather
- * than source Session because every Session currently routed to that root observes the same disk.
+ * Subscribes the query cache to Runtime events. The debounce is keyed by Workbench Project rather than source Session
+ * because every Session currently routed to that root observes the same disk.
  */
 export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {
     const pendingTimers = new Map<string, number>();

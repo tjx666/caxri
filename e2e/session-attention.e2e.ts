@@ -229,7 +229,7 @@ done
         await expect(activityCard).toBeHidden();
         await expect(firstRow).toBeFocused();
         /**
-        Outlasts PreviewCard's hover delay so a leaked focus timer cannot reopen the card.
+         * Outlasts PreviewCard's hover delay so a leaked focus timer cannot reopen the card.
          */
         await running.page.waitForTimeout(600);
         await expect(activityCard).toBeHidden();
@@ -251,8 +251,8 @@ done
         await processPage.waitForLoadState('domcontentloaded');
         await expect.poll(() => processPage.evaluate(() => document.hasFocus())).toBe(true);
         /**
-             Playwright focus emulation reports both Electron pages as focused; align the main
-            document with the real native focus owner while Process Explorer is in front.
+         * Playwright focus emulation reports both Electron pages as focused; align the main document with the real
+         * native focus owner while Process Explorer is in front.
          */
         await running.page.evaluate(() =>
             Object.defineProperty(document, 'hasFocus', {

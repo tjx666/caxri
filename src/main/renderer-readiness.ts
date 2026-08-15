@@ -10,7 +10,7 @@ interface ReadinessEntry {
 }
 
 /**
-Tracks each main-frame generation until its preload has attached the one-shot event listener.
+ * Tracks each main-frame generation until its preload has attached the one-shot event listener.
  */
 export class RendererReadiness {
     private readonly entries = new WeakMap<WebContents, ReadinessEntry>();
@@ -23,9 +23,8 @@ export class RendererReadiness {
             let isSettled = false;
             const { promise, resolve } = Promise.withResolvers<ReadinessOutcome>();
             /**
-             * `settle` no longer needs to clear the timer directly: the `isSettled` guard already
-             * makes a late `timeout` firing a harmless no-op, so the timer/settle pair no longer
-             * needs a mutual forward reference.
+             * `settle` no longer needs to clear the timer directly: the `isSettled` guard already makes a late
+             * `timeout` firing a harmless no-op, so the timer/settle pair no longer needs a mutual forward reference.
              */
             const settle = (outcome: ReadinessOutcome): void => {
                 if (isSettled) return;

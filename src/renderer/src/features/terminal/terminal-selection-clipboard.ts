@@ -1,5 +1,5 @@
 /**
-Serializes clipboard writes so a slow, older xterm selection cannot replace the latest one.
+ * Serializes clipboard writes so a slow, older xterm selection cannot replace the latest one.
  */
 export class TerminalSelectionClipboard {
     private pending: string | undefined;

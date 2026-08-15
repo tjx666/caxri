@@ -56,7 +56,7 @@ export function openDownloadedUpdate(): void {
 }
 
 /**
-Keeps the mounted update dialog synchronized with Main-owned download state.
+ * Keeps the mounted update dialog synchronized with Main-owned download state.
  */
 export function subscribeUpdateState(): () => void {
     let isActive = true;

@@ -34,7 +34,7 @@ export interface AgentCommandHandlerOptions {
 }
 
 /**
-Keeps public Host ownership and private Runtime PTY ownership visibly separated.
+ * Keeps public Host ownership and private Runtime PTY ownership visibly separated.
  */
 export function createAgentCommandHandlers(
     options: AgentCommandHandlerOptions,

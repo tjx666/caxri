@@ -57,7 +57,7 @@ const PENDING_MESSAGE_STATES: ReadonlyArray<StoredMessage['state']> = [
 ] satisfies readonly PendingState[];
 
 /**
-Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input.
+ * Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input.
  */
 export class AgentInboxRegistry {
     private readonly duplicates = new Map<string, DuplicateReceipt>();
@@ -691,7 +691,7 @@ export class AgentInboxRegistry {
     }
 
     /**
-    Marks a pull delivered only after LocalHostServer confirms its reply crossed the socket.
+     * Marks a pull delivered only after LocalHostServer confirms its reply crossed the socket.
      */
     confirmWait(requestId: string, context: CommandExecutionContext): void {
         const reservation = this.reservations.get(requestId);
@@ -710,7 +710,7 @@ export class AgentInboxRegistry {
     }
 
     /**
-    Requeues an unflushed pull at the FIFO front, or resolves an abandoned long poll.
+     * Requeues an unflushed pull at the FIFO front, or resolves an abandoned long poll.
      */
     cancelWait(requestId: string): void {
         for (const [key, waiter] of this.waiters) {

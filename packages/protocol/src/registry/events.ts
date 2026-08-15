@@ -59,7 +59,7 @@ function normalizeStateChangedPayload(value: unknown): unknown {
         return value;
     }
     /**
-    Future event scopes must converge safely until this client knows how to patch them.
+     * Future event scopes must converge safely until this client knows how to patch them.
      */
     return { kind: 'full', reason: 'unknown' };
 }
@@ -70,7 +70,7 @@ const stateChangedPayloadSchema = z.preprocess(
 );
 
 /**
-Every payload the Runtime may push to Main and the Renderer, keyed by its wire event name.
+ * Every payload the Runtime may push to Main and the Renderer, keyed by its wire event name.
  */
 export const runtimeEventPayloads = {
     'runtime.status': z.object({
@@ -91,7 +91,7 @@ export const runtimeEventPayloads = {
     'files.changed': z.object({
         sessionId: identifierSchema,
         /**
-        Stable Project scope lets inactive Sessions sharing this root converge their caches.
+         * Stable Project scope lets inactive Sessions sharing this root converge their caches.
          */
         workbenchProjectId: identifierSchema,
         changes: z.array(fileChangeSchema),
@@ -100,14 +100,14 @@ export const runtimeEventPayloads = {
     }),
     'files.operationChanged': fileMutationOperationSchema,
     /**
-    One-shot, content-free prompt trigger; Git topology remains Runtime-owned.
+     * One-shot, content-free prompt trigger; Git topology remains Runtime-owned.
      */
     'workbench.candidate': z.object({
         candidateId: identifierSchema,
         sessionId: identifierSchema,
     }),
     /**
-    One-shot UI coordination layered over the durable `state.changed` convergence event.
+     * One-shot UI coordination layered over the durable `state.changed` convergence event.
      */
     'workbench.changed': z.object({
         sessionId: identifierSchema,
@@ -118,19 +118,19 @@ export const runtimeEventPayloads = {
     'settings.changed': configChangedSchema,
     'agentHooks.changed': agentHookHealthMapSchema,
     /**
-    Sender-only status metadata. The message body is deliberately not representable here.
+     * Sender-only status metadata. The message body is deliberately not representable here.
      */
     'agent.message.receipt': agentMessageReceiptSchema,
     /**
-    Desktop-only approval projection with a bounded, inert plain-text preview.
+     * Desktop-only approval projection with a bounded, inert plain-text preview.
      */
     'agent.message.held': agentHeldMessageSchema,
     /**
-    Volatile generation health; clients refresh `agent.list` for the current peer set.
+     * Volatile generation health; clients refresh `agent.list` for the current peer set.
      */
     'agent.messaging.changed': agentEndpointSummarySchema,
     /**
-    Durable, body-free lifecycle evidence for an explicit Agent dispatch.
+     * Durable, body-free lifecycle evidence for an explicit Agent dispatch.
      */
     'agent.dispatch.changed': agentDispatchReceiptSchema,
     'keybindings.changed': configChangedSchema,
@@ -143,9 +143,9 @@ export const runtimeEventPayloads = {
         path: pathSchema.optional(),
     }),
     /**
-     * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one
-     * fired by an actual mouse/touch click, so the Renderer can apply the editable-focus shortcut
-     * policy only to the accelerator path (see `commands/execute.ts#runCommand`).
+     * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one fired by an actual
+     * mouse/touch click, so the Renderer can apply the editable-focus shortcut policy only to the accelerator path (see
+     * `commands/execute.ts#runCommand`).
      */
     'command.execute': z.object({
         command: commandIdSchema,
@@ -158,14 +158,14 @@ type CaxriEventName = keyof typeof runtimeEventPayloads;
 type RuntimeEventPayload<E extends CaxriEventName> = z.infer<(typeof runtimeEventPayloads)[E]>;
 
 /**
-Discriminated union so `onEvent` listeners narrow `payload` from `event` alone.
+ * Discriminated union so `onEvent` listeners narrow `payload` from `event` alone.
  */
 export type RuntimeEvent = {
     [E in CaxriEventName]: { event: E; payload: RuntimeEventPayload<E> };
 }[CaxriEventName];
 
 /**
-Per-event `{ event, payload }` schema, keyed the same way as `runtimeEventPayloads`.
+ * Per-event `{ event, payload }` schema, keyed the same way as `runtimeEventPayloads`.
  */
 type RuntimeEventSchemaMap = {
     [E in CaxriEventName]: z.ZodObject<{
@@ -175,12 +175,11 @@ type RuntimeEventSchemaMap = {
 };
 
 /**
- * `runtimeEventSchema` is derived from `runtimeEventPayloads` instead of listing the event names
- * a second time, so a new entry only needs to be added once (to `runtimeEventPayloads`) to be
- * both a valid payload and a validated member of the discriminated union. `Object.keys`/`.map`
- * can't distribute a generic per array element, so the per-event schema map is built once and
- * cast to `RuntimeEventSchemaMap` (itself derived from `CaxriEventName`, not a hand-listed union)
- * to restore the precise per-event literal types that `z.discriminatedUnion` needs for narrowing.
+ * `runtimeEventSchema` is derived from `runtimeEventPayloads` instead of listing the event names a second time, so a
+ * new entry only needs to be added once (to `runtimeEventPayloads`) to be both a valid payload and a validated member
+ * of the discriminated union. `Object.keys`/`.map` can't distribute a generic per array element, so the per-event
+ * schema map is built once and cast to `RuntimeEventSchemaMap` (itself derived from `CaxriEventName`, not a hand-listed
+ * union) to restore the precise per-event literal types that `z.discriminatedUnion` needs for narrowing.
  */
 const runtimeEventSchemas = Object.fromEntries(
     (Object.keys(runtimeEventPayloads) as CaxriEventName[]).map((event) => [

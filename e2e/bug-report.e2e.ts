@@ -8,9 +8,9 @@ import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 /**
- * The opt-in checkbox and the preview's `alt` text both have to say that a screenshot, unlike the
- * text report, is captured pixel-for-pixel and cannot be redacted. Pinned here as constants so a
- * future copy edit that quietly drops the disclosure fails this spec instead of passing silently.
+ * The opt-in checkbox and the preview's `alt` text both have to say that a screenshot, unlike the text report, is
+ * captured pixel-for-pixel and cannot be redacted. Pinned here as constants so a future copy edit that quietly drops
+ * the disclosure fails this spec instead of passing silently.
  */
 const SCREENSHOT_CHECKBOX_LABEL =
     'Capture a screenshot of the current Caxri window, including any open files and terminal output visible on screen';

@@ -5,9 +5,9 @@ import type {
 } from '../registry/methods.js';
 
 /**
- * Runtime operations available only to an authenticated Desktop Main after it has completed the
- * native dialog, grant, or confirmation step. `runtime.shutdown` is intentionally absent: Desktop
- * disconnection must never stop the Host-owned Runtime.
+ * Runtime operations available only to an authenticated Desktop Main after it has completed the native dialog, grant,
+ * or confirmation step. `runtime.shutdown` is intentionally absent: Desktop disconnection must never stop the
+ * Host-owned Runtime.
  */
 export const desktopRuntimeMethodIds = [
     'app.windowState.get',

@@ -43,8 +43,8 @@ function areAllPathsMatching(
 }
 
 /**
- * Selects the cheapest fail-closed CI path that still validates the event's product risk.
- * `ready_for_review` re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
+ * Selects the cheapest fail-closed CI path that still validates the event's product risk. `ready_for_review`
+ * re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
  */
 export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutionPlan {
     if (input.retryMode) {
@@ -131,7 +131,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
     }
 
     /**
-    Unknown future event types pay the macOS cost instead of silently weakening CI.
+     * Unknown future event types pay the macOS cost instead of silently weakening CI.
      */
     return {
         checksScope: 'full',

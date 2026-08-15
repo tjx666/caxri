@@ -38,7 +38,7 @@ export function AgentIdentityIcon({
     return (
         <span
             aria-hidden="true"
-            className="agent-identity-icon agent-identity-icon-mask inline-block flex-none object-contain bg-current"
+            className="agent-identity-icon agent-identity-icon-mask inline-block flex-none bg-current object-contain"
             data-agent-icon={icon.id}
             style={style}
         />

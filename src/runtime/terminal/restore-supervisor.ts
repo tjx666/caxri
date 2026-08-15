@@ -8,9 +8,9 @@ export type TerminalRestoreOperation = (
 ) => Promise<boolean>;
 
 /**
- * Bounds restore work across every Session and invalidates queued work when navigation changes.
- * Running executable discovery cannot be aborted safely, so each operation receives both a
- * generation check before PTY spawn and a signal that releases cancellable grid waits immediately.
+ * Bounds restore work across every Session and invalidates queued work when navigation changes. Running executable
+ * discovery cannot be aborted safely, so each operation receives both a generation check before PTY spawn and a signal
+ * that releases cancellable grid waits immediately.
  */
 export class TerminalRestoreSupervisor {
     private activeSessionId?: string;

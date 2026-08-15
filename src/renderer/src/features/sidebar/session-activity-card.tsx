@@ -16,7 +16,7 @@ import {
 } from './session-activity';
 
 /**
-Reuses the same tone table as the activity dot and the Sidebar ring, per the single source of truth.
+ * Reuses the same tone table as the activity dot and the Sidebar ring, per the single source of truth.
  */
 function unreadAttentionPresentation(
     session: SessionRecord,
@@ -57,7 +57,7 @@ export function SessionActivityCard({
     useEffect(() => {
         if (!open) return;
         /**
-        xterm consumes Escape before React's popup handler sees it, so capture it at Window.
+         * Xterm consumes Escape before React's popup handler sees it, so capture it at Window.
          */
         const closeOnEscape = (event: KeyboardEvent): void => {
             if (event.key !== 'Escape') return;
@@ -108,7 +108,7 @@ export function SessionActivityCard({
                         <div className="flex min-w-0 items-start gap-2">
                             <AgentIdentityIcon identity={agent} size={17} />
                             <div className="min-w-0 flex-1">
-                                <h3 className="m-0 wrap-break-word text-[13px] font-semibold">
+                                <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
                                     {session.displayTitle}
                                 </h3>
                                 <p className="mt-0.5 mb-0 truncate text-[10px] text-muted">

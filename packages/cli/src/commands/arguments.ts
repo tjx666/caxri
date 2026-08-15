@@ -30,9 +30,9 @@ interface ArgumentApplyResult {
 }
 
 /**
- * Applies a single CLI argument to `parsed`, returning the loop cursor to resume from.
- * Extracted from `parseCliArguments`'s `for` loop so the `switch`/`break` pairs here are not
- * nested inside a loop, satisfying `unicorn/no-break-in-nested-loop`.
+ * Applies a single CLI argument to `parsed`, returning the loop cursor to resume from. Extracted from
+ * `parseCliArguments`'s `for` loop so the `switch`/`break` pairs here are not nested inside a loop, satisfying
+ * `unicorn/no-break-in-nested-loop`.
  */
 function applyArgument(
     argv: readonly string[],
@@ -94,7 +94,7 @@ function applyArgument(
             } else {
                 parsed.timeoutMs = timeoutMs;
                 /**
-            Preserve `--timeout` as the legacy transport/request deadline unless split.
+                 * Preserve `--timeout` as the legacy transport/request deadline unless split.
                  */
                 if (!isConnectTimeoutExplicit) parsed.connectTimeoutMs = timeoutMs;
             }

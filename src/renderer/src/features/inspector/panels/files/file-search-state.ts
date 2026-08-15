@@ -8,7 +8,7 @@ interface FileSearchState {
 }
 
 /**
-Renderer-local source of truth shared by the command and the Session-scoped Files panel.
+ * Renderer-local source of truth shared by the command and the Session-scoped Files panel.
  */
 export const useFileSearchStore = create<FileSearchState>((set) => ({
     activeSessionId: undefined,

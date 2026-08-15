@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 
 /**
-Closes the Electron app during teardown without letting an already-closed app fail the test.
+ * Closes the Electron app during teardown without letting an already-closed app fail the test.
  */
 async function closeAppQuietly(app: ElectronApplication): Promise<void> {
     try {
@@ -43,8 +43,8 @@ async function stubMessageBoxResponse(app: ElectronApplication, response: number
 }
 
 /**
- * A row that remains visible does not prove its canceled deletion request completed. Wait until
- * Main consumes the native-dialog response before replacing the stub for a subsequent request.
+ * A row that remains visible does not prove its canceled deletion request completed. Wait until Main consumes the
+ * native-dialog response before replacing the stub for a subsequent request.
  */
 async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
     await expect
@@ -58,9 +58,9 @@ async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
 }
 
 /**
- * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The
- * chrome assertions do not need to move the test runner into a native Space, which is unavailable
- * when a local CI fallback runs with the console locked.
+ * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The chrome assertions do not
+ * need to move the test runner into a native Space, which is unavailable when a local CI fallback runs with the console
+ * locked.
  */
 async function publishFullScreenState(
     app: ElectronApplication,

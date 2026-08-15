@@ -1,5 +1,5 @@
 /**
-Kept explicit so release validation can prove package, shim, and standalone artifact parity.
+ * Kept explicit so release validation can prove package, shim, and standalone artifact parity.
  */
 export const CLI_VERSION = '0.0.6';
 

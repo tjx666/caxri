@@ -24,7 +24,7 @@ function endpointKey(reference: AgentEndpointReference): string {
 }
 
 /**
-Host-memory registry for documented push adapters; no Provider private state crosses it.
+ * Host-memory registry for documented push adapters; no Provider private state crosses it.
  */
 export class ProviderMessagingAdapterRegistry {
     private readonly adapters = new Map<string, RegisteredAdapter>();

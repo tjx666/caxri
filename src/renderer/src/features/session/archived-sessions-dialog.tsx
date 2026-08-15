@@ -175,7 +175,7 @@ export function ArchivedSessionsDialog() {
                                             >
                                                 {group.project.displayTitle}
                                             </h2>
-                                            <span className="text-[10px] tabular-nums text-muted">
+                                            <span className="text-[10px] text-muted tabular-nums">
                                                 {group.sessions.length}
                                             </span>
                                         </header>

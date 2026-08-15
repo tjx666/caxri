@@ -68,7 +68,7 @@ function safeRecord(line: string): LogQueryRecord | undefined {
     try {
         const value = JSON.parse(line) as Record<string, unknown>;
         /**
-        Content identity survives the logger's atomic `.jsonl` to `.jsonl.1` rotation.
+         * Content identity survives the logger's atomic `.jsonl` to `.jsonl.1` rotation.
          */
         const id = createHash('sha256').update(line).digest('hex').slice(0, 24);
         return logQueryRecordSchema.parse({
@@ -96,7 +96,7 @@ function isRecordMatching(record: LogQueryRecord, query: LogQueryParameters): bo
 }
 
 /**
-Reads only bounded log suffixes and projects a content-free record model.
+ * Reads only bounded log suffixes and projects a content-free record model.
  */
 export class LogQueryService {
     private readonly maximumBytesPerFile: number;

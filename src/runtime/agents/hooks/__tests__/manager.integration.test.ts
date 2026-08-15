@@ -208,7 +208,7 @@ describe('AgentHookManager', () => {
         try {
             await manager.initialize(settings);
             /**
-            Allow the native watcher to deliver any event queued by the initial atomic install.
+             * Allow the native watcher to deliver any event queued by the initial atomic install.
              */
             await new Promise((resolve) => setTimeout(resolve, 250));
             const callsAfterInitialize = inspect.mock.calls.length;

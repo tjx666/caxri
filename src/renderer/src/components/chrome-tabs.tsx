@@ -27,7 +27,7 @@ interface IndicatorGeometry {
 }
 
 /**
-Shared top-level chrome tabs with automatic activation and one measured moving indicator.
+ * Shared top-level chrome tabs with automatic activation and one measured moving indicator.
  */
 export function ChromeTabs<Value extends string>({
     ariaLabel,
@@ -53,7 +53,7 @@ export function ChromeTabs<Value extends string>({
         const listBox = list.getBoundingClientRect();
         const contentBox = content.getBoundingClientRect();
         /**
-        Dialog enter motion scales client rects; normalize them back into this list's CSS pixels.
+         * Dialog enter motion scales client rects; normalize them back into this list's CSS pixels.
          */
         const scaleX = list.offsetWidth > 0 ? listBox.width / list.offsetWidth : 1;
         const next = {
@@ -134,7 +134,7 @@ export function ChromeTabs<Value extends string>({
                         aria-label={item.label}
                         aria-selected={isSelected}
                         className={cn(
-                            'relative flex items-center justify-center border-0 bg-surface text-muted cursor-pointer hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground',
+                            'relative flex cursor-pointer items-center justify-center border-0 bg-surface text-muted hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground',
                             isSelected && 'active text-foreground',
                             tabClassName,
                         )}
@@ -161,7 +161,7 @@ export function ChromeTabs<Value extends string>({
             })}
             <span
                 aria-hidden="true"
-                className="absolute bottom-0 left-0 z-1 h-0.5 rounded-full bg-indicator pointer-events-none transition-[transform,width]"
+                className="pointer-events-none absolute bottom-0 left-0 z-1 h-0.5 rounded-full bg-indicator transition-[transform,width]"
                 data-slot="chrome-tab-indicator"
                 style={{
                     opacity: geometry ? 1 : 0,
@@ -183,7 +183,7 @@ interface ChromeTabPanelProperties<Value extends string> extends HTMLAttributes<
 }
 
 /**
-Mounted panel counterpart that keeps every tab's `aria-controls` target resolvable.
+ * Mounted panel counterpart that keeps every tab's `aria-controls` target resolvable.
  */
 export function ChromeTabPanel<Value extends string>({
     active,

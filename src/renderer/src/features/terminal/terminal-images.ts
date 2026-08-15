@@ -12,8 +12,8 @@ export const terminalImageAddonOptions = {
     iipSizeLimit: TERMINAL_IMAGE_SEQUENCE_LIMIT_BYTES,
     iipSupport: true,
     /**
-     * Kitty graphics is still alpha in the pinned addon and is disabled until its recovery and
-     *  resource semantics are stable enough to share Caxri's bounded image contract.
+     * Kitty graphics is still alpha in the pinned addon and is disabled until its recovery and resource semantics are
+     * stable enough to share Caxri's bounded image contract.
      */
     kittySupport: false,
     pixelLimit: TERMINAL_IMAGE_PIXEL_LIMIT,
@@ -51,9 +51,9 @@ function finiteStorageUsage(value: number): number {
 }
 
 /**
- * Divides one bounded cache budget across every mounted xterm image addon. Reducing a limit asks
- * the official addon to synchronously evict FIFO entries, while disposal removes the Terminal from
- * the global calculation without retaining image canvases or payloads in Caxri state.
+ * Divides one bounded cache budget across every mounted xterm image addon. Reducing a limit asks the official addon to
+ * synchronously evict FIFO entries, while disposal removes the Terminal from the global calculation without retaining
+ * image canvases or payloads in Caxri state.
  */
 export class TerminalImageBudgetManager {
     private readonly terminals = new Map<string, ManagedTerminalImages>();

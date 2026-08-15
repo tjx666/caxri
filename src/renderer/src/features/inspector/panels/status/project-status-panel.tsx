@@ -31,7 +31,7 @@ import type { ProjectStatusTreeNode } from './project-status-tree';
 import { buildProjectStatusNodes } from './project-status-tree';
 
 /**
-No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
+ * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
  */
 const PROJECT_STATUS_REFETCH_INTERVAL_MS = 60_000;
 
@@ -91,7 +91,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                 {node.label}
             </span>
             {node.description && (
-                <small className="project-status-description ml-auto min-w-0 flex-[0_999999_auto] truncate text-muted text-[11px]">
+                <small className="project-status-description ml-auto min-w-0 flex-[0_999999_auto] truncate text-[11px] text-muted">
                     {node.description}
                 </small>
             )}
@@ -106,7 +106,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     style={style}
                 >
                     <button
-                        className={cn(rowClassName, 'min-w-0 flex-1 pl-0 cursor-pointer')}
+                        className={cn(rowClassName, 'min-w-0 flex-1 cursor-pointer pl-0')}
                         aria-expanded={expanded}
                         title={node.label}
                         onClick={() => setExpanded((value) => !value)}
@@ -115,7 +115,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     </button>
                     {node.url && (
                         <a
-                            className="project-status-external grid w-[26px] h-7 place-items-center text-muted hover:text-foreground"
+                            className="project-status-external grid h-7 w-[26px] place-items-center text-muted hover:text-foreground"
                             href={node.url}
                             target="_blank"
                             rel="noreferrer"
@@ -161,7 +161,7 @@ function RepoSection({ repository }: { repository: ProjectStatusRepository }) {
     return (
         <section className="project-status-repository border-b border-border">
             <button
-                className="project-status-repository-row flex w-full min-w-0 items-center gap-1.5 h-[34px] px-2 border-0 bg-surface text-foreground text-left cursor-pointer hover:bg-elevated"
+                className="project-status-repository-row flex h-[34px] w-full min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-surface px-2 text-left text-foreground hover:bg-elevated"
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => setExpanded((value) => !value)}
@@ -170,7 +170,7 @@ function RepoSection({ repository }: { repository: ProjectStatusRepository }) {
                 <Icon size={15} />
                 <strong className="truncate font-semibold">{repository.name}</strong>
                 {repository.kind === 'submodule' && (
-                    <small className="truncate text-muted text-[11px]">submodule</small>
+                    <small className="truncate text-[11px] text-muted">submodule</small>
                 )}
             </button>
             <DisclosureMotion animate expanded={expanded} kind="status-repository">
@@ -187,7 +187,7 @@ function RepoSection({ repository }: { repository: ProjectStatusRepository }) {
 }
 
 /**
-Loads delivery metadata only while the Status tab is mounted, keeping startup CLI-free.
+ * Loads delivery metadata only while the Status tab is mounted, keeping startup CLI-free.
  */
 export function ProjectStatusPanel() {
     const session = useSelectedSession();
@@ -210,7 +210,7 @@ export function ProjectStatusPanel() {
 
     if (!session)
         return (
-            <div className="empty-panel py-4 px-3 text-muted text-center">
+            <div className="empty-panel px-3 py-4 text-center text-muted">
                 Create a Session to inspect status.
             </div>
         );
@@ -223,7 +223,7 @@ export function ProjectStatusPanel() {
     };
     return (
         <div className="inspector-content project-status-panel flex min-h-0 flex-1 flex-col overflow-auto">
-            <div className="project-status-heading flex min-h-[38px] items-center justify-between pt-1 pr-1.5 pb-1 pl-2.5 border-b border-border uppercase">
+            <div className="project-status-heading flex min-h-[38px] items-center justify-between border-b border-border pt-1 pr-1.5 pb-1 pl-2.5 uppercase">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.04em]">
                     <Activity size={14} /> Project Status
                 </span>
@@ -243,15 +243,15 @@ export function ProjectStatusPanel() {
                 </Tooltip>
             </div>
             {!summary && (
-                <div className="empty-panel py-4 px-3 text-muted text-center">
+                <div className="empty-panel px-3 py-4 text-center text-muted">
                     Loading Project Status…
                 </div>
             )}
             {summary?.error && (
-                <div className="empty-panel py-4 px-3 text-muted text-center">{summary.error}</div>
+                <div className="empty-panel px-3 py-4 text-center text-muted">{summary.error}</div>
             )}
             {summary && !summary.error && summary.repositories.length === 0 && (
-                <div className="empty-panel py-4 px-3 text-muted text-center">
+                <div className="empty-panel px-3 py-4 text-center text-muted">
                     No repositories found.
                 </div>
             )}

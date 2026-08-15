@@ -38,9 +38,9 @@ const processStateSchema = z.enum([
     'interrupted',
 ]);
 /**
- * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of
- * codes (not free text) so the Renderer maps each one to actionable copy in
- * `terminal-exit-presentation.ts` without trusting Runtime-authored strings.
+ * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of codes (not free text)
+ * so the Renderer maps each one to actionable copy in `terminal-exit-presentation.ts` without trusting Runtime-authored
+ * strings.
  */
 const terminalFailureReasonSchema = z.enum([
     'working_directory_unavailable',
@@ -67,45 +67,45 @@ export const projectRecordSchema = z.object({
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
     /**
-    Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization.
+     * Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization.
      */
     projectId: identifierSchema,
     /**
-    Independently authorized Project currently used by Files, Editor, and Git.
+     * Independently authorized Project currently used by Files, Editor, and Git.
      */
     workbenchProjectId: identifierSchema,
     /**
-    Workbench Project root projected onto the Session read model for path-scoped services.
+     * Workbench Project root projected onto the Session read model for path-scoped services.
      */
     rootPath: pathSchema,
     createdAt: z.number(),
     lastOpenedAt: z.number(),
     /**
-    Archived Sessions stay durable and keep their Terminals; only active navigation hides them.
+     * Archived Sessions stay durable and keep their Terminals; only active navigation hides them.
      */
     archivedAt: z.number().optional(),
     /**
-    The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
+     * The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
      */
     primaryAgentTerminalId: identifierSchema.optional(),
     lastActivityState: agentActivityStateSchema,
     /**
-    Monotonic generation of reliable Primary Agent attention events.
+     * Monotonic generation of reliable Primary Agent attention events.
      */
     attentionEpoch: z.number().int().nonnegative(),
     /**
-    Latest generation acknowledged after the Session was visibly focused.
+     * Latest generation acknowledged after the Session was visibly focused.
      */
     readAttentionEpoch: z.number().int().nonnegative(),
     lastAttentionKind: sessionAttentionKindSchema.optional(),
     /**
-    Derived read-model field; SQLite stores only the two epochs above.
+     * Derived read-model field; SQLite stores only the two epochs above.
      */
     hasUnread: z.boolean(),
     layoutVersion: z.number(),
     displayTitle: z.string(),
     /**
-    Automatic titles follow the primary Agent; manual titles are owned by the user.
+     * Automatic titles follow the primary Agent; manual titles are owned by the user.
      */
     titleMode: sessionTitleModeSchema,
 });
@@ -123,13 +123,13 @@ export const terminalRecordSchema = z.object({
     agentSessionId: z.string().optional(),
     lastProcessState: processStateSchema,
     /**
-    Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`.
+     * Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`.
      */
     failureReason: terminalFailureReasonSchema.optional(),
     createdAt: z.number(),
     updatedAt: z.number(),
     /**
-    Live Runtime metadata; absent when the PTY is not running.
+     * Live Runtime metadata; absent when the PTY is not running.
      */
     processId: z.number().optional(),
 });
@@ -147,7 +147,7 @@ const editorTabStateSchema = z.object({
     path: pathSchema,
     dirty: z.boolean(),
     /**
-    Missing on legacy state and pinned tabs; only the one replaceable editor sets this.
+     * Missing on legacy state and pinned tabs; only the one replaceable editor sets this.
      */
     preview: z.literal(true).optional(),
 });
@@ -155,16 +155,16 @@ const editorTabStateSchema = z.object({
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
     /**
-    Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root.
+     * Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root.
      */
     workbenchProjectId: identifierSchema,
     openTabs: z.array(editorTabStateSchema).max(100),
     /**
-    The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`.
+     * The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`.
      */
     activeTab: workItemSchema.optional(),
     /**
-    Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
+     * Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
      */
     editorRemapOperationId: identifierSchema.optional(),
     inspectorMode: inspectorModeSchema,
@@ -172,10 +172,10 @@ export const sessionStateSchema = z.object({
 });
 
 /**
- * Numeric bounds and defaults for the user-configurable settings below. `appSettingsSchema` stays
- * intentionally unconstrained (it only validates the wire shape); the strict per-field bounds live
- * here so `src/runtime/configuration.ts`'s Runtime-side validation schema can import them instead of
- * re-declaring the same numbers with no compiler link back to this contract.
+ * Numeric bounds and defaults for the user-configurable settings below. `appSettingsSchema` stays intentionally
+ * unconstrained (it only validates the wire shape); the strict per-field bounds live here so
+ * `src/runtime/configuration.ts`'s Runtime-side validation schema can import them instead of re-declaring the same
+ * numbers with no compiler link back to this contract.
  */
 export const SETTINGS_BOUNDS = {
     'terminal.fontSize': { min: 9, max: 32, default: 13 },
@@ -191,7 +191,7 @@ export const SETTINGS_BOUNDS = {
 } as const;
 
 /**
-VS Code-style defaults for file-tree visibility; dependency and build output stay visible.
+ * VS Code-style defaults for file-tree visibility; dependency and build output stay visible.
  */
 export const DEFAULT_FILES_EXCLUDE = {
     '**/.git': true,
@@ -258,7 +258,7 @@ export const appSettingsSchema = z.object({
 });
 
 /**
-One authorized Project that belongs to the owning repository's linked-worktree topology.
+ * One authorized Project that belongs to the owning repository's linked-worktree topology.
  */
 export const workbenchRootOptionSchema = z.object({
     projectId: identifierSchema,
@@ -281,7 +281,7 @@ export const persistedWindowStateSchema = z.object({
 export const keybindingSchema = z.object({
     key: z.string().min(1).max(100),
     /**
-    Catalog IDs are `CommandId` (see `./commands.js`); unknown values stay visible as custom keybindings.
+     * Catalog IDs are `CommandId` (see `./commands.js`); unknown values stay visible as custom keybindings.
      */
     command: z.string().min(1).max(200),
 });
@@ -377,7 +377,7 @@ const fileMutationOperationBase = {
     id: identifierSchema,
     sessionId: identifierSchema,
     /**
-    Optional only so journals written before Workbench Roots remain recoverable.
+     * Optional only so journals written before Workbench Roots remain recoverable.
      */
     workbenchProjectId: identifierSchema.optional(),
     phase: fileMutationPhaseSchema,
@@ -410,7 +410,7 @@ const fileMoveInputSchema = z.object({
 });
 
 /**
-Durable mutation records let a Renderer reconcile file side effects after an IPC or Runtime gap.
+ * Durable mutation records let a Renderer reconcile file side effects after an IPC or Runtime gap.
  */
 export const fileMutationOperationSchema = z.discriminatedUnion('kind', [
     z.object({
@@ -562,7 +562,7 @@ export const gitSummarySchema = z.object({
 export const gitBranchSchema = z.object({
     name: z.string().min(1).max(1_024),
     /**
-    Epoch milliseconds of the branch tip commit's committer date.
+     * Epoch milliseconds of the branch tip commit's committer date.
      */
     committedAt: z.number().int().nonnegative(),
 });
@@ -676,7 +676,7 @@ const updateVersionFields = {
 };
 
 /**
-Main-owned update state exposed to the Renderer without leaking download paths or URLs.
+ * Main-owned update state exposed to the Renderer without leaking download paths or URLs.
  */
 export const updateStateSchema = z.discriminatedUnion('status', [
     z.object({ status: z.literal('idle'), currentVersion: updateVersionFields.currentVersion }),
@@ -729,7 +729,7 @@ export const bootstrapStateSchema = z.object({
 export interface AgentSnapshot {
     provider: AgentProvider;
     /**
-    Present only for a provider-owned reliable attention signal, never a process fallback.
+     * Present only for a provider-owned reliable attention signal, never a process fallback.
      */
     attentionKind?: SessionAttentionKind;
     sessionId?: string;

@@ -58,7 +58,7 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
 }
 
 /**
-Reads only Claude Code's compact live-session metadata, never project transcripts.
+ * Reads only Claude Code's compact live-session metadata, never project transcripts.
  */
 async function readClaudeState(
     context: AgentSnapshotContext,
@@ -116,8 +116,8 @@ async function readClaudeState(
     }
     if (!latest) return undefined;
     /**
-     * A resumed process can briefly expose the previous turn's terminal status. Keep its identity
-     *  and title, but do not publish attention until Claude updates metadata in this generation.
+     * A resumed process can briefly expose the previous turn's terminal status. Keep its identity and title, but do not
+     * publish attention until Claude updates metadata in this generation.
      */
     const isStatusIsCurrentGeneration =
         !context.startedAt || timestamp(latest.updatedAt) >= context.startedAt;
@@ -130,7 +130,7 @@ async function readClaudeState(
 }
 
 /**
-Resolves Claude Code's config directory from generic environment inputs, honoring its override var.
+ * Resolves Claude Code's config directory from generic environment inputs, honoring its override var.
  */
 function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
     return environment.variables.CLAUDE_CONFIG_DIR || join(environment.homeDirectory, '.claude');

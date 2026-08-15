@@ -35,7 +35,7 @@ function incompatibleHostFailureMessage(): { content: string; title: string } {
 }
 
 /**
-Starts one current-protocol Host attempt and preserves degraded startup for unrelated failures.
+ * Starts one current-protocol Host attempt and preserves degraded startup for unrelated failures.
  */
 export async function shouldContinueStartup(options: HostStartupOptions): Promise<boolean> {
     const startedAt = performance.now();

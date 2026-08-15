@@ -46,8 +46,8 @@ test('Terminal search highlights and navigates matches without intercepting Edit
             '.terminal-group.active .xterm-decoration-container .xterm-decoration:not(.terminal-command-decoration)',
         );
         /**
-         * SearchAddon renders one decoration per match plus a top-layer active-match overlay;
-         *  shell-integration status decorations share xterm's container and are excluded here.
+         * SearchAddon renders one decoration per match plus a top-layer active-match overlay; shell-integration status
+         * decorations share xterm's container and are excluded here.
          */
         await expect(decorations).toHaveCount(5);
         const decorationEvidence = await decorations.evaluateAll((elements) =>
@@ -79,8 +79,8 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await expect(search).toContainText('1/2');
 
         /**
-         * The VS Code Match Case/Whole Word/Regex chords fire from anywhere inside the search bar,
-         *  not only while the query input is focused, so this toggles both off from the input.
+         * The VS Code Match Case/Whole Word/Regex chords fire from anywhere inside the search bar, not only while the
+         * query input is focused, so this toggles both off from the input.
          */
         await searchInput.press('Alt+C');
         await expect(matchCase).toHaveAttribute('aria-pressed', 'false');

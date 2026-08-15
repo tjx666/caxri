@@ -259,9 +259,9 @@ export async function wasFinalizationArtifactRecovered(
     if (JSON.stringify(persisted) === JSON.stringify(state.finalization)) return false;
 
     /**
-     * Delivery writes the immutable artifact before the ledger. If the process stops between
-     * those two atomic replacements, accept only the single monotonic `deliveredAt` transition
-     * and let state storage persist the recovered ledger before continuing.
+     * Delivery writes the immutable artifact before the ledger. If the process stops between those two atomic
+     * replacements, accept only the single monotonic `deliveredAt` transition and let state storage persist the
+     * recovered ledger before continuing.
      */
     const pendingReceipt = { ...persisted, deliveredAt: null };
     if (

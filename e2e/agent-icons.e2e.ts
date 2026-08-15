@@ -71,8 +71,8 @@ test('Agent identities stay consistent across every shared surface', async () =>
         ).toBeVisible();
 
         /**
-         * Chromium on macOS may leave xterm focused after a pointer click on a button. This test
-         * covers icons, so give its settings shortcut a deterministic non-editable focus target.
+         * Chromium on macOS may leave xterm focused after a pointer click on a button. This test covers icons, so give
+         * its settings shortcut a deterministic non-editable focus target.
          */
         await infoTab.focus();
         await running.page.keyboard.press('Meta+,');

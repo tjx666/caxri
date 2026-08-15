@@ -192,10 +192,10 @@ function parseSessionState(
 }
 
 /**
- * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession,
- * default titles, and deletion-fallback selection are decided in `../../session-policy.ts` and applied
- * here through plain setters. Session JSON is versioned and schema-validated at this boundary so a
- * corrupt or future row can be repaired without failing the full Runtime bootstrap.
+ * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession, default titles, and
+ * deletion-fallback selection are decided in `../../session-policy.ts` and applied here through plain setters. Session
+ * JSON is versioned and schema-validated at this boundary so a corrupt or future row can be repaired without failing
+ * the full Runtime bootstrap.
  */
 export class SessionsModel {
     constructor(
@@ -299,7 +299,7 @@ export class SessionsModel {
     }
 
     /**
-    Persists an alternate authorized Project, or null-normalizes the owning Project.
+     * Persists an alternate authorized Project, or null-normalizes the owning Project.
      */
     setWorkbenchProject(
         sessionId: string,
@@ -339,7 +339,7 @@ export class SessionsModel {
     }
 
     /**
-    Clears explicit bindings before an authorized Project row can be deleted.
+     * Clears explicit bindings before an authorized Project row can be deleted.
      */
     resetWorkbenchProject(projectId: string): string[] {
         const sessionIds = this.database
@@ -362,7 +362,7 @@ export class SessionsModel {
     }
 
     /**
-    A new Session never starts with a primary Agent Terminal; the caller assigns one afterward.
+     * A new Session never starts with a primary Agent Terminal; the caller assigns one afterward.
      */
     insert(input: NewSessionInput): SessionRecord {
         const id = randomUUID();
@@ -392,7 +392,7 @@ export class SessionsModel {
     }
 
     /**
-    Returns true when a row existed and was touched.
+     * Returns true when a row existed and was touched.
      */
     touchLastOpened(id: string, now = Date.now()): boolean {
         return (
@@ -405,7 +405,7 @@ export class SessionsModel {
     }
 
     /**
-    Archiving is reversible metadata; it never removes or stops the Session's Terminals.
+     * Archiving is reversible metadata; it never removes or stops the Session's Terminals.
      */
     setArchived(id: string, archivedAt: number | null): boolean {
         return (
@@ -454,7 +454,7 @@ export class SessionsModel {
     }
 
     /**
-    Acknowledges only the generation the Renderer actually displayed.
+     * Acknowledges only the generation the Renderer actually displayed.
      */
     acknowledgeAttention(id: string, attentionEpoch: number): boolean {
         return (
@@ -516,7 +516,7 @@ export class SessionsModel {
     }
 
     /**
-    Loads every 1:1 Session state row in the same stable order as {@link list}.
+     * Loads every 1:1 Session state row in the same stable order as {@link list}.
      */
     listStates(): SessionState[] {
         const rows = this.database
@@ -630,7 +630,7 @@ export class SessionsModel {
     }
 
     /**
-    Remaps one durable root snapshot even when its Session has since selected another root.
+     * Remaps one durable root snapshot even when its Session has since selected another root.
      */
     remapWorkbenchEditorState(
         workbenchProjectId: string,

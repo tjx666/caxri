@@ -54,9 +54,8 @@ type ServiceHandlerMethods =
     | 'logs.query';
 
 /**
- * Handlers that only delegate to an already-constructed Runtime service, with no dependency on
- * the composition root's own closures. Kept out of `bootstrap.ts` to stay under the file's
- * physical-line budget.
+ * Handlers that only delegate to an already-constructed Runtime service, with no dependency on the composition root's
+ * own closures. Kept out of `bootstrap.ts` to stay under the file's physical-line budget.
  */
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (operationId: string) => Promise<void>;

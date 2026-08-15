@@ -53,7 +53,7 @@ import {
 } from '../terminal/terminal-progress';
 
 /**
-No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
+ * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
  */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 const AUTHORIZE_WORKBENCH_ROOT_VALUE = '__authorize_workbench_root__';
@@ -95,10 +95,10 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 /**
- * DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip: an
- * `aria-label` alone leaves sighted mouse users with less information than assistive tech gets.
- * Wrapped in the shared `Tooltip` primitive rather than a bare `title` attribute so it renders
- * consistently (and visibly) instead of relying on Chromium's native, easy-to-miss tooltip.
+ * DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip: an `aria-label` alone leaves
+ * sighted mouse users with less information than assistive tech gets. Wrapped in the shared `Tooltip` primitive rather
+ * than a bare `title` attribute so it renders consistently (and visibly) instead of relying on Chromium's native,
+ * easy-to-miss tooltip.
  */
 function StatusInfo({
     ariaLabel,
@@ -223,11 +223,10 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                     className={cn(
                         'statusbar-terminal-progress tabular-nums',
                         /**
-                         * `--accent` is reserved for the one focused pane/tab (DESIGN.md principle
-                         * 2). This badge renders for every Terminal with progress, not just the
-                         * active one, so a background process must not borrow the accent color —
-                         * only the genuinely exceptional states (`error`/`paused`) get a status
-                         * color here; the common "normal" case stays neutral.
+                         * `--accent` is reserved for the one focused pane/tab (DESIGN.md principle 2). This badge
+                         * renders for every Terminal with progress, not just the active one, so a background process
+                         * must not borrow the accent color — only the genuinely exceptional states (`error`/`paused`)
+                         * get a status color here; the common "normal" case stays neutral.
                          */
                         progress.kind === 'normal' && 'text-muted',
                         progress.kind === 'error' && 'text-danger',
@@ -240,15 +239,12 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                 </StatusInfo>
             )}
             {/**
-             * Deliberately informational-only, not the primary entry point: "Open Process
-             * Explorer" already lives in the native Help menu and the Command Palette
-             * (`processExplorer.open` in `shared/commands.ts`), so it stays reachable
-             * regardless of the active tab. Duplicating it as an always-present status-bar
-             * button would compete with those two discoverable routes for a diagnostic tool
-             * most users open rarely; instead this chip earns its place by doubling as a live
-             * memory reading for the active Terminal; clicking it is a convenience shortcut,
-             * not a required affordance, which is why it is allowed to disappear on editor/diff
-             * tabs where there is no Terminal metric to show.
+             * Deliberately informational-only, not the primary entry point: "Open Process Explorer" already lives in the native
+             * Help menu and the Command Palette (`processExplorer.open` in `shared/commands.ts`), so it stays reachable regardless
+             * of the active tab. Duplicating it as an always-present status-bar button would compete with those two discoverable
+             * routes for a diagnostic tool most users open rarely; instead this chip earns its place by doubling as a live memory
+             * reading for the active Terminal; clicking it is a convenience shortcut, not a required affordance, which is why it is
+             * allowed to disappear on editor/diff tabs where there is no Terminal metric to show.
              */}
             {usage && (
                 <StatusItem
@@ -275,14 +271,14 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
 }
 
 /**
- * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it
- * does so in the user's vocabulary rather than naming the Runtime process.
+ * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it does so in the user's
+ * vocabulary rather than naming the Runtime process.
  */
 const DEGRADED_STATES: Partial<
     Record<RuntimeStatus, { label: string; detail: string; className: string }>
 > = {
     /**
-    No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
+     * No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
      */
     failed: {
         label: 'Backend stopped',
@@ -299,7 +295,7 @@ const DEGRADED_STATES: Partial<
 };
 
 /**
-Same hover-tooltip contract as {@link StatusInfo}, for the clickable status-bar entries.
+ * Same hover-tooltip contract as {@link StatusInfo}, for the clickable status-bar entries.
  */
 function StatusItem({
     ariaLabel,
@@ -351,19 +347,17 @@ function StatusItem({
 }
 
 /**
- * Screencast Mode has no other persistent cue while active — see `screencast.ts`'s
- * `toggleScreencastMode` for the paired toast. Muted tokens keep it quiet per DESIGN.md's status
- * bar redline (only degraded Runtime state earns a loud chip); clicking replays the same toggle
- * command a keybinding or the command palette would run.
+ * Screencast Mode has no other persistent cue while active — see `screencast.ts`'s `toggleScreencastMode` for the
+ * paired toast. Muted tokens keep it quiet per DESIGN.md's status bar redline (only degraded Runtime state earns a loud
+ * chip); clicking replays the same toggle command a keybinding or the command palette would run.
  */
 const screencastChipClassName = 'text-muted';
 
 /**
- * The chip name alone implies recording safety it does not provide, so both the accessible name
- * and the hover tooltip spell out the actual behavior: Screencast Mode only overlays click ripples
- * and a privacy-filtered keystroke badge (see `screencast.ts`'s `describeScreencastKey`) — it never
- * hides or redacts anything already visible on screen, so source code and Terminal output stay
- * exactly as exposed as they would be without it.
+ * The chip name alone implies recording safety it does not provide, so both the accessible name and the hover tooltip
+ * spell out the actual behavior: Screencast Mode only overlays click ripples and a privacy-filtered keystroke badge
+ * (see `screencast.ts`'s `describeScreencastKey`) — it never hides or redacts anything already visible on screen, so
+ * source code and Terminal output stay exactly as exposed as they would be without it.
  */
 const SCREENCAST_CHIP_LABEL =
     'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
@@ -385,12 +379,12 @@ function ScreencastModeChip() {
 }
 
 /**
- * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it
- * stays on the 60s poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries`
- * in `queries/client.ts`). Branch and changed-file count instead come from the `git.summary` query —
- * the same cheap read `GitPanel` and `GitDiffEditor` use, already invalidated on `files.changed` — so
- * the status bar reflects a Git-affecting change immediately without waiting on the slow poll or
- * calling the delivery CLI any more often than the interval already does.
+ * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it stays on the 60s
+ * poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries` in `queries/client.ts`).
+ * Branch and changed-file count instead come from the `git.summary` query — the same cheap read `GitPanel` and
+ * `GitDiffEditor` use, already invalidated on `files.changed` — so the status bar reflects a Git-affecting change
+ * immediately without waiting on the slow poll or calling the delivery CLI any more often than the interval already
+ * does.
  */
 function useProjectOverview(sessionId: string | undefined) {
     const overviewQuery = useCaxriQuery(
@@ -513,7 +507,7 @@ function BranchPicker({
                 <GitBranch size={13} />
                 <SelectValue>{branch}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="min-w-48 max-w-96">
+            <SelectContent className="max-w-96 min-w-48">
                 {branches.map(({ name, committedAt }) => (
                     <SelectItem key={name} value={name} className="max-w-96">
                         <span className="flex min-w-0 items-baseline gap-2">
@@ -600,14 +594,13 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
             >
                 <FolderGit2 size={13} />
                 {/**
-                 * The trigger shows only the root's title: the adjacent BranchPicker already
-                 *  renders the same branch, so repeating it here made the status bar read
-                 *  "title · branch · branch". The dropdown items keep "title · branch" because
-                 *  the branch is what tells parallel worktree roots apart.
+                 * The trigger shows only the root's title: the adjacent BranchPicker already renders the same branch, so repeating it
+                 * here made the status bar read "title · branch · branch". The dropdown items keep "title · branch" because the branch
+                 * is what tells parallel worktree roots apart.
                  */}
                 <SelectValue>{current.displayTitle}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="min-w-56 max-w-96">
+            <SelectContent className="max-w-96 min-w-56">
                 {roots.map((root) => (
                     <SelectItem key={root.projectId} value={root.projectId} className="max-w-96">
                         {root.displayTitle} · {root.branch}
@@ -644,18 +637,17 @@ export function StatusBar() {
     const activeWork = useActiveWork();
     return (
         /**
-         * `data-runtime-status` is the stable readiness signal: it is present in every visual
-         * state, including the healthy one that renders no chip at all.
+         * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the
+         * healthy one that renders no chip at all.
          */
         <footer
-            className="statusbar col-span-full flex items-center gap-2 px-2 border-t border-border bg-surface text-muted text-[11px]"
+            className="statusbar col-span-full flex items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
             data-runtime-status={runtimeStatus ?? 'starting'}
         >
-            <div className="statusbar-context min-w-0 flex-1 flex items-center gap-0.5 overflow-hidden">
+            <div className="statusbar-context flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
                 {/**
-                 * With a Session selected, the WorkbenchRootPicker below already names the same
-                 *  root (and its tooltip shows the same rootPath), so a separate project chip
-                 *  would print the title twice; the chip only covers the no-Session state.
+                 * With a Session selected, the WorkbenchRootPicker below already names the same root (and its tooltip shows the same
+                 * rootPath), so a separate project chip would print the title twice; the chip only covers the no-Session state.
                  */}
                 {workbenchProject && !sessionId && (
                     <StatusItem

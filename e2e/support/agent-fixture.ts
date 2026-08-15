@@ -8,7 +8,7 @@ import { agentProviderIds } from '../../src/shared/agents';
 interface FakeAgentInputCapture {
     encoding: 'hex' | 'raw' | 'utf8';
     /**
-    Mirrors encoded input to the fake Terminal for interaction assertions.
+     * Mirrors encoded input to the fake Terminal for interaction assertions.
      */
     echoPrefix?: string;
     path: string;
@@ -16,19 +16,19 @@ interface FakeAgentInputCapture {
 
 export interface FakeAgentDefinition {
     /**
-    Complete executable source for provider-specific state or lifecycle behavior.
+     * Complete executable source for provider-specific state or lifecycle behavior.
      */
     executableSource?: string;
     /**
-    Deterministic text emitted after startup by the standard fake executable.
+     * Deterministic text emitted after startup by the standard fake executable.
      */
     startupOutput?: string;
     /**
-    Optional raw input capture used by tests that assert Terminal input mappings.
+     * Optional raw input capture used by tests that assert Terminal input mappings.
      */
     inputCapture?: FakeAgentInputCapture;
     /**
-    Delays raw mode and its ready marker to reproduce a slow hosted PTY startup boundary.
+     * Delays raw mode and its ready marker to reproduce a slow hosted PTY startup boundary.
      */
     readinessDelayMs?: number;
 }
@@ -40,7 +40,7 @@ export interface FakeAgentMode {
 }
 
 /**
-Structured argv accepted by the Runtime's manual, Codex-only real Agent smoke boundary.
+ * Structured argv accepted by the Runtime's manual, Codex-only real Agent smoke boundary.
  */
 export function realCodexSmokeArguments(prompt: string): string[] {
     return [
@@ -90,9 +90,9 @@ ${definition.readinessDelayMs ? `setTimeout(becomeReady, ${definition.readinessD
 }
 
 /**
- * Creates provider executables and state homes under one E2E user-data directory. The returned
- * object is passed directly as `launchCaxri({ agentMode })`, keeping fake authority explicit and
- * preventing tests from rediscovering a developer's real CLI through PATH or a login shell.
+ * Creates provider executables and state homes under one E2E user-data directory. The returned object is passed
+ * directly as `launchCaxri({ agentMode })`, keeping fake authority explicit and preventing tests from rediscovering a
+ * developer's real CLI through PATH or a login shell.
  */
 export async function createFakeAgentMode(options: {
     userDataDir: string;

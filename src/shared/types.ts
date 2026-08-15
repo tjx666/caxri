@@ -1,7 +1,6 @@
 /**
- * Domain types are inferred from the browser-safe Zod schemas in `packages/protocol` so every
- * transport and the TypeScript model share one contract. This module stays as the stable Desktop
- * import path for consumers.
+ * Domain types are inferred from the browser-safe Zod schemas in `packages/protocol` so every transport and the
+ * TypeScript model share one contract. This module stays as the stable Desktop import path for consumers.
  */
 export type {
     AgentSkillHealth,

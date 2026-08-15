@@ -48,12 +48,12 @@ export function ContextMenuContent({ className, ...properties }: ContextMenuPrim
 
 export interface ContextMenuItemProperties extends ContextMenuPrimitive.Item.Props {
     /**
-     * Accessible-only explanation for a disabled item (e.g. "Nothing to paste"). Screen readers
-     * announce it via `aria-describedby`; sighted users get it from the native `title` tooltip.
+     * Accessible-only explanation for a disabled item (e.g. "Nothing to paste"). Screen readers announce it via
+     * `aria-describedby`; sighted users get it from the native `title` tooltip.
      */
     disabledReason?: string;
     /**
-    Right-aligned live-keybinding hint, reusing the command palette's compact keycap chip.
+     * Right-aligned live-keybinding hint, reusing the command palette's compact keycap chip.
      */
     hint?: string;
 }
@@ -73,7 +73,7 @@ export function ContextMenuItem({
             aria-describedby={reasonId}
             title={disabledReason}
             className={cn(
-                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-highlighted:bg-[var(--selection)] data-disabled:pointer-events-none data-disabled:opacity-45',
+                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-[var(--selection)]',
                 className,
             )}
             {...properties}

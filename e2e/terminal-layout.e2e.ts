@@ -32,9 +32,9 @@ async function terminalGlyphPixelCounts(
     const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
     const geometry = await pane.evaluate((paneElement, target) => {
         /**
-         * Locate the DOM range for `target` inside a single row's text nodes, if present.
-         * Extracted so the outer row loop below can `continue` without nesting a `break`
-         * inside two loop levels (unicorn/no-break-in-nested-loop).
+         * Locate the DOM range for `target` inside a single row's text nodes, if present. Extracted so the outer row
+         * loop below can `continue` without nesting a `break` inside two loop levels
+         * (unicorn/no-break-in-nested-loop).
          */
         function findRowMatch(row: Element, matchTarget: string) {
             const text = row.textContent ?? '';
@@ -379,7 +379,7 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
             // eslint-disable-next-line no-await-in-loop -- each viewport width must settle before the next resize.
             await running.page.setViewportSize({ width, height: 800 });
             /**
-            xterm fits asynchronously after the viewport resize; measure only after both panes converge.
+             * Xterm fits asynchronously after the viewport resize; measure only after both panes converge.
              */
             // eslint-disable-next-line no-await-in-loop -- each viewport width must settle before the next resize.
             await expect

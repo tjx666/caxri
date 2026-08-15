@@ -14,8 +14,8 @@ async function applyGpuPreference(page: Page, preference: GpuPreference): Promis
     await dialog.getByLabel('Terminal GPU acceleration').click();
     await page.getByRole('option', { name: preference, exact: true }).click();
     /**
-     * Settings apply immediately (there is no Apply button); the observable invariant is the
-     *  Runtime actually persisting the change, not an arbitrary wait.
+     * Settings apply immediately (there is no Apply button); the observable invariant is the Runtime actually
+     * persisting the change, not an arbitrary wait.
      */
     await expect
         .poll(async () => {
@@ -86,12 +86,11 @@ test('WebGL modes hot-switch, redraw on restore, and fail over without restartin
         });
         expect(isContextWasLost).toBe(true);
         /**
-         * A dropped GPU context used to downgrade silently, with the reason only reaching `dataset`
-         * for Playwright. It is now surfaced to the user once per Terminal. Asserted before the
-         * `data-terminal-renderer` attributes below — both are set by the same fallback, but the
-         * toast is an `info` that auto-dismisses after 4s (`stores/toasts.ts`) while the attributes
-         * persist, and the fallback itself is allowed up to 8s here. Waiting on the durable signal
-         * first could therefore consume the whole lifetime of the expiring one.
+         * A dropped GPU context used to downgrade silently, with the reason only reaching `dataset` for Playwright. It
+         * is now surfaced to the user once per Terminal. Asserted before the `data-terminal-renderer` attributes below
+         * — both are set by the same fallback, but the toast is an `info` that auto-dismisses after 4s
+         * (`stores/toasts.ts`) while the attributes persist, and the fallback itself is allowed up to 8s here. Waiting
+         * on the durable signal first could therefore consume the whole lifetime of the expiring one.
          */
         await expect(
             running.page.getByText(

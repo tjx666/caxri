@@ -8,7 +8,7 @@ import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 const cursorSchema = z.number().int().nonnegative();
 
 /**
-One bounded replay window also caps pending durable events during client recovery.
+ * One bounded replay window also caps pending durable events during client recovery.
  */
 export const MAX_EVENT_JOURNAL_EVENTS = 256;
 export type TransientRuntimeEvent = Extract<
@@ -48,7 +48,7 @@ export const transientRuntimeEventSchema = runtimeEventSchema.refine(
 ) as z.ZodType<TransientRuntimeEvent>;
 
 /**
-PTY bytes and one-shot UI commands retain direct delivery and never enter durable replay.
+ * PTY bytes and one-shot UI commands retain direct delivery and never enter durable replay.
  */
 export const durableRuntimeEventSchema = runtimeEventSchema.refine(
     (event) => !isTransientRuntimeEvent(event),
@@ -64,7 +64,7 @@ export const protocolEventEnvelopeSchema = z.object({
 export type ProtocolEventEnvelope = z.infer<typeof protocolEventEnvelopeSchema>;
 
 /**
-Bounded convergence metadata; full Desktop bootstrap data is deliberately not representable.
+ * Bounded convergence metadata; full Desktop bootstrap data is deliberately not representable.
  */
 export const protocolRecoverySnapshotSchema = z.object({
     cursor: cursorSchema,
@@ -133,7 +133,7 @@ export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
 export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySchema>;
 
 /**
-Removes every event payload and snapshot identity before recovery reaches a non-Desktop client.
+ * Removes every event payload and snapshot identity before recovery reaches a non-Desktop client.
  */
 export function projectObservableEventRecovery(recovery: EventRecovery): ObservableEventRecovery {
     return observableEventRecoverySchema.parse(
@@ -156,7 +156,7 @@ export interface EventJournal {
 }
 
 /**
-Keeps only a bounded replay window and falls back to a bounded identity/revision snapshot.
+ * Keeps only a bounded replay window and falls back to a bounded identity/revision snapshot.
  */
 export function createEventJournal(options: {
     snapshot(cursor: number): Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot;
@@ -188,7 +188,7 @@ export function createEventJournal(options: {
         async recover(afterCursor) {
             cursorSchema.parse(afterCursor);
             /**
-            Freeze the barrier before any async snapshot read; later events remain replayable.
+             * Freeze the barrier before any async snapshot read; later events remain replayable.
              */
             const recoveryCursor = cursor;
             if (afterCursor > recoveryCursor)
@@ -214,7 +214,7 @@ export function createEventJournal(options: {
 }
 
 /**
-Drops duplicate replay and reports the first gap so a client can request convergence.
+ * Drops duplicate replay and reports the first gap so a client can request convergence.
  */
 export function acceptEventSequence(
     currentCursor: number,

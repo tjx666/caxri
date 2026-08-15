@@ -42,7 +42,7 @@ import { useSessionRename } from './use-session-rename';
 
 const NO_RECORDS: never[] = [];
 /**
-Vite serves this repo-only asset in development without bundling it into production.
+ * Vite serves this repo-only asset in development without bundling it into production.
  */
 const sidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
 const onAddProject = (): void => executeCommand('project.create');
@@ -58,7 +58,7 @@ export function ProjectSidebar() {
     const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
     /**
-    The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution.
+     * The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution.
      */
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
@@ -70,7 +70,7 @@ export function ProjectSidebar() {
     );
 
     /**
-    Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
+     * Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
      */
     const treeRows = useMemo(() => {
         const projectNodes = projects.map((project) => {
@@ -87,9 +87,9 @@ export function ProjectSidebar() {
     }, [projects, sessions, isProjectExpanded]);
 
     /**
-     * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern).
-     * Falls back through the selected Session, then the selected Project, then the first row
-     * whenever `focusedRowId` is unset or has gone stale (archived Session, collapsed Project).
+     * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern). Falls back through
+     * the selected Session, then the selected Project, then the first row whenever `focusedRowId` is unset or has gone
+     * stale (archived Session, collapsed Project).
      */
     const rovingRowId = useMemo(
         () => rovingSidebarRowId(treeRows, focusedRowId, selectedSessionId, selectedProjectId),
@@ -120,16 +120,16 @@ export function ProjectSidebar() {
     };
 
     /**
-     * The Sidebar tree is a single roving Tab stop (standard ARIA tree authoring pattern): only
-     * the row in `rovingRowId` is a Tab stop, and every inner control (disclosure, "New Session",
-     * archived-count, per-row Archive) is `tabIndex={-1}`. This handler supplies the keyboard
-     * equivalents that stop being reachable by Tab:
+     * The Sidebar tree is a single roving Tab stop (standard ARIA tree authoring pattern): only the row in
+     * `rovingRowId` is a Tab stop, and every inner control (disclosure, "New Session", archived-count, per-row Archive)
+     * is `tabIndex={-1}`. This handler supplies the keyboard equivalents that stop being reachable by Tab:
+     *
      * - Up/Down/Home/End walk every Project heading and its active Sessions.
      * - Left/Right expand/collapse a Project, or move a Session row to its owning Project.
-     * - Delete/Backspace on a focused Session row archives it (reversible via the Archived
-     *   Sessions dialog, so no confirmation) — the keyboard equivalent of the Archive button.
-     *   Focus moves to the next row (falling back to the previous row when the archived row was
-     *   last) before the row leaves the DOM, so the roving Tab stop never falls out of the tree.
+     * - Delete/Backspace on a focused Session row archives it (reversible via the Archived Sessions dialog, so no
+     *   confirmation) — the keyboard equivalent of the Archive button. Focus moves to the next row (falling back to the
+     *   previous row when the archived row was last) before the row leaves the DOM, so the roving Tab stop never falls
+     *   out of the tree.
      */
     const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -187,9 +187,9 @@ export function ProjectSidebar() {
             >
                 {isFullScreen && (
                     /**
-                     * macOS hides the traffic lights in fullscreen, leaving the reserved
-                     * `pl-[84px]` gap empty. Show the logo instead so the sidebar header keeps a
-                     * left-side anchor; `data-caxri-logo` also lets e2e assert it only exists here.
+                     * MacOS hides the traffic lights in fullscreen, leaving the reserved `pl-[84px]` gap empty. Show
+                     * the logo instead so the sidebar header keeps a left-side anchor; `data-caxri-logo` also lets e2e
+                     * assert it only exists here.
                      */
                     <img
                         src={sidebarLogoUrl}
@@ -200,7 +200,7 @@ export function ProjectSidebar() {
                 )}
                 <CommandTooltip commandId="project.create">
                     <Button
-                        className="pointer-events-none opacity-0 transition-opacity group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100"
+                        className="pointer-events-none opacity-0 transition-opacity group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100 group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100"
                         size="icon"
                         variant="ghost"
                         aria-label="Add Project"
@@ -271,7 +271,7 @@ export function ProjectSidebar() {
                 })}
                 {projects.length === 0 && (
                     <button
-                        className="first-session flex w-full min-h-[72px] items-center justify-center gap-2 p-4 border border-dashed border-border rounded-md text-muted bg-transparent cursor-pointer hover:text-foreground hover:border-muted"
+                        className="first-session flex min-h-[72px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-transparent p-4 text-muted hover:border-muted hover:text-foreground"
                         onClick={onAddProject}
                     >
                         <Plus size={16} /> Add your first Project

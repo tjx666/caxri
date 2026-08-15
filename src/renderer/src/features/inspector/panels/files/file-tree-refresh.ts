@@ -7,7 +7,7 @@ import { caxriQueryKey } from '../../../../queries/client';
 import { getWorkbenchProjectSessionIds } from '../../../../stores/selectors';
 
 /**
-Returns the directory whose listing directly owns a changed absolute path.
+ * Returns the directory whose listing directly owns a changed absolute path.
  */
 export function parentDirectoryPath(path: string): string {
     const separator = path.lastIndexOf('/');
@@ -16,7 +16,7 @@ export function parentDirectoryPath(path: string): string {
 }
 
 /**
-True when one file change can alter ignored decoration below several expanded directories.
+ * True when one file change can alter ignored decoration below several expanded directories.
  */
 export function isGitIgnoreRulesPath(path: string): boolean {
     const normalized = path.replaceAll('\\', '/');
@@ -28,10 +28,10 @@ export function isGitIgnoreRulesPath(path: string): boolean {
 }
 
 /**
- * Invalidates only the `files.list` query cache entries a `files.changed` event actually touched.
- * An overflowed watcher batch or Git ignore-rule change invalidates every directory listed for the
- * Session — an ancestor rule can redecorate any expanded descendant. Other changes invalidate only
- * their direct parent, so an ordinary edit never re-fetches an unrelated sibling.
+ * Invalidates only the `files.list` query cache entries a `files.changed` event actually touched. An overflowed watcher
+ * batch or Git ignore-rule change invalidates every directory listed for the Session — an ancestor rule can redecorate
+ * any expanded descendant. Other changes invalidate only their direct parent, so an ordinary edit never re-fetches an
+ * unrelated sibling.
  */
 export function useFileTreeQueryInvalidation(): void {
     const queryClient = useQueryClient();
@@ -39,7 +39,7 @@ export function useFileTreeQueryInvalidation(): void {
 }
 
 /**
-Invalidates current Workbench Project tree queries, including inactive sibling Sessions.
+ * Invalidates current Workbench Project tree queries, including inactive sibling Sessions.
  */
 export function subscribeFileTreeInvalidation(
     queryClient: ReturnType<typeof useQueryClient>,

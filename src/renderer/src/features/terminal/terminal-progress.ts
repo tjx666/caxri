@@ -51,8 +51,8 @@ function isProgressEqual(left: TerminalProgress | undefined, right: TerminalProg
 }
 
 /**
- * Keeps OSC 9;4 state ephemeral and Terminal-scoped. PTYs can emit progress updates faster than
- * React can paint, so the registry publishes only the last update for each Terminal once per frame.
+ * Keeps OSC 9;4 state ephemeral and Terminal-scoped. PTYs can emit progress updates faster than React can paint, so the
+ * registry publishes only the last update for each Terminal once per frame.
  */
 export class TerminalProgressRegistry {
     private readonly current = new Map<string, TerminalProgress>();
@@ -109,7 +109,7 @@ export class TerminalProgressRegistry {
     }
 
     /**
-    Lifecycle clears are synchronous so a queued frame cannot resurrect a closed Terminal.
+     * Lifecycle clears are synchronous so a queued frame cannot resurrect a closed Terminal.
      */
     clear(terminalId: string): void {
         this.pending.delete(terminalId);

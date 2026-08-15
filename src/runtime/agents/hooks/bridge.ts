@@ -73,7 +73,7 @@ async function writeIfChanged(path: string, source: string, mode: number): Promi
 }
 
 /**
-Stages one version-independent executable path so ordinary Caxri upgrades do not churn hooks.
+ * Stages one version-independent executable path so ordinary Caxri upgrades do not churn hooks.
  */
 export async function stageAgentHookBridge(sharedPath: string): Promise<string> {
     const directory = join(sharedPath, 'bin');
@@ -84,7 +84,7 @@ export async function stageAgentHookBridge(sharedPath: string): Promise<string> 
             bridgeVersion?: unknown;
         };
         /**
-        A newer Caxri owns the shared bridge; older binaries must not downgrade it.
+         * A newer Caxri owns the shared bridge; older binaries must not downgrade it.
          */
         if (typeof manifest.bridgeVersion === 'number' && manifest.bridgeVersion > BRIDGE_VERSION)
             return bridgePath;

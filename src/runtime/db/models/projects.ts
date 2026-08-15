@@ -8,8 +8,8 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { projects } from '../schema';
 
 /**
- * Pure CRUD over the `projects` table. Deletion-fallback selection and every other cross-record
- * decision live in `../../session-policy.ts`, not here.
+ * Pure CRUD over the `projects` table. Deletion-fallback selection and every other cross-record decision live in
+ * `../../session-policy.ts`, not here.
  */
 export class ProjectsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
@@ -31,7 +31,7 @@ export class ProjectsModel {
     }
 
     /**
-    Idempotent by root: returns the existing Project row when one already owns `rootPath`.
+     * Idempotent by root: returns the existing Project row when one already owns `rootPath`.
      */
     create(rootPath: string): ProjectRecord {
         const existing = this.findByRootPath(rootPath);
@@ -54,7 +54,7 @@ export class ProjectsModel {
     }
 
     /**
-    Writes a complete, already-validated Project order. The facade owns set validation.
+     * Writes a complete, already-validated Project order. The facade owns set validation.
      */
     reorder(projectIds: readonly string[]): void {
         for (const [orderIndex, id] of projectIds.entries())
@@ -62,14 +62,14 @@ export class ProjectsModel {
     }
 
     /**
-    Returns true when a row was removed; Sessions and Terminals cascade via foreign keys.
+     * Returns true when a row was removed; Sessions and Terminals cascade via foreign keys.
      */
     remove(id: string): boolean {
         return this.database.delete(projects).where(eq(projects.id, id)).run().changes === 1;
     }
 
     /**
-    Returns true when a row existed and was touched.
+     * Returns true when a row existed and was touched.
      */
     touchLastOpened(id: string, now = Date.now()): boolean {
         return (

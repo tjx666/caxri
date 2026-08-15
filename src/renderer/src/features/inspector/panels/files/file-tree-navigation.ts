@@ -1,10 +1,9 @@
 /**
- * Roving-tabindex keyboard navigation for the file tree's ARIA `role="tree"` widget. The tree is
- * built from recursively-mounted, independently data-fetched components, so there is no single
- * Renderer-side list of "currently visible rows" to walk. DOM order already matches the intended
- * visual/logical order, though (an expanded directory's children render immediately after its own
- * row), so navigation reads `[role="treeitem"]` straight out of the DOM instead of threading a
- * parallel flattened-tree data structure through every level of props.
+ * Roving-tabindex keyboard navigation for the file tree's ARIA `role="tree"` widget. The tree is built from
+ * recursively-mounted, independently data-fetched components, so there is no single Renderer-side list of "currently
+ * visible rows" to walk. DOM order already matches the intended visual/logical order, though (an expanded directory's
+ * children render immediately after its own row), so navigation reads `[role="treeitem"]` straight out of the DOM
+ * instead of threading a parallel flattened-tree data structure through every level of props.
  */
 
 export interface TreeItemDescriptor {
@@ -12,7 +11,7 @@ export interface TreeItemDescriptor {
 }
 
 /**
-Index of the next/previous treeitem in document order, or `undefined` past either edge.
+ * Index of the next/previous treeitem in document order, or `undefined` past either edge.
  */
 export function adjacentTreeItemIndex(
     items: readonly TreeItemDescriptor[],
@@ -24,9 +23,9 @@ export function adjacentTreeItemIndex(
 }
 
 /**
- * Index of the nearest earlier treeitem at a shallower `aria-level` than `index` — i.e. this
- * item's tree parent. Depth-first document order guarantees a directory's own row is always the
- * closest preceding row with a smaller level.
+ * Index of the nearest earlier treeitem at a shallower `aria-level` than `index` — i.e. this item's tree parent.
+ * Depth-first document order guarantees a directory's own row is always the closest preceding row with a smaller
+ * level.
  */
 export function parentTreeItemIndex(
     items: readonly TreeItemDescriptor[],
@@ -50,7 +49,7 @@ function descriptorsOf(items: readonly HTMLElement[]): TreeItemDescriptor[] {
 }
 
 /**
-Moves DOM focus to the treeitem `delta` positions away from `current` in document order.
+ * Moves DOM focus to the treeitem `delta` positions away from `current` in document order.
  */
 export function focusAdjacentTreeItem(current: HTMLElement, delta: number): void {
     const items = treeItems(current);
@@ -61,7 +60,7 @@ export function focusAdjacentTreeItem(current: HTMLElement, delta: number): void
 }
 
 /**
-Moves DOM focus to the first or last treeitem in the tree containing `current`.
+ * Moves DOM focus to the first or last treeitem in the tree containing `current`.
  */
 export function focusTreeItemEdge(current: HTMLElement, edge: 'first' | 'last'): void {
     const items = treeItems(current);
@@ -70,7 +69,7 @@ export function focusTreeItemEdge(current: HTMLElement, edge: 'first' | 'last'):
 }
 
 /**
-Moves DOM focus to `current`'s tree parent (the enclosing directory row), if any.
+ * Moves DOM focus to `current`'s tree parent (the enclosing directory row), if any.
  */
 export function focusParentTreeItem(current: HTMLElement): void {
     const items = treeItems(current);

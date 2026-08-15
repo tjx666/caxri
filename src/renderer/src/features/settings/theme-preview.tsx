@@ -38,7 +38,7 @@ export function ThemePreview({ theme }: ThemePreviewProperties) {
                 <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                     ~/code/caxri
                 </strong>
-                <i className="not-italic text-[var(--preview-muted)]">Terminal</i>
+                <i className="text-[var(--preview-muted)] not-italic">Terminal</i>
             </header>
             <div className="min-h-28 p-3">
                 <p className="mb-1">
@@ -46,7 +46,7 @@ export function ThemePreview({ theme }: ThemePreviewProperties) {
                     <span className="text-[var(--preview-yellow)]">git status --short</span>
                 </p>
                 <p className="mb-1">
-                    <em className="not-italic text-[var(--preview-blue)]">M</em>{' '}
+                    <em className="text-[var(--preview-blue)] not-italic">M</em>{' '}
                     src/renderer/src/app.tsx
                 </p>
                 <p className="mb-1">

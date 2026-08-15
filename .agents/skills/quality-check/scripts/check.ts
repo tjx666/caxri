@@ -54,9 +54,9 @@ Selectors:
 With no selector, --lint and --test are enabled.`;
 
 /**
- * Applies a single CLI argument to `options` and reports whether the following argument in
- * `arguments_` was consumed as its value (e.g. `--e2e-grep <pattern>`). Extracted out of the
- * parsing loop so the `switch` cases can `return` instead of nesting `break` inside a loop.
+ * Applies a single CLI argument to `options` and reports whether the following argument in `arguments_` was consumed as
+ * its value (e.g. `--e2e-grep <pattern>`). Extracted out of the parsing loop so the `switch` cases can `return` instead
+ * of nesting `break` inside a loop.
  */
 function didConsumeNextCheckArgument(
     argument: string,
@@ -166,9 +166,9 @@ export interface LintBuckets {
 }
 
 /**
- * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool
- * ownership split: markdownlint owns Markdown semantics, Prettier owns formatting for every
- * `FORMAT_EXTENSIONS` file (including `.md`), and ESLint + Prettier own `CODE_EXTENSIONS`.
+ * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool ownership split:
+ * markdownlint owns Markdown semantics, Prettier owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
+ * and ESLint + Prettier own `CODE_EXTENSIONS`.
  */
 export function lintBucketsForFiles(files: string[]): LintBuckets {
     const codeFiles: string[] = [];
@@ -229,9 +229,9 @@ export function testCandidatesForFile(file: string): string[] {
 }
 
 /**
- * Returns whether a test directly imports or re-exports a source file through a relative static
- * specifier. This intentionally does not walk transitive imports: broad runtime suites are much
- * less useful than the tests that name the changed module at their boundary.
+ * Returns whether a test directly imports or re-exports a source file through a relative static specifier. This
+ * intentionally does not walk transitive imports: broad runtime suites are much less useful than the tests that name
+ * the changed module at their boundary.
  */
 export function hasDirectSourceImport(
     testFile: string,
@@ -293,9 +293,9 @@ async function walkVitestTestFiles(root: string, directory: string): Promise<str
 }
 
 /**
- * Finds only direct static-import tests covered by Vitest's repository include patterns. Dynamic
- * imports and transitive dependency graphs are deliberately excluded so a focused source edit
- * cannot fan out into unrelated integration suites.
+ * Finds only direct static-import tests covered by Vitest's repository include patterns. Dynamic imports and transitive
+ * dependency graphs are deliberately excluded so a focused source edit cannot fan out into unrelated integration
+ * suites.
  */
 export async function directImportTestCandidates(
     root: string,
@@ -438,8 +438,8 @@ async function runTests(root: string, files: string[]): Promise<number> {
 
 async function runE2E(root: string, specs: string[], grep?: string): Promise<number> {
     /**
-     * A focused Electron run must never exercise stale output. Capturing both successful commands
-     * keeps the standard check result compact while runCapture still exposes complete failures.
+     * A focused Electron run must never exercise stale output. Capturing both successful commands keeps the standard
+     * check result compact while runCapture still exposes complete failures.
      */
     await runCapture('bun', ['run', 'build'], root);
     await runTool(root, 'playwright', playwrightArguments(specs, grep));

@@ -11,7 +11,7 @@ interface AttentionVisibility {
 }
 
 /**
-Read acknowledgement requires both durable unread state and a genuinely visible selection.
+ * Read acknowledgement requires both durable unread state and a genuinely visible selection.
  */
 export function shouldAcknowledgeSessionAttention(
     session: SessionRecord | undefined,
@@ -28,7 +28,7 @@ function currentVisibility(): AttentionVisibility {
 }
 
 /**
-Acknowledges the selected generation only after the Electron window actually displays it.
+ * Acknowledges the selected generation only after the Electron window actually displays it.
  */
 export function useSessionAttentionAcknowledgement(): void {
     const session = useSelectedSession();
@@ -43,7 +43,7 @@ export function useSessionAttentionAcknowledgement(): void {
                 });
             } catch {
                 /**
-                Runtime recovery or the next focus event can safely retry the same generation.
+                 * Runtime recovery or the next focus event can safely retry the same generation.
                  */
                 isPending = false;
             }

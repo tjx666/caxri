@@ -197,9 +197,9 @@ describe('ConfigurationService', () => {
     });
 
     /**
-     * Drives the migration from the production derivation chain instead of rebuilding a past
-     * release by filtering the current catalog. The old per-release fixtures did the latter, so
-     * every added or rebound default silently made them describe a release that never existed.
+     * Drives the migration from the production derivation chain instead of rebuilding a past release by filtering the
+     * current catalog. The old per-release fixtures did the latter, so every added or rebound default silently made
+     * them describe a release that never existed.
      */
     it.each(previousDefaultKeybindingSets.map((set, index) => [index, set] as const))(
         'upgrades untouched historical default set %i to the current defaults',
@@ -219,7 +219,7 @@ describe('ConfigurationService', () => {
 
             expect(service.getKeybindings().value).toEqual(defaultKeybindings);
             /**
-            The upgrade is written back, not just held in memory.
+             * The upgrade is written back, not just held in memory.
              */
             const keybindingsContent = await readFile(
                 join(configDirectory, 'keybindings.jsonc'),

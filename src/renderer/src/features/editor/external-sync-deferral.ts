@@ -3,7 +3,7 @@ interface ProjectOperation {
 }
 
 /**
-Coalesces watcher and Session-switch refreshes behind managed Project mutations.
+ * Coalesces watcher and Session-switch refreshes behind managed Project mutations.
  */
 export class ExternalSyncDeferral {
     private readonly projects = new Set<string>();

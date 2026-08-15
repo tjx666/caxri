@@ -27,7 +27,7 @@ interface PendingControl {
 const CONTROL_TIMEOUT_MS = 5_000;
 
 /**
-Correlated private Runtime-to-Host control channel; endpoint credentials never use Runtime events.
+ * Correlated private Runtime-to-Host control channel; endpoint credentials never use Runtime events.
  */
 export class RuntimeAgentEndpointControlClient {
     private readonly pending = new Map<string, PendingControl>();

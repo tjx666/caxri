@@ -22,8 +22,8 @@ interface RuntimeDisconnectSource {
 }
 
 /**
- * Supports both the legacy Electron utility-process parent port and the Host-owned Node IPC child.
- * The Runtime application remains unaware of which supervisor transport owns it.
+ * Supports both the legacy Electron utility-process parent port and the Host-owned Node IPC child. The Runtime
+ * application remains unaware of which supervisor transport owns it.
  */
 export function createRuntimeParentPort(source: RuntimeProcessLike): RuntimeParentPort {
     if (source.parentPort) {
@@ -43,8 +43,8 @@ export function createRuntimeParentPort(source: RuntimeProcessLike): RuntimePare
                 if (source.connected === false)
                     throw new Error('Runtime parent IPC channel is unavailable');
                 /**
-                 * Node returns `false` for a connected channel when its IPC backlog crosses the
-                 *  backpressure threshold; the message is still queued and must not crash Runtime.
+                 * Node returns `false` for a connected channel when its IPC backlog crosses the backpressure threshold;
+                 * the message is still queued and must not crash Runtime.
                  */
                 source.send!(message);
             },

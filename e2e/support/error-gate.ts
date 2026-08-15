@@ -50,7 +50,7 @@ class E2EErrorGate {
     }
 
     /**
-    Captures and attaches log bodies synchronously before tests remove their temporary profile.
+     * Captures and attaches log bodies synchronously before tests remove their temporary profile.
      */
     private captureLogs(userDataDirectory: string): void {
         for (const snapshot of readE2ELogSnapshots(userDataDirectory)) {
@@ -152,7 +152,7 @@ export function registerE2ELaunch(
 }
 
 /**
-Declares exact errors that must be observed and consumed by the current E2E test.
+ * Declares exact errors that must be observed and consumed by the current E2E test.
  */
 export function allowE2EErrors(allowances: readonly E2EErrorAllowance[]): void {
     const gate = gateState.current;

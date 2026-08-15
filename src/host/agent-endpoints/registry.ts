@@ -86,7 +86,7 @@ function capabilitiesFor(record: StoredEndpoint, now: number): Capability[] {
 }
 
 /**
-Host-memory authority for one directly managed Agent PTY generation.
+ * Host-memory authority for one directly managed Agent PTY generation.
  */
 export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
@@ -219,7 +219,7 @@ export class AgentEndpointRegistry {
     }
 
     /**
-    Makes a prepared credential externally reachable only after Runtime confirms its PTY exists.
+     * Makes a prepared credential externally reachable only after Runtime confirms its PTY exists.
      */
     activate(raw: AgentEndpointActivateParameters): boolean {
         const input = agentEndpointActivateParametersSchema.parse(raw);
@@ -261,7 +261,7 @@ export class AgentEndpointRegistry {
     }
 
     /**
-    Lets Host-owned generation resources expire at exactly the same endpoint boundary.
+     * Lets Host-owned generation resources expire at exactly the same endpoint boundary.
      */
     onRetired(listener: AgentEndpointRetiredListener): () => void {
         this.retiredListeners.add(listener);
@@ -365,7 +365,7 @@ export class AgentEndpointRegistry {
     }
 
     /**
-    Bounded tombstones let an explicit wake target one exact stopped generation.
+     * Bounded tombstones let an explicit wake target one exact stopped generation.
      */
     resolveRetired(reference: AgentEndpointReference): AgentEndpointSummary {
         const endpoint = this.retired.get(reference.endpointId);

@@ -18,10 +18,10 @@ import { createProjectSession, launchCaxri, pageRequest } from './support/helper
 
 /**
  * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see
- * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads
- * as "Copy⌘C" once the shortcut badge renders. Matching by the label's own exact text (rather than
- * the whole menuitem's accessible name) keeps this test independent of that badge's exact rendering
- * while still disambiguating "Copy" from "Copy Path" / "Copy Relative Path" in the same menu.
+ * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads as "Copy⌘C" once
+ * the shortcut badge renders. Matching by the label's own exact text (rather than the whole menuitem's accessible name)
+ * keeps this test independent of that badge's exact rendering while still disambiguating "Copy" from "Copy Path" /
+ * "Copy Relative Path" in the same menu.
  */
 function exactMenuItem(page: Page, label: string): Locator {
     return page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) });

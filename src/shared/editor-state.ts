@@ -9,7 +9,7 @@ export interface EditorDocument extends FileDocument {
 export type SessionDocuments = Record<string, Record<string, EditorDocument>>;
 
 /**
-Monaco models are URI-keyed, so Session identity must be part of the URI even for a shared root.
+ * Monaco models are URI-keyed, so Session identity must be part of the URI even for a shared root.
  */
 export function editorModelPath(sessionId: string, path: string): string {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -32,7 +32,7 @@ export function setSessionDocument(
 }
 
 /**
-Durable Session state records tab placement only because unsaved document bodies are Renderer-owned.
+ * Durable Session state records tab placement only because unsaved document bodies are Renderer-owned.
  */
 export function withoutEditorTabDirtiness(state: SessionState): SessionState {
     if (state.openTabs.every((tab) => !tab.dirty)) return state;
@@ -43,7 +43,7 @@ export function withoutEditorTabDirtiness(state: SessionState): SessionState {
 }
 
 /**
-Rebuilds transient tab dirtiness exclusively from the document bodies that still exist.
+ * Rebuilds transient tab dirtiness exclusively from the document bodies that still exist.
  */
 export function reconcileEditorTabDirtiness(
     state: SessionState,
@@ -60,8 +60,8 @@ export function reconcileEditorTabDirtiness(
 }
 
 /**
- * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is
- * `activeTab`, owned exclusively by `activateWork` in app.tsx — this function never touches it.
+ * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is `activeTab`, owned
+ * exclusively by `activateWork` in app.tsx — this function never touches it.
  */
 export function updateEditorTabState(
     state: SessionState,
@@ -87,7 +87,7 @@ export function updateEditorTabState(
 }
 
 /**
-Opens one replaceable clean preview while preserving every pinned or dirty editor.
+ * Opens one replaceable clean preview while preserving every pinned or dirty editor.
  */
 export function openEditorTabState(
     state: SessionState,
@@ -146,14 +146,14 @@ export function editorTabPathsToClose(
 }
 
 /**
-Disk state always wins, even over a dirty buffer, by explicit Caxri product policy.
+ * Disk state always wins, even over a dirty buffer, by explicit Caxri product policy.
  */
 export function replaceWithExternalDocument(document: FileDocument): EditorDocument {
     return { ...document, dirty: false };
 }
 
 /**
-Clear only reloaded tab dirtiness so delayed file reads cannot overwrite newer layout or inspector choices.
+ * Clear only reloaded tab dirtiness so delayed file reads cannot overwrite newer layout or inspector choices.
  */
 export function markTabsClean(state: SessionState, paths: readonly string[]): SessionState {
     const reloadedPaths = new Set(paths);

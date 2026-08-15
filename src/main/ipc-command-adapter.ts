@@ -10,7 +10,7 @@ const electronDesktopContext = {
 } satisfies CommandExecutionContext;
 
 /**
-Adapts Electron's untrusted invoke payload to the transport-neutral application dispatcher.
+ * Adapts Electron's untrusted invoke payload to the transport-neutral application dispatcher.
  */
 export function createElectronIpcCommandAdapter(options: CommandDispatcherOptions) {
     const dispatch = createCommandDispatcher(options);

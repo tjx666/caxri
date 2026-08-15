@@ -27,7 +27,7 @@ export interface TreeProperties {
     expandedPaths: ReadonlySet<string>;
     focusPath?: string;
     /**
-    Only the operations for the current Project; each row scopes blocking to its own subtree.
+     * Only the operations for the current Project; each row scopes blocking to its own subtree.
      */
     operations: readonly PendingFileOperation[];
     projectId: string;
@@ -45,8 +45,8 @@ export interface TreeProperties {
 
 /**
  * Every caller below fires an already-tracked file action (via `tryCommand` or the row's own
- * `try`/`catch`-and-`setError` handling) that reports its own failure, so these event handlers
- * intentionally discard the returned promise instead of awaiting it.
+ * `try`/`catch`-and-`setError` handling) that reports its own failure, so these event handlers intentionally discard
+ * the returned promise instead of awaiting it.
  */
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -117,7 +117,7 @@ function InlineFileName({
             {error && (
                 <div
                     role="alert"
-                    className="pb-1 pr-2 text-[11px] text-danger"
+                    className="pr-2 pb-1 text-[11px] text-danger"
                     style={{ paddingLeft: 23 + depth * 12 }}
                 >
                     {error}

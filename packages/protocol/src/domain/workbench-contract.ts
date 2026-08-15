@@ -12,7 +12,7 @@ import {
 const canceled = z.object({ canceled: z.literal(true) });
 
 /**
-Public Session commands for selecting or authorizing the Files/Editor/Git root.
+ * Public Session commands for selecting or authorizing the Files/Editor/Git root.
  */
 export const workbenchMethods = {
     'session.workbenchRoots': {
@@ -43,7 +43,7 @@ export const workbenchMethods = {
 } as const satisfies Record<string, MethodSpec>;
 
 /**
-Main-only authority handoff; paths never enter the public Renderer contract.
+ * Main-only authority handoff; paths never enter the public Renderer contract.
  */
 export const workbenchInternalMethods = {
     'session.workbenchCandidate.claim': {

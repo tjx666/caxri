@@ -12,7 +12,7 @@ interface ThemeFormProperties {
 }
 
 /**
-Full-width structured editor and live preview for `theme.json`.
+ * Full-width structured editor and live preview for `theme.json`.
  */
 export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormProperties) {
     return (

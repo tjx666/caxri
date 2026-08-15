@@ -224,12 +224,12 @@ describe('error taxonomy', () => {
 
 describe('Renderer client', () => {
     /**
-     * The preload cannot throw a typed error across `contextBridge`, which copies only `message` and
-     * `stack`. The client is what turns the reply envelope back into a `CaxriError`.
+     * The preload cannot throw a typed error across `contextBridge`, which copies only `message` and `stack`. The
+     * client is what turns the reply envelope back into a `CaxriError`.
      */
     it('unwraps results and rejects failed replies as typed errors', async () => {
         /**
-        A stub cannot satisfy the per-method result union, so the shape is asserted once here.
+         * A stub cannot satisfy the per-method result union, so the shape is asserted once here.
          */
         const client = createCaxriClient({
             request: (method: CaxriMethod) =>

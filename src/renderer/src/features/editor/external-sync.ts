@@ -26,8 +26,8 @@ async function readDocuments(sessionId: string, paths: readonly string[]): Promi
 }
 
 /**
- * Caxri's explicit product policy: a newer disk state replaces the open buffer without prompting,
- * even when that buffer is dirty. The reload is announced instead of negotiated.
+ * Caxri's explicit product policy: a newer disk state replaces the open buffer without prompting, even when that buffer
+ * is dirty. The reload is announced instead of negotiated.
  */
 function applyExternalDocuments(
     sessionId: string,
@@ -55,9 +55,9 @@ function applyExternalDocuments(
         );
     }
     /**
-     * A 4-second auto-dismiss would let this notice vanish while the user is away from the
-     * window, silently taking the only record of a discarded dirty buffer with it. This event
-     * already cost the user unsaved work, so it stays until explicitly dismissed.
+     * A 4-second auto-dismiss would let this notice vanish while the user is away from the window, silently taking the
+     * only record of a discarded dirty buffer with it. This event already cost the user unsaved work, so it stays until
+     * explicitly dismissed.
      */
     pushToast(
         'info',
@@ -93,8 +93,8 @@ function onFilesChanged(sessionId: string, changedPaths: readonly string[]): voi
 }
 
 /**
- * Re-reads the cached buffers of a Session that just became selected. Its watcher events were
- * ignored while another Session held the center pane, so the buffers can be arbitrarily stale.
+ * Re-reads the cached buffers of a Session that just became selected. Its watcher events were ignored while another
+ * Session held the center pane, so the buffers can be arbitrarily stale.
  */
 async function syncReconcileSelectedSession(
     sessionId: string,
@@ -133,16 +133,16 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
 }
 
 /**
- * Owns the external-change rule for open editors. Unlike its predecessor it takes no arguments: both
- * the watcher stream and the Session switch are read straight from the stores, so there is no
- * state-to-ref mirror and no `setState` dispatcher to thread through App.
+ * Owns the external-change rule for open editors. Unlike its predecessor it takes no arguments: both the watcher stream
+ * and the Session switch are read straight from the stores, so there is no state-to-ref mirror and no `setState`
+ * dispatcher to thread through App.
  */
 export function useExternalDocumentSync(): void {
     useEffect(subscribeExternalDocumentSync, []);
 }
 
 /**
-Installs one shared boundary across watcher events, managed mutations, and Session selection.
+ * Installs one shared boundary across watcher events, managed mutations, and Session selection.
  */
 export function subscribeExternalDocumentSync(): () => void {
     const deferral = new ExternalSyncDeferral();
@@ -166,9 +166,9 @@ export function subscribeExternalDocumentSync(): () => void {
                     changedPaths.push(change.path);
         }
         /**
-         * A managed rename or move can emit a watcher batch before editor paths are remapped.
-         * Reconcile the current paths after the operation settles instead of reading a path
-         * that stopped existing midway through the mutation.
+         * A managed rename or move can emit a watcher batch before editor paths are remapped. Reconcile the current
+         * paths after the operation settles instead of reading a path that stopped existing midway through the
+         * mutation.
          */
         if (shouldDeferProject(session.workbenchProjectId)) return;
         onFilesChanged(sessionId, changedPaths);
@@ -191,8 +191,8 @@ export function subscribeExternalDocumentSync(): () => void {
             return;
         if (shouldDeferProject(session.workbenchProjectId)) return;
         /**
-         * Switching roots must reveal that root's retained dirty buffers verbatim. Ordinary
-         * Session selection still applies the global external-change-wins policy.
+         * Switching roots must reveal that root's retained dirty buffers verbatim. Ordinary Session selection still
+         * applies the global external-change-wins policy.
          */
         reconcileSelectedSession(
             session.id,

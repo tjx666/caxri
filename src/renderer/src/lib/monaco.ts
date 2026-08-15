@@ -27,7 +27,7 @@ declare global {
 const monacoGlobalScope: typeof globalThis = globalThis;
 monacoGlobalScope.MonacoEnvironment = {
     /**
-    Language services require their matching worker; the generic worker lacks their RPC methods.
+     * Language services require their matching worker; the generic worker lacks their RPC methods.
      */
     getWorker: (_moduleId: string, label: string): Worker => {
         if (label === 'json') return new JsonWorker();
@@ -49,10 +49,10 @@ const MONACO_WARMUP_LANGUAGES = [
 ] as const;
 
 /**
- * Registers every Caxri-owned Monarch language and configures the module-level `loader`. Wrapped
- * in one function (invoked once below through a `const` initializer, not a bare top-level call) so
- * this file's only top-level side effects are assignment expressions and variable declarations,
- * which is what unicorn/no-top-level-side-effects allows in an exported module.
+ * Registers every Caxri-owned Monarch language and configures the module-level `loader`. Wrapped in one function
+ * (invoked once below through a `const` initializer, not a bare top-level call) so this file's only top-level side
+ * effects are assignment expressions and variable declarations, which is what unicorn/no-top-level-side-effects allows
+ * in an exported module.
  */
 function registerMonacoLanguages(): void {
     loader.config({ monaco });
@@ -67,7 +67,7 @@ function registerMonacoLanguages(): void {
         });
     }
     /**
-    Reinstalls the provider during HMR while keeping one Caxri-owned language identity.
+     * Reinstalls the provider during HMR while keeping one Caxri-owned language identity.
      */
     monaco.languages.setMonarchTokensProvider(DOTENV_LANGUAGE_ID, {
         tokenizer: {
@@ -156,14 +156,14 @@ function registerMonacoLanguages(): void {
 }
 
 /**
- * Runs once at import time; the initializer's side effect (registering every Caxri-owned Monarch
- * language) is what matters here. Exported so this binding is never "unused" — an internal-only
- * variable whose value is never read would otherwise trip `@typescript-eslint/no-unused-vars`.
+ * Runs once at import time; the initializer's side effect (registering every Caxri-owned Monarch language) is what
+ * matters here. Exported so this binding is never "unused" — an internal-only variable whose value is never read would
+ * otherwise trip `@typescript-eslint/no-unused-vars`.
  */
 export const isMonacoLanguagesRegistered: true = (registerMonacoLanguages(), true);
 
 /**
-Resolves immediately after the first call; idle preloading and editor mounts share this loader.
+ * Resolves immediately after the first call; idle preloading and editor mounts share this loader.
  */
 export async function initializeMonaco(): Promise<void> {
     await loader.init();
@@ -187,7 +187,7 @@ async function warmLanguage(
 }
 
 /**
-Tokenization readiness is frame-dependent, so each retry must follow the preceding frame.
+ * Tokenization readiness is frame-dependent, so each retry must follow the preceding frame.
  */
 async function waitForLanguageTokens(
     language: string,
@@ -207,7 +207,7 @@ async function waitForLanguageTokens(
 }
 
 /**
-A single shared model requires each language warm-up to finish before the next one starts.
+ * A single shared model requires each language warm-up to finish before the next one starts.
  */
 async function warmLanguages(
     model: monaco.editor.ITextModel,
@@ -223,11 +223,10 @@ async function warmLanguages(
 }
 
 /**
- * Monaco defers editor and language-token infrastructure until the first matching model. Prime the
- * common editable languages in a disposable, off-screen editor after the workbench is idle; no
- * Project content enters the warm-up model and heavyweight language workers remain demand-loaded.
- * The continuation check stops between languages when a real editor load starts, so idle work
- * cannot keep competing with the user's first file selection.
+ * Monaco defers editor and language-token infrastructure until the first matching model. Prime the common editable
+ * languages in a disposable, off-screen editor after the workbench is idle; no Project content enters the warm-up model
+ * and heavyweight language workers remain demand-loaded. The continuation check stops between languages when a real
+ * editor load starts, so idle work cannot keep competing with the user's first file selection.
  */
 export function warmMonacoEditor(shouldContinue: () => boolean = () => true): Promise<void> {
     editorWarmupState.promise ??= warmMonacoEditorOnce(shouldContinue);

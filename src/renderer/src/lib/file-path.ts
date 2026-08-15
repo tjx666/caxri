@@ -1,12 +1,12 @@
 /**
-Matches one file or every descendant using Caxri's canonical absolute POSIX-style paths.
+ * Matches one file or every descendant using Caxri's canonical absolute POSIX-style paths.
  */
 export function isPathAtOrBelow(path: string, parent: string): boolean {
     return path === parent || path.startsWith(`${parent}/`);
 }
 
 /**
-Replaces an exact path prefix while preserving any descendant suffix.
+ * Replaces an exact path prefix while preserving any descendant suffix.
  */
 export function remapPath(path: string, previousPath: string, nextPath: string): string {
     return isPathAtOrBelow(path, previousPath)
@@ -15,7 +15,7 @@ export function remapPath(path: string, previousPath: string, nextPath: string):
 }
 
 /**
-Returns a Project-relative POSIX path without letting Renderer state imply broader authority.
+ * Returns a Project-relative POSIX path without letting Renderer state imply broader authority.
  */
 export function projectRelativePath(path: string, projectRoot: string): string | undefined {
     if (path === projectRoot) return '.';

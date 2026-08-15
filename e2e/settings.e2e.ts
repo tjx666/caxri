@@ -8,12 +8,11 @@ import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
 
 /**
- * The Monaco container for a config kind, located by `data-config-source` rather than by accessible
- * name. `ConfigurationEditor` deliberately passes the label through Monaco's `options.ariaLabel` so
- * it lands on the textarea a screen reader actually focuses, instead of on a role-less wrapper
- * `<div>` where assistive tech ignores it. `.monaco-editor` and `.view-lines` are that textarea's
- * siblings, so anything scoped to the editor has to start from this hook. The accessible name is
- * asserted on its own below, so moving it back would still fail.
+ * The Monaco container for a config kind, located by `data-config-source` rather than by accessible name.
+ * `ConfigurationEditor` deliberately passes the label through Monaco's `options.ariaLabel` so it lands on the textarea
+ * a screen reader actually focuses, instead of on a role-less wrapper `<div>` where assistive tech ignores it.
+ * `.monaco-editor` and `.view-lines` are that textarea's siblings, so anything scoped to the editor has to start from
+ * this hook. The accessible name is asserted on its own below, so moving it back would still fail.
  */
 function configSource(dialog: Locator, kind: 'keybindings' | 'settings' | 'theme'): Locator {
     return dialog.locator(`[data-config-source="${kind}"]`);
