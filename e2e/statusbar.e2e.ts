@@ -82,8 +82,11 @@ exec /bin/zsh -l
         // animation to finish before the branch picker below is clicked.
         await running.page.mouse.move(0, 0);
         await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
-        const project = running.page.getByRole('button', {
-            name: 'Open project files: status-project',
+        // With a Session selected, the standalone "Open project files" chip no longer renders:
+        // the Workbench Root picker owns the project identity (title only — the branch next door
+        // already names the branch, so the trigger must not repeat it).
+        const project = running.page.getByRole('combobox', {
+            name: /^Switch Workbench Root from status-project/,
         });
         const branch = running.page.getByRole('combobox', {
             name: 'Switch branch from feature/status-bar',
@@ -94,7 +97,10 @@ exec /bin/zsh -l
         const changes = running.page.getByRole('button', {
             name: 'Open changes: 2 additions, 1 deletion',
         });
-        await expect(project).toBeVisible();
+        await expect(project).toHaveText('status-project');
+        await expect(
+            running.page.getByRole('button', { name: 'Open project files: status-project' }),
+        ).toHaveCount(0);
         await expect(branch).toHaveText('feature/status-bar');
         await expect(pullRequest).toHaveAttribute(
             'href',
@@ -131,10 +137,8 @@ exec /bin/zsh -l
             .toBe('feature/local-picker');
 
         await running.page.keyboard.press('Meta+]');
-        await project.click();
-        await expect(running.page.locator('.inspector')).toBeVisible();
-        await expect(running.page.getByRole('button', { name: 'Collapse Folders' })).toBeVisible();
         await changes.click();
+        await expect(running.page.locator('.inspector')).toBeVisible();
         await expect(running.page.getByText('Source Control', { exact: true })).toBeVisible();
 
         await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
@@ -145,7 +149,9 @@ exec /bin/zsh -l
         ).toBeVisible();
         expect((await readFile(ghCalls, 'utf8')).trim().split('\n')).toHaveLength(2);
 
-        await project.click();
+        // The status bar no longer offers an "open Files" chip, so reach the file tree through
+        // the inspector's own Files tab (the inspector is already open from `changes.click()`).
+        await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         await running.page.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(
             running.page.getByRole('button', { name: /^Open Process Explorer — Terminal/ }),
