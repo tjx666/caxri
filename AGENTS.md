@@ -59,6 +59,8 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Install dependencies: `ni`
 - Start the Electron app in the current worktree:
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`
+- Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` (`CAXRI_DEV_CDP_PORT` overrides)
+  for live DOM inspection and screenshots, e.g. `agent-browser connect --port 9223`.
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
