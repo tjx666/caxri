@@ -25,6 +25,6 @@ _Researched 2026-08-06._
 
 ## Community sentiment
 
-- Named alongside Codex, Conductor, T3 Code, Orca, Synara, Jean, Trevize, Cloudflare OS, and Paseo/Omnara in a 2026-08-05 X poll of agent workbenches by @T_Zahil (https://x.com/T_Zahil/status/2085024540355166472), signaling it's viewed as a top-of-mind entrant in this category.
-- Co-founder @FlyaKiet used the same thread to pitch it directly to a developer considering building their own tool: "Don't build your own lol, but @superset_sh" (https://x.com/FlyaKiet/status/2085094807777759317) — an unprompted founder-led plug rather than organic third-party endorsement.
+- Named alongside Codex, Conductor, T3 Code, Orca, Synara, Jean, Trevize, Cloudflare OS, and Paseo/Omnara in a 2026-08-05 X poll of agent workbenches by @T_Zahil (<https://x.com/T_Zahil/status/2085024540355166472>), signaling it's viewed as a top-of-mind entrant in this category.
+- Co-founder @FlyaKiet used the same thread to pitch it directly to a developer considering building their own tool: "Don't build your own lol, but @superset_sh" (<https://x.com/FlyaKiet/status/2085094807777759317>) — an unprompted founder-led plug rather than organic third-party endorsement.
 - HN Launch thread (2026-05-23, ~135 comments) shows interest driven by the worktree-per-agent pattern and review-bottleneck framing; prior HN post (a few months earlier) covered its "open-source terminal for managing git worktrees" origin before it grew into a full IDE.

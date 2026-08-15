@@ -23,7 +23,7 @@ _Researched 2026-08-06._
 
 ## Community sentiment
 
-- Named alongside Caxri-adjacent tools in the OP's agent-workbench list on X (2026-08-05, https://x.com/T_Zahil/status/2085024540355166472).
+- Named alongside Caxri-adjacent tools in the OP's agent-workbench list on X (2026-08-05, <https://x.com/T_Zahil/status/2085024540355166472>).
 - Two Hacker News launches were well received (Show HN ~310 pts/168 comments; Launch HN ~147 pts/161 comments); a vocal minority of early adopters said they "miss the old way" — 1:1 terminal mirroring — after the v2 GUI-first rewrite dropped that fidelity.
 - Compared favorably to competitor Happy Coder (slopus/happy) in HN discussion for reliability/latency, with commenters noting Happy appeared abandoned.
 - Third-party review (revuo.ai) flags a real trade-off: the cloud relay lacks end-to-end encryption, and cloud-sandbox environment parity isn't always perfect for dependency-heavy local setups; overall sentiment scored "very positive."

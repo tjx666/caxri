@@ -1,4 +1,8 @@
-import { typeCheckedConfig, typescriptConfig } from '@yutengjing/eslint-config-typescript';
+import {
+    markdownProcessorConfig,
+    typeCheckedConfig,
+    typescriptConfig,
+} from '@yutengjing/eslint-config-typescript';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
@@ -43,16 +47,31 @@ export default defineConfig(
          * `--max-warnings=0` gate. The contract test lints them directly with `ignore: false`.
          */
         'scripts/fixtures/eslint/**',
+        /**
+         * Negative fixtures for `scripts/__tests__/markdown-toolchain-contract.test.ts`: the fenced
+         * TypeScript block is deliberately invalid so the contract test can prove ESLint's markdown
+         * processor catches it. The contract test lints this file directly with `ignore: false`.
+         */
+        'scripts/fixtures/markdown/**',
+        /**
+         * `.claude/skills` is a compatibility symlink to `.agents/skills` (see AGENTS.md); linting
+         * both paths would just duplicate every finding under the canonical `.agents/skills` tree.
+         */
+        '.claude/**',
     ]),
     /**
      * `typescriptConfig` covers the shared basic + import-x + TypeScript recommended rules;
-     * `typeCheckedConfig` layers `recommendedTypeChecked` with `projectService: true`. The
-     * default package export also enables document-level `markdownRulesConfig`, which a later
-     * stage of https://github.com/tjx666/caxri/issues/177 replaces with markdownlint + processor
-     * mode, so compose the granular exports instead of the default export.
+     * `typeCheckedConfig` layers `recommendedTypeChecked` with `projectService: true` and disables
+     * type-aware rules on the processor's virtual `**\/*.md/**` children (they cannot be resolved
+     * by `projectService`). `markdownProcessorConfig` turns fenced JS/TS code blocks in `*.md` files
+     * into virtual files the rest of this config lints; it deliberately replaces the default
+     * export's document-level `markdownRulesConfig` (Markdown semantics belong to markdownlint —
+     * see `.markdownlint-cli2.jsonc` — not ESLint) per
+     * https://github.com/tjx666/caxri/issues/177.
      */
     typescriptConfig,
     typeCheckedConfig,
+    markdownProcessorConfig,
     reactHooks.configs.flat['recommended-latest'],
     {
         files: typescriptFiles,
@@ -90,6 +109,20 @@ export default defineConfig(
         files: typescriptFiles,
         rules: {
             '@typescript-eslint/consistent-type-imports': 'error',
+        },
+    },
+    {
+        /**
+         * Scoped separately from `consistent-type-imports` above: this rule requires type
+         * information, and `markdownProcessorConfig`'s virtual `**\/*.md/**` code-block children
+         * also match `typescriptFiles` (they end in `.ts`/`.tsx`). Without this `ignores`, this
+         * override would re-enable a type-aware rule that `typeCheckedConfig`'s
+         * `markdownProcessorTypeCheckedConfig` deliberately turns off for those virtual files
+         * (they cannot be resolved by `projectService`), because later config entries win.
+         */
+        files: typescriptFiles,
+        ignores: ['**/*.md/**'],
+        rules: {
             '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
         },
     },

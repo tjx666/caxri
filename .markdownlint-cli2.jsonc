@@ -1,0 +1,79 @@
+{
+    "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/main/schema/markdownlint-cli2-config-schema.json",
+    /**
+     * Tool ownership: Prettier formats Markdown, markdownlint checks Markdown semantics, and
+     * ESLint's markdown processor lints fenced JS/TS code blocks. `markdownlint/style/prettier`
+     * disables every rule that would otherwise fight Prettier's own formatting decisions (blank
+     * lines, heading style, list indent, line length, trailing whitespace, ...); only semantic
+     * rules stay enabled below.
+     */
+    "config": {
+        /**
+         * Inlined from `markdownlint/style/prettier.json` (the package's own recommended base for
+         * Prettier-formatted repositories). markdownlint-cli2 resolves a bare `"extends"` module
+         * specifier relative to the config file's directory rather than through Node module
+         * resolution, so pointing `extends` at the npm package name fails; inlining the same rule
+         * set keeps the intent (formatting rules stay off, semantics stay on) without that
+         * resolution problem.
+         * @see https://github.com/DavidAnson/markdownlint/blob/main/style/prettier.json
+         */
+        "blanks-around-fences": false,
+        "blanks-around-headings": false,
+        "blanks-around-lists": false,
+        "code-fence-style": false,
+        "emphasis-style": false,
+        "heading-start-left": false,
+        "heading-style": false,
+        "hr-style": false,
+        "line-length": false,
+        "list-indent": false,
+        "list-marker-space": false,
+        "no-blanks-blockquote": false,
+        "no-hard-tabs": false,
+        "no-missing-space-atx": false,
+        "no-missing-space-closed-atx": false,
+        "no-multiple-blanks": false,
+        "no-multiple-space-atx": false,
+        "no-multiple-space-blockquote": false,
+        "no-multiple-space-closed-atx": false,
+        "no-trailing-spaces": false,
+        "ol-prefix": false,
+        "strong-style": false,
+        "ul-indent": false,
+        /**
+         * Skills and reference docs intentionally embed literal HTML-like snippets (JSX examples,
+         * `<Session>` product terms) inside prose; treat that as content, not a violation.
+         */
+        "MD033": false,
+        /**
+         * `.agents/skills/**\/SKILL.md` bodies and reference docs commonly open with frontmatter-free
+         * prose or a short lead-in sentence before the first heading; the repository does not
+         * enforce a single first-line-heading convention.
+         */
+        "MD041": false,
+    },
+    "globs": ["**/*.md"],
+    "ignores": [
+        "node_modules/**",
+        "out/**",
+        "release/**",
+        "dist/**",
+        "logs/**",
+        "test-results/**",
+        ".records/**",
+        "competitors/**",
+        "licenses/**",
+        ".cache/**",
+        /**
+         * `.claude/skills` is a compatibility symlink to `.agents/skills` (see AGENTS.md); linting
+         * both paths would just duplicate every finding under the canonical `.agents/skills` tree.
+         */
+        ".claude/**",
+        /**
+         * Negative fixtures for `scripts/__tests__/markdown-toolchain-contract.test.ts`: they exist
+         * solely to trip specific rules and would otherwise fail this repository's own markdownlint
+         * gate. The contract test lints them directly, bypassing this ignore list.
+         */
+        "scripts/fixtures/markdown/**",
+    ],
+}
