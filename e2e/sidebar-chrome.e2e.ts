@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { ElectronApplication } from 'playwright';
@@ -590,16 +590,16 @@ test('Session archive hides active navigation without stopping Terminals and can
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeArchive);
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
-        // The sidebar footer entry is gone (the manager lives in Settings now); the per-Project
-        // heading affix (`project-group.tsx`) is the sidebar's only archived-count surface.
-        const projectArchivedBadge = running.page.locator('.project-archived-count');
-        await expect(projectArchivedBadge).toHaveText('1');
-        // Derived from `root` rather than hardcoded: the badge scopes its accessible name with the
-        // Project's display title, which is this fixture directory's basename.
-        await expect(projectArchivedBadge).toHaveAccessibleName(
-            `1 archived Session in ${basename(root)}`,
-        );
-        await projectArchivedBadge.click();
+        // The per-Project archived-count badge was dropped from the sidebar, so archived Sessions
+        // leave no sidebar trace and the manager's only entry point is Settings.
+        await expect(running.page.locator('.project-archived-count')).toHaveCount(0);
+        await running.page.keyboard.press('Meta+,');
+        const settingsDialog = running.page
+            .getByRole('dialog')
+            .filter({ has: running.page.getByRole('heading', { name: 'Settings' }) });
+        await settingsDialog.locator('.archived-sessions-entry').click();
+        // Opening the manager closes Settings first, so only one dialog remains.
+        await expect(settingsDialog).toHaveCount(0);
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
         await dialog.getByLabel('Search').fill('investigation');
@@ -617,9 +617,6 @@ test('Session archive hides active navigation without stopping Terminals and can
             .toBe(runningBeforeArchive);
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
-        // Restoring the last archived Session in the Project drops the affix entirely (it only
-        // renders while `archivedCount > 0`).
-        await expect(projectArchivedBadge).toHaveCount(0);
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');
