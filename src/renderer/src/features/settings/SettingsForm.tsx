@@ -1,8 +1,12 @@
+import { Archive } from 'lucide-react';
+
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import type { AgentHookHealthMap, AgentSkillHealth, AppSettings } from '@shared/types';
 
 import { AgentIdentityIcon } from '../../icons/agents/AgentIdentityIcon';
+import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
 import {
     Select,
     SelectContent,
@@ -135,6 +139,27 @@ export function SettingsForm({
                             <SelectItem value="ignore">Ignore</SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <span>
+                        Archived Sessions
+                        <span className="block text-[11px] text-muted">
+                            Restore or permanently delete archived Sessions
+                        </span>
+                    </span>
+                    <Button
+                        className="archived-sessions-entry w-44 flex-none"
+                        variant="secondary"
+                        onClick={() => {
+                            /** The manager is its own dialog; closing Settings first keeps a
+                             *  single modal layer instead of stacking two dismiss targets. */
+                            setSettingsOpen(false);
+                            setArchivedSessionsOpen(true);
+                        }}
+                    >
+                        <Archive aria-hidden="true" size={14} />
+                        Manage…
+                    </Button>
                 </div>
                 <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
                     <span>Terminal font size</span>
