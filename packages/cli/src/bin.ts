@@ -26,9 +26,12 @@ async function main(): Promise<void> {
     process.exitCode = exitCode;
 }
 
-try {
-    await main();
-} catch (error: unknown) {
+/**
+ * `build:cli` bundles this entrypoint with `bun build --format=cjs`, and Bun's CJS target rejects top-level `await`, so
+ * the rejection handler stays promise-chained instead.
+ */
+// eslint-disable-next-line unicorn/prefer-await -- CJS bundle target, see above
+main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
-}
+});
