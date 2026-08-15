@@ -11,7 +11,7 @@ import {
     localServerWelcomeSchema,
     type HostManifest,
 } from '../../../packages/protocol/src';
-import { HostClient, connectToHost } from '../../../packages/cli/src/host-client';
+import { HostClient, connectToHost } from '../../../packages/cli/src/host';
 import { startHostApplication, type HostApplication } from '../application';
 
 const runtimeFixture = `

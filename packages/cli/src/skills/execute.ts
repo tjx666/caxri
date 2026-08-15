@@ -21,8 +21,8 @@ import {
     removeManagedSkillTree,
     updateManagedSkill,
     withSkillMutationLock,
-} from './skill-filesystem';
-import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
+} from './filesystem';
+import { CLI_PROTOCOL_VERSION, CLI_VERSION } from '../version';
 
 const CURRENT_MARKER_SCHEMA = 1;
 const MANAGED_BY = 'caxri';

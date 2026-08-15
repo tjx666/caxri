@@ -1,6 +1,6 @@
 import { CaxriError } from '@caxri/protocol';
 
-import type { LocalCommandDefinition } from './command-catalog';
+import type { LocalCommandDefinition } from './catalog';
 
 const SKILL_NAME = 'caxri-cli';
 const providers = ['claude', 'codex'] as const;

@@ -1,7 +1,7 @@
 import { CaxriError, logQueryParamsSchema, settingsPatchChangeSchema } from '@caxri/protocol';
 
-import { SKILL_COMMANDS } from './skill-commands';
-import type { CliCommandDefinition } from './command-types';
+import { SKILL_COMMANDS } from './skills';
+import type { CliCommandDefinition } from './types';
 
 export {
     CLI_GROUPS,
@@ -10,7 +10,7 @@ export {
     type CliCommandDescription,
     type LocalCommandDefinition,
     type RemoteCommandDefinition,
-} from './command-types';
+} from './types';
 
 function rejectOptions(tokens: readonly string[]): Record<string, never> {
     if (tokens.length > 0)

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { LegacyV1HostControl } from './legacy-v1-host-control';
+import { LegacyV1HostControl } from '../legacy-v1-host-control';
 
 const temporaryDirectories: string[] = [];
 const operatorToken = 'a'.repeat(64);

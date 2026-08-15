@@ -12,16 +12,16 @@ import {
     type ProtocolWelcome,
 } from '@caxri/protocol';
 
-import { connectToHost, ensureHost, type HostLaunchOptions } from './host-client';
-import { parseCliArguments, type ParsedCliArguments } from './arguments';
 import {
     CLI_COMMANDS,
     CLI_GROUPS,
     describeCliCommand,
     findCliCommand,
+    parseCliArguments,
     type CliCommandDefinition,
+    type ParsedCliArguments,
     type RemoteCommandDefinition,
-} from './command-catalog';
+} from './commands';
 import {
     detectAutomation,
     resolveAgentEndpointCredential,
@@ -30,6 +30,7 @@ import {
     type AgentEndpointCredential,
     type CliAutomation,
 } from './environment';
+import { connectToHost, ensureHost, type HostLaunchOptions } from './host';
 import {
     exitCodeFor,
     normalizeCliError,

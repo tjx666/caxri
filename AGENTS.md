@@ -84,6 +84,10 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
   `registry`, and `transport` boundaries. External consumers use the package root; compatibility
   re-exports under `src/shared` may target the owning domain module directly.
+- Keep `packages/cli/src` grouped by its `commands`, `host`, and `skills` boundaries. The package
+  root remains the composition root (`application`, `environment`, `output`, `selectors`) and the
+  only public package entrypoint. Domain barrels stay thin; tests live in domain-local `__tests__/`
+  directories.
 
 ## Architecture guardrails
 

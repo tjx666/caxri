@@ -7,8 +7,9 @@ description: Validate Caxri logic with focused Vitest unit and integration cover
 
 Validate the smallest observable behavior below the Electron desktop boundary.
 
-1. Put tests with their source domain. Renderer logic stays beside its source; Main, Runtime, shared,
-   and skill code use their domain-local `__tests__/` or `scripts/*.test.ts` convention.
+1. Put tests with their source domain. Renderer logic stays beside its source; Main, Runtime, CLI,
+   shared, and skill code use their domain-local `__tests__/` or `scripts/*.test.ts` convention.
+   Placement details live in `source-layout`.
 2. For a reproducible bug, add a behavior-level regression that fails for the bug before the fix.
    Prefer observable output and integration boundaries over internal call assertions.
 3. Do not unit-test React components by default. Extract meaningful state into a hook or pure

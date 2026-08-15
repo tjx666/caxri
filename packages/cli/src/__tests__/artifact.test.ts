@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { CLI_VERSION } from './version';
+import { CLI_VERSION } from '../version';
 
 interface PackageManifest {
     bin?: Record<string, string>;
@@ -20,16 +20,16 @@ function readManifest(url: URL): PackageManifest {
 
 describe('CLI delivery artifact', () => {
     it('keeps the source version, package version, and root release version aligned', () => {
-        const cliPackage = readManifest(new URL('../package.json', import.meta.url));
-        const rootPackage = readManifest(new URL('../../../package.json', import.meta.url));
+        const cliPackage = readManifest(new URL('../../package.json', import.meta.url));
+        const rootPackage = readManifest(new URL('../../../../package.json', import.meta.url));
 
         expect(CLI_VERSION).toBe(cliPackage.version);
         expect(CLI_VERSION).toBe(rootPackage.version);
     });
 
     it('ships the standalone bundle byte-for-byte inside the Desktop package', () => {
-        const cliPackage = readManifest(new URL('../package.json', import.meta.url));
-        const rootPackage = readManifest(new URL('../../../package.json', import.meta.url));
+        const cliPackage = readManifest(new URL('../../package.json', import.meta.url));
+        const rootPackage = readManifest(new URL('../../../../package.json', import.meta.url));
 
         expect(cliPackage.bin).toEqual({ caxri: './dist/caxri.cjs' });
         expect(cliPackage.scripts?.build).toContain('--outfile dist/caxri.cjs');
@@ -44,7 +44,7 @@ describe('CLI delivery artifact', () => {
     });
 
     it('uses the packaged Electron executable only as a Node runtime', () => {
-        const shimUrl = new URL('../../../build/caxri', import.meta.url);
+        const shimUrl = new URL('../../../../build/caxri', import.meta.url);
         const shim = readFileSync(shimUrl, 'utf8');
 
         expect(statSync(shimUrl).mode & 0o111).not.toBe(0);

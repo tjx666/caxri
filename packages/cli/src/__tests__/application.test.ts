@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriError, CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
 
-import { runCli, type CliConnectOptions, type CliHostClient, type CliIo } from './application';
+import { runCli, type CliConnectOptions, type CliHostClient, type CliIo } from '../application';
 
 function io(options: Partial<CliIo> = {}) {
     let stdout = '';

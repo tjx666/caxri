@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriError, CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
 
-import { createCliHostConnector, type CliHostClient } from './application';
+import { createCliHostConnector, type CliHostClient } from '../application';
 
 function host(): CliHostClient {
     return {

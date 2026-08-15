@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { quietLines, stableJson } from './output';
+import { quietLines, stableJson } from '../output';
 
 describe('CLI machine output', () => {
     it('sorts JSON keys recursively for stable snapshots', () => {

@@ -69,10 +69,13 @@ reject an ID reused with different command content. The Electron adapter additio
 requesting WebContents before invoking that dispatcher. Internal Runtime methods remain outside the
 public command registry.
 
-`packages/cli` is the Node-only adapter for the same registry and authenticated Host transport. Its
-offline `capabilities` response serializes the registry's Zod parameter and result schemas together
-with owner, effect, capability, and idempotency metadata. Human TTY, JSON, and ID-only output modes
-share closed error codes; Agent and CI contexts default to JSON and never prompt. A mutation requires
+`packages/cli` is the Node-only adapter for the same registry and authenticated Host transport.
+Source is grouped behind `commands`, `host`, and `skills` domain barrels; the package root remains
+the composition root and the only public package entrypoint. Domain barrels stay thin, and tests
+live in domain-local `__tests__/` directories. The offline `capabilities` response serializes the
+registry's Zod parameter and result schemas together with owner, effect, capability, and
+idempotency metadata. Human TTY, JSON, and ID-only output modes share closed error codes;
+Agent and CI contexts default to JSON and never prompt. A mutation requires
 an explicit profile plus any command-specific Project, Session, or Terminal selector and cannot
 infer a target from uniqueness. The CLI may discover the private Host manifest and connect through
 its local socket, but it cannot read Runtime persistence, logs, configuration files, or Desktop IPC.

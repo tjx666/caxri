@@ -59,6 +59,17 @@ function productionTypeScriptFiles(directory: string): string[] {
     return found;
 }
 
+function looseTestFiles(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (['dist', 'node_modules', '__tests__'].includes(entry.name)) continue;
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) found.push(...looseTestFiles(path));
+        else if (/\.(?:spec|test)\.ts$/u.test(entry.name)) found.push(path);
+    }
+    return found;
+}
+
 function isProtocolCompatibilityReExport(source: string): boolean {
     return /^export \* from ['"]\.\.\/\.\.\/\.\.\/packages\/protocol\/src\/(?:index|(?:agent|configuration|desktop|domain|registry|transport)\/[a-z0-9-]+)(?:\.js)?['"];\n?$/u.test(
         source,
@@ -99,7 +110,7 @@ describe('pnpm workspace contract', () => {
         expect(mise).toContain('pnpm = "12.0.0-rc.5"');
     });
 
-    it('keeps tests, Electron support, and protocol domains in predictable directories', () => {
+    it('keeps tests, Electron support, protocol, and CLI domains in predictable directories', () => {
         const scriptRootTests = readdirSync(join(root, 'scripts'), { withFileTypes: true })
             .filter((entry) => entry.isFile() && entry.name.endsWith('.test.ts'))
             .map((entry) => entry.name);
@@ -134,6 +145,19 @@ describe('pnpm workspace contract', () => {
                 'index.ts',
             );
         }
+
+        const cliRoot = join(root, 'packages/cli/src');
+        const cliDomains = readdirSync(cliRoot, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
+            .map((entry) => entry.name)
+            .sort();
+        expect(cliDomains).toEqual(['commands', 'host', 'skills']);
+        for (const domain of cliDomains) {
+            expect(readdirSync(join(cliRoot, domain)), `${domain} CLI barrel`).toContain(
+                'index.ts',
+            );
+        }
+        expect(looseTestFiles(cliRoot), 'CLI tests must live in __tests__/').toEqual([]);
     });
 
     it('routes workspace tests through named Vitest projects', () => {

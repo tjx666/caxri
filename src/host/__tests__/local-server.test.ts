@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { HostClient } from '../../../packages/cli/src/host-client';
+import { HostClient } from '../../../packages/cli/src/host';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
 import type { CaxriError } from '../../shared/ipc/errors';
 import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
