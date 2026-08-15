@@ -99,6 +99,8 @@ describe('pnpm workspace contract', () => {
             '@yutengjing/prettier-config': '^2.0.0',
             'markdownlint': '^0.41.1',
             'markdownlint-cli2': '^0.23.2',
+            'oxlint': '^1.78.0',
+            'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
             'zod': '4.4.3',
         });
