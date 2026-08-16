@@ -56,3 +56,14 @@ probe, and asserts every artifact stays under its byte budget. Budgets are absol
 headroom over this baseline — when the gate fails, first try to optimize the regression away;
 only consciously raise the budget in `scripts/ci-bundle-budget.ts` and update this document in
 the same PR.
+
+### Job summary and baseline deltas
+
+Every gate run appends a Markdown report to the GitHub Actions job summary: phase timings and a
+component-level size breakdown (Electron runtime, asar, unpacked native modules, each `out/`
+process, and inside the renderer the Monaco language workers and bundled fonts), each with its
+budget and a percentage delta. Because the project has no public release yet, the comparison
+baseline is the last green `main` build: a green `main` run stores its measurements in the
+runner-local `~/.cache/caxri/bundle-baseline.json`, and every later run (PRs included) reports
+deltas against it, degrading to `n/a` when no baseline exists. When releases begin, switch the
+baseline source to the latest published release artifact.

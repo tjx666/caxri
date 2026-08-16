@@ -9,8 +9,9 @@
 
 import { execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readdir, rm, stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 import { promisify } from 'node:util';
@@ -69,6 +70,67 @@ interface Measurement {
     unit: 'bytes' | 'seconds';
 }
 
+interface ComponentSpec {
+    label: string;
+    /**
+     * Repository-relative directory whose file sizes are summed.
+     */
+    path: string;
+    /**
+     * When present, only files whose basename matches are counted (applied at every depth).
+     */
+    match?: RegExp;
+}
+
+/**
+ * Reporting-only breakdown for the job summary: where the packaged bytes actually live. Budgeted artifacts stay in
+ * SIZE_BUDGETS; these rows exist so a size regression is attributable at a glance (Electron runtime vs asar vs
+ * renderer, and inside the renderer the two dominant product costs: Monaco language workers and bundled fonts).
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export const REPORT_COMPONENTS: ComponentSpec[] = [
+    { label: 'Caxri.app', path: 'release/mac-arm64/Caxri.app' },
+    {
+        label: 'Caxri.app › Frameworks (Electron runtime)',
+        path: 'release/mac-arm64/Caxri.app/Contents/Frameworks',
+    },
+    { label: 'app.asar', path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar' },
+    {
+        label: 'app.asar.unpacked (native modules)',
+        path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked',
+    },
+    { label: 'out/main', path: 'out/main' },
+    { label: 'out/preload', path: 'out/preload' },
+    { label: 'out/renderer', path: 'out/renderer' },
+    { label: 'out/renderer › monaco workers', path: 'out/renderer/assets', match: /worker/u },
+    { label: 'out/renderer › fonts', path: 'out/renderer/assets', match: /\.(?:ttf|woff2?)$/u },
+];
+
+/**
+ * Maps a report component to its byte budget when the same artifact is also gated.
+ */
+const COMPONENT_BUDGETS = new Map(
+    REPORT_COMPONENTS.flatMap((component) => {
+        const budget = SIZE_BUDGETS.find((sizeBudget) => sizeBudget.path === component.path);
+        return budget && !component.match ? [[component.label, budget.maxBytes] as const] : [];
+    }),
+);
+
+/**
+ * Last green `main` measurements. The repository has no public release yet and CI runs on a single self-hosted runner,
+ * so a user-level file is the simplest durable baseline: every green main build refreshes it and every run (PRs
+ * included) reports deltas against it. Missing baseline degrades to `n/a`, never to a failure.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export interface BundleBaseline {
+    commit: string;
+    recordedAt: string;
+    seconds: Record<string, number>;
+    sizes: Record<string, number>;
+}
+
+const BASELINE_PATH = join(homedir(), '.cache', 'caxri', 'bundle-baseline.json');
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export function findBudgetViolations(measurements: Measurement[]): Measurement[] {
     return measurements.filter((measurement) => measurement.actual > measurement.budget);
@@ -83,20 +145,22 @@ export function formatMeasurement(measurement: Measurement): string {
 }
 
 /**
- * Logical byte size of a file or directory tree. Uses file sizes rather than disk blocks so the gate is deterministic
- * across filesystems and block sizes. Recursion is manual because macOS framework bundles contain `Versions/Current`
- * directory symlinks that `readdir` with `recursive: true` would traverse, double-counting the Electron framework;
- * dirent type checks never follow symlinks, so each real file is counted exactly once.
+ * Logical byte size of a file or directory tree, optionally restricted to files whose basename matches. Uses file sizes
+ * rather than disk blocks so the gate is deterministic across filesystems and block sizes. Recursion is manual because
+ * macOS framework bundles contain `Versions/Current` directory symlinks that `readdir` with `recursive: true` would
+ * traverse, double-counting the Electron framework; dirent type checks never follow symlinks, so each real file is
+ * counted exactly once.
  */
-async function measureBytes(targetPath: string): Promise<number> {
+async function measureBytes(targetPath: string, match?: RegExp): Promise<number> {
     const target = await stat(targetPath);
     if (!target.isDirectory()) return target.size;
     const entries = await readdir(targetPath, { withFileTypes: true });
     const sizes = await Promise.all(
         entries.map(async (entry) => {
             const entryPath = join(targetPath, entry.name);
-            if (entry.isDirectory()) return measureBytes(entryPath);
+            if (entry.isDirectory()) return measureBytes(entryPath, match);
             if (!entry.isFile()) return 0;
+            if (match && !match.test(entry.name)) return 0;
             const fileStat = await stat(entryPath);
             return fileStat.size;
         }),
@@ -104,6 +168,71 @@ async function measureBytes(targetPath: string): Promise<number> {
     let total = 0;
     for (const size of sizes) total += size;
     return total;
+}
+
+/**
+ * Signed percentage change against the recorded baseline value; `n/a` when no baseline exists.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export function formatDeltaPercent(current: number, baseline: number | undefined): string {
+    if (baseline === undefined || baseline <= 0) return 'n/a';
+    const percent = ((current - baseline) / baseline) * 100;
+    return `${percent >= 0 ? '+' : ''}${percent.toFixed(1)}%`;
+}
+
+interface SummaryInput {
+    baseline?: BundleBaseline;
+    commit: string;
+    components: Array<{ budgetBytes?: number; bytes: number; label: string }>;
+    times: Array<{ budgetSeconds: number; label: string; seconds: number }>;
+}
+
+/**
+ * GitHub job-summary Markdown: phase timings and a component-level size breakdown, each with its budget (when the
+ * artifact is gated) and the delta against the last green `main` build.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export function buildSummaryMarkdown(input: SummaryInput): string {
+    const formatMiB = (bytes: number): string => `${(bytes / MiB).toFixed(2)} MiB`;
+    const lines = [
+        `### Bundle budget — \`${input.commit.slice(0, 7)}\``,
+        '',
+        '| Phase | Time | Budget | Δ vs main |',
+        '| --- | ---: | ---: | ---: |',
+        ...input.times.map(
+            (time) =>
+                `| ${time.label} | ${time.seconds.toFixed(1)} s | ${time.budgetSeconds.toFixed(0)} s | ` +
+                `${formatDeltaPercent(time.seconds, input.baseline?.seconds[time.label])} |`,
+        ),
+        '',
+        '| Component | Size | Budget | Δ vs main |',
+        '| --- | ---: | ---: | ---: |',
+        ...input.components.map(
+            (component) =>
+                `| ${component.label} | ${formatMiB(component.bytes)} | ` +
+                `${component.budgetBytes === undefined ? '—' : formatMiB(component.budgetBytes)} | ` +
+                `${formatDeltaPercent(component.bytes, input.baseline?.sizes[component.label])} |`,
+        ),
+        '',
+        input.baseline
+            ? `Δ compares against the last green \`main\` build (\`${input.baseline.commit.slice(0, 7)}\`, recorded ${input.baseline.recordedAt}).`
+            : '_No `main` baseline recorded yet; deltas will appear after the next green `main` build._',
+        '',
+    ];
+    return lines.join('\n');
+}
+
+async function readBaseline(): Promise<BundleBaseline | undefined> {
+    try {
+        return JSON.parse(await readFile(BASELINE_PATH, 'utf8')) as BundleBaseline;
+    } catch {
+        return undefined;
+    }
+}
+
+async function writeBaseline(baseline: BundleBaseline): Promise<void> {
+    await mkdir(dirname(BASELINE_PATH), { recursive: true });
+    await writeFile(BASELINE_PATH, `${JSON.stringify(baseline, undefined, 2)}\n`, 'utf8');
 }
 
 /**
@@ -198,6 +327,31 @@ async function main(): Promise<void> {
         console.log(formatMeasurement(measurement));
     }
 
+    const components = await Promise.all(
+        REPORT_COMPONENTS.map(async (component) => ({
+            budgetBytes: COMPONENT_BUDGETS.get(component.label),
+            bytes: await measureBytes(resolve(component.path), component.match),
+            label: component.label,
+        })),
+    );
+    const times = measurements
+        .filter((measurement) => measurement.unit === 'seconds')
+        .map((measurement) => ({
+            budgetSeconds: measurement.budget,
+            label: measurement.label.replace(/ time$/u, ''),
+            seconds: measurement.actual,
+        }));
+    const commit = process.env.GITHUB_SHA ?? 'local';
+    const baseline = await readBaseline();
+    // Written before the gate verdicts below so failing runs still publish their breakdown.
+    if (process.env.GITHUB_STEP_SUMMARY) {
+        await appendFile(
+            process.env.GITHUB_STEP_SUMMARY,
+            buildSummaryMarkdown({ baseline, commit, components, times }),
+            'utf8',
+        );
+    }
+
     const resolutionFailures = await verifyPackagedModuleResolution();
     if (resolutionFailures.length > 0) {
         console.error('\nPackaged module resolution failed:');
@@ -221,6 +375,19 @@ async function main(): Promise<void> {
         process.exit(1);
     }
     console.log('\nBundle budget gate passed.');
+
+    // Only a fully green run on `main` may become the comparison baseline for future runs.
+    if (process.env.GITHUB_REF === 'refs/heads/main') {
+        await writeBaseline({
+            commit,
+            recordedAt: new Date().toISOString(),
+            seconds: Object.fromEntries(times.map((time) => [time.label, time.seconds])),
+            sizes: Object.fromEntries(
+                components.map((component) => [component.label, component.bytes]),
+            ),
+        });
+        console.log(`Baseline refreshed at ${BASELINE_PATH}.`);
+    }
 }
 
 if (import.meta.main) {

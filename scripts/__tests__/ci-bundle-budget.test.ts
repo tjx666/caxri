@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    buildSummaryMarkdown,
     findBudgetViolations,
     findModuleResolutionFailure,
+    formatDeltaPercent,
     formatMeasurement,
     PACKAGED_NODE_ENTRIES,
+    REPORT_COMPONENTS,
     SIZE_BUDGETS,
     TIME_BUDGETS,
 } from '../ci-bundle-budget';
@@ -73,6 +76,57 @@ describe('ci-bundle-budget', () => {
 
     it('stays inside the protected CI retry paths', () => {
         expect(isProtectedRetryPath('scripts/ci-bundle-budget.ts')).toBe(true);
+    });
+
+    it('formats signed deltas against the baseline and degrades to n/a', () => {
+        expect(formatDeltaPercent(110, 100)).toBe('+10.0%');
+        expect(formatDeltaPercent(95, 100)).toBe('-5.0%');
+        expect(formatDeltaPercent(100, 100)).toBe('+0.0%');
+        expect(formatDeltaPercent(100, undefined)).toBe('n/a');
+        expect(formatDeltaPercent(100, 0)).toBe('n/a');
+    });
+
+    it('covers every gated artifact in the summary component breakdown', () => {
+        const componentPaths = new Set(REPORT_COMPONENTS.map((component) => component.path));
+        for (const budget of SIZE_BUDGETS) {
+            expect(componentPaths, budget.path).toContain(budget.path);
+        }
+    });
+
+    it('renders summary rows with budgets, deltas, and the baseline footnote', () => {
+        const markdown = buildSummaryMarkdown({
+            baseline: {
+                commit: 'abcdef1234567890',
+                recordedAt: '2026-08-16T00:00:00.000Z',
+                seconds: { build: 5 },
+                sizes: { 'Caxri.app': 200 * 1_024 * 1_024 },
+            },
+            commit: '1234567890abcdef',
+            components: [
+                {
+                    budgetBytes: 290 * 1_024 * 1_024,
+                    bytes: 220 * 1_024 * 1_024,
+                    label: 'Caxri.app',
+                },
+                { bytes: 10 * 1_024 * 1_024, label: 'out/renderer › fonts' },
+            ],
+            times: [{ budgetSeconds: 180, label: 'build', seconds: 6 }],
+        });
+        expect(markdown).toContain('### Bundle budget — `1234567`');
+        expect(markdown).toContain('| build | 6.0 s | 180 s | +20.0% |');
+        expect(markdown).toContain('| Caxri.app | 220.00 MiB | 290.00 MiB | +10.0% |');
+        expect(markdown).toContain('| out/renderer › fonts | 10.00 MiB | — | n/a |');
+        expect(markdown).toContain('last green `main` build (`abcdef1`');
+    });
+
+    it('reports no baseline instead of fabricating deltas', () => {
+        const markdown = buildSummaryMarkdown({
+            commit: 'deadbeef',
+            components: [{ bytes: 1_024, label: 'app.asar' }],
+            times: [{ budgetSeconds: 180, label: 'build', seconds: 6 }],
+        });
+        expect(markdown).toContain('| build | 6.0 s | 180 s | n/a |');
+        expect(markdown).toContain('No `main` baseline recorded yet');
     });
 
     it('keeps positive budgets for both timed phases', () => {
