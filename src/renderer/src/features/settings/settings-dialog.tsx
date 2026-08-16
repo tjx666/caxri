@@ -1,9 +1,8 @@
 import { useRef } from 'react';
 
-import { Braces, FileJson, SlidersHorizontal } from 'lucide-react';
+import { Braces, SlidersHorizontal } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
-import { Button } from '../../components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -11,14 +10,15 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
-import { caxri } from '../../lib/caxri';
-import { CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
+import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
+import { Tooltip } from '../../components/ui/tooltip';
+import { CONFIG_KINDS } from './config-edit';
 import { ConfigSourceView } from './config-source-view';
 import { KeybindingsForm } from './keybindings-form';
 import { SettingsPage } from './settings-page';
 import { ThemeForm } from './theme-form';
 import type { SettingsDialogController } from './use-settings-dialog-controller';
-import { onSettingsError, useSettingsDialogController } from './use-settings-dialog-controller';
+import { useSettingsDialogController } from './use-settings-dialog-controller';
 
 function SettingsDialogView(controller: SettingsDialogController) {
     const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
@@ -46,7 +46,7 @@ function SettingsDialogView(controller: SettingsDialogController) {
             <DialogContent
                 ref={popupReference}
                 initialFocus={popupReference}
-                className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden"
+                className="grid h-[min(760px,calc(100vh-48px))] w-[min(920px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden"
             >
                 <DialogHeader>
                     <DialogTitle>Settings</DialogTitle>
@@ -68,21 +68,31 @@ function SettingsDialogView(controller: SettingsDialogController) {
                         value={tab}
                         onValueChange={controller.changeTab}
                     />
-                    <Button
-                        aria-label={
-                            view === 'ui'
-                                ? `Open ${CONFIG_FILE_NAMES[tab]} Source`
-                                : `Back to ${tab[0].toUpperCase() + tab.slice(1)} UI`
-                        }
-                        aria-pressed={view === 'source'}
+                    <ToggleGroup
+                        aria-label="Settings view"
                         className="my-1 mr-2"
-                        size="sm"
-                        variant="ghost"
-                        onClick={view === 'ui' ? controller.showSource : controller.showUi}
+                        value={[view]}
+                        onValueChange={(next: Array<'ui' | 'source'>) => {
+                            // Base UI reports re-activating the selected segment as an empty
+                            // selection; the view toggle must stay on the current view instead of
+                            // snapping back to UI.
+                            if (next.length === 0) return;
+                            const nextView = next[0];
+                            if (nextView === 'source') controller.showSource();
+                            else controller.showUi();
+                        }}
                     >
-                        {view === 'ui' ? <Braces size={14} /> : <SlidersHorizontal size={14} />}
-                        {view === 'ui' ? 'Source' : 'UI'}
-                    </Button>
+                        <Tooltip content="UI">
+                            <ToggleGroupItem aria-label="UI" size="dense" value="ui">
+                                <SlidersHorizontal size={14} />
+                            </ToggleGroupItem>
+                        </Tooltip>
+                        <Tooltip content="Source">
+                            <ToggleGroupItem aria-label="Source" size="dense" value="source">
+                                <Braces size={14} />
+                            </ToggleGroupItem>
+                        </Tooltip>
+                    </ToggleGroup>
                 </div>
 
                 <ChromeTabPanel
@@ -151,25 +161,6 @@ function SettingsDialogView(controller: SettingsDialogController) {
                             />
                         ))}
                 </ChromeTabPanel>
-
-                <footer className="dialog-actions flex justify-end gap-2 border-t border-border px-3 py-2">
-                    <Button
-                        variant="ghost"
-                        onClick={() => {
-                            async function openConfigFile(): Promise<void> {
-                                try {
-                                    await caxri.request('app.openConfigFile', { kind: tab });
-                                } catch (error: unknown) {
-                                    onSettingsError(error, 'Unable to open the config file');
-                                }
-                            }
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                            void openConfigFile();
-                        }}
-                    >
-                        <FileJson size={14} /> Open Config File
-                    </Button>
-                </footer>
             </DialogContent>
         </Dialog>
     );

@@ -176,6 +176,17 @@ export default defineConfig(
                     selector: 'ExportDefaultDeclaration',
                     message: 'Use a named export for React components and modules.',
                 },
+                /**
+                 * Main's `setWindowOpenHandler` denies every `window.open`/`target="_blank"` navigation (see
+                 * `src/main/index.ts`), so a raw `target="_blank"` anchor never actually opens anything. Route external
+                 * navigation through `openExternalUrl` (`src/renderer/src/lib/external-link.ts`), which calls
+                 * `external.open`.
+                 */
+                {
+                    selector: 'JSXAttribute[name.name="target"][value.value="_blank"]',
+                    message:
+                        'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from src/renderer/src/lib/external-link.ts instead.',
+                },
             ],
         },
     },

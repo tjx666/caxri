@@ -45,7 +45,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
-        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        await dialog.getByRole('button', { name: 'Source' }).click();
         const settingsEditor = configSource(dialog, 'settings');
         await expect(settingsEditor.locator('.view-lines')).toContainText('terminal.fontSize');
         // The accessible name has to sit on Monaco's own textarea, the surface a screen reader
@@ -59,7 +59,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 ...new Set(spans.map((span) => getComputedStyle(span).color)),
             ]);
         expect(tokenColors.length).toBeGreaterThan(1);
-        await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
+        await dialog.getByRole('button', { name: 'UI' }).click();
         await expect(dialog.getByLabel('Search settings')).toBeVisible();
         const defaultAgent = dialog.getByRole('combobox', {
             name: 'Default agent for new sessions',
@@ -182,12 +182,14 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             dialog.getByRole('combobox', { name: 'Default agent for new sessions' }),
         ).toBeVisible();
 
-        const actions = dialog.locator('.dialog-actions');
+        // "Keeps actions visible" now means the header's UI/Source toggle stays pinned above the
+        // scrollable tab content instead of scrolling out of view with it (there is no footer).
+        const toggle = dialog.getByRole('button', { name: 'Source' });
         const dialogBox = await dialog.boundingBox();
-        const actionsBox = await actions.boundingBox();
+        const toggleBox = await toggle.boundingBox();
         expect(dialogBox).not.toBeNull();
-        expect(actionsBox).not.toBeNull();
-        expect(actionsBox!.y + actionsBox!.height).toBeLessThanOrEqual(
+        expect(toggleBox).not.toBeNull();
+        expect(toggleBox!.y + toggleBox!.height).toBeLessThanOrEqual(
             dialogBox!.y + dialogBox!.height + 1,
         );
 
@@ -210,10 +212,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await dialog.locator('.structured-editor').evaluate((element) => {
             element.scrollTop = element.scrollHeight;
         });
-        // "Keeps actions visible" now means the footer with the persistent "Open Config File"
-        // action (Apply is gone) stays pinned instead of scrolling out of view with the content.
-        await expect(dialog.locator('.dialog-actions')).toBeVisible();
-        await expect(dialog.getByRole('button', { name: 'Open Config File' })).toBeVisible();
+        // "Keeps actions visible" now means the header's UI/Source toggle (Apply is gone) stays
+        // pinned instead of scrolling out of view with the content.
+        await expect(dialog.getByRole('button', { name: 'Source' })).toBeVisible();
         expect(pageErrors).toEqual([]);
     } finally {
         await running.app.close();
@@ -237,14 +238,13 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await running.page.keyboard.press('Meta+,');
         let dialog = running.page.getByRole('dialog');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
-        await expect(dialog.getByRole('button', { name: 'Open Config File' })).toBeVisible();
 
-        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        await dialog.getByRole('button', { name: 'Source' }).click();
         let sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
-        await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
+        await dialog.getByRole('button', { name: 'UI' }).click();
         await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         // The source editor commits on blur/leaving the view instead of behind Apply, and there is
         // no per-tab dirty marker anymore — the persisted value already reflects the edit.
@@ -257,7 +257,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             })
             .toBe(17);
 
-        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        await dialog.getByRole('button', { name: 'Source' }).click();
         sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(
             running.app,
@@ -269,7 +269,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // Leaving the source view no longer requires fixing the error first (there is no Apply gate
         // to block on): it discards the uncommitted invalid edit and the structured UI reverts to
         // the last-known-good value instead of showing something broken.
-        await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
+        await dialog.getByRole('button', { name: 'UI' }).click();
         await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
@@ -283,7 +283,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
 
         // Re-enter source mode and fix it while still in the view, then confirm the fix survives a
         // tab switch away and back (the "preserves drafts across tabs" half of this test).
-        await dialog.getByRole('button', { name: 'Open settings.jsonc Source' }).click();
+        await dialog.getByRole('button', { name: 'Source' }).click();
         sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);

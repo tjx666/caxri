@@ -342,6 +342,32 @@ export class CaxriDatabase {
     }
 
     /**
+     * Rebinds a Terminal to the provider session a validated hook signal reports, so a manual in-terminal resume
+     * updates identity (and, through the next metadata probe, the title). Refuses sessions another Terminal of the same
+     * provider already owns.
+     */
+    rebindAgentSession(
+        terminalId: string,
+        provider: AgentProvider,
+        agentSessionId: string,
+    ): boolean {
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(terminalId);
+            if (!terminal || terminal.provider !== provider) return false;
+            if (terminal.agentSessionId === agentSessionId) return false;
+            if (
+                this.claimedAgentSessionIdsForProvider(provider, terminalId).includes(
+                    agentSessionId,
+                )
+            ) {
+                return false;
+            }
+            this.db.terminals.updateAgentSessionId(terminalId, agentSessionId);
+            return true;
+        });
+    }
+
+    /**
      * Clears the previous process binding so a restarted Agent cannot inherit its old session.
      */
     resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {

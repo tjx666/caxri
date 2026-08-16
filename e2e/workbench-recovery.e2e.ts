@@ -98,7 +98,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.page.keyboard.press('Meta+,');
         await running.page.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
-        await running.page.getByRole('button', { name: 'Open theme.json Source' }).click();
+        await running.page.getByRole('button', { name: 'Source' }).click();
         // Scoped by `data-config-source`, not by accessible name: `ConfigurationEditor` passes the
         // label through Monaco's `options.ariaLabel` so it lands on the textarea a screen reader
         // actually focuses. `.view-lines` is that textarea's sibling, so `getByLabel(...)` can never

@@ -339,6 +339,33 @@ describe('AgentHookManager', () => {
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(1));
             expect(manager.getHealth().codex.kind).toBe('active');
 
+            /**
+             * A provider hook payload on stdin contributes only its opaque session identifier.
+             */
+            const payloadInvocation = execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'codex',
+                    '--phase',
+                    'turnStarted',
+                    '--schema',
+                    '2',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            payloadInvocation.child.stdin?.end(
+                JSON.stringify({ session_id: 'codex-session-123', prompt: 'never forwarded' }),
+            );
+            await payloadInvocation;
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(2));
+            expect(signals).toHaveBeenLastCalledWith(
+                expect.objectContaining({ agentSessionId: 'codex-session-123' }),
+            );
+            expect(signals.mock.calls.at(-1)?.[0]).not.toHaveProperty('prompt');
+
             await writeFile(join(codexHome, 'hooks.json'), '{}\n', 'utf8');
             await manager.reconcile(settings);
             const repaired = parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8'));
@@ -360,7 +387,7 @@ describe('AgentHookManager', () => {
                 ],
                 { env: { ...process.env, ...environment } },
             );
-            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(2));
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
             expect(signals).toHaveBeenLastCalledWith(
                 expect.objectContaining({
                     launchId: environment.CAXRI_HOOK_LAUNCH_ID,
@@ -401,7 +428,7 @@ describe('AgentHookManager', () => {
                 ],
                 { env: { ...process.env, ...environment } },
             );
-            expect(signals).toHaveBeenCalledTimes(2);
+            expect(signals).toHaveBeenCalledTimes(3);
             expect(events.some((event) => event.event === 'agentHooks.changed')).toBe(true);
         } finally {
             await manager.close();

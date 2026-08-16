@@ -38,11 +38,12 @@ import {
 } from '../../components/ui/select';
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { sessionViewScope, useActiveWork } from '../../stores/session-view';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     editorLanguageLabel,
@@ -304,9 +305,15 @@ function StatusItem({
                 <a
                     className={cn(statusItemClassName, className)}
                     href={href}
-                    target="_blank"
                     rel="noreferrer"
                     aria-label={ariaLabel}
+                    onClick={(event) => {
+                        // Main denies every `window.open`/target=_blank navigation, so this anchor
+                        // is semantic only — the actual navigation goes through `external.open`.
+                        event.preventDefault();
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
+                        void openExternalUrl(href, (message) => pushToast('error', message));
+                    }}
                 >
                     {content}
                 </a>
