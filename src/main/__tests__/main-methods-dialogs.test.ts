@@ -18,7 +18,9 @@ import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 const window = {};
 
-function requestMock(handlers: Record<string, (parameters?: unknown) => Promise<unknown>>) {
+function requestMock(
+    handlers: Partial<Record<string, (parameters?: unknown) => Promise<unknown>>>,
+) {
     return vi.fn((method: string, parameters?: unknown) => {
         const found = handlers[method];
         if (!found) return Promise.reject(new Error(`Unexpected method: ${method}`));
