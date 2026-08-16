@@ -1,6 +1,26 @@
 # Caxri
 
-Caxri is a project-first, terminal-native local development workbench for macOS. It groups durable Agent and Shell Sessions beneath local Projects, with real PTYs, a focused editor, file and Git inspectors, current-Session Terminal information, and read-only Claude Code/Codex metadata in one Electron app.
+Caxri is a project-first, terminal-native development workbench for macOS, built for running and
+supervising coding agents. It groups durable Agent and Shell Sessions beneath local Projects —
+real PTYs, a focused editor, file and Git inspectors, and reliable agent attention signals in one
+Electron app.
+
+## Highlights
+
+- **Projects and Sessions.** A Project is a user-authorized local directory; Sessions are durable
+  units of work beneath it, each owning its Terminals, layout, and workbench state. The shared
+  vocabulary lives in [CONTEXT.md](CONTEXT.md).
+- **Real PTYs, no wrappers.** Shell and Agent CLIs (Claude Code, Codex, …) run in genuine
+  pseudo-terminals. Caxri observes them; it never proxies or rewrites their I/O.
+- **Attention you can trust.** Each Session's Primary Agent reports waiting / completed / failed
+  states, so a wall of parallel agent sessions never stalls silently.
+- **A focused workbench.** A narrow editor, file tree, search, and read-only Git inspector cover
+  the "glance at what the agent did" loop without becoming an IDE.
+- **A scriptable CLI.** The standalone `caxri` CLI drives the same authenticated, profile-scoped
+  Host that the desktop app uses — see [docs/cli.md](docs/cli.md).
+- **An agent-native repository.** Caxri is developed exclusively by coding agents;
+  [AGENTS.md](AGENTS.md) is the contributor guide and the source of truth for workflows and
+  guardrails.
 
 ## Requirements
 
@@ -8,113 +28,71 @@ Caxri is a project-first, terminal-native local development workbench for macOS.
 - Node.js 24 or newer
 - Bun 1.3 or newer
 - Xcode Command Line Tools
-- `ni`
+- [`ni`](https://github.com/antfu-collective/ni)
 
-## Development
+## Quick start
 
 ```bash
 ni
 bun run dev
 ```
 
-Development logs are written to `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl` in the repository root.
+Development logs are written to `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl` in
+the repository root. Unsigned development packages are written beneath `release/`; tagged releases
+publish an unsigned Apple Silicon DMG (see [RELEASING.md](RELEASING.md)).
+
+Caxri does not upload telemetry, terminal output, file content, or agent transcripts.
 
 ## Command line
-
-The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Headless Host. It never
-reads Caxri's SQLite database, settings, or logs directly. Local help and protocol introspection work
-without a running Host:
 
 ```bash
 bun run build:cli
 node packages/cli/dist/caxri.cjs --help
-node packages/cli/dist/caxri.cjs capabilities --json
 ```
 
-`packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 24 or newer. The
-macOS app contains the exact same bundle at `Caxri.app/Contents/Resources/cli/caxri.cjs` plus an
-app-managed launcher at `Caxri.app/Contents/Resources/bin/caxri`; that launcher uses the packaged
-Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode. From that exact installed layout, a human
-CLI invocation derives the immutable packaged Host entry and starts the profile Host when none
-exists. Agent and CI invocations never start a Host implicitly. The standalone bundle keeps offline
-introspection available and connects to an existing Host without acquiring Electron or native-module
-dependencies of its own.
+The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Headless
+Host — never directly to Caxri's database, settings, or logs. It covers Projects, Sessions,
+Terminals, settings, logs, diagnostics, events, desktop window control, and Agent automation, and
+embeds the version-matched `caxri-cli` Agent skill. The full manual, including output modes,
+mutation safety, and command authority boundaries, is in [docs/cli.md](docs/cli.md).
 
-Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while
-`--quiet` emits one opaque ID per line. Supported Agent and CI environments default to JSON and do
-not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation requires
-that explicit Host selector and non-interactive confirmation with `--yes`.
+## Development
 
-The shared business surface includes `project list|show|current`, `session list|show|current`,
-`terminal list|show`, `settings get|validate|patch`, `logs query|follow`,
-`diagnostics snapshot`, and `events watch`. Settings writes accept repeated `--set key=value`
-arguments; `settings validate` and `settings patch --dry-run` use the real Runtime schema without
-writing. Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
-Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
-
-Desktop window commands stay behind the authenticated Host and Project-root authorization:
-`desktop focus`, `open <path>`, and `reveal <path>`. Path commands accept an optional exact
-`--session <id>`; `open` supports files and directories and launches Desktop by default, while
-`--no-launch` returns `UNAVAILABLE` when no Desktop lease exists. As with every human mutation,
-non-interactive calls require `--profile`, `--yes`, and should use a stable `--request-id` when
-retried.
-
-Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
-operations (`agent dispatch` and `agent control`), and owner-only simulated input (`terminal send`).
-They do not alias or fall back to one another. See
-[Agent command authority](docs/agent-command-authority.md) for the capability and audit boundaries.
-
-Every CLI artifact embeds the version-matched canonical `caxri-cli` Agent skill. `skills list`,
-`skills get`, and `skills status` work without a Host. Installation requires an explicit
-`--provider claude|codex` and `--local|--global` scope; Project-local is recommended, global scope is
-never implied, and Caxri refuses to overwrite unmarked, modified, unknown-schema, or newer entries.
-The canonical source is [`skills/caxri-cli/SKILL.md`](skills/caxri-cli/SKILL.md), and the CLI build
-validates every executable example and declared capability against the live registries before
-embedding it.
-
-Default Terminal shortcuts are configurable in Settings → Keybindings:
-
-| Shortcut    | Action                              |
-| ----------- | ----------------------------------- |
-| `Command+K` | Clear the active Terminal view      |
-| `Command+T` | Create and focus a new Terminal tab |
-| `Command+W` | Close the active Terminal tab       |
-
-Git hooks use the repository-owned `.githooks` directory through Git's native `core.hooksPath`. Dependency installation configures it automatically, and the pre-commit hook runs `lint-staged`.
-
-Authoritative validation commands:
+Validation gates, from focused to exhaustive:
 
 ```bash
-bun run --silent check
-bun run lint
-bun run format:md:check
+bun run --silent check [files...]   # changed-file lint / type / test routing
+bun run lint && bun run lint:type-aware
 bun run typecheck
 bun run test
-bun run test:e2e
-bun run build
-bun run package
+bun run test:e2e                    # Playwright Electron workflows
+bun run build && bun run package
 ```
 
-Large-Project startup performance gate:
+Git hooks live in the repository-owned `.githooks` directory (`core.hooksPath` is configured on
+install); pre-commit runs `lint-staged`. Startup performance is gated by
+`CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup`, which requires
+Runtime, Terminal, file tree, and Git to become usable within three seconds. Native compatibility
+probes: `bun run spike:native`, `spike:pty`, `spike:agents`.
 
-```bash
-CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup
-```
+[AGENTS.md](AGENTS.md) documents the complete contributor workflow: isolated worktrees, CI
+watching, bundle budgets, and the repository's architecture guardrails.
 
-The gate requires Runtime, Terminal, file tree, and Git to become usable within three seconds, checks their structured timings and aggregated PTY input metrics, keeps the Runtime below 256 open descriptors, and fails on IPC or watcher errors.
+## Documentation
 
-Native compatibility probes:
-
-```bash
-bun run spike:native
-bun run spike:pty
-bun run spike:agents
-```
-
-Unsigned development packages are written beneath `release/`. Caxri does not upload telemetry, terminal output, file content, or agent transcripts.
+| Document                                                                               | Contents                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [CONTEXT.md](CONTEXT.md)                                                               | Product language: Projects, Sessions, Attention        |
+| [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                  |
+| [AGENTS.md](AGENTS.md)                                                                 | Contributor guide for coding agents                    |
+| [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                 |
+| [docs/agent-command-authority.md](docs/agent-command-authority.md)                     | Agent capability and audit boundaries                  |
+| [docs/bundle-size.md](docs/bundle-size.md)                                             | Bundle baseline and the CI budget gate                 |
+| [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                  |
+| [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline |
 
 ## Product boundaries
 
-Caxri treats a user-selected directory as a Project and groups durable Sessions beneath it. It is not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs always run in a real PTY. Git integration is read-only and the editor intentionally stays narrow.
-
-See [DESIGN.md](DESIGN.md) for frontend and UI design. Project architecture and recovery contracts live in the [project architecture reference](.agents/skills/project-architecture/references/architecture.md), with the [dependency baseline](.agents/skills/project-architecture/references/stack-baseline.md) alongside it.
+Caxri treats a user-selected directory as a Project and groups durable Sessions beneath it. It is
+not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs always run in a
+real PTY. Git integration is read-only and the editor intentionally stays narrow.
