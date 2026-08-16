@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { CommandError, getProcessIdentity, isProcessIdentityAlive } from './process';
 import {
+    didWriteJsonExclusive,
     ensureProfile,
     errorCode,
     repoContext,
@@ -218,35 +219,29 @@ export async function acquireDesktopLease(
         // possibly clear a stale lease before retrying), so the awaits below cannot run in parallel.
         /* eslint-disable no-await-in-loop -- sequential retry: each attempt depends on the prior one */
         for (let attempt = 0; attempt < 2; attempt += 1) {
-            try {
-                const handle = await open(path, 'wx');
-                try {
-                    await handle.writeFile(`${JSON.stringify(lease, null, 2)}\n`, 'utf8');
-                    await handle.sync();
-                } finally {
-                    await handle.close();
-                }
-                return { ...lease, leasePath: path };
-            } catch (error) {
-                if (errorCode(error) !== 'EEXIST') throw error;
-                const current = await readLease(path);
-                if (!current) continue;
-                if (await isProcessIdentityAlive(current.pid, current.identity)) {
-                    throw new CommandError(
-                        `Desktop is in use by ${current.label} in ${current.worktreePath} (PID ${current.pid})`,
-                    );
-                }
-                if (current.handoffPending)
-                    throw new CommandError(
-                        `Desktop handoff from ${current.label} did not complete; inspect ${path} before continuing`,
-                    );
-                if (!options.namespace) await cleanWorkerLeases(context.stateDir);
-                /**
-                 * The repository lock keeps another contender from replacing this stale path between the identity check
-                 * and unlink.
-                 */
-                await unlinkIfExists(path);
+            /**
+             * The lease must appear atomically: `inspectDesktopLease` deliberately polls without the repository lock,
+             * so an `open('wx')` followed by a separate write would expose a partially written file and fail parsing
+             * mid-acquisition.
+             */
+            if (await didWriteJsonExclusive(path, lease)) return { ...lease, leasePath: path };
+            const current = await readLease(path);
+            if (!current) continue;
+            if (await isProcessIdentityAlive(current.pid, current.identity)) {
+                throw new CommandError(
+                    `Desktop is in use by ${current.label} in ${current.worktreePath} (PID ${current.pid})`,
+                );
             }
+            if (current.handoffPending)
+                throw new CommandError(
+                    `Desktop handoff from ${current.label} did not complete; inspect ${path} before continuing`,
+                );
+            if (!options.namespace) await cleanWorkerLeases(context.stateDir);
+            /**
+             * The repository lock keeps another contender from replacing this stale path between the identity check and
+             * unlink.
+             */
+            await unlinkIfExists(path);
         }
         /* eslint-enable no-await-in-loop */
         throw new CommandError('Could not acquire the repository desktop lease');
