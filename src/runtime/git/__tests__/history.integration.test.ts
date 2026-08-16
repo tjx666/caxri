@@ -13,8 +13,22 @@ import { GitService } from '..';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
+const gitServices: GitService[] = [];
+
+/**
+ * Registers a GitService so afterEach can close it before the temp directories are removed; otherwise an in-flight
+ * metadata-watcher subscription races directory cleanup and its fallback logging rejects with ENOENT after the logger's
+ * directory is gone.
+ */
+function trackGitService(git: GitService): GitService {
+    gitServices.push(git);
+    return git;
+}
 
 afterEach(async () => {
+    const servicesToClose = [...gitServices];
+    gitServices.length = 0;
+    await Promise.allSettled(servicesToClose.map((service) => service.close()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -54,7 +68,7 @@ describe('Git commit history', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const git = new GitService(new ProjectRootResolver(database), logger);
+        const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
         const repo = (await git.summary(session.id)).repositories[0];
         const parameters = {
             sessionId: session.id,
