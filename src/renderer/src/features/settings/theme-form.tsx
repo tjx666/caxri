@@ -1,8 +1,9 @@
 import type { ThemeTokens } from '@shared/types';
 import { Import } from 'lucide-react';
 
+import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
-import { settingsFieldRowClassName } from '../../lib/utilities';
+import { Field, FieldLabel } from '../../components/ui/field';
 import { ThemePreview } from './theme-preview';
 
 interface ThemeFormProperties {
@@ -34,10 +35,11 @@ export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormPropertie
                             {section[0].toUpperCase() + section.slice(1)}
                         </legend>
                         {Object.entries(theme[section]).map(([key, value]) => (
-                            <label key={key} className={settingsFieldRowClassName}>
-                                {key}
+                            <Field key={key} orientation="horizontal" className="mb-3">
+                                <FieldLabel htmlFor={`theme-${section}-${key}`}>{key}</FieldLabel>
                                 <span className="flex items-center gap-2">
                                     <input
+                                        id={`theme-${section}-${key}`}
                                         type="color"
                                         className="size-7 rounded border border-border bg-transparent p-0"
                                         value={value.slice(0, 7)}
@@ -49,17 +51,14 @@ export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormPropertie
                                         {value}
                                     </code>
                                 </span>
-                            </label>
+                            </Field>
                         ))}
                     </fieldset>
                 ))}
                 {theme.warnings.map((warning) => (
-                    <p
-                        key={warning}
-                        className="rounded border border-warning p-2 text-[11px] whitespace-pre-wrap text-warning"
-                    >
+                    <Alert key={warning} variant="warning" className="text-[11px]">
                         {warning}
-                    </p>
+                    </Alert>
                 ))}
             </div>
         </div>

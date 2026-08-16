@@ -9,6 +9,13 @@ import type {
 import { Archive } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import {
+    Field,
+    FieldContent,
+    FieldDescription,
+    FieldLabel,
+    FieldTitle,
+} from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import {
     Select,
@@ -17,8 +24,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { Switch } from '../../components/ui/switch';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { cn, settingsFieldRowClassName } from '../../lib/utilities';
 import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
 import { AgentProviderSettings } from './agent-provider-settings';
 import { bytesToMebibytes, mebibytesToBytes } from './config-edit';
@@ -67,8 +74,12 @@ export function SettingsForm({
     return (
         <div className="min-h-0 overflow-hidden">
             <div className="structured-editor h-full min-h-0 overflow-auto p-4">
-                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <label htmlFor="default-agent">Default agent for new sessions</label>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="default-agent">
+                            Default agent for new sessions
+                        </FieldLabel>
+                    </FieldContent>
                     <Select
                         value={settings['session.defaultAgent'] ?? 'ask'}
                         onValueChange={(value) =>
@@ -116,14 +127,16 @@ export function SettingsForm({
                             </SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
-                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <label htmlFor="new-worktree-behavior">
-                        New worktree behavior
-                        <span className="block text-[11px] text-muted">
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="new-worktree-behavior">
+                            New worktree behavior
+                        </FieldLabel>
+                        <FieldDescription>
                             First access to a worktree always requires directory authorization
-                        </span>
-                    </label>
+                        </FieldDescription>
+                    </FieldContent>
                     <Select
                         value={settings['workbench.newWorktreeBehavior']}
                         onValueChange={(value) =>
@@ -154,14 +167,14 @@ export function SettingsForm({
                             <SelectItem value="ignore">Ignore</SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
-                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>
-                        Archived Sessions
-                        <span className="block text-[11px] text-muted">
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldTitle>Archived Sessions</FieldTitle>
+                        <FieldDescription>
                             Restore or permanently delete archived Sessions
-                        </span>
-                    </span>
+                        </FieldDescription>
+                    </FieldContent>
                     <Button
                         className="archived-sessions-entry w-44 flex-none"
                         variant="secondary"
@@ -177,11 +190,14 @@ export function SettingsForm({
                         <Archive aria-hidden="true" size={14} />
                         Manage…
                     </Button>
-                </div>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>Terminal font size</span>
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="terminal-font-size">Terminal font size</FieldLabel>
+                    </FieldContent>
                     <span className="relative w-40 flex-none">
                         <Input
+                            id="terminal-font-size"
                             className="bg-background pr-8"
                             type="number"
                             min={9}
@@ -195,14 +211,16 @@ export function SettingsForm({
                             px
                         </span>
                     </span>
-                </label>
-                <div className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <label htmlFor="terminal-gpu-acceleration">
-                        Terminal GPU acceleration
-                        <span className="block text-[11px] text-muted">
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="terminal-gpu-acceleration">
+                            Terminal GPU acceleration
+                        </FieldLabel>
+                        <FieldDescription>
                             WebGL falls back to DOM rendering without restarting the Terminal
-                        </span>
-                    </label>
+                        </FieldDescription>
+                    </FieldContent>
                     <Select
                         value={settings['terminal.gpuAcceleration']}
                         onValueChange={(value) =>
@@ -225,11 +243,16 @@ export function SettingsForm({
                             <SelectItem value="off">Off</SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>Terminal scrollback lines</span>
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="terminal-scrollback">
+                            Terminal scrollback lines
+                        </FieldLabel>
+                    </FieldContent>
                     <span className="relative w-40 flex-none">
                         <Input
+                            id="terminal-scrollback"
                             className="bg-background pr-12"
                             type="number"
                             min={100}
@@ -243,69 +266,67 @@ export function SettingsForm({
                             lines
                         </span>
                     </span>
-                </label>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>
-                        Copy on select
-                        <span className="block text-[11px] text-muted">
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="terminal-copy-on-select">Copy on select</FieldLabel>
+                        <FieldDescription>
                             Automatically copy Terminal selections to the clipboard
-                        </span>
-                    </span>
-                    <input
+                        </FieldDescription>
+                    </FieldContent>
+                    <Switch
+                        id="terminal-copy-on-select"
                         aria-label="Copy on select"
                         checked={settings['terminal.copyOnSelect']}
-                        className="size-4 flex-none accent-[var(--accent)]"
-                        type="checkbox"
-                        onChange={(event) =>
-                            onFieldChange('terminal.copyOnSelect', event.target.checked)
+                        onCheckedChange={(checked) =>
+                            onFieldChange('terminal.copyOnSelect', checked)
                         }
                     />
-                </label>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>
-                        Allow OSC 52 clipboard writes
-                        <span className="block text-[11px] text-muted">
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="terminal-osc52-clipboard-write">
+                            Allow OSC 52 clipboard writes
+                        </FieldLabel>
+                        <FieldDescription>
                             Remote programs may request bounded writes; clipboard reads stay blocked
-                        </span>
-                    </span>
-                    <input
+                        </FieldDescription>
+                    </FieldContent>
+                    <Switch
+                        id="terminal-osc52-clipboard-write"
                         aria-label="Allow OSC 52 clipboard writes"
                         checked={settings['terminal.osc52ClipboardWrite']}
-                        className="size-4 flex-none accent-[var(--accent)]"
-                        type="checkbox"
-                        onChange={(event) =>
-                            onFieldChange('terminal.osc52ClipboardWrite', event.target.checked)
+                        onCheckedChange={(checked) =>
+                            onFieldChange('terminal.osc52ClipboardWrite', checked)
                         }
                     />
-                </label>
-                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>
-                        Remote debugging (CDP)
-                        <span className="block text-[11px] text-muted">
+                </Field>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="remote-debugging-cdp">Remote debugging (CDP)</FieldLabel>
+                        <FieldDescription>
                             Expose Chrome DevTools Protocol on 127.0.0.1:9223 for agent tooling;
                             takes effect after restarting Caxri
-                        </span>
-                    </span>
-                    <input
+                        </FieldDescription>
+                    </FieldContent>
+                    <Switch
+                        id="remote-debugging-cdp"
                         aria-label="Remote debugging (CDP)"
                         checked={argvConfig?.remoteDebugging ?? true}
-                        className="size-4 flex-none accent-[var(--accent)]"
                         disabled={!argvConfig}
-                        type="checkbox"
-                        onChange={(event) =>
-                            onArgvConfigChange({ remoteDebugging: event.target.checked })
+                        onCheckedChange={(checked) =>
+                            onArgvConfigChange({ remoteDebugging: checked })
                         }
                     />
-                </label>
-                <label className="mb-4 block text-foreground">
-                    <span>
+                </Field>
+                <Field className="mb-4">
+                    <FieldLabel htmlFor="terminal-default-working-directory">
                         New Terminal working directory
-                        <span className="block text-[11px] text-muted">
-                            Leave empty to use the Project root
-                        </span>
-                    </span>
+                    </FieldLabel>
+                    <FieldDescription>Leave empty to use the Project root</FieldDescription>
                     <Input
-                        className="mt-2 bg-background"
+                        id="terminal-default-working-directory"
+                        className="bg-background"
                         placeholder="Project root"
                         value={settings['terminal.defaultWorkingDirectory'] ?? ''}
                         onChange={(event) =>
@@ -315,16 +336,21 @@ export function SettingsForm({
                             )
                         }
                     />
-                </label>
+                </Field>
                 <TrustedDomainsForm
                     focusRequestId={trustedDomainsFocusRequestId}
                     rules={settings['security.trustedDomains']}
                     onChange={(rules) => onFieldChange('security.trustedDomains', rules)}
                 />
-                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
-                    <span>Maximum editable file size</span>
+                <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
+                    <FieldContent>
+                        <FieldLabel htmlFor="max-editable-file-size">
+                            Maximum editable file size
+                        </FieldLabel>
+                    </FieldContent>
                     <span className="relative w-40 flex-none">
                         <Input
+                            id="max-editable-file-size"
                             className="bg-background pr-8"
                             type="number"
                             min={0.001}
@@ -342,7 +368,7 @@ export function SettingsForm({
                             MB
                         </span>
                     </span>
-                </label>
+                </Field>
                 {agentProviderIds.map((provider) => (
                     <AgentProviderSettings
                         key={provider}

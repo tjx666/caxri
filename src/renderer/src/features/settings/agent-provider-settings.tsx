@@ -8,7 +8,9 @@ import type {
     AppSettings,
 } from '@shared/types';
 
+import { Field, FieldContent, FieldDescription, FieldLabel } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
+import { Switch } from '../../components/ui/switch';
 import { Textarea } from '../../components/ui/textarea';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 
@@ -47,7 +49,7 @@ function skillScopeSummary(
 /**
  * Plain-language health caption for a provider's lifecycle-hook adapter. DESIGN.md principle 3 forbids implementation
  * vocabulary like "drifted" or "awaiting first trusted event". Every state the user cannot resolve just by waiting
- * pairs with the concrete next step described above the checkbox: restart the provider's Agent Terminals.
+ * pairs with the concrete next step described above the Switch: restart the provider's Agent Terminals.
  */
 function hookHealthLabel(
     isEnabled: boolean,
@@ -109,47 +111,47 @@ export function AgentProviderSettings({
                 <AgentIdentityIcon identity={provider} size={16} />
                 {providerName}
             </h3>
-            <label className="mb-3 flex items-start justify-between gap-4 text-[11px] text-muted">
-                <span>
-                    Lifecycle hooks
-                    <span className="block max-w-xl">
+            <Field orientation="horizontal" className="mb-3 items-start gap-4">
+                <FieldContent>
+                    <FieldLabel htmlFor={`${provider}-lifecycle-hooks`}>Lifecycle hooks</FieldLabel>
+                    <FieldDescription className="max-w-xl">
                         Keeps background Session unread state accurate. Caxri only receives
                         lifecycle phases, never prompt or response content. Restart Agent Terminals
                         opened before lifecycle hooks were enabled.
-                    </span>
-                    <span className="mt-1 block" role="status">
+                    </FieldDescription>
+                    <FieldDescription role="status">
                         {hookHealthLabel(
                             providerSettings.hooks.enabled,
                             agentHookHealth?.[provider],
                         )}
-                    </span>
-                </span>
-                <input
+                    </FieldDescription>
+                </FieldContent>
+                <Switch
+                    id={`${provider}-lifecycle-hooks`}
                     aria-label={`${providerName} lifecycle hooks`}
                     checked={providerSettings.hooks.enabled}
-                    className="mt-0.5 size-4 flex-none accent-[var(--accent)]"
-                    type="checkbox"
-                    onChange={(event) => updateHooks(event.target.checked)}
+                    className="mt-0.5"
+                    onCheckedChange={(checked) => updateHooks(checked)}
                 />
-            </label>
-            <label className="mb-3 flex items-start justify-between gap-4 text-[11px] text-muted">
-                <span>
-                    Peer messaging
-                    <span className="block max-w-xl">
+            </Field>
+            <Field orientation="horizontal" className="mb-3 items-start gap-4">
+                <FieldContent>
+                    <FieldLabel htmlFor={`${provider}-peer-messaging`}>Peer messaging</FieldLabel>
+                    <FieldDescription className="max-w-xl">
                         Lets this managed Agent exchange bounded peer text through the Caxri Inbox.
                         It never pastes messages into the Terminal. Disabling takes effect
                         immediately without stopping the Terminal; restart only if the CLI adapter
                         is unavailable.
-                    </span>
-                </span>
-                <input
+                    </FieldDescription>
+                </FieldContent>
+                <Switch
+                    id={`${provider}-peer-messaging`}
                     aria-label={`${providerName} peer messaging`}
                     checked={providerSettings.messaging.enabled}
-                    className="mt-0.5 size-4 flex-none accent-[var(--accent)]"
-                    type="checkbox"
-                    onChange={(event) => updateMessaging(event.target.checked)}
+                    className="mt-0.5"
+                    onCheckedChange={(checked) => updateMessaging(checked)}
                 />
-            </label>
+            </Field>
             <div
                 data-agent-skill-health={provider}
                 className="mb-3 rounded-sm border border-border p-2 text-[11px] text-muted"
@@ -185,19 +187,23 @@ export function AgentProviderSettings({
                     );
                 })}
             </div>
-            <label className="mb-2 block text-[11px] text-muted">
-                Executable
+            <Field className="mb-2 gap-1">
+                <FieldLabel htmlFor={`${provider}-executable`}>Executable</FieldLabel>
                 <Input
-                    className="mt-1 bg-background text-foreground"
+                    id={`${provider}-executable`}
+                    className="bg-background text-foreground"
                     aria-label={`${providerName} executable`}
                     value={launch.executable}
                     onChange={(event) => updateLaunch({ executable: event.target.value })}
                 />
-            </label>
-            <label className="block text-[11px] text-muted">
-                Initial arguments, one per line
+            </Field>
+            <Field className="gap-1">
+                <FieldLabel htmlFor={`${provider}-initial-arguments`}>
+                    Initial arguments, one per line
+                </FieldLabel>
                 <Textarea
-                    className="mt-1 bg-background text-foreground"
+                    id={`${provider}-initial-arguments`}
+                    className="bg-background text-foreground"
                     aria-label={`${providerName} initial arguments`}
                     value={launch.args.join('\n')}
                     onChange={(event) =>
@@ -208,7 +214,7 @@ export function AgentProviderSettings({
                         })
                     }
                 />
-            </label>
+            </Field>
         </section>
     );
 }

@@ -74,7 +74,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
 
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
-        const setting = dialog.getByLabel('Allow OSC 52 clipboard writes');
+        const setting = dialog.getByRole('switch', { name: 'Allow OSC 52 clipboard writes' });
         await expect(setting).not.toBeChecked();
         await setting.check();
         /**
