@@ -124,11 +124,24 @@ jobs:
           RELEASE_DMG: ${{ steps.artifact.outputs.dmg }}
           RELEASE_CHECKSUM: ${{ steps.artifact.outputs.checksum }}
         run: |
+          # The DMG is unsigned/unnotarized: browser downloads get quarantined and Gatekeeper
+          # reports the app as "damaged", so the notes lead with the terminal install path.
+          notes="## Install
+
+          The DMG is unsigned, so a browser download is quarantined and macOS reports the app as \"damaged\". Install from the terminal instead:
+
+          \`\`\`bash
+          bun run install:caxri            # from a Caxri checkout (downloads, verifies, installs)
+          \`\`\`
+
+          Already downloaded with a browser? Clear the quarantine flag once: \`xattr -dr com.apple.quarantine /Applications/Caxri.app\`"
+
           gh release create "$RELEASE_TAG" \
             "$RELEASE_DMG" \
             "$RELEASE_CHECKSUM" \
             --target "$RELEASE_TARGET_SHA" \
             --title "Caxri ${RELEASE_TAG}" \
+            --notes "$notes" \
             --generate-notes \
             --fail-on-no-commits
       - name: Clean self-hosted runner boundary
