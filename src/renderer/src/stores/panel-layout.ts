@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { clamp } from 'es-toolkit';
 import { create } from 'zustand';
 
 /**
@@ -54,7 +55,7 @@ const DEFAULT_PANEL_LAYOUT: PanelLayout = {
 
 export function clampWidth(width: number, min: number, max: number): number {
     if (!Number.isFinite(width)) return min;
-    return Math.min(max, Math.max(min, width));
+    return clamp(width, min, max);
 }
 
 /**
