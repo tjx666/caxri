@@ -5,7 +5,7 @@ import { parseWorktreeEntries } from './repo';
 
 const MAX_TOPOLOGIES = 256;
 
-export interface RepoWorktree {
+interface RepoWorktree {
     branch: string;
     rootPath: string;
 }

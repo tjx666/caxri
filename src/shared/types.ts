@@ -34,7 +34,6 @@ export {
     type GitFileStatus,
     type GitOverview,
     type GitPullRequestChanges,
-    type GitRepositoryOverview,
     type GitRepositorySummary,
     type GitSummary,
     type InspectorMode,
