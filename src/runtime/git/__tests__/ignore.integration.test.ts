@@ -13,8 +13,22 @@ import { GitService } from '..';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
+const gitServices: GitService[] = [];
+
+/**
+ * Registers a GitService so afterEach can close it before the temp directories are removed; otherwise an in-flight
+ * metadata-watcher subscription races directory cleanup and its fallback logging rejects with ENOENT after the logger's
+ * directory is gone.
+ */
+function trackGitService(git: GitService): GitService {
+    gitServices.push(git);
+    return git;
+}
 
 afterEach(async () => {
+    const servicesToClose = [...gitServices];
+    gitServices.length = 0;
+    await Promise.allSettled(servicesToClose.map((service) => service.close()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -42,10 +56,9 @@ describe('Git ignored entry batches', () => {
             database.createProject(projectRoot).id,
             'shell',
         ).session;
-        const service = new GitService(
-            new ProjectRootResolver(database),
-            new StructuredLogger(join(directory, 'logs')),
-        );
+        const rootResolver = new ProjectRootResolver(database);
+        const gitLogger = new StructuredLogger(join(directory, 'logs'));
+        const service = trackGitService(new GitService(rootResolver, gitLogger));
 
         await expect(
             service.ignoredEntries(session.id, projectRoot, ['ignored.log']),
@@ -90,7 +103,7 @@ describe('Git ignored entry batches', () => {
             'shell',
         ).session;
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const service = new GitService(new ProjectRootResolver(database), logger);
+        const service = trackGitService(new GitService(new ProjectRootResolver(database), logger));
 
         await expect(
             service.ignoredEntries(session.id, root, [

@@ -14,8 +14,22 @@ import { describeGitFailure, GitService } from '..';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
+const gitServices: GitService[] = [];
+
+/**
+ * Registers a GitService so afterEach can close it before the temp directories are removed; otherwise an in-flight
+ * metadata-watcher subscription races directory cleanup and its fallback logging rejects with ENOENT after the logger's
+ * directory is gone.
+ */
+function trackGitService(git: GitService): GitService {
+    gitServices.push(git);
+    return git;
+}
 
 afterEach(async () => {
+    const servicesToClose = [...gitServices];
+    gitServices.length = 0;
+    await Promise.allSettled(servicesToClose.map((git) => git.close()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -41,10 +55,9 @@ describe('GitService', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const git = new GitService(
-            new ProjectRootResolver(database),
-            new StructuredLogger(join(directory, '.logs')),
-        );
+        const rootResolver = new ProjectRootResolver(database);
+        const gitLogger = new StructuredLogger(join(directory, '.logs'));
+        const git = trackGitService(new GitService(rootResolver, gitLogger));
 
         await expect(git.blame({ sessionId: session.id, path, line: 2 })).resolves.toMatchObject({
             author: 'Caxri Test',
@@ -78,7 +91,7 @@ describe('GitService', () => {
         ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
         const paths = new ProjectRootResolver(database);
-        const git = new GitService(paths, logger);
+        const git = trackGitService(new GitService(paths, logger));
         const [summary, concurrentSummary] = await Promise.all([
             git.summary(session.id),
             git.summary(session.id),
@@ -159,10 +172,9 @@ describe('GitService', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const git = new GitService(
-            new ProjectRootResolver(database),
-            new StructuredLogger(join(directory, '.logs')),
-        );
+        const rootResolver = new ProjectRootResolver(database);
+        const gitLogger = new StructuredLogger(join(directory, '.logs'));
+        const git = trackGitService(new GitService(rootResolver, gitLogger));
         const repo = (await git.summary(session.id)).repositories[0];
 
         const branchList = await git.branches({
@@ -251,10 +263,9 @@ describe('GitService', () => {
             database.createProject(repoRoot).id,
             'shell',
         ).session;
-        const git = new GitService(
-            new ProjectRootResolver(database),
-            new StructuredLogger(join(directory, 'logs')),
-        );
+        const rootResolver = new ProjectRootResolver(database);
+        const gitLogger = new StructuredLogger(join(directory, 'logs'));
+        const git = trackGitService(new GitService(rootResolver, gitLogger));
         const repo = (await git.summary(session.id)).repositories[0];
         const previousPath = process.env.PATH;
         process.env.PATH = `${bin}:${previousPath ?? ''}`;
@@ -338,7 +349,7 @@ describe('GitService', () => {
         ).session;
         const logger = new StructuredLogger(join(directory, '.logs'));
         const paths = new ProjectRootResolver(database);
-        const summary = await new GitService(paths, logger).summary(session.id);
+        const summary = await trackGitService(new GitService(paths, logger)).summary(session.id);
 
         expect(summary).toMatchObject({
             isRepository: true,
@@ -393,10 +404,9 @@ describe('GitService', () => {
 
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
-        const git = new GitService(
-            new ProjectRootResolver(database),
-            new StructuredLogger(join(directory, 'logs')),
-        );
+        const rootResolver = new ProjectRootResolver(database);
+        const gitLogger = new StructuredLogger(join(directory, 'logs'));
+        const git = trackGitService(new GitService(rootResolver, gitLogger));
         const repo = (await git.summary(session.id)).repositories[0];
 
         expect(repo.files).toEqual(
@@ -478,7 +488,7 @@ describe('GitService', () => {
         const session = database.createSession(primaryProject.id, 'shell').session;
         const logger = new StructuredLogger(join(directory, 'logs'));
         const paths = new ProjectRootResolver(database);
-        const git = new GitService(paths, logger);
+        const git = trackGitService(new GitService(paths, logger));
         const topology = await git.worktreeTopology(root);
         expect(topology.repositoryKey).toBe(await realpath(join(root, '.git')));
         expect(topology.worktrees).toEqual(

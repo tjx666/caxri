@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
-import type { AgentHookAdapter, DesiredHookInstall } from '../contract';
+import type { AgentHookAdapter, AgentHookBinding, DesiredHookInstall } from '../contract';
+import { inspectJsonHooks, removeJsonHooks, renderJsonHooks } from '../json-config';
 
 function desired(provider: 'claude' | 'codex', schemaVersion = 2): DesiredHookInstall {
     return {
@@ -10,6 +11,26 @@ function desired(provider: 'claude' | 'codex', schemaVersion = 2): DesiredHookIn
         provider,
         schemaVersion,
     };
+}
+
+function binding(
+    event: string,
+    phase: AgentHookBinding['phase'],
+    matcher?: string,
+): AgentHookBinding {
+    return matcher ? { event, matcher, phase } : { event, phase };
+}
+
+/**
+ * Builds a marker-matching owned command string without depending on the private `buildBridgeCommand` helper, so these
+ * tests stay at the level of the documented wire contract that `ownedSchema()` parses.
+ */
+function ownedCommand(provider: 'claude' | 'codex', phase: string, schemaVersion: number): string {
+    return `'/bridge' --source caxri --provider ${provider} --phase ${phase} --schema ${schemaVersion}`;
+}
+
+function jsonSource(hooks: Record<string, unknown>): string {
+    return `${JSON.stringify({ hooks }, null, 2)}\n`;
 }
 
 function install(
@@ -149,5 +170,153 @@ describe('Agent provider hook configuration adapters', () => {
             claudeHookAdapter.inspect(new Map([['settings', '{ "hooks": ']]), desired('claude'))
                 .status,
         ).toMatchObject({ kind: 'unparseable' });
+    });
+});
+
+describe('json-config status matrix and partial-group edits', () => {
+    it('reports absent when no owned entries are installed for any bound event', () => {
+        const bindings = [binding('Stop', 'turnFinished')];
+
+        expect(inspectJsonHooks(undefined, desired('codex'), bindings)).toEqual({
+            kind: 'absent',
+        });
+        expect(inspectJsonHooks('{}\n', desired('codex'), bindings)).toEqual({ kind: 'absent' });
+    });
+
+    it('reports current immediately after rendering the desired bindings', () => {
+        const bindings = [
+            binding('Stop', 'turnFinished'),
+            binding('UserPromptSubmit', 'turnStarted'),
+        ];
+        const installed = renderJsonHooks('target', undefined, desired('codex'), bindings).source;
+
+        expect(inspectJsonHooks(installed, desired('codex'), bindings)).toEqual({
+            kind: 'current',
+        });
+    });
+
+    it('reports drifted when the installed entry count does not match the desired binding count', () => {
+        const bindings = [
+            binding('Stop', 'turnFinished'),
+            binding('UserPromptSubmit', 'turnStarted'),
+        ];
+        const onlyOneInstalled = jsonSource({
+            Stop: [
+                {
+                    hooks: [
+                        {
+                            type: 'command',
+                            command: ownedCommand('codex', 'turnFinished', 2),
+                            timeout: 1,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        expect(inspectJsonHooks(onlyOneInstalled, desired('codex'), bindings)).toEqual({
+            kind: 'drifted',
+        });
+    });
+
+    it('reports drifted when an owned handler shares its group with a foreign handler', () => {
+        const bindings = [binding('Stop', 'turnFinished')];
+        const mixedGroup = jsonSource({
+            Stop: [
+                {
+                    hooks: [
+                        {
+                            type: 'command',
+                            command: ownedCommand('codex', 'turnFinished', 2),
+                            timeout: 1,
+                        },
+                        { type: 'command', command: '/usr/local/bin/foreign-hook' },
+                    ],
+                },
+            ],
+        });
+
+        expect(inspectJsonHooks(mixedGroup, desired('codex'), bindings)).toEqual({
+            kind: 'drifted',
+        });
+    });
+
+    it('removes only the owned handler from a shared group and keeps the foreign handler in place', () => {
+        const mixedGroup = jsonSource({
+            Stop: [
+                {
+                    hooks: [
+                        {
+                            type: 'command',
+                            command: ownedCommand('codex', 'turnFinished', 2),
+                            timeout: 1,
+                        },
+                        { type: 'command', command: '/usr/local/bin/foreign-hook' },
+                    ],
+                },
+            ],
+        });
+
+        const edits = removeJsonHooks('target', mixedGroup, desired('codex'));
+
+        expect(edits).toHaveLength(1);
+        const remaining = JSON.parse(edits[0].source) as {
+            hooks: { Stop: Array<{ hooks: unknown[] }> };
+        };
+        expect(remaining.hooks.Stop).toHaveLength(1);
+        expect(remaining.hooks.Stop[0].hooks).toEqual([
+            { type: 'command', command: '/usr/local/bin/foreign-hook' },
+        ]);
+    });
+
+    it('removes an entire group and prunes the event key once every handler in it is owned', () => {
+        const ownedOnlyGroup = jsonSource({
+            Stop: [
+                {
+                    hooks: [
+                        {
+                            type: 'command',
+                            command: ownedCommand('codex', 'turnFinished', 2),
+                            timeout: 1,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const edits = removeJsonHooks('target', ownedOnlyGroup, desired('codex'));
+
+        expect(edits).toHaveLength(1);
+        expect(JSON.parse(edits[0].source)).toEqual({});
+    });
+
+    it('reports stale using the minimum installed schema when every entry is older than desired', () => {
+        const bindings = [
+            binding('Stop', 'turnFinished'),
+            binding('UserPromptSubmit', 'turnStarted'),
+        ];
+        const current = renderJsonHooks('target', undefined, desired('codex'), bindings).source;
+        const allStale = current.replaceAll('--schema 2', '--schema 1');
+
+        expect(inspectJsonHooks(allStale, desired('codex'), bindings)).toEqual({
+            kind: 'stale',
+            installedSchema: 1,
+        });
+    });
+
+    it('reports newer using the maximum installed schema across mixed stale and newer entries', () => {
+        const bindings = [
+            binding('Stop', 'turnFinished'),
+            binding('UserPromptSubmit', 'turnStarted'),
+        ];
+        const current = renderJsonHooks('target', undefined, desired('codex'), bindings).source;
+        const mixedSchemas = current
+            .replace('--phase turnFinished --schema 2', '--phase turnFinished --schema 1')
+            .replace('--phase turnStarted --schema 2', '--phase turnStarted --schema 3');
+
+        expect(inspectJsonHooks(mixedSchemas, desired('codex'), bindings)).toEqual({
+            kind: 'newer',
+            installedSchema: 3,
+        });
     });
 });
