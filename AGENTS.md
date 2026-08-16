@@ -5,7 +5,7 @@
 | Path        | Purpose                                                                    |
 | ----------- | -------------------------------------------------------------------------- |
 | `src/`      | Electron Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
-| `packages/` | Browser-safe protocol and standalone CLI workspaces                        |
+| `packages/` | Browser-safe protocol, shared pure-utility, and standalone CLI workspaces  |
 | `e2e/`      | Playwright Electron workflows and shared desktop fixtures                  |
 | `scripts/`  | Repository-wide CI, validation, benchmark, and runner tooling              |
 | `.agents/`  | Canonical contributor skills; `.claude/skills` is a compatibility symlink  |
@@ -97,6 +97,8 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   `devEngines.packageManager`; `mise.toml` and the explicit GitHub Actions setup own tool versions.
 - Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
   native dependencies out of `packages/cli`'s production dependency graph.
+- Keep `packages/utils` browser-safe and free of runtime dependencies; it holds pure functions
+  only. Domain types, protocol schemas, and React code never move there.
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
   `registry`, and `transport` boundaries. External consumers use the package root; compatibility
   re-exports under `src/shared` may target the owning domain module directly.
@@ -161,6 +163,14 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   variants in Main, Runtime, and tooling code; test code is exempt. A deliberately synchronous
   production boundary needs a comment justifying it.
 - Prefer JSDoc for non-obvious lifecycle or security behavior and document why a workaround exists.
+- Generic helpers come from `es-toolkit` first; never hand-roll a function it already ships. What
+  it lacks goes to the shared layers instead of a feature-local copy: browser-safe dependency-free
+  pure functions in `@caxri/utils` (`packages/utils`), cross-feature React hooks in
+  `src/renderer/src/hooks` (`@/hooks`). Feature directories hold feature-specific logic only.
+- Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
+  is a maintenance duty: when a shared implementation replaces local copies, migrate every call
+  site in the same change, and never leave two coexisting ways of doing the same thing — the old
+  pattern keeps propagating for as long as it remains visible.
 - Style the Renderer with Tailwind v4 utilities backed by semantic runtime theme tokens. Color
   utilities must reference tokens only (`bg-surface`, `text-muted`); the default palette is
   unregistered, and literal color utilities are forbidden. See `DESIGN.md`.
