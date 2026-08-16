@@ -52,6 +52,7 @@ export class StructuredLogger {
      */
     private readonly appVersion?: string;
     private readonly commit?: string;
+    private readonly directory: string;
     readonly path: string;
 
     constructor(
@@ -61,6 +62,7 @@ export class StructuredLogger {
     ) {
         // oxlint-disable-next-line node/no-sync -- deliberate: must exist before the first synchronous write() below.
         mkdirSync(logDirectory, { recursive: true });
+        this.directory = logDirectory;
         this.path = join(logDirectory, `${processName}.jsonl`);
         // `||` (not `??`) is deliberate: an env var explicitly set to `''` should also collapse to
         // "unknown" rather than being logged as an empty-string version/commit.
@@ -106,8 +108,26 @@ export class StructuredLogger {
             }
             this.bytesWritten = 0;
         }
-        // oxlint-disable-next-line node/no-sync -- deliberate: synchronous by design, durable the instant this returns.
-        appendFileSync(this.path, line, { encoding: 'utf8', mode: 0o600 });
+        try {
+            // oxlint-disable-next-line node/no-sync -- deliberate: synchronous by design, durable the instant this returns.
+            appendFileSync(this.path, line, { encoding: 'utf8', mode: 0o600 });
+        } catch (error) {
+            /**
+             * Logging is best-effort: the log directory can legitimately vanish while the process is still running
+             * (profile teardown racing a late async callback, uninstall/reset tooling). Recreate it and retry once; if
+             * the retry still fails, drop the record instead of throwing into an arbitrary call site — a lost log line
+             * must never crash a watcher or become an unhandled rejection.
+             */
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+            try {
+                // oxlint-disable-next-line node/no-sync -- deliberate: same synchronous recovery path as the write above.
+                mkdirSync(this.directory, { recursive: true });
+                // oxlint-disable-next-line node/no-sync -- deliberate: see the class doc comment above.
+                appendFileSync(this.path, line, { encoding: 'utf8', mode: 0o600 });
+            } catch {
+                return;
+            }
+        }
         this.bytesWritten += Buffer.byteLength(line, 'utf8');
     }
 }
