@@ -73,6 +73,10 @@ function SettingsDialogView(controller: SettingsDialogController) {
                         className="my-1 mr-2"
                         value={[view]}
                         onValueChange={(next: Array<'ui' | 'source'>) => {
+                            // Base UI reports re-activating the selected segment as an empty
+                            // selection; the view toggle must stay on the current view instead of
+                            // snapping back to UI.
+                            if (next.length === 0) return;
                             const nextView = next[0];
                             if (nextView === 'source') controller.showSource();
                             else controller.showUi();

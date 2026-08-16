@@ -392,6 +392,14 @@ export class AgentCoordinator {
                 signal.agentSessionId,
             )
         ) {
+            /**
+             * Invalidate any in-flight probe for the previous session so its late result cannot write the old identity
+             * and title back over the rebound one.
+             */
+            this.probeGenerations.set(
+                signal.terminalId,
+                (this.probeGenerations.get(signal.terminalId) ?? 0) + 1,
+            );
             this.refreshes.schedule(signal.terminalId);
         }
         const isUpdated = this.database.updateAgentLifecycle(signal);

@@ -123,7 +123,7 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                     <button
                         className="project-status-toggle grid h-7 w-[13px] flex-none cursor-pointer place-items-center border-0 bg-surface text-muted hover:bg-elevated hover:text-foreground"
                         aria-expanded={expanded}
-                        aria-label="Toggle checks"
+                        aria-label={`Toggle ${node.label} checks`}
                         onClick={() => setExpanded((value) => !value)}
                     >
                         {chevron}
