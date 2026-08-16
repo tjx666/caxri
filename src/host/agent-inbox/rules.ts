@@ -13,7 +13,7 @@ import type {
 import { CaxriError } from '../../shared/ipc/errors';
 import type { CommandExecutionContext } from '../../shared/ipc/principal';
 import type { AgentEndpointRegistry } from '../agent-endpoints';
-import type { StoredMessage } from './types';
+import type { PendingState, StoredMessage } from './types';
 
 export const MAX_WAITING_PER_ENDPOINT = 50;
 export const MAX_HELD_PER_ENDPOINT = 100;
@@ -21,9 +21,23 @@ export const MAX_PENDING_MESSAGES = 1_024;
 export const MAX_PENDING_BYTES = 4 * 1024 * 1024;
 export const MAX_RECEIPTS = 4_096;
 export const DUPLICATE_WINDOW_MS = 30_000;
+/**
+ * Duplicate fingerprints are bounded by capacity as well as TTL: invalid-target sends bypass `admitPairTraffic`, so
+ * throughput alone must not grow Host memory inside one TTL window. Capacity eviction only lowers the dedup hit rate;
+ * it never changes delivery semantics.
+ */
+export const MAX_DUPLICATES = 4_096;
 export const LOOP_WINDOW_MS = 5 * 60 * 1_000;
 export const MAX_PAIR_MESSAGES_PER_WINDOW = 16;
 export const MAX_REPLY_DEPTH = 8;
+
+// The exact states still "in flight" toward eventual delivery; shared so every inbox guard
+// checks membership consistently instead of repeating equality chains.
+export const PENDING_MESSAGE_STATES: ReadonlyArray<StoredMessage['state']> = [
+    'waiting',
+    'held',
+    'delivering',
+] satisfies readonly PendingState[];
 
 export function endpointKey(reference: AgentEndpointReference): string {
     return `${reference.hostId}:${reference.endpointId}:${reference.generation}`;

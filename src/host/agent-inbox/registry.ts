@@ -27,6 +27,7 @@ import {
     heldMessageDetail,
     heldMessageProjection,
     LOOP_WINDOW_MS,
+    MAX_DUPLICATES,
     MAX_HELD_PER_ENDPOINT,
     MAX_PAIR_MESSAGES_PER_WINDOW,
     MAX_PENDING_BYTES,
@@ -34,6 +35,7 @@ import {
     MAX_RECEIPTS,
     MAX_REPLY_DEPTH,
     MAX_WAITING_PER_ENDPOINT,
+    PENDING_MESSAGE_STATES,
     resolvePullReceiver,
     resolveSender,
 } from './rules';
@@ -44,17 +46,8 @@ import type {
     DuplicateReceipt,
     IdempotencyReceipt,
     MessageWaiter,
-    PendingState,
     StoredMessage,
 } from './types';
-
-// A message is still "in flight" toward eventual delivery in exactly these states; shared so
-// every guard below checks membership consistently instead of repeating equality chains.
-const PENDING_MESSAGE_STATES: ReadonlyArray<StoredMessage['state']> = [
-    'waiting',
-    'held',
-    'delivering',
-] satisfies readonly PendingState[];
 
 /**
  * Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input.
@@ -375,10 +368,20 @@ export class AgentInboxRegistry {
             digest: canonicalDigest,
             messageId: message.receipt.messageId,
         });
+        // Fixed TTL makes Map insertion order equal expiry order, so capacity eviction removes the
+        // oldest entry; `set` keeps an existing key's position, so delete first to preserve that.
+        this.duplicates.delete(message.fingerprint);
+        while (this.duplicates.size >= MAX_DUPLICATES)
+            this.duplicates.delete(this.duplicates.keys().next().value!);
         this.duplicates.set(message.fingerprint, {
             messageId: message.receipt.messageId,
             expiresAt: this.now() + DUPLICATE_WINDOW_MS,
         });
+    }
+
+    private releaseDuplicate({ fingerprint, receipt }: StoredMessage): void {
+        const entry = this.duplicates.get(fingerprint);
+        if (entry?.messageId === receipt.messageId) this.duplicates.delete(fingerprint);
     }
 
     private admitReceipt(): void {
@@ -393,6 +396,7 @@ export class AgentInboxRegistry {
             throw new CaxriError('CAPACITY', 'Agent message receipt capacity is exhausted');
         this.messages.delete(terminal[0]);
         this.releaseIdempotency(terminal[1]);
+        this.releaseDuplicate(terminal[1]);
     }
 
     private releaseIdempotency({ idempotencyMapKey, receipt }: StoredMessage): void {
@@ -753,13 +757,13 @@ export class AgentInboxRegistry {
             if (reservation.endpointKey === key) this.reservations.delete(requestId);
         }
         for (const message of this.messages.values()) {
-            if (referencesEqual(message.receipt.from, reference)) this.releaseIdempotency(message);
-            if (
-                (referencesEqual(message.receipt.from, reference) ||
-                    referencesEqual(message.receipt.to, reference)) &&
-                PENDING_MESSAGE_STATES.includes(message.state)
-            )
-                this.finish(message, 'expired');
+            const isSender = referencesEqual(message.receipt.from, reference);
+            if (isSender) this.releaseIdempotency(message);
+            if (!isSender && !referencesEqual(message.receipt.to, reference)) continue;
+            // A retired generation can never satisfy its fingerprints again; releasing them keeps
+            // retirement consistent with receipt eviction and close.
+            this.releaseDuplicate(message);
+            if (PENDING_MESSAGE_STATES.includes(message.state)) this.finish(message, 'expired');
         }
         this.policies.delete(key);
         this.waiting.delete(key);

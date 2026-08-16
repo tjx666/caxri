@@ -306,6 +306,68 @@ describe('AgentInboxRegistry', () => {
         inbox.close();
     });
 
+    it('bounds duplicate fingerprints and releases them with receipt eviction', () => {
+        const { begin, inbox } = setup();
+        const sender = begin();
+        const unavailable = {
+            endpointId: 'unavailable-endpoint',
+            generation: 1,
+            hostId: 'host-1',
+        };
+        const duplicates = Reflect.get(inbox, 'duplicates') as Map<string, unknown>;
+        const messages = Reflect.get(inbox, 'messages') as Map<string, unknown>;
+
+        const first = inbox.send(
+            sender.context,
+            sendInput(unavailable, 'flood body 0'),
+            'flood-request-0',
+        );
+        // A same-window retry under a different request ID still deduplicates by fingerprint.
+        expect(
+            inbox.send(sender.context, sendInput(unavailable, 'flood body 0'), 'flood-retry')
+                .messageId,
+        ).toBe(first.messageId);
+
+        // Invalid targets bypass pair-traffic limits, so distinct bodies must not grow duplicate
+        // state past the receipt bound within one TTL window (GitHub issue #174).
+        for (let index = 1; index <= MAX_RECEIPTS + 64; index += 1) {
+            inbox.send(
+                sender.context,
+                sendInput(unavailable, `flood body ${index}`),
+                `flood-request-${index}`,
+            );
+        }
+        expect(duplicates.size).toBeLessThanOrEqual(MAX_RECEIPTS);
+        expect(duplicates.size).toBe(messages.size);
+
+        // The evicted first receipt released its fingerprint, so a resend mints a fresh message
+        // instead of returning another message's receipt.
+        const resent = inbox.send(
+            sender.context,
+            sendInput(unavailable, 'flood body 0'),
+            'flood-after-eviction',
+        );
+        expect(resent.messageId).not.toBe(first.messageId);
+        inbox.close();
+    });
+
+    it('releases duplicate fingerprints when the involved generation retires', () => {
+        const { begin, endpoints, inbox } = setup();
+        const sender = begin();
+        const unavailable = {
+            endpointId: 'unavailable-endpoint',
+            generation: 1,
+            hostId: 'host-1',
+        };
+        const duplicates = Reflect.get(inbox, 'duplicates') as Map<string, unknown>;
+
+        inbox.send(sender.context, sendInput(unavailable, 'retired body'), 'request-1');
+        expect(duplicates.size).toBe(1);
+        endpoints.retireTerminal('terminal-1');
+        expect(duplicates.size).toBe(0);
+        inbox.close();
+    });
+
     it('releases terminal receipt idempotency records when the sender generation retires', () => {
         const { begin, endpoints, inbox } = setup();
         const sender = begin();
