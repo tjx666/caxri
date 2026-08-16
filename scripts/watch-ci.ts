@@ -7,9 +7,9 @@
  * API usage and die on transient network loss (the operator frequently tethers, so minutes-long offline windows are
  * normal). This watcher fixes both:
  *
- * - Single-poller election: watchers of the same run share `.cache/ci-watch/<runId>.json`. The process holding a fresh
- *   heartbeat polls GitHub; every other session follows the state file at zero API cost and takes over automatically
- *   when the heartbeat goes stale.
+ * - Single-poller election: watchers of the same run share `~/.cache/caxri/ci-watch/<runId>.json` (user-level so sessions
+ *   in different worktrees still converge). The process holding a fresh heartbeat polls GitHub; every other session
+ *   follows the state file at zero API cost and takes over automatically when the heartbeat goes stale.
  * - Immediate failure notification: the first time any job concludes failed/timed_out/cancelled a macOS notification
  *   fires, without waiting for the whole run to complete. Notified jobs are recorded in the shared state so reruns and
  *   follower sessions do not re-notify.
@@ -22,6 +22,7 @@
 
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -39,7 +40,12 @@ const HEARTBEAT_STALE_MS = POLL_INTERVAL_MS * 3;
 const INITIAL_BACKOFF_MS = POLL_INTERVAL_MS;
 const MAX_BACKOFF_MS = 300_000;
 
-const STATE_DIRECTORY = '.cache/ci-watch';
+/**
+ * User-level, worktree-independent state root: parallel agent sessions usually run in different isolated worktrees, so
+ * a repository-local `.cache` would silently break the single-poller election. GitHub run database IDs are globally
+ * unique, so keying by run ID alone is safe.
+ */
+const STATE_DIRECTORY = join(homedir(), '.cache', 'caxri', 'ci-watch');
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
 export interface WatchedJob {

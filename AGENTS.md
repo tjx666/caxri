@@ -87,7 +87,7 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   `bun run test`
 - Watch a GitHub Actions run to completion: `bun run scripts/watch-ci.ts [--run <id>]`
   (defaults to the newest run on the current branch). Sessions watching the same run share one
-  GitHub poller through `.cache/ci-watch/`, failed jobs raise an immediate macOS notification, and
+  GitHub poller through the user-level `~/.cache/caxri/ci-watch/` (worktree-independent), failed jobs raise an immediate macOS notification, and
   polling survives offline windows with capped backoff. Exits 0/1 with the run conclusion.
 - Preview the pre-release local reset/uninstall plan: `bun run uninstall:caxri`; apply it only after
   explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known Caxri
