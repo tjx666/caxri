@@ -1,20 +1,16 @@
 import { z } from 'zod';
 
-import type { AgentLaunchSettings, AgentProvider, AgentProviderSettings } from '../agent/agents.js';
+import type { AgentProvider } from '../agent/agents.js';
 import { agentProviderIds } from '../agent/agents.js';
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
-import {
-    MAX_TRUSTED_DOMAIN_LENGTH,
-    MAX_TRUSTED_DOMAINS,
-} from '../configuration/trusted-domains.js';
+import { appSettingsSchema } from '../configuration/settings-schema.js';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { gitCommitSchema } from './git.js';
 import { inspectorModeSchema } from './inspector.js';
 import { terminalLayoutSchema } from './layout.js';
 import { workItemSchema } from './work-item.js';
 
 export * from './git.js';
-
-export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
 
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
@@ -174,55 +170,6 @@ export const sessionStateSchema = z.object({
     layout: terminalLayoutSchema,
 });
 
-/**
- * Numeric bounds and defaults for the user-configurable settings below. `appSettingsSchema` stays intentionally
- * unconstrained (it only validates the wire shape); the strict per-field bounds live here so
- * `src/runtime/configuration.ts`'s Runtime-side validation schema can import them instead of re-declaring the same
- * numbers with no compiler link back to this contract.
- */
-export const SETTINGS_BOUNDS = {
-    'terminal.fontSize': { min: 9, max: 32, default: 13 },
-    'terminal.scrollback': { min: 100, max: 10_000, default: 2_000 },
-    'terminal.copyOnSelect': { default: true },
-    'terminal.gpuAcceleration': { default: 'off' },
-    'terminal.osc52ClipboardWrite': { default: false },
-    'files.maxFileBytes': {
-        min: 1_024,
-        max: MAX_CONFIGURABLE_FILE_BYTES,
-        default: 2 * 1024 * 1024,
-    },
-} as const;
-
-/**
- * VS Code-style defaults for file-tree visibility; dependency and build output stay visible.
- */
-export const DEFAULT_FILES_EXCLUDE = {
-    '**/.git': true,
-    '**/.hg': true,
-    '**/.svn': true,
-    '**/.DS_Store': true,
-    '**/CVS': true,
-    '**/Thumbs.db': true,
-} as const;
-
-const agentLaunchSettingsSchema = z.object({
-    executable: z.string(),
-    args: z.array(z.string()),
-}) satisfies z.ZodType<AgentLaunchSettings>;
-
-const agentProviderSettingsEntrySchema = z.object({
-    hooks: z.object({ enabled: z.boolean() }),
-    launch: agentLaunchSettingsSchema,
-    messaging: z.object({ enabled: z.boolean() }),
-}) satisfies z.ZodType<AgentProviderSettings>;
-
-const agentProviderSettingsShape = {
-    claude: agentProviderSettingsEntrySchema,
-    codex: agentProviderSettingsEntrySchema,
-} satisfies Record<AgentProvider, typeof agentProviderSettingsEntrySchema>;
-
-const agentProviderSettingsSchema = z.object(agentProviderSettingsShape);
-
 const agentHookHealthKindSchema = z.enum([
     'unsupported',
     'notInstalled',
@@ -241,24 +188,6 @@ const agentHookHealthSchema = z.object({
 });
 
 export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookHealthSchema);
-
-export const appSettingsSchema = z.object({
-    'session.defaultAgent': terminalKindSchema.nullable(),
-    'workbench.newWorktreeBehavior': newWorktreeBehaviorSchema,
-    'agents.providers': agentProviderSettingsSchema,
-    'security.trustedDomains': z
-        .array(z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH))
-        .max(MAX_TRUSTED_DOMAINS)
-        .default([]),
-    'terminal.defaultWorkingDirectory': z.string().nullable(),
-    'terminal.fontSize': z.number(),
-    'terminal.scrollback': z.number(),
-    'terminal.copyOnSelect': z.boolean(),
-    'terminal.gpuAcceleration': z.enum(['auto', 'on', 'off']),
-    'terminal.osc52ClipboardWrite': z.boolean(),
-    'files.exclude': z.record(z.string(), z.boolean()),
-    'files.maxFileBytes': z.number(),
-});
 
 /**
  * One authorized Project that belongs to the owning repository's linked-worktree topology.
@@ -675,7 +604,6 @@ export type SessionRecord = z.infer<typeof sessionRecordSchema>;
 export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
-export type AppSettings = z.infer<typeof appSettingsSchema>;
 export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;
 export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;
 export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;

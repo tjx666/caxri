@@ -7,7 +7,12 @@ import process from 'node:process';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+    revealSettingsSection,
+} from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
@@ -203,6 +208,7 @@ process.stdin.resume();
         const sessionId = await createProjectSession(running.page, 'codex');
         await running.page.keyboard.press('Meta+,');
         const settingsDialog = running.page.getByRole('dialog');
+        await revealSettingsSection(settingsDialog, 'Codex');
         const codexSkill = settingsDialog.locator('[data-agent-skill-health="codex"]');
         await expect(codexSkill).toContainText(`Bundled v${bundled.bundledVersion}`);
         await expect(codexSkill.locator('[data-agent-skill-scope="local"]')).toContainText(

@@ -1,0 +1,102 @@
+import { describe, expect, it } from 'vitest';
+
+import type { SettingRowDescriptor, SettingsCategory } from './settings-registry';
+import { settingsCategories, settingsRows } from './settings-registry';
+import { buildSettingsList, countRowsByCategory, filterSettingsRows } from './settings-search';
+
+const row = (
+    id: string,
+    category: SettingRowDescriptor['category'],
+    haystack: string,
+    subcategory?: string,
+): SettingRowDescriptor => ({
+    id,
+    category,
+    subcategory,
+    title: id,
+    binding: { type: 'setting', key: 'terminal.fontSize' },
+    haystack,
+});
+
+const categories: SettingsCategory[] = [
+    { id: 'general', title: 'General', subcategories: [] },
+    { id: 'agents', title: 'Agents', subcategories: ['Claude Code', 'Codex'] },
+];
+
+describe('filterSettingsRows', () => {
+    it('keeps every row for an empty or blank query', () => {
+        const rows = [row('a', 'general', 'alpha'), row('b', 'agents', 'beta')];
+        expect(filterSettingsRows(rows, '')).toHaveLength(2);
+        expect(filterSettingsRows(rows, ' '.repeat(3))).toHaveLength(2);
+    });
+
+    it('requires every whitespace-separated token to match (AND semantics)', () => {
+        const rows = [
+            row('a', 'general', 'terminal font size'),
+            row('b', 'general', 'terminal scrollback'),
+        ];
+        expect(filterSettingsRows(rows, 'terminal font').map((r) => r.id)).toEqual(['a']);
+        expect(filterSettingsRows(rows, 'TERMINAL')).toHaveLength(2);
+        expect(filterSettingsRows(rows, 'terminal missing')).toHaveLength(0);
+    });
+
+    it('matches real registry rows by category title and provider name', () => {
+        const byCategoryWord = filterSettingsRows(settingsRows, 'terminal');
+        expect(byCategoryWord.some((r) => r.id === 'terminal.fontSize')).toBe(true);
+        const byProvider = filterSettingsRows(settingsRows, 'claude');
+        expect(byProvider.length).toBeGreaterThan(0);
+        expect(byProvider.every((r) => r.haystack.includes('claude'))).toBe(true);
+    });
+});
+
+describe('buildSettingsList', () => {
+    it('emits a category heading before its first visible row and drops empty categories', () => {
+        const rows = [row('a', 'general', 'alpha')];
+        const list = buildSettingsList(categories, rows);
+        expect(list.map((item) => item.id)).toEqual(['category:general', 'a']);
+    });
+
+    it('emits a subcategory heading whenever the subcategory changes', () => {
+        const rows = [
+            row('c1', 'agents', 'x', 'Claude Code'),
+            row('c2', 'agents', 'x', 'Claude Code'),
+            row('x1', 'agents', 'x', 'Codex'),
+        ];
+        const list = buildSettingsList(categories, rows);
+        expect(list.map((item) => item.id)).toEqual([
+            'category:agents',
+            'subcategory:agents:Claude Code',
+            'c1',
+            'c2',
+            'subcategory:agents:Codex',
+            'x1',
+        ]);
+    });
+
+    it('flattens the full registry with unique ids in display order', () => {
+        const list = buildSettingsList(settingsCategories, settingsRows);
+        const ids = list.map((item) => item.id);
+        expect(new Set(ids).size).toBe(ids.length);
+        expect(list.filter((item) => item.kind === 'row')).toHaveLength(settingsRows.length);
+        expect(list[0]).toMatchObject({ kind: 'category' });
+    });
+});
+
+describe('countRowsByCategory', () => {
+    it('counts visible rows per category', () => {
+        const rows = [row('a', 'general', 'x'), row('b', 'general', 'x'), row('c', 'agents', 'x')];
+        expect(countRowsByCategory(rows)).toEqual({ agents: 1, general: 2 });
+    });
+
+    it('counts subcategory anchors so the TOC can hide sections with no matches', () => {
+        const rows = [
+            row('c1', 'agents', 'x', 'Claude Code'),
+            row('c2', 'agents', 'x', 'Claude Code'),
+        ];
+        const counts = countRowsByCategory(rows);
+        expect(counts['agents:Claude Code']).toBe(2);
+        // A filtered-out subcategory has no anchor entry, so its TOC button disappears while
+        // searching instead of navigating to a heading that is absent from the filtered list.
+        expect(counts['agents:Codex']).toBeUndefined();
+    });
+});

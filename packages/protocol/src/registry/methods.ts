@@ -11,6 +11,8 @@ import {
     configurationSourceSchema as configSourceSchema,
     MAX_KEYBINDINGS,
 } from '../configuration/configuration-contract.js';
+import { appSettingsSchema } from '../configuration/settings-schema.js';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { argvConfigChangesSchema, argvConfigSchema } from '../desktop/argv-config.js';
 import { desktopHostMethods, desktopStatusResultSchema } from '../desktop/desktop-contract.js';
@@ -18,7 +20,6 @@ import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contrac
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
     agentHookHealthMapSchema,
-    appSettingsSchema,
     bootstrapStateSchema,
     fileDocumentSchema,
     fileEntrySchema,
@@ -36,7 +37,6 @@ import {
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
-    MAX_CONFIGURABLE_FILE_BYTES,
     movedFileEntrySchema,
     mutableFileEntrySchema,
     pathSchema,

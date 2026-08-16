@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
+import { appSettingsSchema } from '../configuration/settings-schema.js';
 import type { ProjectRecord } from '../domain/domain.js';
 import {
-    appSettingsSchema,
     projectRecordSchema,
     sessionRecordSchema,
     terminalRecordSchema,

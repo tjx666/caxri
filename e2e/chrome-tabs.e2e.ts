@@ -185,7 +185,7 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
          * a field must persist without an explicit Apply affordance, and the moving indicator must keep tracking the
          * (visually unchanged) tab through that write rather than drifting or losing alignment.
          */
-        await dialog.getByLabel('Terminal font size').fill('14');
+        await dialog.getByRole('spinbutton', { name: 'Font size' }).fill('14');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{ value: { 'terminal.fontSize': number } }>(

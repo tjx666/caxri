@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import type {
