@@ -1,6 +1,4 @@
-import type { KeyboardEvent, PointerEvent } from 'react';
-import { useRef } from 'react';
-
+import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
 import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
 
 /**
@@ -47,53 +45,37 @@ interface PanelDividerProperties {
     onCommit(width: number): void;
 }
 
-interface DragState {
-    pointerId: number;
-    startX: number;
-    startWidth: number;
-}
-
 /**
  * A min/max-constrained drag divider shared by the Sidebar↔main and main↔Inspector seams. Dragging writes the live
  * width straight to a root CSS custom property (and to `aria-valuenow`) instead of React state, so a mousemove never
  * triggers a render; the width only reaches the panel-layout store — and `localStorage` — once the gesture ends.
  */
 export function PanelDivider(properties: PanelDividerProperties) {
-    const drag = useRef<DragState | null>(null);
-
-    const clamp = (value: number): number =>
-        Math.min(properties.max, Math.max(properties.min, value));
-
-    const widthFromPointer = (clientX: number, state: DragState): number =>
-        clamp(state.startWidth + (clientX - state.startX) * properties.growDirection);
-
-    const applyLiveWidth = (next: number, element: HTMLElement): void => {
-        document.documentElement.style.setProperty(properties.cssVariable, `${next}px`);
-        element.setAttribute('aria-valuenow', String(Math.round(next)));
-    };
-
-    const endDrag = (event: PointerEvent<HTMLDivElement>): void => {
-        const state = drag.current;
-        if (!state || state.pointerId !== event.pointerId) return;
-        drag.current = null;
-        document.body.classList.remove(DRAG_CLASS);
-        delete event.currentTarget.dataset.dragging;
-        properties.onCommit(widthFromPointer(event.clientX, state));
-    };
-
-    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            properties.onCommit(properties.defaultWidth);
-            return;
-        }
-        const isDecrease = event.key === 'ArrowLeft';
-        const isIncrease = event.key === 'ArrowRight';
-        if (!isDecrease && !isIncrease) return;
-        event.preventDefault();
-        const step = PANEL_RESIZE_STEP * properties.growDirection * (isIncrease ? 1 : -1);
-        properties.onCommit(clamp(properties.width + step));
-    };
+    const dragResize = usePointerDragResize({
+        value: properties.width,
+        min: properties.min,
+        max: properties.max,
+        resolveValue: (event, start) =>
+            start.startValue + (event.clientX - start.startX) * properties.growDirection,
+        onDragMove: (next, event) => {
+            document.documentElement.style.setProperty(properties.cssVariable, `${next}px`);
+            event.currentTarget.setAttribute('aria-valuenow', String(Math.round(next)));
+        },
+        onCommit: (next, event) => {
+            if (event) {
+                document.body.classList.remove(DRAG_CLASS);
+                delete event.currentTarget.dataset.dragging;
+            }
+            properties.onCommit(next);
+        },
+        resolveStep: (event) => {
+            const isDecrease = event.key === 'ArrowLeft';
+            const isIncrease = event.key === 'ArrowRight';
+            if (!isDecrease && !isIncrease) return;
+            return PANEL_RESIZE_STEP * properties.growDirection * (isIncrease ? 1 : -1);
+        },
+        onReset: () => properties.onCommit(properties.defaultWidth),
+    });
 
     return (
         <div
@@ -106,24 +88,16 @@ export function PanelDivider(properties: PanelDividerProperties) {
             aria-valuemax={properties.max}
             aria-valuenow={Math.round(properties.width)}
             onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                drag.current = {
-                    pointerId: event.pointerId,
-                    startX: event.clientX,
-                    startWidth: properties.width,
-                };
+                dragResize.onPointerDown(event);
                 document.body.classList.add(DRAG_CLASS);
                 event.currentTarget.dataset.dragging = 'true';
             }}
-            onPointerMove={(event) => {
-                const state = drag.current;
-                if (!state || state.pointerId !== event.pointerId) return;
-                applyLiveWidth(widthFromPointer(event.clientX, state), event.currentTarget);
-            }}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
+            onPointerMove={dragResize.onPointerMove}
+            onPointerUp={dragResize.onPointerUp}
+            onPointerCancel={dragResize.onPointerCancel}
+            onLostPointerCapture={dragResize.onLostPointerCapture}
             onDoubleClick={() => properties.onCommit(properties.defaultWidth)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={dragResize.onKeyDown}
         />
     );
 }

@@ -11,6 +11,8 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 
+import { useOnVisible } from '@/hooks/use-on-visible';
+
 import { caxri } from '../../lib/caxri';
 import { useDialogStore } from '../../stores/dialogs';
 import { sessionViewScope } from '../../stores/session-view';
@@ -416,12 +418,6 @@ export function useTerminalPaneRuntime({
         );
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
-        const restoreRenderer = (): void => {
-            if (document.visibilityState === 'visible') renderer.restoreVisible();
-        };
-        document.addEventListener('visibilitychange', restoreRenderer);
-        window.addEventListener('focus', restoreRenderer);
-        window.addEventListener('pageshow', restoreRenderer);
 
         const sendInput = async (data: string): Promise<void> => {
             try {
@@ -573,9 +569,6 @@ export function useTerminalPaneRuntime({
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
-            document.removeEventListener('visibilitychange', restoreRenderer);
-            window.removeEventListener('focus', restoreRenderer);
-            window.removeEventListener('pageshow', restoreRenderer);
             container.removeEventListener('paste', handlePaste, true);
             unsubscribe();
             progressDisposable.dispose();
@@ -611,6 +604,18 @@ export function useTerminalPaneRuntime({
     useEffect(() => {
         rendererReference.current?.setPreference(gpuAcceleration);
     }, [gpuAcceleration]);
+
+    /**
+     * `rendererReference` is undefined until the mount effect above finishes attaching, so a visibility event that
+     * fires before then (or after disposal) safely no-ops here instead of racing the renderer's own lifecycle.
+     */
+    const restoreRenderer = useCallback((): void => {
+        // `focus`/`pageshow` can fire while the document is still hidden during window restore; only a visible
+        // document should trigger a renderer restore, matching the guard the inline listeners applied uniformly.
+        if (document.visibilityState !== 'visible') return;
+        rendererReference.current?.restoreVisible();
+    }, []);
+    useOnVisible(restoreRenderer, { includePageShow: true });
 
     useEffect(() => {
         if (processState !== 'running') clearTerminalProgress(terminalId);

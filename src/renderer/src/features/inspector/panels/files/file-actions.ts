@@ -1,3 +1,4 @@
+import { pathBasename } from '@caxri/utils';
 import type { MethodResult } from '@shared/ipc';
 import { errorMessage, isCaxriError } from '@shared/ipc';
 import type { FileEntry, MutableFileEntry } from '@shared/types';
@@ -28,13 +29,6 @@ import {
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-refresh';
-
-/**
- * Caxri paths are canonical absolute POSIX-style strings (see `lib/file-path.ts`).
- */
-function pathBasename(path: string): string {
-    return path.slice(path.lastIndexOf('/') + 1);
-}
 
 /**
  * Looks up one entry's kind from its directory listing; undefined when not found or unreadable.

@@ -1,7 +1,9 @@
 import type { KeyboardEvent } from 'react';
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
+
+import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
@@ -77,13 +79,7 @@ export function TerminalSearchBar({
         if (changed) onToggle(changed);
     };
 
-    useEffect(() => {
-        const frame = requestAnimationFrame(() => {
-            inputReference.current?.focus();
-            inputReference.current?.select();
-        });
-        return () => cancelAnimationFrame(frame);
-    }, [focusRevision]);
+    useFocusOnRevision(focusRevision, inputReference, { select: true });
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
         if (event.key === 'Escape') {

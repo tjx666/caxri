@@ -1,4 +1,5 @@
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
+import { sortBy } from 'es-toolkit';
 
 const MAX_LOGICAL_LINE_ROWS = 16;
 const MAX_LOGICAL_LINE_LENGTH = 16_384;
@@ -132,7 +133,7 @@ export function findTerminalLinks(text: string): TerminalLinkMatch[] {
             text: trimmed.text,
         });
     }
-    return links.toSorted((left, right) => left.startIndex - right.startIndex);
+    return sortBy(links, ['startIndex']);
 }
 
 function normalizeAbsolutePath(path: string): string {

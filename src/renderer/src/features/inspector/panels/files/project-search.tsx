@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
+import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
 import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 import { ChevronDown, ChevronRight, ListFilter, Search, X } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Input, InputGroup } from '../../../../components/ui/input';
@@ -47,11 +49,7 @@ function groupMatches(matches: readonly FileSearchMatch[]): Map<string, FileSear
 }
 
 function sortNameNodes(nodes: NameSearchNode[]): void {
-    nodes.sort(
-        (left, right) =>
-            Number(left.kind === 'file') - Number(right.kind === 'file') ||
-            left.name.localeCompare(right.name),
-    );
+    nodes.sort(compareTreeNodesDirectoriesFirst);
     for (const node of nodes) if (node.kind === 'directory') sortNameNodes(node.children);
 }
 
@@ -280,14 +278,11 @@ export function ProjectSearch({
     );
     const SearchModeIcon = mode === 'name' ? ListFilter : Search;
 
-    useEffect(() => {
-        /**
-         * Focus after the panel commit so a Terminal attachment finishing in the same frame cannot reclaim focus from
-         * the app-wide Search Files command.
-         */
-        const frame = requestAnimationFrame(() => inputReference.current?.focus());
-        return () => cancelAnimationFrame(frame);
-    }, [focusRevision]);
+    /**
+     * Focus after the panel commit so a Terminal attachment finishing in the same frame cannot reclaim focus from the
+     * app-wide Search Files command.
+     */
+    useFocusOnRevision(focusRevision, inputReference);
 
     return (
         <div className="project-search flex min-h-0 flex-1 flex-col">

@@ -3,8 +3,10 @@ import { useState } from 'react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 import * as m from 'motion/react-m';
 
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
 import { Toast, ToastDismiss, ToastIcon, ToastTitle } from '../../components/ui/toast';
-import { motionDurationMs, useShouldReduceMotion } from '../../lib/motion';
+import { motionDurationMs } from '../../lib/motion';
 import { dismissToast, useToastStore } from '../../stores/toasts';
 
 /**

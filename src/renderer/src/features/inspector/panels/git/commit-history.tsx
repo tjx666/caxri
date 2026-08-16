@@ -5,6 +5,7 @@ import type { GitCommit, GitRepositorySummary } from '@shared/types';
 import { ChevronDown, ChevronRight, GitCommitHorizontal } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useNow } from '@/hooks/use-now';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
@@ -80,6 +81,7 @@ function CommitRow({
     onSelect: () => void;
 }) {
     const absoluteTime = new Date(commit.authoredAt).toLocaleString();
+    const now = useNow(30_000);
     return (
         <button
             type="button"
@@ -99,7 +101,7 @@ function CommitRow({
                 <span className="truncate">{commit.author}</span>
                 <span>·</span>
                 <time dateTime={new Date(commit.authoredAt).toISOString()} title={absoluteTime}>
-                    {relativeTime(commit.authoredAt)}
+                    {relativeTime(commit.authoredAt, now)}
                 </time>
             </span>
             {commit.decorations.length > 0 && (

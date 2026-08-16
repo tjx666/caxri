@@ -1,3 +1,5 @@
+import { pathBasename } from '@caxri/utils';
+
 export type GitDiffTab =
     | {
           kind: 'file';
@@ -55,7 +57,7 @@ export function isGitDiffTabPath(path: string): boolean {
 export function gitDiffTabLabel(tab: GitDiffTab): string {
     return tab.kind === 'changes'
         ? `${tab.source === 'pull-request' ? 'PR Changes' : 'Changes'}: ${tab.repositoryName}`
-        : (tab.path.split('/').findLast(Boolean) ?? tab.path);
+        : pathBasename(tab.path);
 }
 
 /**

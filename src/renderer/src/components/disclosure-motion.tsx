@@ -1,7 +1,9 @@
 import type { ReactNode, TransitionEvent } from 'react';
 import { useEffect, useState } from 'react';
 
-import { motionSettleTimeoutMs, useShouldReduceMotion } from '../lib/motion';
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
+import { motionSettleTimeoutMs } from '../lib/motion';
 import { cn } from '../lib/utilities';
 
 interface DisclosureMotionProperties {

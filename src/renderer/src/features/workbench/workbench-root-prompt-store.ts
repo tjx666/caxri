@@ -1,3 +1,4 @@
+import { omit } from 'es-toolkit';
 import { create } from 'zustand';
 
 interface WorkbenchRootCandidate {
@@ -19,9 +20,7 @@ export const useWorkbenchRootPromptStore = create<WorkbenchRootPromptState>((set
     dismiss: (sessionId) =>
         set((state) => {
             if (!Object.hasOwn(state.candidates, sessionId)) return state;
-            const candidates = { ...state.candidates };
-            delete candidates[sessionId];
-            return { candidates };
+            return { candidates: omit(state.candidates, [sessionId]) };
         }),
     show: (candidate) =>
         set((state) => ({

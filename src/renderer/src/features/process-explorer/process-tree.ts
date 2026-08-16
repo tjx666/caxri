@@ -1,4 +1,5 @@
 import type { ProcessExplorerEntry } from '@shared/process-explorer';
+import { sortBy } from 'es-toolkit';
 
 export interface ProcessTreeNode extends ProcessExplorerEntry {
     children: ProcessTreeNode[];
@@ -13,10 +14,7 @@ export function buildProcessTree(processes: ProcessExplorerEntry[]): ProcessTree
         if (parent && parent !== node) parent.children.push(node);
         else roots.push(node);
     }
-    const sort = (siblings: ProcessTreeNode[]): void => {
-        siblings.sort((left, right) => left.pid - right.pid);
-        for (const node of siblings) sort(node.children);
-    };
-    sort(roots);
-    return roots;
+    const sort = (siblings: ProcessTreeNode[]): ProcessTreeNode[] =>
+        sortBy(siblings, ['pid']).map((node) => ({ ...node, children: sort(node.children) }));
+    return sort(roots);
 }
