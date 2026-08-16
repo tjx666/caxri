@@ -15,6 +15,9 @@ import { caxri } from '../../../../lib/caxri';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
+import { CommitAvatar } from './commit-avatar';
+import { CommitHoverCard } from './commit-hover-card';
+import { openGitCommitFileDiff } from './git-diff-actions';
 
 const PAGE_SIZE = 5;
 
@@ -52,16 +55,18 @@ function CommitDetails({
                 <div className="px-3 py-2 text-[11px] text-muted">No files in this scope.</div>
             ) : (
                 details.data.files.map((file) => (
-                    <div
-                        className="flex min-h-6 items-center gap-2 px-3 text-[11px]"
+                    <button
+                        type="button"
+                        className="flex min-h-6 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 text-left text-[11px] text-foreground hover:bg-elevated"
                         key={`${file.previousPath ?? ''}:${file.path}`}
                         title={
                             file.previousPath ? `${file.previousPath} → ${file.path}` : file.path
                         }
+                        onClick={() => openGitCommitFileDiff(repository.id, sha, file.path)}
                     >
                         <span className="w-14 shrink-0 text-muted">{file.status}</span>
                         <span className="truncate">{file.path}</span>
-                    </div>
+                    </button>
                 ))
             )}
             {details.data.filesTruncated && (
@@ -73,50 +78,80 @@ function CommitDetails({
 
 function CommitRow({
     commit,
+    now,
+    repository,
     selected,
+    sessionId,
     onSelect,
 }: {
     commit: GitCommit;
+    /**
+     * Shared clock owned by `CommitHistory` so retained rows never stack one interval each.
+     */
+    now: number;
+    repository: GitRepositorySummary;
     selected: boolean;
+    sessionId: string;
     onSelect: () => void;
 }) {
     const absoluteTime = new Date(commit.authoredAt).toLocaleString();
-    const now = useNow(30_000);
     return (
-        <button
-            type="button"
-            className={cn(
-                'commit-row flex w-full cursor-pointer flex-col gap-0.5 border-0 bg-surface px-3 py-1.5 text-left hover:bg-elevated',
-                selected && 'bg-elevated',
-            )}
-            aria-label={`Commit ${commit.subject}`}
-            title={`${commit.sha}\n${commit.author} · ${absoluteTime}`}
-            onClick={onSelect}
-        >
-            <span className="flex w-full min-w-0 items-center gap-2">
-                <span className="truncate text-foreground">{commit.subject || '(no subject)'}</span>
-                <code className="ml-auto shrink-0 text-[10px] text-muted">{commit.shortSha}</code>
-            </span>
-            <span className="flex w-full min-w-0 items-center gap-1 text-[10px] text-muted">
-                <span className="truncate">{commit.author}</span>
-                <span>·</span>
-                <time dateTime={new Date(commit.authoredAt).toISOString()} title={absoluteTime}>
-                    {relativeTime(commit.authoredAt, now)}
-                </time>
-            </span>
-            {commit.decorations.length > 0 && (
-                <span className="flex max-w-full gap-1 overflow-hidden">
-                    {commit.decorations.map((decoration) => (
-                        <span
-                            className="truncate rounded bg-elevated px-1 text-[10px] text-muted"
-                            key={decoration}
-                        >
-                            {decoration}
+        <CommitHoverCard
+            commit={commit}
+            now={now}
+            repository={repository}
+            sessionId={sessionId}
+            trigger={
+                <button
+                    type="button"
+                    className={cn(
+                        'commit-row flex w-full cursor-pointer gap-2 border-0 bg-surface px-3 py-1.5 text-left hover:bg-elevated',
+                        selected && 'bg-elevated',
+                    )}
+                    aria-label={`Commit ${commit.subject}`}
+                    onClick={onSelect}
+                >
+                    <CommitAvatar
+                        author={commit.author}
+                        className="mt-0.5"
+                        email={commit.authorEmail}
+                        size={18}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="flex w-full min-w-0 items-center gap-2">
+                            <span className="truncate text-foreground">
+                                {commit.subject || '(no subject)'}
+                            </span>
+                            <code className="ml-auto shrink-0 text-[10px] text-muted">
+                                {commit.shortSha}
+                            </code>
                         </span>
-                    ))}
-                </span>
-            )}
-        </button>
+                        <span className="flex w-full min-w-0 items-center gap-1 text-[10px] text-muted">
+                            <span className="truncate">{commit.author}</span>
+                            <span>·</span>
+                            <time
+                                dateTime={new Date(commit.authoredAt).toISOString()}
+                                title={absoluteTime}
+                            >
+                                {relativeTime(commit.authoredAt, now)}
+                            </time>
+                        </span>
+                        {commit.decorations.length > 0 && (
+                            <span className="flex max-w-full gap-1 overflow-hidden">
+                                {commit.decorations.map((decoration) => (
+                                    <span
+                                        className="truncate rounded bg-elevated px-1 text-[10px] text-muted"
+                                        key={decoration}
+                                    >
+                                        {decoration}
+                                    </span>
+                                ))}
+                            </span>
+                        )}
+                    </span>
+                </button>
+            }
+        />
     );
 }
 
@@ -128,6 +163,7 @@ export function CommitHistory({
     sessionId: string;
 }) {
     const [expanded, setExpanded] = useState(false);
+    const now = useNow(30_000);
     const [path, setPath] = useState('');
     const debouncedPath = useDebouncedValue(path, 200);
     const [commits, setCommits] = useState<GitCommit[]>([]);
@@ -230,7 +266,10 @@ export function CommitHistory({
                                 <div key={commit.sha}>
                                     <CommitRow
                                         commit={commit}
+                                        now={now}
+                                        repository={repository}
                                         selected={selectedSha === commit.sha}
+                                        sessionId={sessionId}
                                         onSelect={() =>
                                             setSelectedSha((current) =>
                                                 current === commit.sha ? undefined : commit.sha,

@@ -1,5 +1,6 @@
 import {
     gitChangesDiffTabPath,
+    gitCommitFileDiffTabPath,
     gitFileDiffTabPath,
     gitPullRequestChangesDiffTabPath,
     gitPullRequestFileDiffTabPath,
@@ -21,4 +22,8 @@ export function openPullRequestFileDiff(repoId: string, path: string): void {
 
 export function openPullRequestChangesDiff(repoId: string, repoName: string): void {
     openEditorTab(gitPullRequestChangesDiffTabPath(repoId, repoName));
+}
+
+export function openGitCommitFileDiff(repoId: string, sha: string, path: string): void {
+    openEditorTab(gitCommitFileDiffTabPath(repoId, sha, path));
 }

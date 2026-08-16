@@ -12,6 +12,13 @@ export type GitDiffTab =
           repositoryId: string;
           repositoryName: string;
           source: 'pull-request' | 'working';
+      }
+    | {
+          kind: 'commit-file';
+          path: string;
+          repositoryId: string;
+          sha: string;
+          source: 'commit';
       };
 
 const GIT_DIFF_TAB_PREFIX = 'caxri-git-diff://';
@@ -32,13 +39,25 @@ export function gitPullRequestChangesDiffTabPath(repoId: string, repoName: strin
     return `${GIT_DIFF_TAB_PREFIX}pr-changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
 }
 
+export function gitCommitFileDiffTabPath(repoId: string, sha: string, path: string): string {
+    return `${GIT_DIFF_TAB_PREFIX}commit-file/${encodeURIComponent(repoId)}/${sha}/${encodeURIComponent(path)}`;
+}
+
 export function parseGitDiffTab(path: string): GitDiffTab | undefined {
     if (!path.startsWith(GIT_DIFF_TAB_PREFIX)) return undefined;
-    const match = /^(file|changes|pr-file|pr-changes)\/([^/]+)\/(.+)$/.exec(
-        path.slice(GIT_DIFF_TAB_PREFIX.length),
-    );
-    if (!match) return undefined;
+    const rest = path.slice(GIT_DIFF_TAB_PREFIX.length);
     try {
+        const commitMatch = /^commit-file\/([^/]+)\/([0-9a-f]{40})\/(.+)$/.exec(rest);
+        if (commitMatch)
+            return {
+                kind: 'commit-file',
+                path: decodeURIComponent(commitMatch[3]),
+                repositoryId: decodeURIComponent(commitMatch[1]),
+                sha: commitMatch[2],
+                source: 'commit',
+            };
+        const match = /^(file|changes|pr-file|pr-changes)\/([^/]+)\/(.+)$/.exec(rest);
+        if (!match) return undefined;
         const repoId = decodeURIComponent(match[2]);
         const value = decodeURIComponent(match[3]);
         const source = match[1].startsWith('pr-') ? 'pull-request' : 'working';
@@ -55,9 +74,10 @@ export function isGitDiffTabPath(path: string): boolean {
 }
 
 export function gitDiffTabLabel(tab: GitDiffTab): string {
-    return tab.kind === 'changes'
-        ? `${tab.source === 'pull-request' ? 'PR Changes' : 'Changes'}: ${tab.repositoryName}`
-        : pathBasename(tab.path);
+    if (tab.kind === 'changes')
+        return `${tab.source === 'pull-request' ? 'PR Changes' : 'Changes'}: ${tab.repositoryName}`;
+    if (tab.kind === 'commit-file') return `${pathBasename(tab.path)} (${tab.sha.slice(0, 7)})`;
+    return pathBasename(tab.path);
 }
 
 /**

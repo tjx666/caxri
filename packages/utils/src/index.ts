@@ -5,5 +5,6 @@
  */
 export * from './compare-tree-nodes';
 export * from './format-bytes';
+export * from './github-avatar';
 export * from './path-basename';
 export * from './relative-time';

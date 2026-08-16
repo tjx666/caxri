@@ -77,6 +77,21 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         await expect(primary.locator('.commit-details')).toContainText('Changed files · 1');
         await expect(primary.locator('.commit-details')).toContainText('scope/commit-7.txt');
 
+        // Hovering a commit row raises the GitLens-style preview card with author and sha.
+        await primary.locator('.commit-row').first().hover();
+        const hoverCard = running.page.locator('.commit-hover-card');
+        await expect(hoverCard).toBeVisible();
+        await expect(hoverCard).toContainText('Caxri Test');
+        await expect(hoverCard).toContainText('latest scoped commit');
+        await running.page.keyboard.press('Escape');
+
+        // A changed file opens that commit's read-only diff in a sha-labeled editor tab.
+        await primary.locator('.commit-details').getByText('scope/commit-7.txt').click();
+        await expect(
+            running.page.getByRole('tab', { name: /commit-7\.txt \([0-9a-f]{7}\)/ }),
+        ).toBeVisible();
+        await expect(running.page.locator('.git-file-diff')).toBeVisible();
+
         await primary
             .getByRole('textbox', { name: `History path for ${root.split('/').at(-1)}` })
             .fill('scope');

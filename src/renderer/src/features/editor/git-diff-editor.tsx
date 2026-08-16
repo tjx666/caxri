@@ -140,7 +140,7 @@ function FileDiffResult({
     error: Error | null;
     isError: boolean;
     sessionId?: string;
-    tab: Extract<GitDiffTab, { kind: 'file' }>;
+    tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
     if (!sessionId) return null;
@@ -195,6 +195,34 @@ function PullRequestFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: '
         'git.pullRequestDiffDocument',
         { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
         { enabled: Boolean(sessionId) },
+    );
+    return (
+        <FileDiffResult
+            document={document}
+            error={error}
+            isError={isError}
+            sessionId={sessionId}
+            tab={tab}
+        />
+    );
+}
+
+function CommitFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'commit-file' }> }) {
+    const sessionId = useSelectedSession()?.id;
+    const {
+        data: document,
+        isError,
+        error,
+    } = useCaxriQuery(
+        'git.commitDiffDocument',
+        {
+            sessionId: sessionId ?? '',
+            repositoryId: tab.repositoryId,
+            sha: tab.sha,
+            path: tab.path,
+        },
+        // A commit is immutable under its sha, so the resolved diff never goes stale.
+        { enabled: Boolean(sessionId), staleTime: Infinity },
     );
     return (
         <FileDiffResult
@@ -431,6 +459,7 @@ function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind
 }
 
 export function GitDiffEditor({ tab }: { tab: GitDiffTab }) {
+    if (tab.kind === 'commit-file') return <CommitFileDiffEditor tab={tab} />;
     if (tab.kind === 'file')
         return tab.source === 'pull-request' ? (
             <PullRequestFileDiffEditor tab={tab} />

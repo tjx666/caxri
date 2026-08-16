@@ -34,7 +34,9 @@ type ServiceHandlerMethods =
     | 'git.pullRequestDiffDocument'
     | 'git.commits'
     | 'git.commitDetails'
+    | 'git.commitDiffDocument'
     | 'git.blame'
+    | 'git.fileHead'
     | 'projectStatus.summary'
     | 'projectStatus.overview'
     | 'settings.get'
@@ -116,7 +118,9 @@ export function createServiceHandlers(services: {
         'git.pullRequestDiffDocument': (parameters) => git.pullRequestDiffDocument(parameters),
         'git.commits': (parameters) => git.commits(parameters),
         'git.commitDetails': (parameters) => git.commitDetails(parameters),
+        'git.commitDiffDocument': (parameters) => git.commitDiffDocument(parameters),
         'git.blame': (parameters) => git.blame(parameters),
+        'git.fileHead': (parameters) => git.fileHead(parameters),
         'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),

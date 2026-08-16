@@ -7,6 +7,7 @@ import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-actions';
+import { EditorHeadBlame } from './editor-head-blame';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import { editorStatusKey } from './editor-status';
 
@@ -67,13 +68,18 @@ function FileEditorSurface({ path }: { path: string }) {
     if (!sessionId || !scope || !theme) return null;
     if (!document) return <div className={emptyWorkClassName}>Loading file…</div>;
     return (
-        <LoadedCodeEditor
-            path={editorModelPath(scope, path)}
-            statusKey={editorStatusKey(scope, path)}
-            value={document.content}
-            theme={theme}
-            onChange={(content) => changeDocument(path, content ?? '')}
-        />
+        <div className="flex h-full min-h-0 flex-col">
+            <EditorHeadBlame path={path} sessionId={sessionId} />
+            <div className="min-h-0 flex-1">
+                <LoadedCodeEditor
+                    path={editorModelPath(scope, path)}
+                    statusKey={editorStatusKey(scope, path)}
+                    value={document.content}
+                    theme={theme}
+                    onChange={(content) => changeDocument(path, content ?? '')}
+                />
+            </div>
+        </div>
     );
 }
 

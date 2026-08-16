@@ -11,6 +11,7 @@ vi.mock('../../../editor/document-actions', () => ({ openEditorTab: mocks.openEd
 // which is exactly the copy-paste cross-wiring bug this suite guards against.
 import {
     gitChangesDiffTabPath,
+    gitCommitFileDiffTabPath,
     gitFileDiffTabPath,
     gitPullRequestChangesDiffTabPath,
     gitPullRequestFileDiffTabPath,
@@ -18,10 +19,13 @@ import {
 
 import {
     openGitChangesDiff,
+    openGitCommitFileDiff,
     openGitFileDiff,
     openPullRequestChangesDiff,
     openPullRequestFileDiff,
 } from './git-diff-actions';
+
+const COMMIT_SHA = 'a'.repeat(40);
 
 describe('git-diff-actions', () => {
     it('opens the working-tree file diff tab', () => {
@@ -51,6 +55,14 @@ describe('git-diff-actions', () => {
 
         expect(mocks.openEditorTab).toHaveBeenCalledWith(
             gitPullRequestChangesDiffTabPath('repo-1', 'caxri'),
+        );
+    });
+
+    it('opens the commit file diff tab', () => {
+        openGitCommitFileDiff('repo-1', COMMIT_SHA, 'src/index.ts');
+
+        expect(mocks.openEditorTab).toHaveBeenCalledWith(
+            gitCommitFileDiffTabPath('repo-1', COMMIT_SHA, 'src/index.ts'),
         );
     });
 
