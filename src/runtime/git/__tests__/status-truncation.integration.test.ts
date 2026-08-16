@@ -14,12 +14,26 @@ import { GitService } from '..';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
+const gitServices: GitService[] = [];
+
+/**
+ * Registers a GitService so afterEach can close it before the temp directories are removed; otherwise an in-flight
+ * metadata-watcher subscription races directory cleanup and its fallback logging rejects with ENOENT after the logger's
+ * directory is gone.
+ */
+function trackGitService(git: GitService): GitService {
+    gitServices.push(git);
+    return git;
+}
 /**
  * Batch size for writing the large untracked-file fixture so the event loop stays responsive.
  */
 const UNTRACKED_FILE_WRITE_BATCH_SIZE = 200;
 
 afterEach(async () => {
+    const servicesToClose = [...gitServices];
+    gitServices.length = 0;
+    await Promise.allSettled(servicesToClose.map((git) => git.close()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     /**
@@ -88,10 +102,9 @@ async function createFixture(): Promise<Fixture> {
     const database = new CaxriDatabase(join(stateDirectory, 'caxri-test.db'));
     const sessionId = database.createSession(database.createProject(repoDirectory).id, 'shell')
         .session.id;
-    const git = new GitService(
-        new ProjectRootResolver(database),
-        new StructuredLogger(join(stateDirectory, 'logs')),
-    );
+    const rootResolver = new ProjectRootResolver(database);
+    const gitLogger = new StructuredLogger(join(stateDirectory, 'logs'));
+    const git = trackGitService(new GitService(rootResolver, gitLogger));
     return { repoDirectory, database, git, sessionId };
 }
 

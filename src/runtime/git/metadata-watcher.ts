@@ -234,7 +234,7 @@ export class GitMetadataWatcher {
             await Promise.allSettled(oldestKeys.map((key) => this.unwatch(key)));
         }
         try {
-            entry.watcher = await this.subscribe(
+            const watcher = await this.subscribe(
                 repoKey,
                 (error, events) => {
                     if (error) {
@@ -250,6 +250,19 @@ export class GitMetadataWatcher {
                     ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs'],
                 },
             );
+            // close()/unwatch() may have run while the native subscription was in flight (both
+            // remove the group from `repositories`); release the fresh subscription quietly so no
+            // leaked watcher or post-shutdown ready-logging races state-directory cleanup
+            // (observed as ENOENT/ENOTEMPTY in integration teardown).
+            if (!this.repositories.has(repoKey)) {
+                try {
+                    await watcher.unsubscribe();
+                } catch {
+                    // Releasing a dead native subscription must not mask shutdown.
+                }
+                return;
+            }
+            entry.watcher = watcher;
             this.options.logger.write('debug', 'git.metadata_watcher_ready', {
                 fields: { repositories: this.repositories.size, worktreeRoots: roots.length },
             });
