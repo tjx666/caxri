@@ -40,6 +40,7 @@ export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormPropertie
                                 <span className="flex items-center gap-2">
                                     <input
                                         id={`theme-${section}-${key}`}
+                                        aria-label={`${section} ${key} color`}
                                         type="color"
                                         className="size-7 rounded border border-border bg-transparent p-0"
                                         value={value.slice(0, 7)}
