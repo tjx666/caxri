@@ -27,6 +27,7 @@ import {
     heldMessageDetail,
     heldMessageProjection,
     LOOP_WINDOW_MS,
+    MAX_DUPLICATES,
     MAX_HELD_PER_ENDPOINT,
     MAX_PAIR_MESSAGES_PER_WINDOW,
     MAX_PENDING_BYTES,
@@ -375,10 +376,19 @@ export class AgentInboxRegistry {
             digest: canonicalDigest,
             messageId: message.receipt.messageId,
         });
+        // Fixed TTL makes Map insertion order equal expiry order, so evicting the oldest entry
+        // under capacity pressure is exactly the entry closest to its TTL boundary.
+        while (this.duplicates.size >= MAX_DUPLICATES)
+            this.duplicates.delete(this.duplicates.keys().next().value!);
         this.duplicates.set(message.fingerprint, {
             messageId: message.receipt.messageId,
             expiresAt: this.now() + DUPLICATE_WINDOW_MS,
         });
+    }
+
+    private releaseDuplicate({ fingerprint, receipt }: StoredMessage): void {
+        const entry = this.duplicates.get(fingerprint);
+        if (entry?.messageId === receipt.messageId) this.duplicates.delete(fingerprint);
     }
 
     private admitReceipt(): void {
@@ -393,6 +403,7 @@ export class AgentInboxRegistry {
             throw new CaxriError('CAPACITY', 'Agent message receipt capacity is exhausted');
         this.messages.delete(terminal[0]);
         this.releaseIdempotency(terminal[1]);
+        this.releaseDuplicate(terminal[1]);
     }
 
     private releaseIdempotency({ idempotencyMapKey, receipt }: StoredMessage): void {
@@ -753,13 +764,13 @@ export class AgentInboxRegistry {
             if (reservation.endpointKey === key) this.reservations.delete(requestId);
         }
         for (const message of this.messages.values()) {
-            if (referencesEqual(message.receipt.from, reference)) this.releaseIdempotency(message);
-            if (
-                (referencesEqual(message.receipt.from, reference) ||
-                    referencesEqual(message.receipt.to, reference)) &&
-                PENDING_MESSAGE_STATES.includes(message.state)
-            )
-                this.finish(message, 'expired');
+            const isSender = referencesEqual(message.receipt.from, reference);
+            if (isSender) this.releaseIdempotency(message);
+            if (!isSender && !referencesEqual(message.receipt.to, reference)) continue;
+            // A retired generation can never satisfy the same fingerprint again, so releasing its
+            // duplicate records keeps retirement consistent with receipt eviction and close.
+            this.releaseDuplicate(message);
+            if (PENDING_MESSAGE_STATES.includes(message.state)) this.finish(message, 'expired');
         }
         this.policies.delete(key);
         this.waiting.delete(key);
