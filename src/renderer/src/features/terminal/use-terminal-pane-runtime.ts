@@ -14,6 +14,7 @@ import { Terminal } from '@xterm/xterm';
 import { useOnVisible } from '@/hooks/use-on-visible';
 
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
 import { useDialogStore } from '../../stores/dialogs';
 import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
@@ -304,19 +305,7 @@ export function useTerminalPaneRuntime({
                 );
             },
             async openUrl(url) {
-                try {
-                    const result = await caxri.request('external.open', { url });
-                    if (result.status !== 'rejected') return;
-                    onError(
-                        result.reason === 'unsupported_protocol'
-                            ? 'Only HTTP and HTTPS links can be opened'
-                            : result.reason === 'credentials_not_allowed'
-                              ? 'External links cannot include credentials'
-                              : 'External link is invalid',
-                    );
-                } catch (error) {
-                    onError(errorMessage(error, 'External link could not be opened'));
-                }
+                await openExternalUrl(url, onError);
             },
         });
         xterm.attachCustomKeyEventHandler((event) => {
