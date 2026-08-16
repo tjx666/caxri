@@ -132,6 +132,21 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Diagnostics must exclude source contents, Terminal output and snapshots, Agent transcripts,
   credentials, environment values, and secret-like settings.
 
+## Testing requirements
+
+- New features ship with behavior-level tests for the functionality they add, at the narrowest
+  owning surface: Vitest unit/integration coverage (`unit-testing`) for logic below the desktop
+  boundary, Playwright workflows (`e2e-testing`) only for user-visible Electron behavior; the
+  `e2e-testing` skill owns the criteria for when a behavior earns an Electron workflow.
+- Bug fixes land with a regression test that reproduces the defect and fails without the fix, in
+  the same commit. When the fix sits above a testable boundary, extract the logic so the failure
+  mode is testable rather than skipping the test.
+- React UI rendering is not unit-tested: no render/snapshot tests against `.tsx` components.
+  Extract the logic worth testing into hooks or plain modules and test those; rendering and
+  interaction are validated only through the `e2e-testing` Playwright workflows.
+- Existing untested modules are debt, not precedent. Touching an untested area does not require
+  backfilling its whole suite, but the behavior you add or change there must be covered.
+
 ## Code conventions
 
 - UI strings, code, comments, docs, PR content, and commit messages use English. GitHub issue titles,
