@@ -165,9 +165,9 @@ jobs:
           bun run scripts/ci-metrics.ts
           --label "Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}" --
           bun run test
-      - name: Build Electron bundles
+      - name: Build, package, and enforce bundle budgets
         if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
+        run: bun run scripts/ci-metrics.ts --label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts
       - name: Clean self-hosted runner boundary
         if: always()
         run: bun run scripts/self-hosted-runner.ts cleanup
