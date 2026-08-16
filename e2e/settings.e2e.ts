@@ -177,7 +177,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         const backgroundInput = dialog
             .locator('.theme-editor fieldset')
             .nth(1)
-            .getByLabel(/^background/);
+            .getByLabel('terminal background color');
         await backgroundInput.fill('#101820');
         await expect
             .poll(() =>
