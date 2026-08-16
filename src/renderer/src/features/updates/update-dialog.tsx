@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { formatBytes } from '@caxri/utils';
 import type { UpdateState } from '@shared/types';
 import { CheckCircle2, Download, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
 
@@ -22,12 +23,6 @@ import {
     subscribeUpdateState,
     useUpdateStore,
 } from './update-actions';
-
-function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function statusCopy(state: UpdateState | undefined): {
     title: string;

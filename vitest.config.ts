@@ -10,8 +10,15 @@ export const desktopTestFiles = [
     'scripts/__tests__/*.test.ts',
 ];
 export const protocolTestFiles = ['packages/protocol/src/**/*.test.ts'];
+export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
 export const cliTestFiles = ['packages/cli/{scripts,src}/**/*.test.ts'];
-export const testProjectNames = ['desktop-parallel', 'desktop-serial-native', 'protocol', 'cli'];
+export const testProjectNames = [
+    'desktop-parallel',
+    'desktop-serial-native',
+    'protocol',
+    'utils',
+    'cli',
+];
 const serialNativeTestPrefix = [
     'src/runtime/__tests__/agent-hooks.integration.test.ts',
     'src/runtime/__tests__/configuration.test.ts',
@@ -65,6 +72,7 @@ export default defineConfig({
             '@': resolve(import.meta.dirname, 'src/renderer/src'),
             '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
             '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
+            '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
             '@shared': resolve(import.meta.dirname, 'src/shared'),
         },
     },
@@ -99,6 +107,14 @@ export default defineConfig({
                 test: {
                     name: 'protocol',
                     include: protocolTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'utils',
+                    include: utilitiesTestFiles,
                     maxWorkers: parallelMaxWorkers,
                 },
             },

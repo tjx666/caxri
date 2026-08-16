@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { relativeTime } from '@caxri/utils';
 import type { GitCommit, GitRepositorySummary } from '@shared/types';
 import { ChevronDown, ChevronRight, GitCommitHorizontal } from 'lucide-react';
+
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
@@ -13,32 +16,6 @@ import { useCaxriQuery } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 
 const PAGE_SIZE = 5;
-const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-
-function useDebouncedValue(value: string, delayMs: number): string {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delayMs);
-        return () => clearTimeout(timer);
-    }, [delayMs, value]);
-    return debounced;
-}
-
-function relativeTime(timestamp: number): string {
-    const seconds = Math.round((timestamp - Date.now()) / 1_000);
-    const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-        ['year', 31_536_000],
-        ['month', 2_592_000],
-        ['day', 86_400],
-        ['hour', 3_600],
-        ['minute', 60],
-    ];
-    for (const [unit, size] of ranges) {
-        if (Math.abs(seconds) >= size)
-            return RELATIVE_TIME_FORMATTER.format(Math.round(seconds / size), unit);
-    }
-    return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
-}
 
 function CommitDetails({
     path,
