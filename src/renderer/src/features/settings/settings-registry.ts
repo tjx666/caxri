@@ -203,9 +203,11 @@ export const settingsCategories: SettingsCategory[] = settingCategories.map((cat
     title: category.title,
     subcategories: [
         ...new Set(
-            settingsRows
-                .filter((row) => row.category === category.id && row.subcategory)
-                .map((row) => row.subcategory as string),
+            settingsRows.flatMap((row) =>
+                row.category === category.id && row.subcategory !== undefined
+                    ? [row.subcategory]
+                    : [],
+            ),
         ),
     ],
 }));
