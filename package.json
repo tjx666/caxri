@@ -124,6 +124,7 @@
     },
     "devDependencies": {
         "@base-ui/react": "1.6.0",
+        "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
         "@electron/rebuild": "4.2.0",
         "@lobehub/assets-fileicon": "^1.0.0",
@@ -157,6 +158,7 @@
         "eslint": "10.8.1",
         "eslint-plugin-n": "18.3.0",
         "eslint-plugin-react-hooks": "7.1.1",
+        "es-toolkit": "1.50.0",
         "eslint-plugin-react-refresh": "0.5.3",
         "knip": "6.31.0",
         "lint-staged": "16.4.0",
@@ -215,7 +217,8 @@
             "licenses/**",
             "node_modules/**",
             "!node_modules/@caxri/cli{,/**}",
-            "!node_modules/@caxri/protocol{,/**}"
+            "!node_modules/@caxri/protocol{,/**}",
+            "!node_modules/@caxri/utils{,/**}"
         ],
         "mac": {
             "category": "public.app-category.developer-tools",
