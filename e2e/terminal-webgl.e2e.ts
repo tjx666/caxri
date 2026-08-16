@@ -4,14 +4,21 @@ import { join } from 'node:path';
 
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, pageRequest, typeTerminal } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    revealSettingsSection,
+    typeTerminal,
+} from './support/helpers.ts';
 
 type GpuPreference = 'Auto' | 'On' | 'Off';
 
 async function applyGpuPreference(page: Page, preference: GpuPreference): Promise<void> {
     await page.keyboard.press('Meta+,');
     const dialog = page.getByRole('dialog');
-    await dialog.getByLabel('Terminal GPU acceleration').click();
+    await revealSettingsSection(dialog, 'Terminal');
+    await dialog.getByRole('combobox', { name: 'GPU acceleration' }).click();
     await page.getByRole('option', { name: preference, exact: true }).click();
     /**
      * Settings apply immediately (there is no Apply button); the observable invariant is the Runtime actually
