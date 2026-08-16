@@ -121,8 +121,7 @@ const COMPONENT_BUDGETS = new Map(
  * so a user-level file is the simplest durable baseline: every green main build refreshes it and every run (PRs
  * included) reports deltas against it. Missing baseline degrades to `n/a`, never to a failure.
  */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
-export interface BundleBaseline {
+interface BundleBaseline {
     commit: string;
     recordedAt: string;
     seconds: Record<string, number>;
