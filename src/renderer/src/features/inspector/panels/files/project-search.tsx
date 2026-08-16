@@ -4,6 +4,8 @@ import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 import { ChevronDown, ChevronRight, ListFilter, Search, X } from 'lucide-react';
 
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Input, InputGroup } from '../../../../components/ui/input';
 import { Spinner } from '../../../../components/ui/spinner';
@@ -33,15 +35,6 @@ interface NameSearchDirectoryNode {
 }
 
 type NameSearchNode = NameSearchDirectoryNode | NameSearchFileNode;
-
-function useDebouncedValue(value: string, delayMs: number): string {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delayMs);
-        return () => clearTimeout(timer);
-    }, [delayMs, value]);
-    return debounced;
-}
 
 function groupMatches(matches: readonly FileSearchMatch[]): Map<string, FileSearchMatch[]> {
     const groups = new Map<string, FileSearchMatch[]>();

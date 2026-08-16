@@ -4,6 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FileEntry } from '@shared/types';
 import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Input, InputGroup } from '../../components/ui/input';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
@@ -32,15 +34,6 @@ function closePathBrowser(): void {
 function relativeDirectory(root: string, directory: string): string {
     if (directory === root) return '';
     return `${directory.slice(root === '/' ? 1 : root.length + 1)}/`;
-}
-
-function useDebouncedValue(value: string): string {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), PATH_BROWSER_QUERY_DEBOUNCE_MS);
-        return () => clearTimeout(timer);
-    }, [value]);
-    return debounced;
 }
 
 export function PathBrowserDialog() {
@@ -73,7 +66,7 @@ function PathBrowserContent({
     const [nestedDirectory, setNestedDirectory] = useState<string>();
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
-    const debouncedQuery = useDebouncedValue(query);
+    const debouncedQuery = useDebouncedValue(query, PATH_BROWSER_QUERY_DEBOUNCE_MS);
     const directory = nestedDirectory ?? root;
     const inputReference = useRef<HTMLInputElement>(null);
     const listboxId = useId();
