@@ -38,7 +38,8 @@ const captionActionClassName =
  * `pendingOperation` has been running past `CANCEL_REVEAL_THRESHOLD_MS`. `Date.now()` is impure and React's render
  * phase must stay pure, so every state update — including the already-past-threshold case — goes through a `setTimeout`
  * callback (0ms when the threshold has already elapsed) instead of a synchronous `setState` call in the effect body.
- * This mirrors `useDebouncedValue` in `status-bar.tsx`, which defers its own correction the same way.
+ * This mirrors the shared `useDebouncedValue` hook (`@/hooks/use-debounced-value`), which defers its own correction the
+ * same way.
  */
 function useIsCancelRevealed(operation: PendingFileOperation | undefined): boolean {
     const [isRevealed, setIsRevealed] = useState(false);

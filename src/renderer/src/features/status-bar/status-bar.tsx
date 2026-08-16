@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
+import { relativeTime } from '@caxri/utils';
 import { parseGitDiffTab } from '@shared/git-diff';
 import type { InspectorCommandId } from '@shared/inspector';
 import type { CaxriMethod } from '@shared/ipc';
@@ -23,6 +24,8 @@ import {
     Pause,
     Workflow,
 } from 'lucide-react';
+
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { executeCommand } from '../../commands/execute';
 import {
@@ -66,33 +69,6 @@ const statusItemClassName =
 const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]';
 const statusInfoClassName =
     'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
-
-const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-
-function relativeTime(timestamp: number): string {
-    const seconds = Math.round((timestamp - Date.now()) / 1_000);
-    const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-        ['year', 31_536_000],
-        ['month', 2_592_000],
-        ['day', 86_400],
-        ['hour', 3_600],
-        ['minute', 60],
-    ];
-    for (const [unit, size] of ranges) {
-        if (Math.abs(seconds) >= size)
-            return RELATIVE_TIME_FORMATTER.format(Math.round(seconds / size), unit);
-    }
-    return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delayMs);
-        return () => clearTimeout(timer);
-    }, [delayMs, value]);
-    return debounced;
-}
 
 /**
  * DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip: an `aria-label` alone leaves

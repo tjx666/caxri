@@ -1,13 +1,5 @@
+import { relativeTime } from '@caxri/utils';
 import type { AgentActivityState } from '@shared/types';
-
-const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-const RELATIVE_TIME_RANGES: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ['year', 31_536_000],
-    ['month', 2_592_000],
-    ['day', 86_400],
-    ['hour', 3_600],
-    ['minute', 60],
-];
 
 export interface SessionActivityPresentation {
     ariaLabel: string;
@@ -110,12 +102,7 @@ export function sessionToneCalloutClassName(tone: SessionActivityPresentation['t
 }
 
 export function formatSessionRelativeTime(timestamp: number, now = Date.now()): string {
-    const seconds = Math.round((timestamp - now) / 1_000);
-    for (const [unit, size] of RELATIVE_TIME_RANGES) {
-        if (Math.abs(seconds) >= size)
-            return RELATIVE_TIME_FORMATTER.format(Math.round(seconds / size), unit);
-    }
-    return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
+    return relativeTime(timestamp, now);
 }
 
 /**
