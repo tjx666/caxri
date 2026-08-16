@@ -30,6 +30,7 @@ import {
     gitBranchSchema,
     gitCommitDetailsSchema,
     gitCommitPageSchema,
+    gitCommitSchema,
     gitDiffDocumentSchema,
     gitOverviewSchema,
     gitPullRequestChangesSchema,
@@ -611,6 +612,16 @@ export const methods = {
         }),
         result: gitCommitDetailsSchema,
     },
+    'git.commitDiffDocument': {
+        ...hostRead,
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            sha: z.string().regex(/^[0-9a-f]{40}$/),
+            path: pathSchema,
+        }),
+        result: gitDiffDocumentSchema,
+    },
     'git.blame': {
         ...hostRead,
         params: z.object({
@@ -619,6 +630,14 @@ export const methods = {
             line: z.number().int().positive().max(10_000_000),
         }),
         result: gitBlameSchema.nullable(),
+    },
+    'git.fileHead': {
+        ...hostRead,
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+        }),
+        result: gitCommitSchema.nullable(),
     },
     'projectStatus.summary': {
         ...hostRead,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     gitChangesDiffTabPath,
+    gitCommitFileDiffTabPath,
     gitDiffModelPath,
     gitDiffTabLabel,
     gitFileDiffTabPath,
@@ -48,6 +49,24 @@ describe('Git diff tabs', () => {
             source: 'pull-request',
         });
         expect(gitDiffTabLabel(changes!)).toBe('PR Changes: workspace');
+    });
+
+    it('round-trips commit file identities with a sha-qualified label', () => {
+        const sha = '0123456789abcdef0123456789abcdef01234567';
+        const tab = parseGitDiffTab(gitCommitFileDiffTabPath('repo/1', sha, 'src/a#b?c.ts'));
+
+        expect(tab).toEqual({
+            kind: 'commit-file',
+            path: 'src/a#b?c.ts',
+            repositoryId: 'repo/1',
+            sha,
+            source: 'commit',
+        });
+        expect(gitDiffTabLabel(tab!)).toBe('a#b?c.ts (0123456)');
+        // A malformed sha must not parse into a commit tab.
+        expect(parseGitDiffTab(gitCommitFileDiffTabPath('repo/1', 'not-a-sha', 'src/a.ts'))).toBe(
+            undefined,
+        );
     });
 
     it('provides readable labels and distinct original and modified Monaco model URIs', () => {

@@ -230,7 +230,9 @@ describe('sha-based identity regexes', () => {
         const commit = {
             shortSha: fullSha.slice(0, 7),
             subject: 'Add feature',
+            body: '',
             author: 'Author',
+            authorEmail: 'author@example.com',
             authoredAt: 1,
             decorations: [],
             parents: [],

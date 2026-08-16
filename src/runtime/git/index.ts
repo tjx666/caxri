@@ -27,6 +27,7 @@ import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { GitChangeTracker } from './change-tracker';
+import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { toGitError } from './errors';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
@@ -59,8 +60,6 @@ export interface GitWorktreeTopology {
 }
 export { describeGitFailure } from './errors';
 
-const COMMIT_FORMAT = '%H%x00%an%x00%at%x00%P%x00%D%x00%s%x00';
-
 /**
  * Subcommand-bearing Git operations whose second argv token is required to attribute a command in structured logs
  * (`worktree list` vs `worktree add`); every other operation logs argv[0] alone so no user-controlled path or ref ever
@@ -81,44 +80,6 @@ function classifyGitOperation(arguments_: readonly string[]): string {
  */
 function hashRepoPath(path: string): string {
     return createHash('sha256').update(path).digest('hex').slice(0, 12);
-}
-
-/**
- * Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects.
- */
-function parseCommitLog(output: string): GitCommit[] {
-    const fields = output.split('\0');
-    const commits: GitCommit[] = [];
-    let index = 0;
-    while (index < fields.length) {
-        const rawSha = fields[index];
-        if (!rawSha) break;
-        const sha = rawSha.replace(/^\n+/, '');
-        index += 1;
-        const author = fields[index++];
-        const authoredAt = fields[index++];
-        const parents = fields[index++] ?? '';
-        const decorations = fields[index++] ?? '';
-        const subject = fields[index++] ?? '';
-        const terminator = fields[index++];
-        if (terminator !== '' || !/^[0-9a-f]{40}$/.test(sha) || !/^\d+$/.test(authoredAt))
-            throw new CaxriError('GIT', 'Git returned malformed commit history');
-        commits.push({
-            sha,
-            shortSha: sha.slice(0, 7),
-            subject: subject.slice(0, 4_096),
-            author: author.slice(0, 1_024),
-            authoredAt: Number(authoredAt) * 1_000,
-            decorations: decorations
-                .split(', ')
-                .map((value) => value.trim())
-                .filter(Boolean)
-                .slice(0, 50)
-                .map((value) => value.slice(0, 1_024)),
-            parents: parents.split(' ').filter(Boolean).slice(0, 64),
-        });
-    }
-    return commits;
 }
 
 function commitFileStatus(code: string): GitCommitFile['status'] {
@@ -150,6 +111,27 @@ function parseCommitFiles(output: string): GitCommitFile[] {
         files.push({ path, status: commitFileStatus(code) });
     }
     return files;
+}
+
+/**
+ * Sums `git diff-tree --numstat -z` output. A record is `added\tdeleted\tpath` for ordinary files; a rename/copy emits
+ * an empty path slot followed by the two path fields, and a binary file reports `-` counts — both are skipped here.
+ */
+function sumNumstat(output: string): { additions: number; deletions: number } {
+    const fields = output.split('\0');
+    let additions = 0;
+    let deletions = 0;
+    for (let index = 0; index < fields.length; index += 1) {
+        // `[\s\S]*` (not `.*`): a legal Git filename may contain newlines, and with `-z` the raw
+        // name is embedded unquoted inside this NUL field.
+        const record = /^(\d+|-)\t(\d+|-)\t([\s\S]*)$/.exec(fields[index]);
+        if (!record) continue;
+        if (record[1] !== '-') additions += Number(record[1]);
+        if (record[2] !== '-') deletions += Number(record[2]);
+        // A rename/copy record carries no inline path; its two path fields follow as separate NUL fields.
+        if (record[3] === '') index += 2;
+    }
+    return { additions, deletions };
 }
 
 interface GitServiceOptions {
@@ -613,16 +595,94 @@ export class GitService {
             parameters.sha,
         ];
         if (path) fileArguments.push('--', path);
-        const files = parseCommitFiles(await this.git(repo.rootPath, fileArguments));
+        const numstatArguments = fileArguments.map((argument) =>
+            argument === '--name-status' ? '--numstat' : argument,
+        );
+        const [filesOutput, numstatOutput] = await Promise.all([
+            this.git(repo.rootPath, fileArguments),
+            this.git(repo.rootPath, numstatArguments),
+        ]);
+        const files = parseCommitFiles(filesOutput);
+        const lineStats = sumNumstat(numstatOutput);
         return {
             commit,
             files: files.slice(0, MAX_COMMIT_FILES),
             filesTruncated: files.length > MAX_COMMIT_FILES,
+            ...lineStats,
         };
     }
 
     blame(parameters: RuntimeMethodParameters<'git.blame'>) {
         return this.blameService.blame(parameters);
+    }
+
+    fileHead(parameters: RuntimeMethodParameters<'git.fileHead'>): Promise<GitCommit | null> {
+        return this.blameService.fileHead(parameters);
+    }
+
+    /**
+     * Both sides of one committed file resolved from the commit's own diff, so renames and root commits stay correct
+     * without the Renderer having to submit a `previousPath`.
+     */
+    async commitDiffDocument(
+        parameters: RuntimeMethodParameters<'git.commitDiffDocument'>,
+    ): Promise<GitDiffDocument> {
+        const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
+        const files = parseCommitFiles(
+            await this.git(repo.rootPath, [
+                'diff-tree',
+                '--root',
+                '--first-parent',
+                '-m',
+                '--no-commit-id',
+                '--name-status',
+                '-r',
+                '-z',
+                '-M',
+                parameters.sha,
+            ]),
+        );
+        const file = files.find((candidate) => candidate.path === parameters.path);
+        if (!file) throw new CaxriError('NOT_FOUND', 'File is not part of this commit');
+        // No `allowFailure` here: only a genuinely absent side (added/deleted file) is legitimately
+        // empty; an oversized blob or failing `git show` must surface as an error, not a blank diff.
+        const showOptions = { maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES };
+        const originalPath = file.previousPath ?? file.path;
+        const [original, modified] = await Promise.all([
+            file.status === 'added'
+                ? Promise.resolve('')
+                : this.git(
+                      repo.rootPath,
+                      ['show', `${parameters.sha}^:${originalPath}`],
+                      showOptions,
+                  ),
+            file.status === 'deleted'
+                ? Promise.resolve('')
+                : this.git(repo.rootPath, ['show', `${parameters.sha}:${file.path}`], showOptions),
+        ]);
+        // Binary blobs must never reach the text diff editor as mojibake; fall back to Git's own
+        // bounded patch output ("Binary files ... differ"), mirroring the working-tree patch path.
+        if (original.includes('\0') || modified.includes('\0')) {
+            const patch = await this.git(
+                repo.rootPath,
+                ['show', '-M', '--format=', '--patch', parameters.sha, '--', file.path],
+                showOptions,
+            );
+            return {
+                format: 'patch',
+                path: file.path,
+                originalPath: file.previousPath,
+                original: '',
+                modified: patch,
+            };
+        }
+        return {
+            format: 'contents',
+            path: file.path,
+            originalPath: file.previousPath,
+            original,
+            modified,
+        };
     }
 
     async diffDocument(

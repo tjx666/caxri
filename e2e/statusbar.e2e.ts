@@ -158,6 +158,10 @@ exec /bin/zsh -l
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();
         await expect(running.page.getByLabel(/^Git blame: Caxri E2E, .+, initial$/)).toBeVisible();
+        // The GitLens-style file annotation above the editor reports the file's latest commit.
+        await expect(running.page.locator('.editor-head-blame')).toContainText(
+            /Caxri E2E, .+ · initial/,
+        );
         const editor = running.page.locator('.monaco-editor');
         await editor.click({ position: { x: 80, y: 12 } });
         await running.page.keyboard.press('Shift+ArrowRight');
