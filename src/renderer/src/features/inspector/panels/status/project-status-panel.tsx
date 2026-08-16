@@ -63,21 +63,22 @@ function NodeIcon({ node }: { node: ProjectStatusTreeNode }) {
     return <CircleDot size={14} />;
 }
 
+/**
+ * Main denies every `window.open`/target=_blank navigation, so `node.url` anchors stay semantic-only `<a href>`
+ * elements and route the actual navigation through `external.open`.
+ */
+const openNodeUrl = (url: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
+    void openExternalUrl(url, (message) => pushToast('error', message));
+};
+
 function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTreeNode }) {
     const isExpandable = node.kind === 'deployments' || node.kind === 'pullRequest';
     const [expanded, setExpanded] = useState(
         node.kind === 'pullRequest' && node.state === 'failure',
     );
     const chevron = expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />;
-    /**
-     * Main denies every `window.open`/target=_blank navigation, so `node.url` anchors below stay semantic-only `<a
-     * href>` elements and route the actual navigation through `external.open`.
-     */
-    const openNodeUrl = (url: string) => (event: MouseEvent<HTMLAnchorElement>) => {
-        event.preventDefault();
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
-        void openExternalUrl(url, (message) => pushToast('error', message));
-    };
     const content = (
         <>
             {/*
