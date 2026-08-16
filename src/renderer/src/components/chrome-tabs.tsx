@@ -1,7 +1,8 @@
 import type { HTMLAttributes, KeyboardEvent, ReactElement, ReactNode } from 'react';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { useShouldReduceMotion } from '../lib/motion';
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
 import { cn } from '../lib/utilities';
 
 interface ChromeTabItem<Value extends string> {

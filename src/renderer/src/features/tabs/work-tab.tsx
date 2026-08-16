@@ -6,12 +6,14 @@ import { X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
-import { motionDurationMs, useShouldReduceMotion } from '../../lib/motion';
+import { motionDurationMs } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 import { processStateDescription } from './work-tab-accessibility';
 
