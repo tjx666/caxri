@@ -18,7 +18,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - With no selector, run lint and related tests.
 - With no file arguments, inspect staged, unstaged, and untracked files. `--staged` narrows this to the index.
 - Explicit files take priority over Git discovery.
-- `--lint` applies ESLint and Prettier fixes to supported files. Always inspect the resulting diff.
+- `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
+  to supported files. Always inspect the resulting diff.
   Appending file paths to `bun run format` does not narrow formatting; use
   `bun run --silent check <files...> --lint` for a focused pass.
 - `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest

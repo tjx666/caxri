@@ -338,7 +338,8 @@ export async function moveFile(
             folderGated: isFolderGatedConflict(sourceKind, targetKind),
         });
         if (choice === 'cancel') return undefined;
-        return attemptMove(
+        // Awaited so `finally` clears the failure-toast suppression only after this retry settles, not before it.
+        return await attemptMove(
             sessionId,
             path,
             directory,

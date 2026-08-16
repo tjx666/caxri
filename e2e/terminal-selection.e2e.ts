@@ -34,14 +34,14 @@ async function terminalTextBounds(
         .locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`)
         .evaluate((rows, target) => {
             const rowElements = [...rows.children];
-            const renderedText = rowElements.map((row) => row.textContent ?? '').join('');
+            const renderedText = rowElements.map((row) => row.textContent).join('');
             const targetStart = renderedText.indexOf(target);
             if (targetStart === -1) throw new Error(`Terminal text not found: ${target}`);
 
             const characterBounds = (targetOffset: number): CharacterBounds => {
                 let renderedOffset = 0;
                 for (const row of rowElements) {
-                    const rowText = row.textContent ?? '';
+                    const rowText = row.textContent;
                     if (targetOffset >= renderedOffset + rowText.length) {
                         renderedOffset += rowText.length;
                         continue;

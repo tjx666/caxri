@@ -78,7 +78,9 @@ const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
 ]);
 
 type OptionValue = string | true;
-type ParsedOptions = Record<string, OptionValue[]>;
+// Partial (not Record<string, OptionValue[]>): the object starts empty and keys are only
+// populated for flags actually present on argv, so an arbitrary key genuinely may be absent.
+type ParsedOptions = Partial<Record<string, OptionValue[]>>;
 
 function parseOptions(argv: string[]): ParsedOptions {
     const options: ParsedOptions = {};
@@ -348,6 +350,11 @@ async function main(): Promise<void> {
                 });
                 console.log(JSON.stringify({ ...runtime, status: 'ready' }));
                 const { code, signal } = await childExit;
+                // `isStopping` can flip to `true` asynchronously (SIGINT/SIGTERM handler calling
+                // `stop()`) while the awaits above are pending; the type checker's synchronous
+                // control-flow analysis can't see that interruption, but a real shutdown must not
+                // be reported as an unexpected non-zero exit.
+                // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
                 if (!isStopping && code !== 0) {
                     throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
                 }

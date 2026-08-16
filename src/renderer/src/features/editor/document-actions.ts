@@ -551,7 +551,9 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
         return;
     }
     const fallbackPath = openTabs[Math.min(firstClosingIndex, openTabs.length - 1)]?.path;
-    const terminal = sessionTerminals[0];
+    // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
+    // does not enable `noUncheckedIndexedAccess`.
+    const terminal = sessionTerminals.at(0);
     const nextItem: WorkItem | undefined = fallbackPath
         ? { kind: 'editor', path: fallbackPath }
         : terminal

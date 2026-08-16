@@ -50,7 +50,7 @@ async function runFocused(
         ],
         { env: environment, stdio: 'inherit' },
     );
-    return await new Promise<number>((resolve, reject) => {
+    return new Promise<number>((resolve, reject) => {
         child.once('error', reject);
         child.once('close', (code) => resolve(code ?? 1));
     });

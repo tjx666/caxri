@@ -59,7 +59,9 @@ export function resolveActiveWork(parameters: {
         ? layoutTerminalId
         : sessionTerminals[0]?.id;
     if (fallbackTerminalId) return { kind: 'terminal', terminalId: fallbackTerminalId };
-    const fallbackEditor = openTabs[0];
+    // `.at(0)` (not `openTabs[0]`) keeps the result typed as possibly missing: an empty `openTabs`
+    // is a real, common case, but plain index access is typed as always present.
+    const fallbackEditor = openTabs.at(0);
     return fallbackEditor ? { kind: 'editor', path: fallbackEditor.path } : undefined;
 }
 

@@ -56,6 +56,10 @@ export function reconcileEditorTabDirtiness(
         isChanged = true;
         return isDirty ? { path: tab.path, dirty: true } : { ...tab, dirty: false };
     });
+    // The type-aware checker's narrowing does not account for `isChanged` being reassigned inside
+    // the `.map` callback above (`tsc --strict` sees it correctly as `boolean`, not always `false`);
+    // treating this as dead code would drop every real dirtiness change.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- isChanged is reassigned inside the map callback; checker narrowing is a false positive
     return isChanged ? { ...state, openTabs } : state;
 }
 

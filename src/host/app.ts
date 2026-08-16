@@ -172,9 +172,11 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             case 'terminal.terminateAll':
             case 'runtime.shutdown': {
                 agentEndpoints.clear();
-                // No default
                 break;
             }
+            default:
+                // Most mutations need no Agent Endpoint bookkeeping before forwarding.
+                break;
         }
         mutationsInFlight += 1;
         try {

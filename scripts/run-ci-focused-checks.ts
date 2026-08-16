@@ -51,7 +51,7 @@ function validatePath(path: string): string {
 
 async function run(command: string, arguments_: string[]): Promise<number> {
     const child = spawn(command, arguments_, { cwd: projectRoot, stdio: 'inherit' });
-    return await new Promise<number>((resolve, reject) => {
+    return new Promise<number>((resolve, reject) => {
         child.once('error', reject);
         child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });

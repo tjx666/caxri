@@ -37,7 +37,7 @@ async function terminalGlyphPixelCounts(
          * (unicorn/no-break-in-nested-loop).
          */
         function findRowMatch(row: Element, matchTarget: string) {
-            const text = row.textContent ?? '';
+            const text = row.textContent;
             if (text.trim() !== matchTarget) return null;
             const index = text.indexOf(matchTarget);
             const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
@@ -156,7 +156,7 @@ async function terminalEdgeGlyphEvidence(
         .poll(() =>
             rows.evaluate(
                 (rowContainer) =>
-                    [...rowContainer.children].filter((row) => row.textContent?.trim() === 'W')
+                    [...rowContainer.children].filter((row) => row.textContent.trim() === 'W')
                         .length,
             ),
         )
@@ -172,7 +172,7 @@ async function terminalEdgeGlyphEvidence(
         .poll(() =>
             rows.evaluate(
                 (rowContainer) =>
-                    [...rowContainer.children].filter((row) => row.textContent?.trim() === '界')
+                    [...rowContainer.children].filter((row) => row.textContent.trim() === '界')
                         .length,
             ),
         )
@@ -244,7 +244,10 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
                     const source = document.querySelector(
                         `.work-tab[data-terminal-id="${CSS.escape(firstTerminalId)}"]`,
                     );
-                    const target = document.querySelectorAll('.terminal-group')[targetIndex];
+                    // `NodeListOf`'s index signature (unlike `.item()`) types out-of-range access as
+                    // always-defined; correct that here since `targetIndex` may be out of bounds.
+                    const target = document.querySelectorAll('.terminal-group')[targetIndex] as
+                        Element | undefined;
                     if (!source || !target) throw new Error('Terminal drag fixture not found');
                     const transfer = new DataTransfer();
                     const bounds = target.getBoundingClientRect();

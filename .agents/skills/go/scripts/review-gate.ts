@@ -137,7 +137,7 @@ export function recordReviewDecision(
         if (
             input.baselineReviewId !== baseline.id ||
             input.baselineHeadSha !== baseline.headSha ||
-            input.parentReviewId !== parent?.id
+            input.parentReviewId !== parent.id
         ) {
             throw new Error('Light delta review requires exact baseline and parent review lineage');
         }

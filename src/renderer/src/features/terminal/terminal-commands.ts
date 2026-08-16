@@ -73,9 +73,7 @@ export class TerminalCommandTracker {
         this.promptDecoration?.dispose();
         this.promptMarker?.dispose();
         this.promptMarker = this.terminal.registerMarker();
-        this.promptDecoration = this.promptMarker
-            ? this.decorate(this.promptMarker, 'prompt', this.colors.prompt)
-            : undefined;
+        this.promptDecoration = this.decorate(this.promptMarker, 'prompt', this.colors.prompt);
     }
 
     private startCommand(): void {
@@ -83,7 +81,6 @@ export class TerminalCommandTracker {
         this.pruneDisposedCommands();
         this.pruneExcessCommands();
         const marker = this.promptMarker ?? this.terminal.registerMarker();
-        if (!marker) return;
         this.promptDecoration?.dispose();
         this.promptDecoration = undefined;
         const command: CommandBoundary = {
@@ -104,7 +101,7 @@ export class TerminalCommandTracker {
     private pruneDisposedCommands(): void {
         for (let index = this.commands.length - 1; index >= 0; index -= 1) {
             const command = this.commands[index];
-            if (!command?.startMarker.isDisposed && command?.startMarker.line !== -1) continue;
+            if (!command.startMarker.isDisposed && command.startMarker.line !== -1) continue;
             this.disposeCommand(command);
             this.commands.splice(index, 1);
         }
@@ -204,7 +201,6 @@ export class TerminalCommandTracker {
                 Math.max(0, this.navigationIndex + (direction === 'previous' ? -1 : 1)),
             );
         const command = commands[this.navigationIndex];
-        if (!command) return false;
         this.terminal.scrollToLine(command.startMarker.line);
         return true;
     }

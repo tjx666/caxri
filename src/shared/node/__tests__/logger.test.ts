@@ -20,4 +20,21 @@ describe('StructuredLogger', () => {
             await rm(directory, { recursive: true, force: true });
         }
     });
+
+    it('recreates a deleted log directory instead of throwing into the caller', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
+        try {
+            const logger = new StructuredLogger(directory);
+            logger.write('info', 'before-removal');
+
+            // Profile teardown (or uninstall tooling) can delete the log directory while a late
+            // async callback still logs; that write must be best-effort, never an exception.
+            await rm(directory, { recursive: true, force: true });
+            expect(() => logger.write('warn', 'after-removal')).not.toThrow();
+
+            expect(await readFile(logger.path, 'utf8')).toContain('after-removal');
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
 });

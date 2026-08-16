@@ -166,9 +166,13 @@ function isAgentProvider(value: string | undefined): value is AgentProvider {
  */
 export function resolveE2EAgentPolicy(input: E2EAgentPolicyInput): E2EAgentPolicy | undefined {
     if (!input.isE2E) return undefined;
+    // `||` (not `??`) is deliberate: an env-sourced mode/provider explicitly set to `''` must also
+    // fail closed to the default rather than flowing through as an empty string.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also fall back to the fail-closed default
     const mode = input.requestedMode || 'blocked';
     if (mode === 'blocked') return { mode };
     if (mode === 'real') {
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also fall back to the fail-closed default
         const provider = input.requestedProvider || 'codex';
         if (!isAgentProvider(provider))
             throw new Error(`Unsupported E2E Agent provider: ${provider}`);

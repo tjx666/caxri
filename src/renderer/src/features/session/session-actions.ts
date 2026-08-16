@@ -187,5 +187,5 @@ export function selectAdjacentSession(delta: 1 | -1): void {
         activeSessions[(selectedIndex + delta + activeSessions.length) % activeSessions.length];
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    if (next) void didSelectSession(next.id);
+    void didSelectSession(next.id);
 }

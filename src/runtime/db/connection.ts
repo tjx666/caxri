@@ -25,7 +25,7 @@ export type CaxriDrizzleDatabase = BetterSQLite3Database<typeof schema>;
 
 function restrictPath(path: string, mode: number): void {
     try {
-        // eslint-disable-next-line n/no-sync -- better-sqlite3 has no async API; runs on the synchronous open path.
+        // oxlint-disable-next-line node/no-sync -- better-sqlite3 has no async API; runs on the synchronous open path.
         chmodSync(path, mode);
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -142,7 +142,7 @@ export interface OpenedDatabase {
  */
 export function openDatabase(path: string): OpenedDatabase {
     if (path !== ':memory:') {
-        // eslint-disable-next-line n/no-sync -- deliberate startup boundary before the synchronous `Database` open below.
+        // oxlint-disable-next-line node/no-sync -- deliberate startup boundary before the synchronous `Database` open below.
         mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
         /**
          * Electron owns this userData directory, so restricting it also protects adjacent Caxri configuration and logs.

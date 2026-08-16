@@ -104,6 +104,9 @@ export function validateReportLanguage({
     const parsedReport = reportLanguageSchema.safeParse(report);
     if (!parsedReport.success) {
         const issue = parsedReport.error.issues[0];
+        // Zod types `issues` as a plain array without encoding the "non-empty on failure"
+        // invariant, so `issue` can be `undefined` at the type level even though it never is here.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
         const field = issue?.path.length ? issue.path.join('.') : 'report';
         throw new Error(`${field} must be primarily Chinese`);
     }

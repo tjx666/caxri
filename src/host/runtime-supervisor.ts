@@ -175,6 +175,9 @@ export class HostRuntimeSupervisor extends EventTarget {
                 error: toWireError(error),
             };
         }
+        // `connected` can flip to false while `agentEndpointControl` above is awaited; TS narrows
+        // it from the `!child?.connected` guard at entry and does not account for that async mutation.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- connected can change during the preceding await
         if (this.child !== child || !child.connected) return;
         try {
             child.send(reply as Parameters<ChildProcess['send']>[0]);

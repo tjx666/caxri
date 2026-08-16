@@ -192,7 +192,9 @@ function parseJsonc(source: string): { ok: true; value: unknown } | { ok: false;
         allowTrailingComma: true,
         disallowComments: false,
     });
-    const first = errors[0];
+    // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
+    // does not enable `noUncheckedIndexedAccess`.
+    const first = errors.at(0);
     if (!first) return { ok: true, value };
     const before = source.slice(0, first.offset).split('\n');
     return {
@@ -220,7 +222,9 @@ export function parseConfigSource<Kind extends ConfigKind>(
     if (result.success) {
         return { ok: true, value: result.data as ConfigValues[Kind] };
     }
-    const issue = result.error.issues[0];
+    // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
+    // does not enable `noUncheckedIndexedAccess`.
+    const issue = result.error.issues.at(0);
     const path = issue?.path.length ? `${issue.path.map(String).join('.')}: ` : '';
     return {
         ok: false,

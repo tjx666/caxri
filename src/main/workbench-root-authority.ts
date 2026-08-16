@@ -46,7 +46,9 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 title: 'Choose a Project directory',
                 properties: ['openDirectory', 'createDirectory'],
             });
-            const path = result.filePaths[0];
+            // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `filePaths` is empty
+            // when the dialog is dismissed without a selection.
+            const path = result.filePaths.at(0);
             if (path && !result.canceled) options.grants.grant(path);
             /**
              * A dismissed or empty selection must resolve to null, never to an absent value.

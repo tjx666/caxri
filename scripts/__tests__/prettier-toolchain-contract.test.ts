@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import prettier from 'prettier';
 import { describe, expect, it } from 'vitest';
 
-import prettierConfig from '../../prettier.config.mjs';
+import prettierConfig from '../../prettier.config.ts';
 
 const root = resolve(import.meta.dirname, '../..');
 

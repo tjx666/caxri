@@ -272,7 +272,7 @@ export class CaxriDatabase {
     ): boolean {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
-            if (!terminal || terminal.kind !== 'shell' || terminal.provider) return false;
+            if (terminal?.kind !== 'shell' || terminal.provider) return false;
             if (snapshot?.provider !== undefined && snapshot.provider !== provider) return false;
             const agentSessionId = snapshot?.sessionId?.trim();
             if (

@@ -73,7 +73,7 @@ function selectorQuery(
     let scopeValue: string | undefined;
     for (let index = 0; index < tokens.length; index += 1) {
         const token = tokens[index];
-        if (scope && token === scope.flag) {
+        if (token === scope?.flag) {
             const value = tokens[index + 1];
             if (!value || value.startsWith('--'))
                 throw new CaxriError('VALIDATION', `${scope.flag} requires a value`);
@@ -198,8 +198,10 @@ function namedOptions(
     tokens: readonly string[],
     allowed: ReadonlyMap<string, string>,
     required: readonly string[],
-): Record<string, string> {
-    const result: Record<string, string> = {};
+): Partial<Record<string, string>> {
+    // Partial (not Record<string, string>): keys are populated incrementally below, so the runtime
+    // shape genuinely allows `undefined` until the `required` loop validates presence.
+    const result: Partial<Record<string, string>> = {};
     for (let index = 0; index < tokens.length; index += 1) {
         const flag = tokens[index];
         const key = allowed.get(flag);

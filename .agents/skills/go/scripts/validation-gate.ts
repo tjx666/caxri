@@ -111,11 +111,7 @@ export function completeValidation(
     const record = state.validations.find(({ id }) => id === input.id);
     if (!record) throw new Error(`Unknown validation: ${input.id}`);
     if (record.result !== 'pending') throw new Error(`Validation ${input.id} is already complete`);
-    if (
-        !state.mutationLease ||
-        state.mutationLease.kind !== 'validation' ||
-        state.mutationLease.holderId !== record.id
-    ) {
+    if (state.mutationLease?.kind !== 'validation' || state.mutationLease.holderId !== record.id) {
         throw new Error(`Validation ${input.id} does not own the worktree mutation lease`);
     }
     const integrityError =

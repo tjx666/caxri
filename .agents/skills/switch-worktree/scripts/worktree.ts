@@ -187,7 +187,7 @@ async function assertProfileCleanupSafe(path: string): Promise<void> {
 }
 
 async function hasBranch(context: RepoContext, branch: string): Promise<boolean> {
-    return await didCommandSucceed(
+    return didCommandSucceed(
         'git',
         ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
         context.root,
@@ -296,7 +296,7 @@ export async function listWorktreeStatus(cwd: string): Promise<WorktreeStatus[]>
         listWorktrees(context),
         inspectDesktopLease(context.root),
     ]);
-    return await Promise.all(worktrees.map((worktree) => inspectOne(context, worktree, desktop)));
+    return Promise.all(worktrees.map((worktree) => inspectOne(context, worktree, desktop)));
 }
 
 function resolveExistingTarget(
@@ -339,7 +339,7 @@ async function repairManagedWorktree(
     const status = await inspectOne(context, worktree, await inspectDesktopLease(context.root));
     if (!status.managed || (status.dependencies === 'ready' && status.profile)) return status;
     await setupManagedWorktree(context, worktree.path, install);
-    return await inspectOne(context, worktree, await inspectDesktopLease(context.root));
+    return inspectOne(context, worktree, await inspectDesktopLease(context.root));
 }
 
 function assertSemanticBranch(branch: string): void {
@@ -355,10 +355,10 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
     assertSemanticBranch(options.branch);
     const context = await repoContext(options.cwd);
     const install = options.install ?? installWorktreeDependencies;
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         const worktrees = await listWorktrees(context);
         const existing = worktrees.find((worktree) => worktree.branch === options.branch);
-        if (existing) return await repairManagedWorktree(context, existing, install);
+        if (existing) return repairManagedWorktree(context, existing, install);
         if (
             !(await didCommandSucceed(
                 'git',
@@ -392,7 +392,7 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
             (worktree) => resolve(worktree.path) === resolve(path),
         );
         if (!created) throw new CommandError(`Git did not register new worktree ${path}`);
-        return await inspectOne(context, created, await inspectDesktopLease(context.root));
+        return inspectOne(context, created, await inspectDesktopLease(context.root));
     });
 }
 
@@ -402,9 +402,9 @@ export async function switchWorktree(
     install: (path: string) => Promise<void> = installWorktreeDependencies,
 ): Promise<WorktreeStatus> {
     const context = await repoContext(cwd);
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         const current = resolveExistingTarget(await listWorktrees(context), cwd, target);
-        if (current) return await repairManagedWorktree(context, current, install);
+        if (current) return repairManagedWorktree(context, current, install);
         if (!(await hasBranch(context, target)))
             throw new CommandError(`No worktree or local branch matches: ${target}`, 2);
         const path = worktreeDirectory(context, target);
@@ -417,7 +417,7 @@ export async function switchWorktree(
             (worktree) => resolve(worktree.path) === resolve(path),
         );
         if (!added) throw new CommandError(`Git did not register worktree ${path}`);
-        return await inspectOne(context, added, await inspectDesktopLease(context.root));
+        return inspectOne(context, added, await inspectDesktopLease(context.root));
     });
 }
 
@@ -486,7 +486,7 @@ export async function removeWorktree(
     options: RemoveOptions,
 ): Promise<{ path: string; profileKept: boolean }> {
     const context = await repoContext(options.cwd);
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         const worktrees = await listWorktrees(context);
         const worktree = resolveExistingTarget(worktrees, options.cwd, options.target);
         if (!worktree) throw new CommandError(`No worktree matches: ${options.target}`, 2);

@@ -126,7 +126,8 @@ function resolveFileId(name: string): FileIconId {
     if (/\.(?:test|spec)\.jsx$/.test(lowerName)) return 'testJsx';
     if (/\.(?:test|spec)\.js$/.test(lowerName)) return 'testJavaScript';
     const extension = lowerName.includes('.') ? lowerName.split('.').at(-1) : undefined;
-    return (extension && fileExtensions.get(extension)) || 'file';
+    if (!extension) return 'file';
+    return fileExtensions.get(extension) ?? 'file';
 }
 
 export function resolveFileIcon(

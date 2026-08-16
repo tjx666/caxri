@@ -471,7 +471,7 @@ async function mutateSkill(
         target,
         selection.scope === 'local' ? context.cwd : undefined,
     );
-    return await withSkillMutationLock(location, async (anchoredTarget) => {
+    return withSkillMutationLock(location, async (anchoredTarget) => {
         const inspection = await inspectSkill(selection, context, anchoredTarget);
         if (operation === 'uninstall') {
             if (inspection.value.status === 'missing')
@@ -593,12 +593,12 @@ export async function executeSkillCommand(
         const scopes: SkillInstallScope[] = input.scope
             ? [input.scope as SkillInstallScope]
             : ['local', 'global'];
-        return await inspectBundledSkillHealth(context, { providers, scopes });
+        return inspectBundledSkillHealth(context, { providers, scopes });
     }
     assertBundledName(input.name);
     const mutationActions: readonly string[] = ['install', 'update', 'uninstall'];
     if (mutationActions.includes(action))
-        return await mutateSkill(
+        return mutateSkill(
             action as 'install' | 'update' | 'uninstall',
             input as unknown as SkillSelection,
             context,

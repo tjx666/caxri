@@ -185,8 +185,9 @@ export function WorkTab({
                             'absolute inset-0 m-auto',
                             'group-focus-within:opacity-0 group-hover:opacity-0',
                             `process-${status}`,
-                            (status === 'running' && 'bg-success') ||
-                                (['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger'),
+                            status === 'running'
+                                ? 'bg-success'
+                                : ['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger',
                         )}
                     />
                 )}

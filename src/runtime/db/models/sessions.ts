@@ -120,7 +120,9 @@ const workbenchEditorStateSchema = z.object({
 const workbenchEditorStatesSchema = z
     .record(z.string().min(1).max(200), workbenchEditorStateSchema)
     .refine((states) => Object.keys(states).length <= 1_024, 'Too many Workbench Root states');
-type WorkbenchEditorStates = z.infer<typeof workbenchEditorStatesSchema>;
+// `Partial` corrects `z.record`'s inferred type: real lookups by workbenchProjectId key can miss
+// (Session-owned root has no state yet), but zod's inference promises every value is present.
+type WorkbenchEditorStates = Partial<z.infer<typeof workbenchEditorStatesSchema>>;
 
 function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | undefined {
     try {
@@ -169,7 +171,10 @@ function parseSessionState(
     if (!workbenchStatesResult.success || !activeTabResult.success)
         return { reason: 'invalid_shape' };
     const workbenchProjectId = row.workbenchProjectId ?? row.projectId;
-    const rootState = workbenchStatesResult.data[workbenchProjectId];
+    // `z.record`'s inferred value type promises every key is present; cast through the `Partial`
+    // alias so the lookup below is correctly typed as possibly missing.
+    const workbenchStates: WorkbenchEditorStates = workbenchStatesResult.data;
+    const rootState = workbenchStates[workbenchProjectId];
     const isLegacyOwnerState = workbenchProjectId === row.projectId && !rootState;
     const activeTab = activeTabResult.data;
     const candidate: unknown = {

@@ -83,7 +83,9 @@ function buildBridgeCommand(
         `--provider ${desired.provider}`,
         `--phase ${phase}`,
         `--schema ${desired.schemaVersion}`,
-        ...(reply ? [`--reply ${reply === 'emptyJson' ? 'empty-json' : reply}`] : []),
+        // `AgentHookBinding['reply']` currently has one literal (`'emptyJson'`); this maps it to the
+        // bridge CLI's kebab-case flag value. Revisit this mapping if that union ever grows.
+        ...(reply === 'emptyJson' ? ['--reply empty-json'] : []),
     ].join(' ');
 }
 

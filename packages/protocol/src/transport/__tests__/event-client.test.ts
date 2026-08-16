@@ -11,7 +11,7 @@ describe('createRecoveringEventClient error handling', () => {
             onError: (error) => {
                 errors.push(error);
             },
-            // eslint-disable-next-line @typescript-eslint/require-await -- rejects synchronously to exercise the onError path deterministically
+            // oxlint-disable-next-line typescript/require-await -- rejects synchronously to exercise the onError path deterministically
             recover: async () => {
                 throw new Error('recovery transport failed');
             },
@@ -29,7 +29,7 @@ describe('createRecoveringEventClient error handling', () => {
             emit: (event) => {
                 emitted.push(event);
             },
-            // eslint-disable-next-line @typescript-eslint/require-await -- resolves synchronously; this path is never awaited by the assertion
+            // oxlint-disable-next-line typescript/require-await -- resolves synchronously; this path is never awaited by the assertion
             recover: async () => ({ kind: 'events', cursor: 0, events: [] }),
         });
 

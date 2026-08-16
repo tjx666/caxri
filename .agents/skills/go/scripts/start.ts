@@ -8,9 +8,10 @@ import { startGoRun } from './start-core';
 function parse(argv: string[]): StartInput {
     const values = new Map<string, string>();
     for (let index = 0; index < argv.length; index += 2) {
+        // `index < argv.length` (loop condition) guarantees `key` is in bounds.
         const key = argv[index];
         const value = argv[index + 1];
-        if (!value || !key?.startsWith('--')) throw new Error('Expected --option value pairs');
+        if (!value || !key.startsWith('--')) throw new Error('Expected --option value pairs');
         values.set(key.slice(2), value);
     }
     const objective = values.get('objective');

@@ -174,6 +174,10 @@ export class RuntimeAgentEndpointLifecycle {
             ref: endpoint.ref,
             launchId: endpoint.launchId,
         });
+        // `endpoint.retiring` can flip to true while `this.control.activate` above is awaited (a
+        // concurrent retire); the checker narrows it from the guard at entry and does not account
+        // for that async mutation.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- retiring can change during the preceding await
         if (!isActivated || endpoint.retiring || this.active.get(terminalId) !== endpoint)
             throw new CaxriError(
                 'UNAVAILABLE',
@@ -259,8 +263,7 @@ export class RuntimeAgentEndpointLifecycle {
     isCurrent(target: RuntimeAgentControlTarget): boolean {
         const current = this.active.get(target.terminalId);
         return Boolean(
-            current &&
-            current.activated &&
+            current?.activated &&
             !current.retiring &&
             current.launchId === target.launchId &&
             current.ref.endpointId === target.ref.endpointId &&

@@ -254,6 +254,7 @@ export class GitMetadataWatcher {
                 fields: { repositories: this.repositories.size, worktreeRoots: roots.length },
             });
         } catch (error) {
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- `closed` can flip while `subscribe` is awaited (concurrent close()); tsgolint keeps the stale pre-await narrowing
             if (this.closed || !this.repositories.has(repoKey)) return;
             this.options.logger.write('warn', 'git.metadata_watcher_fallback', {
                 fields: { error: errorMessage(error, 'unknown') },

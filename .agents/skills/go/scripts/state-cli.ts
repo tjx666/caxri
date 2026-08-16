@@ -72,7 +72,9 @@ import {
 
 type OptionScalar = string | true;
 type OptionValue = OptionScalar | OptionScalar[];
-type Options = Record<string, OptionValue>;
+// Partial (not Record<string, OptionValue>): the object starts empty and keys are only
+// populated for flags actually present on argv, so an arbitrary key genuinely may be absent.
+type Options = Partial<Record<string, OptionValue>>;
 
 function slugify(value: string): string {
     return value

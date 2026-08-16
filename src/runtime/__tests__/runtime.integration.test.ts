@@ -586,11 +586,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                         event.payload.kind === 'records' &&
                         event.payload.terminalIds.length === 2,
                 );
-                if (
-                    !restored ||
-                    restored.event !== 'state.changed' ||
-                    restored.payload.kind !== 'records'
-                )
+                if (restored?.event !== 'state.changed' || restored.payload.kind !== 'records')
                     throw new Error('Missing scoped restore event');
                 expect(new Set(restored.payload.terminalIds)).toEqual(
                     new Set([created.terminal!.id, second.id]),

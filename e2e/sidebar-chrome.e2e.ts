@@ -67,7 +67,9 @@ async function publishFullScreenState(
     isFullScreen: boolean,
 ): Promise<void> {
     await app.evaluate(({ BrowserWindow }, nextFullScreen) => {
-        const window = BrowserWindow.getAllWindows()[0];
+        // `.at()` (not index access, which types the element as always-defined) types `window` as
+        // possibly `undefined`, matching the real possibility of no open window.
+        const window = BrowserWindow.getAllWindows().at(0);
         if (!window) throw new Error('Caxri window is unavailable');
         window.webContents.send('caxri:event', {
             event: 'window.fullScreen',

@@ -664,7 +664,9 @@ describe('Go state ledger', () => {
             await owner;
             await expect(access(join(directory, 'state.lock'))).rejects.toThrow();
         } finally {
-            release?.();
+            // `release` is assigned synchronously by the `Promise` executor above (before `try`
+            // starts), so it is always defined here.
+            release();
             await rm(directory, { force: true, recursive: true });
         }
     });

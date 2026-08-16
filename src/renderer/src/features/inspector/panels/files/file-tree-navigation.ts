@@ -31,7 +31,9 @@ export function parentTreeItemIndex(
     items: readonly TreeItemDescriptor[],
     index: number,
 ): number | undefined {
-    const level = items[index]?.level;
+    // `.at()` (rather than `[index]`) keeps an out-of-range `index`'s `undefined` case in the type, since this project
+    // does not enable `noUncheckedIndexedAccess`.
+    const level = items.at(index)?.level;
     if (level === undefined) return undefined;
     for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
         if (items[cursor].level < level) return cursor;

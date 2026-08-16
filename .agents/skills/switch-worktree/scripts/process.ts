@@ -56,7 +56,7 @@ export async function runInherited(
         stdio: stdoutToStderr ? ['inherit', 'pipe', 'inherit'] : 'inherit',
     });
     if (stdoutToStderr) child.stdout?.pipe(process.stderr);
-    return await new Promise<number>((resolve, reject) => {
+    return new Promise<number>((resolve, reject) => {
         child.once('error', reject);
         child.once('exit', (code, signal) => {
             if (signal) reject(new CommandError(`${command} exited with ${signal}`));

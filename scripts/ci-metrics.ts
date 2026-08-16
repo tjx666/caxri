@@ -69,7 +69,7 @@ async function processSnapshot(): Promise<string> {
     });
     let stdout = '';
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-    return await new Promise<string>((resolve) => {
+    return new Promise<string>((resolve) => {
         child.once('error', () => resolve(''));
         child.once('exit', (code) => resolve(code === 0 ? stdout : ''));
     });

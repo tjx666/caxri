@@ -16,7 +16,7 @@ import { terminalSearchResultLabel } from './terminal-search';
  * composes those into an accented character, so matching on `event.key` would see "ç" for Option+C and type it into the
  * Find input instead of toggling Match Case.
  */
-const SEARCH_TOGGLE_SHORTCUTS: Record<string, keyof TerminalSearchOptions> = {
+const SEARCH_TOGGLE_SHORTCUTS: Partial<Record<string, keyof TerminalSearchOptions>> = {
     'alt+c': 'caseSensitive',
     'alt+r': 'regex',
     'alt+w': 'wholeWord',

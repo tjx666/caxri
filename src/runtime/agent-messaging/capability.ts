@@ -170,7 +170,7 @@ export class AgentMessagingCapabilityProbe {
         const probe = async (): Promise<ProbeResult | 'adapter-unavailable'> => {
             if (!this.cliPath || !(await this.cliAvailable(this.cliPath)))
                 return 'adapter-unavailable';
-            return await this.probe!(input.provider, input.launch);
+            return this.probe!(input.provider, input.launch);
         };
         let result: ProbeResult | 'adapter-unavailable' | 'timeout';
         try {

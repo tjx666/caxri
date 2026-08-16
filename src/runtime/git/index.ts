@@ -286,7 +286,10 @@ export class GitService {
                 });
                 return stdout;
             } catch (error) {
-                const failure = error as NodeJS.ErrnoException & { stderr?: string };
+                // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
+                // `message: string`, but `error` is `unknown` at this catch boundary and a thrown value
+                // is not guaranteed to be an `Error` instance with a `message` at runtime.
+                const failure = error as { code?: string; message?: string; stderr?: string };
                 const message = `${failure.message ?? ''}\n${failure.stderr ?? ''}`;
                 if (/no pull requests found|could not find pull request/i.test(message)) return '';
                 this.logger.write('warn', 'git.github_command_failed', {
@@ -593,7 +596,9 @@ export class GitService {
                 parameters.sha,
             ]),
         ]);
-        const commit = parseCommitLog(commitOutput)[0];
+        // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `git show` can return no
+        // parseable commit line for a stale or unknown sha.
+        const commit = parseCommitLog(commitOutput).at(0);
         if (!commit) throw new CaxriError('NOT_FOUND', 'Git commit no longer exists');
         const fileArguments = [
             'diff-tree',
