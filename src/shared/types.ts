@@ -58,7 +58,6 @@ export {
     type SessionRecord,
     type SessionState,
     type SessionTitleMode,
-    SETTINGS_BOUNDS,
     type TerminalFailureReason,
     type TerminalKind,
     type TerminalRecord,

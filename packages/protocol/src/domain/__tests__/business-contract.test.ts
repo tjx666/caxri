@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { settingsSpecByKey } from '../../configuration/settings-spec.js';
 import {
     businessInternalMethods,
     businessMethods,
@@ -9,7 +10,6 @@ import {
     settingsPatchParametersSchema,
     terminalQuerySchema,
 } from '../business-contract.js';
-import { SETTINGS_BOUNDS } from '../domain.js';
 
 describe('projectQuerySchema', () => {
     it('requires a non-empty selector for show mode', () => {
@@ -43,7 +43,7 @@ describe('terminalQuerySchema', () => {
 
 describe('settingsPatchChangeSchema', () => {
     it('enforces the documented terminal.fontSize bounds', () => {
-        const { min, max } = SETTINGS_BOUNDS['terminal.fontSize'];
+        const { min, max } = settingsSpecByKey['terminal.fontSize'];
         expect(
             settingsPatchChangeSchema.safeParse({ key: 'terminal.fontSize', value: min }).success,
         ).toBe(true);
@@ -61,7 +61,7 @@ describe('settingsPatchChangeSchema', () => {
     });
 
     it('enforces the documented files.maxFileBytes bounds', () => {
-        const { min, max } = SETTINGS_BOUNDS['files.maxFileBytes'];
+        const { min, max } = settingsSpecByKey['files.maxFileBytes'];
         expect(
             settingsPatchChangeSchema.safeParse({ key: 'files.maxFileBytes', value: min }).success,
         ).toBe(true);

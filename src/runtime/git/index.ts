@@ -4,7 +4,7 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc';
 import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
