@@ -56,7 +56,7 @@ describe('settings spec and schema agreement', () => {
             expect(appSettingsSchema.safeParse({ [spec.key]: 'not-a-real-option' }).success).toBe(
                 false,
             );
-            if ('nullLabel' in spec && spec.nullLabel)
+            if ('nullLabel' in spec)
                 expect(appSettingsSchema.safeParse({ [spec.key]: null }).success).toBe(true);
         }
     });

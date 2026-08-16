@@ -110,35 +110,35 @@ export const settingsPatchKeySchema = z.enum([
 export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
     z.object({
         key: z.literal('session.defaultAgent'),
-        value: appSettingsSchema.shape['session.defaultAgent'].removeDefault(),
+        value: appSettingsSchema.shape['session.defaultAgent'].unwrap(),
     }),
     z.object({
         key: z.literal('workbench.newWorktreeBehavior'),
-        value: appSettingsSchema.shape['workbench.newWorktreeBehavior'].removeDefault(),
+        value: appSettingsSchema.shape['workbench.newWorktreeBehavior'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.fontSize'),
-        value: appSettingsSchema.shape['terminal.fontSize'].removeDefault(),
+        value: appSettingsSchema.shape['terminal.fontSize'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.scrollback'),
-        value: appSettingsSchema.shape['terminal.scrollback'].removeDefault(),
+        value: appSettingsSchema.shape['terminal.scrollback'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.copyOnSelect'),
-        value: appSettingsSchema.shape['terminal.copyOnSelect'].removeDefault(),
+        value: appSettingsSchema.shape['terminal.copyOnSelect'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.gpuAcceleration'),
-        value: appSettingsSchema.shape['terminal.gpuAcceleration'].removeDefault(),
+        value: appSettingsSchema.shape['terminal.gpuAcceleration'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.osc52ClipboardWrite'),
-        value: appSettingsSchema.shape['terminal.osc52ClipboardWrite'].removeDefault(),
+        value: appSettingsSchema.shape['terminal.osc52ClipboardWrite'].unwrap(),
     }),
     z.object({
         key: z.literal('files.maxFileBytes'),
-        value: appSettingsSchema.shape['files.maxFileBytes'].removeDefault(),
+        value: appSettingsSchema.shape['files.maxFileBytes'].unwrap(),
     }),
 ]);
 export const settingsPatchParametersSchema = z.object({

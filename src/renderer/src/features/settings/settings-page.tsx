@@ -179,15 +179,12 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const virtualItems = virtualizer.getVirtualItems();
     const scrollOffset = virtualizer.scrollOffset ?? 0;
     const activeAnchor = useMemo(() => {
-        const topIndex =
-            virtualItems.find((item) => item.end > scrollOffset)?.index ?? virtualItems[0]?.index;
-        if (topIndex === undefined) return;
-        for (let index = topIndex; index >= 0; index -= 1) {
+        const topItem = virtualItems.find((item) => item.end > scrollOffset) ?? virtualItems.at(0);
+        if (topItem === undefined) return;
+        for (let index = topItem.index; index >= 0; index -= 1) {
             const item = list[index];
-            if (item.kind === 'subcategory') return anchorOf(item);
-            if (item.kind === 'category') return anchorOf(item);
-            if (item.kind === 'row' && item.row.subcategory)
-                return `${item.row.category}:${item.row.subcategory}`;
+            if (item.kind === 'subcategory' || item.kind === 'category') return anchorOf(item);
+            if (item.row.subcategory) return `${item.row.category}:${item.row.subcategory}`;
         }
         return list[0] ? anchorOf(list[0]) : undefined;
     }, [list, scrollOffset, virtualItems]);
