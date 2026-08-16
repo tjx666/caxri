@@ -1,0 +1,112 @@
+import { describe, expect, it } from 'vitest';
+
+import type { Principal } from '../../transport/principal';
+import { principalProjectionSchemas, projectListForPrincipal } from '../projections';
+
+const projects = [
+    {
+        id: 'project-1',
+        rootPath: '/private/project-one',
+        displayTitle: 'Project One',
+        orderIndex: 0,
+        createdAt: 1,
+        lastOpenedAt: 1,
+    },
+    {
+        id: 'project-2',
+        rootPath: '/private/project-two',
+        displayTitle: 'Project Two',
+        orderIndex: 1,
+        createdAt: 2,
+        lastOpenedAt: 2,
+    },
+];
+
+const value = { view: 'desktop', projects } as const;
+
+describe('projectListForPrincipal', () => {
+    it('returns the full record for a desktop principal', () => {
+        const desktop: Principal = { kind: 'desktop', id: 'desktop-1', generation: 1 };
+        expect(projectListForPrincipal(value, desktop)).toEqual({ view: 'desktop', projects });
+    });
+
+    it('drops orderIndex/createdAt/lastOpenedAt for a human CLI principal', () => {
+        const human: Principal = { kind: 'human-cli', id: 'cli-1' };
+        const result = projectListForPrincipal(value, human);
+        expect(result).toEqual({
+            view: 'human-cli',
+            projects: [
+                { id: 'project-1', displayTitle: 'Project One', rootPath: '/private/project-one' },
+                { id: 'project-2', displayTitle: 'Project Two', rootPath: '/private/project-two' },
+            ],
+        });
+    });
+
+    it('scopes an agent principal to only its authorized project IDs, dropping rootPath', () => {
+        const agent: Principal = {
+            kind: 'agent',
+            id: 'agent-1',
+            endpointId: 'endpoint-1',
+            generation: 1,
+            projectIds: ['project-2'],
+        };
+        const result = projectListForPrincipal(value, agent);
+        expect(result).toEqual({
+            view: 'agent',
+            projects: [{ id: 'project-2', displayTitle: 'Project Two' }],
+        });
+    });
+
+    it('scopes a paired-device principal the same way as an agent principal', () => {
+        const pairedDevice: Principal = {
+            kind: 'paired-device',
+            id: 'device-1',
+            deviceId: 'device-1',
+            projectIds: ['project-1', 'project-2'],
+        };
+        const result = projectListForPrincipal(value, pairedDevice);
+        expect(result).toEqual({
+            view: 'paired-device',
+            projects: [
+                { id: 'project-1', displayTitle: 'Project One' },
+                { id: 'project-2', displayTitle: 'Project Two' },
+            ],
+        });
+    });
+
+    it('returns an empty list for a scoped principal authorized for no listed project', () => {
+        const agent: Principal = {
+            kind: 'agent',
+            id: 'agent-1',
+            endpointId: 'endpoint-1',
+            generation: 1,
+            projectIds: [],
+        };
+        expect(projectListForPrincipal(value, agent)).toEqual({ view: 'agent', projects: [] });
+    });
+
+    it('rejects a malformed source value before it reaches any principal projection', () => {
+        expect(() =>
+            projectListForPrincipal(
+                { view: 'not-a-view' },
+                { kind: 'desktop', id: 'd', generation: 1 },
+            ),
+        ).toThrow();
+    });
+});
+
+describe('principalProjectionSchemas.settings', () => {
+    it('only exposes the bounded allowlist of settings keys', () => {
+        const parsed = principalProjectionSchemas.settings.parse({
+            'session.defaultAgent': null,
+            'terminal.fontSize': 13,
+            'terminal.scrollback': 2_000,
+            'terminal.copyOnSelect': true,
+            'terminal.gpuAcceleration': 'off',
+            'terminal.osc52ClipboardWrite': false,
+            'files.maxFileBytes': 2_000_000,
+            'some.unrelated.setting': 'must be stripped',
+        });
+        expect(parsed).not.toHaveProperty('some.unrelated.setting');
+    });
+});
