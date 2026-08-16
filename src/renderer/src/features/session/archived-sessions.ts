@@ -1,4 +1,5 @@
 import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@shared/types';
+import { groupBy, sortBy, sumBy } from 'es-toolkit';
 
 export interface ArchivedSessionFilters {
     agent: TerminalKind | 'all';
@@ -46,38 +47,30 @@ export function deriveArchivedSessionView(
 ): ArchivedSessionView {
     const terminalById = new Map(terminals.map((terminal) => [terminal.id, terminal]));
     const firstTerminalBySession = new Map<string, TerminalRecord>();
-    const orderedTerminals = terminals.toSorted(
-        (first, second) => first.orderIndex - second.orderIndex,
-    );
+    const orderedTerminals = sortBy(terminals, ['orderIndex']);
     for (const terminal of orderedTerminals)
         if (!firstTerminalBySession.has(terminal.sessionId))
             firstTerminalBySession.set(terminal.sessionId, terminal);
 
-    const sessionsByProject = new Map<string, ArchivedSessionItem[]>();
-    const usedAgentKinds = new Set<TerminalKind>();
-    for (const session of sessions) {
-        if (session.archivedAt === undefined) continue;
+    const archivedSessions = sessions.filter(
+        (session): session is SessionRecord & { archivedAt: number } =>
+            session.archivedAt !== undefined,
+    );
+    const items: ArchivedSessionItem[] = archivedSessions.map((session) => {
         const terminal =
             (session.primaryAgentTerminalId
                 ? terminalById.get(session.primaryAgentTerminalId)
                 : undefined) ?? firstTerminalBySession.get(session.id);
         const agent = terminal?.kind ?? 'shell';
-        usedAgentKinds.add(agent);
-        const item: ArchivedSessionItem = {
-            agent,
-            archivedAt: session.archivedAt,
-            session,
-            terminal,
-        };
-        const projectSessions = sessionsByProject.get(session.projectId) ?? [];
-        projectSessions.push(item);
-        sessionsByProject.set(session.projectId, projectSessions);
-    }
+        return { agent, archivedAt: session.archivedAt, session, terminal };
+    });
+    const usedAgentKinds = new Set<TerminalKind>(items.map((item) => item.agent));
+    const sessionsByProject = groupBy(items, (item) => item.session.projectId);
 
-    const orderedProjects = projects.toSorted(
-        (first, second) => first.orderIndex - second.orderIndex,
+    const orderedProjects = sortBy(projects, ['orderIndex']);
+    const projectOptions = orderedProjects.filter((project) =>
+        Object.hasOwn(sessionsByProject, project.id),
     );
-    const projectOptions = orderedProjects.filter((project) => sessionsByProject.has(project.id));
     /**
      * Restore/delete can remove the selected Project's last archived Session. Normalize that stale filter immediately
      * so the control and results both return to the complete archive.
@@ -92,8 +85,10 @@ export function deriveArchivedSessionView(
     const groups: ArchivedSessionGroup[] = [];
     for (const project of projectOptions) {
         if (projectId !== 'all' && projectId !== project.id) continue;
-        const projectSessions = sessionsByProject.get(project.id);
-        if (!projectSessions) continue;
+        // `groupBy` types every key as present; `Object.hasOwn` keeps the runtime guard for projects
+        // with no archived sessions without tripping no-unnecessary-condition.
+        if (!Object.hasOwn(sessionsByProject, project.id)) continue;
+        const projectSessions = sessionsByProject[project.id];
         const matching = projectSessions
             .filter(
                 (item) =>
@@ -116,11 +111,9 @@ export function deriveArchivedSessionView(
          */
         agentOptions: AGENT_ORDER.filter((kind) => usedAgentKinds.has(kind)),
         groups,
-        matchingCount: groups.reduce((count, group) => count + group.sessions.length, 0),
+        matchingCount: sumBy(groups, (group) => group.sessions.length),
         projectId,
         projectOptions,
-        totalCount: sessionsByProject
-            .values()
-            .reduce((count, projectSessions) => count + projectSessions.length, 0),
+        totalCount: sumBy(Object.values(sessionsByProject), (list) => list.length),
     };
 }

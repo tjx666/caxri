@@ -1,5 +1,5 @@
-import type { CSSProperties, PointerEvent } from 'react';
-import { useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useMemo, useState } from 'react';
 
 import { moveTerminal, resizeSplit, splitTerminal } from '@shared/terminal-layout';
 import type {
@@ -9,6 +9,7 @@ import type {
     TerminalSplitNode,
 } from '@shared/types';
 
+import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
 import { cn } from '../../lib/utilities';
 import { useSessionState, useSessionTerminals } from '../../stores/selectors';
 import { activateTerminal, applyTerminalLayout, TERMINAL_DRAG_TYPE } from './terminal-actions';
@@ -17,6 +18,14 @@ import { TerminalPane } from './terminal-pane';
 type DropZone = 'center' | 'right' | 'down';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
+
+/**
+ * Matches the shared `terminalLayoutSchema` ratio bounds in `packages/protocol/src/domain/layout.ts`, which
+ * `resizeSplit` also enforces; kept local here since only the ratio-scale (not the aria percent-scale) bound is needed
+ * for the drag/keyboard clamp.
+ */
+const MIN_SPLIT_RATIO = 0.15;
+const MAX_SPLIT_RATIO = 0.85;
 
 /**
  * The focused pane ring is the app's one accent indicator (DESIGN.md "Terminal panes").
@@ -144,19 +153,36 @@ function TerminalGroupView(properties: NodeViewProperties & { node: TerminalGrou
 }
 
 function TerminalSplitView(properties: NodeViewProperties & { node: TerminalSplitNode }) {
-    const dragging = useRef(false);
     const [draftRatio, setDraftRatio] = useState<number>();
     const ratio = draftRatio ?? properties.node.ratio;
     const isHorizontal = properties.node.direction === 'horizontal';
-    const updateRatio = (event: PointerEvent<HTMLDivElement>): number => {
-        const container = event.currentTarget.parentElement;
-        if (!container) return ratio;
-        const bounds = container.getBoundingClientRect();
-        const next = isHorizontal
-            ? (event.clientX - bounds.left) / bounds.width
-            : (event.clientY - bounds.top) / bounds.height;
-        return Math.min(0.85, Math.max(0.15, next));
-    };
+    const dragResize = usePointerDragResize({
+        value: ratio,
+        min: MIN_SPLIT_RATIO,
+        max: MAX_SPLIT_RATIO,
+        resolveValue: (event) => {
+            const container = event.currentTarget.parentElement;
+            if (!container) return ratio;
+            const bounds = container.getBoundingClientRect();
+            return isHorizontal
+                ? (event.clientX - bounds.left) / bounds.width
+                : (event.clientY - bounds.top) / bounds.height;
+        },
+        onDragMove: (next) => setDraftRatio(next),
+        onCommit: (next) => {
+            setDraftRatio(undefined);
+            applyTerminalLayout(resizeSplit(properties.layout, properties.node.id, next));
+        },
+        onCancel: () => setDraftRatio(undefined),
+        resolveStep: (event) => {
+            const isDecrease = isHorizontal ? event.key === 'ArrowLeft' : event.key === 'ArrowUp';
+            const isIncrease = isHorizontal
+                ? event.key === 'ArrowRight'
+                : event.key === 'ArrowDown';
+            if (!isDecrease && !isIncrease) return;
+            return isDecrease ? -0.05 : 0.05;
+        },
+    });
     const firstStyle = {
         flexBasis: `${ratio * 100}%`,
     } satisfies CSSProperties;
@@ -190,47 +216,12 @@ function TerminalSplitView(properties: NodeViewProperties & { node: TerminalSpli
                 aria-valuemin={15}
                 aria-valuemax={85}
                 aria-valuenow={Math.round(ratio * 100)}
-                onKeyDown={(event) => {
-                    const isDecrease = isHorizontal
-                        ? event.key === 'ArrowLeft'
-                        : event.key === 'ArrowUp';
-                    const isIncrease = isHorizontal
-                        ? event.key === 'ArrowRight'
-                        : event.key === 'ArrowDown';
-                    if (!isDecrease && !isIncrease) return;
-                    event.preventDefault();
-                    applyTerminalLayout(
-                        resizeSplit(
-                            properties.layout,
-                            properties.node.id,
-                            ratio + (isDecrease ? -0.05 : 0.05),
-                        ),
-                    );
-                }}
-                onPointerDown={(event) => {
-                    dragging.current = true;
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onPointerMove={(event) => {
-                    if (dragging.current) setDraftRatio(updateRatio(event));
-                }}
-                onPointerUp={(event) => {
-                    if (!dragging.current) return;
-                    dragging.current = false;
-                    const nextRatio = updateRatio(event);
-                    setDraftRatio(undefined);
-                    applyTerminalLayout(
-                        resizeSplit(properties.layout, properties.node.id, nextRatio),
-                    );
-                }}
-                onPointerCancel={() => {
-                    dragging.current = false;
-                    setDraftRatio(undefined);
-                }}
-                onLostPointerCapture={() => {
-                    dragging.current = false;
-                    setDraftRatio(undefined);
-                }}
+                onKeyDown={dragResize.onKeyDown}
+                onPointerDown={dragResize.onPointerDown}
+                onPointerMove={dragResize.onPointerMove}
+                onPointerUp={dragResize.onPointerUp}
+                onPointerCancel={dragResize.onPointerCancel}
+                onLostPointerCapture={dragResize.onLostPointerCapture}
             />
             <div className={cn('terminal-layout-child', fullBleedClassName, 'flex-1')}>
                 <TerminalNodeView {...properties} node={properties.node.second} />

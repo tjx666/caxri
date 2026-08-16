@@ -8,6 +8,7 @@ import {
     useState,
 } from 'react';
 
+import { pathBasename } from '@caxri/utils';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import type { TerminalRecord } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
@@ -57,8 +58,6 @@ import { pruneEditorTabMotionStates, reconcileEditorTabMotion } from './editor-t
 import { WorkTab } from './work-tab';
 import type { WorkTabNavigationKey } from './work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from './work-tab-accessibility';
-
-const fileName = (path: string): string => path.split('/').findLast(Boolean) ?? path;
 
 function TerminalWorkTab({
     active,
@@ -165,13 +164,13 @@ function EditorWorkTab({
             dirty={isDirty}
             fileIconName={
                 gitDiffTab?.kind === 'file'
-                    ? fileName(gitDiffTab.path)
+                    ? pathBasename(gitDiffTab.path)
                     : gitDiffTab?.kind === 'changes'
                       ? 'changes.diff'
-                      : fileName(path)
+                      : pathBasename(path)
             }
             icon="file"
-            label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : fileName(path)}
+            label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : pathBasename(path)}
             motionIdentity={motionIdentity}
             tabId={tabId}
             onDoubleClick={() => pinEditorTab(path)}

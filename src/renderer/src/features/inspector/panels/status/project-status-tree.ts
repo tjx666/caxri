@@ -1,4 +1,5 @@
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
+import { uniq } from 'es-toolkit';
 
 export type ProjectStatusTreeNode =
     | {
@@ -60,7 +61,7 @@ export function buildProjectStatusNodes(repo: ProjectStatusRepository): ProjectS
     }
     if (repo.deployments) {
         const { branchDeployments } = repo.deployments;
-        const environments = [...new Set(branchDeployments.map((entry) => entry.environment))];
+        const environments = uniq(branchDeployments.map((entry) => entry.environment));
         // The rows below already carry the state via their icon and the branch is printed two
         // rows above, so descriptions avoid repeating either: the header counts per environment
         // when the list is uniform, and rows only name their environment when the list mixes

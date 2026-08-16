@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useNow } from '@/hooks/use-now';
 
 import { executeCommand } from '../../commands/execute';
 import {
@@ -111,6 +112,7 @@ function ActiveFileStatus({
     const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
     const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
+    const now = useNow(30_000);
     const blame = useCaxriQuery(
         'git.blame',
         { sessionId, path, line },
@@ -128,7 +130,7 @@ function ActiveFileStatus({
                     ariaLabel={
                         blame.uncommitted
                             ? `Git blame: uncommitted changes on line ${line}`
-                            : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt)}, ${blame.subject}`
+                            : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt, now)}, ${blame.subject}`
                     }
                     className="statusbar-blame max-w-[420px]"
                     icon={GitCommitHorizontal}
@@ -147,7 +149,7 @@ function ActiveFileStatus({
                 >
                     {blame.uncommitted
                         ? 'Uncommitted changes'
-                        : `${blame.author}, ${relativeTime(blame.authoredAt)} · ${blame.subject}`}
+                        : `${blame.author}, ${relativeTime(blame.authoredAt, now)} · ${blame.subject}`}
                 </StatusInfo>
             )}
             <StatusInfo
@@ -418,6 +420,7 @@ function BranchPicker({
     const queryClient = useQueryClient();
     const [open, setOpen] = useState(false);
     const [switching, setSwitching] = useState(false);
+    const now = useNow(30_000);
     const branchesQuery = useCaxriQuery(
         'git.branches',
         { sessionId, repositoryId },
@@ -493,7 +496,7 @@ function BranchPicker({
                             </span>
                             {committedAt !== undefined && (
                                 <span className="flex-none text-[11px] text-muted">
-                                    {relativeTime(committedAt)}
+                                    {relativeTime(committedAt, now)}
                                 </span>
                             )}
                         </span>

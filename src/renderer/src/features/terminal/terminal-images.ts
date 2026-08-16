@@ -1,6 +1,7 @@
 import type { IImageAddonOptions } from '@xterm/addon-image';
 import { ImageAddon } from '@xterm/addon-image';
 import type { IDisposable } from '@xterm/xterm';
+import { clamp, sumBy } from 'es-toolkit';
 
 const TERMINAL_IMAGE_PIXEL_LIMIT = 1024 * 1024;
 export const TERMINAL_IMAGE_SEQUENCE_LIMIT_BYTES = 64 * 1024;
@@ -61,18 +62,18 @@ export class TerminalImageBudgetManager {
     private rebalance(): void {
         const count = this.terminals.size;
         if (count === 0) return;
-        const perTerminalLimit = Math.min(
-            TERMINAL_IMAGE_STORAGE_LIMIT_MB,
+        const perTerminalLimit = clamp(
             TERMINAL_IMAGE_GLOBAL_STORAGE_LIMIT_MB / count,
+            TERMINAL_IMAGE_STORAGE_LIMIT_MB,
         );
         for (const { addon } of this.terminals.values()) addon.storageLimit = perTerminalLimit;
         this.publishAll();
     }
 
     private publishAll(): void {
-        const globalStorageUsageMb = this.terminals
-            .values()
-            .reduce((total, { addon }) => total + finiteStorageUsage(addon.storageUsage), 0);
+        const globalStorageUsageMb = sumBy(this.terminals.values().toArray(), ({ addon }) =>
+            finiteStorageUsage(addon.storageUsage),
+        );
         for (const { addon, imagesAdded, publish } of this.terminals.values())
             publish({
                 globalStorageLimitMb: TERMINAL_IMAGE_GLOBAL_STORAGE_LIMIT_MB,
