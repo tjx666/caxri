@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import type { RetryPolicyInput } from '../ci-retry-policy';
@@ -246,6 +248,9 @@ describe('CI retry policy', () => {
             'scripts/run-e2e-failure-isolation.ts',
             'scripts/run-e2e-pools.ts',
             'scripts/run-e2e-repair.ts',
+            'scripts/run-e2e-census-fixture.ts',
+            'scripts/fixtures/playwright-census.config.ts',
+            'scripts/fixtures/e2e-census.fixture.ts',
             'scripts/run-ci-parity.ts',
             'scripts/self-hosted-runner.ts',
             'e2e/failure-isolation.e2e.ts',
@@ -254,5 +259,17 @@ describe('CI retry policy', () => {
             expect(isProtectedRetryPath(path), path).toBe(true);
         }
         expect(isProtectedRetryPath('src/runtime/index.ts')).toBe(false);
+    });
+
+    it('protects every scripts/*.ts entrypoint the CI workflow actually executes', async () => {
+        const workflow = await readFile(
+            new URL('../../.github/workflows/ci.yml', import.meta.url),
+            'utf8',
+        );
+        const executedScripts = [...new Set(workflow.match(/scripts\/[\w./-]+\.ts/gu))];
+        expect(executedScripts.length).toBeGreaterThan(0);
+        for (const script of executedScripts) {
+            expect(isProtectedRetryPath(script), script).toBe(true);
+        }
     });
 });
