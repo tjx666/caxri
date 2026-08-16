@@ -15,7 +15,8 @@ prevent accidental inheritance; they do not contain malicious workflow code.
 Only a same-repository PR authored, triggered, and retriggered by `tjx666`, a trusted `main` push,
 or an explicit owner-run validation can execute repository source on this machine. Untrusted PRs
 run only the fixed final gate from the trusted base workflow: it performs no checkout and fails
-closed. Exact trusted `release: v<package-version>` commits additionally run full E2E and Release.
+closed. Every trusted source push to `main` runs the optimized E2E pools; exact trusted
+`release: v<package-version>` commits run the one-worker control E2E suite and Release instead.
 
 The downstream Release job runs only after the same release commit passes self-hosted checks and
 the full Electron E2E suite. That job receives a short-lived `GITHUB_TOKEN` with `contents: write`
