@@ -7,9 +7,12 @@ reference this file; deviations require updating this spec first.
 
 1. **The terminal is the hero.** Chrome (sidebar, tabs, inspector, status bar) stays
    low-contrast and quiet; saturated color is reserved for content and live status.
-2. **One accent focus per screen.** `--accent` marks exactly one thing at a time: the
-   focused pane/tab. Everything else expresses state through foreground shades and
-   background elevation, never through additional accent borders.
+2. **One durable accent focus per screen.** `--accent` marks exactly one resting element
+   at a time: the focused pane/tab. Primary buttons and transient, action-scoped feedback
+   (the drag insertion line, drop-target tint) may also use `--accent` because they exist
+   only for the duration of an interaction. Persistent chrome state expresses itself
+   through foreground shades and background elevation, never through additional accent
+   borders.
 3. **No implementation vocabulary in the UI.** Users see "Settings", "Session",
    "Restart" — never "Runtime", "hot reload", "last-known-good", "bytes".
 4. **Every color comes from a token.** Zero hardcoded hex in component CSS; themes are
@@ -54,7 +57,8 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 `--background`, `--surface`, and `--elevated` alike, and a theme is not free to borrow its
 palette's comment color for it. The built-in palette is asserted against that floor in
 `runtime/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
-pre-Runtime first frame cannot drift.
+pre-Runtime first frame cannot drift. Imported themes are held to the same floor as a
+requirement, but nothing validates them at import time yet (see Known gaps).
 
 ### Type scale (root 13px)
 
@@ -66,7 +70,8 @@ pre-Runtime first frame cannot drift.
 | `meta`  | 11px | secondary lines, captions, tab labels, status bar          |
 | `badge` | 10px | tiny badges/kbd hints only — never sentences               |
 
-8px, 9px, and 10.5px sizes are banned. Monospace previews/diffs use `meta` size. Dense prose may
+Sizes outside the tier table are banned; 8px, 9px, and 10.5px are called out explicitly
+because they each shipped once as regressions. Monospace previews/diffs use `meta` size. Dense prose may
 use unitless `1.45` or `1.5` line height; compact uppercase headings may use `0.04em` or `0.06em`
 tracking. No other arbitrary typography values are allowed.
 
@@ -74,18 +79,26 @@ tracking. No other arbitrary typography values are allowed.
 
 - 4px grid: primary gaps/paddings are 4, 8, 12, 16, 24. Optical half-steps (2, 6, 10px) are
   allowed inside compact control chrome when a glyph or label does not center on the primary grid.
-  The Status Bar alone uses a 5px item inset/gap, and the Files caption uses 3px top/bottom inset
-  to preserve its 34px rail. The macOS traffic-light clearance is the only platform spacing
-  exception: 84px expanded-header padding and 78px collapsed-header/tab-strip clearance.
+  Two grandfathered measurements predate the grid and are kept only to avoid chrome churn — the
+  Status Bar's 5px item inset/gap and the Files caption's 3px top/bottom inset (preserving its
+  34px rail); do not imitate them in new work. The macOS traffic-light clearance is the only
+  platform spacing exception: 84px expanded-header and 78px collapsed-header/tab-strip left
+  padding. Both are horizontal clearance for the window controls; the 44px figure under Window
+  chrome is rail height, a different axis.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
-- Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. Nothing else.
+- Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
+  reserved for intrinsically circular indicators — activity dots and the drag insertion line's
+  leading cap — never for rectangular controls. No other radii.
 
 `src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
-allowlist above and rejects feature-local raw text inputs. Checkbox and color inputs remain native
-by design. Numeric arbitrary width/height constraints are also closed by default; the test's small
-allowlist covers existing structural viewport, empty-state, and platform-diagnostic geometry, not
-additional control-density tiers.
+allowlist above and rejects feature-local raw text inputs. Checkbox and color inputs are currently
+native; the boolean-control half of that exception is scheduled to move to shadcn Switch /
+Checkbox / Field under issue #178, while `input[type=color]` stays native (see Known gaps).
+Numeric arbitrary width/height constraints are also closed by default; the test's small allowlist
+covers existing structural viewport, empty-state, and platform-diagnostic geometry, not additional
+control-density tiers. Every allowlist entry is a grandfathered measurement, not a precedent — a
+new arbitrary value requires updating this spec first with a stated reason.
 
 ## Component redlines
 
@@ -93,7 +106,7 @@ additional control-density tiers.
 top rails share one bottom edge while their interactive tabs remain 36px high. The logo-free Sidebar
 header is the drag region (`-webkit-app-region: drag`, interactive children `no-drag`); Add Project
 is hidden at rest and revealed by hovering anywhere in the expanded Sidebar or by keyboard focus.
-The collapsed Sidebar preserves the same 44px traffic-light drag clearance.
+The collapsed Sidebar preserves the same 44px-tall drag region beneath the traffic lights.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows current-line
@@ -235,3 +248,24 @@ not touched.").
 - Sidebar and inspector get min/max-constrained drag resize; double-click a divider resets to
   default. `Command+[` toggles the Sidebar and `Command+]` toggles the Inspector; the Status Bar
   contains no panel-collapse controls.
+
+## Known gaps
+
+Acknowledged debt in the current spec. Entries here describe shipped reality, not an
+endorsement; resolving one requires updating the sections above in the same change.
+
+- **Boolean form controls** — issue #178 replaces native checkboxes: instant preferences move
+  to shadcn Switch (its track is an approved `rounded-full` exception), true pre-submit
+  opt-ins stay on Checkbox, and Settings/form rows standardize on Field. `input[type=color]`
+  remains native.
+- **State tokens** — there is no `--hover` / `--selected` / `--active` layer, so components
+  hand-roll `color-mix` recipes (status bar, project rows, process explorer, panel divider)
+  and one spot borrows `--selection` as a button hover fill. Until dedicated state tokens
+  land, reuse the closest existing recipe instead of inventing another formula.
+- **Imported-theme contrast** — the `--muted` WCAG AA floor is asserted only for the built-in
+  palette; imported themes are not validated at import time, so a low-contrast theme currently
+  imports without warning.
+- **Panel toggle shortcuts** — `Command+[` / `Command+]` collide with editor indent/navigate
+  muscle memory and, per the global-shortcut rule, cannot fire while focus is in Monaco or
+  xterm — where focus usually rests. Rebinding (e.g. `Command+B` for the Sidebar) is an open
+  product decision.
