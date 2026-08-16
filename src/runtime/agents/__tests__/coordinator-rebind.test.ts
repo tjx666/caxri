@@ -80,6 +80,69 @@ describe('AgentCoordinator session rebinding', () => {
         }
     });
 
+    it('ignores a stale in-flight probe that resolves after a hook rebind', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-rebind-race-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const staleProbeGate = Promise.withResolvers<void>();
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(async (context) => {
+            if (context.agentSessionId === 'session-b') {
+                return {
+                    provider: 'claude',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                    sessionId: 'session-b',
+                    title: 'Resumed session',
+                };
+            }
+            // The pre-rebind probe parks here so its stale result lands only after the rebind.
+            await staleProbeGate.promise;
+            return {
+                provider: 'claude',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'session-a',
+                title: 'Original session',
+            };
+        });
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeOutput(created.terminal!.id);
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalled());
+
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                agentSessionId: 'session-b',
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId: created.terminal!.id,
+            });
+            staleProbeGate.resolve();
+
+            await expect
+                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .toBe('Resumed session');
+            await new Promise((resolve) => setTimeout(resolve, 25));
+            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('session-b');
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Resumed session');
+        } finally {
+            staleProbeGate.resolve();
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('does not rebind to an Agent session another Terminal of the same provider owns', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-rebind-claimed-'));
         temporaryDirectories.push(directory);

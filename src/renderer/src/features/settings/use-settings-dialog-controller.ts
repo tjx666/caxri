@@ -225,9 +225,9 @@ export function useSettingsDialogController() {
     );
 
     /**
-     * Reflects an external `*.changed` push (an edit made through "Open Config File", or our own write echoing back)
-     * into the dialog, so it never shows stale data — the live-verified bug this closes had the Theme tab keep showing
-     * the previous theme's name and swatches after the active theme changed. Disk changes replace the current buffer
+     * Reflects an external `*.changed` push (an edit made in an outside editor, or our own write echoing back) into the
+     * dialog, so it never shows stale data — the live-verified bug this closes had the Theme tab keep showing the
+     * previous theme's name and swatches after the active theme changed. Disk changes replace the current buffer
      * unconditionally, matching the app's explicit external-change rule, and supersede any in-flight write for that
      * kind.
      */
