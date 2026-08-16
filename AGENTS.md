@@ -54,6 +54,19 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   multiple product choices are reasonable, the fix expands scope, or it requires destructive or
   remote mutation; honor an explicit read-only or report-only request.
 
+## Current development status
+
+- Caxri currently has a single human maintainer (the repository owner), who usually runs multiple
+  coding-agent sessions in parallel. Expect sibling sessions to be changing the repository at the
+  same time as yours.
+- Small fixes and minor features are sometimes committed directly on `main` and pushed without a
+  pull request, so `main` and remote branches can move at any moment.
+- When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
+  merge — treat the newest commits as authoritative by default: rebase or merge onto them and
+  resolve conflicts in favor of the latest state, rather than stopping to ask or discarding the
+  unfamiliar work. Escalate only when the conflict implies a real design disagreement that cannot
+  be resolved mechanically.
+
 ## Commands
 
 - Install dependencies: `ni`
