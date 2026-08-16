@@ -100,6 +100,16 @@ export const runtimeEventPayloads = {
     }),
     'files.operationChanged': fileMutationOperationSchema,
     /**
+     * Repository-identity invalidation signal: every Session whose Git projection includes one of the listed
+     * repositories must refetch. Payload carries opaque repository ids only — never a `.git` path or repository
+     * content.
+     */
+    'git.changed': z.object({
+        sessionIds: z.array(identifierSchema).max(1_024),
+        repositoryIds: z.array(identifierSchema).max(256),
+        scope: z.enum(['status', 'topology']),
+    }),
+    /**
      * One-shot, content-free prompt trigger; Git topology remains Runtime-owned.
      */
     'workbench.candidate': z.object({

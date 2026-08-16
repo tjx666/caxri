@@ -430,6 +430,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'agentHooks.changed':
             case 'files.changed':
             case 'files.operationChanged':
+            case 'git.changed':
             case 'terminal.exit':
             case 'terminal.output':
             case 'updates.state':

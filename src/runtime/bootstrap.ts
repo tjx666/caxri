@@ -453,7 +453,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         await dependencies.agentEndpoints?.close();
         await files.close();
         await configuration.close();
-        git.close();
+        await git.close();
         database.close();
     }
     const handlers: RuntimeHandlers = {
@@ -592,7 +592,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 coordinator.forgetSession(session.id);
                 terminals.terminateSession(session.id);
             }
-            git.evictPullRequestSessions(affectedSessionIds);
+            git.evictSessions(affectedSessionIds);
             database.deleteProject(projectId);
             workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
             watchSessionInBackground(selectedSessionId());
@@ -676,7 +676,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             terminalRestores.cancel(sessionId);
             coordinator.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
-            git.evictPullRequestSessions([sessionId]);
+            git.evictSessions([sessionId]);
             database.deleteSession(sessionId);
             watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });

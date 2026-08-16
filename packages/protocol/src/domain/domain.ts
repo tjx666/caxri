@@ -7,9 +7,12 @@ import {
     MAX_TRUSTED_DOMAIN_LENGTH,
     MAX_TRUSTED_DOMAINS,
 } from '../configuration/trusted-domains.js';
+import { gitCommitSchema } from './git.js';
 import { inspectorModeSchema } from './inspector.js';
 import { terminalLayoutSchema } from './layout.js';
 import { workItemSchema } from './work-item.js';
+
+export * from './git.js';
 
 export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
 
@@ -468,57 +471,6 @@ export const fileSearchResultSchema = z.object({
     canceled: z.boolean(),
 });
 
-const gitFileStatusSchema = z.object({
-    path: z.string(),
-    originalPath: z.string().optional(),
-    index: z.string(),
-    workingTree: z.string(),
-    kind: z.enum(['modified', 'added', 'deleted', 'renamed', 'untracked', 'conflicted']),
-});
-
-const gitRepoSummarySchema = z.object({
-    id: z.string(),
-    kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
-    name: z.string(),
-    rootPath: z.string(),
-    branch: z.string(),
-    head: z.string().optional(),
-    ahead: z.number(),
-    behind: z.number(),
-    additions: z.number().int().nonnegative(),
-    deletions: z.number().int().nonnegative(),
-    files: z.array(gitFileStatusSchema),
-});
-
-export const gitPullRequestChangesSchema = z.object({
-    repositoryId: z.string(),
-    number: z.number().int().positive(),
-    title: z.string().max(4_096),
-    url: z.url(),
-    baseRefName: z.string().min(1).max(1_024),
-    headRefName: z.string().min(1).max(1_024),
-    baseOid: z.string().regex(/^[0-9a-f]{40}$/),
-    headOid: z.string().regex(/^[0-9a-f]{40}$/),
-    additions: z.number().int().nonnegative(),
-    deletions: z.number().int().nonnegative(),
-    files: z.array(gitFileStatusSchema).max(2_000),
-});
-
-const gitCommitSchema = z.object({
-    sha: z.string().regex(/^[0-9a-f]{40}$/),
-    shortSha: z.string().min(7).max(12),
-    subject: z.string().max(4_096),
-    author: z.string().max(1_024),
-    authoredAt: z.number().int().nonnegative(),
-    decorations: z.array(z.string().max(1_024)).max(50),
-    parents: z.array(z.string().regex(/^[0-9a-f]{40}$/)).max(64),
-});
-
-export const gitCommitPageSchema = z.object({
-    commits: z.array(gitCommitSchema).max(50),
-    nextOffset: z.number().int().nonnegative().optional(),
-});
-
 const gitCommitFileSchema = z.object({
     path: pathSchema,
     previousPath: pathSchema.optional(),
@@ -539,32 +491,9 @@ export const gitCommitDetailsSchema = z.object({
     filesTruncated: z.boolean(),
 });
 
-export const gitBlameSchema = z.object({
-    sha: z.string().regex(/^[0-9a-f]{40}$/),
-    author: z.string().min(1).max(1_024),
-    authoredAt: z.number().int().nonnegative(),
-    subject: z.string().max(4_096),
-    line: z.number().int().positive(),
-    uncommitted: z.boolean(),
-});
-
 export const terminalResourceUsageSchema = z.object({
     memoryMb: z.number().nonnegative(),
     childProcessCount: z.number().int().nonnegative(),
-});
-
-export const gitSummarySchema = z.object({
-    isRepository: z.boolean(),
-    repositories: z.array(gitRepoSummarySchema),
-    error: z.string().optional(),
-});
-
-export const gitBranchSchema = z.object({
-    name: z.string().min(1).max(1_024),
-    /**
-     * Epoch milliseconds of the branch tip commit's committer date.
-     */
-    committedAt: z.number().int().nonnegative(),
 });
 
 const projectStatusStateSchema = z.enum(['success', 'failure', 'pending', 'neutral', 'unknown']);
@@ -763,16 +692,8 @@ export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
 export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;
 export type FileSearchMatch = z.infer<typeof fileSearchMatchSchema>;
-export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type GitRepositorySummary = z.infer<typeof gitRepoSummarySchema>;
-export type GitSummary = z.infer<typeof gitSummarySchema>;
-export type GitPullRequestChanges = z.infer<typeof gitPullRequestChangesSchema>;
-export type GitCommit = z.infer<typeof gitCommitSchema>;
-export type GitCommitPage = z.infer<typeof gitCommitPageSchema>;
 export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
-export type GitBlame = z.infer<typeof gitBlameSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
 export type TerminalResourceUsage = z.infer<typeof terminalResourceUsageSchema>;
 export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
