@@ -21,11 +21,18 @@ when the user asks to switch to a worktree to get work done (e.g. "切 worktree 
 they are delegating the entire development loop, not just the implementation. Run it end to end
 without pausing for permission between stages:
 
-1. Implement and validate the change in the isolated worktree.
-2. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
-3. Push the branch and open a pull request with the `pull-request` skill.
-4. Watch CI on the PR, repair failures, and re-push until checks are green.
-5. Merge the PR, close the linked issues, and synchronize the primary checkout.
+1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
+   otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
+   identifiers in English) capturing the request, scope, and acceptance expectations, then link it
+   from the branch work and the eventual PR.
+2. Implement and validate the change in the isolated worktree.
+3. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
+4. Push the branch and open a pull request with the `pull-request` skill.
+5. Watch CI on the PR, repair failures, and re-push until checks are green.
+6. Merge the PR, close the linked issues, and synchronize the primary checkout.
+7. File a GitHub issue (same language conventions) for any debt or follow-up the delivery leaves
+   behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
+   in the session transcript.
 
 Stop for discussion instead of merging when review or CI surfaces a real product decision, or when
 the user asked for a narrower scope (e.g. implementation or report only).
