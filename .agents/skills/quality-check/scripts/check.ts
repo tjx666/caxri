@@ -229,9 +229,18 @@ export function testCandidatesForFile(file: string): string[] {
 }
 
 /**
- * Returns whether a test directly imports or re-exports a source file through a relative static specifier. This
- * intentionally does not walk transitive imports: broad runtime suites are much less useful than the tests that name
- * the changed module at their boundary.
+ * Mirrors the `paths` aliases of the root `tsconfig.json` so alias imports resolve to repository paths during direct
+ * import discovery. The colocated contract test asserts this map stays in sync with `tsconfig.json`.
+ */
+export const IMPORT_PATH_ALIASES: ReadonlyArray<{ prefix: string; target: string }> = [
+    { prefix: '@/', target: 'src/renderer/src/' },
+    { prefix: '@shared/', target: 'src/shared/' },
+];
+
+/**
+ * Returns whether a test directly imports or re-exports a source file through a relative or tsconfig-alias static
+ * specifier. This intentionally does not walk transitive imports: broad runtime suites are much less useful than the
+ * tests that name the changed module at their boundary.
  */
 export function hasDirectSourceImport(
     testFile: string,
@@ -257,8 +266,14 @@ export function hasDirectSourceImport(
                 : undefined;
         if (!moduleSpecifier || !ts.isStringLiteral(moduleSpecifier)) continue;
         const specifier = moduleSpecifier.text;
-        if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
-        const imported = posix.normalize(posix.join(posix.dirname(normalizedTest), specifier));
+        let imported: string;
+        if (specifier.startsWith('./') || specifier.startsWith('../')) {
+            imported = posix.normalize(posix.join(posix.dirname(normalizedTest), specifier));
+        } else {
+            const alias = IMPORT_PATH_ALIASES.find(({ prefix }) => specifier.startsWith(prefix));
+            if (!alias) continue;
+            imported = posix.normalize(alias.target + specifier.slice(alias.prefix.length));
+        }
         const importedExtension = extname(imported);
         const importedWithoutExtension = importedExtension
             ? imported.slice(0, -importedExtension.length)
@@ -281,7 +296,12 @@ async function walkVitestTestFiles(root: string, directory: string): Promise<str
         const nested = await Promise.all(
             entries.map(async (entry) => {
                 const path = posix.join(directory, entry.name);
-                if (entry.isDirectory()) return walkVitestTestFiles(root, path);
+                if (entry.isDirectory()) {
+                    // Workspace packages vendor their own `node_modules` and build output; only
+                    // repository test sources belong in the discovery walk.
+                    if (entry.name === 'node_modules' || entry.name === 'dist') return [];
+                    return walkVitestTestFiles(root, path);
+                }
                 return entry.isFile() && VITEST_TEST_FILE.test(path) ? [path] : [];
             }),
         );
@@ -311,7 +331,7 @@ export async function directImportTestCandidates(
 
     const tests = (
         await Promise.all(
-            ['src', '.agents/skills', 'scripts'].map((directory) =>
+            ['src', '.agents/skills', 'scripts', 'packages'].map((directory) =>
                 walkVitestTestFiles(root, directory),
             ),
         )

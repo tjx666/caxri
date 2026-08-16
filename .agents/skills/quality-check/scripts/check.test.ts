@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 import { describe, expect, it } from 'vitest';
@@ -5,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
     directImportTestCandidates,
     hasDirectSourceImport,
+    IMPORT_PATH_ALIASES,
     lintBucketsForFiles,
     lintPipelineForFile,
     parseCheckArguments,
@@ -233,6 +235,58 @@ describe('direct import test selection', () => {
                 'src/runtime/files/service.ts',
             ),
         ).toBe(false);
+    });
+
+    it('recognizes tsconfig path-alias static imports', () => {
+        expect(
+            hasDirectSourceImport(
+                'src/renderer/src/stores/workbench.test.ts',
+                `import type { RuntimeEvent } from '@shared/ipc/events';`,
+                'src/shared/ipc/events.ts',
+            ),
+        ).toBe(true);
+        expect(
+            hasDirectSourceImport(
+                'src/renderer/src/stores/workbench.test.ts',
+                `import { useSessionViewStore } from '@/stores/session-view';`,
+                'src/renderer/src/stores/session-view.ts',
+            ),
+        ).toBe(true);
+        expect(
+            hasDirectSourceImport(
+                'src/renderer/src/stores/workbench.test.ts',
+                `import { z } from 'zod';`,
+                'src/shared/ipc/events.ts',
+            ),
+        ).toBe(false);
+    });
+
+    it('mirrors the root tsconfig path aliases exactly', async () => {
+        const tsconfig = JSON.parse(await readFile('tsconfig.json', 'utf8')) as {
+            compilerOptions: { paths: Record<string, string[]> };
+        };
+        const expected = Object.entries(tsconfig.compilerOptions.paths).map(
+            ([pattern, targets]) => ({
+                prefix: pattern.replace(/\*$/, ''),
+                target: targets[0].replace(/^\.\//, '').replace(/\*$/, ''),
+            }),
+        );
+        expect([...IMPORT_PATH_ALIASES]).toEqual(expected);
+    });
+
+    it('selects a test whose only link to the source is an alias import', async () => {
+        const selected = await directImportTestCandidates(process.cwd(), [
+            'src/shared/ipc/events.ts',
+        ]);
+        expect(selected).toContain('src/renderer/src/stores/workbench.test.ts');
+    });
+
+    it('discovers direct-import tests inside workspace packages', async () => {
+        const selected = await directImportTestCandidates(process.cwd(), [
+            'packages/cli/src/application.ts',
+        ]);
+        expect(selected).toContain('packages/cli/src/commands/__tests__/agent-commands.test.ts');
+        expect(selected.every((test) => !test.includes('node_modules'))).toBe(true);
     });
 
     it('selects only direct FileService suites with the existing narrow heuristic', async () => {
