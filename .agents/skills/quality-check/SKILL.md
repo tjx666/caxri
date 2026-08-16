@@ -48,5 +48,7 @@ focused Vitest selection and regression design, and follow `e2e-testing` for Ele
 Successful ESLint, Prettier, build, Vitest, and Playwright output is intentionally collapsed into
 one summary. Failures include the underlying tool output needed to act.
 
-`bun run knip` and `bun run doctor` remain repository-wide CI gates. Run `knip` (or `--knip`) before
-pushing Renderer or shared-contract changes; `doctor` is slower and normally remains a CI validator.
+`bun run knip` remains a repository-wide CI gate; run `knip` (or `--knip`) before pushing Renderer
+or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
+against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains a
+CI validator.
