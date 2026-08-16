@@ -28,7 +28,7 @@ const onApplied = (): void => {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void refreshWorkbench();
 };
-export const onSettingsError = (error: unknown, label: string): void =>
+const onSettingsError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
 
 /**
