@@ -19,15 +19,45 @@ const signal = {
 };
 const socketPath = process.env.CAXRI_HOOK_SOCKET;
 if (!socketPath || !signal.terminalId || !signal.launchId || !signal.token) process.exit(0);
-const socket = net.createConnection(socketPath);
-socket.setTimeout(750, () => socket.destroy());
-socket.on('connect', () => socket.end(JSON.stringify(signal)));
-socket.on('data', () => {});
-socket.on('error', () => {});
-socket.on('close', () => process.exit(0));
+// Providers pipe a JSON payload on stdin. Only the opaque session identifier is extracted so a manual
+// in-terminal resume can rebind the Terminal; prompt and response content never cross this boundary.
+function readSessionId(callback) {
+  let source = '';
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    let sessionId;
+    try {
+      const payload = JSON.parse(source);
+      const value = payload && (payload.session_id ?? payload.sessionId);
+      if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
+    } catch {}
+    callback(sessionId);
+  };
+  // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
+  const timer = setTimeout(finish, 250);
+  timer.unref?.();
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => {
+    source += chunk;
+    if (source.length > 65536) { source = ''; clearTimeout(timer); finish(); }
+  });
+  process.stdin.on('end', () => { clearTimeout(timer); finish(); });
+  process.stdin.on('error', () => { clearTimeout(timer); finish(); });
+}
+readSessionId((sessionId) => {
+  if (sessionId) signal.agentSessionId = sessionId;
+  const socket = net.createConnection(socketPath);
+  socket.setTimeout(750, () => socket.destroy());
+  socket.on('connect', () => socket.end(JSON.stringify(signal)));
+  socket.on('data', () => {});
+  socket.on('error', () => {});
+  socket.on('close', () => process.exit(0));
+});
 `;
 
-const BRIDGE_VERSION = 1;
+const BRIDGE_VERSION = 2;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

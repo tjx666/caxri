@@ -287,6 +287,32 @@ describe('AgentHookServer', () => {
                     token: 'tok',
                 }),
             ],
+            [
+                'a non-string agentSessionId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'turnFinished',
+                    token: 'tok',
+                    agentSessionId: 1,
+                }),
+            ],
+            [
+                'an overlong agentSessionId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'turnFinished',
+                    token: 'tok',
+                    agentSessionId: 'x'.repeat(257),
+                }),
+            ],
         ])('rejects a signal that is %s', async (_description, payload) => {
             const { server, socketPath, onSignal } = await createTestServer();
             try {
@@ -309,6 +335,25 @@ describe('AgentHookServer', () => {
                 const response = await send(socketPath, validPayload({ token }));
 
                 expect(response).toBe('{"ok":true}\n');
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('forwards an optional provider session identifier to the signal consumer', async () => {
+            const { server, socketPath, onSignal } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'codex');
+
+                const response = await send(
+                    socketPath,
+                    validPayload({ token, agentSessionId: 'provider-session-9' }),
+                );
+
+                expect(response).toBe('{"ok":true}\n');
+                expect(onSignal).toHaveBeenCalledWith(
+                    expect.objectContaining({ agentSessionId: 'provider-session-9' }),
+                );
             } finally {
                 await server.close();
             }
