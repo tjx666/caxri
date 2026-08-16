@@ -1,8 +1,15 @@
 import { commandDefinitions } from '@shared/commands';
-import { Command } from 'cmdk';
 
 import { executeCommand } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '../../components/ui/command';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
@@ -11,11 +18,6 @@ import { didSelectSession, selectProject } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
 
-// Shared row shell for every `Command.Item`: `cmdk` toggles its own `data-selected`
-// attribute, so the selected-row fill is expressed as a `data-[selected=true]` variant
-// instead of the old `[cmdk-item][data-selected='true']` global-CSS attribute selector.
-const commandItemClassName =
-    'group flex min-h-7 cursor-pointer items-start justify-between gap-2 rounded px-2 py-1 data-[selected=true]:bg-elevated';
 const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-[11px] text-muted';
 
 /**
@@ -26,8 +28,7 @@ const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-
 function CommandRow({ command }: { command: (typeof commandDefinitions)[number] }) {
     const shortcut = useCommandShortcut(command.id);
     return (
-        <Command.Item
-            className={commandItemClassName}
+        <CommandItem
             value={`${command.category} ${command.title} ${command.id}`}
             onSelect={() => {
                 setPaletteOpen(false);
@@ -48,7 +49,7 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
                     />
                 )}
             </small>
-        </Command.Item>
+        </CommandItem>
     );
 }
 
@@ -68,20 +69,16 @@ export function CommandPalette() {
             >
                 <DialogTitle className="sr-only">Command Palette</DialogTitle>
                 <Command label="Command Palette" className="w-full">
-                    <Command.Input
+                    <CommandInput
                         autoFocus
-                        className="h-11 w-full border-0 border-b border-border bg-background px-4 text-[13px] text-foreground outline-none"
                         placeholder="Search projects, sessions, and commands…"
                     />
-                    <Command.List className="max-h-[360px] overflow-auto p-1">
-                        <Command.Empty className="p-6 text-center text-muted">
-                            No Project, Session, or command found.
-                        </Command.Empty>
-                        <Command.Group heading="Projects">
+                    <CommandList>
+                        <CommandEmpty>No Project, Session, or command found.</CommandEmpty>
+                        <CommandGroup heading="Projects">
                             {projects.map((project) => (
-                                <Command.Item
+                                <CommandItem
                                     key={project.id}
-                                    className={commandItemClassName}
                                     value={`Project ${project.displayTitle} ${project.rootPath}`}
                                     onSelect={() => {
                                         onOpenChange(false);
@@ -90,18 +87,17 @@ export function CommandPalette() {
                                 >
                                     <span>{project.displayTitle}</span>
                                     <small className={commandItemMetaClassName}>Project</small>
-                                </Command.Item>
+                                </CommandItem>
                             ))}
-                        </Command.Group>
-                        <Command.Group heading="Sessions">
+                        </CommandGroup>
+                        <CommandGroup heading="Sessions">
                             {sessions.map((session) => {
                                 const project = projects.find(
                                     (item) => item.id === session.projectId,
                                 );
                                 return (
-                                    <Command.Item
+                                    <CommandItem
                                         key={session.id}
-                                        className={commandItemClassName}
                                         value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''}`}
                                         onSelect={() => {
                                             onOpenChange(false);
@@ -113,16 +109,16 @@ export function CommandPalette() {
                                         <small className={commandItemMetaClassName}>
                                             {project?.displayTitle ?? 'Session'}
                                         </small>
-                                    </Command.Item>
+                                    </CommandItem>
                                 );
                             })}
-                        </Command.Group>
-                        <Command.Group heading="Commands">
+                        </CommandGroup>
+                        <CommandGroup heading="Commands">
                             {commandDefinitions.map((command) => (
                                 <CommandRow key={command.id} command={command} />
                             ))}
-                        </Command.Group>
-                    </Command.List>
+                        </CommandGroup>
+                    </CommandList>
                 </Command>
             </DialogContent>
         </Dialog>
