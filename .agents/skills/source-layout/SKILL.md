@@ -21,6 +21,7 @@ skill owns placement inside those roots.
 | Browser-safe shared contracts | `src/shared/`            |
 | Node-only shared helpers      | `src/shared/node/`       |
 | Protocol schemas and registry | `packages/protocol/src/` |
+| Browser-safe pure utilities   | `packages/utils/src/`    |
 | CLI adapter                   | `packages/cli/src/`      |
 
 `src/shared/ipc/` is a compatibility re-export layer; it must not define a second method or schema

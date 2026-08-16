@@ -5,7 +5,7 @@ Caxri is a project-first, terminal-native local development workbench for macOS.
 ## Requirements
 
 - macOS on Apple Silicon or Intel
-- Node.js 22.12 or newer
+- Node.js 24 or newer
 - Bun 1.3 or newer
 - Xcode Command Line Tools
 - `ni`
@@ -31,7 +31,7 @@ node packages/cli/dist/caxri.cjs --help
 node packages/cli/dist/caxri.cjs capabilities --json
 ```
 
-`packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 22.12 or newer. The
+`packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 24 or newer. The
 macOS app contains the exact same bundle at `Caxri.app/Contents/Resources/cli/caxri.cjs` plus an
 app-managed launcher at `Caxri.app/Contents/Resources/bin/caxri`; that launcher uses the packaged
 Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode. From that exact installed layout, a human

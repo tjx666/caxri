@@ -8,14 +8,7 @@ tag and GitHub Release.
 
 ## Create a release
 
-For the first `0.1.0` release, after the release workflow itself is on `main`:
-
-```bash
-git commit --allow-empty -m "release: v0.1.0"
-git push origin main
-```
-
-For later releases, update the root application version before committing:
+Update the root application version before committing:
 
 ```bash
 pnpm version patch --no-git-tag-version --no-git-checks
