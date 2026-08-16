@@ -88,7 +88,12 @@ const protectedPathPatterns = [
     /^(?:mise\.toml|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|run-e2e-failure-isolation|run-e2e-pools|run-e2e-repair|self-hosted-runner)\.ts$/,
+    /^scripts\/(?:ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
+    // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
+    // steps (census fixture included), so protect them by prefix instead of enumerating each file
+    // and re-creating the omission that let census infrastructure bypass full validation.
+    /^scripts\/run-e2e-[^/]+\.ts$/,
+    /^scripts\/fixtures\//,
     /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|support\/(?:pools|worker-isolation))\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
