@@ -1,3 +1,4 @@
+import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
 import type { GitFileStatus } from '@shared/types';
 
 interface GitFileTreeDirectory {
@@ -17,10 +18,7 @@ interface GitFileTreeFile {
 export type GitFileTreeNode = GitFileTreeDirectory | GitFileTreeFile;
 
 function sortNodes(nodes: GitFileTreeNode[]): GitFileTreeNode[] {
-    return nodes.toSorted((left, right) => {
-        if (left.kind !== right.kind) return left.kind === 'directory' ? -1 : 1;
-        return left.name.localeCompare(right.name);
-    });
+    return nodes.toSorted(compareTreeNodesDirectoriesFirst);
 }
 
 /**

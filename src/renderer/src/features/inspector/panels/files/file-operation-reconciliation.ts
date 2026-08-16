@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import type { FileMutationOperation } from '@shared/types';
+import { clamp, uniq } from 'es-toolkit';
 
 import { caxri } from '../../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
@@ -74,7 +75,7 @@ function scheduleReconciliationRetry(operation: FileMutationOperation): void {
     if (previous) clearTimeout(previous.timer);
     else pushToast('info', 'File change is still synchronizing in the background');
     const attempt = (previous?.attempt ?? 0) + 1;
-    const delay = Math.min(
+    const delay = clamp(
         RECONCILIATION_RETRY_BASE_MS * 2 ** (attempt - 1),
         MAXIMUM_RECONCILIATION_RETRY_MS,
     );
@@ -170,7 +171,7 @@ async function applyCompletedOperation(operation: FileMutationOperation): Promis
     const directories = [parentDirectoryPath(operation.result.previousPath)];
     if (operation.kind === 'move') directories.push(operation.input.directory);
     await Promise.all(
-        [...new Set(directories)].map((directory) =>
+        uniq(directories).map((directory) =>
             invalidateDirectory(operation.sessionId, workbenchProjectId, directory),
         ),
     );

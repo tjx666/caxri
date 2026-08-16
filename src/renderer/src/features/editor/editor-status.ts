@@ -1,3 +1,4 @@
+import { omit } from 'es-toolkit';
 import { create } from 'zustand';
 
 interface EditorStatus {
@@ -25,9 +26,7 @@ export const useEditorStatusStore = create<EditorStatusState>((set) => ({
     clearStatus(key) {
         set((state) => {
             if (!Object.hasOwn(state.statuses, key)) return state;
-            const statuses = { ...state.statuses };
-            delete statuses[key];
-            return { statuses };
+            return { statuses: omit(state.statuses, [key]) };
         });
     },
 }));

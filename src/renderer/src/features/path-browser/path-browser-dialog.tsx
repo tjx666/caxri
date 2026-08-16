@@ -2,6 +2,7 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
+import { clamp } from 'es-toolkit';
 import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -83,7 +84,7 @@ function PathBrowserContent({
     const isExactMatchAvailable = !isTruncated && matches.length === 1 && matches[0].name === query;
     const isResultsReady = isSettled || isExactMatchAvailable;
     const isListboxRendered = isResultsReady && !isError;
-    const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(matches.length - 1, 0));
+    const effectiveSelectedIndex = clamp(selectedIndex, Math.max(matches.length - 1, 0));
     const selected = isResultsReady ? matches[effectiveSelectedIndex] : undefined;
     const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
     const candidateToCreate = useMemo(

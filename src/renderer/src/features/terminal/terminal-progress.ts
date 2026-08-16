@@ -1,5 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
+import { clamp } from 'es-toolkit';
+
 export type TerminalProgress =
     | { kind: 'error'; value: number }
     | { kind: 'indeterminate' }
@@ -37,7 +39,7 @@ function normalizeProgress(
         return INVALID_PROGRESS;
     if (update.state === 0) return undefined;
     if (!Number.isFinite(update.value)) return INVALID_PROGRESS;
-    const value = Math.round(Math.min(Math.max(update.value, 0), 100));
+    const value = Math.round(clamp(update.value, 0, 100));
     if (update.state === 1) return { kind: 'normal', value };
     if (update.state === 2) return { kind: 'error', value };
     if (update.state === 3) return { kind: 'indeterminate' };

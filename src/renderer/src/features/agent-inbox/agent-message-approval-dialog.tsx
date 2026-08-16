@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AgentHeldMessage, AgentHeldMessageDetail } from '@shared/ipc';
+import { sortBy } from 'es-toolkit';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -20,7 +21,7 @@ import {
 function upsert(messages: AgentHeldMessage[], incoming: AgentHeldMessage): AgentHeldMessage[] {
     const next = messages.filter((message) => message.messageId !== incoming.messageId);
     next.push(incoming);
-    return next.toSorted((left, right) => left.createdAt - right.createdAt);
+    return sortBy(next, ['createdAt']);
 }
 
 /**

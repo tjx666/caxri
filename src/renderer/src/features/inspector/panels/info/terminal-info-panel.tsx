@@ -1,4 +1,5 @@
 import type { TerminalRecord } from '@shared/types';
+import { capitalize } from 'es-toolkit';
 import { CircleDot } from 'lucide-react';
 
 import { resolveAgentIcon } from '../../../../icons/agents/agent-icon-registry';
@@ -7,7 +8,7 @@ import { cn } from '../../../../lib/utilities';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {
-    return state[0].toUpperCase() + state.slice(1);
+    return capitalize(state);
 }
 
 const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
