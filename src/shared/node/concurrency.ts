@@ -22,6 +22,11 @@ export async function mapWithConcurrency<Input, Output>(
             /**
              * Stop claiming queued work, but drain already-started workers before rejecting.
              */
+            // The type-aware checker narrows `isFailed` from the `if (isFailed) return;` guard above
+            // and does not account for concurrent `worker()` calls reassigning it during the awaited
+            // `map()` call (`tsc --strict` correctly widens this to `boolean`); keep the check so a
+            // second worker's failure never clobbers the first recorded `failure`.
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- isFailed can be set by a concurrent worker during the preceding await; checker narrowing is a false positive
             if (!isFailed) {
                 isFailed = true;
                 failure = error;
@@ -32,6 +37,7 @@ export async function mapWithConcurrency<Input, Output>(
     };
     const workerCount = Math.min(inputs.length, Math.max(1, maximum));
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- isFailed can be set by any concurrent worker; checker narrowing is a false positive, see comment above
     if (isFailed) throw failure;
     return results;
 }

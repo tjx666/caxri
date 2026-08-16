@@ -221,7 +221,12 @@ process.stdin.resume();
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
         await expect(running.page.locator('.xterm-rows')).toContainText('Skill Agent ready');
-        const [first, second] = await captures(capturePath);
+        // `.at()` (not array destructuring, which types both bindings as always-defined) types
+        // each capture as possibly `undefined`: the `.poll(...).toBe(2)` above is a runtime
+        // expectation, not a type-level guarantee that the array actually has 2 entries.
+        const skillCaptures = await captures(capturePath);
+        const first = skillCaptures.at(0);
+        const second = skillCaptures.at(1);
         if (!first || !second) throw new Error('Skill Agent Endpoint captures are missing');
         await pageRequest(running.page, 'agent.grant', {
             endpoint: first.context.endpoint.ref,

@@ -86,8 +86,9 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
                   '--url-contains',
               ]);
     for (let index = 1; index < arguments_.length; index += 2) {
+        // `index < arguments_.length` (loop condition) guarantees `option` is in bounds.
         const option = arguments_[index];
-        if (!option?.startsWith('--')) throw new Error(`Unexpected argument: ${option}`);
+        if (!option.startsWith('--')) throw new Error(`Unexpected argument: ${option}`);
         if (!allowedOptions.has(option)) throw new Error(`Unknown option: ${option}`);
         values.set(option, requiredValue(arguments_, index, option));
     }

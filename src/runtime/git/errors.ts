@@ -1,7 +1,15 @@
 import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
 
 export function describeGitFailure(error: unknown): string {
-    const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
+    // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
+    // `message: string`, but `error` is `unknown` at this catch boundary and a thrown value is not
+    // guaranteed to be an `Error` instance with a `message` at runtime.
+    const failure = error as {
+        code?: string;
+        killed?: boolean;
+        message?: string;
+        stderr?: string;
+    };
     if (failure.code === 'ENOENT') return 'Git is not installed or is unavailable on PATH.';
     if (failure.killed || failure.message?.toLowerCase().includes('timed out'))
         return 'The Git operation timed out.';

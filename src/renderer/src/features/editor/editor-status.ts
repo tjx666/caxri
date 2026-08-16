@@ -63,7 +63,7 @@ export function editorLanguageLabel(languageId: string): string {
         languageId
             .split(/[-_]/)
             .filter(Boolean)
-            .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
+            .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
             .join(' ')
     );
 }

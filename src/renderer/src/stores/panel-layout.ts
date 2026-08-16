@@ -95,6 +95,9 @@ export function clampLayoutToViewport(layout: PanelLayout, viewportWidth: number
 }
 
 function isBrowser(): boolean {
+    // DOM lib types declare `localStorage` as always present, but this module also runs under Vitest's Node
+    // environment, where the global is genuinely absent.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
     return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
 }
 

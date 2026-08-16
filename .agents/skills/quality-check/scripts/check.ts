@@ -11,6 +11,11 @@ import ts from 'typescript';
 const execFileAsync = promisify(execFile);
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const CODE_EXTENSIONS = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx']);
+/**
+ * Type-aware linting (oxlint + tsgolint) only understands files that belong to a TypeScript program; plain JS files
+ * stay on the syntactic ESLint pipeline alone.
+ */
+const TYPE_AWARE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 const FORMAT_EXTENSIONS = new Set(['.css', '.html', '.json', '.jsonc', '.md', '.yaml', '.yml']);
 const TEST_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
 const VITEST_TEST_FILE = /\.test\.(?:cts|mts|ts|tsx)$/;
@@ -419,6 +424,24 @@ async function runLint(root: string, files: string[]): Promise<number> {
 
     if (codeFiles.length > 0) {
         await runTool(root, 'eslint', ['--fix', ...codeFiles]);
+        // ESLint is syntactic-only in this repository; type-aware rules run through oxlint/tsgolint
+        // (see .oxlintrc.json). Run it before Prettier so its autofixes get reformatted.
+        const typeAwareFiles = codeFiles.filter((file) =>
+            TYPE_AWARE_EXTENSIONS.has(extname(file).toLowerCase()),
+        );
+        if (typeAwareFiles.length > 0) {
+            // --no-error-on-unmatched-pattern: every named file may fall inside .oxlintrc.json's
+            // ignorePatterns (e.g. scripts/fixtures/eslint/**), which oxlint otherwise treats as
+            // "no files found" and exits 1.
+            await runTool(root, 'oxlint', [
+                '-c',
+                '.oxlintrc.json',
+                '--type-aware',
+                '--fix',
+                '--no-error-on-unmatched-pattern',
+                ...typeAwareFiles,
+            ]);
+        }
         await runTool(root, 'prettier', ['--write', ...codeFiles]);
     }
     if (markdownFiles.length > 0) {

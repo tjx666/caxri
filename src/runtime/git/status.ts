@@ -98,7 +98,7 @@ export class RepoStatusStore<Status> {
     ): Promise<{ generation: number; outcome: StatusOutcome; status: Status }> {
         const generation = this.generation(rootPath);
         const existing = this.snapshots.get(rootPath);
-        if (existing && existing.generation === generation) {
+        if (existing?.generation === generation) {
             const outcome: StatusOutcome = existing.settled ? 'coalesced' : 'joined';
             const snapshot = await existing.promise;
             // The joined production may itself have been superseded and re-produced; report the

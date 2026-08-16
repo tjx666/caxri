@@ -32,7 +32,7 @@ function closingBracket(value: string): ClosingBracket | undefined {
  * Maps each opening/closing bracket character to the closer it affects and the amount by which it shifts that closer's
  * outstanding count, so `trimToken` can update `bracketExcess` without a `switch`/`break` inside its loop.
  */
-const BRACKET_EXCESS_ADJUSTMENTS: Record<string, readonly [ClosingBracket, number]> = {
+const BRACKET_EXCESS_ADJUSTMENTS: Partial<Record<string, readonly [ClosingBracket, number]>> = {
     '(': [')', -1],
     ')': [')', 1],
     '[': [']', -1],
@@ -79,7 +79,7 @@ function parseFileLocation(text: string): {
     target: string;
 } {
     const suffix = /^(.*?):(\d+)(?::(\d+))?$/.exec(text);
-    if (!suffix || !suffix[1]) return { target: text };
+    if (!suffix?.[1]) return { target: text };
     return {
         target: suffix[1],
         line: Number(suffix[2]),
@@ -102,7 +102,7 @@ export function findTerminalLinks(text: string): TerminalLinkMatch[] {
     const links: TerminalLinkMatch[] = [];
     for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
         const raw = url[0];
-        const rawStart = url.index ?? 0;
+        const rawStart = url.index;
         const trimmed = trimToken(raw);
         if (!trimmed.text) continue;
         links.push({
@@ -115,7 +115,7 @@ export function findTerminalLinks(text: string): TerminalLinkMatch[] {
     }
     for (const token of text.matchAll(/\S+/gu)) {
         const raw = token[0];
-        const rawStart = token.index ?? 0;
+        const rawStart = token.index;
         const trimmed = trimToken(raw);
         if (!trimmed.text) continue;
         const startIndex = rawStart + trimmed.startOffset;
@@ -320,8 +320,10 @@ function linksForLogicalLine(
     hint: ReturnType<typeof createLinkHintController>,
 ): ILink[] {
     return findTerminalLinks(logicalLine.text).flatMap((match) => {
-        const start = logicalLine.positions[match.startIndex];
-        const end = logicalLine.positions[match.endIndex - 1];
+        // `.at()` (rather than `[index]`) keeps an out-of-range index's `undefined` case in the type, since this
+        // project does not enable `noUncheckedIndexedAccess`.
+        const start = logicalLine.positions.at(match.startIndex);
+        const end = logicalLine.positions.at(match.endIndex - 1);
         if (!start || !end) return [];
         return [
             {

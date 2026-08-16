@@ -74,7 +74,7 @@ async function runInvocation(
             stdio: 'inherit',
         },
     );
-    return await new Promise<number>((resolve, reject) => {
+    return new Promise<number>((resolve, reject) => {
         child.once('error', reject);
         child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });

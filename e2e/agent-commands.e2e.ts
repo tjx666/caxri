@@ -148,7 +148,7 @@ process.stdin.resume();
         await expect
             .poll(async () => (await jsonLines<EndpointCapture>(capturePath)).length)
             .toBe(1);
-        const controllerCapture = (await jsonLines<EndpointCapture>(capturePath))[0];
+        const controllerCapture = (await jsonLines<EndpointCapture>(capturePath)).at(0);
         if (!controllerCapture) throw new Error('Controller Endpoint capture missing');
         const manifest = await discoverHostManifest(userData);
         controller = await HostClient.connect(manifest, 2_000, {
@@ -200,7 +200,7 @@ process.stdin.resume();
         await expect
             .poll(async () => (await jsonLines<EndpointCapture>(capturePath)).length)
             .toBe(2);
-        const firstTarget = (await jsonLines<EndpointCapture>(capturePath))[1];
+        const firstTarget = (await jsonLines<EndpointCapture>(capturePath)).at(1);
         if (!firstTarget || !firstDispatch.terminalId || !firstDispatch.endpoint)
             throw new Error('Dispatched Endpoint capture missing');
         expect(firstTarget.context.endpoint.terminalId).toBe(firstDispatch.terminalId);
@@ -230,7 +230,7 @@ process.stdin.resume();
         await expect
             .poll(async () => (await jsonLines<EndpointCapture>(capturePath)).length)
             .toBe(3);
-        const currentTarget = (await jsonLines<EndpointCapture>(capturePath))[2];
+        const currentTarget = (await jsonLines<EndpointCapture>(capturePath)).at(2);
         if (!currentTarget) throw new Error('Restarted Endpoint capture missing');
         await expect(
             controller.request('agent.control.interrupt', { endpoint: firstDispatch.endpoint }),
@@ -330,7 +330,7 @@ process.stdin.resume();
         await expect
             .poll(async () => (await jsonLines<EndpointCapture>(capturePath)).length)
             .toBe(4);
-        const awakenedTarget = (await jsonLines<EndpointCapture>(capturePath))[3];
+        const awakenedTarget = (await jsonLines<EndpointCapture>(capturePath)).at(3);
         if (!awakenedTarget) throw new Error('Awakened Endpoint capture missing');
         awakened = await HostClient.connect(manifest, 2_000, {
             kind: 'agent',

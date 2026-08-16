@@ -54,13 +54,11 @@ function exportedFunctionNames(program: Program): Set<string> {
     const names = new Set<string>();
 
     for (const statement of program.body) {
-        if (
-            (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration') &&
-            statement.id
-        ) {
+        // A non-default `FunctionDeclaration`/`ClassDeclaration` (unlike its default-export
+        // counterpart) always carries a name per the estree grammar, so `.id` is never null here.
+        if (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration') {
             bindableDeclarations.add(statement.id.name);
-        }
-        if (statement.type === 'VariableDeclaration') {
+        } else if (statement.type === 'VariableDeclaration') {
             for (const declarator of statement.declarations) {
                 if (declarator.id.type === 'Identifier' && isFunctionLike(declarator.init)) {
                     bindableDeclarations.add(declarator.id.name);
@@ -74,12 +72,18 @@ function exportedFunctionNames(program: Program): Set<string> {
         const exportDeclaration = statement;
         if (exportDeclaration.declaration) {
             const declaration = exportDeclaration.declaration;
+            // Same as above: an exported, non-default `FunctionDeclaration`/`ClassDeclaration`
+            // always has a name, so `.id` is never null here.
             if (
-                (declaration.type === 'FunctionDeclaration' ||
-                    declaration.type === 'ClassDeclaration') &&
-                declaration.id
+                declaration.type === 'FunctionDeclaration' ||
+                declaration.type === 'ClassDeclaration'
             ) {
                 names.add(declaration.id.name);
+                // The estree `Declaration` union claims only Function/Class/Variable declarations, but the
+                // TypeScript parser also emits `TSInterfaceDeclaration`, `TSTypeAliasDeclaration`, etc. at
+                // runtime (e.g. `export interface ButtonProps`), so this check is NOT redundant — dropping
+                // it crashes on `declaration.declarations`.
+                // oxlint-disable-next-line typescript/no-unnecessary-condition -- see above: @types/estree under-represents the TS AST
             } else if (declaration.type === 'VariableDeclaration') {
                 for (const declarator of declaration.declarations) {
                     if (declarator.id.type === 'Identifier' && isFunctionLike(declarator.init)) {

@@ -159,6 +159,9 @@ export function recordCostCheckpoint(
             active: true,
             droppedWork: ['optional_proof', 'p2_p3_expansion', 'discretionary_probes'],
             reason: 'Go hard budget threshold reached; required terminal outcome remains active',
+            // Intentional `||`: a whitespace-only trimmed value must also fall back to the default
+            // message, not be kept as `''`.
+            // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
             revisedEta: input.revisedEta?.trim() || 'Re-estimate at the next safe issue boundary',
         });
     }

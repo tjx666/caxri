@@ -32,7 +32,9 @@ export function AgentMessageApprovalDialog() {
     const [detail, setDetail] = useState<AgentHeldMessageDetail>();
     const [detailFailed, setDetailFailed] = useState(false);
     const [pending, setPending] = useState(false);
-    const current = messages[0];
+    // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
+    // does not enable `noUncheckedIndexedAccess`.
+    const current = messages.at(0);
     const currentMessageId = current?.messageId;
 
     useEffect(() => {
@@ -72,12 +74,13 @@ export function AgentMessageApprovalDialog() {
     useEffect(() => {
         setDetail(undefined);
         setDetailFailed(false);
-        if (!currentMessageId) return () => {};
+        const messageId = currentMessageId;
+        if (!messageId) return () => {};
         let isActive = true;
-        async function loadDetail(): Promise<void> {
+        async function loadDetail(id: string): Promise<void> {
             try {
                 const value = await caxri.request('agent.message.held.get', {
-                    messageId: currentMessageId,
+                    messageId: id,
                 });
                 if (isActive) setDetail(value);
             } catch (error: unknown) {
@@ -90,7 +93,7 @@ export function AgentMessageApprovalDialog() {
             }
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void loadDetail();
+        void loadDetail(messageId);
         return () => {
             isActive = false;
         };

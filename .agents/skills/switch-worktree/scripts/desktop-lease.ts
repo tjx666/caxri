@@ -131,7 +131,11 @@ async function cleanWorkerLeases(stateDirectory: string): Promise<void> {
     const activeFlags = await Promise.all(
         workers.map(async (worker) => {
             if (!worker) return false;
+            // Intentional `||`: `false` must also fall through to the aliveness check, not just
+            // `undefined`. `??` would treat a non-pending (`false`) worker as inactive without
+            // ever probing its process, which is not the intended semantics.
             return (
+                // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
                 worker.handoffPending || (await isProcessIdentityAlive(worker.pid, worker.identity))
             );
         }),
@@ -194,7 +198,7 @@ export async function acquireDesktopLease(
         worktreePath: context.root,
     };
 
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         await options.afterLockAcquired?.();
         if (options.namespace) {
             const coordinator = await readLease(leasePath(context.stateDir));
@@ -255,7 +259,7 @@ export async function acquireDesktopLease(
 export async function reclaimDesktopLeasesByOwner(cwd: string, owner: string): Promise<number> {
     const validatedOwner = validateLeaseOwner(owner);
     const context = await repoContext(cwd);
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         const names = await leaseFileNames(context.stateDir);
         const candidates = await Promise.all(
             names.map(async (name) => {
@@ -319,7 +323,7 @@ export async function beginDesktopLeaseHandoff(
     handle: DesktopLeaseHandle,
 ): Promise<DesktopLeaseHandle> {
     const context = await repoContext(handle.worktreePath);
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         const current = await readLease(handle.leasePath);
         if (!current || current.token !== handle.token)
             throw new CommandError('Desktop lease ownership changed before handoff');
@@ -339,7 +343,7 @@ export async function transferDesktopLease(
     const identity = await getProcessIdentity(ownerPid);
     if (!identity) throw new CommandError(`Could not establish Electron PID ${ownerPid} identity`);
     const context = await repoContext(handle.worktreePath);
-    return await withRepoLock(context, async () => {
+    return withRepoLock(context, async () => {
         const current = await readLease(handle.leasePath);
         if (!current || current.token !== handle.token)
             throw new CommandError('Desktop lease ownership changed before transfer');

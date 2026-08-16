@@ -14,6 +14,7 @@
         "format:md:check": "prettier --check \"**/*.md\"",
         "check": "bun run .agents/skills/quality-check/scripts/check.ts",
         "lint": "eslint . --max-warnings=0 --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache",
+        "lint:type-aware": "oxlint -c .oxlintrc.json --type-aware .",
         "lint:markdown": "markdownlint-cli2 \"**/*.md\"",
         "lint:staged": "lint-staged",
         "knip": "knip",
@@ -48,13 +49,16 @@
         "rebuild": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "spike:native": "bun run scripts/native-spike.ts",
         "spike:pty": "bun run scripts/pty-spike.ts",
-        "spike:agents": "bun run scripts/agent-discovery-spike.ts",
-        "spike:oxlint": "oxlint -c .oxlintrc.json .",
-        "spike:oxlint:type-aware": "oxlint -c .oxlintrc.json --type-aware ."
+        "spike:agents": "bun run scripts/agent-discovery-spike.ts"
     },
     "lint-staged": {
-        "*.{js,jsx,ts,tsx,mjs,cjs}": [
+        "*.{js,jsx,mjs,cjs}": [
             "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{ts,tsx,mts,cts}": [
+            "eslint --fix",
+            "oxlint -c .oxlintrc.json --type-aware --fix --no-error-on-unmatched-pattern",
             "prettier --write"
         ],
         "*.md": [
@@ -81,6 +85,7 @@
                     "scripts/fixtures/e2e-census.fixture.ts",
                     "scripts/fixtures/playwright-census.config.ts",
                     "scripts/fixtures/eslint/type-aware-violation.ts",
+                    "scripts/fixtures/eslint/no-sync-fixture.ts",
                     "scripts/fixtures/eslint/NotKebabCaseFixture.ts",
                     "scripts/fixtures/eslint/child-process-exec-fixture.ts",
                     "scripts/fixtures/eslint/spawn-shell-true-fixture.ts",
@@ -92,8 +97,7 @@
                     "scripts/run-e2e-pools.ts"
                 ],
                 "ignore": [
-                    ".agents/skills/deep-review/scripts/vitest.config.ts",
-                    "prettier.config.d.mts"
+                    ".agents/skills/deep-review/scripts/vitest.config.ts"
                 ]
             },
             "packages/cli": {
@@ -157,7 +161,6 @@
         "electron-vite": "6.0.0-beta.1",
         "es-toolkit": "1.50.0",
         "eslint": "10.8.1",
-        "eslint-plugin-n": "18.3.0",
         "eslint-plugin-react-hooks": "7.1.1",
         "eslint-plugin-react-refresh": "0.5.3",
         "knip": "6.31.0",

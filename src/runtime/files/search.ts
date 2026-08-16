@@ -374,7 +374,8 @@ export class SearchService {
         query.lastIndex = 0;
         const matches = line.matchAll(query);
         for (const match of matches) {
-            const matchIndex = match.index ?? 0;
+            // `RegExpExecArray['index']` is always present for a `matchAll` result.
+            const matchIndex = match.index;
             this.appendMatch(accumulator, {
                 path,
                 relativePath,

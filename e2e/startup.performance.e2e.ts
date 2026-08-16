@@ -90,7 +90,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await terminalInput.pressSequentially(String.raw`printf 'CAXRI_BENCHMARK_INPUT\n'`);
         await terminalInput.press('Enter');
         await page.waitForFunction(() =>
-            document.querySelector('.xterm-rows')?.textContent?.includes('CAXRI_BENCHMARK_INPUT'),
+            document.querySelector('.xterm-rows')?.textContent.includes('CAXRI_BENCHMARK_INPUT'),
         );
 
         const gitStartedAt = performance.now();
@@ -159,7 +159,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
          * Only the cold summary is guaranteed to spawn Git commands; a later fresh production can legitimately report
          * zero when the topology registry and status snapshot are warm.
          */
-        const coldGitSummary = gitSummaries[0];
+        const coldGitSummaryFields = gitSummaries.at(0)?.fields;
         const gitSummariesJoined = records.filter(
             (record) => record.event === 'git.summary' && record.fields?.outcome === 'joined',
         ).length;
@@ -210,7 +210,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                 gitSummary?.durationMs === undefined
                     ? undefined
                     : Math.round(gitSummary.durationMs * 100) / 100,
-            gitSummaryCommandCount: coldGitSummary?.fields?.commandCount,
+            gitSummaryCommandCount: coldGitSummaryFields?.commandCount,
             gitSummariesFresh: gitSummaries.length,
             gitSummariesJoined,
             windowReadyMs:
@@ -245,7 +245,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         // joined/coalesced consumer never spawns its own command chain so only `fresh` is timed.
         expect(gitSummaries.length).toBeGreaterThan(0);
         for (const summaryRecord of gitSummaries) expectTimedEvent(summaryRecord);
-        expect(Number(coldGitSummary?.fields?.commandCount)).toBeGreaterThan(0);
+        expect(Number(coldGitSummaryFields?.commandCount)).toBeGreaterThan(0);
         expectTimedEvent(windowReady);
         expect(watcherReady?.fields?.backend).toMatch(/^(fs-events|poll)$/);
         expect(inputThroughput?.fields?.inputBytes).toBeGreaterThan(0);

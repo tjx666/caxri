@@ -553,10 +553,10 @@ describe('FileMutationService', () => {
                     expect(options.signal).toBeDefined();
                     markTransferStarted();
                     await new Promise<void>((_resolve, reject) => {
-                        options.signal?.addEventListener('abort', () => {
+                        options.signal.addEventListener('abort', () => {
                             reject(
                                 new Error('Transfer aborted', {
-                                    cause: options.signal?.reason,
+                                    cause: options.signal.reason,
                                 }),
                             );
                         });

@@ -142,6 +142,9 @@ function agentDisplayTitle(title: string | undefined, fallback: string): string 
         ?.trim()
         .replace(/^(?:\[image\s+#\d+\]\s*)+/i, '')
         .trim();
+    // `||` (not `??`) is deliberate: a title reduced to `''` by trimming/prefix removal is not
+    // meaningful either and must also fall back to `fallback`.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is also not a meaningful title
     return meaningfulTitle || fallback;
 }
 
@@ -239,6 +242,9 @@ export function decideAgentMetadataUpdate(
         session.titleMode === 'manual'
             ? session.displayTitle
             : agentDisplayTitle(snapshot.title, session.displayTitle);
+    // `||` (not `??`) is deliberate: a trimmed `''` sessionId is also not a real identifier and
+    // must collapse to `undefined`.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also collapse to undefined
     const agentSessionId = snapshot.sessionId?.trim() || undefined;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const attentionKind = isPrimaryAgent

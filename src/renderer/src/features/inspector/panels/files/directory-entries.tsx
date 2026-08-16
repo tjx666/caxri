@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { SubmitEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
@@ -78,7 +78,7 @@ function InlineFileName({
         inputReference.current?.select();
     }, []);
 
-    const submit = async (event: FormEvent): Promise<void> => {
+    const submit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
         event.preventDefault();
         if (pending) return;
         setPending(true);

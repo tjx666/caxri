@@ -179,10 +179,13 @@ exec -a claude /bin/zsh -c 'while :; do printf "tick\n"; sleep 1; done'
                         provider?: string;
                     }>;
                 }>(page, 'app.bootstrap');
-                const terminal = state.terminals[0];
+                // `.at()` (not index access, which types the element as always-defined) types
+                // `terminal` as possibly `undefined`, matching the real possibility that the page
+                // hasn't created any terminal yet when this poll first runs.
+                const terminal = state.terminals.at(0);
                 return {
                     agentSessionId: terminal?.agentSessionId,
-                    isPrimary: state.sessions[0]?.primaryAgentTerminalId === terminal?.id,
+                    isPrimary: state.sessions.at(0)?.primaryAgentTerminalId === terminal?.id,
                     kind: terminal?.kind,
                     provider: terminal?.provider,
                 };

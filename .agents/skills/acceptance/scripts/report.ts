@@ -697,15 +697,14 @@ async function main(argv: string[]): Promise<void> {
         console.log(path);
         return;
     }
-    if (command === 'finalize') {
-        const report = await finalizeReport({
-            conclusion: option(options, 'conclusion'),
-            directory,
-            requirement,
-        });
-        console.log(JSON.stringify(report.summary, null, 2));
-        return;
-    }
+    // `command` can only be 'finalize' here: 'help'/'--help' returned above, and 'init' and
+    // 'rebind-head' were each handled (and returned) by the branches above.
+    const report = await finalizeReport({
+        conclusion: option(options, 'conclusion'),
+        directory,
+        requirement,
+    });
+    console.log(JSON.stringify(report.summary, null, 2));
 }
 
 const SCRIPT_PATH = resolve(fileURLToPath(import.meta.url));

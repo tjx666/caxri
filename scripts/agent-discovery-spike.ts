@@ -21,6 +21,9 @@ async function findExecutable(name: string): Promise<string | undefined> {
         }
     }
 
+    // Intentional `||`: an empty `SHELL` value must also fall back to the default shell, not be
+    // kept as `''`.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
     const shell = process.env.SHELL || '/bin/zsh';
     try {
         const { stdout } = await execFileAsync(shell, ['-lic', `command -v ${name}`], {

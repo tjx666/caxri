@@ -92,7 +92,12 @@ process.stdin.resume();
         const sessionId = await createProjectSession(running.page, 'codex');
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
-        const [senderCapture, receiverCapture] = await captures(capturePath);
+        // `.at()` (not array destructuring, which types both bindings as always-defined) types
+        // each capture as possibly `undefined`: the `.poll(...).toBe(2)` above is a runtime
+        // expectation, not a type-level guarantee that the array actually has 2 entries.
+        const capturedEndpoints = await captures(capturePath);
+        const senderCapture = capturedEndpoints.at(0);
+        const receiverCapture = capturedEndpoints.at(1);
         if (!senderCapture || !receiverCapture) throw new Error('Agent Endpoint capture missing');
         expect(senderCapture.context.endpoint.messaging).toMatchObject({
             deliveryMode: 'pull',
@@ -215,7 +220,7 @@ process.stdin.resume();
             .toBe('expired');
         await expect(approval).toHaveCount(0);
         await expect.poll(async () => (await captures(capturePath)).length).toBe(3);
-        const restarted = (await captures(capturePath))[2];
+        const restarted = (await captures(capturePath)).at(2);
         if (!restarted) throw new Error('Restarted Agent Endpoint capture missing');
         receiver.close();
         receiver = await HostClient.connect(manifest, 2_000, {

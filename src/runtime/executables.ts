@@ -87,6 +87,9 @@ export class ExecutableResolver {
 
     private async readLoginPath(): Promise<string | undefined> {
         const source = this.sourceEnvironment();
+        // `||` (not `??`) is deliberate: `SHELL=''` is not a runnable shell either and must also
+        // fall back to the default.
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid shell path either
         const shell = source.SHELL || '/bin/zsh';
         try {
             const { stdout } = await this.run(

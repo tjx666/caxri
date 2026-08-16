@@ -10,6 +10,7 @@ vi.mock('../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 import {
     getResolvedActiveWork,
     getSessionActiveWork,
+    getSessionDocuments,
     useSessionViewStore,
 } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -333,7 +334,7 @@ describe('session-scoped file mutation completion', () => {
         read.resolve({ content: 'disk', mtimeMs: 1, path: '/project/source.ts', size: 4 });
 
         await expect(opening).resolves.toBe('/project/renamed.ts');
-        const documents = useSessionViewStore.getState().documents['session-1'];
+        const documents = getSessionDocuments('session-1');
         expect(Object.keys(documents ?? {})).toEqual(['/project/renamed.ts']);
         expect(documents?.['/project/renamed.ts']).toMatchObject({ content: 'disk', dirty: false });
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
@@ -403,7 +404,7 @@ describe('session-scoped file mutation completion', () => {
         write.resolve({ content: 'unsaved', mtimeMs: 2, path: '/project/source.ts', size: 7 });
         await saving;
 
-        const documents = useSessionViewStore.getState().documents['session-1'];
+        const documents = getSessionDocuments('session-1');
         expect(Object.keys(documents ?? {})).toEqual(['/project/renamed.ts']);
         expect(documents?.['/project/renamed.ts']).toMatchObject({
             content: 'newer unsaved',

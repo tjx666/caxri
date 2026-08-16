@@ -326,6 +326,10 @@ export class FileMutationJournal {
              * The native create already succeeded before its inode refinement is persisted. Keep the durable pre-create
              * stage and retry the identity plus completion in-process.
              */
+            // The type-aware checker does not account for `isRefinesCreatedIdentity` being reassigned
+            // inside the `this.mutate(() => {...})` callback above (`tsc --strict` correctly widens
+            // this to `boolean`); dropping the check would misclassify a create-refinement failure.
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- reassigned inside the mutate() callback; checker narrowing is a false positive
             if (isRefinesCreatedIdentity)
                 throw new StagedCreatePersistenceError(expectedResult, { cause: error });
             throw error;
@@ -365,7 +369,7 @@ export class FileMutationJournal {
     private async cancelPreStage(operationId: string, message: string): Promise<void> {
         const operation = await this.mutate(() => {
             const current = this.records.get(operationId);
-            if (!current || current.phase !== 'pre_stage') return;
+            if (current?.phase !== 'pre_stage') return;
             current.phase = 'canceled';
             current.updatedAt = this.now();
             current.error = { code: 'TIMEOUT', message };
@@ -481,8 +485,7 @@ export class FileMutationJournal {
                 const operation = await this.get(operationId);
                 const expected = pending.expectedResult ?? operation?.expectedResult;
                 if (
-                    !operation ||
-                    operation.phase !== 'staged' ||
+                    operation?.phase !== 'staged' ||
                     !(await this.expectedResultMatches(operation, expected))
                 ) {
                     if (operation && !finalPhases.has(operation.phase))

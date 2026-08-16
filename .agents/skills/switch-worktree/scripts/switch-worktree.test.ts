@@ -54,7 +54,7 @@ const temporaryDirectories: string[] = [];
 const activeLeases: DesktopLeaseHandle[] = [];
 
 async function git(cwd: string, ...arguments_: string[]): Promise<string> {
-    return await runCapture('git', arguments_, cwd);
+    return runCapture('git', arguments_, cwd);
 }
 
 async function createFixture(): Promise<Fixture> {

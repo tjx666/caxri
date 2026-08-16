@@ -7,7 +7,9 @@ type FixtureResponse = string | Error;
 
 function fixtureRunner(overrides: Record<string, FixtureResponse | FixtureResponse[]> = {}) {
     const calls: string[] = [];
-    const defaults: Record<string, string> = {
+    // Partial (not Record<string, string>): lookups below may use a command key that isn't
+    // present in this fixture map, so the value genuinely can be `undefined`.
+    const defaults: Partial<Record<string, string>> = {
         'gh api user --jq .login': 'builder\n',
         'gh project item-list 2 --owner tjx666 --format json --limit 1000 --jq': JSON.stringify([
             {

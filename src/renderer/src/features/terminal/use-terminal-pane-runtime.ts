@@ -528,6 +528,9 @@ export function useTerminalPaneRuntime({
             }
             if (isDisposed) return;
             await replay.restoreInitial(payload);
+            // TS narrows `isDisposed` to `false` here because it cannot see the `dispose()` closure reassigning it
+            // during the `await` above; the pane can genuinely be torn down while `restoreInitial` is in flight.
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
             if (isDisposed) return;
             /**
              * Resize only after xterm has parsed the snapshot and every output event buffered behind it.

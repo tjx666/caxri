@@ -421,8 +421,7 @@ export class GitRepoService {
                 const parentGeneration = this.statuses.generation(parent.rootPath);
                 const cached = this.childCache.get(parent.rootPath);
                 if (
-                    cached &&
-                    cached.approvedKey === approvedKey &&
+                    cached?.approvedKey === approvedKey &&
                     cached.parentGeneration === parentGeneration &&
                     cached.topologyGeneration === topologyGeneration
                 )

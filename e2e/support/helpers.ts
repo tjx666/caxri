@@ -536,7 +536,7 @@ async function terminalTextBounds(page: Page, text: string) {
 
         let matched: { x: number; y: number; width: number; height: number } | undefined;
         for (const row of rows.children) {
-            const rowText = row.textContent ?? '';
+            const rowText = row.textContent;
             const targetStart = rowText.indexOf(target);
             if (targetStart === -1) continue;
             const found = findTextNodeRange(row, targetStart);

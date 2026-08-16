@@ -82,8 +82,11 @@ async function stopHost(userDataPath: string): Promise<void> {
                 }
                 let isProcessExists: boolean;
                 try {
+                    // `pid` is always defined here: its only assignment (`host.status` above) is
+                    // unguarded by a `catch`, so a failure there would already have aborted this
+                    // function before reaching this poll.
                     if (pid) process.kill(pid, 0);
-                    isProcessExists = pid !== undefined;
+                    isProcessExists = true;
                 } catch {
                     isProcessExists = false;
                 }

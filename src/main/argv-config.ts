@@ -44,7 +44,7 @@ function normalizeArgvConfig(parsed: unknown): ArgvConfig {
  */
 export function readArgvConfigAtBoot(userDataPath: string): ArgvConfig {
     try {
-        // eslint-disable-next-line n/no-sync -- must resolve before `app.whenReady()`; see JSDoc above
+        // oxlint-disable-next-line node/no-sync -- must resolve before `app.whenReady()`; see JSDoc above
         const source = readFileSync(argvConfigPath(userDataPath), 'utf8');
         return normalizeArgvConfig(parseJsonc(source));
     } catch {

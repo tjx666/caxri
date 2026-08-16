@@ -52,7 +52,9 @@ describe('TerminalManager shell integration launch', () => {
         try {
             await manager.start(created.terminal!);
             expect(shellIntegration).toHaveBeenCalledWith('/bin/zsh', expect.any(Object));
-            const options = spawn.mock.calls[0]?.[2];
+            // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `spawn` may never have
+            // been called if the assertion above already failed.
+            const options = spawn.mock.calls.at(0)?.[2];
             expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
             expect(spawn.mock.calls[0]?.[1]).toEqual(['--controlled']);
             expect(options?.env).toMatchObject({ CAXRI_INTEGRATED: '/bin/zsh' });

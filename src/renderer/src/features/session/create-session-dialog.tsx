@@ -28,7 +28,7 @@ export function CreateSessionDialog() {
     const pendingRoot = useDialogStore((state) => state.pendingRoot);
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
-    const isOpen = Boolean(pendingRoot || pendingProjectId);
+    const isOpen = Boolean(pendingRoot ?? pendingProjectId);
     const contextLabel = pendingRoot
         ? pathBasename(pendingRoot)
         : projects?.find((project) => project.id === pendingProjectId)?.displayTitle;

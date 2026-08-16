@@ -629,6 +629,10 @@ export class WatcherService {
             MAX_CONCURRENT_POLL_DIRECTORIES,
             async (path) => [path, await this.readPathFingerprint(path)] as const,
         );
+        // `this.watchedScope` can change while `mapWithConcurrency` above is awaited (another Session
+        // switch or watch stop); the generation/scope re-check here guards against applying stale
+        // fingerprints, so it must run even though the checker narrows the scope from line 616.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- watchedScope can change during the preceding await
         if (generation !== this.watchGeneration || sessionId !== this.watchedScope?.sessionId)
             return;
         for (const [path, fingerprint] of fingerprints)

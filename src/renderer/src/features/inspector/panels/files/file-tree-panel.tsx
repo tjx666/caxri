@@ -77,7 +77,9 @@ export function FileTreePanel() {
     const projectOperations = operations.filter(
         (operation) => operation.projectId === selectedProjectId,
     );
-    const pendingOperation = projectOperations[0];
+    // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
+    // does not enable `noUncheckedIndexedAccess`.
+    const pendingOperation = projectOperations.at(0);
     const isCancelRevealed = useIsCancelRevealed(pendingOperation);
     const fileCaptionReference = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);

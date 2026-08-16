@@ -213,7 +213,10 @@ function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string
 }
 
 function classifyCliFailure(
-    error: NodeJS.ErrnoException & { killed?: boolean; stderr?: string },
+    // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
+    // `message: string`, but callers pass a plain `error as {...}` cast over an `unknown` catch
+    // value, which is not guaranteed to be an `Error` instance with a `message` at runtime.
+    error: { code?: string; killed?: boolean; message?: string; stderr?: string },
 ): CliFailureKind {
     if (error.code === 'ENOENT') return 'not-found';
     const stderr = error.stderr ?? error.message ?? '';
@@ -781,9 +784,12 @@ export async function runProjectStatusCommand(
         return stdout;
     } catch (error) {
         const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
+        // `||` (not `??`) is deliberate: an empty `stderr` string carries no useful detail either and
+        // should also fall back to `message`.
         throw new ProjectStatusCliError(
             command,
             classifyCliFailure(failure),
+            // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty stderr string is also not useful detail
             failure.stderr || failure.message,
         );
     }
